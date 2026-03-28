@@ -4,11 +4,13 @@ expertMode = true
 
 [nix]
 channel = "stable-25_05"
+packages = ["psmisc"]
 
 [deployment]
-deploymentTarget = "autoscale"
+deploymentTarget = "static"
 run = ["node", "./dist/index.cjs"]
 build = ["npm", "run", "build"]
+publicDir = "dist/"
 
 [workflows]
 runButton = "Project"
@@ -37,3 +39,7 @@ outputType = "webview"
 [[ports]]
 localPort = 5000
 externalPort = 80
+
+[[ports]]
+localPort = 5001
+externalPort = 3000
