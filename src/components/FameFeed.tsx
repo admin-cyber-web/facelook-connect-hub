@@ -1,110 +1,227 @@
-import { useState } from "react";
-import { motion } from "framer-motion";
-import { Heart, MessageCircle, Share2, Flower2, Frown, Angry, ThumbsUp } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { supabase } from "../lib/supabase"; // पक्का कर लो कि path सही है
+import {
+  Image as ImageIcon,
+  Send,
+  X,
+  Loader2,
+  Heart,
+  MessageCircle,
+  Share2,
+} from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 
-interface Post {
-  id: number;
-  author: string;
-  initials: string;
-  gradient: string;
-  time: string;
-  content: string;
-  likes: number;
-  comments: number;
-}
+const FameFeed = () => {
+  const [posts, setPosts] = useState<any[]>([]);
+  const [text, setText] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-const REACTIONS = [
-  { icon: ThumbsUp, label: "Like", color: "text-primary" },
-  { icon: Heart, label: "Love", color: "text-accent" },
-  { icon: Frown, label: "Cry", color: "text-secondary" },
-  { icon: Flower2, label: "Flowers", color: "text-primary" },
-  { icon: Angry, label: "Angry", color: "text-destructive" },
-];
+  // 🔄 1. रियल-टाइम में पोस्ट्स लाना (Fetch & Listen)
+  useEffect(() => {
+    fetchPosts();
 
-const posts: Post[] = [
-  { id: 1, author: "Amna Khan", initials: "AK", gradient: "bg-gradient-to-br from-primary to-secondary", time: "2h ago", content: "Just finished building my first React app with Facelook! The glassmorphism vibes are unreal 🔥✨", likes: 42, comments: 8 },
-  { id: 2, author: "Bilal Ahmed", initials: "BA", gradient: "bg-gradient-to-br from-secondary to-accent", time: "5h ago", content: "Exploring new group features on Flame 🔥 Who wants to join our dev community?", likes: 128, comments: 23 },
-  { id: 3, author: "Sana Mirza", initials: "SM", gradient: "bg-gradient-to-br from-accent to-primary", time: "8h ago", content: "Morning vibes with coffee and code ☕💻 What's everyone working on today?", likes: 67, comments: 15 },
-];
+    // जब भी कोई नई पोस्ट 'posts' टेबल में आए, उसे तुरंत लिस्ट में जोड़ दो
+    const subscription = supabase
+      .channel("public:posts")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "posts" },
+        (payload) => {
+          setPosts((prev) => [payload.new, ...prev]);
+        },
+      )
+      .subscribe();
 
-const PostCard = ({ post }: { post: Post }) => {
-  const [showReactions, setShowReactions] = useState(false);
-  const [liked, setLiked] = useState(false);
+    return () => {
+      supabase.removeChannel(subscription);
+    };
+  }, []);
+
+  const fetchPosts = async () => {
+    const { data, error } = await supabase
+      .from("posts")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (error) console.error("Fetch Error:", error.message);
+    else if (data) setPosts(data);
+  };
+
+  // 📸 2. फोटो सेलेक्ट करना
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files?.[0]) {
+      const selectedFile = e.target.files[0];
+      setFile(selectedFile);
+      setPreview(URL.createObjectURL(selectedFile));
+    }
+  };
+
+  // 🚀 3. पोस्ट पब्लिश करना (Image + Text)
+  const handlePost = async () => {
+    if (!text && !file) return;
+    setLoading(true);
+
+    try {
+      let imageUrl = "";
+
+      // अगर फोटो है, तो उसे 'post' बाकेट में अपलोड करो
+      if (file) {
+        const fileExt = file.name.split(".").pop();
+        const fileName = `${Date.now()}.${fileExt}`;
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from("post") // तुम्हारा बाकेट नाम
+          .upload(fileName, file);
+
+        if (uploadError) throw uploadError;
+
+        const { data: urlData } = supabase.storage
+          .from("post")
+          .getPublicUrl(fileName);
+        imageUrl = urlData.publicUrl;
+      }
+
+      // डेटाबेस में सेव करो
+      const { error: insertError } = await supabase
+        .from("posts") // तुम्हारी टेबल का नाम
+        .insert([
+          {
+            content: text,
+            image_url: imageUrl,
+            author: "Me", // यहाँ बाद में असली User का नाम आएगा
+          },
+        ]);
+
+      if (insertError) throw insertError;
+
+      // सब रिसेट कर दो
+      setText("");
+      setFile(null);
+      setPreview(null);
+    } catch (err: any) {
+      alert("Error: " + err.message);
+    }
+    setLoading(false);
+  };
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="glass rounded-2xl p-5"
-    >
-      {/* Author */}
-      <div className="flex items-center gap-3 mb-3">
-        <div className={`w-10 h-10 rounded-full ${post.gradient} flex items-center justify-center text-primary-foreground font-semibold text-sm`}>
-          {post.initials}
-        </div>
-        <div>
-          <p className="text-sm font-semibold text-foreground">{post.author}</p>
-          <p className="text-[11px] text-muted-foreground">{post.time}</p>
-        </div>
-      </div>
+    <div className="max-w-xl mx-auto p-4 pb-24 font-sans">
+      <h2 className="text-center text-xl font-black text-slate-800 mb-8 uppercase tracking-widest">
+        Fame Feed
+      </h2>
 
-      {/* Content */}
-      <p className="text-sm text-foreground/90 leading-relaxed mb-4">{post.content}</p>
+      {/* --- Create Post Card --- */}
+      <div className="bg-white rounded-[2.5rem] p-5 shadow-xl shadow-slate-200/50 mb-10 border border-slate-100">
+        <textarea
+          placeholder="Share your vibe..."
+          className="w-full bg-transparent border-none focus:ring-0 text-sm h-12 resize-none"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+        />
 
-      {/* Reactions popup */}
-      {showReactions && (
-        <motion.div
-          initial={{ opacity: 0, y: 10, scale: 0.9 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          className="glass-strong rounded-full px-3 py-2 mb-3 flex items-center gap-3 w-fit"
-        >
-          {REACTIONS.map((r) => (
+        {preview && (
+          <div className="relative mt-2 rounded-2xl overflow-hidden border border-slate-100">
+            <img
+              src={preview}
+              className="w-full h-48 object-cover"
+              alt="preview"
+            />
             <button
-              key={r.label}
-              onClick={() => { setLiked(true); setShowReactions(false); }}
-              className={`${r.color} hover:scale-125 transition-transform`}
-              title={r.label}
+              onClick={() => {
+                setFile(null);
+                setPreview(null);
+              }}
+              className="absolute top-2 right-2 bg-black/50 p-1 rounded-full text-white"
             >
-              <r.icon size={20} />
+              <X size={16} />
             </button>
-          ))}
-        </motion.div>
-      )}
+          </div>
+        )}
 
-      {/* Actions */}
-      <div className="flex items-center gap-6 text-muted-foreground">
-        <button
-          onMouseEnter={() => setShowReactions(true)}
-          onMouseLeave={() => setTimeout(() => setShowReactions(false), 1500)}
-          onClick={() => setLiked(!liked)}
-          className={`flex items-center gap-1.5 text-xs font-medium transition-colors ${liked ? 'text-accent' : 'hover:text-primary'}`}
-        >
-          <Heart size={16} fill={liked ? "currentColor" : "none"} />
-          {post.likes + (liked ? 1 : 0)}
-        </button>
-        <button className="flex items-center gap-1.5 text-xs font-medium hover:text-primary transition-colors">
-          <MessageCircle size={16} />
-          {post.comments}
-        </button>
-        <button className="flex items-center gap-1.5 text-xs font-medium hover:text-primary transition-colors ml-auto">
-          <Share2 size={16} />
-          Share
-        </button>
+        <div className="flex items-center justify-between mt-4 pt-4 border-t border-slate-50">
+          <input
+            type="file"
+            hidden
+            ref={fileInputRef}
+            onChange={handleFileChange}
+            accept="image/*"
+          />
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="flex items-center gap-2 text-blue-600 font-bold text-xs bg-blue-50 px-4 py-2 rounded-xl active:scale-95 transition-transform"
+          >
+            <ImageIcon size={18} /> Gallery
+          </button>
+          <button
+            onClick={handlePost}
+            disabled={loading}
+            className="bg-blue-600 text-white px-6 py-2 rounded-xl font-bold text-xs flex items-center gap-2 disabled:opacity-50 active:scale-95 transition-transform"
+          >
+            {loading ? (
+              <Loader2 className="animate-spin" size={16} />
+            ) : (
+              <Send size={16} />
+            )}{" "}
+            POST
+          </button>
+        </div>
       </div>
-    </motion.div>
+
+      {/* --- Posts List --- */}
+      <div className="space-y-6">
+        <AnimatePresence>
+          {posts.map((post) => (
+            <motion.div
+              key={post.id}
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="bg-white rounded-[2rem] p-5 shadow-sm border border-slate-100"
+            >
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold">
+                  {post.author?.[0]}
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-slate-800">
+                    {post.author}
+                  </h4>
+                  <p className="text-[10px] text-slate-400 font-bold tracking-wider uppercase">
+                    Just Now
+                  </p>
+                </div>
+              </div>
+
+              <p className="text-sm text-slate-600 mb-4">{post.content}</p>
+
+              {post.image_url && (
+                <div className="rounded-2xl overflow-hidden mb-4 shadow-inner border border-slate-50">
+                  <img
+                    src={post.image_url}
+                    className="w-full h-auto max-h-[400px] object-cover"
+                    alt="post"
+                  />
+                </div>
+              )}
+
+              <div className="flex items-center gap-6 pt-3 border-t border-slate-50">
+                <button className="flex items-center gap-2 text-xs font-bold text-slate-400 hover:text-red-500 transition-colors">
+                  <Heart size={18} /> 0
+                </button>
+                <button className="flex items-center gap-2 text-xs font-bold text-slate-400 hover:text-blue-500 transition-colors">
+                  <MessageCircle size={18} /> 0
+                </button>
+                <button className="ml-auto text-slate-400 hover:text-slate-600">
+                  <Share2 size={18} />
+                </button>
+              </div>
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      </div>
+    </div>
   );
 };
-
-const FameFeed = () => (
-  <div className="px-4 md:px-8 space-y-4">
-    <h2 className="text-sm font-bold uppercase tracking-widest text-foreground/60 flex items-center gap-2">
-      <span className="w-1.5 h-1.5 rounded-full bg-primary" />
-      Fame Feed
-    </h2>
-    {posts.map((post, i) => (
-      <PostCard key={post.id} post={post} />
-    ))}
-  </div>
-);
 
 export default FameFeed;
