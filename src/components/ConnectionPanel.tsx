@@ -4,20 +4,20 @@ import {
   Video,
   Star,
   PhoneOff,
-  User,
   Mic,
   Camera,
   ArrowRightLeft,
+  ShieldCheck,
 } from "lucide-react";
 import AgoraRTC from "agora-rtc-sdk-ng";
 
-// --- 🔑 आपकी असली AGORA APP ID सेट कर दी है ---
+// --- 🔑 AGORA SETTINGS ---
 const APP_ID = "e7f6e9aeecf14b2ba10e3f40be9f56e7";
 const CHANNEL = "facelook_live";
 
-// --- इमेजेस (आप इन्हें अपनी पसंद से बदल सकते हैं) ---
+// --- MODELS IMAGES ---
 const models = {
-  girl: "https://images.unsplash.com/photo-1516714435131-44d6b64dc6a2?w=400&q=80",
+  girl: "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=400&q=80",
   boy: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&q=80",
 };
 
@@ -27,53 +27,71 @@ const ConnectionPanel = () => {
   const localVideoRef = useRef<HTMLDivElement>(null);
   const remoteVideoRef = useRef<HTMLDivElement>(null);
 
-  // Agora Client Setup
   const rtc = useRef<any>({
     client: AgoraRTC.createClient({ mode: "rtc", codec: "vp8" }),
     localAudioTrack: null,
     localVideoTrack: null,
   });
 
+  // --- 🛡️ CAMERA PERMISSION & START CALL LOGIC ---
   const startCall = async () => {
-    setIsSearching(true);
-    setTimeout(async () => {
-      try {
-        // Agora Join
-        await rtc.current.client.join(APP_ID, CHANNEL, null, null);
-        rtc.current.localAudioTrack =
-          await AgoraRTC.createMicrophoneAudioTrack();
-        rtc.current.localVideoTrack = await AgoraRTC.createCameraVideoTrack();
+    // Check for Secure Context (HTTPS)
+    if (!window.isSecureContext) {
+      alert(
+        "⚠️ Error: Video call requires a secure (HTTPS) connection. Please open the preview in a new tab!",
+      );
+      return;
+    }
 
-        setIsSearching(false);
-        setInCall(true);
+    try {
+      // Step 1: Request Camera/Mic Permissions from Browser
+      await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
 
-        // अपनी वीडियो दिखाना
-        setTimeout(() => {
-          if (localVideoRef.current)
-            rtc.current.localVideoTrack.play(localVideoRef.current);
-        }, 500);
+      setIsSearching(true);
 
-        // दूसरे यूजर को सुनना/देखना
-        rtc.current.client.on(
-          "user-published",
-          async (user: any, mediaType: string) => {
-            await rtc.current.client.subscribe(user, mediaType);
-            if (mediaType === "video" && remoteVideoRef.current) {
-              user.videoTrack.play(remoteVideoRef.current);
-            }
-          },
-        );
+      // Step 2: Agora Connection Logic
+      setTimeout(async () => {
+        try {
+          await rtc.current.client.join(APP_ID, CHANNEL, null, null);
+          rtc.current.localAudioTrack =
+            await AgoraRTC.createMicrophoneAudioTrack();
+          rtc.current.localVideoTrack = await AgoraRTC.createCameraVideoTrack();
 
-        await rtc.current.client.publish([
-          rtc.current.localAudioTrack,
-          rtc.current.localVideoTrack,
-        ]);
-      } catch (err) {
-        console.error(err);
-        alert("Camera Error! Make sure you are using HTTPS.");
-        setIsSearching(false);
-      }
-    }, 3000); // 3 सेकंड का ड्रामा
+          setIsSearching(false);
+          setInCall(true);
+
+          // Play Local Video
+          setTimeout(() => {
+            if (localVideoRef.current)
+              rtc.current.localVideoTrack.play(localVideoRef.current);
+          }, 500);
+
+          // Handle Remote User Joining
+          rtc.current.client.on(
+            "user-published",
+            async (user: any, mediaType: string) => {
+              await rtc.current.client.subscribe(user, mediaType);
+              if (mediaType === "video" && remoteVideoRef.current) {
+                user.videoTrack.play(remoteVideoRef.current);
+              }
+            },
+          );
+
+          await rtc.current.client.publish([
+            rtc.current.localAudioTrack,
+            rtc.current.localVideoTrack,
+          ]);
+        } catch (err) {
+          console.error("Agora Error:", err);
+          setIsSearching(false);
+        }
+      }, 2500);
+    } catch (err) {
+      alert(
+        "❌ Permission Denied! Please allow camera and microphone access to start the call.",
+      );
+      console.error("User denied permissions", err);
+    }
   };
 
   const endCall = async () => {
@@ -85,198 +103,168 @@ const ConnectionPanel = () => {
 
   return (
     <div className="space-y-6 px-4 md:px-8">
-      {/* 🌟 New Connection Design: Handshake Concept */}
+      {/* 🌟 MAIN DESIGN CARD */}
       <motion.div
-        whileTap={{ scale: 0.98 }}
+        whileTap={{ scale: 0.97 }}
         onClick={startCall}
-        className="glass rounded-3xl p-6 cursor-pointer border border-primary/20 shadow-xl bg-gradient-to-br from-primary/5 to-secondary/5 group overflow-hidden"
+        className="glass rounded-[2.5rem] p-8 cursor-pointer border border-white/10 shadow-2xl bg-gradient-to-b from-white/5 to-primary/5 relative overflow-hidden group"
       >
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-2">
-            <Video size={18} className="text-primary" />
-            <span className="text-xs font-black uppercase tracking-widest text-foreground">
+        {/* Top Header */}
+        <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center gap-2 bg-primary/20 px-3 py-1 rounded-full">
+            <Video size={14} className="text-primary" />
+            <span className="text-[10px] font-black uppercase tracking-widest text-primary">
               Live Connect
             </span>
           </div>
-          <div className="px-3 py-1 rounded-full bg-red-500/10 border border-red-500/20 text-red-500 text-[10px] font-black animate-pulse uppercase tracking-widest">
-            Live
+          <div className="flex items-center gap-1.5 bg-red-500/10 px-3 py-1 rounded-full border border-red-500/20">
+            <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+            <span className="text-red-500 text-[10px] font-bold uppercase tracking-widest">
+              Random Match
+            </span>
           </div>
         </div>
 
-        {/* Handshake Logic */}
-        <div className="flex items-center justify-center relative">
-          {/* Boy Circle */}
-          <motion.div
-            initial={{ x: -20 }}
-            animate={{ x: 0 }}
-            className="flex flex-col items-center z-10"
-          >
-            <div className="w-20 h-20 rounded-full border-4 border-accent shadow-2xl overflow-hidden bg-muted">
+        {/* Handshake Visual Area */}
+        <div className="flex items-center justify-center relative py-4">
+          {/* Boy Profile */}
+          <div className="flex flex-col items-center z-10">
+            <div className="w-24 h-24 rounded-full border-4 border-white/10 shadow-2xl overflow-hidden ring-4 ring-primary/20">
               <img
                 src={models.boy}
-                className="w-full h-full object-cover"
+                className="w-full h-full object-cover grayscale-[30%] group-hover:grayscale-0 transition-all duration-500"
                 alt="Boy"
               />
             </div>
-            <span className="text-[10px] font-bold text-accent uppercase tracking-wider mt-2">
-              Rahul
+            <span className="text-[10px] font-bold text-white/40 uppercase mt-3 tracking-widest">
+              Active User
             </span>
-          </motion.div>
-
-          {/* Connection Visuals (Arrows and Shake Icon) */}
-          <div className="relative flex items-center w-32 -mx-4 group-hover:scale-105 transition-transform duration-500">
-            <div className="w-full h-[2px] bg-gradient-to-r from-accent via-primary to-accent animate-ping" />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.5 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.2, type: "spring" }}
-              className="absolute inset-0 flex items-center justify-center"
-            >
-              <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white border-2 border-white shadow-xl rotate-[-20deg]">
-                <ArrowRightLeft size={24} className="stroke-[3]" />
-              </div>
-            </motion.div>
           </div>
 
-          {/* Girl Circle */}
-          <motion.div
-            initial={{ x: 20 }}
-            animate={{ x: 0 }}
-            className="flex flex-col items-center z-10"
-          >
-            <div className="w-20 h-20 rounded-full border-4 border-primary shadow-2xl overflow-hidden bg-muted">
+          {/* Connection Bridge */}
+          <div className="flex items-center w-24 -mx-2">
+            <div className="h-[2px] flex-1 bg-gradient-to-r from-primary/50 to-secondary/50 relative">
+              <motion.div
+                animate={{ left: ["0%", "100%"] }}
+                transition={{ repeat: Infinity, duration: 1.5, ease: "linear" }}
+                className="absolute top-[-4px] w-2 h-2 rounded-full bg-white shadow-[0_0_10px_#fff]"
+              />
+            </div>
+            <div className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-md flex items-center justify-center border border-white/20 shadow-inner rotate-[-15deg] group-hover:rotate-0 transition-transform">
+              <ArrowRightLeft size={18} className="text-white" />
+            </div>
+            <div className="h-[2px] flex-1 bg-gradient-to-r from-secondary/50 to-primary/50" />
+          </div>
+
+          {/* Girl Profile */}
+          <div className="flex flex-col items-center z-10">
+            <div className="w-24 h-24 rounded-full border-4 border-white/10 shadow-2xl overflow-hidden ring-4 ring-secondary/20">
               <img
                 src={models.girl}
-                className="w-full h-full object-cover"
+                className="w-full h-full object-cover grayscale-[30%] group-hover:grayscale-0 transition-all duration-500"
                 alt="Girl"
               />
             </div>
-            <span className="text-[10px] font-bold text-primary uppercase tracking-wider mt-2">
-              Ayesha
+            <span className="text-[10px] font-bold text-white/40 uppercase mt-3 tracking-widest">
+              Match Partner
             </span>
-          </motion.div>
+          </div>
         </div>
 
-        {/* 📞 Bottom Calling Animation */}
-        <div className="mt-8 pt-4 border-t border-white/5 flex flex-col items-center">
-          <div className="w-full flex items-center justify-center gap-1 opacity-60">
-            {[...Array(6)].map((_, i) => (
+        {/* 📞 Calling Pulse Footer */}
+        <div className="mt-10 flex flex-col items-center gap-3">
+          <div className="flex gap-1 h-4 items-center">
+            {[...Array(12)].map((_, i) => (
               <motion.div
                 key={i}
-                initial={{ opacity: 0.2, scaleY: 0.5 }}
-                animate={{ opacity: 1, scaleY: 1.5 }}
+                animate={{ height: [4, 16, 4] }}
                 transition={{
                   repeat: Infinity,
-                  duration: 0.5,
-                  delay: i * 0.1,
-                  repeatType: "mirror",
+                  duration: 0.6,
+                  delay: i * 0.05,
                 }}
-                className="w-[3px] h-3 bg-primary rounded-full"
-              />
-            ))}
-            <span className="text-[10px] text-primary/80 mx-2 font-bold uppercase tracking-widest">
-              Click to start call
-            </span>
-            {[...Array(6)].map((_, i) => (
-              <motion.div
-                key={i}
-                initial={{ opacity: 0.2, scaleY: 0.5 }}
-                animate={{ opacity: 1, scaleY: 1.5 }}
-                transition={{
-                  repeat: Infinity,
-                  duration: 0.5,
-                  delay: (6 - i) * 0.1,
-                  repeatType: "mirror",
-                }}
-                className="w-[3px] h-3 bg-secondary rounded-full"
+                className="w-1 bg-primary/40 rounded-full"
               />
             ))}
           </div>
+          <span className="text-[11px] font-black text-white tracking-[0.3em] uppercase opacity-60 group-hover:opacity-100 transition-opacity">
+            Tap to start calling
+          </span>
         </div>
       </motion.div>
 
-      {/* --- Fullscreen Searching Overlay (Matching) --- */}
+      {/* --- MATCHING MODAL --- */}
       <AnimatePresence>
         {isSearching && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] bg-background/95 backdrop-blur-xl flex flex-col items-center justify-center p-6 text-center"
+            className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-2xl flex flex-col items-center justify-center p-6 text-center"
           >
-            <div className="flex items-center gap-6 mb-10">
-              <img
-                src={models.girl}
-                className="w-20 h-20 rounded-full border-4 border-primary object-cover"
-                alt="Matching Girl"
-              />
-              <div className="flex flex-col items-center">
-                <div className="w-2 h-2 rounded-full bg-red-500 animate-ping mb-2" />
-                <Star
-                  size={30}
-                  className="text-white fill-white animate-spin-slow"
-                />
+            <div className="relative mb-12">
+              <div className="w-32 h-32 rounded-full border-4 border-primary border-t-transparent animate-spin" />
+              <div className="absolute inset-0 flex items-center justify-center">
+                <ShieldCheck size={40} className="text-primary animate-pulse" />
               </div>
-              <img
-                src={models.boy}
-                className="w-20 h-20 rounded-full border-4 border-accent object-cover"
-                alt="Matching Boy"
-              />
             </div>
-            <h2 className="text-2xl font-black italic text-foreground tracking-tighter uppercase">
-              Connecting to Cloud...
+            <h2 className="text-2xl font-black text-white tracking-tighter uppercase italic">
+              Securing Connection...
             </h2>
-            <div className="mt-6 flex gap-1 items-center justify-center">
-              {[...Array(3)].map((_, i) => (
-                <motion.div
-                  key={i}
-                  animate={{ opacity: [0.2, 1, 0.2] }}
-                  transition={{ repeat: Infinity, duration: 1, delay: i * 0.3 }}
-                  className="w-3 h-3 rounded-full bg-primary"
-                />
-              ))}
-            </div>
+            <p className="text-white/40 text-[10px] mt-2 tracking-[0.2em] font-bold">
+              PLEASE ALLOW CAMERA PERMISSION
+            </p>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* --- Video Call Fullscreen --- */}
+      {/* --- VIDEO CALL OVERLAY --- */}
       <AnimatePresence>
         {inCall && (
           <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 1.1, opacity: 0 }}
-            transition={{ type: "spring", damping: 25 }}
-            className="fixed inset-0 z-[200] bg-black"
+            initial={{ y: "100%" }}
+            animate={{ y: 0 }}
+            exit={{ y: "100%" }}
+            className="fixed inset-0 z-[200] bg-[#050505]"
           >
-            {/* Main Remote Video (Partner) */}
+            {/* Background Stream Placeholder */}
             <div
               ref={remoteVideoRef}
-              className="w-full h-full bg-gray-900 flex items-center justify-center overflow-hidden"
+              className="w-full h-full flex items-center justify-center overflow-hidden"
             >
               <img
                 src={models.girl}
-                className="w-full h-full object-cover opacity-30 blur-sm scale-110"
+                className="w-full h-full object-cover opacity-20 blur-xl scale-110"
               />
-              <p className="absolute text-white/40 text-xs font-black uppercase tracking-[0.3em] animate-pulse">
-                Waiting for partner...
-              </p>
+              <div className="absolute flex flex-col items-center">
+                <div className="w-20 h-20 rounded-full bg-white/5 flex items-center justify-center border border-white/10 mb-4 animate-pulse">
+                  <User size={30} className="text-white/20" />
+                </div>
+                <p className="text-white/30 text-[10px] font-black tracking-[0.5em] uppercase">
+                  Connecting Stream
+                </p>
+              </div>
             </div>
 
-            {/* Local Video Preview (You - Small Box) */}
+            {/* Self Video (Floating Box) */}
             <div
               ref={localVideoRef}
-              className="absolute top-10 right-6 w-32 h-48 rounded-2xl border-2 border-white/20 bg-gray-900 shadow-2xl z-50 overflow-hidden"
+              className="absolute top-12 right-6 w-36 h-52 rounded-3xl border-2 border-white/10 bg-black shadow-2xl z-50 overflow-hidden ring-4 ring-black/50"
             />
 
-            {/* Bottom Controls */}
-            <div className="absolute bottom-12 left-0 right-0 flex justify-center items-center gap-6 z-[60]">
+            {/* Call Controls */}
+            <div className="absolute bottom-16 left-0 right-0 flex justify-center items-center gap-8 z-[60]">
+              <button className="p-4 rounded-full bg-white/5 border border-white/10 text-white">
+                <Mic />
+              </button>
               <button
                 onClick={endCall}
-                className="p-6 rounded-full bg-red-600 text-white shadow-[0_0_20px_rgba(220,38,38,0.5)] active:scale-90 transition-transform"
+                className="p-6 rounded-full bg-red-600 text-white shadow-[0_0_30px_rgba(220,38,38,0.4)] active:scale-90 transition-transform"
               >
                 <PhoneOff size={32} />
+              </button>
+              <button className="p-4 rounded-full bg-white/5 border border-white/10 text-white">
+                <Camera />
               </button>
             </div>
           </motion.div>
