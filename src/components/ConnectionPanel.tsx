@@ -16,8 +16,11 @@ import {
 } from "lucide-react";
 import AgoraRTC from "agora-rtc-sdk-ng";
 
-const APP_ID = "32da697dcd144f20be80fb0fd0e5392e";
-const CHANNEL = "facelook_pro_live";
+// --- 🔑 AGORA CREDENTIALS INSERTED HERE ---
+const APP_ID = "fc434988dc0545b49355a6ace8aaadd6";
+const TOKEN =
+  "007eJxTYJjIdUjct3rFtRcMzWuVEyIPl1a877GUt5t4RmxKilIV9zsFhrRkE2MTSwuLlGQDUxPTJBNLY1PTRLPE5FSLxMTElBSzM9ePZzYEMjJMyzNiZmSAQBCflyENqCgnPz9btyg1MYeBAQBAhSKt";
+const CHANNEL = "facelook-real";
 
 const ConnectionPanel = () => {
   const [inCall, setInCall] = useState(false);
@@ -69,7 +72,7 @@ const ConnectionPanel = () => {
       playLocal();
       playRemote();
     }
-  }, [remoteUser, inCall, isVideoOff]); // Triggers whenever remote user or call state changes
+  }, [remoteUser, inCall, isVideoOff]);
 
   const startCall = async () => {
     if (!window.isSecureContext)
@@ -77,7 +80,8 @@ const ConnectionPanel = () => {
     setIsSearching(true);
 
     try {
-      await rtc.current.client.join(APP_ID, CHANNEL, null, null);
+      // Joining with Credentials
+      await rtc.current.client.join(APP_ID, CHANNEL, TOKEN, null);
 
       const [audioTrack, videoTrack] =
         await AgoraRTC.createMicrophoneAndCameraTracks();
@@ -87,7 +91,6 @@ const ConnectionPanel = () => {
       setInCall(true);
       setIsSearching(false);
 
-      // Listener for Remote User joining
       rtc.current.client.on(
         "user-published",
         async (user: any, mediaType: string) => {
@@ -110,6 +113,7 @@ const ConnectionPanel = () => {
     } catch (err) {
       console.error("Join error:", err);
       setIsSearching(false);
+      alert("Connect failed. Check if App ID/Token/Channel matches.");
     }
   };
 
@@ -121,7 +125,7 @@ const ConnectionPanel = () => {
     await rtc.current.client.leave();
     setInCall(false);
     setRemoteUser(null);
-    window.location.reload(); // Hard reset for safety
+    window.location.reload();
   };
 
   const toggleMic = () => {
@@ -203,7 +207,6 @@ const ConnectionPanel = () => {
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-[500] bg-[#020202]"
           >
-            {/* 🌌 Cyber Background */}
             <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_center,_#0ea5e9_0%,transparent_70%)]" />
 
             {/* Remote Partner (Main View) */}
