@@ -8,7 +8,6 @@ import {
   CameraOff,
   Sparkles,
   ShieldCheck,
-  Users,
   ArrowRight,
 } from "lucide-react";
 import AgoraRTC from "agora-rtc-sdk-ng";
@@ -35,32 +34,19 @@ const ConnectionPanel = () => {
     localVideoTrack: null,
   });
 
-  // 🛠️ VIDEO FORCE-PLAY ENGINE (Self-Correcting)
+  // 🛡️ THE FIX: Force Video Ingestion
   useEffect(() => {
-    let interval: any;
     if (inCall) {
-      const playVideo = async () => {
-        if (
-          rtc.current.localVideoTrack &&
-          localRef.current &&
-          !localRef.current.hasChildNodes()
-        ) {
-          await rtc.current.localVideoTrack.play(localRef.current, {
-            fit: "cover",
-          });
+      const timer = setTimeout(() => {
+        if (rtc.current.localVideoTrack && localRef.current) {
+          rtc.current.localVideoTrack.play(localRef.current, { fit: "cover" });
         }
-        if (
-          remoteUser?.videoTrack &&
-          remoteRef.current &&
-          !remoteRef.current.hasChildNodes()
-        ) {
-          await remoteUser.videoTrack.play(remoteRef.current, { fit: "cover" });
+        if (remoteUser?.videoTrack && remoteRef.current) {
+          remoteUser.videoTrack.play(remoteRef.current, { fit: "cover" });
         }
-      };
-      // हर 1 सेकंड में चेक करेगा कि वीडियो चल रहा है या नहीं, नहीं तो प्ले कर देगा
-      interval = setInterval(playVideo, 1000);
+      }, 500);
+      return () => clearTimeout(timer);
     }
-    return () => clearInterval(interval);
   }, [inCall, remoteUser]);
 
   const startCall = async () => {
@@ -101,101 +87,85 @@ const ConnectionPanel = () => {
   };
 
   return (
-    <div className="fixed inset-0 bg-white flex flex-col items-center justify-center overflow-hidden p-0 m-0">
-      {/* 🌟 HAND-TO-HAND MINIMALIST START CARD */}
+    <div className="w-full min-h-screen bg-slate-50 flex items-center justify-center p-4">
+      {/* 🌟 START SCREEN (No Overlap) */}
       {!inCall && !isSearching && (
         <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="w-[90%] max-w-[340px] flex flex-col items-center"
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="w-full max-w-md bg-white p-8 rounded-[2.5rem] shadow-xl border border-slate-100 flex flex-col items-center"
         >
-          {/* Main Pairing Box */}
-          <div className="w-full bg-white rounded-[3rem] p-8 border border-slate-100 shadow-[0_40px_80px_-20px_rgba(0,0,0,0.08)]">
-            <div className="flex justify-center -space-x-4 mb-10">
-              <div className="w-24 h-24 rounded-[2.5rem] bg-blue-50 border-4 border-white shadow-xl overflow-hidden -rotate-6">
-                <img
-                  src="https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=300"
-                  className="w-full h-full object-cover"
-                />
-              </div>
-              <div className="w-24 h-24 rounded-[2.5rem] bg-pink-50 border-4 border-white shadow-xl overflow-hidden rotate-6 z-10">
-                <img
-                  src="https://images.unsplash.com/photo-1517841905240-472988babdf9?w=300"
-                  className="w-full h-full object-cover"
-                />
-              </div>
-            </div>
-
-            <h2 className="text-center text-slate-800 font-black text-xl mb-2 tracking-tight">
-              Facelook Live
-            </h2>
-            <p className="text-center text-slate-400 text-xs font-medium mb-8">
-              1v1 Private Video Match
-            </p>
-
-            <button
-              onClick={startCall}
-              className="w-full h-16 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-[1.5rem] flex items-center justify-center gap-3 transition-all active:scale-95 shadow-lg shadow-blue-200"
-            >
-              START MATCHING
-              <ArrowRight size={20} />
-            </button>
+          <div className="flex -space-x-6 mb-8">
+            <img
+              src="https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=200"
+              className="w-24 h-24 rounded-3xl object-cover border-4 border-white shadow-lg -rotate-6"
+            />
+            <img
+              src="https://images.unsplash.com/photo-1517841905240-472988babdf9?w=200"
+              className="w-24 h-24 rounded-3xl object-cover border-4 border-white shadow-lg rotate-6 z-10"
+            />
           </div>
 
-          <div className="mt-8 flex items-center gap-2 text-slate-300">
-            <ShieldCheck size={16} />
-            <span className="text-[10px] font-bold uppercase tracking-widest">
-              End-to-End Encrypted
-            </span>
-          </div>
+          <h1 className="text-2xl font-black text-slate-800 mb-2">Facelook</h1>
+          <p className="text-slate-400 text-sm mb-10">Start 1v1 Random Match</p>
+
+          <button
+            onClick={startCall}
+            className="w-full py-5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-2xl flex items-center justify-center gap-3 transition-all active:scale-95 shadow-lg shadow-blue-100"
+          >
+            START MATCH <ArrowRight size={20} />
+          </button>
         </motion.div>
       )}
 
-      {/* 📽️ TRUE FULLSCREEN VIDEO INTERFACE (No Gaps) */}
+      {/* 📽️ VIDEO SCREEN (Clean Layout) */}
       <AnimatePresence>
         {inCall && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="fixed inset-0 bg-black z-[500]"
+            className="fixed inset-0 bg-black flex flex-col z-[1000]"
           >
-            {/* Remote Full View */}
+            {/* Main Remote View */}
             <div
               ref={remoteRef}
-              className="absolute inset-0 bg-slate-900 flex items-center justify-center overflow-hidden"
+              className="flex-1 w-full bg-slate-900 relative overflow-hidden flex items-center justify-center"
             >
               {!remoteUser && (
-                <div className="flex flex-col items-center">
-                  <div className="w-16 h-16 border-4 border-blue-100/10 border-t-blue-500 rounded-full animate-spin mb-6" />
-                  <p className="text-[10px] font-black text-blue-400 uppercase tracking-[0.5em] animate-pulse">
-                    Finding Friend...
+                <div className="text-center">
+                  <Sparkles
+                    size={40}
+                    className="text-blue-500 mb-4 animate-bounce mx-auto"
+                  />
+                  <p className="text-blue-400 font-bold uppercase tracking-widest text-[10px]">
+                    Finding Partner...
                   </p>
                 </div>
               )}
             </div>
 
-            {/* Your Mini View (Overlay) */}
+            {/* Floating Local View (Now correctly positioned) */}
             <div
               ref={localRef}
-              className="absolute top-6 right-6 w-32 h-44 rounded-[2rem] border-2 border-white/20 bg-black shadow-2xl z-[510] overflow-hidden transition-all active:scale-90"
+              className="absolute top-6 right-6 w-28 h-40 md:w-40 md:h-56 rounded-2xl border-2 border-white/20 bg-slate-800 shadow-2xl z-[1010] overflow-hidden"
             />
 
-            {/* Simple Glass Controls */}
-            <div className="absolute bottom-10 left-0 right-0 flex justify-center px-6 z-[520]">
-              <div className="w-full max-w-[320px] bg-white/10 backdrop-blur-3xl px-6 py-5 rounded-[2.5rem] border border-white/10 flex items-center justify-around shadow-2xl">
+            {/* Controls Bar */}
+            <div className="h-32 w-full flex items-center justify-center bg-black/80 backdrop-blur-xl border-t border-white/10 z-[1020]">
+              <div className="flex items-center gap-6">
                 <button
                   onClick={() => {
                     rtc.current.localAudioTrack.setEnabled(isMuted);
                     setIsMuted(!isMuted);
                   }}
-                  className={`p-4 rounded-2xl transition-all ${isMuted ? "bg-red-500 text-white" : "text-white hover:bg-white/10"}`}
+                  className={`p-4 rounded-full transition-all ${isMuted ? "bg-red-500 text-white" : "bg-white/10 text-white"}`}
                 >
                   {isMuted ? <MicOff size={24} /> : <Mic size={24} />}
                 </button>
 
                 <button
                   onClick={endCall}
-                  className="p-6 rounded-full bg-red-600 hover:bg-red-700 text-white shadow-[0_15px_30px_rgba(220,38,38,0.4)] active:scale-90"
+                  className="p-6 rounded-full bg-red-600 hover:bg-red-700 text-white shadow-xl transform active:scale-90 transition-all"
                 >
                   <PhoneOff size={32} fill="white" />
                 </button>
@@ -205,7 +175,7 @@ const ConnectionPanel = () => {
                     rtc.current.localVideoTrack.setEnabled(isVideoOff);
                     setIsVideoOff(!isVideoOff);
                   }}
-                  className={`p-4 rounded-2xl transition-all ${isVideoOff ? "bg-red-500 text-white" : "text-white hover:bg-white/10"}`}
+                  className={`p-4 rounded-full transition-all ${isVideoOff ? "bg-red-500 text-white" : "bg-white/10 text-white"}`}
                 >
                   {isVideoOff ? <CameraOff size={24} /> : <Camera size={24} />}
                 </button>
@@ -215,14 +185,12 @@ const ConnectionPanel = () => {
         )}
       </AnimatePresence>
 
-      {/* 🔍 SEARCHING FULLSCREEN */}
+      {/* 🔍 SEARCHING UI */}
       {isSearching && (
-        <div className="fixed inset-0 z-[600] bg-white flex flex-col items-center justify-center">
-          <div className="w-14 h-14 bg-blue-50 rounded-full flex items-center justify-center mb-8">
-            <Sparkles size={32} className="text-blue-500 animate-pulse" />
-          </div>
-          <p className="text-[11px] font-black text-blue-600 uppercase tracking-[0.5em] animate-pulse">
-            Pairing...
+        <div className="fixed inset-0 z-[2000] bg-white flex flex-col items-center justify-center">
+          <div className="w-12 h-12 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin mb-6" />
+          <p className="text-blue-600 font-black uppercase tracking-[0.4em] text-[10px]">
+            Connecting...
           </p>
         </div>
       )}
