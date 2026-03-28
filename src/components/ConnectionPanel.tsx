@@ -1,231 +1,218 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Video,
   PhoneOff,
   ArrowRightLeft,
+  Mic,
+  MicOff,
+  Camera,
+  CameraOff,
+  Monitor,
   ShieldCheck,
-  User,
-  Star,
 } from "lucide-react";
 import AgoraRTC from "agora-rtc-sdk-ng";
 
-// --- 🔑 आपकी फाइनल Testing Mode APP ID ---
 const APP_ID = "32da697dcd144f20be80fb0fd0e5392e";
-const CHANNEL = "facelook_real_connection"; // इसे नहीं बदलना
+const CHANNEL = "facelook_pro_live";
 
 const ConnectionPanel = () => {
   const [inCall, setInCall] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
-  const [remoteUid, setRemoteUid] = useState<any>(null);
+  const [isMuted, setIsMuted] = useState(false);
+  const [isVideoOff, setIsVideoOff] = useState(false);
+  const [remoteUser, setRemoteUser] = useState<any>(null);
 
   const localVideoRef = useRef<HTMLDivElement>(null);
   const remoteVideoRef = useRef<HTMLDivElement>(null);
-
   const rtc = useRef<any>({
     client: AgoraRTC.createClient({ mode: "rtc", codec: "vp8" }),
     localAudioTrack: null,
     localVideoTrack: null,
   });
 
-  const startFinalRealCall = async () => {
-    // 🛡️ SECURITY CHECK: HTTPS (Open in New Tab)
-    if (!window.isSecureContext) {
-      alert(
-        "⚠️ Error: For security, video call works only on HTTPS. Please click the 'Open in New Tab' icon in Replit (Top Right).",
-      );
-      return;
-    }
-
+  const startCall = async () => {
+    if (!window.isSecureContext)
+      return alert("Please use HTTPS (Open in New Tab)");
     setIsSearching(true);
 
     try {
-      // 1. Join Agora (Token is null because ID is in testing mode)
       await rtc.current.client.join(APP_ID, CHANNEL, null, null);
-
-      // 2. Create Real Microphone and Camera Tracks
       const [audioTrack, videoTrack] =
         await AgoraRTC.createMicrophoneAndCameraTracks();
       rtc.current.localAudioTrack = audioTrack;
       rtc.current.localVideoTrack = videoTrack;
 
-      setIsSearching(false);
       setInCall(true);
+      setIsSearching(false);
 
-      // 3. Show YOUR Video (Local)
+      // Play Local Video
       setTimeout(() => {
-        if (localVideoRef.current && rtc.current.localVideoTrack) {
+        if (localVideoRef.current)
           rtc.current.localVideoTrack.play(localVideoRef.current);
-        }
-      }, 500);
+      }, 200);
 
-      // 4. Handle Partner Video (Remote User Joining)
+      // Handle Remote User
       rtc.current.client.on(
         "user-published",
         async (user: any, mediaType: string) => {
           await rtc.current.client.subscribe(user, mediaType);
           if (mediaType === "video") {
-            setRemoteUid(user.uid);
+            setRemoteUser(user);
             setTimeout(() => {
-              if (remoteVideoRef.current && user.videoTrack) {
+              if (remoteVideoRef.current)
                 user.videoTrack.play(remoteVideoRef.current);
-              }
-            }, 500);
+            }, 200);
           }
           if (mediaType === "audio") user.audioTrack.play();
         },
       );
 
-      rtc.current.client.on("user-unpublished", (user: any) => {
-        if (user.uid === remoteUid) setRemoteUid(null);
+      // Auto-Disconnect if partner leaves
+      rtc.current.client.on("user-left", () => {
+        endCall();
       });
 
-      // 5. Publish to Agora Server (Make it Real Call!)
       await rtc.current.client.publish([
         rtc.current.localAudioTrack,
         rtc.current.localVideoTrack,
       ]);
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
-      alert("Connection Failed: " + err.message);
       setIsSearching(false);
     }
   };
 
-  const endRealCall = async () => {
-    if (rtc.current.localVideoTrack) {
-      rtc.current.localVideoTrack.stop();
-      rtc.current.localVideoTrack.close();
-    }
-    if (rtc.current.localAudioTrack) rtc.current.localAudioTrack.close();
+  const endCall = async () => {
+    rtc.current.localAudioTrack?.stop();
+    rtc.current.localAudioTrack?.close();
+    rtc.current.localVideoTrack?.stop();
+    rtc.current.localVideoTrack?.close();
     await rtc.current.client.leave();
-    window.location.reload(); // Hard refresh to release camera for next call
+    setInCall(false);
+    setRemoteUser(null);
+    window.location.reload();
+  };
+
+  const toggleMic = () => {
+    rtc.current.localAudioTrack.setEnabled(!isMuted);
+    setIsMuted(!isMuted);
+  };
+
+  const toggleVideo = () => {
+    rtc.current.localVideoTrack.setEnabled(isVideoOff);
+    setIsVideoOff(!isVideoOff);
   };
 
   return (
-    <div className="px-6 py-4 space-y-6">
-      {/* 🌟 FINAL HANDSHAKE DESIGN CARD */}
+    <div className="px-4">
+      {/* 🌟 COMPACT CARD DESIGN */}
       <motion.div
-        whileTap={{ scale: 0.96 }}
-        onClick={startFinalRealCall}
-        className="glass rounded-[2.5rem] p-10 border border-primary/40 bg-gradient-to-br from-primary/10 via-transparent to-primary/5 shadow-2xl cursor-pointer group relative overflow-hidden ring-4 ring-primary/5 hover:border-primary/60 transition-colors"
+        whileTap={{ scale: 0.98 }}
+        onClick={startCall}
+        className="glass rounded-3xl p-6 border border-white/10 bg-gradient-to-br from-primary/5 to-transparent cursor-pointer group"
       >
-        <div className="flex justify-between items-center mb-10 relative z-10">
-          <div className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/20 border border-primary/30">
-            <ShieldCheck size={16} className="text-primary" />
-            <span className="text-[10px] font-black uppercase tracking-widest text-primary">
-              Global Link Secure
+        <div className="flex justify-between items-center mb-6">
+          <div className="flex items-center gap-2 bg-primary/20 px-3 py-1 rounded-full border border-primary/20">
+            <ShieldCheck size={12} className="text-primary" />
+            <span className="text-[9px] font-black uppercase tracking-widest text-primary">
+              P2P Secure
             </span>
           </div>
-          <div className="flex items-center gap-1.5 bg-red-500/10 px-3 py-1.5 rounded-full border border-red-500/20">
-            <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-            <span className="text-red-500 text-[10px] font-bold uppercase tracking-widest">
-              Random Match
-            </span>
-          </div>
+          <span className="text-red-500 font-bold text-[9px] animate-pulse uppercase tracking-widest">
+            Live Now
+          </span>
         </div>
 
-        <div className="flex items-center justify-center gap-6 relative z-10">
-          <div className="w-24 h-24 rounded-full border-4 border-white/20 overflow-hidden shadow-2xl relative ring-8 ring-primary/5">
+        <div className="flex items-center justify-around gap-2">
+          <div className="w-16 h-16 rounded-full border-2 border-white/10 overflow-hidden shadow-xl">
             <img
               src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200"
-              className="w-full h-full object-cover grayscale-[30%] group-hover:grayscale-0 transition-all"
-              alt="user1"
+              className="w-full h-full object-cover"
             />
           </div>
-          <div className="flex flex-col items-center">
-            <div className="p-4 rounded-full bg-white flex items-center justify-center shadow-xl rotate-[-15deg] group-hover:rotate-0 transition-transform">
-              <ArrowRightLeft className="text-primary stroke-[3px]" size={28} />
-            </div>
-            <div className="w-14 h-[2px] bg-white/10 mt-3 rounded-full" />
-          </div>
-          <div className="w-24 h-24 rounded-full border-4 border-white/20 overflow-hidden shadow-2xl relative ring-8 ring-secondary/5">
+          <ArrowRightLeft
+            className="text-primary/40 group-hover:text-primary transition-colors"
+            size={20}
+          />
+          <div className="w-16 h-16 rounded-full border-2 border-white/10 overflow-hidden shadow-xl">
             <img
               src="https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=200"
-              className="w-full h-full object-cover grayscale-[30%] group-hover:grayscale-0 transition-all"
-              alt="user2"
+              className="w-full h-full object-cover"
             />
           </div>
         </div>
 
-        <div className="mt-12 flex flex-col items-center gap-3 relative z-10">
-          <div className="flex gap-1.5 h-8 items-end">
-            {[...Array(12)].map((_, i) => (
-              <motion.div
-                key={i}
-                animate={{ height: [6, 26, 6] }}
-                transition={{
-                  repeat: Infinity,
-                  duration: 0.6,
-                  delay: i * 0.08,
-                }}
-                className="w-1 bg-gradient-to-t from-primary to-secondary rounded-full opacity-50"
-              />
-            ))}
-          </div>
-          <p className="text-[12px] font-black tracking-[0.5em] uppercase text-white/70 group-hover:text-primary transition-colors animate-pulse">
-            Start Real-Time Video Call
+        <div className="mt-6 flex flex-col items-center">
+          <p className="text-[10px] font-bold tracking-[0.3em] uppercase text-white/40 group-hover:text-white transition-colors">
+            Tap to Connect
           </p>
         </div>
       </motion.div>
 
-      {/* 📽️ REAL-TIME CALL OVERLAY */}
+      {/* 📽️ FULLSCREEN CALL UI */}
       <AnimatePresence>
         {inCall && (
           <motion.div
-            initial={{ y: "100%" }}
-            animate={{ y: 0 }}
-            exit={{ y: "100%" }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
             className="fixed inset-0 z-[500] bg-black"
           >
-            {/* Main Stream (THE MATCH) */}
+            {/* Remote Partner (Main View) */}
             <div
               ref={remoteVideoRef}
-              className="w-full h-full flex items-center justify-center overflow-hidden"
+              className="w-full h-full flex items-center justify-center bg-zinc-900"
             >
-              {!remoteUid && (
-                <div className="text-center opacity-40">
-                  <Star
-                    size={60}
-                    className="mx-auto mb-6 text-primary animate-spin-slow"
-                  />
-                  <p className="text-xs font-black tracking-[0.6em] uppercase text-white animate-pulse">
-                    Looking for partner...
+              {!remoteUser && (
+                <div className="text-center animate-pulse">
+                  <Monitor size={48} className="mx-auto mb-4 text-white/10" />
+                  <p className="text-white/20 text-[10px] font-black tracking-[0.5em] uppercase">
+                    Waiting for partner...
                   </p>
                 </div>
               )}
             </div>
 
-            {/* Self Video Stream (YOU) */}
+            {/* Self Video (Floating) */}
             <div
               ref={localVideoRef}
-              className="absolute top-12 right-6 w-36 h-52 rounded-3xl border-2 border-white/20 bg-black shadow-2xl z-[510] overflow-hidden shadow-primary/20 ring-4 ring-black/50"
+              className="absolute top-10 right-4 w-28 h-40 rounded-2xl border border-white/20 bg-black shadow-2xl z-[510] overflow-hidden"
             />
 
-            {/* Call Controls */}
-            <div className="absolute bottom-16 left-0 right-0 flex justify-center z-[520]">
+            {/* Controls Bar */}
+            <div className="absolute bottom-10 left-0 right-0 flex justify-center items-center gap-6 z-[520]">
               <button
-                onClick={endRealCall}
-                className="p-7 rounded-full bg-red-600 text-white shadow-[0_0_40px_rgba(220,38,38,0.6)] active:scale-95 transition-transform"
+                onClick={toggleMic}
+                className={`p-4 rounded-full border border-white/10 backdrop-blur-md transition-all ${isMuted ? "bg-red-500 text-white" : "bg-white/10 text-white"}`}
               >
-                <PhoneOff size={36} />
+                {isMuted ? <MicOff size={20} /> : <Mic size={20} />}
+              </button>
+
+              <button
+                onClick={endCall}
+                className="p-6 rounded-full bg-red-600 text-white shadow-[0_0_30px_rgba(220,38,38,0.5)] active:scale-90 transition-transform"
+              >
+                <PhoneOff size={28} />
+              </button>
+
+              <button
+                onClick={toggleVideo}
+                className={`p-4 rounded-full border border-white/10 backdrop-blur-md transition-all ${isVideoOff ? "bg-red-500 text-white" : "bg-white/10 text-white"}`}
+              >
+                {isVideoOff ? <CameraOff size={20} /> : <Camera size={20} />}
               </button>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* 🔍 CONNECTING SCREEN */}
+      {/* 🔍 SEARCHING MODAL */}
       {isSearching && (
-        <div className="fixed inset-0 z-[600] bg-black/98 backdrop-blur-3xl flex flex-col items-center justify-center">
-          <div className="relative mb-8">
-            <div className="w-24 h-24 border-4 border-primary border-t-transparent rounded-full animate-spin shadow-2xl shadow-primary/30" />
-          </div>
-          <h2 className="text-3xl font-black text-white italic tracking-tighter uppercase mb-2">
-            Connecting to Agora Node...
-          </h2>
-          <p className="text-primary font-bold text-[10px] tracking-[0.4em] uppercase animate-pulse">
-            Initializing Secure Stream
+        <div className="fixed inset-0 z-[600] bg-black/95 backdrop-blur-3xl flex flex-col items-center justify-center">
+          <div className="w-14 h-14 border-2 border-primary border-t-transparent rounded-full animate-spin mb-4" />
+          <p className="text-white font-black tracking-widest uppercase text-[10px]">
+            Securely Connecting...
           </p>
         </div>
       )}
