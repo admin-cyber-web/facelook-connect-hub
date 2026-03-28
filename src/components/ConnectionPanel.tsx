@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
+  Video,
   PhoneOff,
   ArrowRightLeft,
   Mic,
@@ -8,20 +9,22 @@ import {
   Camera,
   CameraOff,
   ShieldCheck,
+  Zap,
   Volume2,
   VolumeX,
   Sparkles,
-  Users,
 } from "lucide-react";
 import AgoraRTC from "agora-rtc-sdk-ng";
 
 const APP_ID = "32da697dcd144f20be80fb0fd0e5392e";
+const CHANNEL = "facelook_pro_live";
 
 const ConnectionPanel = () => {
   const [inCall, setInCall] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOff, setIsVideoOff] = useState(false);
+  const [isSpeakerOff, setIsSpeakerOff] = useState(false);
   const [remoteUser, setRemoteUser] = useState<any>(null);
 
   const localVideoRef = useRef<HTMLDivElement>(null);
@@ -33,32 +36,48 @@ const ConnectionPanel = () => {
     localVideoTrack: null,
   });
 
-  // 🛠️ DUAL VIDEO AUTO-MOUNT (दोनों तरफ वीडियो दिखाने का पक्का इलाज)
+  // 🛠️ CRITICAL FIX: Direct Playback Engine
   useEffect(() => {
-    let timeout: any;
+    const playRemote = async () => {
+      if (
+        inCall &&
+        remoteUser &&
+        remoteUser.videoTrack &&
+        remoteVideoRef.current
+      ) {
+        try {
+          await remoteUser.videoTrack.play(remoteVideoRef.current);
+          console.log("Remote video started successfully");
+        } catch (err) {
+          console.error("Remote playback failed, retrying...", err);
+        }
+      }
+    };
+
+    const playLocal = async () => {
+      if (inCall && rtc.current.localVideoTrack && localVideoRef.current) {
+        try {
+          await rtc.current.localVideoTrack.play(localVideoRef.current);
+          console.log("Local video started successfully");
+        } catch (err) {
+          console.error("Local playback failed", err);
+        }
+      }
+    };
+
     if (inCall) {
-      timeout = setTimeout(() => {
-        if (rtc.current.localVideoTrack && localVideoRef.current) {
-          rtc.current.localVideoTrack.play(localVideoRef.current);
-        }
-        if (remoteUser?.videoTrack && remoteVideoRef.current) {
-          remoteUser.videoTrack.play(remoteVideoRef.current);
-        }
-      }, 800); // 0.8s का डिले ताकि DOM तैयार हो जाए
+      playLocal();
+      playRemote();
     }
-    return () => clearTimeout(timeout);
-  }, [inCall, remoteUser]);
+  }, [remoteUser, inCall, isVideoOff]); // Triggers whenever remote user or call state changes
 
   const startCall = async () => {
-    if (!window.isSecureContext) return alert("Please use HTTPS!");
+    if (!window.isSecureContext)
+      return alert("Use HTTPS Mode (Open in New Tab)!");
     setIsSearching(true);
 
     try {
-      // 🎲 Pairing Logic: 2-2 के जोड़े बनाने के लिए रैंडम रूम्स (1 से 10 के बीच)
-      // इससे 3 लोगों का एक साथ जुड़ना बंद हो जाएगा।
-      const pairRoom = "room_" + Math.floor(Math.random() * 5);
-
-      await rtc.current.client.join(APP_ID, pairRoom, null, null);
+      await rtc.current.client.join(APP_ID, CHANNEL, null, null);
 
       const [audioTrack, videoTrack] =
         await AgoraRTC.createMicrophoneAndCameraTracks();
@@ -68,28 +87,28 @@ const ConnectionPanel = () => {
       setInCall(true);
       setIsSearching(false);
 
-      // पार्टनर के आने पर:
+      // Listener for Remote User joining
       rtc.current.client.on(
         "user-published",
         async (user: any, mediaType: string) => {
-          // अगर रूम में पहले से 2 लोग हैं तो तीसरे को इग्नोर करो (1v1 Pair)
-          if (rtc.current.client.remoteUsers.length > 1) return;
-
           await rtc.current.client.subscribe(user, mediaType);
           if (mediaType === "video") {
             setRemoteUser(user);
           }
-          if (mediaType === "audio") user.audioTrack.play();
+          if (mediaType === "audio") {
+            user.audioTrack.play();
+          }
         },
       );
 
       rtc.current.client.on("user-left", () => endCall());
+
       await rtc.current.client.publish([
         rtc.current.localAudioTrack,
         rtc.current.localVideoTrack,
       ]);
     } catch (err) {
-      console.error(err);
+      console.error("Join error:", err);
       setIsSearching(false);
     }
   };
@@ -102,112 +121,146 @@ const ConnectionPanel = () => {
     await rtc.current.client.leave();
     setInCall(false);
     setRemoteUser(null);
-    window.location.reload(); // रिफ्रेश जरूरी है ताकि कैमरा फ्री हो जाए
+    window.location.reload(); // Hard reset for safety
+  };
+
+  const toggleMic = () => {
+    rtc.current.localAudioTrack.setEnabled(isMuted);
+    setIsMuted(!isMuted);
+  };
+
+  const toggleVideo = () => {
+    rtc.current.localVideoTrack.setEnabled(isVideoOff);
+    setIsVideoOff(!isVideoOff);
+  };
+
+  const toggleSpeaker = () => {
+    if (remoteUser?.audioTrack) {
+      isSpeakerOff
+        ? remoteUser.audioTrack.play()
+        : remoteUser.audioTrack.stop();
+    }
+    setIsSpeakerOff(!isSpeakerOff);
   };
 
   return (
-    <div className="flex justify-center items-center px-4">
-      {/* 🌟 COMPACT CARD (Size Reduced, Images Increased) */}
+    <div className="px-5">
+      {/* 🌟 SQUIRCLE CARD DESIGN */}
       <motion.div
-        whileTap={{ scale: 0.95 }}
+        whileTap={{ scale: 0.97 }}
         onClick={startCall}
-        className="glass rounded-[2.5rem] p-6 w-full max-w-[320px] border border-primary/40 bg-black/60 shadow-2xl cursor-pointer group relative overflow-hidden"
+        className="relative overflow-hidden glass rounded-[2.5rem] p-8 border border-primary/20 bg-gradient-to-br from-primary/10 via-black/40 to-secondary/10 cursor-pointer group shadow-2xl"
       >
-        <div className="flex justify-between items-center mb-6 relative z-10">
-          <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/20 border border-primary/40">
-            <Users size={12} className="text-primary" />
-            <span className="text-[9px] font-black uppercase tracking-widest text-primary/80">
-              1v1 Lucky Match
+        <div className="flex justify-between items-center mb-10 relative z-10">
+          <div className="flex items-center gap-2 bg-primary/10 px-4 py-1.5 rounded-full border border-primary/30">
+            <ShieldCheck size={14} className="text-primary" />
+            <span className="text-[10px] font-black uppercase tracking-widest text-primary/80">
+              Secure Node
             </span>
           </div>
-          <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse shadow-[0_0_10px_#ef4444]" />
+          <div className="flex items-center gap-2 bg-red-500/10 px-3 py-1.5 rounded-full border border-red-500/30">
+            <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+            <span className="text-red-500 font-bold text-[10px] uppercase tracking-widest">
+              Live
+            </span>
+          </div>
         </div>
 
         <div className="flex items-center justify-center gap-4 relative z-10">
-          {/* BIGGER SQUIRCLE IMAGES */}
-          <div className="w-28 h-28 rounded-[2.5rem] rotate-[-8deg] border-2 border-primary/50 overflow-hidden shadow-2xl group-hover:rotate-0 transition-all duration-500">
+          <div className="w-24 h-24 rounded-[2.2rem] rotate-[-6deg] border-2 border-primary/40 overflow-hidden shadow-2xl group-hover:rotate-0 transition-all duration-500">
             <img
-              src="https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=400"
-              className="w-full h-full object-cover"
+              src="https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=300"
+              className="w-full h-full object-cover grayscale group-hover:grayscale-0"
+              alt="u1"
             />
           </div>
-
-          <ArrowRightLeft className="text-primary/50 animate-pulse" size={24} />
-
-          <div className="w-28 h-28 rounded-[2.5rem] rotate-[8deg] border-2 border-secondary/50 overflow-hidden shadow-2xl group-hover:rotate-0 transition-all duration-500">
+          <div className="flex flex-col items-center">
+            <Zap className="text-yellow-500 animate-bounce" size={28} />
+            <ArrowRightLeft className="text-primary/30" size={20} />
+          </div>
+          <div className="w-24 h-24 rounded-[2.2rem] rotate-[6deg] border-2 border-secondary/40 overflow-hidden shadow-2xl group-hover:rotate-0 transition-all duration-500">
             <img
-              src="https://images.unsplash.com/photo-1517841905240-472988babdf9?w=400"
-              className="w-full h-full object-cover"
+              src="https://images.unsplash.com/photo-1517841905240-472988babdf9?w=300"
+              className="w-full h-full object-cover grayscale group-hover:grayscale-0"
+              alt="u2"
             />
           </div>
         </div>
 
-        <div className="mt-8 text-center">
-          <p className="text-[11px] font-black tracking-[0.5em] uppercase text-primary/80 group-hover:text-primary animate-pulse">
-            Find Lucky Pair
+        <div className="mt-10 flex flex-col items-center relative z-10">
+          <p className="text-[11px] font-black tracking-[0.5em] uppercase text-primary/60 group-hover:text-primary transition-all">
+            Tap to Match
           </p>
         </div>
       </motion.div>
 
-      {/* 📽️ DUAL VIDEO CALL UI */}
+      {/* 📽️ FULLSCREEN CALL UI */}
       <AnimatePresence>
         {inCall && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[500] bg-black"
+            className="fixed inset-0 z-[500] bg-[#020202]"
           >
-            {/* MAIN VIEW (Remote Partner) */}
+            {/* 🌌 Cyber Background */}
+            <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_center,_#0ea5e9_0%,transparent_70%)]" />
+
+            {/* Remote Partner (Main View) */}
             <div
+              key={remoteUser ? remoteUser.uid : "empty"}
               ref={remoteVideoRef}
-              className="w-full h-full flex items-center justify-center relative bg-[#050505]"
+              className="w-full h-full relative z-10 flex items-center justify-center"
             >
               {!remoteUser && (
                 <div className="text-center">
-                  <Sparkles
-                    size={60}
-                    className="text-primary/20 mb-6 mx-auto animate-bounce"
-                  />
-                  <p className="text-[10px] font-black tracking-[0.6em] uppercase text-primary animate-pulse px-10">
-                    Searching for your lucky friend...
-                  </p>
+                  <motion.div
+                    animate={{ scale: [1, 1.2, 1] }}
+                    transition={{ repeat: Infinity, duration: 2 }}
+                    className="mb-6 inline-block p-8 rounded-full bg-primary/5 border border-primary/10 backdrop-blur-3xl"
+                  >
+                    <Sparkles size={60} className="text-primary/30" />
+                  </motion.div>
+                  <h2 className="text-primary font-black tracking-[0.6em] uppercase text-xs">
+                    Your lucky friend is here!
+                  </h2>
                 </div>
               )}
             </div>
 
-            {/* SELF VIEW (Floating Squircle) */}
+            {/* Self Video (Floating Squircle) */}
             <div
               ref={localVideoRef}
-              className="absolute top-10 right-5 w-32 h-48 rounded-[2rem] border-2 border-primary/40 bg-black shadow-2xl z-[510] overflow-hidden"
+              className="absolute top-12 right-6 w-32 h-46 rounded-[2rem] border-2 border-primary/40 bg-black shadow-[0_0_40px_rgba(0,0,0,0.8)] z-[510] overflow-hidden"
             />
 
-            {/* CONTROLS (Primary Colors Only) */}
-            <div className="absolute bottom-10 left-0 right-0 flex justify-center z-[520]">
-              <div className="flex items-center gap-4 bg-black/70 backdrop-blur-2xl px-6 py-4 rounded-[3rem] border border-primary/20 shadow-2xl">
+            {/* Controls Bar */}
+            <div className="absolute bottom-10 left-0 right-0 flex justify-center items-center z-[520]">
+              <div className="flex items-center gap-3 bg-black/80 backdrop-blur-2xl px-6 py-4 rounded-[3rem] border border-primary/20 shadow-2xl">
                 <button
-                  onClick={() => {
-                    rtc.current.localAudioTrack.setEnabled(isMuted);
-                    setIsMuted(!isMuted);
-                  }}
-                  className={`p-4 rounded-2xl ${isMuted ? "bg-red-500 text-black" : "bg-primary/20 text-primary"}`}
+                  onClick={toggleMic}
+                  className={`p-4 rounded-2xl transition-all ${isMuted ? "bg-red-500 text-black" : "bg-primary/10 text-primary"}`}
                 >
                   {isMuted ? <MicOff size={22} /> : <Mic size={22} />}
                 </button>
 
                 <button
-                  onClick={endCall}
-                  className="p-6 rounded-[2.2rem] bg-red-600 text-black shadow-xl hover:scale-105 transition-all"
+                  onClick={toggleSpeaker}
+                  className={`p-4 rounded-2xl transition-all ${isSpeakerOff ? "bg-red-500 text-black" : "bg-primary/10 text-primary"}`}
                 >
-                  <PhoneOff size={30} fill="black" />
+                  {isSpeakerOff ? <VolumeX size={22} /> : <Volume2 size={22} />}
                 </button>
 
                 <button
-                  onClick={() => {
-                    rtc.current.localVideoTrack.setEnabled(isVideoOff);
-                    setIsVideoOff(!isVideoOff);
-                  }}
-                  className={`p-4 rounded-2xl ${isVideoOff ? "bg-red-500 text-black" : "bg-primary/20 text-primary"}`}
+                  onClick={endCall}
+                  className="mx-2 p-6 rounded-[2.2rem] bg-red-600 text-black shadow-2xl hover:scale-105 active:scale-95 transition-all"
+                >
+                  <PhoneOff size={32} fill="black" />
+                </button>
+
+                <button
+                  onClick={toggleVideo}
+                  className={`p-4 rounded-2xl transition-all ${isVideoOff ? "bg-red-500 text-black" : "bg-primary/10 text-primary"}`}
                 >
                   {isVideoOff ? <CameraOff size={22} /> : <Camera size={22} />}
                 </button>
@@ -218,14 +271,16 @@ const ConnectionPanel = () => {
       </AnimatePresence>
 
       {/* 🔍 SEARCHING MODAL */}
-      {isSearching && (
-        <div className="fixed inset-0 z-[600] bg-black flex flex-col items-center justify-center px-6">
-          <div className="w-14 h-14 border-4 border-primary border-t-transparent rounded-full animate-spin mb-6" />
-          <p className="text-primary text-[10px] font-black uppercase tracking-[0.5em] text-center">
-            Initializing Secure Pair...
-          </p>
-        </div>
-      )}
+      <AnimatePresence>
+        {isSearching && (
+          <motion.div className="fixed inset-0 z-[600] bg-black flex flex-col items-center justify-center">
+            <div className="w-14 h-14 border-4 border-primary border-t-transparent rounded-full animate-spin mb-8 shadow-2xl shadow-primary/20" />
+            <p className="text-primary font-black tracking-[0.5em] uppercase text-[10px] animate-pulse">
+              Searching Lucky Friend...
+            </p>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
