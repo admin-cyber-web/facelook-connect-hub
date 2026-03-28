@@ -7,15 +7,16 @@ import {
   Camera,
   CameraOff,
   Sparkles,
-  ShieldCheck,
   ArrowRight,
 } from "lucide-react";
 import AgoraRTC from "agora-rtc-sdk-ng";
 
-// --- 🔑 CONFIG ---
+// --- 🔑 AGORA PRODUCTION CONFIG ---
 const APP_ID = "fc434988dc0545b49355a6ace8aaadd6";
 const TOKEN =
   "007eJxTYJjIdUjct3rFtRcMzWuVEyIPl1a877GUt5t4RmxKilIV9zsFhrRkE2MTSwuLlGQDUxPTJBNLY1PTRLPE5FSLxMTElBSzM9ePZzYEMjJMyzNiZmSAQBCflyENqCgnPz9btyg1MYeBAQBAhSKt";
+
+// ⚠️ MATCHED CHANNEL NAME (टोकन जनरेट करते समय जो नाम था)
 const CHANNEL_NAME = "facelook-real";
 
 const ConnectionPanel = () => {
@@ -34,18 +35,26 @@ const ConnectionPanel = () => {
     localVideoTrack: null,
   });
 
-  // 🛡️ THE FIX: Force Video Ingestion
+  // 🛡️ NO-FAIL VIDEO ENGINE
   useEffect(() => {
     if (inCall) {
-      const timer = setTimeout(() => {
-        if (rtc.current.localVideoTrack && localRef.current) {
+      const playInterval = setInterval(() => {
+        if (
+          rtc.current.localVideoTrack &&
+          localRef.current &&
+          localRef.current.childElementCount === 0
+        ) {
           rtc.current.localVideoTrack.play(localRef.current, { fit: "cover" });
         }
-        if (remoteUser?.videoTrack && remoteRef.current) {
+        if (
+          remoteUser?.videoTrack &&
+          remoteRef.current &&
+          remoteRef.current.childElementCount === 0
+        ) {
           remoteUser.videoTrack.play(remoteRef.current, { fit: "cover" });
         }
-      }, 500);
-      return () => clearTimeout(timer);
+      }, 1000);
+      return () => clearInterval(playInterval);
     }
   }, [inCall, remoteUser]);
 
@@ -72,13 +81,15 @@ const ConnectionPanel = () => {
       setInCall(true);
       setIsSearching(false);
     } catch (err) {
-      console.error(err);
+      console.error("Agora Connection Error:", err);
       setIsSearching(false);
     }
   };
 
   const endCall = async () => {
+    rtc.current.localAudioTrack?.stop();
     rtc.current.localAudioTrack?.close();
+    rtc.current.localVideoTrack?.stop();
     rtc.current.localVideoTrack?.close();
     await rtc.current.client.leave();
     setInCall(false);
@@ -87,49 +98,59 @@ const ConnectionPanel = () => {
   };
 
   return (
-    <div className="w-full min-h-screen bg-slate-50 flex items-center justify-center p-4">
-      {/* 🌟 START SCREEN (No Overlap) */}
+    <div className="fixed inset-0 w-screen h-screen bg-white overflow-hidden m-0 p-0 border-none">
+      {/* 🌟 ULTRA-CLEAN START SCREEN (Zero Gaps) */}
       {!inCall && !isSearching && (
-        <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="w-full max-w-md bg-white p-8 rounded-[2.5rem] shadow-xl border border-slate-100 flex flex-col items-center"
-        >
-          <div className="flex -space-x-6 mb-8">
-            <img
-              src="https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=200"
-              className="w-24 h-24 rounded-3xl object-cover border-4 border-white shadow-lg -rotate-6"
-            />
-            <img
-              src="https://images.unsplash.com/photo-1517841905240-472988babdf9?w=200"
-              className="w-24 h-24 rounded-3xl object-cover border-4 border-white shadow-lg rotate-6 z-10"
-            />
-          </div>
-
-          <h1 className="text-2xl font-black text-slate-800 mb-2">Facelook</h1>
-          <p className="text-slate-400 text-sm mb-10">Start 1v1 Random Match</p>
-
-          <button
-            onClick={startCall}
-            className="w-full py-5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-2xl flex items-center justify-center gap-3 transition-all active:scale-95 shadow-lg shadow-blue-100"
+        <div className="w-full h-full flex items-center justify-center p-0 m-0">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="w-full max-w-[350px] flex flex-col items-center bg-white px-6"
           >
-            START MATCH <ArrowRight size={20} />
-          </button>
-        </motion.div>
+            <div className="flex -space-x-4 mb-8">
+              <div className="w-24 h-24 rounded-[2.5rem] bg-slate-100 border-4 border-white shadow-xl overflow-hidden -rotate-6">
+                <img
+                  src="https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=300"
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              <div className="w-24 h-24 rounded-[2.5rem] bg-slate-100 border-4 border-white shadow-xl overflow-hidden rotate-6">
+                <img
+                  src="https://images.unsplash.com/photo-1517841905240-472988babdf9?w=300"
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            </div>
+
+            <h1 className="text-xl font-black text-slate-800 tracking-tighter uppercase mb-2">
+              Facelook Live
+            </h1>
+            <p className="text-blue-500 font-bold text-[10px] tracking-[0.4em] uppercase mb-10">
+              Pairing Algorithm Active
+            </p>
+
+            <button
+              onClick={startCall}
+              className="w-full h-16 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-2xl flex items-center justify-center gap-3 transition-all active:scale-95 shadow-lg shadow-blue-200"
+            >
+              START MATCHING <ArrowRight size={20} />
+            </button>
+          </motion.div>
+        </div>
       )}
 
-      {/* 📽️ VIDEO SCREEN (Clean Layout) */}
+      {/* 📽️ IMMERSIVE VIDEO SCREEN (No White Space) */}
       <AnimatePresence>
         {inCall && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="fixed inset-0 bg-black flex flex-col z-[1000]"
+            className="fixed inset-0 z-[1000] bg-black m-0 p-0 border-none"
           >
-            {/* Main Remote View */}
+            {/* PARTNER VIEW (FILLS SCREEN) */}
             <div
               ref={remoteRef}
-              className="flex-1 w-full bg-slate-900 relative overflow-hidden flex items-center justify-center"
+              className="absolute inset-0 w-full h-full bg-slate-900 flex items-center justify-center overflow-hidden m-0 p-0 border-none"
             >
               {!remoteUser && (
                 <div className="text-center">
@@ -137,37 +158,37 @@ const ConnectionPanel = () => {
                     size={40}
                     className="text-blue-500 mb-4 animate-bounce mx-auto"
                   />
-                  <p className="text-blue-400 font-bold uppercase tracking-widest text-[10px]">
-                    Finding Partner...
+                  <p className="text-blue-400 font-bold text-[10px] tracking-[0.5em] uppercase">
+                    Matching...
                   </p>
                 </div>
               )}
             </div>
 
-            {/* Floating Local View (Now correctly positioned) */}
+            {/* YOUR VIEW (TIGHT CORNER) */}
             <div
               ref={localRef}
-              className="absolute top-6 right-6 w-28 h-40 md:w-40 md:h-56 rounded-2xl border-2 border-white/20 bg-slate-800 shadow-2xl z-[1010] overflow-hidden"
+              className="absolute top-4 right-4 w-28 h-40 md:w-40 md:h-56 rounded-2xl border border-white/20 bg-black shadow-2xl z-[1010] overflow-hidden"
             />
 
-            {/* Controls Bar */}
-            <div className="h-32 w-full flex items-center justify-center bg-black/80 backdrop-blur-xl border-t border-white/10 z-[1020]">
-              <div className="flex items-center gap-6">
+            {/* MINIMALIST OVERLAY CONTROLS */}
+            <div className="absolute bottom-8 left-0 right-0 flex justify-center px-4 z-[1020]">
+              <div className="w-full max-w-[280px] flex items-center justify-around bg-black/30 backdrop-blur-3xl px-6 py-4 rounded-full border border-white/10 shadow-2xl">
                 <button
                   onClick={() => {
                     rtc.current.localAudioTrack.setEnabled(isMuted);
                     setIsMuted(!isMuted);
                   }}
-                  className={`p-4 rounded-full transition-all ${isMuted ? "bg-red-500 text-white" : "bg-white/10 text-white"}`}
+                  className={`p-3 rounded-xl transition-all ${isMuted ? "bg-red-500 text-white" : "bg-white/10 text-white"}`}
                 >
-                  {isMuted ? <MicOff size={24} /> : <Mic size={24} />}
+                  {isMuted ? <MicOff size={22} /> : <Mic size={22} />}
                 </button>
 
                 <button
                   onClick={endCall}
-                  className="p-6 rounded-full bg-red-600 hover:bg-red-700 text-white shadow-xl transform active:scale-90 transition-all"
+                  className="p-5 rounded-full bg-red-600 hover:bg-red-700 text-white shadow-xl active:scale-90 transition-all"
                 >
-                  <PhoneOff size={32} fill="white" />
+                  <PhoneOff size={28} fill="white" />
                 </button>
 
                 <button
@@ -175,9 +196,9 @@ const ConnectionPanel = () => {
                     rtc.current.localVideoTrack.setEnabled(isVideoOff);
                     setIsVideoOff(!isVideoOff);
                   }}
-                  className={`p-4 rounded-full transition-all ${isVideoOff ? "bg-red-500 text-white" : "bg-white/10 text-white"}`}
+                  className={`p-3 rounded-xl transition-all ${isVideoOff ? "bg-red-500 text-white" : "bg-white/10 text-white"}`}
                 >
-                  {isVideoOff ? <CameraOff size={24} /> : <Camera size={24} />}
+                  {isVideoOff ? <CameraOff size={22} /> : <Camera size={22} />}
                 </button>
               </div>
             </div>
@@ -185,12 +206,12 @@ const ConnectionPanel = () => {
         )}
       </AnimatePresence>
 
-      {/* 🔍 SEARCHING UI */}
+      {/* 🔍 SEARCHING (Full White Screen) */}
       {isSearching && (
-        <div className="fixed inset-0 z-[2000] bg-white flex flex-col items-center justify-center">
-          <div className="w-12 h-12 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin mb-6" />
-          <p className="text-blue-600 font-black uppercase tracking-[0.4em] text-[10px]">
-            Connecting...
+        <div className="fixed inset-0 z-[2000] bg-white flex flex-col items-center justify-center m-0 p-0 border-none">
+          <div className="w-10 h-10 border-[3px] border-blue-100 border-t-blue-600 rounded-full animate-spin mb-6" />
+          <p className="text-blue-600 font-bold tracking-[0.5em] text-[9px] uppercase animate-pulse">
+            Establishing Node...
           </p>
         </div>
       )}
