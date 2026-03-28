@@ -10,6 +10,8 @@ import {
   CameraOff,
   Monitor,
   ShieldCheck,
+  Star,
+  Zap,
 } from "lucide-react";
 import AgoraRTC from "agora-rtc-sdk-ng";
 
@@ -105,47 +107,81 @@ const ConnectionPanel = () => {
   };
 
   return (
-    <div className="px-4">
-      {/* 🌟 COMPACT CARD DESIGN */}
+    <div className="px-5">
+      {/* 🌟 PREMIUM MEDIUM-SIZED CARD */}
       <motion.div
-        whileTap={{ scale: 0.98 }}
+        whileHover={{ y: -5 }}
+        whileTap={{ scale: 0.97 }}
         onClick={startCall}
-        className="glass rounded-3xl p-6 border border-white/10 bg-gradient-to-br from-primary/5 to-transparent cursor-pointer group"
+        className="relative overflow-hidden glass rounded-[2.5rem] p-8 border border-white/20 bg-gradient-to-br from-primary/20 via-white/5 to-secondary/10 cursor-pointer group shadow-2xl shadow-primary/10"
       >
-        <div className="flex justify-between items-center mb-6">
-          <div className="flex items-center gap-2 bg-primary/20 px-3 py-1 rounded-full border border-primary/20">
-            <ShieldCheck size={12} className="text-primary" />
-            <span className="text-[9px] font-black uppercase tracking-widest text-primary">
-              P2P Secure
+        {/* Background Decorative Glow */}
+        <div className="absolute -top-24 -right-24 w-48 h-48 bg-primary/20 blur-[80px] rounded-full group-hover:bg-primary/40 transition-all" />
+
+        <div className="flex justify-between items-center mb-8 relative z-10">
+          <div className="flex items-center gap-2 bg-black/40 backdrop-blur-md px-4 py-1.5 rounded-full border border-white/10">
+            <Zap size={14} className="text-yellow-400 fill-yellow-400" />
+            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-white">
+              Instant Match
             </span>
           </div>
-          <span className="text-red-500 font-bold text-[9px] animate-pulse uppercase tracking-widest">
-            Live Now
-          </span>
-        </div>
-
-        <div className="flex items-center justify-around gap-2">
-          <div className="w-16 h-16 rounded-full border-2 border-white/10 overflow-hidden shadow-xl">
-            <img
-              src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200"
-              className="w-full h-full object-cover"
-            />
-          </div>
-          <ArrowRightLeft
-            className="text-primary/40 group-hover:text-primary transition-colors"
-            size={20}
-          />
-          <div className="w-16 h-16 rounded-full border-2 border-white/10 overflow-hidden shadow-xl">
-            <img
-              src="https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=200"
-              className="w-full h-full object-cover"
-            />
+          <div className="flex items-center gap-2 bg-red-500/10 px-3 py-1.5 rounded-full border border-red-500/20">
+            <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+            <span className="text-red-500 font-bold text-[10px] uppercase tracking-widest">
+              Live
+            </span>
           </div>
         </div>
 
-        <div className="mt-6 flex flex-col items-center">
-          <p className="text-[10px] font-bold tracking-[0.3em] uppercase text-white/40 group-hover:text-white transition-colors">
-            Tap to Connect
+        <div className="flex items-center justify-center gap-6 relative z-10">
+          <div className="relative">
+            <div className="w-20 h-20 rounded-full border-4 border-white/20 overflow-hidden shadow-2xl ring-4 ring-primary/20">
+              <img
+                src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200"
+                className="w-full h-full object-cover transition-transform group-hover:scale-110"
+              />
+            </div>
+            <div className="absolute -bottom-2 -right-2 bg-primary p-1.5 rounded-full border-2 border-white shadow-lg">
+              <Video size={12} className="text-white" />
+            </div>
+          </div>
+
+          <div className="flex flex-col items-center">
+            <motion.div
+              animate={{ rotate: 360 }}
+              transition={{ repeat: Infinity, duration: 4, ease: "linear" }}
+              className="p-3 rounded-full bg-white/5 border border-white/10 shadow-inner"
+            >
+              <ArrowRightLeft className="text-primary" size={24} />
+            </motion.div>
+          </div>
+
+          <div className="relative">
+            <div className="w-20 h-20 rounded-full border-4 border-white/20 overflow-hidden shadow-2xl ring-4 ring-secondary/20">
+              <img
+                src="https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=200"
+                className="w-full h-full object-cover transition-transform group-hover:scale-110"
+              />
+            </div>
+            <div className="absolute -bottom-2 -left-2 bg-secondary p-1.5 rounded-full border-2 border-white shadow-lg">
+              <Star size={12} className="text-white fill-white" />
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-10 flex flex-col items-center relative z-10">
+          <div className="flex gap-1.5 mb-4">
+            {[...Array(6)].map((_, i) => (
+              <motion.div
+                key={i}
+                animate={{ height: [4, 12, 4] }}
+                transition={{ repeat: Infinity, duration: 0.5, delay: i * 0.1 }}
+                className="w-1.5 bg-primary/50 rounded-full"
+              />
+            ))}
+          </div>
+          <p className="text-[12px] font-black tracking-[0.4em] uppercase text-white/60 group-hover:text-white transition-colors">
+            Tap to Start Chatting
           </p>
         </div>
       </motion.div>
@@ -154,68 +190,87 @@ const ConnectionPanel = () => {
       <AnimatePresence>
         {inCall && (
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+            initial={{ opacity: 0, scale: 1.1 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
             className="fixed inset-0 z-[500] bg-black"
           >
             {/* Remote Partner (Main View) */}
             <div
               ref={remoteVideoRef}
-              className="w-full h-full flex items-center justify-center bg-zinc-900"
+              className="w-full h-full flex items-center justify-center bg-[#0a0a0a]"
             >
               {!remoteUser && (
-                <div className="text-center animate-pulse">
-                  <Monitor size={48} className="mx-auto mb-4 text-white/10" />
-                  <p className="text-white/20 text-[10px] font-black tracking-[0.5em] uppercase">
-                    Waiting for partner...
+                <div className="text-center">
+                  <div className="relative w-24 h-24 mx-auto mb-6">
+                    <div className="absolute inset-0 border-4 border-primary/20 rounded-full animate-ping" />
+                    <div className="relative w-24 h-24 rounded-full bg-primary/10 flex items-center justify-center border border-primary/20">
+                      <Monitor size={40} className="text-primary/40" />
+                    </div>
+                  </div>
+                  <p className="text-white/20 text-[10px] font-black tracking-[0.5em] uppercase animate-pulse">
+                    Searching for partner...
                   </p>
                 </div>
               )}
             </div>
 
             {/* Self Video (Floating) */}
-            <div
+            <motion.div
+              drag
+              dragConstraints={{ left: 0, right: 0, top: 0, bottom: 0 }}
               ref={localVideoRef}
-              className="absolute top-10 right-4 w-28 h-40 rounded-2xl border border-white/20 bg-black shadow-2xl z-[510] overflow-hidden"
+              className="absolute top-12 right-6 w-32 h-48 rounded-3xl border-2 border-white/20 bg-black shadow-2xl z-[510] overflow-hidden shadow-primary/20 ring-4 ring-black/50"
             />
 
-            {/* Controls Bar */}
-            <div className="absolute bottom-10 left-0 right-0 flex justify-center items-center gap-6 z-[520]">
-              <button
-                onClick={toggleMic}
-                className={`p-4 rounded-full border border-white/10 backdrop-blur-md transition-all ${isMuted ? "bg-red-500 text-white" : "bg-white/10 text-white"}`}
-              >
-                {isMuted ? <MicOff size={20} /> : <Mic size={20} />}
-              </button>
+            {/* Controls Bar (Floating Pill) */}
+            <div className="absolute bottom-12 left-0 right-0 flex justify-center items-center z-[520]">
+              <div className="flex items-center gap-4 bg-white/5 backdrop-blur-2xl px-8 py-5 rounded-[3rem] border border-white/10 shadow-2xl ring-1 ring-white/5">
+                <button
+                  onClick={toggleMic}
+                  className={`p-4 rounded-full transition-all ${isMuted ? "bg-red-500 text-white" : "hover:bg-white/10 text-white/70"}`}
+                >
+                  {isMuted ? <MicOff size={24} /> : <Mic size={24} />}
+                </button>
 
-              <button
-                onClick={endCall}
-                className="p-6 rounded-full bg-red-600 text-white shadow-[0_0_30px_rgba(220,38,38,0.5)] active:scale-90 transition-transform"
-              >
-                <PhoneOff size={28} />
-              </button>
+                <button
+                  onClick={endCall}
+                  className="p-6 rounded-full bg-red-600 text-white shadow-2xl shadow-red-600/40 hover:scale-110 active:scale-95 transition-all"
+                >
+                  <PhoneOff size={32} />
+                </button>
 
-              <button
-                onClick={toggleVideo}
-                className={`p-4 rounded-full border border-white/10 backdrop-blur-md transition-all ${isVideoOff ? "bg-red-500 text-white" : "bg-white/10 text-white"}`}
-              >
-                {isVideoOff ? <CameraOff size={20} /> : <Camera size={20} />}
-              </button>
+                <button
+                  onClick={toggleVideo}
+                  className={`p-4 rounded-full transition-all ${isVideoOff ? "bg-red-500 text-white" : "hover:bg-white/10 text-white/70"}`}
+                >
+                  {isVideoOff ? <CameraOff size={24} /> : <Camera size={24} />}
+                </button>
+              </div>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
 
       {/* 🔍 SEARCHING MODAL */}
-      {isSearching && (
-        <div className="fixed inset-0 z-[600] bg-black/95 backdrop-blur-3xl flex flex-col items-center justify-center">
-          <div className="w-14 h-14 border-2 border-primary border-t-transparent rounded-full animate-spin mb-4" />
-          <p className="text-white font-black tracking-widest uppercase text-[10px]">
-            Securely Connecting...
-          </p>
-        </div>
-      )}
+      <AnimatePresence>
+        {isSearching && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[600] bg-black/95 backdrop-blur-3xl flex flex-col items-center justify-center"
+          >
+            <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mb-6 shadow-2xl shadow-primary/20" />
+            <h2 className="text-xl font-black text-white italic tracking-tighter uppercase">
+              Connecting...
+            </h2>
+            <p className="text-primary font-bold tracking-[0.4em] uppercase text-[9px] mt-2 animate-pulse">
+              Finalizing Secure Stream
+            </p>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
