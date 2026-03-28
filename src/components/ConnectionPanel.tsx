@@ -9,6 +9,7 @@ import {
   Sparkles,
   ShieldCheck,
   Users,
+  ArrowRight,
 } from "lucide-react";
 import AgoraRTC from "agora-rtc-sdk-ng";
 
@@ -34,28 +35,35 @@ const ConnectionPanel = () => {
     localVideoTrack: null,
   });
 
-  // 🛠️ VIDEO AUTO-PLAY ENGINE (म्यूट-अनम्यूट की ज़रूरत नहीं पड़ेगी)
+  // 🛠️ VIDEO FORCE-PLAY ENGINE (Self-Correcting)
   useEffect(() => {
-    const initVideo = async () => {
-      if (inCall) {
-        // Local Video Play
-        if (rtc.current.localVideoTrack && localRef.current) {
+    let interval: any;
+    if (inCall) {
+      const playVideo = async () => {
+        if (
+          rtc.current.localVideoTrack &&
+          localRef.current &&
+          !localRef.current.hasChildNodes()
+        ) {
           await rtc.current.localVideoTrack.play(localRef.current, {
             fit: "cover",
           });
         }
-        // Remote Video Play (When partner joins)
-        if (remoteUser?.videoTrack && remoteRef.current) {
+        if (
+          remoteUser?.videoTrack &&
+          remoteRef.current &&
+          !remoteRef.current.hasChildNodes()
+        ) {
           await remoteUser.videoTrack.play(remoteRef.current, { fit: "cover" });
         }
-      }
-    };
-    const timer = setTimeout(initVideo, 800); // 0.8s delay for DOM stability
-    return () => clearTimeout(timer);
-  }, [inCall, remoteUser, isVideoOff]); // isVideoOff added to re-trigger if needed
+      };
+      // हर 1 सेकंड में चेक करेगा कि वीडियो चल रहा है या नहीं, नहीं तो प्ले कर देगा
+      interval = setInterval(playVideo, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [inCall, remoteUser]);
 
   const startCall = async () => {
-    if (!window.isSecureContext) return alert("Use HTTPS!");
     setIsSearching(true);
     try {
       await rtc.current.client.join(APP_ID, CHANNEL_NAME, TOKEN, null);
@@ -66,7 +74,7 @@ const ConnectionPanel = () => {
       rtc.current.client.on(
         "user-published",
         async (user: any, mediaType: string) => {
-          if (rtc.current.client.remoteUsers.length > 1) return; // Strict 1v1 Pair
+          if (rtc.current.client.remoteUsers.length > 1) return;
           await rtc.current.client.subscribe(user, mediaType);
           if (mediaType === "video") setRemoteUser(user);
           if (mediaType === "audio") user.audioTrack.play();
@@ -93,105 +101,103 @@ const ConnectionPanel = () => {
   };
 
   return (
-    <div className="w-full h-full flex items-center justify-center bg-slate-50 p-0 m-0 overflow-hidden">
-      {/* 🌟 EDGE-TO-EDGE CLEAN CARD */}
-      <AnimatePresence>
-        {!inCall && !isSearching && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="w-[320px] bg-white rounded-[2.5rem] shadow-[0_30px_60px_-15px_rgba(0,0,0,0.1)] border border-slate-100 overflow-hidden"
-          >
-            {/* Top Bar inside card */}
-            <div className="flex justify-between items-center px-6 pt-6 mb-4">
-              <div className="flex items-center gap-2 px-3 py-1 bg-blue-50 rounded-full border border-blue-100">
-                <ShieldCheck size={12} className="text-blue-500" />
-                <span className="text-[9px] font-black text-blue-600 uppercase tracking-widest">
-                  Secure 1v1
-                </span>
+    <div className="fixed inset-0 bg-white flex flex-col items-center justify-center overflow-hidden p-0 m-0">
+      {/* 🌟 HAND-TO-HAND MINIMALIST START CARD */}
+      {!inCall && !isSearching && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="w-[90%] max-w-[340px] flex flex-col items-center"
+        >
+          {/* Main Pairing Box */}
+          <div className="w-full bg-white rounded-[3rem] p-8 border border-slate-100 shadow-[0_40px_80px_-20px_rgba(0,0,0,0.08)]">
+            <div className="flex justify-center -space-x-4 mb-10">
+              <div className="w-24 h-24 rounded-[2.5rem] bg-blue-50 border-4 border-white shadow-xl overflow-hidden -rotate-6">
+                <img
+                  src="https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=300"
+                  className="w-full h-full object-cover"
+                />
               </div>
-              <Users size={18} className="text-slate-200" />
+              <div className="w-24 h-24 rounded-[2.5rem] bg-pink-50 border-4 border-white shadow-xl overflow-hidden rotate-6 z-10">
+                <img
+                  src="https://images.unsplash.com/photo-1517841905240-472988babdf9?w=300"
+                  className="w-full h-full object-cover"
+                />
+              </div>
             </div>
 
-            {/* Profile Section with NO extra gaps */}
-            <div className="flex flex-col items-center px-6 pb-8">
-              <div className="flex items-center justify-center gap-2 mb-8 mt-4">
-                <div className="w-28 h-28 rounded-[2.5rem] bg-slate-100 border-4 border-white shadow-xl overflow-hidden -rotate-6">
-                  <img
-                    src="https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=300"
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-                <div className="w-28 h-28 rounded-[2.5rem] bg-slate-100 border-4 border-white shadow-xl overflow-hidden rotate-6 ml-[-20px] relative z-10">
-                  <img
-                    src="https://images.unsplash.com/photo-1517841905240-472988babdf9?w=300"
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-              </div>
+            <h2 className="text-center text-slate-800 font-black text-xl mb-2 tracking-tight">
+              Facelook Live
+            </h2>
+            <p className="text-center text-slate-400 text-xs font-medium mb-8">
+              1v1 Private Video Match
+            </p>
 
-              <button
-                onClick={startCall}
-                className="w-full py-5 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs uppercase tracking-[0.3em] rounded-2xl transition-all shadow-[0_15px_30px_-5px_rgba(37,99,235,0.3)] active:scale-95"
-              >
-                Find Lucky Match
-              </button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+            <button
+              onClick={startCall}
+              className="w-full h-16 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-[1.5rem] flex items-center justify-center gap-3 transition-all active:scale-95 shadow-lg shadow-blue-200"
+            >
+              START MATCHING
+              <ArrowRight size={20} />
+            </button>
+          </div>
 
-      {/* 📽️ FULLSCREEN VIDEO (No White Gaps) */}
+          <div className="mt-8 flex items-center gap-2 text-slate-300">
+            <ShieldCheck size={16} />
+            <span className="text-[10px] font-bold uppercase tracking-widest">
+              End-to-End Encrypted
+            </span>
+          </div>
+        </motion.div>
+      )}
+
+      {/* 📽️ TRUE FULLSCREEN VIDEO INTERFACE (No Gaps) */}
       <AnimatePresence>
         {inCall && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[500] bg-black"
+            className="fixed inset-0 bg-black z-[500]"
           >
-            {/* Partner View */}
+            {/* Remote Full View */}
             <div
               ref={remoteRef}
-              className="w-full h-full bg-slate-900 flex items-center justify-center relative overflow-hidden"
+              className="absolute inset-0 bg-slate-900 flex items-center justify-center overflow-hidden"
             >
               {!remoteUser && (
                 <div className="flex flex-col items-center">
-                  <Sparkles
-                    size={40}
-                    className="text-blue-500 mb-4 animate-bounce"
-                  />
-                  <p className="text-[10px] font-black text-blue-400 uppercase tracking-[0.6em] animate-pulse">
-                    Matching...
+                  <div className="w-16 h-16 border-4 border-blue-100/10 border-t-blue-500 rounded-full animate-spin mb-6" />
+                  <p className="text-[10px] font-black text-blue-400 uppercase tracking-[0.5em] animate-pulse">
+                    Finding Friend...
                   </p>
                 </div>
               )}
             </div>
 
-            {/* Your View (Floating) */}
+            {/* Your Mini View (Overlay) */}
             <div
               ref={localRef}
-              className="absolute top-6 right-6 w-32 h-44 rounded-[2rem] bg-black border-2 border-white/20 shadow-2xl z-[510] overflow-hidden"
+              className="absolute top-6 right-6 w-32 h-44 rounded-[2rem] border-2 border-white/20 bg-black shadow-2xl z-[510] overflow-hidden transition-all active:scale-90"
             />
 
-            {/* Simple Floating Controls */}
-            <div className="absolute bottom-10 left-0 right-0 flex justify-center z-[520]">
-              <div className="flex items-center gap-3 bg-white/10 backdrop-blur-2xl px-6 py-4 rounded-full border border-white/10 shadow-2xl">
+            {/* Simple Glass Controls */}
+            <div className="absolute bottom-10 left-0 right-0 flex justify-center px-6 z-[520]">
+              <div className="w-full max-w-[320px] bg-white/10 backdrop-blur-3xl px-6 py-5 rounded-[2.5rem] border border-white/10 flex items-center justify-around shadow-2xl">
                 <button
                   onClick={() => {
                     rtc.current.localAudioTrack.setEnabled(isMuted);
                     setIsMuted(!isMuted);
                   }}
-                  className={`p-4 rounded-full transition-all ${isMuted ? "bg-red-500 text-white" : "bg-white/10 text-white hover:bg-white/20"}`}
+                  className={`p-4 rounded-2xl transition-all ${isMuted ? "bg-red-500 text-white" : "text-white hover:bg-white/10"}`}
                 >
-                  {isMuted ? <MicOff size={22} /> : <Mic size={22} />}
+                  {isMuted ? <MicOff size={24} /> : <Mic size={24} />}
                 </button>
 
                 <button
                   onClick={endCall}
-                  className="p-6 rounded-full bg-red-600 hover:bg-red-700 text-white shadow-xl transition-all active:scale-90"
+                  className="p-6 rounded-full bg-red-600 hover:bg-red-700 text-white shadow-[0_15px_30px_rgba(220,38,38,0.4)] active:scale-90"
                 >
-                  <PhoneOff size={28} fill="white" />
+                  <PhoneOff size={32} fill="white" />
                 </button>
 
                 <button
@@ -199,9 +205,9 @@ const ConnectionPanel = () => {
                     rtc.current.localVideoTrack.setEnabled(isVideoOff);
                     setIsVideoOff(!isVideoOff);
                   }}
-                  className={`p-4 rounded-full transition-all ${isVideoOff ? "bg-red-500 text-white" : "bg-white/10 text-white hover:bg-white/20"}`}
+                  className={`p-4 rounded-2xl transition-all ${isVideoOff ? "bg-red-500 text-white" : "text-white hover:bg-white/10"}`}
                 >
-                  {isVideoOff ? <CameraOff size={22} /> : <Camera size={22} />}
+                  {isVideoOff ? <CameraOff size={24} /> : <Camera size={24} />}
                 </button>
               </div>
             </div>
@@ -209,12 +215,14 @@ const ConnectionPanel = () => {
         )}
       </AnimatePresence>
 
-      {/* 🔍 SEARCHING MODAL (Edge-to-Edge White) */}
+      {/* 🔍 SEARCHING FULLSCREEN */}
       {isSearching && (
         <div className="fixed inset-0 z-[600] bg-white flex flex-col items-center justify-center">
-          <div className="w-12 h-12 border-4 border-blue-50 border-t-blue-600 rounded-full animate-spin mb-6" />
-          <p className="text-[10px] font-black text-blue-600 uppercase tracking-[0.5em] animate-pulse">
-            Entering Channel...
+          <div className="w-14 h-14 bg-blue-50 rounded-full flex items-center justify-center mb-8">
+            <Sparkles size={32} className="text-blue-500 animate-pulse" />
+          </div>
+          <p className="text-[11px] font-black text-blue-600 uppercase tracking-[0.5em] animate-pulse">
+            Pairing...
           </p>
         </div>
       )}
