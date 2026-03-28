@@ -4,6 +4,7 @@ import GolSlider from "@/components/GolSlider";
 import ConnectionPanel from "@/components/ConnectionPanel";
 import MatchmakingSection from "@/components/MatchmakingSection";
 import FameFeed from "@/components/FameFeed";
+import FlicksFeed from "@/components/FlicksFeed";
 import { motion, AnimatePresence } from "framer-motion";
 
 const Index = () => {
@@ -73,15 +74,7 @@ const Index = () => {
               </div>
             )}
 
-            {activeFeature === "Flicks" && (
-              <div className="px-4 md:px-8">
-                <div className="glass rounded-2xl p-8 flex flex-col items-center gap-4">
-                  <div className="w-full aspect-[9/16] max-w-xs rounded-2xl bg-gradient-to-b from-primary/20 via-secondary/20 to-accent/20 flex items-center justify-center">
-                    <p className="text-muted-foreground text-sm">↑ Swipe for Flicks ↑</p>
-                  </div>
-                </div>
-              </div>
-            )}
+            {activeFeature === "Flicks" && <FlicksFeed />}
 
             {activeFeature === "Film" && (
               <div className="px-4 md:px-8 space-y-4">
