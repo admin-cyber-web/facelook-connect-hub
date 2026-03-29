@@ -11,62 +11,99 @@ const Index = () => {
   const [activeFeature, setActiveFeature] = useState("Fame");
 
   return (
-    <div className="min-h-screen w-full">
+    <div className="min-h-screen w-full bg-slate-50 overflow-x-hidden">
+      {/* --- Fixed Header --- */}
       <Header />
 
-      {/* Main content */}
-      <main className="pt-20 pb-40 max-w-2xl mx-auto space-y-6">
+      {/* --- Main Content Area --- */}
+      <main className="pt-24 pb-40 max-w-2xl mx-auto px-4 min-h-screen">
         <AnimatePresence mode="wait">
           <motion.div
             key={activeFeature}
-            initial={{ opacity: 0, y: 12 }}
+            initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -12 }}
-            transition={{ duration: 0.25 }}
-            className="space-y-6"
+            exit={{ opacity: 0, y: -15 }}
+            transition={{ duration: 0.3, ease: "easeOut" }}
+            className="w-full space-y-8"
           >
+            {/* 🌟 FAME FEED (THE MAIN SOCIAL WALL) 🌟 */}
             {activeFeature === "Fame" && (
-              <>
+              <div className="flex flex-col gap-8">
+                {/* Upper Connections Panel */}
                 <ConnectionPanel />
-                <FameFeed />
-              </>
+
+                {/* Real-time Fame Feed Section */}
+                <div className="relative z-10">
+                  <FameFeed />
+                </div>
+              </div>
             )}
 
+            {/* 👤 PROFILE SECTION 👤 */}
             {activeFeature === "Face" && (
-              <div className="px-4 md:px-8">
-                <div className="glass rounded-2xl p-8 flex flex-col items-center gap-4">
-                  <div className="w-28 h-28 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center text-primary-foreground font-bold text-3xl shadow-xl">
+              <div className="px-2">
+                <div className="glass rounded-[3rem] p-10 flex flex-col items-center gap-6 border-white/40 shadow-xl">
+                  <div className="w-32 h-32 rounded-full bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center text-white font-black text-4xl shadow-2xl ring-8 ring-white">
                     U
                   </div>
-                  <h2 className="text-xl font-bold text-foreground">Your Profile</h2>
-                  <p className="text-sm text-muted-foreground text-center max-w-xs">Manage your DP, cover photo, gallery, and friend connections.</p>
-                  <div className="flex gap-6 mt-2 text-center">
-                    <div><p className="text-lg font-bold text-foreground">248</p><p className="text-[10px] text-muted-foreground uppercase tracking-wider">Friends</p></div>
-                    <div><p className="text-lg font-bold text-foreground">52</p><p className="text-[10px] text-muted-foreground uppercase tracking-wider">Posts</p></div>
-                    <div><p className="text-lg font-bold text-foreground">1.2k</p><p className="text-[10px] text-muted-foreground uppercase tracking-wider">Likes</p></div>
+                  <div className="text-center">
+                    <h2 className="text-2xl font-black text-slate-800">
+                      Your Identity
+                    </h2>
+                    <p className="text-sm text-slate-400 mt-1 font-medium italic">
+                      "Living the fame life"
+                    </p>
+                  </div>
+                  <div className="flex gap-8 mt-4 text-center">
+                    <div className="bg-white/50 px-4 py-2 rounded-2xl shadow-sm border border-white">
+                      <p className="text-xl font-black text-blue-600">248</p>
+                      <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">
+                        Buddies
+                      </p>
+                    </div>
+                    <div className="bg-white/50 px-4 py-2 rounded-2xl shadow-sm border border-white">
+                      <p className="text-xl font-black text-blue-600">52</p>
+                      <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">
+                        Vibes
+                      </p>
+                    </div>
+                    <div className="bg-white/50 px-4 py-2 rounded-2xl shadow-sm border border-white">
+                      <p className="text-xl font-black text-blue-600">1.2k</p>
+                      <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">
+                        Fame
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
             )}
 
+            {/* 🔥 GROUPS & COLLAB 🔥 */}
             {activeFeature === "Flame" && (
-              <div className="px-4 md:px-8 space-y-4">
-                <h2 className="text-sm font-bold uppercase tracking-widest text-foreground/60 flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-accent" />
-                  Groups & Collaboration
+              <div className="space-y-6 px-2">
+                <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-blue-600/60 flex items-center gap-3 ml-4">
+                  <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse" />
+                  Active Hubs
                 </h2>
                 {["#ReactDevs", "#DesignDaily", "#StartupPK"].map((group) => (
-                  <div key={group} className="glass rounded-2xl p-5 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-accent to-secondary flex items-center justify-center text-primary-foreground text-sm font-bold">
+                  <div
+                    key={group}
+                    className="bg-white rounded-[2.5rem] p-6 flex items-center justify-between shadow-sm border border-slate-100 hover:shadow-md transition-shadow"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-50 to-indigo-50 flex items-center justify-center text-blue-600 text-lg font-black">
                         {group[1]}
                       </div>
                       <div>
-                        <p className="text-sm font-semibold text-foreground">{group}</p>
-                        <p className="text-[11px] text-muted-foreground">12 members · 5 posts today</p>
+                        <p className="text-sm font-black text-slate-800">
+                          {group}
+                        </p>
+                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">
+                          12 Active · 5 New
+                        </p>
                       </div>
                     </div>
-                    <button className="px-3 py-1.5 rounded-full bg-primary/10 text-primary text-xs font-semibold hover:bg-primary/20 transition-colors">
+                    <button className="px-5 py-2 rounded-xl bg-blue-600 text-white text-[10px] font-black uppercase tracking-widest shadow-lg shadow-blue-100 active:scale-95 transition-all">
                       Join
                     </button>
                   </div>
@@ -74,52 +111,85 @@ const Index = () => {
               </div>
             )}
 
+            {/* 🎬 VIDEO FEED 🎬 */}
             {activeFeature === "Flicks" && <FlicksFeed />}
 
+            {/* 📖 STORIES AREA 📖 */}
             {activeFeature === "Film" && (
-              <div className="px-4 md:px-8 space-y-4">
-                <h2 className="text-sm font-bold uppercase tracking-widest text-foreground/60 flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-secondary" />
-                  Stories · 24h
+              <div className="space-y-6 px-2">
+                <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 flex items-center gap-3 ml-4">
+                  <span className="w-2 h-2 rounded-full bg-slate-200" />
+                  Recent Stories
                 </h2>
-                <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
-                  {["You", "Ayesha", "Zain", "Sara", "Ali", "Hira"].map((name, i) => (
-                    <div key={name} className="flex flex-col items-center gap-2 min-w-[72px]">
-                      <div className={`w-16 h-16 rounded-full ${i === 0 ? 'border-2 border-dashed border-primary/40' : 'ring-2 ring-primary/50'} bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center text-foreground font-semibold text-sm`}>
-                        {name[0]}
+                <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide">
+                  {["You", "Ayesha", "Zain", "Sara", "Ali", "Hira"].map(
+                    (name, i) => (
+                      <div
+                        key={name}
+                        className="flex flex-col items-center gap-3 min-w-[85px]"
+                      >
+                        <div
+                          className={`w-20 h-20 rounded-[2rem] p-1 ${i === 0 ? "bg-slate-100 border-2 border-dashed border-slate-300" : "bg-gradient-to-tr from-blue-500 via-purple-500 to-pink-500"}`}
+                        >
+                          <div className="w-full h-full rounded-[1.8rem] bg-white flex items-center justify-center text-slate-800 font-black text-xl border-2 border-white">
+                            {name[0]}
+                          </div>
+                        </div>
+                        <span className="text-[10px] font-black text-slate-500 uppercase tracking-tighter">
+                          {name}
+                        </span>
                       </div>
-                      <span className="text-[11px] text-muted-foreground">{name}</span>
-                    </div>
-                  ))}
+                    ),
+                  )}
                 </div>
               </div>
             )}
 
+            {/* 😂 MEME HUB 😂 */}
             {activeFeature === "Fun" && (
-              <div className="px-4 md:px-8 space-y-4">
-                <h2 className="text-sm font-bold uppercase tracking-widest text-foreground/60 flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-accent" />
-                  Fun & Entertainment
+              <div className="space-y-6 px-2">
+                <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-orange-500/70 flex items-center gap-3 ml-4">
+                  <span className="w-2 h-2 rounded-full bg-orange-500" />
+                  Daily Dose
                 </h2>
-                {["😂 When your code works on the first try", "🎭 Developer life in one picture", "🔥 This meme hits different at 3 AM"].map((meme, i) => (
-                  <div key={i} className="glass rounded-2xl p-5">
-                    <div className="w-full aspect-video rounded-xl bg-gradient-to-br from-accent/10 via-primary/10 to-secondary/10 flex items-center justify-center mb-3">
-                      <span className="text-4xl">{meme.split(" ")[0]}</span>
+                {[
+                  "😂 When bugs become features",
+                  "🎭 Logic vs Reality",
+                  "🔥 Client: Just one small change",
+                ].map((meme, i) => (
+                  <div
+                    key={i}
+                    className="bg-white rounded-[3rem] p-6 shadow-sm border border-slate-50"
+                  >
+                    <div className="w-full aspect-square rounded-[2rem] bg-slate-50 flex items-center justify-center mb-4 overflow-hidden border border-slate-50">
+                      <span className="text-6xl grayscale opacity-40">
+                        Meme {i + 1}
+                      </span>
                     </div>
-                    <p className="text-sm text-foreground/80">{meme}</p>
+                    <p className="text-xs font-bold text-slate-600 text-center px-4">
+                      {meme}
+                    </p>
                   </div>
                 ))}
               </div>
             )}
 
-            {(activeFeature === "Post" || activeFeature === "Task" || activeFeature === "Groups" || activeFeature === "Snapy" || activeFeature === "Profile") && (
-              <MatchmakingSection />
-            )}
+            {/* 🛠️ MATCHMAKING / TASKS / OTHERS 🛠️ */}
+            {(activeFeature === "Post" ||
+              activeFeature === "Task" ||
+              activeFeature === "Groups" ||
+              activeFeature === "Snapy" ||
+              activeFeature === "Profile") && <MatchmakingSection />}
           </motion.div>
         </AnimatePresence>
       </main>
 
-      <GolSlider onFeatureChange={setActiveFeature} />
+      {/* --- Footer Floating Navigation --- */}
+      <div className="fixed bottom-0 left-0 w-full z-50 pointer-events-none">
+        <div className="max-w-2xl mx-auto pointer-events-auto">
+          <GolSlider onFeatureChange={setActiveFeature} />
+        </div>
+      </div>
     </div>
   );
 };
