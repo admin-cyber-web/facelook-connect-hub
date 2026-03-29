@@ -367,3 +367,25 @@ const FameFeed = () => {
 };
 
 export default FameFeed;
+
+// 📤 Share Function: Mobile Apps + Clipboard Support
+const handleShare = async (post: any) => {
+  const shareData = {
+    title: "Facelook Connect",
+    text: post.content || "Check out this vibe on Facelook!",
+    url: window.location.href, // आपकी साइट का लिंक
+  };
+
+  try {
+    if (navigator.share) {
+      // मोबाइल के लिए: WhatsApp, Insta, Telegram सब खुलेगा
+      await navigator.share(shareData);
+    } else {
+      // डेस्कटॉप के लिए: लिंक कॉपी हो जाएगा
+      await navigator.clipboard.writeText(window.location.href);
+      alert("Link copied to clipboard! Share it with your friends. 🚀");
+    }
+  } catch (err) {
+    console.log("Share action cancelled");
+  }
+};
