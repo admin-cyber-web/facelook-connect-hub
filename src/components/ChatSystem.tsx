@@ -21,6 +21,7 @@ import {
   Users,
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
+import { toast } from "sonner";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 interface Profile {
@@ -44,7 +45,7 @@ interface FriendshipInfo {
 
 interface FriendRequest {
   id: string;
-  requester_id: string;
+  sender_id: string;
   created_at: string;
   profile: Profile;
 }
@@ -164,18 +165,18 @@ const ChatSystem: React.FC<ChatSystemProps> = ({ isOpen, onClose, userId }) => {
   const fetchFriendships = useCallback(async () => {
     const { data } = await supabase
       .from("friendships")
-      .select("id, requester_id, receiver_id, status")
-      .or(`requester_id.eq.${userId},receiver_id.eq.${userId}`);
+      .select("id, sender_id, receiver_id, status")
+      .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`);
 
     if (!data) return;
 
     const map = new Map<string, FriendshipInfo>();
     for (const row of data) {
-      const otherId = row.requester_id === userId ? row.receiver_id : row.requester_id;
+      const otherId = row.sender_id === userId ? row.receiver_id : row.sender_id;
       map.set(otherId, {
         id: row.id,
         status: row.status,
-        direction: row.requester_id === userId ? "sent" : "received",
+        direction: row.sender_id === userId ? "sent" : "received",
       });
     }
     setFriendshipMap(map);
@@ -185,7 +186,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({ isOpen, onClose, userId }) => {
   const fetchPendingRequests = useCallback(async () => {
     const { data } = await supabase
       .from("friendships")
-      .select("id, requester_id, created_at")
+      .select("id, sender_id, created_at")
       .eq("receiver_id", userId)
       .eq("status", "pending")
       .order("created_at", { ascending: false });
@@ -196,19 +197,19 @@ const ChatSystem: React.FC<ChatSystemProps> = ({ isOpen, onClose, userId }) => {
       return;
     }
 
-    const requesterIds = data.map((r) => r.requester_id);
+    const senderIds = data.map((r) => r.sender_id);
     const { data: profiles } = await supabase
       .from("profiles")
       .select("id, full_name, username, avatar_url")
-      .in("id", requesterIds);
+      .in("id", senderIds);
 
     const profileMap = new Map((profiles || []).map((p) => [p.id, p]));
     const requests: FriendRequest[] = data.map((r) => ({
       id: r.id,
-      requester_id: r.requester_id,
+      sender_id: r.sender_id,
       created_at: r.created_at,
-      profile: profileMap.get(r.requester_id) || {
-        id: r.requester_id,
+      profile: profileMap.get(r.sender_id) || {
+        id: r.sender_id,
         full_name: "Unknown",
         username: "",
         avatar_url: "",
@@ -226,8 +227,8 @@ const ChatSystem: React.FC<ChatSystemProps> = ({ isOpen, onClose, userId }) => {
       // Step 1: get accepted friend IDs
       const { data: friendRows } = await supabase
         .from("friendships")
-        .select("requester_id, receiver_id")
-        .or(`requester_id.eq.${userId},receiver_id.eq.${userId}`)
+        .select("sender_id, receiver_id")
+        .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
         .eq("status", "accepted");
 
       if (!friendRows || friendRows.length === 0) {
@@ -236,7 +237,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({ isOpen, onClose, userId }) => {
       }
 
       const friendIds = friendRows.map((r) =>
-        r.requester_id === userId ? r.receiver_id : r.requester_id
+        r.sender_id === userId ? r.receiver_id : r.sender_id
       );
 
       // Step 2: get latest message per friend (among accepted friends only)
@@ -305,7 +306,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({ isOpen, onClose, userId }) => {
         { event: "INSERT", schema: "public", table: "friendships" },
         (payload) => {
           const row = payload.new as any;
-          if (row.receiver_id === userId || row.requester_id === userId) {
+          if (row.receiver_id === userId || row.sender_id === userId) {
             fetchFriendships();
             if (row.receiver_id === userId && row.status === "pending") {
               fetchPendingRequests();
@@ -318,7 +319,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({ isOpen, onClose, userId }) => {
         { event: "UPDATE", schema: "public", table: "friendships" },
         (payload) => {
           const row = payload.new as any;
-          if (row.receiver_id === userId || row.requester_id === userId) {
+          if (row.receiver_id === userId || row.sender_id === userId) {
             fetchFriendships();
             fetchPendingRequests();
             if (row.status === "accepted") {
@@ -408,33 +409,79 @@ const ChatSystem: React.FC<ChatSystemProps> = ({ isOpen, onClose, userId }) => {
   // ── Friend actions ─────────────────────────────────────────────────────────
   const sendFriendRequest = async (targetId: string) => {
     setActionLoading(targetId);
-    await supabase.from("friendships").insert({
-      requester_id: userId,
-      receiver_id: targetId,
-      status: "pending",
-    });
-    await fetchFriendships();
-    setActionLoading("");
+    try {
+      // Always use the live auth session uid as the sender
+      const { data: { session } } = await supabase.auth.getSession();
+      const senderId = session?.user?.id ?? userId;
+
+      if (!senderId) {
+        toast.error("Not authenticated — please log in again.");
+        return;
+      }
+
+      console.log("[sendFriendRequest] sender:", senderId, "→ receiver:", targetId);
+
+      const { error } = await supabase.from("friendships").insert({
+        sender_id: senderId,
+        receiver_id: targetId,
+        status: "pending",
+      });
+
+      if (error) {
+        console.error("[sendFriendRequest] insert error:", error);
+        toast.error(`Friend request failed: ${error.message}`);
+        return;
+      }
+
+      toast.success("Friend request sent!");
+      await fetchFriendships();
+    } catch (err: any) {
+      console.error("[sendFriendRequest] exception:", err);
+      toast.error(err?.message ?? "Something went wrong sending the request.");
+    } finally {
+      setActionLoading("");
+    }
   };
 
   const acceptRequest = async (req: FriendRequest) => {
     setActionLoading(req.id);
-    await supabase
-      .from("friendships")
-      .update({ status: "accepted" })
-      .eq("id", req.id);
-    await Promise.all([fetchFriendships(), fetchPendingRequests(), fetchContacts()]);
-    setActionLoading("");
+    try {
+      const { error } = await supabase
+        .from("friendships")
+        .update({ status: "accepted" })
+        .eq("id", req.id);
+      if (error) {
+        console.error("[acceptRequest] error:", error);
+        toast.error(`Could not accept request: ${error.message}`);
+        return;
+      }
+      toast.success("Friend request accepted!");
+      await Promise.all([fetchFriendships(), fetchPendingRequests(), fetchContacts()]);
+    } catch (err: any) {
+      toast.error(err?.message ?? "Something went wrong.");
+    } finally {
+      setActionLoading("");
+    }
   };
 
   const rejectRequest = async (req: FriendRequest) => {
     setActionLoading(req.id);
-    await supabase
-      .from("friendships")
-      .update({ status: "rejected" })
-      .eq("id", req.id);
-    await Promise.all([fetchFriendships(), fetchPendingRequests()]);
-    setActionLoading("");
+    try {
+      const { error } = await supabase
+        .from("friendships")
+        .update({ status: "rejected" })
+        .eq("id", req.id);
+      if (error) {
+        console.error("[rejectRequest] error:", error);
+        toast.error(`Could not reject request: ${error.message}`);
+        return;
+      }
+      await Promise.all([fetchFriendships(), fetchPendingRequests()]);
+    } catch (err: any) {
+      toast.error(err?.message ?? "Something went wrong.");
+    } finally {
+      setActionLoading("");
+    }
   };
 
   // ── Open chat (only for accepted friends) ────────────────────────────────
@@ -547,7 +594,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({ isOpen, onClose, userId }) => {
       return (
         <button
           onClick={() => {
-            const req = pendingRequests.find((r) => r.requester_id === user.id);
+            const req = pendingRequests.find((r) => r.sender_id === user.id);
             if (req) acceptRequest(req);
           }}
           disabled={loading}
