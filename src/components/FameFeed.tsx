@@ -23,23 +23,15 @@ const FameFeed = () => {
   const [commentText, setCommentText] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // 🔄 1. Fetch Posts Logic with Debugging
+  // 🔄 1. Fetch Posts Logic
   const fetchPosts = async () => {
     try {
-      // नोट: अगर comments वाली टेबल posts से linked है तो ये चलेगा
-      // अगर एरर आए तो समझो DB में Foreign Key सेट नहीं है
       const { data, error } = await supabase
         .from("posts")
-        .select(
-          `
-          *,
-          comments:comments(*)
-        `,
-        )
+        .select(`*, comments:comments(*)`)
         .order("created_at", { ascending: false });
 
       if (error) {
-        // Fallback: अगर comments fetch करने में एरर आए तो सिर्फ posts लाओ
         const { data: postsOnly } = await supabase
           .from("posts")
           .select("*")
@@ -55,8 +47,6 @@ const FameFeed = () => {
 
   useEffect(() => {
     fetchPosts();
-
-    // 🔄 Real-time Subscription (सुनना शुरू करें)
     const channel = supabase
       .channel("fame-feed-changes")
       .on(
@@ -88,78 +78,92 @@ const FameFeed = () => {
           .from("posts")
           .upload(fileName, file);
         if (upErr) throw upErr;
-
         const { data: urlData } = supabase.storage
           .from("posts")
           .getPublicUrl(fileName);
         imageUrl = urlData.publicUrl;
       }
 
-      const { error: insErr } = await supabase.from("posts").insert([
-        {
-          content: text,
-          image_url: imageUrl,
-          author: "You",
-          likes_count: 0,
-        },
-      ]);
+      const { error: insErr } = await supabase
+        .from("posts")
+        .insert([
+          { content: text, image_url: imageUrl, author: "You", likes_count: 0 },
+        ]);
 
       if (insErr) throw insErr;
-
       setText("");
       setFile(null);
       setPreview(null);
-      // Success! Real-time channel अपने आप fetchPosts चला देगा
     } catch (err: any) {
       alert("Post failed: " + err.message);
     }
     setLoading(false);
   };
 
-  // ❤️ 3. Handle Like Update
+  // ❤️ 3. Handle Like
   const handleLike = async (id: string, currentLikes: number) => {
     const { error } = await supabase
       .from("posts")
       .update({ likes_count: (currentLikes || 0) + 1 })
       .eq("id", id);
-
     if (error) console.error("Like error:", error);
   };
 
-  // 💬 4. Handle Comment Add
+  // 💬 4. Handle Comment
   const handleAddComment = async (postId: string) => {
     if (!commentText.trim()) return;
     try {
       const { error } = await supabase
         .from("comments")
         .insert([{ post_id: postId, content: commentText, author: "You" }]);
-
       if (error) throw error;
-
       setCommentText("");
-      // setActiveComment(null); // आप चाहें तो इसे खुला रख सकते हैं
       fetchPosts();
     } catch (err: any) {
       console.error("Comment error:", err.message);
     }
   };
 
+  // 📤 5. Share Function
+  const handleShare = async (post: any) => {
+    const shareData = {
+      title: "Facelook Connect",
+      text: post.content || "Check out this vibe!",
+      url: window.location.href,
+    };
+    try {
+      if (navigator.share) await navigator.share(shareData);
+      else {
+        await navigator.clipboard.writeText(window.location.href);
+        alert("Link copied! 🚀");
+      }
+    } catch (err) {
+      console.log("Cancelled");
+    }
+  };
+
   return (
-    <div className="max-w-xl mx-auto p-4 pb-24 bg-slate-50 min-h-screen font-sans">
-      {/* --- Composer --- */}
-      <div className="bg-white rounded-[2.5rem] p-6 shadow-xl shadow-blue-100/50 mb-8 border border-white">
-        <div className="flex gap-3 mb-4">
-          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-600 to-indigo-600 shrink-0" />
+    <div className="max-w-xl mx-auto p-4 pb-24 bg-transparent min-h-screen font-sans">
+      {/* --- GLASS COMPOSER (POST BOX) --- */}
+      <div className="bg-white/10 backdrop-blur-2xl rounded-[2.5rem] p-6 shadow-2xl border border-white/20 mb-8 mt-20">
+        <div className="flex gap-4 mb-4">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500 to-purple-600 shrink-0 shadow-lg flex items-center justify-center text-white font-black">
+            Y
+          </div>
           <textarea
-            placeholder="Share your fame moment..."
-            className="w-full bg-transparent border-none focus:ring-0 text-base h-16 resize-none"
+            placeholder="What's the vibe today?"
+            className="w-full bg-white/5 border-none focus:ring-0 text-white placeholder:text-white/40 text-base h-16 resize-none p-2 rounded-xl"
             value={text}
             onChange={(e) => setText(e.target.value)}
           />
         </div>
 
         {preview && (
-          <div className="relative mb-4 rounded-3xl overflow-hidden shadow-md">
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="relative mb-4 rounded-3xl overflow-hidden border border-white/20"
+          >
             <img
               src={preview}
               className="w-full h-64 object-cover"
@@ -170,14 +174,14 @@ const FameFeed = () => {
                 setFile(null);
                 setPreview(null);
               }}
-              className="absolute top-3 right-3 bg-black/40 p-1.5 rounded-full text-white backdrop-blur-md"
+              className="absolute top-3 right-3 bg-black/60 p-2 rounded-full text-white backdrop-blur-md hover:bg-red-500 transition-colors"
             >
               <X size={18} />
             </button>
-          </div>
+          </motion.div>
         )}
 
-        <div className="flex items-center justify-between pt-4 border-t border-slate-50">
+        <div className="flex items-center justify-between pt-4 border-t border-white/10">
           <input
             type="file"
             hidden
@@ -193,88 +197,88 @@ const FameFeed = () => {
           />
           <button
             onClick={() => fileInputRef.current?.click()}
-            className="flex items-center gap-2 text-slate-500 font-bold text-sm hover:text-blue-600 transition-colors"
+            className="flex items-center gap-2 text-white/60 font-bold text-sm hover:text-blue-400 transition-all"
           >
-            <ImageIcon size={22} className="text-blue-500" /> Gallery
+            <div className="p-2 bg-white/5 rounded-xl">
+              <ImageIcon size={20} />
+            </div>
+            Media
           </button>
           <button
             onClick={handlePost}
             disabled={loading}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-2.5 rounded-2xl font-black text-sm shadow-lg shadow-blue-200 transition-all active:scale-95 flex items-center gap-2"
+            className="bg-blue-600 hover:bg-blue-500 text-white px-8 py-3 rounded-2xl font-black text-xs tracking-widest shadow-xl shadow-blue-500/20 transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2"
           >
             {loading ? (
               <Loader2 className="animate-spin" size={18} />
             ) : (
               <Send size={18} />
             )}
-            VIBE IT
+            POST VIBE
           </button>
         </div>
       </div>
 
-      {/* --- Feed --- */}
-      <div className="space-y-8">
-        {posts.length === 0 && !loading && (
-          <p className="text-center text-slate-400 font-bold py-10">
-            No posts yet. Start the vibe! 🚀
-          </p>
-        )}
-
+      {/* --- FEED SECTION --- */}
+      <div className="space-y-6">
         {posts.map((post) => (
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
+            initial={{ opacity: 0, scale: 0.95 }}
+            whileInView={{ opacity: 1, scale: 1 }}
+            viewport={{ once: true }}
             key={post.id}
-            className="bg-white rounded-[3rem] overflow-hidden shadow-sm border border-slate-100"
+            className="bg-white/10 backdrop-blur-xl rounded-[3rem] overflow-hidden shadow-xl border border-white/10"
           >
             {/* Post Header */}
             <div className="p-6 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white font-bold text-lg">
+                <div className="w-12 h-12 rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center text-white font-black shadow-inner">
                   {post.author ? post.author[0] : "U"}
                 </div>
                 <div>
-                  <h4 className="text-sm font-black text-slate-800">
+                  <h4 className="text-sm font-black text-white">
                     {post.author}
                   </h4>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
-                    Premium User
+                  <p className="text-[9px] text-blue-400 font-black uppercase tracking-[0.2em]">
+                    Verified Vibe
                   </p>
                 </div>
               </div>
-              <MoreHorizontal className="text-slate-300" />
+              <button className="text-white/30 hover:text-white transition-colors">
+                <MoreHorizontal />
+              </button>
             </div>
 
             {/* Post Body */}
-            <div className="px-6 pb-2">
-              <p className="text-slate-700 text-sm leading-relaxed">
+            <div className="px-8 pb-4">
+              <p className="text-white/80 text-sm leading-relaxed font-medium">
                 {post.content}
               </p>
             </div>
 
             {post.image_url && (
-              <div className="px-4 pb-2">
+              <div className="px-4 pb-4">
                 <img
                   src={post.image_url}
-                  className="w-full h-auto rounded-[2rem] object-cover shadow-inner"
+                  className="w-full h-auto rounded-[2.5rem] object-cover border border-white/10 shadow-2xl"
                   alt="Post content"
                 />
               </div>
             )}
 
             {/* Post Actions */}
-            <div className="p-6 pt-4">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-6">
+            <div className="px-8 py-6 bg-white/5 border-t border-white/5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-8">
                   <button
                     onClick={() => handleLike(post.id, post.likes_count)}
                     className="flex items-center gap-2 group"
                   >
                     <Heart
-                      size={24}
-                      className={`transition-all ${post.likes_count > 0 ? "fill-red-500 text-red-500 scale-110" : "text-slate-300 group-hover:text-red-400"}`}
+                      size={22}
+                      className={`transition-all ${post.likes_count > 0 ? "fill-red-500 text-red-500 scale-125 shadow-red-500" : "text-white/40 group-hover:text-red-400"}`}
                     />
-                    <span className="text-xs font-black text-slate-500">
+                    <span className="text-xs font-black text-white/60">
                       {post.likes_count || 0}
                     </span>
                   </button>
@@ -284,39 +288,45 @@ const FameFeed = () => {
                         activeComment === post.id ? null : post.id,
                       )
                     }
-                    className="flex items-center gap-2 group text-slate-300 hover:text-blue-500 transition-colors"
+                    className="flex items-center gap-2 group text-white/40 hover:text-blue-400 transition-colors"
                   >
                     <MessageCircle
-                      size={24}
+                      size={22}
                       className={
-                        activeComment === post.id ? "text-blue-500" : ""
+                        activeComment === post.id ? "text-blue-400" : ""
                       }
                     />
-                    <span className="text-xs font-black text-slate-500">
+                    <span className="text-xs font-black text-white/60">
                       {post.comments?.length || 0}
                     </span>
                   </button>
-                  <button className="text-slate-300 hover:text-green-500 transition-colors">
-                    <Share2 size={24} />
+                  <button
+                    onClick={() => handleShare(post)}
+                    className="text-white/40 hover:text-green-400 transition-colors"
+                  >
+                    <Share2 size={22} />
                   </button>
                 </div>
-                <Bookmark size={24} className="text-slate-200" />
+                <Bookmark
+                  size={22}
+                  className="text-white/20 hover:text-yellow-400 transition-colors"
+                />
               </div>
 
-              {/* Comment Input Section */}
+              {/* Comment Section (Glass Style) */}
               <AnimatePresence>
                 {activeComment === post.id && (
                   <motion.div
                     initial={{ height: 0, opacity: 0 }}
                     animate={{ height: "auto", opacity: 1 }}
                     exit={{ height: 0, opacity: 0 }}
-                    className="pt-4 border-t border-slate-50 overflow-hidden"
+                    className="pt-6 overflow-hidden"
                   >
-                    <div className="flex gap-2 mb-4">
+                    <div className="flex gap-2 mb-6">
                       <input
                         type="text"
-                        placeholder="Write a comment..."
-                        className="flex-1 bg-slate-50 border-none rounded-xl text-xs px-4 py-2 focus:ring-1 focus:ring-blue-100"
+                        placeholder="Add a comment..."
+                        className="flex-1 bg-white/5 border border-white/10 rounded-2xl text-xs px-5 py-3 text-white placeholder:text-white/20 focus:ring-1 focus:ring-blue-500/50 outline-none"
                         value={commentText}
                         onChange={(e) => setCommentText(e.target.value)}
                         onKeyDown={(e) =>
@@ -325,35 +335,31 @@ const FameFeed = () => {
                       />
                       <button
                         onClick={() => handleAddComment(post.id)}
-                        className="bg-blue-600 text-white p-2 rounded-xl active:scale-90 transition-transform"
+                        className="bg-blue-600 text-white p-3 rounded-2xl hover:bg-blue-500 transition-all"
                       >
-                        <Send size={14} />
+                        <Send size={16} />
                       </button>
                     </div>
 
-                    {/* Display Comments */}
-                    <div className="max-h-40 overflow-y-auto space-y-3 pr-2 scrollbar-hide">
-                      {post.comments && post.comments.length > 0 ? (
-                        post.comments.map((c: any) => (
-                          <div key={c.id} className="flex gap-2 items-start">
-                            <div className="w-6 h-6 rounded-lg bg-blue-100 flex items-center justify-center text-[10px] font-bold text-blue-600 shrink-0">
-                              {c.author ? c.author[0] : "U"}
-                            </div>
-                            <div className="bg-slate-50 px-3 py-2 rounded-2xl flex-1 border border-slate-100">
-                              <p className="text-[10px] font-black text-slate-800">
-                                {c.author}
-                              </p>
-                              <p className="text-[11px] text-slate-600">
-                                {c.content}
-                              </p>
-                            </div>
+                    <div className="space-y-4 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
+                      {post.comments?.map((c: any) => (
+                        <div
+                          key={c.id}
+                          className="flex gap-3 items-start animate-in slide-in-from-left-2 duration-300"
+                        >
+                          <div className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center text-[10px] font-black text-blue-400 border border-white/10 uppercase">
+                            {c.author ? c.author[0] : "U"}
                           </div>
-                        ))
-                      ) : (
-                        <p className="text-[10px] text-center text-slate-400 font-bold uppercase py-2">
-                          No comments yet
-                        </p>
-                      )}
+                          <div className="bg-white/5 p-3 rounded-2xl flex-1 border border-white/5">
+                            <p className="text-[10px] font-black text-blue-400 mb-1">
+                              {c.author}
+                            </p>
+                            <p className="text-xs text-white/70 font-medium">
+                              {c.content}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </motion.div>
                 )}
@@ -367,25 +373,3 @@ const FameFeed = () => {
 };
 
 export default FameFeed;
-
-// 📤 Share Function: Mobile Apps + Clipboard Support
-const handleShare = async (post: any) => {
-  const shareData = {
-    title: "Facelook Connect",
-    text: post.content || "Check out this vibe on Facelook!",
-    url: window.location.href, // आपकी साइट का लिंक
-  };
-
-  try {
-    if (navigator.share) {
-      // मोबाइल के लिए: WhatsApp, Insta, Telegram सब खुलेगा
-      await navigator.share(shareData);
-    } else {
-      // डेस्कटॉप के लिए: लिंक कॉपी हो जाएगा
-      await navigator.clipboard.writeText(window.location.href);
-      alert("Link copied to clipboard! Share it with your friends. 🚀");
-    }
-  } catch (err) {
-    console.log("Share action cancelled");
-  }
-};

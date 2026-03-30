@@ -10,50 +10,46 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Camera,
   Loader2,
-  Edit3,
-  MapPin,
   Lock,
-  ShieldCheck,
-  UserMinus,
   ChevronRight,
   LogOut,
-  Bell,
   User,
   BookOpen,
-  Heart,
   Home,
-  Phone,
-  Settings,
-  Users,
   Image as ImageIcon,
-  ThumbsUp,
-  Clock,
   MessageSquare,
   Send,
   X,
-  Star,
-  Flame,
-  Film,
+  Users,
+  Palette,
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 
-// --- Setting Item Component (FB Style) ---
+// --- Glass Style Wrapper Component ---
+const GlassCard = ({ children, className = "" }: any) => (
+  <div
+    className={`bg-white/10 backdrop-blur-2xl border border-white/20 shadow-[0_8px_32px_0_rgba(0,0,0,0.2)] ${className}`}
+  >
+    {children}
+  </div>
+);
+
 const SettingRow = ({ icon, title, desc, color }: any) => (
-  <div className="flex items-center justify-between p-4 hover:bg-slate-50 rounded-2xl cursor-pointer transition-all border border-transparent hover:border-slate-100">
+  <div className="flex items-center justify-between p-4 hover:bg-white/10 rounded-2xl cursor-pointer transition-all border border-transparent hover:border-white/10 group">
     <div className="flex items-center gap-4">
       <div
-        className={`w-10 h-10 rounded-xl flex items-center justify-center bg-white shadow-sm border border-slate-50 ${color}`}
+        className={`w-10 h-10 rounded-xl flex items-center justify-center bg-white/20 backdrop-blur-md border border-white/10 ${color}`}
       >
         {icon}
       </div>
       <div>
-        <p className="text-sm font-bold text-slate-800">{title}</p>
-        <p className="text-[10px] text-slate-400 font-medium uppercase tracking-tighter">
+        <p className="text-sm font-bold text-white">{title}</p>
+        <p className="text-[10px] text-white/50 font-medium uppercase tracking-tighter">
           {desc}
         </p>
       </div>
     </div>
-    <ChevronRight size={16} className="text-slate-300" />
+    <ChevronRight size={16} className="text-white/30 group-hover:text-white" />
   </div>
 );
 
@@ -61,6 +57,12 @@ const Index = () => {
   const [activeFeature, setActiveFeature] = useState("Fame");
   const [isUploading, setIsUploading] = useState(false);
   const [isPostOpen, setIsPostOpen] = useState(false);
+
+  // --- 🎨 THEME STATE ---
+  const [bgImage, setBgImage] = useState(
+    localStorage.getItem("facelook-bg") ||
+      "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=1964",
+  );
 
   // --- 💬 CHAT STATES ---
   const [isChatOpen, setIsChatOpen] = useState(false);
@@ -72,10 +74,7 @@ const Index = () => {
     id: "ec047c60-4960-4083-b798-1749c0ab85dc",
     full_name: "Loading...",
     username: "user",
-    bio: "Setting up my vibe...",
     avatar_url: "",
-    mobile: "",
-    current_location: "",
     school: "",
     village: "",
     total_posts: 0,
@@ -88,19 +87,13 @@ const Index = () => {
     fetchProfile();
   }, []);
 
-  // --- Real-time Message Subscription ---
   useEffect(() => {
     if (!selectedUser) return;
-
     const channel = supabase
       .channel("chat-room")
       .on(
         "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "messages",
-        },
+        { event: "INSERT", schema: "public", table: "messages" },
         (payload) => {
           if (
             (payload.new.sender_id === profile.id &&
@@ -113,7 +106,6 @@ const Index = () => {
         },
       )
       .subscribe();
-
     return () => {
       supabase.removeChannel(channel);
     };
@@ -128,13 +120,20 @@ const Index = () => {
     if (data) setProfile(data);
   };
 
+  const handleThemeChange = (url: string) => {
+    setBgImage(url);
+    localStorage.setItem("facelook-bg", url);
+  };
+
   const sendMessage = async () => {
     if (!newMessage.trim() || !selectedUser) return;
-    const { error } = await supabase.from("messages").insert({
-      sender_id: profile.id,
-      receiver_id: selectedUser.id,
-      content: newMessage,
-    });
+    const { error } = await supabase
+      .from("messages")
+      .insert({
+        sender_id: profile.id,
+        receiver_id: selectedUser.id,
+        content: newMessage,
+      });
     if (!error) setNewMessage("");
   };
 
@@ -145,15 +144,12 @@ const Index = () => {
     try {
       const fileName = `${profile.id}-${Date.now()}.png`;
       await supabase.storage.from("avatars").upload(fileName, file);
-      const { data: urlData } = supabase.storage
-        .from("avatars")
-        .getPublicUrl(fileName);
-      const publicUrl = urlData.publicUrl;
+      const publicUrl = supabase.storage.from("avatars").getPublicUrl(fileName)
+        .data.publicUrl;
       await supabase
         .from("profiles")
         .upsert({ ...profile, avatar_url: publicUrl });
       setProfile((prev) => ({ ...prev, avatar_url: publicUrl }));
-      alert("DP Updated! 🔥");
     } catch (err) {
       alert("Upload error!");
     } finally {
@@ -162,55 +158,61 @@ const Index = () => {
   };
 
   return (
-    <div className="min-h-screen w-full bg-slate-50 overflow-x-hidden relative">
+    <div
+      className="min-h-screen w-full bg-cover bg-center bg-fixed transition-all duration-700 relative overflow-x-hidden"
+      style={{ backgroundImage: `url('${bgImage}')` }}
+    >
+      {/* Dark Frost Overlay */}
+      <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-[2px] pointer-events-none" />
+
       <Header onProfileClick={() => setActiveFeature("Face")} />
 
-      <main className="pt-24 pb-40 max-w-2xl mx-auto px-4 min-h-screen">
+      <main className="pt-24 pb-40 w-full max-w-2xl mx-auto px-2 sm:px-4 min-h-screen relative z-10">
         <AnimatePresence mode="wait">
           <motion.div
             key={activeFeature}
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -20 }}
-            className="w-full space-y-6"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="w-full space-y-5"
           >
-            {/* 1. FAME (MAIN FEED) */}
+            {/* 1. FAME (GLASS FEED) */}
             {activeFeature === "Fame" && (
-              <div className="flex flex-col gap-6">
-                <div
+              <div className="flex flex-col gap-5">
+                <GlassCard
+                  className="p-4 rounded-[2.5rem] flex items-center gap-4 cursor-pointer"
                   onClick={() => setIsPostOpen(true)}
-                  className="bg-white p-4 rounded-[2.5rem] shadow-sm border border-white flex items-center gap-4 cursor-pointer hover:shadow-md transition-all"
                 >
                   <img
                     src={profile.avatar_url}
-                    className="w-10 h-10 rounded-xl object-cover"
+                    className="w-10 h-10 rounded-xl object-cover border border-white/20"
                   />
-                  <div className="flex-1 bg-slate-50 py-3 px-6 rounded-2xl text-slate-400 text-sm font-bold">
+                  <div className="flex-1 bg-white/10 py-3 px-6 rounded-2xl text-white/60 text-sm font-bold">
                     What's on your mind?
                   </div>
-                  <div className="p-2 text-blue-600 bg-blue-50 rounded-xl">
+                  <div className="p-2 text-white bg-blue-600/50 rounded-xl">
                     <ImageIcon size={20} />
                   </div>
-                </div>
+                </GlassCard>
                 <ConnectionPanel />
                 <FameFeed />
               </div>
             )}
 
-            {/* 2. FACE (PROFILE SECTION) */}
+            {/* 2. FACE (GLASS PROFILE) */}
             {activeFeature === "Face" && (
-              <div className="space-y-6">
-                <div className="bg-white rounded-[3rem] p-6 shadow-xl border border-white overflow-hidden relative">
-                  <div className="absolute top-0 left-0 w-full h-24 bg-gradient-to-r from-blue-500 to-indigo-600" />
+              <div className="space-y-5">
+                <GlassCard className="rounded-[3.5rem] p-6 overflow-hidden relative">
+                  <div className="absolute top-0 left-0 w-full h-24 bg-gradient-to-r from-blue-500/40 to-indigo-600/40" />
                   <div className="relative z-10 flex flex-col items-center mt-6">
-                    <div className="w-28 h-28 rounded-[2.2rem] bg-white p-1 shadow-lg overflow-hidden relative">
+                    <div className="w-28 h-28 rounded-[2.2rem] bg-white/20 p-1 backdrop-blur-md shadow-2xl relative">
                       {profile.avatar_url ? (
                         <img
                           src={profile.avatar_url}
                           className="w-full h-full object-cover rounded-[1.8rem]"
                         />
                       ) : (
-                        <div className="w-full h-full bg-slate-100 flex items-center justify-center text-3xl font-black text-blue-200">
+                        <div className="w-full h-full flex items-center justify-center text-3xl font-black text-white">
                           {profile.full_name[0]}
                         </div>
                       )}
@@ -228,115 +230,125 @@ const Index = () => {
                         />
                       </label>
                     </div>
-                    <h2 className="text-2xl font-black text-slate-800 mt-4">
+                    <h2 className="text-2xl font-black text-white mt-4 drop-shadow-lg">
                       {profile.full_name}
                     </h2>
-                    <p className="text-blue-600 font-black text-[10px] uppercase tracking-widest">
+                    <p className="text-blue-300 font-black text-[10px] uppercase tracking-widest">
                       @{profile.username}
                     </p>
                   </div>
-                  <div className="grid grid-cols-4 gap-2 mt-8 border-t border-slate-50 pt-6">
-                    <div className="text-center">
-                      <p className="text-lg font-black text-slate-800">
-                        {profile.total_friends}
-                      </p>
-                      <p className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">
-                        Buddies
-                      </p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-lg font-black text-slate-800">
-                        {profile.total_posts}
-                      </p>
-                      <p className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">
-                        Posts
-                      </p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-lg font-black text-slate-800">
-                        {profile.total_likes}
-                      </p>
-                      <p className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">
-                        Likes
-                      </p>
-                    </div>
-                    <div className="text-center text-blue-600 font-black">
-                      <p className="text-lg">{profile.pending_requests}</p>
-                      <p className="text-[8px] uppercase">Pending</p>
-                    </div>
+                  <div className="grid grid-cols-4 gap-2 mt-8 border-t border-white/10 pt-6">
+                    {[
+                      { l: "Buddies", v: profile.total_friends },
+                      { l: "Posts", v: profile.total_posts },
+                      { l: "Likes", v: profile.total_likes },
+                      {
+                        l: "Pending",
+                        v: profile.pending_requests,
+                        c: "text-blue-400",
+                      },
+                    ].map((s, i) => (
+                      <div key={i} className="text-center">
+                        <p
+                          className={`text-lg font-black ${s.c || "text-white"}`}
+                        >
+                          {s.v}
+                        </p>
+                        <p className="text-[8px] font-bold text-white/40 uppercase tracking-tighter">
+                          {s.l}
+                        </p>
+                      </div>
+                    ))}
                   </div>
-                </div>
+                </GlassCard>
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="bg-white p-4 rounded-3xl border flex items-center gap-3">
-                    <Home size={18} className="text-blue-500" />
+                  <GlassCard className="p-4 rounded-3xl flex items-center gap-3">
+                    <Home size={18} className="text-blue-400" />
                     <div>
-                      <p className="text-[8px] font-black text-slate-400 uppercase">
+                      <p className="text-[8px] font-black text-white/40 uppercase">
                         Village
                       </p>
-                      <p className="text-xs font-bold">
+                      <p className="text-xs font-bold text-white">
                         {profile.village || "Not Set"}
                       </p>
                     </div>
-                  </div>
-                  <div className="bg-white p-4 rounded-3xl border flex items-center gap-3">
-                    <BookOpen size={18} className="text-purple-500" />
+                  </GlassCard>
+                  <GlassCard className="p-4 rounded-3xl flex items-center gap-3">
+                    <BookOpen size={18} className="text-purple-400" />
                     <div>
-                      <p className="text-[8px] font-black text-slate-400 uppercase">
+                      <p className="text-[8px] font-black text-white/40 uppercase">
                         School
                       </p>
-                      <p className="text-xs font-bold truncate w-24">
+                      <p className="text-xs font-bold text-white truncate w-24">
                         {profile.school || "Not Set"}
                       </p>
                     </div>
-                  </div>
+                  </GlassCard>
                 </div>
               </div>
             )}
 
-            {/* 3. SETTINGS */}
+            {/* 3. SETTINGS (THEME ENGINE) */}
             {activeFeature === "Settings" && (
-              <div className="bg-white rounded-[2.5rem] shadow-xl p-6">
-                <h2 className="text-xl font-black mb-6">Settings & Privacy</h2>
-                <div className="space-y-6">
-                  <div>
-                    <p className="text-[10px] font-black text-blue-600 uppercase mb-3 ml-2">
-                      Account
+              <div className="space-y-6">
+                <GlassCard className="rounded-[2.5rem] p-6">
+                  <div className="flex items-center gap-3 mb-6">
+                    <Palette className="text-blue-400" size={24} />
+                    <h2 className="text-xl font-black text-white">
+                      App Appearance
+                    </h2>
+                  </div>
+                  <div className="grid grid-cols-3 gap-3 mb-8">
+                    {[
+                      "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=1000",
+                      "https://images.unsplash.com/photo-1475275083424-b4ff81625b60?q=80&w=1000",
+                      "https://images.unsplash.com/photo-1531306728370-e2ebd9d7bb99?q=80&w=1000",
+                      "https://images.unsplash.com/photo-1506744038136-46273834b3fb?q=80&w=1000",
+                      "https://images.unsplash.com/photo-1550684848-fac1c5b4e853?q=80&w=1000",
+                      "https://images.unsplash.com/photo-1505118380757-91f5f5632de0?q=80&w=1000",
+                    ].map((url, i) => (
+                      <button
+                        key={i}
+                        onClick={() => handleThemeChange(url)}
+                        className={`h-16 rounded-2xl overflow-hidden border-2 transition-all ${bgImage === url ? "border-blue-500 scale-90" : "border-transparent"}`}
+                      >
+                        <img src={url} className="w-full h-full object-cover" />
+                      </button>
+                    ))}
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-3 ml-2">
+                      Account Control
                     </p>
                     <SettingRow
                       icon={<User size={18} />}
                       title="Personal Info"
-                      desc="Update name and location"
-                      color="text-blue-600"
+                      desc="Name & Location"
+                      color="text-blue-400"
                     />
                     <SettingRow
                       icon={<Lock size={18} />}
-                      title="Password"
-                      desc="Change credentials"
-                      color="text-slate-700"
+                      title="Security"
+                      desc="Password & Privacy"
+                      color="text-slate-400"
                     />
                   </div>
-                  <button className="w-full py-4 bg-red-50 text-red-500 rounded-2xl font-black text-xs uppercase">
+                  <button className="w-full mt-6 py-4 bg-red-500/20 text-red-400 rounded-2xl font-black text-xs uppercase tracking-widest border border-red-500/20">
                     <LogOut size={16} className="inline mr-2" /> Logout
                   </button>
-                </div>
+                </GlassCard>
               </div>
             )}
 
-            {/* 4. FLICKS & OTHERS */}
             {activeFeature === "Flicks" && <FlicksFeed />}
-            {activeFeature === "Flame" && (
-              <div className="p-20 text-center text-slate-300 font-black italic">
-                Flame Content...
-              </div>
-            )}
           </motion.div>
         </AnimatePresence>
       </main>
 
-      {/* --- 💬 FLOATING CHAT SYSTEM --- */}
+      {/* --- 💬 GLASS CHAT SYSTEM --- */}
       <button
         onClick={() => setIsChatOpen(true)}
-        className="fixed bottom-32 right-6 w-16 h-16 bg-blue-600 text-white rounded-full shadow-2xl flex items-center justify-center z-[80] active:scale-90 border-4 border-white"
+        className="fixed bottom-32 right-6 w-16 h-16 bg-blue-600/80 backdrop-blur-lg text-white rounded-full shadow-2xl flex items-center justify-center z-[80] border-2 border-white/20 active:scale-90"
       >
         <MessageSquare size={28} fill="currentColor" />
         <span className="absolute -top-1 -right-1 w-6 h-6 bg-red-500 rounded-full border-2 border-white text-[10px] font-black flex items-center justify-center animate-pulse">
@@ -350,9 +362,9 @@ const Index = () => {
             initial={{ y: "100%" }}
             animate={{ y: 0 }}
             exit={{ y: "100%" }}
-            className="fixed inset-x-0 bottom-0 z-[150] bg-white h-[85vh] sm:h-[600px] sm:w-[400px] sm:right-6 sm:left-auto sm:bottom-6 rounded-t-[3rem] sm:rounded-[3rem] shadow-2xl flex flex-col overflow-hidden"
+            className="fixed inset-x-0 bottom-0 z-[150] bg-slate-900/60 backdrop-blur-3xl h-[85vh] sm:h-[600px] sm:w-[400px] sm:right-6 sm:left-auto sm:bottom-6 rounded-t-[3rem] sm:rounded-[3rem] shadow-2xl flex flex-col overflow-hidden border border-white/10"
           >
-            <div className="p-6 bg-blue-600 text-white flex items-center justify-between">
+            <div className="p-6 bg-white/5 border-b border-white/10 text-white flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <Users size={20} />
                 <p className="font-black text-sm">
@@ -368,45 +380,43 @@ const Index = () => {
                 <X size={22} />
               </button>
             </div>
-            <div className="flex-1 bg-slate-50 overflow-y-auto p-4">
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
               {!selectedUser ? (
                 <div
                   onClick={() =>
                     setSelectedUser({ id: "dummy", full_name: "Rahul Kumar" })
                   }
-                  className="bg-white p-4 rounded-2xl flex items-center gap-4 cursor-pointer border border-slate-100"
+                  className="bg-white/5 p-4 rounded-2xl flex items-center gap-4 cursor-pointer border border-white/5 hover:bg-white/10"
                 >
-                  <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center font-bold text-blue-600">
+                  <div className="w-12 h-12 bg-blue-500/20 rounded-xl flex items-center justify-center font-bold text-blue-400 border border-blue-500/20">
                     R
                   </div>
                   <div className="flex-1">
-                    <p className="text-sm font-black">Rahul Kumar</p>
-                    <p className="text-[10px] text-slate-400">Click to chat</p>
+                    <p className="text-sm font-black text-white">Rahul Kumar</p>
+                    <p className="text-[10px] text-white/40">Active Now</p>
                   </div>
                 </div>
               ) : (
-                <div className="space-y-4">
-                  {chatMessages.map((msg, i) => (
+                chatMessages.map((msg, i) => (
+                  <div
+                    key={i}
+                    className={`flex ${msg.sender_id === profile.id ? "justify-end" : "justify-start"}`}
+                  >
                     <div
-                      key={i}
-                      className={`flex ${msg.sender_id === profile.id ? "justify-end" : "justify-start"}`}
+                      className={`max-w-[80%] p-4 rounded-[1.8rem] text-sm font-bold ${msg.sender_id === profile.id ? "bg-blue-600 text-white rounded-tr-none" : "bg-white/10 text-white border border-white/10 rounded-tl-none backdrop-blur-md"}`}
                     >
-                      <div
-                        className={`max-w-[80%] p-4 rounded-[1.8rem] text-sm font-bold ${msg.sender_id === profile.id ? "bg-blue-600 text-white rounded-tr-none" : "bg-white text-slate-800 rounded-tl-none"}`}
-                      >
-                        {msg.content}
-                      </div>
+                      {msg.content}
                     </div>
-                  ))}
-                </div>
+                  </div>
+                ))
               )}
             </div>
             {selectedUser && (
-              <div className="p-4 bg-white border-t flex gap-2">
+              <div className="p-4 bg-white/5 border-t border-white/10 flex gap-2">
                 <input
                   type="text"
                   placeholder="Type a message..."
-                  className="flex-1 bg-slate-100 h-12 px-6 rounded-2xl font-bold outline-none"
+                  className="flex-1 bg-white/10 h-12 px-6 rounded-2xl font-bold text-white outline-none placeholder:text-white/20"
                   value={newMessage}
                   onChange={(e) => setNewMessage(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && sendMessage()}

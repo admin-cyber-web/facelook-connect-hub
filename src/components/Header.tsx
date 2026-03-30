@@ -16,7 +16,6 @@ const Header = ({ onProfileClick }: { onProfileClick?: () => void }) => {
   const [showNotif, setShowNotif] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
-  // आपकी फिक्स्ड यूजर प्रोफाइल डिटेल्स (इसे आप प्रॉप्स से भी ले सकते हैं)
   const [userData, setUserData] = useState({
     full_name: "Loading...",
     avatar_url: "",
@@ -27,7 +26,6 @@ const Header = ({ onProfileClick }: { onProfileClick?: () => void }) => {
     fetchProfile();
     fetchNotifications();
 
-    // रियल-टाइम नोटिफिकेशन लिसनर
     const channel = supabase
       .channel("notif-changes")
       .on(
@@ -71,13 +69,14 @@ const Header = ({ onProfileClick }: { onProfileClick?: () => void }) => {
 
   return (
     <>
-      <header className="fixed top-0 left-0 w-full h-20 bg-white/90 backdrop-blur-2xl border-b border-slate-100 z-[100] px-4 flex items-center justify-between gap-4">
-        {/* 1. LEFT: USER PROFILE (DP + NAME) */}
+      {/* --- GLASS HEADER --- */}
+      <header className="fixed top-0 left-0 w-full h-20 bg-white/10 backdrop-blur-2xl border-b border-white/10 z-[100] px-3 sm:px-6 flex items-center justify-between gap-3 transition-all">
+        {/* 1. LEFT: PROFILE (NAME VISIBLE ON MOBILE NOW) */}
         <div
           onClick={onProfileClick}
-          className="flex items-center gap-2 cursor-pointer hover:bg-slate-50 p-1.5 pr-4 rounded-2xl transition-all flex-shrink-0"
+          className="flex items-center gap-3 cursor-pointer hover:bg-white/10 p-1.5 rounded-2xl transition-all flex-shrink-0 group"
         >
-          <div className="w-10 h-10 rounded-xl overflow-hidden border-2 border-blue-100 shadow-sm">
+          <div className="w-10 h-10 rounded-xl overflow-hidden border border-white/30 shadow-lg group-active:scale-90 transition-transform">
             {userData.avatar_url ? (
               <img
                 src={userData.avatar_url}
@@ -85,39 +84,40 @@ const Header = ({ onProfileClick }: { onProfileClick?: () => void }) => {
                 alt="Profile"
               />
             ) : (
-              <div className="w-full h-full bg-blue-600 flex items-center justify-center text-white font-bold text-xs">
+              <div className="w-full h-full bg-blue-600 flex items-center justify-center text-white font-black text-xs">
                 {userData.full_name[0]}
               </div>
             )}
           </div>
-          <span className="hidden sm:block text-sm font-black text-slate-800 tracking-tight">
+          {/* 'hidden' क्लास हटा दी गई है, अब मोबाइल पर भी नाम दिखेगा */}
+          <span className="text-sm font-black text-white drop-shadow-md tracking-tight">
             {userData.full_name.split(" ")[0]}
           </span>
         </div>
 
-        {/* 2. CENTER: SEARCH BAR (WORKING UI) */}
+        {/* 2. CENTER: GLASS SEARCH BAR */}
         <div className="flex-1 max-w-md relative group">
-          <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-600 transition-colors">
+          <div className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40 group-focus-within:text-blue-400 transition-colors">
             <Search size={18} />
           </div>
           <input
             type="text"
-            placeholder="Search friends, schools, village..."
-            className="w-full h-11 bg-slate-100/80 border-none rounded-2xl pl-12 pr-4 text-xs font-bold outline-none focus:ring-2 focus:ring-blue-100 focus:bg-white transition-all"
+            placeholder="Search vibes..."
+            className="w-full h-11 bg-white/5 border border-white/10 rounded-2xl pl-12 pr-4 text-xs font-bold text-white placeholder:text-white/30 outline-none focus:ring-2 focus:ring-blue-500/30 focus:bg-white/10 transition-all shadow-inner"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
 
-        {/* 3. RIGHT: NOTIFICATION BELL */}
+        {/* 3. RIGHT: NOTIFICATION (GLASS BUTTON) */}
         <div className="relative flex-shrink-0">
           <button
             onClick={() => setShowNotif(!showNotif)}
-            className="p-3 bg-slate-100/50 rounded-2xl relative hover:bg-blue-50 hover:text-blue-600 transition-all active:scale-90"
+            className="p-3 bg-white/5 border border-white/10 text-white rounded-2xl relative hover:bg-white/10 transition-all active:scale-90"
           >
-            <Bell size={20} className="font-bold" />
+            <Bell size={20} className="drop-shadow-md" />
             {unreadCount > 0 && (
-              <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[10px] font-black rounded-full flex items-center justify-center border-2 border-white animate-bounce">
+              <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[10px] font-black rounded-full flex items-center justify-center border-2 border-slate-900 animate-pulse">
                 {unreadCount}
               </span>
             )}
@@ -125,33 +125,66 @@ const Header = ({ onProfileClick }: { onProfileClick?: () => void }) => {
         </div>
       </header>
 
-      {/* Notifications Drawer (Same as before) */}
+      {/* --- NOTIFICATIONS DRAWER (GLASS STYLE) --- */}
       <AnimatePresence>
         {showNotif && (
-          <motion.div
-            initial={{ x: "100%" }}
-            animate={{ x: 0 }}
-            exit={{ x: "100%" }}
-            className="fixed top-0 right-0 h-full w-full max-w-xs bg-white shadow-2xl z-[110] border-l border-slate-100"
-          >
-            {/* ... Drawer Content ... (जैसा पिछले कोड में था) */}
-            <div className="p-6 flex items-center justify-between border-b">
-              <h2 className="font-black">Updates</h2>
-              <button onClick={() => setShowNotif(false)}>
-                <X size={20} />
-              </button>
-            </div>
-            <div className="p-4 space-y-3">
-              {notifications.map((n) => (
-                <div
-                  key={n.id}
-                  className="text-[11px] p-3 bg-slate-50 rounded-xl font-bold"
+          <>
+            {/* Backdrop for closing drawer */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowNotif(false)}
+              className="fixed inset-0 bg-black/20 backdrop-blur-sm z-[105]"
+            />
+
+            <motion.div
+              initial={{ x: "100%" }}
+              animate={{ x: 0 }}
+              exit={{ x: "100%" }}
+              transition={{ type: "spring", damping: 25, stiffness: 200 }}
+              className="fixed top-0 right-0 h-full w-full max-w-xs bg-slate-900/80 backdrop-blur-3xl shadow-2xl z-[110] border-l border-white/10 overflow-hidden"
+            >
+              <div className="p-6 flex items-center justify-between border-b border-white/10 bg-white/5">
+                <h2 className="font-black text-white tracking-widest text-xs uppercase">
+                  Notifications
+                </h2>
+                <button
+                  onClick={() => setShowNotif(false)}
+                  className="p-2 hover:bg-white/10 rounded-full text-white/50 hover:text-white transition-all"
                 >
-                  {n.content}
-                </div>
-              ))}
-            </div>
-          </motion.div>
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="p-4 space-y-3 overflow-y-auto h-[calc(100%-80px)] custom-scrollbar">
+                {notifications.length > 0 ? (
+                  notifications.map((n) => (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      key={n.id}
+                      className="text-[11px] p-4 bg-white/5 border border-white/10 rounded-2xl font-bold text-white/80 hover:bg-white/10 transition-all cursor-default"
+                    >
+                      <div className="flex gap-3 items-start">
+                        <div className="p-2 bg-blue-500/20 rounded-lg text-blue-400">
+                          <Bell size={14} />
+                        </div>
+                        <p className="leading-relaxed">{n.content}</p>
+                      </div>
+                    </motion.div>
+                  ))
+                ) : (
+                  <div className="h-full flex flex-col items-center justify-center text-white/20">
+                    <Bell size={40} strokeWidth={1} className="mb-2" />
+                    <p className="text-[10px] font-black uppercase tracking-tighter">
+                      No new updates
+                    </p>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </>
         )}
       </AnimatePresence>
     </>
