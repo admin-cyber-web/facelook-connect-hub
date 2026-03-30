@@ -14,9 +14,6 @@ import {
   Phone,
   Image as ImageIcon,
   MessageSquare,
-  Send,
-  X,
-  Users,
   Palette,
   EyeOff,
   Ban,
@@ -37,6 +34,7 @@ import ConnectionPanel from "@/components/ConnectionPanel";
 import FameFeed from "@/components/FameFeed";
 import FlicksFeed from "@/components/FlicksFeed";
 import CreatePost from "@/components/CreatePost";
+import ChatSystem from "@/components/ChatSystem";
 // ── Reusable styled blocks ───────────────────────────────────────────────────
 const GlassCard = ({ children, className = "", noPadding = false }: any) => (
   <div
@@ -206,9 +204,6 @@ const Index = ({ session }: { session: Session }) => {
 
   // Chat
   const [isChatOpen, setIsChatOpen] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<any>(null);
-  const [chatMessages, setChatMessages] = useState<any[]>([]);
-  const [newMessage, setNewMessage] = useState("");
 
   // Profile
   const [profile, setProfile] = useState({
@@ -275,29 +270,6 @@ const Index = ({ session }: { session: Session }) => {
     };
   }, [userId]);
 
-  // Realtime Chat Logic
-  useEffect(() => {
-    if (!selectedUser) return;
-    const channel = supabase
-      .channel("chat-room")
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "messages" },
-        (payload) => {
-          if (
-            (payload.new.sender_id === userId &&
-              payload.new.receiver_id === selectedUser.id) ||
-            (payload.new.sender_id === selectedUser.id &&
-              payload.new.receiver_id === userId)
-          )
-            setChatMessages((prev) => [...prev, payload.new]);
-        },
-      )
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [selectedUser]);
 
   // Yahan se fetchProfile shuru ho raha hai
   const fetchProfile = async () => {
@@ -360,16 +332,6 @@ const Index = ({ session }: { session: Session }) => {
   const handleThemeChange = (url: string) => {
     setBgImage(url);
     localStorage.setItem("facelook-bg", url);
-  };
-
-  const sendMessage = async () => {
-    if (!newMessage.trim() || !selectedUser) return;
-    const { error } = await supabase.from("messages").insert({
-      sender_id: userId,
-      receiver_id: selectedUser.id,
-      content: newMessage,
-    });
-    if (!error) setNewMessage("");
   };
 
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -846,83 +808,12 @@ const Index = ({ session }: { session: Session }) => {
         </AnimatePresence>
       </main>
 
-      {/* Chat Overlay ──────────────────────────────────────────────────────── */}
-      <AnimatePresence>
-        {isChatOpen && (
-          <motion.div
-            initial={{ y: "100%" }}
-            animate={{ y: 0 }}
-            exit={{ y: "100%" }}
-            className="fixed inset-x-0 bottom-0 z-[150] bg-slate-900/90 backdrop-blur-3xl h-[85vh] sm:h-[600px] sm:w-[400px] sm:right-6 sm:left-auto sm:bottom-6 rounded-t-[3rem] sm:rounded-[3rem] shadow-2xl flex flex-col overflow-hidden border border-white/10"
-          >
-            <div className="p-6 bg-white/5 border-b border-white/10 text-white flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <Users size={20} />
-                <p className="font-black text-sm">
-                  {selectedUser ? selectedUser.full_name : "Messenger"}
-                </p>
-              </div>
-              <button
-                onClick={() => {
-                  setIsChatOpen(false);
-                  setSelectedUser(null);
-                }}
-              >
-                <X size={22} />
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
-              {!selectedUser ? (
-                <div
-                  onClick={() =>
-                    setSelectedUser({ id: "dummy", full_name: "Rahul Kumar" })
-                  }
-                  className="bg-white/5 p-4 rounded-2xl flex items-center gap-4 cursor-pointer hover:bg-white/10 transition-colors"
-                >
-                  <div className="w-12 h-12 bg-blue-500/20 rounded-xl flex items-center justify-center font-bold text-blue-400">
-                    R
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-sm font-black text-white">Rahul Kumar</p>
-                    <p className="text-[10px] text-white/40">Active Now</p>
-                  </div>
-                </div>
-              ) : (
-                chatMessages.map((msg, i) => (
-                  <div
-                    key={i}
-                    className={`flex ${msg.sender_id === userId ? "justify-end" : "justify-start"}`}
-                  >
-                    <div
-                      className={`max-w-[80%] p-4 rounded-[1.8rem] text-sm font-bold ${msg.sender_id === userId ? "bg-blue-600 text-white rounded-tr-none" : "bg-white/10 text-white border border-white/10 rounded-tl-none"}`}
-                    >
-                      {msg.content}
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-            {selectedUser && (
-              <div className="p-4 bg-white/5 border-t border-white/10 flex gap-2">
-                <input
-                  type="text"
-                  placeholder="Type a message..."
-                  className="flex-1 bg-white/10 h-12 px-6 rounded-2xl font-bold text-white outline-none"
-                  value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-                />
-                <button
-                  onClick={sendMessage}
-                  className="w-12 h-12 bg-blue-600 text-white rounded-2xl flex items-center justify-center"
-                >
-                  <Send size={18} />
-                </button>
-              </div>
-            )}
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Chat System ───────────────────────────────────────────────────────── */}
+      <ChatSystem
+        isOpen={isChatOpen}
+        onClose={() => setIsChatOpen(false)}
+        userId={userId}
+      />
 
       {/* Chat FAB ──────────────────────────────────────────────────────────── */}
       <motion.button
