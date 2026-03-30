@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { Session } from "@supabase/supabase-js";
 import {
@@ -87,6 +87,107 @@ const Toggle = ({ on, onToggle }: { on: boolean; onToggle: () => void }) => (
     />
   </button>
 );
+
+// ── Personal Info sub-view (outside Index to prevent focus loss) ──────────────
+interface PersonalInfoViewProps {
+  lang: "en" | "hi";
+  setSettingsView: (v: "main" | "personal" | "blocklist") => void;
+  personalForm: { full_name: string; bio: string; school: string; mobile: string; location: string };
+  setPersonalForm: React.Dispatch<React.SetStateAction<{ full_name: string; bio: string; school: string; mobile: string; location: string }>>;
+  isSavingPersonal: boolean;
+  personalSaved: boolean;
+  handleSavePersonalInfo: () => void;
+}
+
+const PersonalInfoView = React.memo(({
+  lang,
+  setSettingsView,
+  personalForm,
+  setPersonalForm,
+  isSavingPersonal,
+  personalSaved,
+  handleSavePersonalInfo,
+}: PersonalInfoViewProps) => {
+  const t = (en: string, hi: string) => (lang === "hi" ? hi : en);
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-3 px-4 pt-4">
+        <button
+          onClick={() => setSettingsView("main")}
+          className="p-2 bg-white/5 rounded-xl border border-white/10 text-white/60 hover:text-white"
+        >
+          <ChevronLeft size={16} />
+        </button>
+        <p className="text-sm font-black text-white">
+          {t("Personal Info", "व्यक्तिगत जानकारी")}
+        </p>
+      </div>
+
+      <GlassCard className="rounded-[2.5rem] p-6 space-y-4 border border-white/10">
+        {[
+          {
+            key: "full_name",
+            label: t("Full Name", "पूरा नाम"),
+            placeholder: t("Your full name", "आपका नाम"),
+          },
+          {
+            key: "bio",
+            label: t("Bio", "परिचय"),
+            placeholder: t("Tell the world about you", "अपने बारे में लिखें"),
+          },
+          {
+            key: "school",
+            label: t("School / College", "स्कूल / कॉलेज"),
+            placeholder: t("Your school", "आपका स्कूल"),
+          },
+          {
+            key: "mobile",
+            label: t("Mobile", "मोबाइल"),
+            placeholder: "+92 300 0000000",
+          },
+          {
+            key: "location",
+            label: t("Location", "स्थान"),
+            placeholder: t("City, Country", "शहर, देश"),
+          },
+        ].map(({ key, label, placeholder }) => (
+          <div key={key} className="space-y-1">
+            <p className="text-[10px] font-black text-white/40 uppercase tracking-widest">
+              {label}
+            </p>
+            <input
+              type="text"
+              placeholder={placeholder}
+              value={(personalForm as any)[key]}
+              onChange={(e) =>
+                setPersonalForm((prev) => ({ ...prev, [key]: e.target.value }))
+              }
+              className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-sm font-bold text-white placeholder:text-white/20 outline-none focus:ring-2 focus:ring-blue-500/40 transition-all"
+            />
+          </div>
+        ))}
+
+        <button
+          onClick={handleSavePersonalInfo}
+          disabled={isSavingPersonal}
+          className="w-full py-4 rounded-2xl bg-blue-600 hover:bg-blue-500 active:scale-95 transition-all text-white font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 disabled:opacity-60"
+        >
+          {isSavingPersonal ? (
+            <Loader2 size={16} className="animate-spin" />
+          ) : personalSaved ? (
+            <>
+              <CheckCircle size={16} /> {t("Saved!", "सहेजा!")}
+            </>
+          ) : (
+            <>
+              <Save size={16} /> {t("Save Changes", "बदलाव सहेजें")}
+            </>
+          )}
+        </button>
+      </GlassCard>
+    </div>
+  );
+});
 
 // ── Component ────────────────────────────────────────────────────────────────
 const Index = ({ session }: { session: Session }) => {
@@ -349,85 +450,6 @@ const Index = ({ session }: { session: Session }) => {
   // ── Labels (language) ────────────────────────────────────────────────────
   const t = (en: string, hi: string) => (lang === "hi" ? hi : en);
 
-  // ── Settings: Personal Info sub-view ─────────────────────────────────────
-  const PersonalInfoView = () => (
-    <div className="space-y-4">
-      <div className="flex items-center gap-3 px-4 pt-4">
-        <button
-          onClick={() => setSettingsView("main")}
-          className="p-2 bg-white/5 rounded-xl border border-white/10 text-white/60 hover:text-white"
-        >
-          <ChevronLeft size={16} />
-        </button>
-        <p className="text-sm font-black text-white">
-          {t("Personal Info", "व्यक्तिगत जानकारी")}
-        </p>
-      </div>
-
-      <GlassCard className="rounded-[2.5rem] p-6 space-y-4 border border-white/10">
-        {[
-          {
-            key: "full_name",
-            label: t("Full Name", "पूरा नाम"),
-            placeholder: t("Your full name", "आपका नाम"),
-          },
-          {
-            key: "bio",
-            label: t("Bio", "परिचय"),
-            placeholder: t("Tell the world about you", "अपने बारे में लिखें"),
-          },
-          {
-            key: "school",
-            label: t("School / College", "स्कूल / कॉलेज"),
-            placeholder: t("Your school", "आपका स्कूल"),
-          },
-          {
-            key: "mobile",
-            label: t("Mobile", "मोबाइल"),
-            placeholder: "+92 300 0000000",
-          },
-          {
-            key: "location",
-            label: t("Location", "स्थान"),
-            placeholder: t("City, Country", "शहर, देश"),
-          },
-        ].map(({ key, label, placeholder }) => (
-          <div key={key} className="space-y-1">
-            <p className="text-[10px] font-black text-white/40 uppercase tracking-widest">
-              {label}
-            </p>
-            <input
-              type="text"
-              placeholder={placeholder}
-              value={(personalForm as any)[key]}
-              onChange={(e) =>
-                setPersonalForm((prev) => ({ ...prev, [key]: e.target.value }))
-              }
-              className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-sm font-bold text-white placeholder:text-white/20 outline-none focus:ring-2 focus:ring-blue-500/40 transition-all"
-            />
-          </div>
-        ))}
-
-        <button
-          onClick={handleSavePersonalInfo}
-          disabled={isSavingPersonal}
-          className="w-full py-4 rounded-2xl bg-blue-600 hover:bg-blue-500 active:scale-95 transition-all text-white font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 disabled:opacity-60"
-        >
-          {isSavingPersonal ? (
-            <Loader2 size={16} className="animate-spin" />
-          ) : personalSaved ? (
-            <>
-              <CheckCircle size={16} /> {t("Saved!", "सहेजा!")}
-            </>
-          ) : (
-            <>
-              <Save size={16} /> {t("Save Changes", "बदलाव सहेजें")}
-            </>
-          )}
-        </button>
-      </GlassCard>
-    </div>
-  );
 
   // ── Settings: Block List sub-view ─────────────────────────────────────────
   const BlockListView = () => (
@@ -797,7 +819,15 @@ const Index = ({ session }: { session: Session }) => {
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: -20 }}
                   >
-                    <PersonalInfoView />
+                    <PersonalInfoView
+                      lang={lang}
+                      setSettingsView={setSettingsView}
+                      personalForm={personalForm}
+                      setPersonalForm={setPersonalForm}
+                      isSavingPersonal={isSavingPersonal}
+                      personalSaved={personalSaved}
+                      handleSavePersonalInfo={handleSavePersonalInfo}
+                    />
                   </motion.div>
                 )}
                 {settingsView === "blocklist" && (
