@@ -1,451 +1,408 @@
-import { useState, useEffect } from "react";
-import Header from "@/components/Header";
-import GolSlider from "@/components/GolSlider";
-import ConnectionPanel from "@/components/ConnectionPanel";
-import MatchmakingSection from "@/components/MatchmakingSection";
-import FameFeed from "@/components/FameFeed";
-import FlicksFeed from "@/components/FlicksFeed";
-import CreatePost from "@/components/CreatePost";
-import { motion, AnimatePresence } from "framer-motion";
+import { useState, useEffect, useRef } from "react";
+import { supabase } from "../lib/supabaseClient";
 import {
-  Camera,
-  Loader2,
-  Lock,
-  ChevronRight,
-  LogOut,
-  User,
-  BookOpen,
-  Home,
   Image as ImageIcon,
-  MessageSquare,
   Send,
   X,
-  Users,
-  Palette,
+  Loader2,
+  Heart,
+  MessageCircle,
+  Share2,
+  MoreHorizontal,
+  Bookmark,
+  Sun,
+  Moon,
 } from "lucide-react";
-import { supabase } from "@/lib/supabaseClient";
+import { motion, AnimatePresence } from "framer-motion";
 
-// --- Glass Style Wrapper Component ---
-const GlassCard = ({ children, className = "" }: any) => (
-  <div
-    className={`bg-white/10 backdrop-blur-2xl border border-white/20 shadow-[0_8px_32px_0_rgba(0,0,0,0.2)] ${className}`}
-  >
-    {children}
-  </div>
-);
+const FameFeed = () => {
+  const [posts, setPosts] = useState<any[]>([]);
+  const [text, setText] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [activeComment, setActiveComment] = useState<string | null>(null);
+  const [commentText, setCommentText] = useState("");
 
-const SettingRow = ({ icon, title, desc, color }: any) => (
-  <div className="flex items-center justify-between p-4 hover:bg-white/10 rounded-2xl cursor-pointer transition-all border border-transparent hover:border-white/10 group">
-    <div className="flex items-center gap-4">
-      <div
-        className={`w-10 h-10 rounded-xl flex items-center justify-center bg-white/20 backdrop-blur-md border border-white/10 ${color}`}
-      >
-        {icon}
-      </div>
-      <div>
-        <p className="text-sm font-bold text-white">{title}</p>
-        <p className="text-[10px] text-white/50 font-medium uppercase tracking-tighter">
-          {desc}
-        </p>
-      </div>
-    </div>
-    <ChevronRight size={16} className="text-white/30 group-hover:text-white" />
-  </div>
-);
-
-const Index = () => {
-  const [activeFeature, setActiveFeature] = useState("Fame");
-  const [isUploading, setIsUploading] = useState(false);
-  const [isPostOpen, setIsPostOpen] = useState(false);
-
-  // --- 🎨 THEME STATE ---
-  const [bgImage, setBgImage] = useState(
-    localStorage.getItem("facelook-bg") ||
-      "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=1964",
-  );
-
-  // --- 💬 CHAT STATES ---
-  const [isChatOpen, setIsChatOpen] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<any>(null);
-  const [chatMessages, setChatMessages] = useState<any[]>([]);
-  const [newMessage, setNewMessage] = useState("");
-
-  const [profile, setProfile] = useState({
-    id: "ec047c60-4960-4083-b798-1749c0ab85dc",
-    full_name: "Loading...",
-    username: "user",
-    avatar_url: "",
-    school: "",
-    village: "",
-    total_posts: 0,
-    total_friends: 0,
-    total_likes: 0,
-    pending_requests: 0,
+  // 🌓 Theme Logic (LocalStorage se uthayega)
+  const [isLightMode, setIsLightMode] = useState(() => {
+    const saved = localStorage.getItem("theme");
+    return saved === "light";
   });
 
-  useEffect(() => {
-    fetchProfile();
-  }, []);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (!selectedUser) return;
+    localStorage.setItem("theme", isLightMode ? "light" : "dark");
+  }, [isLightMode]);
+
+  // 🔄 1. Fetch Posts Logic
+  const fetchPosts = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("posts")
+        .select(`*, comments:comments(*)`)
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        const { data: postsOnly } = await supabase
+          .from("posts")
+          .select("*")
+          .order("created_at", { ascending: false });
+        if (postsOnly) setPosts(postsOnly);
+      } else if (data) {
+        setPosts(data);
+      }
+    } catch (err) {
+      console.error("Fetch error:", err);
+    }
+  };
+
+  useEffect(() => {
+    fetchPosts();
     const channel = supabase
-      .channel("chat-room")
+      .channel("fame-feed-changes")
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "messages" },
-        (payload) => {
-          if (
-            (payload.new.sender_id === profile.id &&
-              payload.new.receiver_id === selectedUser.id) ||
-            (payload.new.sender_id === selectedUser.id &&
-              payload.new.receiver_id === profile.id)
-          ) {
-            setChatMessages((prev) => [...prev, payload.new]);
-          }
-        },
+        { event: "*", schema: "public", table: "posts" },
+        () => fetchPosts(),
+      )
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "comments" },
+        () => fetchPosts(),
       )
       .subscribe();
+
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [selectedUser]);
+  }, []);
 
-  const fetchProfile = async () => {
-    const { data } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", profile.id)
-      .maybeSingle();
-    if (data) setProfile(data);
-  };
-
-  const handleThemeChange = (url: string) => {
-    setBgImage(url);
-    localStorage.setItem("facelook-bg", url);
-  };
-
-  const sendMessage = async () => {
-    if (!newMessage.trim() || !selectedUser) return;
-    const { error } = await supabase
-      .from("messages")
-      .insert({
-        sender_id: profile.id,
-        receiver_id: selectedUser.id,
-        content: newMessage,
-      });
-    if (!error) setNewMessage("");
-  };
-
-  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setIsUploading(true);
+  // 🚀 2. Handle Post Publish
+  const handlePost = async () => {
+    if (!text && !file) return;
+    setLoading(true);
     try {
-      const fileName = `${profile.id}-${Date.now()}.png`;
-      await supabase.storage.from("avatars").upload(fileName, file);
-      const publicUrl = supabase.storage.from("avatars").getPublicUrl(fileName)
-        .data.publicUrl;
-      await supabase
-        .from("profiles")
-        .upsert({ ...profile, avatar_url: publicUrl });
-      setProfile((prev) => ({ ...prev, avatar_url: publicUrl }));
+      let imageUrl = "";
+      if (file) {
+        const fileName = `${Date.now()}-${file.name}`;
+        const { error: upErr } = await supabase.storage
+          .from("posts")
+          .upload(fileName, file);
+        if (upErr) throw upErr;
+        const { data: urlData } = supabase.storage
+          .from("posts")
+          .getPublicUrl(fileName);
+        imageUrl = urlData.publicUrl;
+      }
+
+      const { error: insErr } = await supabase
+        .from("posts")
+        .insert([
+          { content: text, image_url: imageUrl, author: "You", likes_count: 0 },
+        ]);
+
+      if (insErr) throw insErr;
+      setText("");
+      setFile(null);
+      setPreview(null);
+    } catch (err: any) {
+      alert("Post failed: " + err.message);
+    }
+    setLoading(false);
+  };
+
+  // ❤️ 3. Handle Like
+  const handleLike = async (id: string, currentLikes: number) => {
+    const { error } = await supabase
+      .from("posts")
+      .update({ likes_count: (currentLikes || 0) + 1 })
+      .eq("id", id);
+    if (error) console.error("Like error:", error);
+  };
+
+  // 💬 4. Handle Comment
+  const handleAddComment = async (postId: string) => {
+    if (!commentText.trim()) return;
+    try {
+      const { error } = await supabase
+        .from("comments")
+        .insert([{ post_id: postId, content: commentText, author: "You" }]);
+      if (error) throw error;
+      setCommentText("");
+      fetchPosts();
+    } catch (err: any) {
+      console.error("Comment error:", err.message);
+    }
+  };
+
+  // 📤 5. Share Function
+  const handleShare = async (post: any) => {
+    const shareData = {
+      title: "Facelook Connect",
+      text: post.content || "Check out this vibe!",
+      url: window.location.href,
+    };
+    try {
+      if (navigator.share) await navigator.share(shareData);
+      else {
+        await navigator.clipboard.writeText(window.location.href);
+        alert("Link copied! 🚀");
+      }
     } catch (err) {
-      alert("Upload error!");
-    } finally {
-      setIsUploading(false);
+      console.log("Cancelled");
     }
   };
 
   return (
     <div
-      className="min-h-screen w-full bg-cover bg-center bg-fixed transition-all duration-700 relative overflow-x-hidden"
-      style={{ backgroundImage: `url('${bgImage}')` }}
+      className={`min-h-screen transition-colors duration-500 pb-20 ${isLightMode ? "bg-[#F3F4F6]" : "bg-[#0a0a0a]"}`}
     >
-      {/* Dark Frost Overlay */}
-      <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-[2px] pointer-events-none" />
-
-      <Header onProfileClick={() => setActiveFeature("Face")} />
-
-      <main className="pt-24 pb-40 w-full max-w-2xl mx-auto px-2 sm:px-4 min-h-screen relative z-10">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={activeFeature}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="w-full space-y-5"
+      <div className="max-w-xl mx-auto font-sans">
+        {/* --- HEADER --- */}
+        <div className="flex justify-between items-center p-6 sticky top-0 z-50 backdrop-blur-md">
+          <h1
+            className={`text-2xl font-black italic tracking-tighter ${isLightMode ? "text-gray-900" : "text-white"}`}
           >
-            {/* 1. FAME (GLASS FEED) */}
-            {activeFeature === "Fame" && (
-              <div className="flex flex-col gap-5">
-                <GlassCard
-                  className="p-4 rounded-[2.5rem] flex items-center gap-4 cursor-pointer"
-                  onClick={() => setIsPostOpen(true)}
-                >
-                  <img
-                    src={profile.avatar_url}
-                    className="w-10 h-10 rounded-xl object-cover border border-white/20"
-                  />
-                  <div className="flex-1 bg-white/10 py-3 px-6 rounded-2xl text-white/60 text-sm font-bold">
-                    What's on your mind?
-                  </div>
-                  <div className="p-2 text-white bg-blue-600/50 rounded-xl">
-                    <ImageIcon size={20} />
-                  </div>
-                </GlassCard>
-                <ConnectionPanel />
-                <FameFeed />
-              </div>
-            )}
-
-            {/* 2. FACE (GLASS PROFILE) */}
-            {activeFeature === "Face" && (
-              <div className="space-y-5">
-                <GlassCard className="rounded-[3.5rem] p-6 overflow-hidden relative">
-                  <div className="absolute top-0 left-0 w-full h-24 bg-gradient-to-r from-blue-500/40 to-indigo-600/40" />
-                  <div className="relative z-10 flex flex-col items-center mt-6">
-                    <div className="w-28 h-28 rounded-[2.2rem] bg-white/20 p-1 backdrop-blur-md shadow-2xl relative">
-                      {profile.avatar_url ? (
-                        <img
-                          src={profile.avatar_url}
-                          className="w-full h-full object-cover rounded-[1.8rem]"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-3xl font-black text-white">
-                          {profile.full_name[0]}
-                        </div>
-                      )}
-                      <label className="absolute bottom-0 right-0 bg-blue-600 p-2 rounded-xl text-white shadow-lg cursor-pointer">
-                        {isUploading ? (
-                          <Loader2 size={14} className="animate-spin" />
-                        ) : (
-                          <Camera size={14} />
-                        )}
-                        <input
-                          type="file"
-                          hidden
-                          accept="image/*"
-                          onChange={handleAvatarUpload}
-                        />
-                      </label>
-                    </div>
-                    <h2 className="text-2xl font-black text-white mt-4 drop-shadow-lg">
-                      {profile.full_name}
-                    </h2>
-                    <p className="text-blue-300 font-black text-[10px] uppercase tracking-widest">
-                      @{profile.username}
-                    </p>
-                  </div>
-                  <div className="grid grid-cols-4 gap-2 mt-8 border-t border-white/10 pt-6">
-                    {[
-                      { l: "Buddies", v: profile.total_friends },
-                      { l: "Posts", v: profile.total_posts },
-                      { l: "Likes", v: profile.total_likes },
-                      {
-                        l: "Pending",
-                        v: profile.pending_requests,
-                        c: "text-blue-400",
-                      },
-                    ].map((s, i) => (
-                      <div key={i} className="text-center">
-                        <p
-                          className={`text-lg font-black ${s.c || "text-white"}`}
-                        >
-                          {s.v}
-                        </p>
-                        <p className="text-[8px] font-bold text-white/40 uppercase tracking-tighter">
-                          {s.l}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                </GlassCard>
-                <div className="grid grid-cols-2 gap-3">
-                  <GlassCard className="p-4 rounded-3xl flex items-center gap-3">
-                    <Home size={18} className="text-blue-400" />
-                    <div>
-                      <p className="text-[8px] font-black text-white/40 uppercase">
-                        Village
-                      </p>
-                      <p className="text-xs font-bold text-white">
-                        {profile.village || "Not Set"}
-                      </p>
-                    </div>
-                  </GlassCard>
-                  <GlassCard className="p-4 rounded-3xl flex items-center gap-3">
-                    <BookOpen size={18} className="text-purple-400" />
-                    <div>
-                      <p className="text-[8px] font-black text-white/40 uppercase">
-                        School
-                      </p>
-                      <p className="text-xs font-bold text-white truncate w-24">
-                        {profile.school || "Not Set"}
-                      </p>
-                    </div>
-                  </GlassCard>
-                </div>
-              </div>
-            )}
-
-            {/* 3. SETTINGS (THEME ENGINE) */}
-            {activeFeature === "Settings" && (
-              <div className="space-y-6">
-                <GlassCard className="rounded-[2.5rem] p-6">
-                  <div className="flex items-center gap-3 mb-6">
-                    <Palette className="text-blue-400" size={24} />
-                    <h2 className="text-xl font-black text-white">
-                      App Appearance
-                    </h2>
-                  </div>
-                  <div className="grid grid-cols-3 gap-3 mb-8">
-                    {[
-                      "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=1000",
-                      "https://images.unsplash.com/photo-1475275083424-b4ff81625b60?q=80&w=1000",
-                      "https://images.unsplash.com/photo-1531306728370-e2ebd9d7bb99?q=80&w=1000",
-                      "https://images.unsplash.com/photo-1506744038136-46273834b3fb?q=80&w=1000",
-                      "https://images.unsplash.com/photo-1550684848-fac1c5b4e853?q=80&w=1000",
-                      "https://images.unsplash.com/photo-1505118380757-91f5f5632de0?q=80&w=1000",
-                    ].map((url, i) => (
-                      <button
-                        key={i}
-                        onClick={() => handleThemeChange(url)}
-                        className={`h-16 rounded-2xl overflow-hidden border-2 transition-all ${bgImage === url ? "border-blue-500 scale-90" : "border-transparent"}`}
-                      >
-                        <img src={url} className="w-full h-full object-cover" />
-                      </button>
-                    ))}
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-3 ml-2">
-                      Account Control
-                    </p>
-                    <SettingRow
-                      icon={<User size={18} />}
-                      title="Personal Info"
-                      desc="Name & Location"
-                      color="text-blue-400"
-                    />
-                    <SettingRow
-                      icon={<Lock size={18} />}
-                      title="Security"
-                      desc="Password & Privacy"
-                      color="text-slate-400"
-                    />
-                  </div>
-                  <button className="w-full mt-6 py-4 bg-red-500/20 text-red-400 rounded-2xl font-black text-xs uppercase tracking-widest border border-red-500/20">
-                    <LogOut size={16} className="inline mr-2" /> Logout
-                  </button>
-                </GlassCard>
-              </div>
-            )}
-
-            {activeFeature === "Flicks" && <FlicksFeed />}
-          </motion.div>
-        </AnimatePresence>
-      </main>
-
-      {/* --- 💬 GLASS CHAT SYSTEM --- */}
-      <button
-        onClick={() => setIsChatOpen(true)}
-        className="fixed bottom-32 right-6 w-16 h-16 bg-blue-600/80 backdrop-blur-lg text-white rounded-full shadow-2xl flex items-center justify-center z-[80] border-2 border-white/20 active:scale-90"
-      >
-        <MessageSquare size={28} fill="currentColor" />
-        <span className="absolute -top-1 -right-1 w-6 h-6 bg-red-500 rounded-full border-2 border-white text-[10px] font-black flex items-center justify-center animate-pulse">
-          3
-        </span>
-      </button>
-
-      <AnimatePresence>
-        {isChatOpen && (
-          <motion.div
-            initial={{ y: "100%" }}
-            animate={{ y: 0 }}
-            exit={{ y: "100%" }}
-            className="fixed inset-x-0 bottom-0 z-[150] bg-slate-900/60 backdrop-blur-3xl h-[85vh] sm:h-[600px] sm:w-[400px] sm:right-6 sm:left-auto sm:bottom-6 rounded-t-[3rem] sm:rounded-[3rem] shadow-2xl flex flex-col overflow-hidden border border-white/10"
+            FACELOOK
+          </h1>
+          <button
+            onClick={() => setIsLightMode(!isLightMode)}
+            className={`p-2.5 rounded-2xl transition-all ${isLightMode ? "bg-white shadow-lg text-gray-600" : "bg-white/10 text-yellow-400"}`}
           >
-            <div className="p-6 bg-white/5 border-b border-white/10 text-white flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <Users size={20} />
-                <p className="font-black text-sm">
-                  {selectedUser ? selectedUser.full_name : "Messenger"}
-                </p>
+            {isLightMode ? <Moon size={20} /> : <Sun size={20} />}
+          </button>
+        </div>
+
+        {/* --- COMPOSER (Input Box) --- */}
+        <div className="px-4 mb-6">
+          <div
+            className={`${isLightMode ? "bg-white border-gray-200" : "bg-white/10 border-white/20"} rounded-[2rem] p-5 shadow-xl border`}
+          >
+            <div className="flex gap-4 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 shrink-0 flex items-center justify-center text-white font-black">
+                Y
               </div>
-              <button
-                onClick={() => {
-                  setIsChatOpen(false);
-                  setSelectedUser(null);
-                }}
-              >
-                <X size={22} />
-              </button>
+              <textarea
+                placeholder="What's happening?"
+                className={`w-full bg-transparent border-none focus:ring-0 text-sm h-12 resize-none p-1 ${isLightMode ? "text-gray-800 placeholder:text-gray-400" : "text-white placeholder:text-white/40"}`}
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+              />
             </div>
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
-              {!selectedUser ? (
-                <div
-                  onClick={() =>
-                    setSelectedUser({ id: "dummy", full_name: "Rahul Kumar" })
-                  }
-                  className="bg-white/5 p-4 rounded-2xl flex items-center gap-4 cursor-pointer border border-white/5 hover:bg-white/10"
-                >
-                  <div className="w-12 h-12 bg-blue-500/20 rounded-xl flex items-center justify-center font-bold text-blue-400 border border-blue-500/20">
-                    R
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-sm font-black text-white">Rahul Kumar</p>
-                    <p className="text-[10px] text-white/40">Active Now</p>
-                  </div>
-                </div>
-              ) : (
-                chatMessages.map((msg, i) => (
-                  <div
-                    key={i}
-                    className={`flex ${msg.sender_id === profile.id ? "justify-end" : "justify-start"}`}
-                  >
-                    <div
-                      className={`max-w-[80%] p-4 rounded-[1.8rem] text-sm font-bold ${msg.sender_id === profile.id ? "bg-blue-600 text-white rounded-tr-none" : "bg-white/10 text-white border border-white/10 rounded-tl-none backdrop-blur-md"}`}
-                    >
-                      {msg.content}
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-            {selectedUser && (
-              <div className="p-4 bg-white/5 border-t border-white/10 flex gap-2">
-                <input
-                  type="text"
-                  placeholder="Type a message..."
-                  className="flex-1 bg-white/10 h-12 px-6 rounded-2xl font-bold text-white outline-none placeholder:text-white/20"
-                  value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+
+            {preview && (
+              <div className="relative mb-4 rounded-2xl overflow-hidden border border-white/10">
+                <img
+                  src={preview}
+                  className="w-full h-48 object-cover"
+                  alt="Preview"
                 />
                 <button
-                  onClick={sendMessage}
-                  className="w-12 h-12 bg-blue-600 text-white rounded-2xl flex items-center justify-center"
+                  onClick={() => {
+                    setFile(null);
+                    setPreview(null);
+                  }}
+                  className="absolute top-2 right-2 bg-black/60 p-1.5 rounded-full text-white"
                 >
-                  <Send size={18} />
+                  <X size={16} />
                 </button>
               </div>
             )}
-          </motion.div>
-        )}
-      </AnimatePresence>
 
-      <CreatePost
-        isOpen={isPostOpen}
-        onClose={() => setIsPostOpen(false)}
-        userProfile={profile}
-      />
+            <div
+              className={`flex items-center justify-between pt-3 border-t ${isLightMode ? "border-gray-100" : "border-white/10"}`}
+            >
+              <input
+                type="file"
+                hidden
+                ref={fileInputRef}
+                accept="image/*"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) {
+                    setFile(f);
+                    setPreview(URL.createObjectURL(f));
+                  }
+                }}
+              />
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className={`flex items-center gap-2 font-bold text-xs ${isLightMode ? "text-gray-500" : "text-white/60"}`}
+              >
+                <ImageIcon size={18} />
+                Media
+              </button>
+              <button
+                onClick={handlePost}
+                disabled={loading}
+                className="bg-blue-600 text-white px-6 py-2 rounded-xl font-bold text-xs transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2"
+              >
+                {loading ? (
+                  <Loader2 className="animate-spin" size={16} />
+                ) : (
+                  <Send size={16} />
+                )}
+                Post
+              </button>
+            </div>
+          </div>
+        </div>
 
-      <div className="fixed bottom-0 left-0 w-full z-50 pointer-events-none pb-4">
-        <div className="max-w-2xl mx-auto pointer-events-auto px-4">
-          <GolSlider onFeatureChange={setActiveFeature} />
+        {/* --- FEED SECTION (WALL-TO-WALL) --- */}
+        <div className="space-y-3">
+          {posts.map((post) => (
+            <motion.div
+              initial={{ opacity: 0 }}
+              whileInView={{ opacity: 1 }}
+              key={post.id}
+              className={`${isLightMode ? "bg-white border-y border-gray-200" : "bg-white/5 border-y border-white/10"} w-full shadow-sm`}
+            >
+              {/* Header */}
+              <div className="p-4 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div
+                    className={`w-10 h-10 rounded-full flex items-center justify-center font-black text-xs ${isLightMode ? "bg-gray-100 text-gray-700" : "bg-white/10 text-white"}`}
+                  >
+                    {post.author ? post.author[0] : "U"}
+                  </div>
+                  <div>
+                    <h4
+                      className={`text-sm font-black ${isLightMode ? "text-gray-800" : "text-white"}`}
+                    >
+                      {post.author}
+                    </h4>
+                    <p className="text-[10px] text-blue-500 font-bold uppercase tracking-wider">
+                      Vibe Verified
+                    </p>
+                  </div>
+                </div>
+                <MoreHorizontal
+                  className={isLightMode ? "text-gray-400" : "text-white/30"}
+                  size={18}
+                />
+              </div>
+
+              {/* Text Body */}
+              <div className="px-4 pb-3">
+                <p
+                  className={`text-sm leading-relaxed ${isLightMode ? "text-gray-600" : "text-white/80"}`}
+                >
+                  {post.content}
+                </p>
+              </div>
+
+              {/* Image (Wall-to-Wall) */}
+              {post.image_url && (
+                <div className="w-full bg-black/10">
+                  <img
+                    src={post.image_url}
+                    className="w-full h-auto max-h-[500px] object-cover"
+                    alt="Post"
+                  />
+                </div>
+              )}
+
+              {/* Action Bar */}
+              <div className="px-4 py-4 flex items-center justify-between">
+                <div className="flex items-center gap-6">
+                  <button
+                    onClick={() => handleLike(post.id, post.likes_count)}
+                    className="flex items-center gap-1.5 group"
+                  >
+                    <Heart
+                      size={20}
+                      className={`${post.likes_count > 0 ? "fill-red-500 text-red-500" : isLightMode ? "text-gray-400" : "text-white/40"}`}
+                    />
+                    <span
+                      className={`text-xs font-bold ${isLightMode ? "text-gray-500" : "text-white/60"}`}
+                    >
+                      {post.likes_count || 0}
+                    </span>
+                  </button>
+                  <button
+                    onClick={() =>
+                      setActiveComment(
+                        activeComment === post.id ? null : post.id,
+                      )
+                    }
+                    className={`flex items-center gap-1.5 ${isLightMode ? "text-gray-400" : "text-white/40"}`}
+                  >
+                    <MessageCircle size={20} />
+                    <span className="text-xs font-bold">
+                      {post.comments?.length || 0}
+                    </span>
+                  </button>
+                  <button
+                    onClick={() => handleShare(post)}
+                    className={isLightMode ? "text-gray-400" : "text-white/40"}
+                  >
+                    <Share2 size={20} />
+                  </button>
+                </div>
+                <Bookmark
+                  size={20}
+                  className={isLightMode ? "text-gray-400" : "text-white/20"}
+                />
+              </div>
+
+              {/* Comments Display */}
+              <AnimatePresence>
+                {activeComment === post.id && (
+                  <motion.div
+                    initial={{ height: 0 }}
+                    animate={{ height: "auto" }}
+                    exit={{ height: 0 }}
+                    className="px-4 pb-4 overflow-hidden"
+                  >
+                    <div className="flex gap-2 mb-4 border-t pt-4 border-white/5">
+                      <input
+                        type="text"
+                        placeholder="Write a comment..."
+                        className={`flex-1 text-xs px-4 py-2.5 rounded-full outline-none border ${isLightMode ? "bg-gray-50 border-gray-200 text-gray-800" : "bg-white/5 border-white/10 text-white"}`}
+                        value={commentText}
+                        onChange={(e) => setCommentText(e.target.value)}
+                        onKeyDown={(e) =>
+                          e.key === "Enter" && handleAddComment(post.id)
+                        }
+                      />
+                    </div>
+                    {/* Simplified Comments List */}
+                    <div className="space-y-3">
+                      {post.comments?.slice(0, 3).map((c: any) => (
+                        <div key={c.id} className="flex gap-2 items-start">
+                          <div
+                            className={`w-6 h-6 rounded-full flex items-center justify-center text-[8px] font-bold ${isLightMode ? "bg-gray-100 text-gray-600" : "bg-white/10 text-blue-400"}`}
+                          >
+                            {c.author[0]}
+                          </div>
+                          <div
+                            className={`p-2 rounded-xl flex-1 text-xs ${isLightMode ? "bg-gray-50" : "bg-white/5"}`}
+                          >
+                            <span className="font-bold mr-2 text-blue-500">
+                              {c.author}
+                            </span>
+                            <span
+                              className={
+                                isLightMode ? "text-gray-600" : "text-white/70"
+                              }
+                            >
+                              {c.content}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </motion.div>
+          ))}
         </div>
       </div>
     </div>
   );
 };
 
-export default Index;
+export default FameFeed;
