@@ -412,10 +412,10 @@ const FlicksFeed = () => {
   }, [currentIndex, goTo, commentsOpen]);
 
   return (
-    <div className="px-4 md:px-8">
+    <div className="w-full h-full">
       <div
         ref={containerRef}
-        className="relative w-full max-w-sm mx-auto aspect-[9/16] rounded-2xl overflow-hidden shadow-xl"
+        className="relative w-full h-full overflow-hidden"
         onWheel={handleWheel}
       >
         <AnimatePresence mode="wait" initial={false}>

@@ -321,7 +321,7 @@ const Index = () => {
 
             {/* 3. FLICKS: Full Screen TikTok Style */}
             {activeFeature === "Flicks" && (
-              <div className="fixed inset-0 z-[100] bg-black">
+              <div className="fixed inset-0 z-[300] bg-black">
                 <FlicksFeed />
               </div>
             )}
@@ -474,8 +474,8 @@ const Index = () => {
 
       {/* Production-Grade Bottom Nav */}
       <motion.div
-        animate={{ y: showNav ? 0 : 120 }}
-        transition={{ type: "spring", damping: 20 }}
+        animate={{ y: showNav && activeFeature !== "Flicks" ? 0 : 120 }}
+        transition={{ type: "spring", stiffness: 280, damping: 26 }}
         className="fixed bottom-0 left-0 w-full z-[200] pb-6 px-4 pointer-events-none"
       >
         <div className="max-w-md mx-auto pointer-events-auto">
