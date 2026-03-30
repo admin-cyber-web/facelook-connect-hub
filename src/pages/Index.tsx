@@ -8,17 +8,14 @@ import {
   LogOut,
   User,
   BookOpen,
-  Home,
+  MapPin,
+  Phone,
   Image as ImageIcon,
   MessageSquare,
   Send,
   X,
   Users,
   Palette,
-  PlusCircle,
-  Heart,
-  Share2,
-  MoreHorizontal,
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -80,12 +77,11 @@ const Index = () => {
     full_name: "Loading...",
     username: "user",
     avatar_url: "",
+    bio: "",
+    location: "",
     school: "",
-    village: "",
-    total_posts: 0,
-    total_friends: 0,
-    total_likes: 0,
-    pending_requests: 0,
+    mobile: "",
+    updated_at: "",
   });
 
   // --- Initial Fetch & Listeners ---
@@ -267,51 +263,46 @@ const Index = () => {
                     </p>
                   </div>
 
-                  <div className="grid grid-cols-4 gap-2 mt-8 border-t border-white/10 pt-6">
-                    {[
-                      { l: "Buddies", v: profile.total_friends },
-                      { l: "Posts", v: profile.total_posts },
-                      { l: "Likes", v: profile.total_likes },
-                      {
-                        l: "Pending",
-                        v: profile.pending_requests,
-                        c: "text-blue-400",
-                      },
-                    ].map((s, i) => (
-                      <div key={i} className="text-center">
-                        <p
-                          className={`text-lg font-black ${s.c || "text-white"}`}
-                        >
-                          {s.v}
-                        </p>
-                        <p className="text-[8px] font-bold text-white/40 uppercase tracking-tighter">
-                          {s.l}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
+                  {profile.bio && (
+                    <div className="mt-4 border-t border-white/10 pt-4">
+                      <p className="text-xs text-white/60 text-center leading-relaxed">
+                        {profile.bio}
+                      </p>
+                    </div>
+                  )}
                 </GlassCard>
 
                 <div className="grid grid-cols-2 gap-2">
                   <GlassCard className="rounded-3xl flex items-center gap-3">
-                    <Home size={18} className="text-blue-400" />
-                    <div>
+                    <MapPin size={18} className="text-blue-400 shrink-0" />
+                    <div className="min-w-0">
                       <p className="text-[8px] font-black text-white/40 uppercase">
-                        Village
+                        Location
                       </p>
-                      <p className="text-xs font-bold text-white">
-                        {profile.village || "Not Set"}
+                      <p className="text-xs font-bold text-white truncate">
+                        {profile.location || "Not Set"}
                       </p>
                     </div>
                   </GlassCard>
                   <GlassCard className="rounded-3xl flex items-center gap-3">
-                    <BookOpen size={18} className="text-purple-400" />
-                    <div>
+                    <BookOpen size={18} className="text-purple-400 shrink-0" />
+                    <div className="min-w-0">
                       <p className="text-[8px] font-black text-white/40 uppercase">
                         School
                       </p>
-                      <p className="text-xs font-bold text-white truncate w-24">
+                      <p className="text-xs font-bold text-white truncate">
                         {profile.school || "Not Set"}
+                      </p>
+                    </div>
+                  </GlassCard>
+                  <GlassCard className="rounded-3xl flex items-center gap-3 col-span-2">
+                    <Phone size={18} className="text-green-400 shrink-0" />
+                    <div className="min-w-0">
+                      <p className="text-[8px] font-black text-white/40 uppercase">
+                        Mobile
+                      </p>
+                      <p className="text-xs font-bold text-white truncate">
+                        {profile.mobile || "Not Set"}
                       </p>
                     </div>
                   </GlassCard>
