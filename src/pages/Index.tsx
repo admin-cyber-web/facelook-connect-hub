@@ -2,22 +2,46 @@ import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { Session } from "@supabase/supabase-js";
 import {
-  Camera, Loader2, Lock, ChevronRight, ChevronLeft, LogOut,
-  User, BookOpen, MapPin, Phone, Image as ImageIcon,
-  MessageSquare, Send, X, Users, Palette, EyeOff, Ban,
-  KeyRound, Globe, Languages, Save, Shield, CheckCircle,
+  Camera,
+  Loader2,
+  Lock,
+  ChevronRight,
+  ChevronLeft,
+  LogOut,
+  User,
+  BookOpen,
+  MapPin,
+  Phone,
+  Image as ImageIcon,
+  MessageSquare,
+  Send,
+  X,
+  Users,
+  Palette,
+  EyeOff,
+  Ban,
+  KeyRound,
+  Globe,
+  Languages,
+  Save,
+  Shield,
+  CheckCircle,
 } from "lucide-react";
+
+// DHAYAN DEIN: Sirf ye ek supabase import rehna chahiye
 import { supabase } from "@/lib/supabaseClient";
+
 import Header from "@/components/Header";
 import GolSlider from "@/components/GolSlider";
 import ConnectionPanel from "@/components/ConnectionPanel";
 import FameFeed from "@/components/FameFeed";
 import FlicksFeed from "@/components/FlicksFeed";
 import CreatePost from "@/components/CreatePost";
-
 // ── Reusable styled blocks ───────────────────────────────────────────────────
 const GlassCard = ({ children, className = "", noPadding = false }: any) => (
-  <div className={`bg-white/10 backdrop-blur-2xl border-y sm:border border-white/10 shadow-lg w-full ${noPadding ? "p-0" : "p-4"} ${className}`}>
+  <div
+    className={`bg-white/10 backdrop-blur-2xl border-y sm:border border-white/10 shadow-lg w-full ${noPadding ? "p-0" : "p-4"} ${className}`}
+  >
     {children}
   </div>
 );
@@ -28,25 +52,39 @@ const SettingRow = ({ icon, title, desc, color, onClick, right }: any) => (
     className="flex items-center justify-between p-4 hover:bg-white/10 rounded-2xl cursor-pointer transition-all border border-transparent hover:border-white/10 group"
   >
     <div className="flex items-center gap-4">
-      <div className={`w-10 h-10 rounded-xl flex items-center justify-center bg-white/20 backdrop-blur-md border border-white/10 ${color}`}>
+      <div
+        className={`w-10 h-10 rounded-xl flex items-center justify-center bg-white/20 backdrop-blur-md border border-white/10 ${color}`}
+      >
         {icon}
       </div>
       <div>
         <p className="text-sm font-bold text-white">{title}</p>
-        <p className="text-[10px] text-white/50 font-medium uppercase tracking-tighter">{desc}</p>
+        <p className="text-[10px] text-white/50 font-medium uppercase tracking-tighter">
+          {desc}
+        </p>
       </div>
     </div>
-    {right || <ChevronRight size={16} className="text-white/30 group-hover:text-white" />}
+    {right || (
+      <ChevronRight
+        size={16}
+        className="text-white/30 group-hover:text-white"
+      />
+    )}
   </div>
 );
 
 // Simple pill toggle
 const Toggle = ({ on, onToggle }: { on: boolean; onToggle: () => void }) => (
   <button
-    onClick={(e) => { e.stopPropagation(); onToggle(); }}
+    onClick={(e) => {
+      e.stopPropagation();
+      onToggle();
+    }}
     className={`relative w-12 h-6 rounded-full transition-all duration-300 border ${on ? "bg-blue-600 border-blue-500" : "bg-white/10 border-white/20"}`}
   >
-    <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all duration-300 ${on ? "left-6" : "left-0.5"}`} />
+    <div
+      className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all duration-300 ${on ? "left-6" : "left-0.5"}`}
+    />
   </button>
 );
 
@@ -60,7 +98,9 @@ const Index = ({ session }: { session: Session }) => {
   const [isUploading, setIsUploading] = useState(false);
   const [isPostOpen, setIsPostOpen] = useState(false);
   const [showNav, setShowNav] = useState(true);
-  const [bgImage, setBgImage] = useState(localStorage.getItem("facelook-bg") || "");
+  const [bgImage, setBgImage] = useState(
+    localStorage.getItem("facelook-bg") || "",
+  );
   const lastScrollY = useRef(0);
 
   // Chat
@@ -83,51 +123,83 @@ const Index = ({ session }: { session: Session }) => {
   });
 
   // Settings sub-views
-  const [settingsView, setSettingsView] = useState<"main" | "personal" | "blocklist">("main");
+  const [settingsView, setSettingsView] = useState<
+    "main" | "personal" | "blocklist"
+  >("main");
   const [isSavingPersonal, setIsSavingPersonal] = useState(false);
   const [personalSaved, setPersonalSaved] = useState(false);
   const [personalForm, setPersonalForm] = useState({
-    full_name: "", bio: "", school: "", mobile: "", location: "",
+    full_name: "",
+    bio: "",
+    school: "",
+    mobile: "",
+    location: "",
   });
 
   // Settings toggles
   const [lang, setLang] = useState<"en" | "hi">(
-    (localStorage.getItem("facelook-lang") as "en" | "hi") || "en"
+    (localStorage.getItem("facelook-lang") as "en" | "hi") || "en",
   );
   const [profileLocked, setProfileLocked] = useState(false);
   const [profileHidden, setProfileHidden] = useState(false);
   const [resetSent, setResetSent] = useState(false);
 
-  // ── Fetch & realtime ────────────────────────────────────────────────────────
+  // ── Fetch & Realtime (Updated for Auto-Refresh) ──────────────────────────────
   useEffect(() => {
+    // 1. Pehli baar profile load karo
     fetchProfile();
+
+    // 2. Auth Listener: Jaise hi login ho, bina refresh profile update ho jaye
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_IN" || event === "USER_UPDATED") {
+        fetchProfile();
+      }
+    });
+
+    // 3. Scroll logic for Navbar
     const handleScroll = () => {
-      if (window.scrollY > lastScrollY.current && window.scrollY > 100) setShowNav(false);
+      if (window.scrollY > lastScrollY.current && window.scrollY > 100)
+        setShowNav(false);
       else setShowNav(true);
       lastScrollY.current = window.scrollY;
     };
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
 
+    window.addEventListener("scroll", handleScroll, { passive: true });
+
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      subscription.unsubscribe(); // Subscription band karna zaroori hai
+    };
+  }, [userId]);
+
+  // Realtime Chat Logic
   useEffect(() => {
     if (!selectedUser) return;
-    const channel = supabase.channel("chat-room").on(
-      "postgres_changes",
-      { event: "INSERT", schema: "public", table: "messages" },
-      (payload) => {
-        if (
-          (payload.new.sender_id === userId && payload.new.receiver_id === selectedUser.id) ||
-          (payload.new.sender_id === selectedUser.id && payload.new.receiver_id === userId)
-        ) setChatMessages((prev) => [...prev, payload.new]);
-      }
-    ).subscribe();
-    return () => { supabase.removeChannel(channel); };
+    const channel = supabase
+      .channel("chat-room")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "messages" },
+        (payload) => {
+          if (
+            (payload.new.sender_id === userId &&
+              payload.new.receiver_id === selectedUser.id) ||
+            (payload.new.sender_id === selectedUser.id &&
+              payload.new.receiver_id === userId)
+          )
+            setChatMessages((prev) => [...prev, payload.new]);
+        },
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [selectedUser]);
 
+  // Yahan se fetchProfile shuru ho raha hai
   const fetchProfile = async () => {
-    const { data } = await supabase.from("profiles").select("*").eq("id", userId).maybeSingle();
-
     if (data) {
       // Existing profile — use DB values, but sync Google photo if still empty
       const meta = session.user.user_metadata ?? {};
@@ -149,10 +221,13 @@ const Index = ({ session }: { session: Session }) => {
 
       // Silently patch missing avatar/name into DB
       if (!data.avatar_url || !data.full_name) {
-        await supabase.from("profiles").update({
-          avatar_url: merged.avatar_url,
-          full_name: merged.full_name,
-        }).eq("id", userId);
+        await supabase
+          .from("profiles")
+          .update({
+            avatar_url: merged.avatar_url,
+            full_name: merged.full_name,
+          })
+          .eq("id", userId);
       }
     } else {
       // New Google user — create their profile row from OAuth metadata
@@ -203,8 +278,12 @@ const Index = ({ session }: { session: Session }) => {
     try {
       const fileName = `${userId}-${Date.now()}.png`;
       await supabase.storage.from("avatars").upload(fileName, file);
-      const publicUrl = supabase.storage.from("avatars").getPublicUrl(fileName).data.publicUrl;
-      await supabase.from("profiles").update({ avatar_url: publicUrl }).eq("id", userId);
+      const publicUrl = supabase.storage.from("avatars").getPublicUrl(fileName)
+        .data.publicUrl;
+      await supabase
+        .from("profiles")
+        .update({ avatar_url: publicUrl })
+        .eq("id", userId);
       setProfile((prev) => ({ ...prev, avatar_url: publicUrl }));
     } catch {
       alert("Upload error!");
@@ -223,7 +302,10 @@ const Index = ({ session }: { session: Session }) => {
     if (!error) {
       setProfile((prev) => ({ ...prev, ...personalForm }));
       setPersonalSaved(true);
-      setTimeout(() => { setPersonalSaved(false); setSettingsView("main"); }, 1200);
+      setTimeout(() => {
+        setPersonalSaved(false);
+        setSettingsView("main");
+      }, 1200);
     }
     setIsSavingPersonal(false);
   };
@@ -245,13 +327,19 @@ const Index = ({ session }: { session: Session }) => {
   const handleToggleProfileLock = async () => {
     const next = !profileLocked;
     setProfileLocked(next);
-    await supabase.from("profiles").update({ profile_locked: next }).eq("id", userId);
+    await supabase
+      .from("profiles")
+      .update({ profile_locked: next })
+      .eq("id", userId);
   };
 
   const handleToggleProfileHidden = async () => {
     const next = !profileHidden;
     setProfileHidden(next);
-    await supabase.from("profiles").update({ profile_hidden: next }).eq("id", userId);
+    await supabase
+      .from("profiles")
+      .update({ profile_hidden: next })
+      .eq("id", userId);
   };
 
   const handleLogout = async () => {
@@ -259,7 +347,7 @@ const Index = ({ session }: { session: Session }) => {
   };
 
   // ── Labels (language) ────────────────────────────────────────────────────
-  const t = (en: string, hi: string) => lang === "hi" ? hi : en;
+  const t = (en: string, hi: string) => (lang === "hi" ? hi : en);
 
   // ── Settings: Personal Info sub-view ─────────────────────────────────────
   const PersonalInfoView = () => (
@@ -278,19 +366,43 @@ const Index = ({ session }: { session: Session }) => {
 
       <GlassCard className="rounded-[2.5rem] p-6 space-y-4 border border-white/10">
         {[
-          { key: "full_name", label: t("Full Name", "पूरा नाम"), placeholder: t("Your full name", "आपका नाम") },
-          { key: "bio", label: t("Bio", "परिचय"), placeholder: t("Tell the world about you", "अपने बारे में लिखें") },
-          { key: "school", label: t("School / College", "स्कूल / कॉलेज"), placeholder: t("Your school", "आपका स्कूल") },
-          { key: "mobile", label: t("Mobile", "मोबाइल"), placeholder: "+92 300 0000000" },
-          { key: "location", label: t("Location", "स्थान"), placeholder: t("City, Country", "शहर, देश") },
+          {
+            key: "full_name",
+            label: t("Full Name", "पूरा नाम"),
+            placeholder: t("Your full name", "आपका नाम"),
+          },
+          {
+            key: "bio",
+            label: t("Bio", "परिचय"),
+            placeholder: t("Tell the world about you", "अपने बारे में लिखें"),
+          },
+          {
+            key: "school",
+            label: t("School / College", "स्कूल / कॉलेज"),
+            placeholder: t("Your school", "आपका स्कूल"),
+          },
+          {
+            key: "mobile",
+            label: t("Mobile", "मोबाइल"),
+            placeholder: "+92 300 0000000",
+          },
+          {
+            key: "location",
+            label: t("Location", "स्थान"),
+            placeholder: t("City, Country", "शहर, देश"),
+          },
         ].map(({ key, label, placeholder }) => (
           <div key={key} className="space-y-1">
-            <p className="text-[10px] font-black text-white/40 uppercase tracking-widest">{label}</p>
+            <p className="text-[10px] font-black text-white/40 uppercase tracking-widest">
+              {label}
+            </p>
             <input
               type="text"
               placeholder={placeholder}
               value={(personalForm as any)[key]}
-              onChange={(e) => setPersonalForm((prev) => ({ ...prev, [key]: e.target.value }))}
+              onChange={(e) =>
+                setPersonalForm((prev) => ({ ...prev, [key]: e.target.value }))
+              }
               className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-sm font-bold text-white placeholder:text-white/20 outline-none focus:ring-2 focus:ring-blue-500/40 transition-all"
             />
           </div>
@@ -304,9 +416,13 @@ const Index = ({ session }: { session: Session }) => {
           {isSavingPersonal ? (
             <Loader2 size={16} className="animate-spin" />
           ) : personalSaved ? (
-            <><CheckCircle size={16} /> {t("Saved!", "सहेजा!")}</>
+            <>
+              <CheckCircle size={16} /> {t("Saved!", "सहेजा!")}
+            </>
           ) : (
-            <><Save size={16} /> {t("Save Changes", "बदलाव सहेजें")}</>
+            <>
+              <Save size={16} /> {t("Save Changes", "बदलाव सहेजें")}
+            </>
           )}
         </button>
       </GlassCard>
@@ -323,7 +439,9 @@ const Index = ({ session }: { session: Session }) => {
         >
           <ChevronLeft size={16} />
         </button>
-        <p className="text-sm font-black text-white">{t("Blocked Users", "अवरुद्ध उपयोगकर्ता")}</p>
+        <p className="text-sm font-black text-white">
+          {t("Blocked Users", "अवरुद्ध उपयोगकर्ता")}
+        </p>
       </div>
       <GlassCard className="rounded-[2.5rem] p-6 border border-white/10">
         <div className="flex flex-col items-center justify-center py-10 text-center space-y-3">
@@ -336,7 +454,7 @@ const Index = ({ session }: { session: Session }) => {
           <p className="text-xs text-white/20">
             {t(
               "Users you block will appear here.",
-              "जिन उपयोगकर्ताओं को आप ब्लॉक करते हैं वे यहाँ दिखेंगे।"
+              "जिन उपयोगकर्ताओं को आप ब्लॉक करते हैं वे यहाँ दिखेंगे।",
             )}
           </p>
         </div>
@@ -395,10 +513,18 @@ const Index = ({ session }: { session: Session }) => {
         <SettingRow
           icon={<KeyRound size={18} />}
           title={t("Reset Password", "पासवर्ड रीसेट करें")}
-          desc={resetSent ? t("Email sent! Check inbox", "ईमेल भेज दिया!") : t("Send reset link to email", "ईमेल पर लिंक भेजें")}
+          desc={
+            resetSent
+              ? t("Email sent! Check inbox", "ईमेल भेज दिया!")
+              : t("Send reset link to email", "ईमेल पर लिंक भेजें")
+          }
           color={resetSent ? "text-green-400" : "text-orange-400"}
           onClick={resetSent ? undefined : handlePasswordReset}
-          right={resetSent ? <CheckCircle size={16} className="text-green-400" /> : undefined}
+          right={
+            resetSent ? (
+              <CheckCircle size={16} className="text-green-400" />
+            ) : undefined
+          }
         />
       </GlassCard>
 
@@ -412,9 +538,17 @@ const Index = ({ session }: { session: Session }) => {
           onClick={toggleLang}
           right={
             <div className="flex items-center gap-2">
-              <span className={`text-[10px] font-black ${lang === "en" ? "text-white" : "text-white/30"}`}>EN</span>
+              <span
+                className={`text-[10px] font-black ${lang === "en" ? "text-white" : "text-white/30"}`}
+              >
+                EN
+              </span>
               <Toggle on={lang === "hi"} onToggle={toggleLang} />
-              <span className={`text-[10px] font-black ${lang === "hi" ? "text-white" : "text-white/30"}`}>HI</span>
+              <span
+                className={`text-[10px] font-black ${lang === "hi" ? "text-white" : "text-white/30"}`}
+              >
+                HI
+              </span>
             </div>
           }
         />
@@ -428,18 +562,30 @@ const Index = ({ session }: { session: Session }) => {
         <SettingRow
           icon={<Lock size={18} />}
           title={t("Profile Lock", "प्रोफ़ाइल लॉक")}
-          desc={profileLocked ? t("Profile is locked", "लॉक है") : t("Anyone can view your profile", "सभी देख सकते हैं")}
+          desc={
+            profileLocked
+              ? t("Profile is locked", "लॉक है")
+              : t("Anyone can view your profile", "सभी देख सकते हैं")
+          }
           color="text-yellow-400"
           onClick={handleToggleProfileLock}
-          right={<Toggle on={profileLocked} onToggle={handleToggleProfileLock} />}
+          right={
+            <Toggle on={profileLocked} onToggle={handleToggleProfileLock} />
+          }
         />
         <SettingRow
           icon={<EyeOff size={18} />}
           title={t("Hide Profile", "प्रोफ़ाइल छुपाएं")}
-          desc={profileHidden ? t("Hidden from discovery", "खोज से छुपाया") : t("Visible in search", "खोज में दिखता है")}
+          desc={
+            profileHidden
+              ? t("Hidden from discovery", "खोज से छुपाया")
+              : t("Visible in search", "खोज में दिखता है")
+          }
           color="text-red-400"
           onClick={handleToggleProfileHidden}
-          right={<Toggle on={profileHidden} onToggle={handleToggleProfileHidden} />}
+          right={
+            <Toggle on={profileHidden} onToggle={handleToggleProfileHidden} />
+          }
         />
       </GlassCard>
 
@@ -485,10 +631,15 @@ const Index = ({ session }: { session: Session }) => {
       onClick={() => setShowNav(true)}
     >
       {/* Overlay */}
-      <div className={`fixed inset-0 ${bgImage ? "bg-slate-900/50 backdrop-blur-[2px]" : "bg-transparent"} pointer-events-none`} />
+      <div
+        className={`fixed inset-0 ${bgImage ? "bg-slate-900/50 backdrop-blur-[2px]" : "bg-transparent"} pointer-events-none`}
+      />
 
       {activeFeature !== "Flicks" && (
-        <Header onProfileClick={() => setActiveFeature("Face")} userId={userId} />
+        <Header
+          onProfileClick={() => setActiveFeature("Face")}
+          userId={userId}
+        />
       )}
 
       <main
@@ -513,7 +664,10 @@ const Index = ({ session }: { session: Session }) => {
                   onClick={() => setIsPostOpen(true)}
                 >
                   {profile.avatar_url ? (
-                    <img src={profile.avatar_url} className="w-11 h-11 rounded-full object-cover border-2 border-blue-500/30" />
+                    <img
+                      src={profile.avatar_url}
+                      className="w-11 h-11 rounded-full object-cover border-2 border-blue-500/30"
+                    />
                   ) : (
                     <div className="w-11 h-11 rounded-full bg-blue-600 border-2 border-blue-500/30 flex items-center justify-center text-white font-black text-sm">
                       {profile.full_name?.[0] || "U"}
@@ -538,15 +692,27 @@ const Index = ({ session }: { session: Session }) => {
                   <div className="relative z-10 flex flex-col items-center mt-6">
                     <div className="w-28 h-28 rounded-[2.2rem] bg-white/20 p-1 backdrop-blur-md relative shadow-2xl">
                       {profile.avatar_url ? (
-                        <img src={profile.avatar_url} className="w-full h-full object-cover rounded-[1.8rem]" />
+                        <img
+                          src={profile.avatar_url}
+                          className="w-full h-full object-cover rounded-[1.8rem]"
+                        />
                       ) : (
                         <div className="w-full h-full rounded-[1.8rem] bg-blue-600 flex items-center justify-center text-white font-black text-4xl">
                           {profile.full_name?.[0] || "U"}
                         </div>
                       )}
                       <label className="absolute bottom-0 right-0 bg-blue-600 p-2 rounded-xl text-white shadow-lg cursor-pointer">
-                        {isUploading ? <Loader2 size={14} className="animate-spin" /> : <Camera size={14} />}
-                        <input type="file" hidden accept="image/*" onChange={handleAvatarUpload} />
+                        {isUploading ? (
+                          <Loader2 size={14} className="animate-spin" />
+                        ) : (
+                          <Camera size={14} />
+                        )}
+                        <input
+                          type="file"
+                          hidden
+                          accept="image/*"
+                          onChange={handleAvatarUpload}
+                        />
                       </label>
                     </div>
                     <h2 className="text-2xl font-black text-white mt-4 tracking-tight">
@@ -559,7 +725,9 @@ const Index = ({ session }: { session: Session }) => {
 
                   {profile.bio && (
                     <div className="mt-4 border-t border-white/10 pt-4">
-                      <p className="text-xs text-white/60 text-center leading-relaxed">{profile.bio}</p>
+                      <p className="text-xs text-white/60 text-center leading-relaxed">
+                        {profile.bio}
+                      </p>
                     </div>
                   )}
                 </GlassCard>
@@ -568,22 +736,34 @@ const Index = ({ session }: { session: Session }) => {
                   <GlassCard className="rounded-3xl flex items-center gap-3">
                     <MapPin size={18} className="text-blue-400 shrink-0" />
                     <div className="min-w-0">
-                      <p className="text-[8px] font-black text-white/40 uppercase">Location</p>
-                      <p className="text-xs font-bold text-white truncate">{profile.location || "Not Set"}</p>
+                      <p className="text-[8px] font-black text-white/40 uppercase">
+                        Location
+                      </p>
+                      <p className="text-xs font-bold text-white truncate">
+                        {profile.location || "Not Set"}
+                      </p>
                     </div>
                   </GlassCard>
                   <GlassCard className="rounded-3xl flex items-center gap-3">
                     <BookOpen size={18} className="text-purple-400 shrink-0" />
                     <div className="min-w-0">
-                      <p className="text-[8px] font-black text-white/40 uppercase">School</p>
-                      <p className="text-xs font-bold text-white truncate">{profile.school || "Not Set"}</p>
+                      <p className="text-[8px] font-black text-white/40 uppercase">
+                        School
+                      </p>
+                      <p className="text-xs font-bold text-white truncate">
+                        {profile.school || "Not Set"}
+                      </p>
                     </div>
                   </GlassCard>
                   <GlassCard className="rounded-3xl flex items-center gap-3 col-span-2">
                     <Phone size={18} className="text-green-400 shrink-0" />
                     <div className="min-w-0">
-                      <p className="text-[8px] font-black text-white/40 uppercase">Mobile</p>
-                      <p className="text-xs font-bold text-white truncate">{profile.mobile || "Not Set"}</p>
+                      <p className="text-[8px] font-black text-white/40 uppercase">
+                        Mobile
+                      </p>
+                      <p className="text-xs font-bold text-white truncate">
+                        {profile.mobile || "Not Set"}
+                      </p>
                     </div>
                   </GlassCard>
                 </div>
@@ -601,17 +781,32 @@ const Index = ({ session }: { session: Session }) => {
             {activeFeature === "Settings" && (
               <AnimatePresence mode="wait">
                 {settingsView === "main" && (
-                  <motion.div key="main" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
+                  <motion.div
+                    key="main"
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                  >
                     <MainSettingsView />
                   </motion.div>
                 )}
                 {settingsView === "personal" && (
-                  <motion.div key="personal" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
+                  <motion.div
+                    key="personal"
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                  >
                     <PersonalInfoView />
                   </motion.div>
                 )}
                 {settingsView === "blocklist" && (
-                  <motion.div key="blocklist" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
+                  <motion.div
+                    key="blocklist"
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                  >
                     <BlockListView />
                   </motion.div>
                 )}
@@ -625,25 +820,38 @@ const Index = ({ session }: { session: Session }) => {
       <AnimatePresence>
         {isChatOpen && (
           <motion.div
-            initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
+            initial={{ y: "100%" }}
+            animate={{ y: 0 }}
+            exit={{ y: "100%" }}
             className="fixed inset-x-0 bottom-0 z-[150] bg-slate-900/90 backdrop-blur-3xl h-[85vh] sm:h-[600px] sm:w-[400px] sm:right-6 sm:left-auto sm:bottom-6 rounded-t-[3rem] sm:rounded-[3rem] shadow-2xl flex flex-col overflow-hidden border border-white/10"
           >
             <div className="p-6 bg-white/5 border-b border-white/10 text-white flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <Users size={20} />
-                <p className="font-black text-sm">{selectedUser ? selectedUser.full_name : "Messenger"}</p>
+                <p className="font-black text-sm">
+                  {selectedUser ? selectedUser.full_name : "Messenger"}
+                </p>
               </div>
-              <button onClick={() => { setIsChatOpen(false); setSelectedUser(null); }}>
+              <button
+                onClick={() => {
+                  setIsChatOpen(false);
+                  setSelectedUser(null);
+                }}
+              >
                 <X size={22} />
               </button>
             </div>
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
               {!selectedUser ? (
                 <div
-                  onClick={() => setSelectedUser({ id: "dummy", full_name: "Rahul Kumar" })}
+                  onClick={() =>
+                    setSelectedUser({ id: "dummy", full_name: "Rahul Kumar" })
+                  }
                   className="bg-white/5 p-4 rounded-2xl flex items-center gap-4 cursor-pointer hover:bg-white/10 transition-colors"
                 >
-                  <div className="w-12 h-12 bg-blue-500/20 rounded-xl flex items-center justify-center font-bold text-blue-400">R</div>
+                  <div className="w-12 h-12 bg-blue-500/20 rounded-xl flex items-center justify-center font-bold text-blue-400">
+                    R
+                  </div>
                   <div className="flex-1">
                     <p className="text-sm font-black text-white">Rahul Kumar</p>
                     <p className="text-[10px] text-white/40">Active Now</p>
@@ -651,8 +859,13 @@ const Index = ({ session }: { session: Session }) => {
                 </div>
               ) : (
                 chatMessages.map((msg, i) => (
-                  <div key={i} className={`flex ${msg.sender_id === userId ? "justify-end" : "justify-start"}`}>
-                    <div className={`max-w-[80%] p-4 rounded-[1.8rem] text-sm font-bold ${msg.sender_id === userId ? "bg-blue-600 text-white rounded-tr-none" : "bg-white/10 text-white border border-white/10 rounded-tl-none"}`}>
+                  <div
+                    key={i}
+                    className={`flex ${msg.sender_id === userId ? "justify-end" : "justify-start"}`}
+                  >
+                    <div
+                      className={`max-w-[80%] p-4 rounded-[1.8rem] text-sm font-bold ${msg.sender_id === userId ? "bg-blue-600 text-white rounded-tr-none" : "bg-white/10 text-white border border-white/10 rounded-tl-none"}`}
+                    >
                       {msg.content}
                     </div>
                   </div>
@@ -669,7 +882,10 @@ const Index = ({ session }: { session: Session }) => {
                   onChange={(e) => setNewMessage(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && sendMessage()}
                 />
-                <button onClick={sendMessage} className="w-12 h-12 bg-blue-600 text-white rounded-2xl flex items-center justify-center">
+                <button
+                  onClick={sendMessage}
+                  className="w-12 h-12 bg-blue-600 text-white rounded-2xl flex items-center justify-center"
+                >
                   <Send size={18} />
                 </button>
               </div>
@@ -680,12 +896,17 @@ const Index = ({ session }: { session: Session }) => {
 
       {/* Chat FAB ──────────────────────────────────────────────────────────── */}
       <motion.button
-        animate={{ y: showNav && activeFeature !== "Flicks" ? 0 : 150, opacity: showNav ? 1 : 0 }}
+        animate={{
+          y: showNav && activeFeature !== "Flicks" ? 0 : 150,
+          opacity: showNav ? 1 : 0,
+        }}
         onClick={() => setIsChatOpen(true)}
         className="fixed bottom-32 right-6 w-16 h-16 bg-blue-600 rounded-full shadow-2xl flex items-center justify-center z-[80] border-2 border-white/20 active:scale-90"
       >
         <MessageSquare size={28} fill="currentColor" />
-        <span className="absolute -top-1 -right-1 w-6 h-6 bg-red-500 rounded-full border-2 border-white text-[10px] font-black flex items-center justify-center animate-bounce">3</span>
+        <span className="absolute -top-1 -right-1 w-6 h-6 bg-red-500 rounded-full border-2 border-white text-[10px] font-black flex items-center justify-center animate-bounce">
+          3
+        </span>
       </motion.button>
 
       {/* Bottom Nav ────────────────────────────────────────────────────────── */}
@@ -696,12 +917,21 @@ const Index = ({ session }: { session: Session }) => {
       >
         <div className="max-w-md mx-auto pointer-events-auto">
           <div className="bg-slate-900/60 backdrop-blur-3xl border border-white/10 rounded-[2.5rem] p-1.5 shadow-2xl">
-            <GolSlider onFeatureChange={(f) => { setActiveFeature(f); setSettingsView("main"); }} />
+            <GolSlider
+              onFeatureChange={(f) => {
+                setActiveFeature(f);
+                setSettingsView("main");
+              }}
+            />
           </div>
         </div>
       </motion.div>
 
-      <CreatePost isOpen={isPostOpen} onClose={() => setIsPostOpen(false)} userProfile={profile} />
+      <CreatePost
+        isOpen={isPostOpen}
+        onClose={() => setIsPostOpen(false)}
+        userProfile={profile}
+      />
     </div>
   );
 };
