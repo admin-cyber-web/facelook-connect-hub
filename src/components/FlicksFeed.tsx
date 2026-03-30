@@ -1,415 +1,439 @@
-import { useState, useRef, useCallback, useEffect } from "react";
-import { motion, AnimatePresence, PanInfo } from "framer-motion";
+import React, {
+  useState,
+  useRef,
+  useCallback,
+  useEffect,
+  useMemo,
+} from "react";
+import { motion, AnimatePresence, useAnimation, PanInfo } from "framer-motion";
 import {
   Heart,
   MessageCircle,
   Share2,
   Music,
   Play,
-  Pause,
-  ThumbsUp,
   Bookmark,
   X,
   Send,
+  Volume2,
+  VolumeX,
+  MoreHorizontal,
+  Check,
+  Plus,
+  ShoppingBag,
 } from "lucide-react";
 
-// --- Interfaces ---
+// ─── TYPES & INTERFACES ───
 interface FlickItem {
   id: number;
   author: string;
-  initials: string;
-  gradient: string;
+  username: string;
+  avatar: string;
+  videoUrl: string;
   caption: string;
+  tags: string[];
   song: string;
-  likes: string;
-  comments: string;
-  shares: string;
-  bgGradient: string;
-  emoji: string;
+  likes: number;
+  comments: number;
+  shares: number;
+  isLiked: boolean;
+  isSaved: boolean;
+  isFollowing: boolean;
 }
 
 interface Comment {
   id: number;
-  author: string;
-  initials: string;
-  gradient: string;
+  user: string;
+  avatar: string;
   text: string;
-  time: string;
+  timestamp: string;
   likes: number;
-  liked: boolean;
 }
 
-// --- Data Generation (50 Items) ---
-const FLICKS: FlickItem[] = Array.from({ length: 50 }).map((_, i) => {
-  const authors = [
-    "Ayesha.creates",
-    "zain.vibes",
-    "sara.cooks",
-    "ali.explores",
-    "hira.designs",
-  ];
-  const emojis = ["💻", "🌅", "🍳", "🏔️", "🎨", "🚀", "🍕", "🎮", "🎸", "🐶"];
-  const bgGradients = [
-    "from-violet-500/30 via-fuchsia-500/20 to-pink-500/30",
-    "from-orange-400/30 via-rose-400/20 to-purple-500/30",
-    "from-amber-400/30 via-yellow-300/20 to-orange-500/30",
-    "from-emerald-400/30 via-teal-400/20 to-cyan-500/30",
-    "from-blue-400/30 via-indigo-400/20 to-violet-500/30",
+// ─── MOCK DATA GENERATOR (50 ITEMS) ───
+const generateFlicks = (): FlickItem[] => {
+  const videos = [
+    "https://assets.mixkit.co/videos/preview/mixkit-girl-in-neon-lighting-in-the-city-2189-large.mp4",
+    "https://assets.mixkit.co/videos/preview/mixkit-tree-with-yellow-flowers-4233-large.mp4",
+    "https://assets.mixkit.co/videos/preview/mixkit-stunning-sunset-seen-from-the-beach-1101-large.mp4",
+    "https://assets.mixkit.co/videos/preview/mixkit-waves-in-the-water-1164-large.mp4",
+    "https://assets.mixkit.co/videos/preview/mixkit-driving-in-a-dark-tunnel-2103-large.mp4",
+    "https://assets.mixkit.co/videos/preview/mixkit-vertical-shot-of-a-keyboard-and-mouse-42468-large.mp4",
   ];
 
-  return {
+  return Array.from({ length: 50 }).map((_, i) => ({
     id: i + 1,
-    author: authors[i % authors.length],
-    initials: authors[i % authors.length].substring(0, 2).toUpperCase(),
-    gradient: `bg-gradient-to-br from-primary to-secondary`,
-    caption: `Flick #${i + 1}: Enjoying the vibe! ✨ #Viral #Trending #${authors[i % authors.length].replace(".", "")}`,
-    song: `♪ Original Audio — ${authors[i % authors.length]}`,
-    likes: `${(Math.random() * 100).toFixed(1)}K`,
-    comments: `${Math.floor(Math.random() * 5000)}`,
-    shares: `${Math.floor(Math.random() * 2000)}`,
-    bgGradient: bgGradients[i % bgGradients.length],
-    emoji: emojis[i % emojis.length],
-  };
-});
+    author: `Creator ${i + 1}`,
+    username: `user_vibes_${i + 1}`,
+    avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${i}`,
+    videoUrl: videos[i % videos.length],
+    caption: `This is a high-end UI experience for Flick #${i + 1}. Coding is lifestyle! 🚀 #React #FramerMotion #UI`,
+    tags: ["#trending", "#viral", "#foryou"],
+    song: `Original Audio - Soundscape Vol. ${i + 1}`,
+    likes: Math.floor(Math.random() * 50000),
+    comments: Math.floor(Math.random() * 2000),
+    shares: Math.floor(Math.random() * 500),
+    isLiked: false,
+    isSaved: false,
+    isFollowing: false,
+  }));
+};
 
-// Mock Comments for all 50 items
-const MOCK_COMMENTS: Record<number, Comment[]> = {};
-FLICKS.forEach((f) => {
-  MOCK_COMMENTS[f.id] = [
-    {
-      id: 1,
-      author: "user_one",
-      initials: "U1",
-      gradient: "bg-blue-500",
-      text: "Amazing view! 🔥",
-      time: "1h",
-      likes: 12,
-      liked: false,
-    },
-    {
-      id: 2,
-      author: "coder_123",
-      initials: "C1",
-      gradient: "bg-purple-500",
-      text: "Love this style ✨",
-      time: "30m",
-      likes: 5,
-      liked: false,
-    },
-  ];
-});
+// ─── HELPER: FORMAT NUMBERS (1.2K, 50M etc) ───
+const formatNumber = (num: number) => {
+  if (num >= 1000000) return (num / 1000000).toFixed(1) + "M";
+  if (num >= 1000) return (num / 1000).toFixed(1) + "K";
+  return num.toString();
+};
 
-/* ─── Comments Drawer ─── */
-const CommentsDrawer = ({
+// ─── COMPONENT: COMMENTS SECTION ───
+const CommentsModal = ({
   flickId,
   onClose,
 }: {
   flickId: number;
   onClose: () => void;
 }) => {
-  const [comments, setComments] = useState<Comment[]>(
-    MOCK_COMMENTS[flickId] || [],
-  );
-  const [newComment, setNewComment] = useState("");
-
-  const handleSend = () => {
-    if (!newComment.trim()) return;
-    setComments((prev) => [
-      {
-        id: Date.now(),
-        author: "you",
-        initials: "U",
-        gradient: "bg-gradient-to-br from-primary to-accent",
-        text: newComment.trim(),
-        time: "now",
-        likes: 0,
-        liked: false,
-      },
-      ...prev,
-    ]);
-    setNewComment("");
-  };
-
-  const toggleLike = (id: number) => {
-    setComments((prev) =>
-      prev.map((c) =>
-        c.id === id
-          ? {
-              ...c,
-              liked: !c.liked,
-              likes: c.liked ? c.likes - 1 : c.likes + 1,
-            }
-          : c,
-      ),
-    );
-  };
+  const [commentText, setCommentText] = useState("");
 
   return (
-    <>
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        onClick={onClose}
-        className="absolute inset-0 bg-black/40 z-40"
-      />
-      <motion.div
-        initial={{ y: "100%" }}
-        animate={{ y: 0 }}
-        exit={{ y: "100%" }}
-        transition={{ type: "spring", damping: 28, stiffness: 300 }}
-        drag="y"
-        dragConstraints={{ top: 0, bottom: 0 }}
-        onDragEnd={(_, info) => {
-          if (info.offset.y > 80) onClose();
-        }}
-        className="absolute bottom-0 left-0 right-0 h-[65%] z-50 bg-white dark:bg-zinc-900 rounded-t-2xl flex flex-col"
-      >
-        <div className="flex justify-center pt-2 pb-1">
-          <div className="w-10 h-1 rounded-full bg-gray-300" />
-        </div>
-        <div className="px-4 py-2 border-b flex justify-between items-center font-bold">
-          <span>{comments.length} Comments</span>
-          <button onClick={onClose}>
-            <X size={20} />
-          </button>
-        </div>
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {comments.map((c) => (
-            <div key={c.id} className="flex gap-3">
-              <div
-                className={`w-8 h-8 rounded-full ${c.gradient} flex items-center justify-center text-[10px] text-white font-bold`}
-              >
-                {c.initials}
+    <motion.div
+      initial={{ y: "100%" }}
+      animate={{ y: 0 }}
+      exit={{ y: "100%" }}
+      transition={{ type: "spring", damping: 25, stiffness: 200 }}
+      className="absolute bottom-0 left-0 right-0 h-[75%] z-[60] bg-[#121212] rounded-t-3xl flex flex-col shadow-2xl border-t border-white/10"
+    >
+      <div className="w-12 h-1 bg-white/20 rounded-full mx-auto mt-3 mb-2" />
+      <div className="flex items-center justify-between px-5 py-3 border-b border-white/5">
+        <h3 className="text-white font-bold text-sm">Comments</h3>
+        <button
+          onClick={onClose}
+          className="bg-white/10 p-1 rounded-full text-white"
+        >
+          <X size={20} />
+        </button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-4 space-y-6">
+        {[1, 2, 3, 4, 5].map((idx) => (
+          <div key={idx} className="flex gap-3">
+            <img
+              src={`https://api.dicebear.com/7.x/pixel-art/svg?seed=${idx + flickId}`}
+              className="w-8 h-8 rounded-full"
+              alt="user"
+            />
+            <div className="flex-1">
+              <p className="text-zinc-500 text-[11px] font-bold">
+                @random_user_{idx} • 2h
+              </p>
+              <p className="text-white text-sm mt-1">
+                Bhai code bahut solid hai! Production ready lag raha hai. 🔥
+              </p>
+              <div className="flex gap-4 mt-2 text-zinc-500 text-[10px]">
+                <button className="hover:text-white transition-colors">
+                  Reply
+                </button>
+                <button className="hover:text-white transition-colors">
+                  Translation
+                </button>
               </div>
-              <div className="flex-1">
-                <p className="text-xs font-bold">@{c.author}</p>
-                <p className="text-xs">{c.text}</p>
-              </div>
-              <button
-                onClick={() => toggleLike(c.id)}
-                className="flex flex-col items-center"
-              >
-                <Heart
-                  size={14}
-                  fill={c.liked ? "red" : "none"}
-                  className={c.liked ? "text-red-500" : ""}
-                />{" "}
-                <span className="text-[10px]">{c.likes}</span>
-              </button>
             </div>
-          ))}
-        </div>
-        <div className="p-4 border-t flex gap-2">
-          <input
-            value={newComment}
-            onChange={(e) => setNewComment(e.target.value)}
-            placeholder="Add comment..."
-            className="flex-1 bg-gray-100 dark:bg-zinc-800 p-2 rounded-full text-sm outline-none"
-          />
-          <button onClick={handleSend} className="text-blue-500">
-            <Send size={20} />
-          </button>
-        </div>
-      </motion.div>
-    </>
+            <div className="flex flex-col items-center gap-1 text-zinc-500">
+              <Heart size={14} />
+              <span className="text-[10px]">12</span>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="p-4 bg-zinc-900/50 flex gap-3 items-center border-t border-white/5 pb-8">
+        <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-purple-500 to-pink-500" />
+        <input
+          type="text"
+          value={commentText}
+          onChange={(e) => setCommentText(e.target.value)}
+          placeholder="Add a comment..."
+          className="flex-1 bg-white/5 border border-white/10 rounded-full px-4 py-2 text-sm text-white focus:outline-none focus:border-purple-500"
+        />
+        <button className="text-purple-500">
+          <Send size={24} />
+        </button>
+      </div>
+    </motion.div>
   );
 };
 
-/* ─── Flick Card ─── */
+// ─── COMPONENT: SINGLE FLICK CARD ───
 const FlickCard = ({
-  flick,
+  item,
   isActive,
   onOpenComments,
 }: {
-  flick: FlickItem;
+  item: FlickItem;
   isActive: boolean;
   onOpenComments: () => void;
 }) => {
-  const [liked, setLiked] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [playing, setPlaying] = useState(true);
-  const [doubleTapHeart, setDoubleTapHeart] = useState(false);
-  const lastTap = useRef(0);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [isPlaying, setIsPlaying] = useState(true);
+  const [isMuted, setIsMuted] = useState(true);
+  const [showHeartOverlay, setShowHeartOverlay] = useState(false);
+  const lastTapRef = useRef(0);
 
-  const handleDoubleTap = () => {
-    const now = Date.now();
-    if (now - lastTap.current < 300) {
-      setLiked(true);
-      setDoubleTapHeart(true);
-      setTimeout(() => setDoubleTapHeart(false), 800);
+  useEffect(() => {
+    if (isActive && videoRef.current) {
+      videoRef.current.play().catch(() => setIsPlaying(false));
+    } else if (videoRef.current) {
+      videoRef.current.pause();
+      videoRef.current.currentTime = 0;
     }
-    lastTap.current = now;
+  }, [isActive]);
+
+  const handleInteraction = () => {
+    const now = Date.now();
+    if (now - lastTapRef.current < 300) {
+      setShowHeartOverlay(true);
+      setTimeout(() => setShowHeartOverlay(false), 800);
+    } else {
+      if (videoRef.current) {
+        isPlaying ? videoRef.current.pause() : videoRef.current.play();
+        setIsPlaying(!isPlaying);
+      }
+    }
+    lastTapRef.current = now;
   };
 
   return (
     <div
-      className="relative w-full h-full flex items-center justify-center overflow-hidden bg-black"
-      onClick={handleDoubleTap}
+      className="relative w-full h-full bg-black select-none overflow-hidden"
+      onClick={handleInteraction}
     >
-      <div
-        className={`absolute inset-0 bg-gradient-to-b ${flick.bgGradient}`}
+      {/* Video Engine */}
+      <video
+        ref={videoRef}
+        src={item.videoUrl}
+        loop
+        muted={isMuted}
+        playsInline
+        className="w-full h-full object-cover"
       />
-      <motion.div
-        animate={isActive ? { scale: [1, 1.1, 1] } : {}}
-        className="text-9xl z-10"
-      >
-        {flick.emoji}
-      </motion.div>
 
+      {/* Heart Animation Overlay */}
       <AnimatePresence>
-        {doubleTapHeart && (
+        {showHeartOverlay && (
           <motion.div
-            initial={{ scale: 0 }}
-            animate={{ scale: 1.5 }}
-            exit={{ scale: 2, opacity: 0 }}
-            className="absolute z-30 pointer-events-none"
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{ scale: 1.5, opacity: 1 }}
+            exit={{ scale: 2.5, opacity: 0 }}
+            className="absolute inset-0 flex items-center justify-center z-40 pointer-events-none"
           >
-            <Heart size={100} fill="red" className="text-red-500" />
+            <Heart
+              size={100}
+              fill="#ff2d55"
+              className="text-[#ff2d55] drop-shadow-2xl"
+            />
           </motion.div>
         )}
       </AnimatePresence>
 
-      <div className="absolute right-4 bottom-24 flex flex-col items-center gap-6 z-20">
-        <div className="flex flex-col items-center">
-          <div
-            className={`w-12 h-12 rounded-full border-2 border-white ${flick.gradient} flex items-center justify-center font-bold text-white`}
-          >
-            {flick.initials}
-          </div>
-          <div className="bg-red-500 rounded-full w-5 h-5 flex items-center justify-center -mt-3 text-white text-xs">
-            +
-          </div>
+      {/* Overlays */}
+      <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/80 pointer-events-none" />
+
+      {/* Top Navbar Simulation */}
+      <div className="absolute top-10 left-0 right-0 px-5 flex justify-between items-center z-30">
+        <div className="flex gap-4 text-white font-bold text-sm">
+          <span className="opacity-60">Following</span>
+          <span className="border-b-2 border-white pb-1">For You</span>
         </div>
         <button
           onClick={(e) => {
             e.stopPropagation();
-            setLiked(!liked);
+            setIsMuted(!isMuted);
           }}
-          className="flex flex-col items-center"
+          className="text-white bg-black/20 p-2 rounded-full backdrop-blur-md"
         >
-          <Heart
-            size={32}
-            fill={liked ? "red" : "none"}
-            className={liked ? "text-red-500" : "text-white"}
+          {isMuted ? <VolumeX size={18} /> : <Volume2 size={18} />}
+        </button>
+      </div>
+
+      {/* Right Sidebar (Actions) */}
+      <div className="absolute right-3 bottom-24 flex flex-col items-center gap-6 z-30">
+        <div className="relative mb-2">
+          <img
+            src={item.avatar}
+            className="w-12 h-12 rounded-full border-2 border-white"
+            alt="avatar"
           />
-          <span className="text-white text-xs">{flick.likes}</span>
-        </button>
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onOpenComments();
-          }}
-          className="flex flex-col items-center"
-        >
-          <MessageCircle size={32} className="text-white" />
-          <span className="text-white text-xs">{flick.comments}</span>
-        </button>
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            setSaved(!saved);
-          }}
-        >
-          <Bookmark
-            size={32}
-            fill={saved ? "gold" : "none"}
-            className={saved ? "text-yellow-400" : "text-white"}
-          />
-        </button>
-        <Share2 size={32} className="text-white" />
+          <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-[#ff2d55] rounded-full p-0.5">
+            <Plus size={14} className="text-white" />
+          </div>
+        </div>
+
+        <div className="flex flex-col items-center gap-1">
+          <motion.button whileTap={{ scale: 0.8 }} className="text-white">
+            <Heart
+              size={34}
+              fill={showHeartOverlay ? "#ff2d55" : "none"}
+              className={showHeartOverlay ? "text-[#ff2d55]" : ""}
+            />
+          </motion.button>
+          <span className="text-white text-[11px] font-bold">
+            {formatNumber(item.likes)}
+          </span>
+        </div>
+
+        <div className="flex flex-col items-center gap-1">
+          <motion.button
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenComments();
+            }}
+            whileTap={{ scale: 0.8 }}
+            className="text-white"
+          >
+            <MessageCircle size={34} />
+          </motion.button>
+          <span className="text-white text-[11px] font-bold">
+            {formatNumber(item.comments)}
+          </span>
+        </div>
+
+        <motion.button whileTap={{ scale: 0.8 }} className="text-white">
+          <Bookmark size={32} />
+        </motion.button>
+
+        <motion.button whileTap={{ scale: 0.8 }} className="text-white">
+          <Share2 size={32} />
+        </motion.button>
+
         <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ repeat: Infinity, duration: 3, ease: "linear" }}
-          className="w-10 h-10 bg-zinc-800 rounded-full flex items-center justify-center border-2 border-zinc-600"
+          animate={isActive ? { rotate: 360 } : {}}
+          transition={{ repeat: Infinity, duration: 4, ease: "linear" }}
+          className="w-10 h-10 rounded-full border-8 border-zinc-800 bg-gradient-to-tr from-zinc-700 to-zinc-900 flex items-center justify-center"
         >
-          <Music size={16} className="text-white" />
+          <Music size={14} className="text-white" />
         </motion.div>
       </div>
 
-      <div className="absolute bottom-8 left-4 right-20 text-white z-20">
-        <h3 className="font-bold mb-1">@{flick.author}</h3>
-        <p className="text-sm mb-2">{flick.caption}</p>
-        <div className="flex items-center gap-2 overflow-hidden w-40">
-          <Music size={14} />
-          <motion.p
-            animate={{ x: [100, -150] }}
-            transition={{ repeat: Infinity, duration: 6, ease: "linear" }}
-            className="whitespace-nowrap text-xs"
-          >
-            {flick.song}
-          </motion.p>
+      {/* Bottom Info Section */}
+      <div className="absolute bottom-6 left-4 right-20 text-white z-30">
+        <h3 className="font-bold text-lg mb-1 flex items-center gap-1">
+          @{item.username}{" "}
+          <Check size={14} className="bg-blue-500 rounded-full p-0.5" />
+        </h3>
+        <p className="text-sm line-clamp-2 leading-snug mb-3">
+          {item.caption} <br />
+          {item.tags.map((tag) => (
+            <span
+              key={tag}
+              className="font-bold mr-2 hover:underline cursor-pointer"
+            >
+              {tag}
+            </span>
+          ))}
+        </p>
+        <div className="flex items-center gap-2 bg-white/10 w-fit px-3 py-1.5 rounded-full backdrop-blur-sm">
+          <Music size={12} className="animate-pulse" />
+          <div className="text-[11px] font-medium overflow-hidden whitespace-nowrap w-32 relative">
+            <motion.p
+              animate={{ x: [100, -150] }}
+              transition={{ repeat: Infinity, duration: 8, ease: "linear" }}
+            >
+              {item.song}
+            </motion.p>
+          </div>
         </div>
       </div>
+
+      {/* Video Progress Bar */}
+      {isActive && (
+        <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-white/20 z-40">
+          <motion.div
+            initial={{ width: "0%" }}
+            animate={{ width: "100%" }}
+            transition={{ duration: 15, repeat: Infinity, ease: "linear" }}
+            className="h-full bg-white shadow-[0_0_10px_white]"
+          />
+        </div>
+      )}
     </div>
   );
 };
 
-/* ─── Flicks Feed (Main) ─── */
-const FlicksFeed = () => {
+// ─── MAIN FEED COMPONENT ───
+export default function FlicksProFeed() {
+  const [flicks] = useState<FlickItem[]>(generateFlicks());
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [commentsOpen, setCommentsOpen] = useState(false);
-
-  const goTo = useCallback((index: number) => {
-    if (index >= 0 && index < FLICKS.length) {
-      setCurrentIndex(index);
-      setCommentsOpen(false);
-    }
-  }, []);
+  const [showComments, setShowComments] = useState(false);
 
   const handleDragEnd = (_: any, info: PanInfo) => {
-    if (commentsOpen) return;
-    if (info.offset.y < -50) goTo(currentIndex + 1);
-    else if (info.offset.y > 50) goTo(currentIndex - 1);
+    if (showComments) return;
+    const swipeThreshold = 100;
+    if (info.offset.y < -swipeThreshold && currentIndex < flicks.length - 1) {
+      setCurrentIndex((prev) => prev + 1);
+    } else if (info.offset.y > swipeThreshold && currentIndex > 0) {
+      setCurrentIndex((prev) => prev - 1);
+    }
   };
 
   return (
-    <div className="fixed inset-0 bg-black flex justify-center items-center">
-      {/* Mobile Container aspect ratio */}
-      <div className="relative w-full max-w-[450px] h-full bg-zinc-900 overflow-hidden shadow-2xl">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={currentIndex}
-            drag={commentsOpen ? false : "y"}
-            dragConstraints={{ top: 0, bottom: 0 }}
-            onDragEnd={handleDragEnd}
-            initial={{ y: "100%" }}
-            animate={{ y: 0 }}
-            exit={{ y: "-100%" }}
-            transition={{ type: "spring", stiffness: 120, damping: 20 }}
-            className="absolute inset-0"
-          >
-            <FlickCard
-              flick={FLICKS[currentIndex]}
-              isActive={true}
-              onOpenComments={() => setCommentsOpen(true)}
-            />
-          </motion.div>
-        </AnimatePresence>
-
-        <AnimatePresence>
-          {commentsOpen && (
-            <CommentsDrawer
-              flickId={FLICKS[currentIndex].id}
-              onClose={() => setCommentsOpen(false)}
-            />
-          )}
-        </AnimatePresence>
-
-        {/* Pagination Indicators */}
-        <div className="absolute right-2 top-1/2 -translate-y-1/2 flex flex-col gap-2 z-30">
-          {FLICKS.slice(Math.max(0, currentIndex - 2), currentIndex + 3).map(
-            (f) => (
-              <div
-                key={f.id}
-                className={`w-1.5 rounded-full transition-all ${f.id === currentIndex + 1 ? "h-6 bg-white" : "h-1.5 bg-white/40"}`}
+    <div className="fixed inset-0 bg-[#000] flex justify-center">
+      <div className="relative w-full max-w-[500px] h-full shadow-[0_0_50px_rgba(0,0,0,0.5)]">
+        {/* Main Scrolling View */}
+        <div className="h-full w-full overflow-hidden">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={currentIndex}
+              drag="y"
+              dragConstraints={{ top: 0, bottom: 0 }}
+              onDragEnd={handleDragEnd}
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "-100%" }}
+              transition={{
+                type: "spring",
+                damping: 30,
+                stiffness: 200,
+                mass: 1,
+              }}
+              className="absolute inset-0"
+            >
+              <FlickCard
+                item={flicks[currentIndex]}
+                isActive={true}
+                onOpenComments={() => setShowComments(true)}
               />
-            ),
+            </motion.div>
+          </AnimatePresence>
+        </div>
+
+        {/* Global UI Elements */}
+        <AnimatePresence>
+          {showComments && (
+            <CommentsModal
+              flickId={flicks[currentIndex].id}
+              onClose={() => setShowComments(false)}
+            />
           )}
+        </AnimatePresence>
+
+        {/* Navigation / Indicators */}
+        <div className="absolute right-1 top-1/2 -translate-y-1/2 flex flex-col gap-1.5 z-50">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div
+              key={i}
+              className={`w-1 rounded-full transition-all duration-300 ${i === currentIndex % 8 ? "h-6 bg-white" : "h-1 bg-white/30"}`}
+            />
+          ))}
+        </div>
+
+        {/* Bottom Tab Bar (UI Only) */}
+        <div className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-black to-transparent flex items-center justify-around px-6 z-50">
+          <Plus size={28} className="text-white bg-white/20 p-1 rounded-lg" />
+          <ShoppingBag size={24} className="text-white/60" />
+          <MoreHorizontal size={24} className="text-white/60" />
         </div>
       </div>
     </div>
   );
-};
-
-export default FlicksFeed;
+}
