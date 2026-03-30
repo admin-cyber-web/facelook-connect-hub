@@ -127,10 +127,18 @@ const Index = ({ session }: { session: Session }) => {
 
   const fetchProfile = async () => {
     const { data } = await supabase.from("profiles").select("*").eq("id", userId).maybeSingle();
+
     if (data) {
-      setProfile({ ...profile, ...data });
+      // Existing profile — use DB values, but sync Google photo if still empty
+      const meta = session.user.user_metadata ?? {};
+      const merged = {
+        ...data,
+        avatar_url: data.avatar_url || meta.picture || meta.avatar_url || "",
+        full_name: data.full_name || meta.full_name || meta.name || "",
+      };
+      setProfile((prev) => ({ ...prev, ...merged }));
       setPersonalForm({
-        full_name: data.full_name || "",
+        full_name: merged.full_name,
         bio: data.bio || "",
         school: data.school || "",
         mobile: data.mobile || "",
@@ -138,6 +146,37 @@ const Index = ({ session }: { session: Session }) => {
       });
       setProfileLocked(data.profile_locked || false);
       setProfileHidden(data.profile_hidden || false);
+
+      // Silently patch missing avatar/name into DB
+      if (!data.avatar_url || !data.full_name) {
+        await supabase.from("profiles").update({
+          avatar_url: merged.avatar_url,
+          full_name: merged.full_name,
+        }).eq("id", userId);
+      }
+    } else {
+      // New Google user — create their profile row from OAuth metadata
+      const meta = session.user.user_metadata ?? {};
+      const newProfile = {
+        id: userId,
+        full_name: meta.full_name || meta.name || userEmail.split("@")[0],
+        username: userEmail.split("@")[0],
+        avatar_url: meta.picture || meta.avatar_url || "",
+        bio: "",
+        location: "",
+        school: "",
+        mobile: "",
+        updated_at: new Date().toISOString(),
+      };
+      await supabase.from("profiles").upsert(newProfile);
+      setProfile((prev) => ({ ...prev, ...newProfile }));
+      setPersonalForm({
+        full_name: newProfile.full_name,
+        bio: "",
+        school: "",
+        mobile: "",
+        location: "",
+      });
     }
   };
 
