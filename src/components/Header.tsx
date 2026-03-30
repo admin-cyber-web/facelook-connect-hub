@@ -11,7 +11,13 @@ import {
 import { supabase } from "@/lib/supabaseClient";
 import { motion, AnimatePresence } from "framer-motion";
 
-const Header = ({ onProfileClick }: { onProfileClick?: () => void }) => {
+const Header = ({
+  onProfileClick,
+  userId,
+}: {
+  onProfileClick?: () => void;
+  userId?: string;
+}) => {
   const [notifications, setNotifications] = useState<any[]>([]);
   const [showNotif, setShowNotif] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -19,10 +25,11 @@ const Header = ({ onProfileClick }: { onProfileClick?: () => void }) => {
   const [userData, setUserData] = useState({
     full_name: "Loading...",
     avatar_url: "",
-    id: "ec047c60-4960-4083-b798-1749c0ab85dc",
+    id: userId || "",
   });
 
   useEffect(() => {
+    if (!userId) return;
     fetchProfile();
     fetchNotifications();
 
@@ -48,19 +55,21 @@ const Header = ({ onProfileClick }: { onProfileClick?: () => void }) => {
   }, []);
 
   const fetchProfile = async () => {
+    if (!userId) return;
     const { data } = await supabase
       .from("profiles")
       .select("full_name, avatar_url")
-      .eq("id", userData.id)
+      .eq("id", userId)
       .single();
-    if (data) setUserData({ ...userData, ...data });
+    if (data) setUserData((prev) => ({ ...prev, ...data }));
   };
 
   const fetchNotifications = async () => {
+    if (!userId) return;
     const { data } = await supabase
       .from("notifications")
       .select("*")
-      .eq("user_id", userData.id)
+      .eq("user_id", userId)
       .order("created_at", { ascending: false });
     if (data) setNotifications(data);
   };
