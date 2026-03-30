@@ -28,7 +28,7 @@ import { supabase } from "@/lib/supabaseClient";
 // --- Glass Style Wrapper Component (Fixed for Wall-to-Wall touch) ---
 const GlassCard = ({ children, className = "", noPadding = false }: any) => (
   <div
-    className={`bg-white/10 backdrop-blur-2xl border-y sm:border-x border-white/20 shadow-[0_8px_32px_0_rgba(0,0,0,0.2)] w-full ${noPadding ? "p-0" : "p-4"} ${className}`}
+    className={`bg-white/10 backdrop-blur-2xl border-y sm:border border-white/10 shadow-lg w-full ${noPadding ? "p-0" : "p-4"} ${className}`}
   >
     {children}
   </div>
@@ -58,10 +58,9 @@ const Index = () => {
   const [isUploading, setIsUploading] = useState(false);
   const [isPostOpen, setIsPostOpen] = useState(false);
 
-  // --- 🎨 THEME STATE (Added White Gray) ---
+  // --- 🎨 THEME STATE (Default set to null/clean dark) ---
   const [bgImage, setBgImage] = useState(
-    localStorage.getItem("facelook-bg") ||
-      "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=1964",
+    localStorage.getItem("facelook-bg") || "",
   );
 
   // --- 💬 CHAT STATES ---
@@ -157,39 +156,45 @@ const Index = () => {
 
   return (
     <div
-      className="min-h-screen w-full bg-cover bg-center bg-fixed transition-all duration-700 relative overflow-x-hidden"
-      style={{ backgroundImage: `url('${bgImage}')` }}
+      className="min-h-screen w-full bg-slate-950 bg-cover bg-center bg-fixed transition-all duration-700 relative overflow-x-hidden"
+      style={{ backgroundImage: bgImage ? `url('${bgImage}')` : "none" }}
     >
-      {/* Dark Frost Overlay */}
-      <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-[2px] pointer-events-none" />
+      {/* Dynamic Overlay based on theme */}
+      <div
+        className={`fixed inset-0 ${bgImage ? "bg-slate-900/40 backdrop-blur-[2px]" : "bg-transparent"} pointer-events-none`}
+      />
 
       <Header onProfileClick={() => setActiveFeature("Face")} />
 
       {/* --- Main Content (Width set to full for mobile wall-touch) --- */}
-      <main className="pt-24 pb-40 w-full max-w-2xl mx-auto min-h-screen relative z-10">
+      <main className="pt-20 pb-40 w-full max-w-2xl mx-auto min-h-screen relative z-10 px-0 sm:px-4">
         <AnimatePresence mode="wait">
           <motion.div
             key={activeFeature}
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="w-full space-y-4"
+            exit={{ opacity: 0, y: -10 }}
+            className="w-full"
           >
             {/* 1. FAME (WALL-TO-WALL FEED) */}
             {activeFeature === "Fame" && (
-              <div className="flex flex-col gap-4">
-                <div className="px-4">
-                  {" "}
-                  {/* Composer ko thoda space dena professional lagta hai */}
+              <div className="flex flex-col">
+                {/* Matchmaking Section First (Wall to Wall) */}
+                <ConnectionPanel />
+
+                {/* Post Creator (Reduced Gap with Panel) */}
+                <div className="mt-1 px-4 sm:px-0">
                   <GlassCard
-                    className="p-4 rounded-[2rem] flex items-center gap-4 cursor-pointer"
+                    className="p-4 rounded-3xl sm:rounded-[2rem] flex items-center gap-4 cursor-pointer"
                     onClick={() => setIsPostOpen(true)}
                   >
                     <img
-                      src={profile.avatar_url}
+                      src={
+                        profile.avatar_url || "https://via.placeholder.com/150"
+                      }
                       className="w-10 h-10 rounded-xl object-cover border border-white/20"
                     />
-                    <div className="flex-1 bg-white/10 py-3 px-6 rounded-2xl text-white/60 text-sm font-bold">
+                    <div className="flex-1 bg-white/5 py-3 px-6 rounded-2xl text-white/60 text-sm font-bold border border-white/5">
                       What's on your mind?
                     </div>
                     <div className="p-2 text-white bg-blue-600/50 rounded-xl">
@@ -198,10 +203,8 @@ const Index = () => {
                   </GlassCard>
                 </div>
 
-                <ConnectionPanel />
-
-                {/* Feed Cards flush with walls */}
-                <div className="w-full">
+                {/* Feed Cards flush with walls on mobile */}
+                <div className="w-full mt-4">
                   <FameFeed />
                 </div>
               </div>
@@ -220,7 +223,7 @@ const Index = () => {
                           className="w-full h-full object-cover rounded-[1.8rem]"
                         />
                       ) : (
-                        <div className="w-full h-full flex items-center justify-center text-3xl font-black text-white">
+                        <div className="w-full h-full flex items-center justify-center text-3xl font-black text-white bg-slate-800 rounded-[1.8rem]">
                           {profile.full_name[0]}
                         </div>
                       )}
@@ -271,7 +274,7 @@ const Index = () => {
                 </GlassCard>
 
                 <div className="grid grid-cols-2 gap-0 sm:gap-3 w-full">
-                  <GlassCard className="p-4 sm:rounded-3xl flex items-center gap-3 border-r border-white/10 sm:border-r-0">
+                  <GlassCard className="p-4 border-r border-white/10 sm:border-r-0 sm:rounded-3xl flex items-center gap-3">
                     <Home size={18} className="text-blue-400" />
                     <div>
                       <p className="text-[8px] font-black text-white/40 uppercase">
@@ -297,10 +300,10 @@ const Index = () => {
               </div>
             )}
 
-            {/* 3. SETTINGS (THEME ENGINE + WHITE GRAY) */}
+            {/* 3. SETTINGS */}
             {activeFeature === "Settings" && (
-              <div className="space-y-4">
-                <GlassCard className="sm:rounded-[2.5rem] p-6 border-x-0 sm:border-x">
+              <div className="space-y-4 px-4 sm:px-0">
+                <GlassCard className="rounded-[2.5rem] p-6 border border-white/10">
                   <div className="flex items-center gap-3 mb-6">
                     <Palette className="text-blue-400" size={24} />
                     <h2 className="text-xl font-black text-white">
@@ -315,7 +318,7 @@ const Index = () => {
                       "https://images.unsplash.com/photo-1506744038136-46273834b3fb?q=80&w=1000",
                       "https://images.unsplash.com/photo-1550684848-fac1c5b4e853?q=80&w=1000",
                       "https://images.unsplash.com/photo-1505118380757-91f5f5632de0?q=80&w=1000",
-                      "https://images.unsplash.com/photo-1465447142348-e9952c393450?q=80&w=1000", // Added White Gray Theme
+                      "https://images.unsplash.com/photo-1465447142348-e9952c393450?q=80&w=1000",
                     ].map((url, i) => (
                       <button
                         key={i}
@@ -325,6 +328,13 @@ const Index = () => {
                         <img src={url} className="w-full h-full object-cover" />
                       </button>
                     ))}
+                    {/* Clear Theme Option */}
+                    <button
+                      onClick={() => handleThemeChange("")}
+                      className={`h-16 rounded-2xl bg-slate-800 border-2 flex items-center justify-center text-[10px] text-white font-bold ${!bgImage ? "border-blue-500" : "border-transparent"}`}
+                    >
+                      Default
+                    </button>
                   </div>
                   <div className="space-y-1">
                     <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-3 ml-2">
@@ -355,7 +365,7 @@ const Index = () => {
         </AnimatePresence>
       </main>
 
-      {/* --- 💬 GLASS CHAT SYSTEM --- */}
+      {/* --- 💬 CHAT SYSTEM --- */}
       <button
         onClick={() => setIsChatOpen(true)}
         className="fixed bottom-32 right-6 w-16 h-16 bg-blue-600/80 backdrop-blur-lg text-white rounded-full shadow-2xl flex items-center justify-center z-[80] border-2 border-white/20 active:scale-90"
