@@ -5,6 +5,7 @@ import ConnectionPanel from "@/components/ConnectionPanel";
 import MatchmakingSection from "@/components/MatchmakingSection";
 import FameFeed from "@/components/FameFeed";
 import FlicksFeed from "@/components/FlicksFeed";
+import CreatePost from "@/components/CreatePost";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Camera,
@@ -27,6 +28,12 @@ import {
   Image as ImageIcon,
   ThumbsUp,
   Clock,
+  MessageSquare,
+  Send,
+  X,
+  Star,
+  Flame,
+  Film,
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -52,8 +59,15 @@ const SettingRow = ({ icon, title, desc, color }: any) => (
 
 const Index = () => {
   const [activeFeature, setActiveFeature] = useState("Fame");
-  const [isEditing, setIsEditing] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [isPostOpen, setIsPostOpen] = useState(false);
+
+  // --- 💬 CHAT STATES ---
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<any>(null);
+  const [chatMessages, setChatMessages] = useState<any[]>([]);
+  const [newMessage, setNewMessage] = useState("");
+
   const [profile, setProfile] = useState({
     id: "ec047c60-4960-4083-b798-1749c0ab85dc",
     full_name: "Loading...",
@@ -74,6 +88,37 @@ const Index = () => {
     fetchProfile();
   }, []);
 
+  // --- Real-time Message Subscription ---
+  useEffect(() => {
+    if (!selectedUser) return;
+
+    const channel = supabase
+      .channel("chat-room")
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "messages",
+        },
+        (payload) => {
+          if (
+            (payload.new.sender_id === profile.id &&
+              payload.new.receiver_id === selectedUser.id) ||
+            (payload.new.sender_id === selectedUser.id &&
+              payload.new.receiver_id === profile.id)
+          ) {
+            setChatMessages((prev) => [...prev, payload.new]);
+          }
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [selectedUser]);
+
   const fetchProfile = async () => {
     const { data } = await supabase
       .from("profiles")
@@ -81,6 +126,16 @@ const Index = () => {
       .eq("id", profile.id)
       .maybeSingle();
     if (data) setProfile(data);
+  };
+
+  const sendMessage = async () => {
+    if (!newMessage.trim() || !selectedUser) return;
+    const { error } = await supabase.from("messages").insert({
+      sender_id: profile.id,
+      receiver_id: selectedUser.id,
+      content: newMessage,
+    });
+    if (!error) setNewMessage("");
   };
 
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -100,15 +155,15 @@ const Index = () => {
       setProfile((prev) => ({ ...prev, avatar_url: publicUrl }));
       alert("DP Updated! 🔥");
     } catch (err) {
-      alert("Upload error! Make sure 'avatars' bucket exists.");
+      alert("Upload error!");
     } finally {
       setIsUploading(false);
     }
   };
 
   return (
-    <div className="min-h-screen w-full bg-slate-50 overflow-x-hidden">
-      <Header />
+    <div className="min-h-screen w-full bg-slate-50 overflow-x-hidden relative">
+      <Header onProfileClick={() => setActiveFeature("Face")} />
 
       <main className="pt-24 pb-40 max-w-2xl mx-auto px-4 min-h-screen">
         <AnimatePresence mode="wait">
@@ -122,12 +177,27 @@ const Index = () => {
             {/* 1. FAME (MAIN FEED) */}
             {activeFeature === "Fame" && (
               <div className="flex flex-col gap-6">
+                <div
+                  onClick={() => setIsPostOpen(true)}
+                  className="bg-white p-4 rounded-[2.5rem] shadow-sm border border-white flex items-center gap-4 cursor-pointer hover:shadow-md transition-all"
+                >
+                  <img
+                    src={profile.avatar_url}
+                    className="w-10 h-10 rounded-xl object-cover"
+                  />
+                  <div className="flex-1 bg-slate-50 py-3 px-6 rounded-2xl text-slate-400 text-sm font-bold">
+                    What's on your mind?
+                  </div>
+                  <div className="p-2 text-blue-600 bg-blue-50 rounded-xl">
+                    <ImageIcon size={20} />
+                  </div>
+                </div>
                 <ConnectionPanel />
                 <FameFeed />
               </div>
             )}
 
-            {/* 2. FACE (PROFILE SECTION - INLINE) */}
+            {/* 2. FACE (PROFILE SECTION) */}
             {activeFeature === "Face" && (
               <div className="space-y-6">
                 <div className="bg-white rounded-[3rem] p-6 shadow-xl border border-white overflow-hidden relative">
@@ -138,7 +208,6 @@ const Index = () => {
                         <img
                           src={profile.avatar_url}
                           className="w-full h-full object-cover rounded-[1.8rem]"
-                          alt="DP"
                         />
                       ) : (
                         <div className="w-full h-full bg-slate-100 flex items-center justify-center text-3xl font-black text-blue-200">
@@ -166,8 +235,6 @@ const Index = () => {
                       @{profile.username}
                     </p>
                   </div>
-
-                  {/* STATS SECTION */}
                   <div className="grid grid-cols-4 gap-2 mt-8 border-t border-slate-50 pt-6">
                     <div className="text-center">
                       <p className="text-lg font-black text-slate-800">
@@ -193,20 +260,14 @@ const Index = () => {
                         Likes
                       </p>
                     </div>
-                    <div className="text-center">
-                      <p className="text-lg font-black text-blue-600">
-                        {profile.pending_requests}
-                      </p>
-                      <p className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">
-                        Pending
-                      </p>
+                    <div className="text-center text-blue-600 font-black">
+                      <p className="text-lg">{profile.pending_requests}</p>
+                      <p className="text-[8px] uppercase">Pending</p>
                     </div>
                   </div>
                 </div>
-
-                {/* SEARCHABLE INFO CARDS */}
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="bg-white p-4 rounded-3xl shadow-sm border border-slate-100 flex items-center gap-3">
+                  <div className="bg-white p-4 rounded-3xl border flex items-center gap-3">
                     <Home size={18} className="text-blue-500" />
                     <div>
                       <p className="text-[8px] font-black text-slate-400 uppercase">
@@ -217,7 +278,7 @@ const Index = () => {
                       </p>
                     </div>
                   </div>
-                  <div className="bg-white p-4 rounded-3xl shadow-sm border border-slate-100 flex items-center gap-3">
+                  <div className="bg-white p-4 rounded-3xl border flex items-center gap-3">
                     <BookOpen size={18} className="text-purple-500" />
                     <div>
                       <p className="text-[8px] font-black text-slate-400 uppercase">
@@ -232,55 +293,31 @@ const Index = () => {
               </div>
             )}
 
-            {/* 3. SETTINGS (FB STYLE) */}
+            {/* 3. SETTINGS */}
             {activeFeature === "Settings" && (
-              <div className="space-y-4">
-                <div className="bg-white rounded-[2.5rem] shadow-xl border border-white p-6">
-                  <h2 className="text-xl font-black text-slate-800 mb-6 px-2">
-                    Settings & Privacy
-                  </h2>
-
-                  <div className="space-y-1">
-                    <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-3 ml-2">
+              <div className="bg-white rounded-[2.5rem] shadow-xl p-6">
+                <h2 className="text-xl font-black mb-6">Settings & Privacy</h2>
+                <div className="space-y-6">
+                  <div>
+                    <p className="text-[10px] font-black text-blue-600 uppercase mb-3 ml-2">
                       Account
                     </p>
                     <SettingRow
                       icon={<User size={18} />}
                       title="Personal Info"
-                      desc="Update name, mobile, and location"
+                      desc="Update name and location"
                       color="text-blue-600"
                     />
                     <SettingRow
                       icon={<Lock size={18} />}
                       title="Password"
-                      desc="Change your security credentials"
+                      desc="Change credentials"
                       color="text-slate-700"
                     />
                   </div>
-
-                  <div className="space-y-1 mt-6">
-                    <p className="text-[10px] font-black text-red-600 uppercase tracking-widest mb-3 ml-2">
-                      Safety
-                    </p>
-                    <SettingRow
-                      icon={<ShieldCheck size={18} />}
-                      title="Privacy Checkup"
-                      desc="Who can see your posts"
-                      color="text-green-600"
-                    />
-                    <SettingRow
-                      icon={<UserMinus size={18} />}
-                      title="Blocked People"
-                      desc="Manage your block list"
-                      color="text-red-500"
-                    />
-                  </div>
-
-                  <div className="mt-8 pt-6 border-t border-slate-50">
-                    <button className="w-full py-4 bg-red-50 text-red-500 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2">
-                      <LogOut size={16} /> Logout Account
-                    </button>
-                  </div>
+                  <button className="w-full py-4 bg-red-50 text-red-500 rounded-2xl font-black text-xs uppercase">
+                    <LogOut size={16} className="inline mr-2" /> Logout
+                  </button>
                 </div>
               </div>
             )}
@@ -296,7 +333,102 @@ const Index = () => {
         </AnimatePresence>
       </main>
 
-      {/* FIXED FOOTER WITH SLIDER */}
+      {/* --- 💬 FLOATING CHAT SYSTEM --- */}
+      <button
+        onClick={() => setIsChatOpen(true)}
+        className="fixed bottom-32 right-6 w-16 h-16 bg-blue-600 text-white rounded-full shadow-2xl flex items-center justify-center z-[80] active:scale-90 border-4 border-white"
+      >
+        <MessageSquare size={28} fill="currentColor" />
+        <span className="absolute -top-1 -right-1 w-6 h-6 bg-red-500 rounded-full border-2 border-white text-[10px] font-black flex items-center justify-center animate-pulse">
+          3
+        </span>
+      </button>
+
+      <AnimatePresence>
+        {isChatOpen && (
+          <motion.div
+            initial={{ y: "100%" }}
+            animate={{ y: 0 }}
+            exit={{ y: "100%" }}
+            className="fixed inset-x-0 bottom-0 z-[150] bg-white h-[85vh] sm:h-[600px] sm:w-[400px] sm:right-6 sm:left-auto sm:bottom-6 rounded-t-[3rem] sm:rounded-[3rem] shadow-2xl flex flex-col overflow-hidden"
+          >
+            <div className="p-6 bg-blue-600 text-white flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Users size={20} />
+                <p className="font-black text-sm">
+                  {selectedUser ? selectedUser.full_name : "Messenger"}
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setIsChatOpen(false);
+                  setSelectedUser(null);
+                }}
+              >
+                <X size={22} />
+              </button>
+            </div>
+            <div className="flex-1 bg-slate-50 overflow-y-auto p-4">
+              {!selectedUser ? (
+                <div
+                  onClick={() =>
+                    setSelectedUser({ id: "dummy", full_name: "Rahul Kumar" })
+                  }
+                  className="bg-white p-4 rounded-2xl flex items-center gap-4 cursor-pointer border border-slate-100"
+                >
+                  <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center font-bold text-blue-600">
+                    R
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-black">Rahul Kumar</p>
+                    <p className="text-[10px] text-slate-400">Click to chat</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {chatMessages.map((msg, i) => (
+                    <div
+                      key={i}
+                      className={`flex ${msg.sender_id === profile.id ? "justify-end" : "justify-start"}`}
+                    >
+                      <div
+                        className={`max-w-[80%] p-4 rounded-[1.8rem] text-sm font-bold ${msg.sender_id === profile.id ? "bg-blue-600 text-white rounded-tr-none" : "bg-white text-slate-800 rounded-tl-none"}`}
+                      >
+                        {msg.content}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            {selectedUser && (
+              <div className="p-4 bg-white border-t flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Type a message..."
+                  className="flex-1 bg-slate-100 h-12 px-6 rounded-2xl font-bold outline-none"
+                  value={newMessage}
+                  onChange={(e) => setNewMessage(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+                />
+                <button
+                  onClick={sendMessage}
+                  className="w-12 h-12 bg-blue-600 text-white rounded-2xl flex items-center justify-center"
+                >
+                  <Send size={18} />
+                </button>
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <CreatePost
+        isOpen={isPostOpen}
+        onClose={() => setIsPostOpen(false)}
+        userProfile={profile}
+      />
+
       <div className="fixed bottom-0 left-0 w-full z-50 pointer-events-none pb-4">
         <div className="max-w-2xl mx-auto pointer-events-auto px-4">
           <GolSlider onFeatureChange={setActiveFeature} />
