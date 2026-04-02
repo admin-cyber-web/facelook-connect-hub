@@ -129,7 +129,48 @@ const Header = ({
   return (
     <>
       {/* ── GLASS HEADER ─────────────────────────────────────────────── */}
-      <header className="w-full h-14 bg-white/10 backdrop-blur-2xl border-b border-white/10 z-[100] px-3 sm:px-6 flex items-center justify-between gap-3 transition-all">
+      <header className="w-full h-14 bg-white/10 backdrop-blur-2xl border-b border-white/10 z-[100] px-3 sm:px-6 flex items-center justify-between gap-3 transition-all relative">
+
+        {/* ── ANIMATED CENTER LOGO ─────────────────────────────────────── */}
+        <div className="absolute left-1/2 -translate-x-1/2 pointer-events-none select-none flex items-center gap-1.5">
+          {/* Animated "F" orb */}
+          <motion.div
+            animate={{ rotate: [0, -8, 8, -4, 4, 0] }}
+            transition={{ duration: 3.5, repeat: Infinity, repeatDelay: 4, ease: "easeInOut" }}
+            className="w-6 h-6 rounded-lg bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center shadow-lg shadow-blue-500/30"
+          >
+            <span className="text-white font-black text-[11px] italic">F</span>
+          </motion.div>
+
+          {/* "Facelook" wordmark */}
+          <div className="flex items-end gap-0 leading-none">
+            {["F","a","c","e","l","o","o","k"].map((char, i) => (
+              <motion.span
+                key={i}
+                initial={{ opacity: 0, y: -8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.04 * i, duration: 0.4, ease: "easeOut" }}
+                className="text-[15px] font-black tracking-tight"
+                style={{
+                  color: i < 4 ? "#ffffff" : "#60a5fa",
+                  textShadow: i < 4
+                    ? "0 0 12px rgba(255,255,255,0.2)"
+                    : "0 0 12px rgba(96,165,250,0.5)",
+                }}
+              >
+                {char}
+              </motion.span>
+            ))}
+          </div>
+
+          {/* Subtle shimmer sweep */}
+          <motion.div
+            animate={{ x: [-40, 80] }}
+            transition={{ duration: 1.6, repeat: Infinity, repeatDelay: 3.5, ease: "easeInOut" }}
+            className="absolute inset-0 w-8 bg-gradient-to-r from-transparent via-white/20 to-transparent skew-x-[-20deg] pointer-events-none"
+          />
+        </div>
+
         {/* 1. LEFT: PROFILE */}
         <div
           onClick={onProfileClick}
