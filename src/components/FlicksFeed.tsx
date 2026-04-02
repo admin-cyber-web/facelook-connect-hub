@@ -11,23 +11,24 @@ import {
   Check,
   Eye,
   Disc,
+  MoreVertical,
+  Trash2,
+  EyeOff,
+  Flag,
+  X,
 } from "lucide-react";
 
-// --- 1. Smart Media Renderer (Fixed Audio Overlap) ---
 const FlickMedia = ({ post, videoRef, isMuted, isActive }: any) => {
   const url = post.media_url || "";
   const isYouTube = url.includes("youtube.com") || url.includes("youtu.be");
 
   if (isYouTube) {
-    // Agar flick active nahi hai toh iframe remove kar do (Stop Audio)
     if (!isActive) return <div className="w-full h-full bg-black" />;
-
     const regExp =
       /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=|\/shorts\/)([^#\&\?]*).*/;
     const match = url.match(regExp);
     const videoId = match && match[2].length === 11 ? match[2] : null;
     const embedUrl = `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=${isMuted ? 1 : 0}&loop=1&playlist=${videoId}&controls=0&modestbranding=1&enablejsapi=1`;
-
     return (
       <div className="relative w-full h-full bg-black overflow-hidden pointer-events-none">
         <iframe
@@ -52,12 +53,26 @@ const FlickMedia = ({ post, videoRef, isMuted, isActive }: any) => {
   );
 };
 
-// --- 2. Single Flick Card Component ---
 const FlickCard = memo(
-  ({ post, isActive }: { post: any; isActive: boolean }) => {
+  ({
+    post,
+    isActive,
+    currentUserId,
+    onDelete,
+    onHide,
+    onReport,
+  }: {
+    post: any;
+    isActive: boolean;
+    currentUserId: string | null;
+    onDelete: (id: string) => void;
+    onHide: (id: string) => void;
+    onReport: (id: string) => void;
+  }) => {
     const videoRef = useRef<HTMLVideoElement>(null);
     const [isMuted, setIsMuted] = useState(false);
     const [liked, setLiked] = useState(false);
+    const [menuOpen, setMenuOpen] = useState(false);
 
     useEffect(() => {
       if (videoRef.current) {
@@ -74,7 +89,6 @@ const FlickCard = memo(
             });
           }
         } else {
-          // Stop and Reset normal video
           videoRef.current.pause();
           videoRef.current.currentTime = 0;
         }
@@ -95,13 +109,25 @@ const FlickCard = memo(
           isActive={isActive}
         />
 
-        <div
-          className="absolute inset-0 z-10"
-          onClick={() => setIsMuted(!isMuted)}
-        />
+        {/* Tap-to-mute layer — disabled when menu is open */}
+        {!menuOpen && (
+          <div
+            className="absolute inset-0 z-10"
+            onClick={() => setIsMuted(!isMuted)}
+          />
+        )}
+
+        {/* Menu backdrop */}
+        {menuOpen && (
+          <div
+            className="absolute inset-0 z-40"
+            onClick={() => setMenuOpen(false)}
+          />
+        )}
+
         <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/70 pointer-events-none z-20" />
 
-        {/* Mute Pop-up */}
+        {/* Mute pop-up */}
         <AnimatePresence>
           {isMuted && (
             <motion.div
@@ -116,6 +142,65 @@ const FlickCard = memo(
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* Three-dots button — top right */}
+        <div className="absolute top-14 right-4 z-50">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setMenuOpen((v) => !v);
+            }}
+            className="p-2 rounded-full bg-black/40 backdrop-blur-md border border-white/10 active:scale-90 transition-transform"
+          >
+            <MoreVertical size={20} className="text-white" />
+          </button>
+
+          <AnimatePresence>
+            {menuOpen && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.85, y: -8 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.85, y: -8 }}
+                transition={{ duration: 0.15 }}
+                className="absolute right-0 top-12 z-50 w-44 bg-zinc-900/95 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden shadow-2xl"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {post.author_id === currentUserId && (
+                  <button
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onDelete(post.id);
+                    }}
+                    className="w-full flex items-center gap-3 px-4 py-3.5 text-red-400 hover:bg-red-500/10 transition-colors text-sm font-semibold border-b border-white/5"
+                  >
+                    <Trash2 size={16} />
+                    Delete
+                  </button>
+                )}
+                <button
+                  onClick={() => {
+                    setMenuOpen(false);
+                    onHide(post.id);
+                  }}
+                  className="w-full flex items-center gap-3 px-4 py-3.5 text-white/80 hover:bg-white/5 transition-colors text-sm font-semibold border-b border-white/5"
+                >
+                  <EyeOff size={16} />
+                  Hide
+                </button>
+                <button
+                  onClick={() => {
+                    setMenuOpen(false);
+                    onReport(post.id);
+                  }}
+                  className="w-full flex items-center gap-3 px-4 py-3.5 text-orange-400 hover:bg-orange-500/10 transition-colors text-sm font-semibold"
+                >
+                  <Flag size={16} />
+                  Report
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
 
         {/* Right Sidebar Actions */}
         <div className="absolute right-3 bottom-24 flex flex-col items-center gap-6 z-40 text-white">
@@ -195,12 +280,24 @@ const FlickCard = memo(
   },
 );
 
-// --- 3. Main Container ---
 export default function FlicksApp() {
   const [flicks, setFlicks] = useState<any[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
+  const [reportModal, setReportModal] = useState<{
+    postId: string;
+    reason: string;
+  } | null>(null);
+  const [reportSubmitting, setReportSubmitting] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      setCurrentUserId(data.user?.id ?? null);
+    });
+  }, []);
 
   useEffect(() => {
     const fetchFlicks = async () => {
@@ -229,6 +326,31 @@ export default function FlicksApp() {
     );
     if (newIndex !== currentIndex) setCurrentIndex(newIndex);
   };
+
+  const handleDelete = async (postId: string) => {
+    await supabase.from("posts").delete().eq("id", postId);
+    setFlicks((prev) => prev.filter((p) => p.id !== postId));
+  };
+
+  const handleHide = (postId: string) => {
+    setHiddenIds((prev) => new Set([...prev, postId]));
+  };
+
+  const handleReportSubmit = async () => {
+    if (!reportModal || !reportModal.reason.trim()) return;
+    setReportSubmitting(true);
+    await supabase.from("reports").insert([
+      {
+        post_id: reportModal.postId,
+        reporter_id: currentUserId,
+        reason: reportModal.reason.trim(),
+      },
+    ]);
+    setReportSubmitting(false);
+    setReportModal(null);
+  };
+
+  const visibleFlicks = flicks.filter((p) => !hiddenIds.has(p.id));
 
   if (loading) {
     return (
@@ -260,54 +382,139 @@ export default function FlicksApp() {
   }
 
   return (
-    <div className="fixed inset-0 bg-black flex justify-center overflow-hidden touch-none">
-      {/* Stylish Movie Intro Header */}
-      <div className="fixed top-0 left-0 w-full z-[100] flex justify-center pt-8 pointer-events-none">
-        <motion.div
-          key={currentIndex} // Trigger on scroll
-          initial={{ scale: 3, opacity: 0, filter: "blur(20px)" }}
-          animate={{ scale: 1, opacity: 1, filter: "blur(0px)" }}
-          transition={{ duration: 0.6, ease: "easeOut" }}
-          className="relative"
-        >
-          <h1 className="text-white font-black italic text-3xl tracking-tighter drop-shadow-2xl mix-blend-difference">
-            FLI<span className="text-blue-500">CKS</span>
-          </h1>
-          {/* Subtle Glitch Layer */}
-          <motion.h1
-            animate={{ opacity: [0, 0.4, 0], x: [-2, 2, 0] }}
-            transition={{ repeat: Infinity, duration: 0.1, repeatDelay: 3 }}
-            className="absolute inset-0 text-red-500 font-black italic text-3xl tracking-tighter -z-10"
+    <>
+      <div className="fixed inset-0 bg-black flex justify-center overflow-hidden touch-none">
+        <div className="fixed top-0 left-0 w-full z-[100] flex justify-center pt-8 pointer-events-none">
+          <motion.div
+            key={currentIndex}
+            initial={{ scale: 3, opacity: 0, filter: "blur(20px)" }}
+            animate={{ scale: 1, opacity: 1, filter: "blur(0px)" }}
+            transition={{ duration: 0.6, ease: "easeOut" }}
+            className="relative"
           >
-            FLICKS
-          </motion.h1>
-        </motion.div>
-      </div>
+            <h1 className="text-white font-black italic text-3xl tracking-tighter drop-shadow-2xl mix-blend-difference">
+              FLI<span className="text-blue-500">CKS</span>
+            </h1>
+            <motion.h1
+              animate={{ opacity: [0, 0.4, 0], x: [-2, 2, 0] }}
+              transition={{ repeat: Infinity, duration: 0.1, repeatDelay: 3 }}
+              className="absolute inset-0 text-red-500 font-black italic text-3xl tracking-tighter -z-10"
+            >
+              FLICKS
+            </motion.h1>
+          </motion.div>
+        </div>
 
-      <div
-        ref={containerRef}
-        onScroll={handleScroll}
-        className="w-full max-w-[500px] h-full overflow-y-scroll snap-y snap-mandatory scroll-smooth hide-scrollbar relative"
-        style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
-      >
-        {flicks.map((post, i) => (
-          <FlickCard key={post.id} post={post} isActive={i === currentIndex} />
-        ))}
+        <div
+          ref={containerRef}
+          onScroll={handleScroll}
+          className="w-full max-w-[500px] h-full overflow-y-scroll snap-y snap-mandatory scroll-smooth hide-scrollbar relative"
+          style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+        >
+          <AnimatePresence>
+            {visibleFlicks.map((post, i) => (
+              <motion.div
+                key={post.id}
+                layout
+                exit={{ opacity: 0, x: 120, transition: { duration: 0.35 } }}
+              >
+                <FlickCard
+                  post={post}
+                  isActive={i === currentIndex}
+                  currentUserId={currentUserId}
+                  onDelete={handleDelete}
+                  onHide={handleHide}
+                  onReport={(id) => setReportModal({ postId: id, reason: "" })}
+                />
+              </motion.div>
+            ))}
+          </AnimatePresence>
 
-        <div className="fixed right-1 top-1/2 -translate-y-1/2 flex flex-col gap-1.5 z-50 pointer-events-none px-2">
-          {flicks.slice(0, 15).map((_, i) => (
-            <motion.div
-              key={i}
-              animate={{
-                height: i === currentIndex ? 30 : 6,
-                backgroundColor:
-                  i === currentIndex ? "#3b82f6" : "rgba(255,255,255,0.1)",
-              }}
-              className="w-1 rounded-full transition-all duration-300"
-            />
-          ))}
+          <div className="fixed right-1 top-1/2 -translate-y-1/2 flex flex-col gap-1.5 z-50 pointer-events-none px-2">
+            {visibleFlicks.slice(0, 15).map((_, i) => (
+              <motion.div
+                key={i}
+                animate={{
+                  height: i === currentIndex ? 30 : 6,
+                  backgroundColor:
+                    i === currentIndex ? "#3b82f6" : "rgba(255,255,255,0.1)",
+                }}
+                className="w-1 rounded-full transition-all duration-300"
+              />
+            ))}
+          </div>
         </div>
       </div>
-    </div>
+
+      {/* Report Modal */}
+      <AnimatePresence>
+        {reportModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[200] flex items-end justify-center bg-black/60 backdrop-blur-sm"
+            onClick={() => setReportModal(null)}
+          >
+            <motion.div
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 28, stiffness: 300 }}
+              className="w-full max-w-lg bg-zinc-900 rounded-t-3xl p-6 pb-10 border-t border-white/10 shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-white font-black text-lg flex items-center gap-2">
+                  <Flag size={18} className="text-orange-400" />
+                  Report Post
+                </h3>
+                <button
+                  onClick={() => setReportModal(null)}
+                  className="p-1.5 rounded-full bg-white/10 text-white/60"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+              <p className="text-white/40 text-xs mb-4 uppercase tracking-widest font-bold">
+                Why are you reporting this?
+              </p>
+              <div className="space-y-2 mb-6">
+                {[
+                  "Spam or misleading",
+                  "Inappropriate content",
+                  "Hate speech",
+                  "Harassment",
+                  "Other",
+                ].map((reason) => (
+                  <button
+                    key={reason}
+                    onClick={() =>
+                      setReportModal((prev) =>
+                        prev ? { ...prev, reason } : prev,
+                      )
+                    }
+                    className={`w-full text-left px-4 py-3.5 rounded-xl text-sm font-semibold border transition-all ${
+                      reportModal.reason === reason
+                        ? "bg-orange-500/20 border-orange-500/50 text-orange-300"
+                        : "bg-white/5 border-white/10 text-white/70 hover:bg-white/10"
+                    }`}
+                  >
+                    {reason}
+                  </button>
+                ))}
+              </div>
+              <button
+                onClick={handleReportSubmit}
+                disabled={!reportModal.reason || reportSubmitting}
+                className="w-full py-4 rounded-2xl bg-orange-500 text-white font-black text-sm uppercase tracking-wider disabled:opacity-40 disabled:cursor-not-allowed active:scale-[0.98] transition-transform"
+              >
+                {reportSubmitting ? "Submitting…" : "Submit Report"}
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
   );
 }
