@@ -14,16 +14,24 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
+// --- GLOBAL SOUND STATE (Added outside to persist across scrolls) ---
+let isGlobalUnmuted = false;
+
 // --- 1. AutoPlay Video Component (Full Screen + Watermark) ---
 const AutoPlayVideo = ({ src }: { src: string }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [isMuted, setIsMuted] = useState(true);
+  // Initial state now checks the global variable
+  const [isMuted, setIsMuted] = useState(!isGlobalUnmuted);
 
   useEffect(() => {
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (videoRef.current) {
           if (entry.isIntersecting) {
+            // Apply the latest global sound preference before playing
+            videoRef.current.muted = !isGlobalUnmuted;
+            setIsMuted(!isGlobalUnmuted);
+
             videoRef.current.play().catch(() => {
               videoRef.current!.muted = true;
               videoRef.current!.play();
@@ -40,10 +48,15 @@ const AutoPlayVideo = ({ src }: { src: string }) => {
     return () => observer.disconnect();
   }, [src]);
 
-  const toggleMute = () => {
+  const toggleMute = (e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevents unintended triggers
     if (videoRef.current) {
-      videoRef.current.muted = !videoRef.current.muted;
-      setIsMuted(videoRef.current.muted);
+      const newMuteState = !videoRef.current.muted;
+      videoRef.current.muted = newMuteState;
+
+      // Update Global State so next videos follow this
+      isGlobalUnmuted = !newMuteState;
+      setIsMuted(newMuteState);
     }
   };
 
@@ -71,9 +84,16 @@ const AutoPlayVideo = ({ src }: { src: string }) => {
         onClick={toggleMute}
       />
 
-      {/* Mute Indicator */}
-      <div className="absolute bottom-24 right-6 z-30 p-2 bg-black/20 backdrop-blur-md rounded-full text-white pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
-        {isMuted ? <VolumeX size={20} /> : <Volume2 size={20} />}
+      {/* Mute Indicator - Visible & Functional */}
+      <div
+        onClick={toggleMute}
+        className="absolute bottom-24 left-6 z-40 p-3 bg-black/40 backdrop-blur-md rounded-full text-white border border-white/10 cursor-pointer transition-all active:scale-90"
+      >
+        {isMuted ? (
+          <VolumeX size={22} className="text-red-500" />
+        ) : (
+          <Volume2 size={22} className="text-blue-400" />
+        )}
       </div>
     </div>
   );

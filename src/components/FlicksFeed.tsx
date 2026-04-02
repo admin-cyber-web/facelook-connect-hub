@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, memo } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "../lib/supabaseClient";
 import {
   Heart,
@@ -11,16 +11,52 @@ import {
   Plus,
   Check,
   Eye,
+  Disc,
 } from "lucide-react";
 
-// --- 1. Single Flick Card Component (Individual Video) ---
+// --- 1. Smart Media Renderer for Flicks (Handles Files & Links) ---
+const FlickMedia = ({ post, videoRef, isMuted, setIsMuted }: any) => {
+  const url = post.media_url || "";
+  const isYouTube = url.includes("youtube.com") || url.includes("youtu.be");
+
+  if (isYouTube) {
+    const regExp =
+      /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=|\/shorts\/)([^#\&\?]*).*/;
+    const match = url.match(regExp);
+    const videoId = match && match[2].length === 11 ? match[2] : null;
+    const embedUrl = `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=${isMuted ? 1 : 0}&loop=1&playlist=${videoId}&controls=0&modestbranding=1`;
+
+    return (
+      <div className="relative w-full h-full bg-black overflow-hidden pointer-events-none">
+        <iframe
+          src={embedUrl}
+          className="absolute inset-0 w-full h-[120%] -top-[10%] scale-[1.5]"
+          allow="autoplay; encrypted-media"
+          title="Flick Content"
+        />
+      </div>
+    );
+  }
+
+  return (
+    <video
+      ref={videoRef}
+      src={url}
+      className="w-full h-full object-cover"
+      loop
+      muted={isMuted}
+      playsInline
+    />
+  );
+};
+
+// --- 2. Single Flick Card Component ---
 const FlickCard = memo(
   ({ post, isActive }: { post: any; isActive: boolean }) => {
     const videoRef = useRef<HTMLVideoElement>(null);
     const [isMuted, setIsMuted] = useState(false);
     const [liked, setLiked] = useState(false);
 
-    // Play/Pause logic based on active index
     useEffect(() => {
       if (videoRef.current) {
         if (isActive) {
@@ -28,7 +64,6 @@ const FlickCard = memo(
           const playPromise = videoRef.current.play();
           if (playPromise !== undefined) {
             playPromise.catch(() => {
-              // Browser block protection: play muted if unmuted fails
               if (videoRef.current) {
                 videoRef.current.muted = true;
                 setIsMuted(true);
@@ -44,41 +79,42 @@ const FlickCard = memo(
 
     const handleLike = async () => {
       setLiked(!liked);
-      // Real-time update logic
       await supabase.rpc("increment_likes", { post_id: post.id });
     };
 
     return (
       <div className="relative w-full h-[100dvh] bg-black snap-start flex items-center justify-center overflow-hidden shrink-0">
-        <video
-          ref={videoRef}
-          src={post.media_url}
-          className="w-full h-full object-cover"
-          loop
-          muted={isMuted}
-          playsInline
+        <FlickMedia
+          post={post}
+          videoRef={videoRef}
+          isMuted={isMuted}
+          setIsMuted={setIsMuted}
         />
 
-        {/* Interaction Layer (Mute toggle) */}
         <div
           className="absolute inset-0 z-10"
           onClick={() => setIsMuted(!isMuted)}
         />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/70 pointer-events-none z-20" />
 
-        <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/70 pointer-events-none z-20" />
-
-        {/* Mute Pop-up Indicator */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 pointer-events-none transition-opacity">
+        {/* Mute Pop-up */}
+        <AnimatePresence>
           {isMuted && (
-            <div className="bg-black/40 p-5 rounded-full backdrop-blur-md">
-              <VolumeX size={32} className="text-white/80" />
-            </div>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.5 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 pointer-events-none"
+            >
+              <div className="bg-black/40 p-5 rounded-full backdrop-blur-md">
+                <VolumeX size={32} className="text-white/80" />
+              </div>
+            </motion.div>
           )}
-        </div>
+        </AnimatePresence>
 
         {/* Right Sidebar Actions */}
         <div className="absolute right-3 bottom-24 flex flex-col items-center gap-6 z-40 text-white">
-          {/* Profile Avatar */}
           <div className="relative mb-2">
             <div className="w-12 h-12 rounded-full border-2 border-white bg-zinc-800 flex items-center justify-center font-bold text-lg overflow-hidden shadow-xl">
               {post.author ? post.author[0].toUpperCase() : "V"}
@@ -88,7 +124,6 @@ const FlickCard = memo(
             </div>
           </div>
 
-          {/* Like Button */}
           <button onClick={handleLike} className="flex flex-col items-center">
             <Heart
               size={32}
@@ -100,7 +135,6 @@ const FlickCard = memo(
             </span>
           </button>
 
-          {/* Comments Button */}
           <div className="flex flex-col items-center">
             <MessageCircle
               size={32}
@@ -112,13 +146,11 @@ const FlickCard = memo(
             </span>
           </div>
 
-          {/* Views Count */}
           <div className="flex flex-col items-center">
             <Eye size={30} className="opacity-90 shadow-md" />
             <span className="text-[11px] font-bold mt-1">1.5K</span>
           </div>
 
-          {/* Share Button */}
           <div className="flex flex-col items-center">
             <Share2 size={30} fill="white" className="opacity-90" />
             <span className="text-[11px] font-bold mt-1 text-center">
@@ -126,7 +158,6 @@ const FlickCard = memo(
             </span>
           </div>
 
-          {/* Spinning Music Disk */}
           <motion.div
             animate={{ rotate: 360 }}
             transition={{ duration: 5, repeat: Infinity, ease: "linear" }}
@@ -136,7 +167,7 @@ const FlickCard = memo(
           </motion.div>
         </div>
 
-        {/* Bottom Content Info */}
+        {/* Bottom Content */}
         <div className="absolute bottom-8 left-4 right-16 text-white z-40 pointer-events-none">
           <div className="flex items-center gap-2 mb-2">
             <h3 className="font-bold text-base drop-shadow-lg">
@@ -146,13 +177,9 @@ const FlickCard = memo(
               <Check size={10} strokeWidth={4} />
             </span>
           </div>
-
           <p className="text-sm opacity-90 mb-4 line-clamp-2 leading-snug drop-shadow-md">
-            {post.content ||
-              "Experience the flow on FameFeed! 🚀 #Viral #Flicks #Vibe"}
+            {post.content}
           </p>
-
-          {/* Moving Music Track Name */}
           <div className="flex items-center gap-2 max-w-[200px] bg-black/30 backdrop-blur-sm px-3 py-1.5 rounded-full w-fit border border-white/10">
             <Music size={12} className="animate-pulse" />
             <div className="text-[10px] font-medium whitespace-nowrap overflow-hidden">
@@ -170,89 +197,109 @@ const FlickCard = memo(
   },
 );
 
-// --- 2. Main Container (Handles Scrolling and Fetching) ---
+// --- 3. Main Container ---
 export default function FlicksApp() {
   const [flicks, setFlicks] = useState<any[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Fetch only video posts from your main feed table
   useEffect(() => {
     const fetchFlicks = async () => {
       const { data } = await supabase
         .from("posts")
         .select(`*, comments:comments(*)`)
         .order("created_at", { ascending: false });
-
       if (data) {
-        // Only allow video formats
-        const videoOnly = data.filter((p: any) =>
-          p.media_url?.toLowerCase().match(/\.(mp4|webm|ogg|mov|m4v)/),
+        // Updated Filter: Allows links AND video files
+        const videos = data.filter(
+          (p: any) =>
+            p.media_url?.toLowerCase().match(/\.(mp4|webm|ogg|mov|m4v)/) ||
+            p.media_url?.includes("youtube.com") ||
+            p.media_url?.includes("youtu.be"),
         );
-        setFlicks(videoOnly);
+        setFlicks(videos);
       }
-      setLoading(false);
+      setTimeout(() => setLoading(false), 2000); // Visual delay for the cassette loader
     };
     fetchFlicks();
   }, []);
 
-  // Update which video is active based on scroll position
   const handleScroll = () => {
     if (!containerRef.current) return;
-    const scrollPos = containerRef.current.scrollTop;
-    const cardHeight = containerRef.current.clientHeight;
-    const newIndex = Math.round(scrollPos / cardHeight);
-
-    if (newIndex !== currentIndex) {
-      setCurrentIndex(newIndex);
-    }
+    const newIndex = Math.round(
+      containerRef.current.scrollTop / containerRef.current.clientHeight,
+    );
+    if (newIndex !== currentIndex) setCurrentIndex(newIndex);
   };
 
   if (loading) {
     return (
-      <div className="h-screen w-full bg-black flex flex-col items-center justify-center gap-4">
-        <div className="w-10 h-10 border-2 border-white/20 border-t-blue-500 rounded-full animate-spin" />
-        <p className="text-white/40 font-bold text-[10px] tracking-widest uppercase">
-          Syncing Flicks...
-        </p>
+      <div className="h-screen w-full bg-[#0a0a0a] flex flex-col items-center justify-center">
+        <motion.div
+          animate={{ scale: [1, 1.05, 1], rotate: [0, -1, 1, 0] }}
+          transition={{ duration: 2, repeat: Infinity }}
+          className="relative w-48 h-28 bg-zinc-800 rounded-lg border-4 border-zinc-700 p-2 shadow-[0_0_50px_rgba(0,0,0,0.5)]"
+        >
+          <div className="flex justify-between items-center mb-4 px-2">
+            <div className="w-8 h-8 rounded-full border-4 border-dashed border-zinc-600 animate-spin" />
+            <div className="w-8 h-8 rounded-full border-4 border-dashed border-zinc-600 animate-spin" />
+          </div>
+          <div className="w-full h-8 bg-zinc-900 rounded flex items-center justify-center">
+            <span className="text-[8px] text-zinc-500 font-black tracking-[0.3em] uppercase italic">
+              Facelook Flicks
+            </span>
+          </div>
+        </motion.div>
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.5 }}
+          className="mt-8 text-white font-black italic text-xl tracking-tighter"
+        >
+          POWERED BY <span className="text-blue-500">FACELOOK</span>
+        </motion.p>
       </div>
     );
   }
 
   return (
     <div className="fixed inset-0 bg-black flex justify-center overflow-hidden touch-none">
+      {/* Animated Header */}
+      <div className="fixed top-0 left-0 w-full z-[100] flex justify-center pt-8 pointer-events-none">
+        <motion.h1
+          initial={{ y: -20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          className="text-white font-black italic text-2xl tracking-tighter drop-shadow-2xl"
+        >
+          FLI<span className="text-blue-500">CKS</span>
+        </motion.h1>
+      </div>
+
       <div
         ref={containerRef}
         onScroll={handleScroll}
-        className="w-full max-w-[500px] h-full overflow-y-scroll snap-y snap-mandatory scroll-smooth hide-scrollbar"
+        className="w-full max-w-[500px] h-full overflow-y-scroll snap-y snap-mandatory scroll-smooth hide-scrollbar relative"
         style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
       >
         {flicks.map((post, i) => (
           <FlickCard key={post.id} post={post} isActive={i === currentIndex} />
         ))}
 
-        {/* Fallback if no videos exist */}
         {flicks.length === 0 && (
           <div className="h-full w-full flex flex-col items-center justify-center text-white/30 p-10 text-center">
-            <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mb-4">
-              <Music size={24} />
-            </div>
-            <p className="text-sm font-bold">No Flicks Yet</p>
-            <p className="text-xs opacity-50 mt-1">
-              Post a video in the feed to see it here!
+            <Disc size={48} className="animate-spin mb-4 opacity-20" />
+            <p className="text-sm font-bold uppercase tracking-widest">
+              No Flicks Ready
             </p>
           </div>
         )}
 
-        {/* Side Progress Bar (Visual Only) */}
-        <div className="fixed right-1 top-1/2 -translate-y-1/2 flex flex-col gap-1.5 z-50 pointer-events-none">
-          {flicks.slice(0, 20).map((_, i) => (
+        <div className="fixed right-1 top-1/2 -translate-y-1/2 flex flex-col gap-1.5 z-50 pointer-events-none px-2">
+          {flicks.slice(0, 15).map((_, i) => (
             <div
               key={i}
-              className={`w-0.5 rounded-full transition-all duration-300 ${
-                i === currentIndex ? "h-6 bg-white" : "h-1 bg-white/10"
-              }`}
+              className={`w-0.5 rounded-full transition-all duration-300 ${i === currentIndex ? "h-8 bg-blue-500" : "h-1.5 bg-white/10"}`}
             />
           ))}
         </div>
