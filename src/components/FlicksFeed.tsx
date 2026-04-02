@@ -6,7 +6,6 @@ import {
   MessageCircle,
   Share2,
   Music,
-  Volume2,
   VolumeX,
   Plus,
   Check,
@@ -14,17 +13,20 @@ import {
   Disc,
 } from "lucide-react";
 
-// --- 1. Smart Media Renderer for Flicks (Handles Files & Links) ---
-const FlickMedia = ({ post, videoRef, isMuted, setIsMuted }: any) => {
+// --- 1. Smart Media Renderer (Fixed Audio Overlap) ---
+const FlickMedia = ({ post, videoRef, isMuted, isActive }: any) => {
   const url = post.media_url || "";
   const isYouTube = url.includes("youtube.com") || url.includes("youtu.be");
 
   if (isYouTube) {
+    // Agar flick active nahi hai toh iframe remove kar do (Stop Audio)
+    if (!isActive) return <div className="w-full h-full bg-black" />;
+
     const regExp =
       /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=|\/shorts\/)([^#\&\?]*).*/;
     const match = url.match(regExp);
     const videoId = match && match[2].length === 11 ? match[2] : null;
-    const embedUrl = `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=${isMuted ? 1 : 0}&loop=1&playlist=${videoId}&controls=0&modestbranding=1`;
+    const embedUrl = `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=${isMuted ? 1 : 0}&loop=1&playlist=${videoId}&controls=0&modestbranding=1&enablejsapi=1`;
 
     return (
       <div className="relative w-full h-full bg-black overflow-hidden pointer-events-none">
@@ -72,7 +74,9 @@ const FlickCard = memo(
             });
           }
         } else {
+          // Stop and Reset normal video
           videoRef.current.pause();
+          videoRef.current.currentTime = 0;
         }
       }
     }, [isActive]);
@@ -88,7 +92,7 @@ const FlickCard = memo(
           post={post}
           videoRef={videoRef}
           isMuted={isMuted}
-          setIsMuted={setIsMuted}
+          isActive={isActive}
         />
 
         <div
@@ -106,7 +110,7 @@ const FlickCard = memo(
               exit={{ opacity: 0 }}
               className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 pointer-events-none"
             >
-              <div className="bg-black/40 p-5 rounded-full backdrop-blur-md">
+              <div className="bg-black/40 p-5 rounded-full backdrop-blur-md border border-white/10">
                 <VolumeX size={32} className="text-white/80" />
               </div>
             </motion.div>
@@ -136,32 +140,26 @@ const FlickCard = memo(
           </button>
 
           <div className="flex flex-col items-center">
-            <MessageCircle
-              size={32}
-              fill="white"
-              className="opacity-90 shadow-md"
-            />
+            <MessageCircle size={32} fill="white" className="opacity-90" />
             <span className="text-[11px] font-bold mt-1">
               {post.comments?.length || 0}
             </span>
           </div>
 
           <div className="flex flex-col items-center">
-            <Eye size={30} className="opacity-90 shadow-md" />
+            <Eye size={30} className="opacity-90" />
             <span className="text-[11px] font-bold mt-1">1.5K</span>
           </div>
 
           <div className="flex flex-col items-center">
             <Share2 size={30} fill="white" className="opacity-90" />
-            <span className="text-[11px] font-bold mt-1 text-center">
-              Share
-            </span>
+            <span className="text-[11px] font-bold mt-1">Share</span>
           </div>
 
           <motion.div
             animate={{ rotate: 360 }}
             transition={{ duration: 5, repeat: Infinity, ease: "linear" }}
-            className="w-11 h-11 rounded-full border-[8px] border-zinc-800 bg-gradient-to-tr from-zinc-900 to-zinc-700 flex items-center justify-center mt-2 shadow-2xl"
+            className="w-11 h-11 rounded-full border-[8px] border-zinc-800 bg-zinc-700 flex items-center justify-center mt-2 shadow-2xl"
           >
             <Music size={16} className="text-white/60" />
           </motion.div>
@@ -211,7 +209,6 @@ export default function FlicksApp() {
         .select(`*, comments:comments(*)`)
         .order("created_at", { ascending: false });
       if (data) {
-        // Updated Filter: Allows links AND video files
         const videos = data.filter(
           (p: any) =>
             p.media_url?.toLowerCase().match(/\.(mp4|webm|ogg|mov|m4v)/) ||
@@ -220,7 +217,7 @@ export default function FlicksApp() {
         );
         setFlicks(videos);
       }
-      setTimeout(() => setLoading(false), 2000); // Visual delay for the cassette loader
+      setTimeout(() => setLoading(false), 2000);
     };
     fetchFlicks();
   }, []);
@@ -254,7 +251,6 @@ export default function FlicksApp() {
         <motion.p
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ delay: 0.5 }}
           className="mt-8 text-white font-black italic text-xl tracking-tighter"
         >
           POWERED BY <span className="text-blue-500">FACELOOK</span>
@@ -265,15 +261,27 @@ export default function FlicksApp() {
 
   return (
     <div className="fixed inset-0 bg-black flex justify-center overflow-hidden touch-none">
-      {/* Animated Header */}
+      {/* Stylish Movie Intro Header */}
       <div className="fixed top-0 left-0 w-full z-[100] flex justify-center pt-8 pointer-events-none">
-        <motion.h1
-          initial={{ y: -20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          className="text-white font-black italic text-2xl tracking-tighter drop-shadow-2xl"
+        <motion.div
+          key={currentIndex} // Trigger on scroll
+          initial={{ scale: 3, opacity: 0, filter: "blur(20px)" }}
+          animate={{ scale: 1, opacity: 1, filter: "blur(0px)" }}
+          transition={{ duration: 0.6, ease: "easeOut" }}
+          className="relative"
         >
-          FLI<span className="text-blue-500">CKS</span>
-        </motion.h1>
+          <h1 className="text-white font-black italic text-3xl tracking-tighter drop-shadow-2xl mix-blend-difference">
+            FLI<span className="text-blue-500">CKS</span>
+          </h1>
+          {/* Subtle Glitch Layer */}
+          <motion.h1
+            animate={{ opacity: [0, 0.4, 0], x: [-2, 2, 0] }}
+            transition={{ repeat: Infinity, duration: 0.1, repeatDelay: 3 }}
+            className="absolute inset-0 text-red-500 font-black italic text-3xl tracking-tighter -z-10"
+          >
+            FLICKS
+          </motion.h1>
+        </motion.div>
       </div>
 
       <div
@@ -286,20 +294,16 @@ export default function FlicksApp() {
           <FlickCard key={post.id} post={post} isActive={i === currentIndex} />
         ))}
 
-        {flicks.length === 0 && (
-          <div className="h-full w-full flex flex-col items-center justify-center text-white/30 p-10 text-center">
-            <Disc size={48} className="animate-spin mb-4 opacity-20" />
-            <p className="text-sm font-bold uppercase tracking-widest">
-              No Flicks Ready
-            </p>
-          </div>
-        )}
-
         <div className="fixed right-1 top-1/2 -translate-y-1/2 flex flex-col gap-1.5 z-50 pointer-events-none px-2">
           {flicks.slice(0, 15).map((_, i) => (
-            <div
+            <motion.div
               key={i}
-              className={`w-0.5 rounded-full transition-all duration-300 ${i === currentIndex ? "h-8 bg-blue-500" : "h-1.5 bg-white/10"}`}
+              animate={{
+                height: i === currentIndex ? 30 : 6,
+                backgroundColor:
+                  i === currentIndex ? "#3b82f6" : "rgba(255,255,255,0.1)",
+              }}
+              className="w-1 rounded-full transition-all duration-300"
             />
           ))}
         </div>
