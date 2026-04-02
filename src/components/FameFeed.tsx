@@ -26,31 +26,35 @@ const FameFeed = () => {
     setFetchError(null);
     try {
       // Primary query: posts + comments join
-      const { data, error } = await supabase
+      const { data: joinData, error: joinError } = await supabase
         .from("posts")
         .select(`*, comments:comments(*)`)
         .order("created_at", { ascending: false });
 
-      if (error) {
-        console.warn("[FameFeed] Join query failed:", error.message, "| code:", error.code, "— retrying without join");
-        // Fallback: posts only (in case comments FK doesn't exist yet)
-        const { data: postsOnly, error: err2 } = await supabase
+      if (joinError) {
+        console.warn("[FameFeed] Join query failed, retrying without join...");
+        // Fallback: posts only
+        const { data: postsOnly, error: fallbackError } = await supabase
           .from("posts")
           .select("*")
           .order("created_at", { ascending: false });
-        if (err2) {
-          console.error("[FameFeed] Fallback also failed:", err2.message, "| code:", err2.code);
-          setFetchError(`DB error: ${err2.message} (${err2.code})`);
+
+        if (fallbackError) {
+          console.error("[FameFeed] Fallback failed:", fallbackError.message);
+          setFetchError(`DB error: ${fallbackError.message}`);
         } else {
-          console.log("[FameFeed] Fallback OK — posts:", postsOnly?.length ?? 0, postsOnly);
+          console.log(
+            "[FameFeed] Fallback Success — posts:",
+            postsOnly?.length ?? 0,
+          );
           setPosts(postsOnly ?? []);
         }
       } else {
-        console.log("[FameFeed] Success — posts:", data?.length ?? 0, data);
-        setPosts(data ?? []);
+        console.log("[FameFeed] Success — posts:", joinData?.length ?? 0);
+        setPosts(joinData ?? []);
       }
     } catch (err: any) {
-      console.error("[FameFeed] Network/unexpected error:", err);
+      console.error("[FameFeed] Unexpected error:", err);
       setFetchError(err?.message ?? "Unknown error");
     } finally {
       setLoading(false);
@@ -72,7 +76,9 @@ const FameFeed = () => {
         () => fetchPosts(),
       )
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const handleLike = async (id: string, currentLikes: number) => {
@@ -115,36 +121,47 @@ const FameFeed = () => {
   };
 
   // ── Loading state ──────────────────────────────────────────────────────────
-  if (loading) return (
-    <div className="w-full flex flex-col items-center justify-center py-24 gap-4">
-      <Loader2 size={32} className="animate-spin text-blue-500" />
-      <p className="text-xs font-black text-white/30 uppercase tracking-widest">Loading Feed…</p>
-    </div>
-  );
+  if (loading)
+    return (
+      <div className="w-full flex flex-col items-center justify-center py-24 gap-4">
+        <Loader2 size={32} className="animate-spin text-blue-500" />
+        <p className="text-xs font-black text-white/30 uppercase tracking-widest">
+          Loading Feed…
+        </p>
+      </div>
+    );
 
   // ── Error state ─────────────────────────────────────────────────────────────
-  if (fetchError) return (
-    <div className="w-full flex flex-col items-center justify-center py-24 gap-4 px-6">
-      <WifiOff size={36} className="text-red-400/60" />
-      <p className="text-sm font-black text-white/40 text-center">Could not load posts</p>
-      <p className="text-[11px] text-red-400/60 font-mono text-center break-all">{fetchError}</p>
-      <button
-        onClick={fetchPosts}
-        className="mt-2 px-6 py-2.5 bg-blue-600 hover:bg-blue-500 rounded-2xl text-xs font-black text-white active:scale-95 transition-all"
-      >
-        Retry
-      </button>
-    </div>
-  );
+  if (fetchError)
+    return (
+      <div className="w-full flex flex-col items-center justify-center py-24 gap-4 px-6">
+        <WifiOff size={36} className="text-red-400/60" />
+        <p className="text-sm font-black text-white/40 text-center">
+          Could not load posts
+        </p>
+        <p className="text-[11px] text-red-400/60 font-mono text-center break-all">
+          {fetchError}
+        </p>
+        <button
+          onClick={fetchPosts}
+          className="mt-2 px-6 py-2.5 bg-blue-600 hover:bg-blue-500 rounded-2xl text-xs font-black text-white active:scale-95 transition-all"
+        >
+          Retry
+        </button>
+      </div>
+    );
 
   // ── Empty state ─────────────────────────────────────────────────────────────
-  if (posts.length === 0) return (
-    <div className="w-full flex flex-col items-center justify-center py-24 gap-3 text-white/20">
-      <Newspaper size={40} />
-      <p className="text-sm font-black">No posts yet</p>
-      <p className="text-xs text-white/15">Be the first to share something!</p>
-    </div>
-  );
+  if (posts.length === 0)
+    return (
+      <div className="w-full flex flex-col items-center justify-center py-24 gap-3 text-white/20">
+        <Newspaper size={40} />
+        <p className="text-sm font-black">No posts yet</p>
+        <p className="text-xs text-white/15">
+          Be the first to share something!
+        </p>
+      </div>
+    );
 
   return (
     <div className="w-full bg-transparent font-sans">
@@ -154,7 +171,9 @@ const FameFeed = () => {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           key={post.id}
-          className={`w-full bg-white/5 backdrop-blur-xl border-b border-white/10 ${index === 0 ? "border-t border-white/10" : ""}`}
+          className={`w-full bg-white/5 backdrop-blur-xl border-b border-white/10 ${
+            index === 0 ? "border-t border-white/10" : ""
+          }`}
         >
           {/* Post Header */}
           <div className="px-4 pt-4 pb-3 flex items-center justify-between">
@@ -183,12 +202,14 @@ const FameFeed = () => {
             </div>
           )}
 
-          {post.image_url && (
+          {/* Updated to use media_url as per your Supabase Table */}
+          {post.media_url && (
             <div className="pb-3">
               <img
-                src={post.image_url}
+                src={post.media_url}
                 className="w-full h-auto object-cover"
                 alt="Post content"
+                onError={(e) => (e.currentTarget.style.display = "none")}
               />
             </div>
           )}
@@ -203,7 +224,11 @@ const FameFeed = () => {
                 >
                   <Heart
                     size={20}
-                    className={`transition-all ${post.likes_count > 0 ? "fill-red-500 text-red-500" : "text-white/40 group-hover:text-red-400"}`}
+                    className={`transition-all ${
+                      post.likes_count > 0
+                        ? "fill-red-500 text-red-500"
+                        : "text-white/40 group-hover:text-red-400"
+                    }`}
                   />
                   <span className="text-xs font-black text-white/60">
                     {post.likes_count || 0}
@@ -287,13 +312,6 @@ const FameFeed = () => {
           </div>
         </motion.div>
       ))}
-
-      {posts.length === 0 && (
-        <div className="flex flex-col items-center justify-center py-20 text-white/20">
-          <p className="text-sm font-bold">No posts yet.</p>
-          <p className="text-xs mt-1">Be the first to share something!</p>
-        </div>
-      )}
     </div>
   );
 };
