@@ -9,60 +9,83 @@ import {
   Bookmark,
   Loader2,
   WifiOff,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
-// --- 1. AutoPlay Video Component (Full Screen Optimized) ---
+// --- 1. AutoPlay Video Component (Full Screen + Watermark) ---
 const AutoPlayVideo = ({ src }: { src: string }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const [isMuted, setIsMuted] = useState(true);
 
   useEffect(() => {
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (videoRef.current) {
           if (entry.isIntersecting) {
-            const playPromise = videoRef.current.play();
-            if (playPromise !== undefined) {
-              playPromise.catch(() => {
-                if (videoRef.current) {
-                  videoRef.current.muted = true;
-                  videoRef.current.play();
-                }
-              });
-            }
+            videoRef.current.play().catch(() => {
+              videoRef.current!.muted = true;
+              videoRef.current!.play();
+            });
           } else {
             videoRef.current.pause();
           }
         }
       },
-      { threshold: 0.6 },
+      { threshold: 0.7 },
     );
 
     if (videoRef.current) observer.observe(videoRef.current);
     return () => observer.disconnect();
   }, [src]);
 
+  const toggleMute = () => {
+    if (videoRef.current) {
+      videoRef.current.muted = !videoRef.current.muted;
+      setIsMuted(videoRef.current.muted);
+    }
+  };
+
   return (
-    <video
-      ref={videoRef}
-      src={src}
-      loop
-      muted={false}
-      playsInline
-      // object-cover aur h-full se black bars gayab ho jayenge
-      className="w-full h-full object-cover block bg-black cursor-pointer"
-      onClick={(e) => {
-        const v = e.currentTarget;
-        v.muted = !v.muted;
-      }}
-    />
+    <div className="relative w-full h-full group bg-black">
+      {/* Watermark Overlay */}
+      <div className="absolute top-8 left-6 z-30 pointer-events-none select-none drop-shadow-2xl">
+        <div className="flex flex-col">
+          <span className="text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-[-4px]">
+            Facelook
+          </span>
+          <span className="text-2xl font-black text-white italic tracking-tighter">
+            by FLICKS
+          </span>
+        </div>
+      </div>
+
+      <video
+        ref={videoRef}
+        src={src}
+        loop
+        muted={isMuted}
+        playsInline
+        className="w-full h-full object-cover block cursor-pointer"
+        onClick={toggleMute}
+      />
+
+      {/* Mute Indicator */}
+      <div className="absolute bottom-24 right-6 z-30 p-2 bg-black/20 backdrop-blur-md rounded-full text-white pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
+        {isMuted ? <VolumeX size={20} /> : <Volume2 size={20} />}
+      </div>
+    </div>
   );
 };
 
-// --- 2. Smart Media Renderer (No Black Space) ---
+// --- 2. Smart Media Renderer ---
 const MediaRenderer = ({ post }: { post: any }) => {
   const url = post.media_url;
-  if (!url) return null;
+  if (!url)
+    return (
+      <div className="w-full h-full bg-gradient-to-b from-slate-800 to-black" />
+    );
 
   const isYouTube =
     post.metadata?.is_youtube ||
@@ -76,41 +99,47 @@ const MediaRenderer = ({ post }: { post: any }) => {
         /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=|\/shorts\/)([^#\&\?]*).*/;
       const match = url.match(regExp);
       const videoId = match && match[2].length === 11 ? match[2] : null;
-      embedUrl = `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&loop=1&playlist=${videoId}`;
+      embedUrl = `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&loop=1&playlist=${videoId}&controls=0&modestbranding=1&iv_load_policy=3`;
     }
 
     return (
-      <div className="relative w-full h-full bg-black">
+      <div className="relative w-full h-full bg-black overflow-hidden">
+        {/* YT Watermark Overlay */}
+        <div className="absolute top-8 left-6 z-30 pointer-events-none flex flex-col drop-shadow-lg">
+          <span className="text-[8px] font-black text-white/40 uppercase tracking-widest">
+            Facelook
+          </span>
+          <span className="text-xl font-black text-white italic">
+            by FLICKS
+          </span>
+        </div>
         <iframe
           src={embedUrl}
-          className="absolute inset-0 w-full h-full object-cover"
+          className="absolute inset-0 w-full h-[120%] -top-[10%] pointer-events-none scale-[1.3]"
           allow="autoplay; encrypted-media"
-          allowFullScreen
-          title="YouTube Video"
+          title="YouTube Flick"
         />
       </div>
     );
   }
 
-  // Support for Direct Links (Dropbox, RapidCDN, etc.)
   const isVideoFile =
     post.type === "video" ||
     /\.(mp4|webm|ogg|mov|m4v)/i.test(url.split("?")[0]) ||
-    url.includes("raw=1") ||
     url.includes("rapidcdn.app");
 
-  if (isVideoFile) {
-    return <AutoPlayVideo src={url} />;
-  }
+  if (isVideoFile) return <AutoPlayVideo src={url} />;
 
   return (
-    <img
-      src={url}
-      // h-full aur object-cover images ko bhi stretch hone se bachayega aur full screen dikhayega
-      className="w-full h-full object-cover block"
-      alt="Post content"
-      loading="lazy"
-    />
+    <div className="relative w-full h-full">
+      <div className="absolute top-8 left-6 z-30 pointer-events-none flex flex-col drop-shadow-lg">
+        <span className="text-[8px] font-black text-white/40 uppercase tracking-widest">
+          Facelook
+        </span>
+        <span className="text-xl font-black text-white italic">by FLICKS</span>
+      </div>
+      <img src={url} className="w-full h-full object-cover" alt="Flick" />
+    </div>
   );
 };
 
@@ -122,18 +151,15 @@ const FameFeed = () => {
   const [commentText, setCommentText] = useState("");
 
   const fetchPosts = async () => {
-    setLoading(true);
-    setFetchError(null);
     try {
-      const { data: joinData, error: joinError } = await supabase
+      const { data, error } = await supabase
         .from("posts")
         .select(`*, comments:comments(*)`)
         .order("created_at", { ascending: false });
-
-      if (joinError) throw joinError;
-      setPosts(joinData ?? []);
+      if (error) throw error;
+      setPosts(data ?? []);
     } catch (err: any) {
-      setFetchError(err?.message ?? "Unknown error");
+      setFetchError(err.message);
     } finally {
       setLoading(false);
     }
@@ -141,31 +167,25 @@ const FameFeed = () => {
 
   useEffect(() => {
     fetchPosts();
-    const channel = supabase
-      .channel("fame-feed-changes")
+    const sub = supabase
+      .channel("realtime-flicks")
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "posts" },
         () => fetchPosts(),
       )
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "comments" },
-        () => fetchPosts(),
-      )
       .subscribe();
-
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(sub);
     };
   }, []);
 
-  const handleLike = async (id: string, currentLikes: number) => {
-    const { error } = await supabase
+  const handleLike = async (id: string, current: number) => {
+    await supabase
       .from("posts")
-      .update({ likes_count: (currentLikes || 0) + 1 })
+      .update({ likes_count: (current || 0) + 1 })
       .eq("id", id);
-    if (error) console.error("Like error:", error);
+    fetchPosts();
   };
 
   const handleAddComment = async (postId: string) => {
@@ -173,203 +193,174 @@ const FameFeed = () => {
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    const authorName =
-      user?.user_metadata?.full_name || user?.email?.split("@")[0] || "User";
-
-    try {
-      const { error } = await supabase
-        .from("comments")
-        .insert([
-          { post_id: postId, content: commentText, author: authorName },
-        ]);
-      if (error) throw error;
+    const { error } = await supabase.from("comments").insert([
+      {
+        post_id: postId,
+        content: commentText,
+        author: user?.user_metadata?.full_name || "Vibe User",
+      },
+    ]);
+    if (!error) {
       setCommentText("");
       fetchPosts();
-    } catch (err: any) {
-      console.error("Comment error:", err.message);
-    }
-  };
-
-  const handleShare = async (post: any) => {
-    try {
-      if (navigator.share) {
-        await navigator.share({
-          title: "FameFeed",
-          text: post.content,
-          url: window.location.href,
-        });
-      } else {
-        await navigator.clipboard.writeText(window.location.href);
-        alert("Link copied! 🚀");
-      }
-    } catch (err) {
-      console.log("Share failed");
     }
   };
 
   if (loading)
     return (
-      <div className="w-full flex flex-col items-center justify-center py-24 gap-4">
-        <Loader2 size={32} className="animate-spin text-blue-500" />
-        <p className="text-xs font-black text-white/30 uppercase tracking-widest">
-          Loading Vibe...
+      <div className="w-full h-screen bg-black flex flex-col items-center justify-center">
+        <Loader2 className="animate-spin text-blue-500 mb-4" size={40} />
+        <p className="text-white/20 font-black uppercase tracking-[0.4em] text-[10px]">
+          Loading Flicks
         </p>
       </div>
     );
 
-  if (fetchError)
-    return (
-      <div className="w-full flex flex-col items-center justify-center py-24 gap-4 px-6 text-center">
-        <WifiOff size={36} className="text-red-400/60" />
-        <p className="text-sm font-black text-white/40">Offline Mode?</p>
-        <button
-          onClick={fetchPosts}
-          className="px-6 py-2 bg-blue-600 rounded-2xl text-xs font-black text-white"
-        >
-          Retry
-        </button>
-      </div>
-    );
-
   return (
-    <div className="w-full bg-transparent">
-      {posts.map((post, index) => (
+    <div className="w-full h-screen overflow-y-scroll snap-y snap-mandatory scroll-smooth bg-black no-scrollbar">
+      {posts.map((post) => (
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
           key={post.id}
-          className={`w-full bg-white/5 backdrop-blur-xl border-b border-white/10 ${index === 0 ? "border-t border-white/10" : ""}`}
+          className="w-full h-screen snap-start snap-always relative overflow-hidden bg-black"
         >
-          {/* Header */}
-          <div className="px-4 pt-4 pb-3 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-black shadow-lg uppercase">
-                {post.author ? post.author[0] : "V"}
-              </div>
-              <div>
-                <h4 className="text-sm font-black text-white">
-                  {post.author || "Vibe User"}
-                </h4>
-                <p className="text-[9px] text-blue-400 font-black uppercase tracking-widest">
-                  Verified Vibe
-                </p>
-              </div>
-            </div>
-            <MoreHorizontal size={18} className="text-white/30" />
+          {/* Background Content */}
+          <div className="absolute inset-0 z-0">
+            <MediaRenderer post={post} />
           </div>
 
-          {/* Content Text */}
-          {post.content && (
-            <div className="px-4 pb-3">
-              <p className="text-white/80 text-sm font-medium leading-relaxed">
-                {post.content}
-              </p>
-            </div>
-          )}
-
-          {/* Media Section - FIXED ASPECT RATIO FOR FULL SCREEN */}
-          {post.media_url && (
-            <div className="w-full aspect-[9/16] bg-black overflow-hidden border-y border-white/5 relative">
-              <MediaRenderer post={post} />
-            </div>
-          )}
-
-          {/* Actions */}
-          <div className="px-4 py-3">
+          {/* Top UI Overlay */}
+          <div className="absolute top-0 inset-x-0 z-40 p-6 pt-14 bg-gradient-to-b from-black/70 to-transparent">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-6">
-                <button
-                  onClick={() => handleLike(post.id, post.likes_count)}
-                  className="flex items-center gap-2 group"
-                >
-                  <Heart
-                    size={20}
-                    className={`${post.likes_count > 0 ? "fill-red-500 text-red-500" : "text-white/40"} transition-transform group-active:scale-125`}
-                  />
-                  <span className="text-xs font-black text-white/60">
-                    {post.likes_count || 0}
-                  </span>
-                </button>
-                <button
-                  onClick={() =>
-                    setActiveComment(activeComment === post.id ? null : post.id)
-                  }
-                  className="flex items-center gap-2"
-                >
-                  <MessageCircle
-                    size={20}
-                    className={
-                      activeComment === post.id
-                        ? "text-blue-400"
-                        : "text-white/40"
-                    }
-                  />
-                  <span className="text-xs font-black text-white/60">
-                    {post.comments?.length || 0}
-                  </span>
-                </button>
-                <button
-                  onClick={() => handleShare(post)}
-                  className="text-white/40 active:text-blue-400"
-                >
-                  <Share2 size={20} />
-                </button>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full border-2 border-white/30 bg-blue-600 flex items-center justify-center text-white font-black">
+                  {post.author?.[0] || "V"}
+                </div>
+                <div>
+                  <h4 className="text-white font-black text-sm drop-shadow-md">
+                    {post.author || "Vibe User"}
+                  </h4>
+                  <p className="text-[9px] text-blue-400 font-black tracking-tighter uppercase">
+                    Verified Creator
+                  </p>
+                </div>
               </div>
-              <Bookmark size={20} className="text-white/20" />
+              <MoreHorizontal className="text-white/60" />
             </div>
-
-            {/* Comment Section */}
-            <AnimatePresence>
-              {activeComment === post.id && (
-                <motion.div
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: "auto", opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  className="pt-4 overflow-hidden"
-                >
-                  <div className="flex gap-2 mb-4">
-                    <input
-                      type="text"
-                      placeholder="Write a comment..."
-                      className="flex-1 bg-white/5 border border-white/10 rounded-2xl text-xs px-4 py-3 text-white outline-none focus:border-blue-500/50"
-                      value={commentText}
-                      onChange={(e) => setCommentText(e.target.value)}
-                      onKeyDown={(e) =>
-                        e.key === "Enter" && handleAddComment(post.id)
-                      }
-                    />
-                    <button
-                      onClick={() => handleAddComment(post.id)}
-                      className="bg-blue-600 text-white p-3 rounded-2xl shadow-lg active:scale-90 transition-transform"
-                    >
-                      <Send size={14} />
-                    </button>
-                  </div>
-                  <div className="space-y-3 max-h-52 overflow-y-auto pr-2 custom-scrollbar">
-                    {post.comments?.map((c: any) => (
-                      <div
-                        key={c.id}
-                        className="flex gap-3 items-start animate-in slide-in-from-left-2"
-                      >
-                        <div className="w-7 h-7 rounded-xl bg-gradient-to-br from-slate-700 to-slate-800 flex items-center justify-center text-[10px] font-black text-blue-400 border border-white/10 uppercase shrink-0">
-                          {c.author ? c.author[0] : "U"}
-                        </div>
-                        <div className="bg-white/5 px-3 py-2 rounded-2xl flex-1 border border-white/5">
-                          <p className="text-[10px] font-black text-blue-400 mb-0.5">
-                            {c.author || "User"}
-                          </p>
-                          <p className="text-xs text-white/70 font-medium leading-relaxed">
-                            {c.content}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
           </div>
+
+          {/* Side Actions (Floating Right) */}
+          <div className="absolute right-4 bottom-32 z-40 flex flex-col gap-6 items-center">
+            <button
+              onClick={() => handleLike(post.id, post.likes_count)}
+              className="flex flex-col items-center group"
+            >
+              <div
+                className={`p-3 rounded-full backdrop-blur-xl ${post.likes_count > 0 ? "bg-red-500" : "bg-white/10"}`}
+              >
+                <Heart
+                  size={26}
+                  className={
+                    post.likes_count > 0
+                      ? "fill-white text-white"
+                      : "text-white"
+                  }
+                />
+              </div>
+              <span className="text-[10px] font-black text-white mt-1">
+                {post.likes_count || 0}
+              </span>
+            </button>
+
+            <button
+              onClick={() => setActiveComment(post.id)}
+              className="flex flex-col items-center"
+            >
+              <div className="p-3 rounded-full bg-white/10 backdrop-blur-xl">
+                <MessageCircle size={26} className="text-white" />
+              </div>
+              <span className="text-[10px] font-black text-white mt-1">
+                {post.comments?.length || 0}
+              </span>
+            </button>
+
+            <button
+              onClick={() => navigator.share?.({ url: window.location.href })}
+              className="flex flex-col items-center"
+            >
+              <div className="p-3 rounded-full bg-white/10 backdrop-blur-xl">
+                <Share2 size={26} className="text-white" />
+              </div>
+              <span className="text-[10px] font-black text-white mt-1 uppercase">
+                Share
+              </span>
+            </button>
+          </div>
+
+          {/* Bottom Info Bar */}
+          <div className="absolute bottom-0 inset-x-0 z-40 p-6 pb-12 bg-gradient-to-t from-black/90 via-black/20 to-transparent">
+            <div className="max-w-[80%]">
+              {post.content && (
+                <p className="text-white text-sm font-medium mb-4 line-clamp-2 drop-shadow-lg leading-snug">
+                  {post.content}
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* Comment Bottom Sheet */}
+          <AnimatePresence>
+            {activeComment === post.id && (
+              <motion.div
+                initial={{ y: "100%" }}
+                animate={{ y: 0 }}
+                exit={{ y: "100%" }}
+                className="absolute inset-x-0 bottom-0 z-[60] bg-slate-900 rounded-t-[2.5rem] p-6 pb-12 border-t border-white/10 shadow-2xl"
+              >
+                <div className="w-12 h-1.5 bg-white/10 rounded-full mx-auto mb-8" />
+                <div className="flex gap-2 mb-6">
+                  <input
+                    type="text"
+                    placeholder="Add a comment..."
+                    className="flex-1 bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-white text-sm outline-none"
+                    value={commentText}
+                    onChange={(e) => setCommentText(e.target.value)}
+                  />
+                  <button
+                    onClick={() => handleAddComment(post.id)}
+                    className="bg-blue-600 text-white p-4 rounded-2xl"
+                  >
+                    <Send size={20} />
+                  </button>
+                </div>
+                <div className="space-y-4 max-h-72 overflow-y-auto no-scrollbar">
+                  {post.comments?.map((c: any) => (
+                    <div
+                      key={c.id}
+                      className="flex gap-4 p-2 rounded-xl bg-white/5 border border-white/5"
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center text-[10px] font-black text-blue-400 shrink-0">
+                        {c.author?.[0]}
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-black text-blue-400 uppercase tracking-tighter">
+                          {c.author}
+                        </p>
+                        <p className="text-xs text-white/80 leading-relaxed mt-0.5">
+                          {c.content}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <button
+                  onClick={() => setActiveComment(null)}
+                  className="w-full mt-8 text-white/20 text-[10px] font-black uppercase tracking-widest"
+                >
+                  Close Flicks Chat
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </motion.div>
       ))}
     </div>
