@@ -618,7 +618,7 @@ const Index = ({ session }: { session: Session }) => {
         className={`fixed inset-0 ${bgImage ? "bg-slate-900/50 backdrop-blur-[2px]" : "bg-transparent"} pointer-events-none`}
       />
 
-      {activeFeature !== "Flicks" && activeFeature !== "Fame" && (
+      {activeFeature !== "Flicks" && (
         <Header
           onProfileClick={() => setActiveFeature("Face")}
           userId={userId}
