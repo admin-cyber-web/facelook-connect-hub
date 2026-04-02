@@ -6,7 +6,6 @@ import {
   Loader2,
   Smile,
   Globe,
-  Video,
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { motion, AnimatePresence } from "framer-motion";
@@ -36,9 +35,22 @@ const CreatePost = ({ isOpen, onClose, userProfile }: CreatePostProps) => {
     setLoading(true);
 
     try {
+      // 1. Direct fetch current user from Supabase Auth (Best for Name issues)
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      // 2. Identify Name: Auth Metadata > Prop > Email > Fallback
+      const authorName =
+        user?.user_metadata?.full_name ||
+        user?.user_metadata?.name ||
+        userProfile?.full_name ||
+        user?.email?.split("@")[0] ||
+        "Vibe User";
+
       let finalMediaUrl = "";
 
-      // 1. File Upload (Image/Video)
+      // 3. File Upload (Image/Video)
       if (file) {
         const fileName = `${Date.now()}-${file.name.replace(/\s+/g, "_")}`;
         const { data: uploadData, error: uploadError } = await supabase.storage
@@ -56,21 +68,13 @@ const CreatePost = ({ isOpen, onClose, userProfile }: CreatePostProps) => {
         }
       }
 
-      // 2. Fix Anonymous: Picking the best possible name
-      const authorName =
-        userProfile?.full_name ||
-        userProfile?.display_name ||
-        userProfile?.user_metadata?.full_name ||
-        userProfile?.email?.split("@")[0] ||
-        "Vibe User";
-
-      // 3. Database Insert
+      // 4. Database Insert
       const { error: insertError } = await supabase.from("posts").insert([
         {
-          author_id: userProfile?.id,
+          author_id: user?.id || userProfile?.id,
           content: content,
           media_url: finalMediaUrl,
-          author: authorName, // No more Anonymous!
+          author: authorName,
           post_type: file?.type.startsWith("video/") ? "video" : "image",
         },
       ]);
@@ -82,9 +86,6 @@ const CreatePost = ({ isOpen, onClose, userProfile }: CreatePostProps) => {
       setFile(null);
       setPreview(null);
       onClose();
-      alert(
-        file?.type.startsWith("video/") ? "Video Live! 🎬" : "Post Live! 🚀",
-      );
     } catch (err: any) {
       console.error("Error Details:", err);
       alert(`Error: ${err.message || "Post failed."}`);
@@ -115,7 +116,7 @@ const CreatePost = ({ isOpen, onClose, userProfile }: CreatePostProps) => {
             </div>
 
             <div className="p-6 space-y-4">
-              {/* User Info */}
+              {/* User Info Preview */}
               <div className="flex items-center gap-3">
                 <img
                   src={
@@ -183,15 +184,12 @@ const CreatePost = ({ isOpen, onClose, userProfile }: CreatePostProps) => {
                       onChange={handleFileChange}
                     />
                   </label>
-                  <button className="p-3 bg-yellow-50 text-yellow-600 rounded-2xl hover:bg-yellow-100">
-                    <Smile size={20} />
-                  </button>
                 </div>
 
                 <button
                   onClick={handlePost}
                   disabled={loading || (!content && !file)}
-                  className="flex items-center gap-2 px-8 py-4 rounded-2xl font-black text-xs uppercase bg-blue-600 text-white disabled:bg-slate-100 disabled:text-slate-400 shadow-lg shadow-blue-200 active:scale-95 transition-all"
+                  className="flex items-center gap-2 px-8 py-4 rounded-2xl font-black text-xs uppercase bg-blue-600 text-white disabled:bg-slate-100 disabled:text-slate-400 shadow-lg active:scale-95 transition-all"
                 >
                   {loading ? (
                     <Loader2 size={16} className="animate-spin" />
