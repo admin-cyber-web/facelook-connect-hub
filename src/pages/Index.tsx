@@ -12,7 +12,6 @@ import {
   BookOpen,
   MapPin,
   Phone,
-  Image as ImageIcon,
   MessageSquare,
   Palette,
   EyeOff,
@@ -30,7 +29,6 @@ import { supabase } from "@/lib/supabaseClient";
 
 import Header from "@/components/Header";
 import GolSlider from "@/components/GolSlider";
-import ConnectionPanel from "@/components/ConnectionPanel";
 import FameFeed from "@/components/FameFeed";
 import FlicksFeed from "@/components/FlicksFeed";
 import CreatePost from "@/components/CreatePost";
@@ -620,7 +618,7 @@ const Index = ({ session }: { session: Session }) => {
         className={`fixed inset-0 ${bgImage ? "bg-slate-900/50 backdrop-blur-[2px]" : "bg-transparent"} pointer-events-none`}
       />
 
-      {activeFeature !== "Flicks" && (
+      {activeFeature !== "Flicks" && activeFeature !== "Fame" && (
         <Header
           onProfileClick={() => setActiveFeature("Face")}
           userId={userId}
@@ -642,31 +640,10 @@ const Index = ({ session }: { session: Session }) => {
           >
             {/* 1. FAME ─────────────────────────────────────────────────────── */}
             {activeFeature === "Fame" && (
-              <div className="flex flex-col gap-0">
-                <ConnectionPanel />
-                <div
-                  className="bg-white/5 backdrop-blur-xl p-4 flex items-center gap-4 border-b border-white/10 active:bg-white/10 cursor-pointer"
-                  onClick={() => setIsPostOpen(true)}
-                >
-                  {profile.avatar_url ? (
-                    <img
-                      src={profile.avatar_url}
-                      className="w-11 h-11 rounded-full object-cover border-2 border-blue-500/30"
-                    />
-                  ) : (
-                    <div className="w-11 h-11 rounded-full bg-blue-600 border-2 border-blue-500/30 flex items-center justify-center text-white font-black text-sm">
-                      {profile.full_name?.[0] || "U"}
-                    </div>
-                  )}
-                  <div className="flex-1 bg-white/5 py-2.5 px-6 rounded-full text-white/40 text-sm font-semibold border border-white/5">
-                    What's on your mind?
-                  </div>
-                  <ImageIcon size={22} className="text-blue-400" />
-                </div>
-                <div className="w-full">
-                  <FameFeed />
-                </div>
-              </div>
+              <FameFeed
+                onPostClick={() => setIsPostOpen(true)}
+                userProfile={profile}
+              />
             )}
 
             {/* 2. FACE ─────────────────────────────────────────────────────── */}
