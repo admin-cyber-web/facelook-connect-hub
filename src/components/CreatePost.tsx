@@ -6,6 +6,7 @@ import {
   Loader2,
   Smile,
   Globe,
+  Video,
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { motion, AnimatePresence } from "framer-motion";
@@ -18,56 +19,60 @@ interface CreatePostProps {
 
 const CreatePost = ({ isOpen, onClose, userProfile }: CreatePostProps) => {
   const [content, setContent] = useState("");
-  const [image, setImage] = useState<File | null>(null);
+  const [file, setFile] = useState<File | null>(null); // renamed image to file
   const [preview, setPreview] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setImage(file);
-      setPreview(URL.createObjectURL(file));
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0];
+    if (selectedFile) {
+      setFile(selectedFile);
+      setPreview(URL.createObjectURL(selectedFile));
     }
   };
 
   const handlePost = async () => {
-    if (!content && !image) return;
+    if (!content && !file) return;
     setLoading(true);
 
     try {
       let finalMediaUrl = "";
 
-      // 1. Image Upload Logic (Agar image select ki hai)
-      if (image) {
-        const fileName = `${Date.now()}-${image.name}`;
+      // 1. File Upload Logic (Supports Image & Video)
+      if (file) {
+        const fileName = `${Date.now()}-${file.name.replace(/\s+/g, "_")}`;
+
         const { data: uploadData, error: uploadError } = await supabase.storage
-          .from("posts-bucket")
-          .upload(fileName, image);
+          .from("posts")
+          .upload(fileName, file, {
+            cacheControl: "3600",
+            upsert: false,
+          });
 
         if (uploadError) {
-          console.error("Storage Error:", uploadError.message);
-          throw new Error(
-            "Image upload failed. Check if 'posts-bucket' is Public.",
-          );
+          console.error("Storage Error Details:", uploadError);
+          throw new Error(`Upload failed: ${uploadError.message}`);
         }
 
         if (uploadData) {
           const { data } = supabase.storage
-            .from("posts-bucket")
+            .from("posts")
             .getPublicUrl(fileName);
           finalMediaUrl = data.publicUrl;
         }
       }
 
-      // 2. Database Insert Logic (Columns Match with your Table)
+      // 2. Database Insert Logic
       const { data, error: insertError } = await supabase
         .from("posts")
         .insert([
           {
-            author_id: userProfile?.id, // Table column: author_id
-            content: content, // Table column: content
-            media_url: finalMediaUrl, // Table column: media_url
-            author: userProfile?.full_name || "Anonymous", // Table column: author
+            author_id: userProfile?.id,
+            content: content,
+            media_url: finalMediaUrl,
+            author: userProfile?.full_name || "Anonymous",
+            // Agar aapne post_type column banaya hai to ye bhi bhej sakte ho:
+            // post_type: file?.type.startsWith("video/") ? "video" : "image",
           },
         ])
         .select();
@@ -77,17 +82,15 @@ const CreatePost = ({ isOpen, onClose, userProfile }: CreatePostProps) => {
         throw insertError;
       }
 
-      console.log("Post Successful:", data);
-
-      // Success: State clear karo aur close karo
+      // Success Reset
       setContent("");
-      setImage(null);
+      setFile(null);
       setPreview(null);
       onClose();
       alert("Post Live! 🚀");
     } catch (err: any) {
       console.error("Full Error Details:", err);
-      alert(`Error: ${err.message || "Something went wrong"}`);
+      alert(`Error: ${err.message || "Post failed."}`);
     } finally {
       setLoading(false);
     }
@@ -103,7 +106,6 @@ const CreatePost = ({ isOpen, onClose, userProfile }: CreatePostProps) => {
             exit={{ y: "100%" }}
             className="bg-white w-full max-w-lg rounded-t-[3rem] sm:rounded-[3rem] overflow-hidden shadow-2xl"
           >
-            {/* Header */}
             <div className="p-6 border-b border-slate-50 flex items-center justify-between">
               <h3 className="text-xl font-black text-slate-800">Create Post</h3>
               <button
@@ -115,12 +117,11 @@ const CreatePost = ({ isOpen, onClose, userProfile }: CreatePostProps) => {
             </div>
 
             <div className="p-6 space-y-4">
-              {/* User Info */}
               <div className="flex items-center gap-3">
                 <img
                   src={
                     userProfile?.avatar_url ||
-                    "https://ui-avatars.com/api/?name=" + userProfile?.full_name
+                    `https://ui-avatars.com/api/?name=${userProfile?.full_name}`
                   }
                   className="w-12 h-12 rounded-2xl object-cover border-2 border-blue-50"
                   alt="Avatar"
@@ -135,7 +136,6 @@ const CreatePost = ({ isOpen, onClose, userProfile }: CreatePostProps) => {
                 </div>
               </div>
 
-              {/* Input Area */}
               <textarea
                 placeholder="What's on your mind? 🔥"
                 className="w-full min-h-[120px] text-lg font-medium text-slate-700 outline-none resize-none placeholder:text-slate-300"
@@ -143,27 +143,33 @@ const CreatePost = ({ isOpen, onClose, userProfile }: CreatePostProps) => {
                 onChange={(e) => setContent(e.target.value)}
               />
 
-              {/* Image Preview */}
               {preview && (
-                <div className="relative rounded-3xl overflow-hidden border-4 border-slate-50 shadow-sm">
-                  <img
-                    src={preview}
-                    className="w-full max-h-64 object-cover"
-                    alt="Preview"
-                  />
+                <div className="relative rounded-3xl overflow-hidden border-4 border-slate-50 shadow-sm bg-slate-100">
+                  {file?.type.startsWith("video/") ? (
+                    <video
+                      src={preview}
+                      className="w-full max-h-64 object-contain mx-auto bg-black"
+                      controls
+                    />
+                  ) : (
+                    <img
+                      src={preview}
+                      className="w-full max-h-64 object-cover"
+                      alt="Preview"
+                    />
+                  )}
                   <button
                     onClick={() => {
-                      setImage(null);
+                      setFile(null);
                       setPreview(null);
                     }}
-                    className="absolute top-2 right-2 p-2 bg-black/50 text-white rounded-full backdrop-blur-md hover:bg-black/70"
+                    className="absolute top-2 right-2 p-2 bg-black/50 text-white rounded-full backdrop-blur-md hover:bg-black/70 z-10"
                   >
                     <X size={16} />
                   </button>
                 </div>
               )}
 
-              {/* Bottom Actions */}
               <div className="flex items-center justify-between pt-4 border-t border-slate-50">
                 <div className="flex gap-2">
                   <label className="p-3 bg-blue-50 text-blue-600 rounded-2xl cursor-pointer hover:bg-blue-100 transition-colors">
@@ -171,8 +177,8 @@ const CreatePost = ({ isOpen, onClose, userProfile }: CreatePostProps) => {
                     <input
                       type="file"
                       hidden
-                      accept="image/*"
-                      onChange={handleImageChange}
+                      accept="image/*,video/*"
+                      onChange={handleFileChange}
                     />
                   </label>
                   <button className="p-3 bg-yellow-50 text-yellow-600 rounded-2xl hover:bg-yellow-100 transition-colors">
@@ -182,7 +188,7 @@ const CreatePost = ({ isOpen, onClose, userProfile }: CreatePostProps) => {
 
                 <button
                   onClick={handlePost}
-                  disabled={loading || (!content && !image)}
+                  disabled={loading || (!content && !file)}
                   className="flex items-center gap-2 px-8 py-4 rounded-2xl font-black text-xs uppercase bg-blue-600 text-white disabled:bg-slate-100 disabled:text-slate-400 shadow-lg shadow-blue-200 active:scale-95 transition-all"
                 >
                   {loading ? (
