@@ -22,8 +22,15 @@ const CreatePost = ({ isOpen, onClose, userProfile }: CreatePostProps) => {
   const [preview, setPreview] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // Replace with your actual admin email
   const ADMIN_EMAIL = "your-email@gmail.com";
+
+  // --- Utility: YouTube Link Detector ---
+  const getYouTubeId = (url: string) => {
+    const regExp =
+      /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+    const match = url.match(regExp);
+    return match && match[2].length === 11 ? match[2] : null;
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -38,12 +45,10 @@ const CreatePost = ({ isOpen, onClose, userProfile }: CreatePostProps) => {
     setLoading(true);
 
     try {
-      // 1. Direct fetch current user
       const {
         data: { user },
       } = await supabase.auth.getUser();
 
-      // 2. Identify Name
       const authorName =
         user?.user_metadata?.full_name ||
         user?.user_metadata?.name ||
@@ -53,8 +58,17 @@ const CreatePost = ({ isOpen, onClose, userProfile }: CreatePostProps) => {
 
       let finalMediaUrl = "";
       let mediaType = "text";
+      let isYoutube = false;
 
-      // 3. File Upload Logic
+      // 1. Check for YouTube Link in content if no file is uploaded
+      const ytId = getYouTubeId(content);
+      if (ytId && !file) {
+        finalMediaUrl = `https://www.youtube.com/embed/${ytId}`;
+        mediaType = "video";
+        isYoutube = true;
+      }
+
+      // 2. File Upload Logic (Overrides YouTube if file exists)
       if (file) {
         mediaType = file.type.startsWith("video/") ? "video" : "image";
         const fileName = `${Date.now()}-${file.name.replace(/\s+/g, "_")}`;
@@ -70,24 +84,26 @@ const CreatePost = ({ isOpen, onClose, userProfile }: CreatePostProps) => {
             .from("posts")
             .getPublicUrl(fileName);
           finalMediaUrl = data.publicUrl;
+          isYoutube = false; // It's a direct file
         }
       }
 
-      // 4. Database Insert (Matching your new Schema)
+      // 3. Database Insert
       const { error: insertError } = await supabase.from("posts").insert([
         {
           author_id: user?.id || userProfile?.id,
           content: content,
           media_url: finalMediaUrl,
           author: authorName,
-          type: mediaType, // Correct column name
-          is_admin_post: user?.email === ADMIN_EMAIL, // Marks if it's you
+          type: mediaType,
+          is_admin_post: user?.email === ADMIN_EMAIL,
+          // metadata mein store kar rahe hain taaki frontend ko pata chale ye YT hai
+          metadata: { is_youtube: isYoutube },
         },
       ]);
 
       if (insertError) throw insertError;
 
-      // Success Reset
       setContent("");
       setFile(null);
       setPreview(null);
@@ -110,7 +126,6 @@ const CreatePost = ({ isOpen, onClose, userProfile }: CreatePostProps) => {
             exit={{ y: "100%" }}
             className="bg-white w-full max-w-lg rounded-t-[3rem] sm:rounded-[3rem] overflow-hidden shadow-2xl"
           >
-            {/* Header */}
             <div className="p-6 border-b border-slate-50 flex items-center justify-between">
               <h3 className="text-xl font-black text-slate-800">New Vibe</h3>
               <button
@@ -122,7 +137,6 @@ const CreatePost = ({ isOpen, onClose, userProfile }: CreatePostProps) => {
             </div>
 
             <div className="p-6 space-y-4">
-              {/* User Info Preview */}
               <div className="flex items-center gap-3">
                 <img
                   src={
@@ -142,15 +156,13 @@ const CreatePost = ({ isOpen, onClose, userProfile }: CreatePostProps) => {
                 </div>
               </div>
 
-              {/* Text Area */}
               <textarea
-                placeholder="Share your vibe... 🔥"
+                placeholder="Paste a YouTube link or share your vibe... 🔥"
                 className="w-full min-h-[120px] text-lg font-medium text-slate-700 outline-none resize-none placeholder:text-slate-300"
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
               />
 
-              {/* Media Preview */}
               {preview && (
                 <div className="relative rounded-3xl overflow-hidden border-4 border-slate-50 shadow-sm bg-black">
                   {file?.type.startsWith("video/") ? (
@@ -178,7 +190,6 @@ const CreatePost = ({ isOpen, onClose, userProfile }: CreatePostProps) => {
                 </div>
               )}
 
-              {/* Bottom Actions */}
               <div className="flex items-center justify-between pt-4 border-t border-slate-50">
                 <div className="flex gap-2">
                   <label className="p-3 bg-blue-50 text-blue-600 rounded-2xl cursor-pointer hover:bg-blue-100 transition-all">

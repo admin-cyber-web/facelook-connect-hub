@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
-// --- 1. AutoPlay Video Component (Updated for Sound) ---
+// --- 1. AutoPlay Video Component ---
 const AutoPlayVideo = ({ src }: { src: string }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -21,12 +21,9 @@ const AutoPlayVideo = ({ src }: { src: string }) => {
       ([entry]) => {
         if (videoRef.current) {
           if (entry.isIntersecting) {
-            // Sound ke saath play karne ki koshish
             const playPromise = videoRef.current.play();
-
             if (playPromise !== undefined) {
               playPromise.catch(() => {
-                // Agar browser block kare toh muted mode mein play ho jaye (Auto-fallback)
                 if (videoRef.current) {
                   videoRef.current.muted = true;
                   videoRef.current.play();
@@ -50,14 +47,65 @@ const AutoPlayVideo = ({ src }: { src: string }) => {
       ref={videoRef}
       src={src}
       loop
-      muted={false} // Default sound ON rakha hai
+      muted={false}
       playsInline
       className="w-full h-auto max-h-[500px] object-contain block bg-black cursor-pointer"
       onClick={(e) => {
-        // User click karke sound toggle kar sake
         const v = e.currentTarget;
         v.muted = !v.muted;
       }}
+    />
+  );
+};
+
+// --- 2. Smart Media Renderer (YouTube + Video + Image) ---
+const MediaRenderer = ({ post }: { post: any }) => {
+  const url = post.media_url;
+  if (!url) return null;
+
+  // Check if it's a YouTube link (from metadata or URL string)
+  const isYouTube =
+    post.metadata?.is_youtube ||
+    url.includes("youtube.com") ||
+    url.includes("youtu.be");
+
+  if (isYouTube) {
+    // Extract ID and convert to Embed URL if not already
+    let embedUrl = url;
+    if (!url.includes("embed")) {
+      const videoId = url.split("v=")[1] || url.split("/").pop();
+      embedUrl = `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&loop=1&playlist=${videoId}`;
+    }
+
+    return (
+      <div className="relative w-full aspect-[9/16] bg-black">
+        <iframe
+          src={embedUrl}
+          className="absolute inset-0 w-full h-full"
+          allow="autoplay; encrypted-media"
+          allowFullScreen
+          title="YouTube Video"
+        />
+      </div>
+    );
+  }
+
+  // Check for Direct Video Files
+  const isVideoFile =
+    url.toLowerCase().match(/\.(mp4|webm|ogg|mov|m4v)/) ||
+    post.type === "video";
+
+  if (isVideoFile) {
+    return <AutoPlayVideo src={url} />;
+  }
+
+  // Default: Image
+  return (
+    <img
+      src={url}
+      className="w-full h-auto object-cover block"
+      alt="Post content"
+      loading="lazy"
     />
   );
 };
@@ -216,21 +264,10 @@ const FameFeed = () => {
             </div>
           )}
 
-          {/* Media Section with Autoplay */}
+          {/* Media Section - Using the New Smart Renderer */}
           {post.media_url && (
             <div className="w-full bg-black overflow-hidden border-y border-white/5">
-              {post.media_url
-                .toLowerCase()
-                .match(/\.(mp4|webm|ogg|mov|m4v)/) ? (
-                <AutoPlayVideo src={post.media_url} />
-              ) : (
-                <img
-                  src={post.media_url}
-                  className="w-full h-auto object-cover block"
-                  alt="Post content"
-                  loading="lazy"
-                />
-              )}
+              <MediaRenderer post={post} />
             </div>
           )}
 
@@ -300,12 +337,11 @@ const FameFeed = () => {
                     />
                     <button
                       onClick={() => handleAddComment(post.id)}
-                      className="bg-blue-600 text-white p-3 rounded-2xl shadow-lg shadow-blue-500/20 active:scale-90 transition-transform"
+                      className="bg-blue-600 text-white p-3 rounded-2xl shadow-lg active:scale-90 transition-transform"
                     >
                       <Send size={14} />
                     </button>
                   </div>
-                  {/* Comments List */}
                   <div className="space-y-3 max-h-52 overflow-y-auto pr-2 custom-scrollbar">
                     {post.comments?.map((c: any) => (
                       <div
