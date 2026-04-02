@@ -34,6 +34,7 @@ import FlicksFeed from "@/components/FlicksFeed";
 import CreatePost from "@/components/CreatePost";
 import ChatSystem from "@/components/ChatSystem";
 import SnapyStudio from "@/components/SnapyStudio";
+import MovieGame from "@/components/MovieGame";
 // ── Reusable styled blocks ───────────────────────────────────────────────────
 const GlassCard = ({ children, className = "", noPadding = false }: any) => (
   <div
@@ -744,7 +745,15 @@ const Index = ({ session }: { session: Session }) => {
               <SnapyStudio userId={userId} />
             )}
 
-            {/* 5. SETTINGS ─────────────────────────────────────────────────── */}
+            {/* 5. TASK (Movie Game) ────────────────────────────────────────── */}
+            {activeFeature === "Task" && (
+              <MovieGame
+                userId={userId}
+                userProfile={profile}
+              />
+            )}
+
+            {/* 6. SETTINGS ─────────────────────────────────────────────────── */}
             {activeFeature === "Settings" && (
               <AnimatePresence mode="wait">
                 {settingsView === "main" && (
