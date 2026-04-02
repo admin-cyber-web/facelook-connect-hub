@@ -22,6 +22,9 @@ const CreatePost = ({ isOpen, onClose, userProfile }: CreatePostProps) => {
   const [preview, setPreview] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  // Replace with your actual admin email
+  const ADMIN_EMAIL = "your-email@gmail.com";
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
     if (selectedFile) {
@@ -35,12 +38,12 @@ const CreatePost = ({ isOpen, onClose, userProfile }: CreatePostProps) => {
     setLoading(true);
 
     try {
-      // 1. Direct fetch current user from Supabase Auth (Best for Name issues)
+      // 1. Direct fetch current user
       const {
         data: { user },
       } = await supabase.auth.getUser();
 
-      // 2. Identify Name: Auth Metadata > Prop > Email > Fallback
+      // 2. Identify Name
       const authorName =
         user?.user_metadata?.full_name ||
         user?.user_metadata?.name ||
@@ -49,9 +52,11 @@ const CreatePost = ({ isOpen, onClose, userProfile }: CreatePostProps) => {
         "Vibe User";
 
       let finalMediaUrl = "";
+      let mediaType = "text";
 
-      // 3. File Upload (Image/Video)
+      // 3. File Upload Logic
       if (file) {
+        mediaType = file.type.startsWith("video/") ? "video" : "image";
         const fileName = `${Date.now()}-${file.name.replace(/\s+/g, "_")}`;
         const { data: uploadData, error: uploadError } = await supabase.storage
           .from("posts")
@@ -68,20 +73,21 @@ const CreatePost = ({ isOpen, onClose, userProfile }: CreatePostProps) => {
         }
       }
 
-      // 4. Database Insert
+      // 4. Database Insert (Matching your new Schema)
       const { error: insertError } = await supabase.from("posts").insert([
         {
           author_id: user?.id || userProfile?.id,
           content: content,
           media_url: finalMediaUrl,
           author: authorName,
-          post_type: file?.type.startsWith("video/") ? "video" : "image",
+          type: mediaType, // Correct column name
+          is_admin_post: user?.email === ADMIN_EMAIL, // Marks if it's you
         },
       ]);
 
       if (insertError) throw insertError;
 
-      // Success
+      // Success Reset
       setContent("");
       setFile(null);
       setPreview(null);
