@@ -1,5 +1,5 @@
-import { useState, useRef } from "react";
-import { motion, AnimatePresence, PanInfo } from "framer-motion";
+import { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Settings,
   Camera,
@@ -12,8 +12,6 @@ import {
   CheckSquare,
 } from "lucide-react";
 
-// प्रोफाइल, ग्रुप और पोस्ट को हटा दिया गया है
-// सेटिंग का लेबल 'Function' कर दिया गया है
 const FEATURES = [
   { label: "Fame", icon: Star },
   { label: "Flicks", icon: Film },
@@ -23,7 +21,7 @@ const FEATURES = [
   { label: "Task", icon: CheckSquare },
   { label: "Fun", icon: Smile },
   { label: "Film", icon: Clapperboard },
-  { label: "Settings", icon: Settings, displayLabel: "Function" }, // ID Settings रहेगी, नाम Function दिखेगा
+  { label: "Settings", icon: Settings, displayLabel: "Function" },
 ];
 
 const GolSlider = ({
@@ -31,86 +29,99 @@ const GolSlider = ({
 }: {
   onFeatureChange?: (feature: string) => void;
 }) => {
-  const [activeIndex, setActiveIndex] = useState(0); // Fame default (Index 0)
-  const dragRef = useRef<number>(0);
+  const [activeIndex, setActiveIndex] = useState(0);
 
-  const handleDragEnd = (_: any, info: PanInfo) => {
-    const threshold = 40;
-    if (info.offset.x < -threshold && activeIndex < FEATURES.length - 1) {
-      const next = activeIndex + 1;
-      setActiveIndex(next);
-      onFeatureChange?.(FEATURES[next].label);
-    } else if (info.offset.x > threshold && activeIndex > 0) {
-      const next = activeIndex - 1;
-      setActiveIndex(next);
-      onFeatureChange?.(FEATURES[next].label);
-    }
+  const handleSelect = (i: number) => {
+    setActiveIndex(i);
+    onFeatureChange?.(FEATURES[i].label);
   };
 
-  const currentFeature = FEATURES[activeIndex];
-  const ActiveIcon = currentFeature.icon;
-
   return (
-    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-3">
-      {/* Feature label */}
-      <AnimatePresence mode="wait">
-        <motion.span
-          key={activeIndex}
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -8 }}
-          className="text-sm font-black text-blue-600 tracking-widest uppercase bg-white/80 backdrop-blur-md px-4 py-1 rounded-full shadow-sm border border-blue-50"
-        >
-          {/* यहाँ displayLabel का उपयोग किया है ताकि 'Function' दिखे */}
-          {currentFeature.displayLabel || currentFeature.label}
-        </motion.span>
-      </AnimatePresence>
+    <div className="flex items-center justify-center gap-[7px] px-2">
+      {FEATURES.map((feature, i) => {
+        const Icon = feature.icon;
+        const isActive = i === activeIndex;
+        const label = feature.displayLabel || feature.label;
 
-      {/* Dots indicator */}
-      <div className="flex items-center gap-1.5">
-        {FEATURES.map((_, i) => (
-          <div
-            key={i}
-            className={`rounded-full transition-all duration-300 ${
-              i === activeIndex
-                ? "w-3 h-1.5 bg-blue-600"
-                : Math.abs(i - activeIndex) === 1
-                  ? "w-1.5 h-1.5 bg-blue-300"
-                  : "w-1 h-1 bg-slate-300"
-            }`}
-          />
-        ))}
-      </div>
-
-      {/* Main circular button */}
-      <motion.div
-        drag="x"
-        dragConstraints={{ left: 0, right: 0 }}
-        dragElastic={0.3}
-        onDragEnd={handleDragEnd}
-        whileTap={{ scale: 0.9 }}
-        className="w-[76px] h-[76px] rounded-full bg-white shadow-[0_10px_40px_rgba(37,99,235,0.25)] cursor-grab active:cursor-grabbing flex items-center justify-center border-4 border-white select-none relative overflow-hidden group"
-      >
-        {/* Subtle inner glow */}
-        <div className="absolute inset-0 bg-gradient-to-tr from-blue-50 to-transparent opacity-50" />
-
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={activeIndex}
-            initial={{ scale: 0.5, opacity: 0, rotate: -45 }}
-            animate={{ scale: 1, opacity: 1, rotate: 0 }}
-            exit={{ scale: 0.5, opacity: 0, rotate: 45 }}
-            transition={{ type: "spring", stiffness: 300, damping: 20 }}
+        return (
+          <motion.button
+            key={feature.label}
+            layout
+            onClick={() => handleSelect(i)}
+            transition={{ type: "spring", stiffness: 380, damping: 30 }}
+            className={`
+              relative flex items-center justify-center overflow-hidden
+              h-[46px] rounded-full
+              border select-none cursor-pointer
+              transition-colors duration-200
+              ${
+                isActive
+                  ? "bg-white/20 border-white/40 shadow-[0_4px_24px_rgba(255,255,255,0.15)]"
+                  : "bg-white/[0.08] border-white/[0.15] shadow-[0_2px_12px_rgba(0,0,0,0.25)] hover:bg-white/[0.14]"
+              }
+            `}
+            style={{
+              backdropFilter: "blur(15px)",
+              WebkitBackdropFilter: "blur(15px)",
+              minWidth: "46px",
+            }}
+            whileTap={{ scale: 0.88 }}
           >
-            <ActiveIcon size={30} className="text-blue-600 relative z-10" />
-          </motion.div>
-        </AnimatePresence>
-      </motion.div>
+            {/* Glass inner shine */}
+            <div
+              className="absolute inset-0 rounded-full pointer-events-none"
+              style={{
+                background:
+                  "linear-gradient(135deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.03) 60%)",
+              }}
+            />
 
-      {/* Hint */}
-      <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] animate-pulse">
-        Slide Identity
-      </span>
+            <div className="flex items-center gap-[7px] px-[13px] relative z-10">
+              <Icon
+                size={17}
+                className={
+                  isActive ? "text-white" : "text-white/55"
+                }
+                strokeWidth={isActive ? 2.2 : 1.8}
+              />
+
+              <AnimatePresence>
+                {isActive && (
+                  <motion.span
+                    key="label"
+                    initial={{ width: 0, opacity: 0, x: -6 }}
+                    animate={{ width: "auto", opacity: 1, x: 0 }}
+                    exit={{ width: 0, opacity: 0, x: -6 }}
+                    transition={{
+                      type: "spring",
+                      stiffness: 380,
+                      damping: 30,
+                      opacity: { duration: 0.15 },
+                    }}
+                    className="text-[11px] font-black text-white uppercase tracking-wider whitespace-nowrap overflow-hidden"
+                    style={{ display: "block" }}
+                  >
+                    {label}
+                  </motion.span>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* Active dot glow under icon */}
+            {isActive && (
+              <motion.div
+                layoutId="orb-glow"
+                className="absolute inset-0 rounded-full"
+                style={{
+                  background:
+                    "radial-gradient(ellipse at center, rgba(147,197,253,0.18) 0%, transparent 70%)",
+                }}
+                transition={{ type: "spring", stiffness: 380, damping: 30 }}
+              />
+            )}
+          </motion.button>
+        );
+      })}
     </div>
   );
 };
