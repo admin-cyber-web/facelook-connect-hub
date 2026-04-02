@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
-// --- 1. AutoPlay Video Component (The Secret Sauce) ---
+// --- 1. AutoPlay Video Component (Updated for Sound) ---
 const AutoPlayVideo = ({ src }: { src: string }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -21,15 +21,24 @@ const AutoPlayVideo = ({ src }: { src: string }) => {
       ([entry]) => {
         if (videoRef.current) {
           if (entry.isIntersecting) {
-            // Play only when in view
-            videoRef.current.play().catch(() => {});
+            // Sound ke saath play karne ki koshish
+            const playPromise = videoRef.current.play();
+
+            if (playPromise !== undefined) {
+              playPromise.catch(() => {
+                // Agar browser block kare toh muted mode mein play ho jaye (Auto-fallback)
+                if (videoRef.current) {
+                  videoRef.current.muted = true;
+                  videoRef.current.play();
+                }
+              });
+            }
           } else {
-            // Pause when out of view
             videoRef.current.pause();
           }
         }
       },
-      { threshold: 0.6 }, // 60% video dikhne par play hoga
+      { threshold: 0.6 },
     );
 
     if (videoRef.current) observer.observe(videoRef.current);
@@ -41,9 +50,14 @@ const AutoPlayVideo = ({ src }: { src: string }) => {
       ref={videoRef}
       src={src}
       loop
-      muted // Autoplay ke liye muted hona compulsory hai
+      muted={false} // Default sound ON rakha hai
       playsInline
-      className="w-full h-auto max-h-[500px] object-contain block bg-black"
+      className="w-full h-auto max-h-[500px] object-contain block bg-black cursor-pointer"
+      onClick={(e) => {
+        // User click karke sound toggle kar sake
+        const v = e.currentTarget;
+        v.muted = !v.muted;
+      }}
     />
   );
 };
