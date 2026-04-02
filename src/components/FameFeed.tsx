@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "../lib/supabaseClient";
 import {
   Send,
@@ -8,11 +8,45 @@ import {
   MoreHorizontal,
   Bookmark,
   Loader2,
-  Newspaper,
   WifiOff,
-  Play,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+
+// --- 1. AutoPlay Video Component (The Secret Sauce) ---
+const AutoPlayVideo = ({ src }: { src: string }) => {
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (videoRef.current) {
+          if (entry.isIntersecting) {
+            // Play only when in view
+            videoRef.current.play().catch(() => {});
+          } else {
+            // Pause when out of view
+            videoRef.current.pause();
+          }
+        }
+      },
+      { threshold: 0.6 }, // 60% video dikhne par play hoga
+    );
+
+    if (videoRef.current) observer.observe(videoRef.current);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <video
+      ref={videoRef}
+      src={src}
+      loop
+      muted // Autoplay ke liye muted hona compulsory hai
+      playsInline
+      className="w-full h-auto max-h-[500px] object-contain block bg-black"
+    />
+  );
+};
 
 const FameFeed = () => {
   const [posts, setPosts] = useState<any[]>([]);
@@ -30,17 +64,8 @@ const FameFeed = () => {
         .select(`*, comments:comments(*)`)
         .order("created_at", { ascending: false });
 
-      if (joinError) {
-        const { data: postsOnly, error: fallbackError } = await supabase
-          .from("posts")
-          .select("*")
-          .order("created_at", { ascending: false });
-
-        if (fallbackError) throw fallbackError;
-        setPosts(postsOnly ?? []);
-      } else {
-        setPosts(joinData ?? []);
-      }
+      if (joinError) throw joinError;
+      setPosts(joinData ?? []);
     } catch (err: any) {
       setFetchError(err?.message ?? "Unknown error");
     } finally {
@@ -63,6 +88,7 @@ const FameFeed = () => {
         () => fetchPosts(),
       )
       .subscribe();
+
     return () => {
       supabase.removeChannel(channel);
     };
@@ -78,10 +104,18 @@ const FameFeed = () => {
 
   const handleAddComment = async (postId: string) => {
     if (!commentText.trim()) return;
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    const authorName =
+      user?.user_metadata?.full_name || user?.email?.split("@")[0] || "User";
+
     try {
       const { error } = await supabase
         .from("comments")
-        .insert([{ post_id: postId, content: commentText, author: "You" }]);
+        .insert([
+          { post_id: postId, content: commentText, author: authorName },
+        ]);
       if (error) throw error;
       setCommentText("");
       fetchPosts();
@@ -94,7 +128,7 @@ const FameFeed = () => {
     try {
       if (navigator.share) {
         await navigator.share({
-          title: "Facelook",
+          title: "FameFeed",
           text: post.content,
           url: window.location.href,
         });
@@ -111,8 +145,8 @@ const FameFeed = () => {
     return (
       <div className="w-full flex flex-col items-center justify-center py-24 gap-4">
         <Loader2 size={32} className="animate-spin text-blue-500" />
-        <p className="text-xs font-black text-white/30 uppercase">
-          Loading Feed…
+        <p className="text-xs font-black text-white/30 uppercase tracking-widest">
+          Loading Vibe...
         </p>
       </div>
     );
@@ -121,7 +155,7 @@ const FameFeed = () => {
     return (
       <div className="w-full flex flex-col items-center justify-center py-24 gap-4 px-6 text-center">
         <WifiOff size={36} className="text-red-400/60" />
-        <p className="text-sm font-black text-white/40">Could not load posts</p>
+        <p className="text-sm font-black text-white/40">Offline Mode?</p>
         <button
           onClick={fetchPosts}
           className="px-6 py-2 bg-blue-600 rounded-2xl text-xs font-black text-white"
@@ -135,22 +169,21 @@ const FameFeed = () => {
     <div className="w-full bg-transparent">
       {posts.map((post, index) => (
         <motion.div
-          initial={{ opacity: 0 }}
-          whileInView={{ opacity: 1 }}
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
           key={post.id}
           className={`w-full bg-white/5 backdrop-blur-xl border-b border-white/10 ${index === 0 ? "border-t border-white/10" : ""}`}
         >
           {/* Header */}
           <div className="px-4 pt-4 pb-3 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-black shadow-lg">
-                {post.author && post.author !== "Anonymous"
-                  ? post.author[0].toUpperCase()
-                  : "U"}
+              <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-black shadow-lg uppercase">
+                {post.author ? post.author[0] : "V"}
               </div>
               <div>
                 <h4 className="text-sm font-black text-white">
-                  {post.author || "User"}
+                  {post.author || "Vibe User"}
                 </h4>
                 <p className="text-[9px] text-blue-400 font-black uppercase tracking-widest">
                   Verified Vibe
@@ -160,29 +193,22 @@ const FameFeed = () => {
             <MoreHorizontal size={18} className="text-white/30" />
           </div>
 
-          {/* Body */}
+          {/* Content */}
           {post.content && (
             <div className="px-4 pb-3">
-              <p className="text-white/80 text-sm font-medium">
+              <p className="text-white/80 text-sm font-medium leading-relaxed">
                 {post.content}
               </p>
             </div>
           )}
 
-          {/* Media Section (IMAGE & VIDEO HANDLER) */}
+          {/* Media Section with Autoplay */}
           {post.media_url && (
-            <div className="w-full bg-black/20 overflow-hidden border-y border-white/5">
+            <div className="w-full bg-black overflow-hidden border-y border-white/5">
               {post.media_url
                 .toLowerCase()
                 .match(/\.(mp4|webm|ogg|mov|m4v)/) ? (
-                <video
-                  src={post.media_url}
-                  controls
-                  playsInline
-                  loop
-                  muted
-                  className="w-full h-auto max-h-[500px] object-contain block"
-                />
+                <AutoPlayVideo src={post.media_url} />
               ) : (
                 <img
                   src={post.media_url}
@@ -200,15 +226,11 @@ const FameFeed = () => {
               <div className="flex items-center gap-6">
                 <button
                   onClick={() => handleLike(post.id, post.likes_count)}
-                  className="flex items-center gap-2"
+                  className="flex items-center gap-2 group"
                 >
                   <Heart
                     size={20}
-                    className={
-                      post.likes_count > 0
-                        ? "fill-red-500 text-red-500"
-                        : "text-white/40"
-                    }
+                    className={`${post.likes_count > 0 ? "fill-red-500 text-red-500" : "text-white/40"} transition-transform group-active:scale-125`}
                   />
                   <span className="text-xs font-black text-white/60">
                     {post.likes_count || 0}
@@ -234,7 +256,7 @@ const FameFeed = () => {
                 </button>
                 <button
                   onClick={() => handleShare(post)}
-                  className="text-white/40"
+                  className="text-white/40 active:text-blue-400"
                 >
                   <Share2 size={20} />
                 </button>
@@ -254,8 +276,8 @@ const FameFeed = () => {
                   <div className="flex gap-2 mb-4">
                     <input
                       type="text"
-                      placeholder="Add a comment..."
-                      className="flex-1 bg-white/5 border border-white/10 rounded-2xl text-xs px-4 py-3 text-white outline-none"
+                      placeholder="Write a comment..."
+                      className="flex-1 bg-white/5 border border-white/10 rounded-2xl text-xs px-4 py-3 text-white outline-none focus:border-blue-500/50"
                       value={commentText}
                       onChange={(e) => setCommentText(e.target.value)}
                       onKeyDown={(e) =>
@@ -264,22 +286,26 @@ const FameFeed = () => {
                     />
                     <button
                       onClick={() => handleAddComment(post.id)}
-                      className="bg-blue-600 text-white p-3 rounded-2xl"
+                      className="bg-blue-600 text-white p-3 rounded-2xl shadow-lg shadow-blue-500/20 active:scale-90 transition-transform"
                     >
                       <Send size={14} />
                     </button>
                   </div>
-                  <div className="space-y-3 max-h-52 overflow-y-auto">
+                  {/* Comments List */}
+                  <div className="space-y-3 max-h-52 overflow-y-auto pr-2 custom-scrollbar">
                     {post.comments?.map((c: any) => (
-                      <div key={c.id} className="flex gap-3 items-start">
-                        <div className="w-7 h-7 rounded-xl bg-white/10 flex items-center justify-center text-[10px] font-black text-blue-400 border border-white/10 uppercase shrink-0">
+                      <div
+                        key={c.id}
+                        className="flex gap-3 items-start animate-in slide-in-from-left-2"
+                      >
+                        <div className="w-7 h-7 rounded-xl bg-gradient-to-br from-slate-700 to-slate-800 flex items-center justify-center text-[10px] font-black text-blue-400 border border-white/10 uppercase shrink-0">
                           {c.author ? c.author[0] : "U"}
                         </div>
                         <div className="bg-white/5 px-3 py-2 rounded-2xl flex-1 border border-white/5">
                           <p className="text-[10px] font-black text-blue-400 mb-0.5">
-                            {c.author}
+                            {c.author || "User"}
                           </p>
-                          <p className="text-xs text-white/70 font-medium">
+                          <p className="text-xs text-white/70 font-medium leading-relaxed">
                             {c.content}
                           </p>
                         </div>
