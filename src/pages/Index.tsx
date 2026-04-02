@@ -629,8 +629,8 @@ const Index = ({ session }: { session: Session }) => {
 
       <main
         className={`relative z-10 transition-all duration-500 
-          ${activeFeature === "Flicks" ? "pt-0 pb-0" : "pt-16 pb-40"} 
-          ${activeFeature === "Flicks" ? "w-full" : "max-w-2xl mx-auto px-0 sm:px-4"}`}
+          ${activeFeature === "Flicks" ? "pt-0 pb-0" : "pt-0 pb-40"} 
+          ${activeFeature === "Flicks" ? "w-full" : "max-w-2xl mx-auto px-0 sm:px-0"}`}
       >
         <AnimatePresence mode="wait">
           <motion.div

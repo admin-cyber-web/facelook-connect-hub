@@ -129,7 +129,7 @@ const Header = ({
   return (
     <>
       {/* ── GLASS HEADER ─────────────────────────────────────────────── */}
-      <header className="fixed top-0 left-0 w-full h-20 bg-white/10 backdrop-blur-2xl border-b border-white/10 z-[100] px-3 sm:px-6 flex items-center justify-between gap-3 transition-all">
+      <header className="w-full h-14 bg-white/10 backdrop-blur-2xl border-b border-white/10 z-[100] px-3 sm:px-6 flex items-center justify-between gap-3 transition-all">
         {/* 1. LEFT: PROFILE */}
         <div
           onClick={onProfileClick}
