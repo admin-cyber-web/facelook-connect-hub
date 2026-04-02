@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
-// --- 1. AutoPlay Video Component ---
+// --- 1. AutoPlay Video Component (Full Screen Optimized) ---
 const AutoPlayVideo = ({ src }: { src: string }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -40,7 +40,7 @@ const AutoPlayVideo = ({ src }: { src: string }) => {
 
     if (videoRef.current) observer.observe(videoRef.current);
     return () => observer.disconnect();
-  }, []);
+  }, [src]);
 
   return (
     <video
@@ -49,7 +49,8 @@ const AutoPlayVideo = ({ src }: { src: string }) => {
       loop
       muted={false}
       playsInline
-      className="w-full h-auto max-h-[500px] object-contain block bg-black cursor-pointer"
+      // object-cover aur h-full se black bars gayab ho jayenge
+      className="w-full h-full object-cover block bg-black cursor-pointer"
       onClick={(e) => {
         const v = e.currentTarget;
         v.muted = !v.muted;
@@ -58,30 +59,31 @@ const AutoPlayVideo = ({ src }: { src: string }) => {
   );
 };
 
-// --- 2. Smart Media Renderer (YouTube + Video + Image) ---
+// --- 2. Smart Media Renderer (No Black Space) ---
 const MediaRenderer = ({ post }: { post: any }) => {
   const url = post.media_url;
   if (!url) return null;
 
-  // Check if it's a YouTube link (from metadata or URL string)
   const isYouTube =
     post.metadata?.is_youtube ||
     url.includes("youtube.com") ||
     url.includes("youtu.be");
 
   if (isYouTube) {
-    // Extract ID and convert to Embed URL if not already
     let embedUrl = url;
     if (!url.includes("embed")) {
-      const videoId = url.split("v=")[1] || url.split("/").pop();
+      const regExp =
+        /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=|\/shorts\/)([^#\&\?]*).*/;
+      const match = url.match(regExp);
+      const videoId = match && match[2].length === 11 ? match[2] : null;
       embedUrl = `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&loop=1&playlist=${videoId}`;
     }
 
     return (
-      <div className="relative w-full aspect-[9/16] bg-black">
+      <div className="relative w-full h-full bg-black">
         <iframe
           src={embedUrl}
-          className="absolute inset-0 w-full h-full"
+          className="absolute inset-0 w-full h-full object-cover"
           allow="autoplay; encrypted-media"
           allowFullScreen
           title="YouTube Video"
@@ -90,20 +92,22 @@ const MediaRenderer = ({ post }: { post: any }) => {
     );
   }
 
-  // Check for Direct Video Files
+  // Support for Direct Links (Dropbox, RapidCDN, etc.)
   const isVideoFile =
-    url.toLowerCase().match(/\.(mp4|webm|ogg|mov|m4v)/) ||
-    post.type === "video";
+    post.type === "video" ||
+    /\.(mp4|webm|ogg|mov|m4v)/i.test(url.split("?")[0]) ||
+    url.includes("raw=1") ||
+    url.includes("rapidcdn.app");
 
   if (isVideoFile) {
     return <AutoPlayVideo src={url} />;
   }
 
-  // Default: Image
   return (
     <img
       src={url}
-      className="w-full h-auto object-cover block"
+      // h-full aur object-cover images ko bhi stretch hone se bachayega aur full screen dikhayega
+      className="w-full h-full object-cover block"
       alt="Post content"
       loading="lazy"
     />
@@ -255,7 +259,7 @@ const FameFeed = () => {
             <MoreHorizontal size={18} className="text-white/30" />
           </div>
 
-          {/* Content */}
+          {/* Content Text */}
           {post.content && (
             <div className="px-4 pb-3">
               <p className="text-white/80 text-sm font-medium leading-relaxed">
@@ -264,9 +268,9 @@ const FameFeed = () => {
             </div>
           )}
 
-          {/* Media Section - Using the New Smart Renderer */}
+          {/* Media Section - FIXED ASPECT RATIO FOR FULL SCREEN */}
           {post.media_url && (
-            <div className="w-full bg-black overflow-hidden border-y border-white/5">
+            <div className="w-full aspect-[9/16] bg-black overflow-hidden border-y border-white/5 relative">
               <MediaRenderer post={post} />
             </div>
           )}

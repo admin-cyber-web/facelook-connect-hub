@@ -1,12 +1,5 @@
 import { useState } from "react";
-import {
-  Image as ImageIcon,
-  X,
-  Send,
-  Loader2,
-  Smile,
-  Globe,
-} from "lucide-react";
+import { Image as ImageIcon, X, Send, Loader2, Globe } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -24,12 +17,36 @@ const CreatePost = ({ isOpen, onClose, userProfile }: CreatePostProps) => {
 
   const ADMIN_EMAIL = "your-email@gmail.com";
 
-  // --- Utility: YouTube Link Detector ---
-  const getYouTubeId = (url: string) => {
-    const regExp =
-      /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
-    const match = url.match(regExp);
-    return match && match[2].length === 11 ? match[2] : null;
+  // --- 1. Smart URL Detection (YouTube & Direct Videos) ---
+  const getMediaInfoFromUrl = (text: string) => {
+    const urlRegex = /(https?:\/\/[^\s]+)/g;
+    const url = text.match(urlRegex)?.[0];
+
+    if (!url) return { finalUrl: "", type: "text", isYoutube: false };
+
+    // YouTube Detection
+    const ytRegExp =
+      /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=|\/shorts\/)([^#\&\?]*).*/;
+    const ytMatch = url.match(ytRegExp);
+    if (ytMatch && ytMatch[2].length === 11) {
+      return {
+        finalUrl: `https://www.youtube.com/embed/${ytMatch[2]}`,
+        type: "video",
+        isYoutube: true,
+      };
+    }
+
+    // Direct Video Link Detection (RapidCDN, Dropbox, etc.)
+    const isDirectVideo =
+      /\.(mp4|webm|ogg|mov|m4v)/i.test(url.split("?")[0]) ||
+      url.includes("rapidcdn.app") ||
+      url.includes("raw=1");
+
+    if (isDirectVideo) {
+      return { finalUrl: url, type: "video", isYoutube: false };
+    }
+
+    return { finalUrl: "", type: "text", isYoutube: false };
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -51,7 +68,6 @@ const CreatePost = ({ isOpen, onClose, userProfile }: CreatePostProps) => {
 
       const authorName =
         user?.user_metadata?.full_name ||
-        user?.user_metadata?.name ||
         userProfile?.full_name ||
         user?.email?.split("@")[0] ||
         "Vibe User";
@@ -60,15 +76,15 @@ const CreatePost = ({ isOpen, onClose, userProfile }: CreatePostProps) => {
       let mediaType = "text";
       let isYoutube = false;
 
-      // 1. Check for YouTube Link in content if no file is uploaded
-      const ytId = getYouTubeId(content);
-      if (ytId && !file) {
-        finalMediaUrl = `https://www.youtube.com/embed/${ytId}`;
-        mediaType = "video";
-        isYoutube = true;
+      // 1. Link Detection (If no file is selected)
+      if (!file) {
+        const detection = getMediaInfoFromUrl(content);
+        finalMediaUrl = detection.finalUrl;
+        mediaType = detection.type;
+        isYoutube = detection.isYoutube;
       }
 
-      // 2. File Upload Logic (Overrides YouTube if file exists)
+      // 2. File Upload Logic
       if (file) {
         mediaType = file.type.startsWith("video/") ? "video" : "image";
         const fileName = `${Date.now()}-${file.name.replace(/\s+/g, "_")}`;
@@ -84,7 +100,7 @@ const CreatePost = ({ isOpen, onClose, userProfile }: CreatePostProps) => {
             .from("posts")
             .getPublicUrl(fileName);
           finalMediaUrl = data.publicUrl;
-          isYoutube = false; // It's a direct file
+          isYoutube = false;
         }
       }
 
@@ -97,7 +113,6 @@ const CreatePost = ({ isOpen, onClose, userProfile }: CreatePostProps) => {
           author: authorName,
           type: mediaType,
           is_admin_post: user?.email === ADMIN_EMAIL,
-          // metadata mein store kar rahe hain taaki frontend ko pata chale ye YT hai
           metadata: { is_youtube: isYoutube },
         },
       ]);
@@ -130,7 +145,7 @@ const CreatePost = ({ isOpen, onClose, userProfile }: CreatePostProps) => {
               <h3 className="text-xl font-black text-slate-800">New Vibe</h3>
               <button
                 onClick={onClose}
-                className="p-2 bg-slate-100 rounded-full text-slate-400 hover:bg-slate-200"
+                className="p-2 bg-slate-100 rounded-full text-slate-400"
               >
                 <X size={20} />
               </button>
@@ -150,15 +165,15 @@ const CreatePost = ({ isOpen, onClose, userProfile }: CreatePostProps) => {
                   <p className="text-sm font-black text-slate-800">
                     {userProfile?.full_name || "You"}
                   </p>
-                  <span className="flex items-center gap-1 text-[8px] font-bold uppercase bg-blue-50 text-blue-600 px-2 py-0.5 rounded-md w-fit">
+                  <span className="flex items-center gap-1 text-[8px] font-bold uppercase bg-blue-50 text-blue-600 px-2 py-0.5 rounded-md">
                     <Globe size={10} /> Public
                   </span>
                 </div>
               </div>
 
               <textarea
-                placeholder="Paste a YouTube link or share your vibe... 🔥"
-                className="w-full min-h-[120px] text-lg font-medium text-slate-700 outline-none resize-none placeholder:text-slate-300"
+                placeholder="Paste a link (Insta/YouTube) or write something... 🔥"
+                className="w-full min-h-[120px] text-lg font-medium text-slate-700 outline-none resize-none"
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
               />
@@ -183,7 +198,7 @@ const CreatePost = ({ isOpen, onClose, userProfile }: CreatePostProps) => {
                       setFile(null);
                       setPreview(null);
                     }}
-                    className="absolute top-2 right-2 p-2 bg-black/50 text-white rounded-full backdrop-blur-md z-10"
+                    className="absolute top-2 right-2 p-2 bg-black/50 text-white rounded-full"
                   >
                     <X size={16} />
                   </button>
@@ -191,22 +206,20 @@ const CreatePost = ({ isOpen, onClose, userProfile }: CreatePostProps) => {
               )}
 
               <div className="flex items-center justify-between pt-4 border-t border-slate-50">
-                <div className="flex gap-2">
-                  <label className="p-3 bg-blue-50 text-blue-600 rounded-2xl cursor-pointer hover:bg-blue-100 transition-all">
-                    <ImageIcon size={20} />
-                    <input
-                      type="file"
-                      hidden
-                      accept="image/*,video/*"
-                      onChange={handleFileChange}
-                    />
-                  </label>
-                </div>
+                <label className="p-3 bg-blue-50 text-blue-600 rounded-2xl cursor-pointer">
+                  <ImageIcon size={20} />
+                  <input
+                    type="file"
+                    hidden
+                    accept="image/*,video/*"
+                    onChange={handleFileChange}
+                  />
+                </label>
 
                 <button
                   onClick={handlePost}
                   disabled={loading || (!content && !file)}
-                  className="flex items-center gap-2 px-8 py-4 rounded-2xl font-black text-xs uppercase bg-blue-600 text-white disabled:bg-slate-100 disabled:text-slate-400 shadow-lg active:scale-95 transition-all"
+                  className="flex items-center gap-2 px-8 py-4 rounded-2xl font-black text-xs uppercase bg-blue-600 text-white disabled:bg-slate-100 shadow-lg"
                 >
                   {loading ? (
                     <Loader2 size={16} className="animate-spin" />
