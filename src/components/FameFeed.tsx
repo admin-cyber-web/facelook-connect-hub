@@ -10,6 +10,7 @@ import {
   Loader2,
   Newspaper,
   WifiOff,
+  Play,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -21,40 +22,26 @@ const FameFeed = () => {
   const [commentText, setCommentText] = useState("");
 
   const fetchPosts = async () => {
-    console.log("[FameFeed] fetchPosts() called");
     setLoading(true);
     setFetchError(null);
     try {
-      // Primary query: posts + comments join
       const { data: joinData, error: joinError } = await supabase
         .from("posts")
         .select(`*, comments:comments(*)`)
         .order("created_at", { ascending: false });
 
       if (joinError) {
-        console.warn("[FameFeed] Join query failed, retrying without join...");
-        // Fallback: posts only
         const { data: postsOnly, error: fallbackError } = await supabase
           .from("posts")
           .select("*")
           .order("created_at", { ascending: false });
 
-        if (fallbackError) {
-          console.error("[FameFeed] Fallback failed:", fallbackError.message);
-          setFetchError(`DB error: ${fallbackError.message}`);
-        } else {
-          console.log(
-            "[FameFeed] Fallback Success — posts:",
-            postsOnly?.length ?? 0,
-          );
-          setPosts(postsOnly ?? []);
-        }
+        if (fallbackError) throw fallbackError;
+        setPosts(postsOnly ?? []);
       } else {
-        console.log("[FameFeed] Success — posts:", joinData?.length ?? 0);
         setPosts(joinData ?? []);
       }
     } catch (err: any) {
-      console.error("[FameFeed] Unexpected error:", err);
       setFetchError(err?.message ?? "Unknown error");
     } finally {
       setLoading(false);
@@ -104,131 +91,124 @@ const FameFeed = () => {
   };
 
   const handleShare = async (post: any) => {
-    const shareData = {
-      title: "Facelook Connect",
-      text: post.content || "Check out this vibe!",
-      url: window.location.href,
-    };
     try {
-      if (navigator.share) await navigator.share(shareData);
-      else {
+      if (navigator.share) {
+        await navigator.share({
+          title: "Facelook",
+          text: post.content,
+          url: window.location.href,
+        });
+      } else {
         await navigator.clipboard.writeText(window.location.href);
         alert("Link copied! 🚀");
       }
     } catch (err) {
-      console.log("Cancelled");
+      console.log("Share failed");
     }
   };
 
-  // ── Loading state ──────────────────────────────────────────────────────────
   if (loading)
     return (
       <div className="w-full flex flex-col items-center justify-center py-24 gap-4">
         <Loader2 size={32} className="animate-spin text-blue-500" />
-        <p className="text-xs font-black text-white/30 uppercase tracking-widest">
+        <p className="text-xs font-black text-white/30 uppercase">
           Loading Feed…
         </p>
       </div>
     );
 
-  // ── Error state ─────────────────────────────────────────────────────────────
   if (fetchError)
     return (
-      <div className="w-full flex flex-col items-center justify-center py-24 gap-4 px-6">
+      <div className="w-full flex flex-col items-center justify-center py-24 gap-4 px-6 text-center">
         <WifiOff size={36} className="text-red-400/60" />
-        <p className="text-sm font-black text-white/40 text-center">
-          Could not load posts
-        </p>
-        <p className="text-[11px] text-red-400/60 font-mono text-center break-all">
-          {fetchError}
-        </p>
+        <p className="text-sm font-black text-white/40">Could not load posts</p>
         <button
           onClick={fetchPosts}
-          className="mt-2 px-6 py-2.5 bg-blue-600 hover:bg-blue-500 rounded-2xl text-xs font-black text-white active:scale-95 transition-all"
+          className="px-6 py-2 bg-blue-600 rounded-2xl text-xs font-black text-white"
         >
           Retry
         </button>
       </div>
     );
 
-  // ── Empty state ─────────────────────────────────────────────────────────────
-  if (posts.length === 0)
-    return (
-      <div className="w-full flex flex-col items-center justify-center py-24 gap-3 text-white/20">
-        <Newspaper size={40} />
-        <p className="text-sm font-black">No posts yet</p>
-        <p className="text-xs text-white/15">
-          Be the first to share something!
-        </p>
-      </div>
-    );
-
   return (
-    <div className="w-full bg-transparent font-sans">
+    <div className="w-full bg-transparent">
       {posts.map((post, index) => (
         <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
+          initial={{ opacity: 0 }}
+          whileInView={{ opacity: 1 }}
           key={post.id}
-          className={`w-full bg-white/5 backdrop-blur-xl border-b border-white/10 ${
-            index === 0 ? "border-t border-white/10" : ""
-          }`}
+          className={`w-full bg-white/5 backdrop-blur-xl border-b border-white/10 ${index === 0 ? "border-t border-white/10" : ""}`}
         >
-          {/* Post Header */}
+          {/* Header */}
           <div className="px-4 pt-4 pb-3 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center text-white font-black shadow-inner text-sm">
-                {post.author ? post.author[0] : "U"}
+              <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-black shadow-lg">
+                {post.author && post.author !== "Anonymous"
+                  ? post.author[0].toUpperCase()
+                  : "U"}
               </div>
               <div>
-                <h4 className="text-sm font-black text-white">{post.author}</h4>
-                <p className="text-[9px] text-blue-400 font-black uppercase tracking-[0.2em]">
+                <h4 className="text-sm font-black text-white">
+                  {post.author || "User"}
+                </h4>
+                <p className="text-[9px] text-blue-400 font-black uppercase tracking-widest">
                   Verified Vibe
                 </p>
               </div>
             </div>
-            <button className="text-white/30 hover:text-white transition-colors p-1">
-              <MoreHorizontal size={18} />
-            </button>
+            <MoreHorizontal size={18} className="text-white/30" />
           </div>
 
-          {/* Post Body */}
+          {/* Body */}
           {post.content && (
             <div className="px-4 pb-3">
-              <p className="text-white/80 text-sm leading-relaxed font-medium">
+              <p className="text-white/80 text-sm font-medium">
                 {post.content}
               </p>
             </div>
           )}
 
-          {/* Updated to use media_url as per your Supabase Table */}
+          {/* Media Section (IMAGE & VIDEO HANDLER) */}
           {post.media_url && (
-            <div className="pb-3">
-              <img
-                src={post.media_url}
-                className="w-full h-auto object-cover"
-                alt="Post content"
-                onError={(e) => (e.currentTarget.style.display = "none")}
-              />
+            <div className="w-full bg-black/20 overflow-hidden border-y border-white/5">
+              {post.media_url
+                .toLowerCase()
+                .match(/\.(mp4|webm|ogg|mov|m4v)/) ? (
+                <video
+                  src={post.media_url}
+                  controls
+                  playsInline
+                  loop
+                  muted
+                  className="w-full h-auto max-h-[500px] object-contain block"
+                />
+              ) : (
+                <img
+                  src={post.media_url}
+                  className="w-full h-auto object-cover block"
+                  alt="Post content"
+                  loading="lazy"
+                />
+              )}
             </div>
           )}
 
-          {/* Post Actions */}
+          {/* Actions */}
           <div className="px-4 py-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-6">
                 <button
                   onClick={() => handleLike(post.id, post.likes_count)}
-                  className="flex items-center gap-2 group"
+                  className="flex items-center gap-2"
                 >
                   <Heart
                     size={20}
-                    className={`transition-all ${
+                    className={
                       post.likes_count > 0
                         ? "fill-red-500 text-red-500"
-                        : "text-white/40 group-hover:text-red-400"
-                    }`}
+                        : "text-white/40"
+                    }
                   />
                   <span className="text-xs font-black text-white/60">
                     {post.likes_count || 0}
@@ -238,11 +218,15 @@ const FameFeed = () => {
                   onClick={() =>
                     setActiveComment(activeComment === post.id ? null : post.id)
                   }
-                  className="flex items-center gap-2 group text-white/40 hover:text-blue-400 transition-colors"
+                  className="flex items-center gap-2"
                 >
                   <MessageCircle
                     size={20}
-                    className={activeComment === post.id ? "text-blue-400" : ""}
+                    className={
+                      activeComment === post.id
+                        ? "text-blue-400"
+                        : "text-white/40"
+                    }
                   />
                   <span className="text-xs font-black text-white/60">
                     {post.comments?.length || 0}
@@ -250,15 +234,12 @@ const FameFeed = () => {
                 </button>
                 <button
                   onClick={() => handleShare(post)}
-                  className="text-white/40 hover:text-green-400 transition-colors"
+                  className="text-white/40"
                 >
                   <Share2 size={20} />
                 </button>
               </div>
-              <Bookmark
-                size={20}
-                className="text-white/20 hover:text-yellow-400 transition-colors cursor-pointer"
-              />
+              <Bookmark size={20} className="text-white/20" />
             </div>
 
             {/* Comment Section */}
@@ -274,7 +255,7 @@ const FameFeed = () => {
                     <input
                       type="text"
                       placeholder="Add a comment..."
-                      className="flex-1 bg-white/5 border border-white/10 rounded-2xl text-xs px-4 py-3 text-white placeholder:text-white/20 focus:ring-1 focus:ring-blue-500/50 outline-none"
+                      className="flex-1 bg-white/5 border border-white/10 rounded-2xl text-xs px-4 py-3 text-white outline-none"
                       value={commentText}
                       onChange={(e) => setCommentText(e.target.value)}
                       onKeyDown={(e) =>
@@ -283,12 +264,11 @@ const FameFeed = () => {
                     />
                     <button
                       onClick={() => handleAddComment(post.id)}
-                      className="bg-blue-600 text-white p-3 rounded-2xl hover:bg-blue-500 transition-all"
+                      className="bg-blue-600 text-white p-3 rounded-2xl"
                     >
                       <Send size={14} />
                     </button>
                   </div>
-
                   <div className="space-y-3 max-h-52 overflow-y-auto">
                     {post.comments?.map((c: any) => (
                       <div key={c.id} className="flex gap-3 items-start">
