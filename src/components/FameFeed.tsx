@@ -2,38 +2,58 @@ import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabaseClient";
 import {
   Send,
-  X,
   Heart,
   MessageCircle,
   Share2,
   MoreHorizontal,
   Bookmark,
+  Loader2,
+  Newspaper,
+  WifiOff,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 const FameFeed = () => {
   const [posts, setPosts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [activeComment, setActiveComment] = useState<string | null>(null);
   const [commentText, setCommentText] = useState("");
 
   const fetchPosts = async () => {
+    console.log("[FameFeed] fetchPosts() called");
+    setLoading(true);
+    setFetchError(null);
     try {
+      // Primary query: posts + comments join
       const { data, error } = await supabase
         .from("posts")
         .select(`*, comments:comments(*)`)
         .order("created_at", { ascending: false });
 
       if (error) {
-        const { data: postsOnly } = await supabase
+        console.warn("[FameFeed] Join query failed:", error.message, "| code:", error.code, "— retrying without join");
+        // Fallback: posts only (in case comments FK doesn't exist yet)
+        const { data: postsOnly, error: err2 } = await supabase
           .from("posts")
           .select("*")
           .order("created_at", { ascending: false });
-        if (postsOnly) setPosts(postsOnly);
-      } else if (data) {
-        setPosts(data);
+        if (err2) {
+          console.error("[FameFeed] Fallback also failed:", err2.message, "| code:", err2.code);
+          setFetchError(`DB error: ${err2.message} (${err2.code})`);
+        } else {
+          console.log("[FameFeed] Fallback OK — posts:", postsOnly?.length ?? 0, postsOnly);
+          setPosts(postsOnly ?? []);
+        }
+      } else {
+        console.log("[FameFeed] Success — posts:", data?.length ?? 0, data);
+        setPosts(data ?? []);
       }
-    } catch (err) {
-      console.error("Fetch error:", err);
+    } catch (err: any) {
+      console.error("[FameFeed] Network/unexpected error:", err);
+      setFetchError(err?.message ?? "Unknown error");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -93,6 +113,38 @@ const FameFeed = () => {
       console.log("Cancelled");
     }
   };
+
+  // ── Loading state ──────────────────────────────────────────────────────────
+  if (loading) return (
+    <div className="w-full flex flex-col items-center justify-center py-24 gap-4">
+      <Loader2 size={32} className="animate-spin text-blue-500" />
+      <p className="text-xs font-black text-white/30 uppercase tracking-widest">Loading Feed…</p>
+    </div>
+  );
+
+  // ── Error state ─────────────────────────────────────────────────────────────
+  if (fetchError) return (
+    <div className="w-full flex flex-col items-center justify-center py-24 gap-4 px-6">
+      <WifiOff size={36} className="text-red-400/60" />
+      <p className="text-sm font-black text-white/40 text-center">Could not load posts</p>
+      <p className="text-[11px] text-red-400/60 font-mono text-center break-all">{fetchError}</p>
+      <button
+        onClick={fetchPosts}
+        className="mt-2 px-6 py-2.5 bg-blue-600 hover:bg-blue-500 rounded-2xl text-xs font-black text-white active:scale-95 transition-all"
+      >
+        Retry
+      </button>
+    </div>
+  );
+
+  // ── Empty state ─────────────────────────────────────────────────────────────
+  if (posts.length === 0) return (
+    <div className="w-full flex flex-col items-center justify-center py-24 gap-3 text-white/20">
+      <Newspaper size={40} />
+      <p className="text-sm font-black">No posts yet</p>
+      <p className="text-xs text-white/15">Be the first to share something!</p>
+    </div>
+  );
 
   return (
     <div className="w-full bg-transparent font-sans">
