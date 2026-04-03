@@ -23,11 +23,15 @@ A social media app called "Facelook" built with React, Vite, TypeScript, and Tai
 - Development: `npm run dev` (port 5000)
 - Build: `npm run build`
 
-## Movie Mania Game (Task Section)
+## KBC Quiz Battle (Task Section)
 - **Location**: GolSlider → "Task" tab
-- **File**: `src/components/MovieGame.tsx`, `src/data/gameData.ts`
-- **50 Indian movies** (Bollywood + South) with poster, emojis, hint, jumbled title
-- **5 Rounds per match**: Blur Poster → Missing Letters → Actor's Eyes → Emoji Guess → Jumbled Name
+- **Files**: `src/components/MovieGame.tsx`, `src/data/quizData.ts`
+- **40 questions** across 4 categories: 🎬 Bollywood, 🔢 Math, 🦅 Birds, 🎵 Trending Songs
+- **10 rounds per match** — questions deterministically shuffled from session ID (same order for both players)
+- **Scoring**: Fast answer (≤15s) = +18, Slow answer (>15s) = +10, Wrong = 0
+- **Global sync**: Host drives round progression via `game_sessions.round_start_time` + `current_round`; Guest follows via Supabase Realtime + 3s polling fallback
+- **Audio**: Preloaded correct/wrong/match/BGM sounds (Mixkit CDN) via Audio refs
+- **UI**: KBC-style dark purple/blue gradient, circular red countdown timer, A/B/C/D option buttons, reveal animations
 - **Matchmaking**: Supabase `game_sessions` table + Realtime subscriptions
 - **Points**: -10 entry fee (profiles.fame_points), +18 winner, +2 admin_earnings per match
 - **Sound effects**: Mixkit CDN (correct taali, wrong buzz, match found)
