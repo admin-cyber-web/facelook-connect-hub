@@ -18,7 +18,18 @@ import {
   X,
 } from "lucide-react";
 
+// Gradient fallback shown when a video URL fails to load (e.g. 403 from Pexels)
+const VideoFallback = ({ title }: { title?: string }) => (
+  <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-zinc-900 via-zinc-800 to-zinc-900">
+    <div className="text-5xl mb-4">🎬</div>
+    <p className="text-white/40 text-xs font-bold uppercase tracking-widest text-center px-8">
+      {title || "Video unavailable"}
+    </p>
+  </div>
+);
+
 const FlickMedia = ({ post, videoRef, isMuted, isActive }: any) => {
+  const [videoFailed, setVideoFailed] = useState(false);
   const url = post.media_url || "";
   const isYouTube = url.includes("youtube.com") || url.includes("youtu.be");
 
@@ -28,6 +39,7 @@ const FlickMedia = ({ post, videoRef, isMuted, isActive }: any) => {
       /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=|\/shorts\/)([^#\&\?]*).*/;
     const match = url.match(regExp);
     const videoId = match && match[2].length === 11 ? match[2] : null;
+    if (!videoId) return <VideoFallback title={post.content} />;
     const embedUrl = `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=${isMuted ? 1 : 0}&loop=1&playlist=${videoId}&controls=0&modestbranding=1&enablejsapi=1`;
     return (
       <div className="relative w-full h-full bg-black overflow-hidden pointer-events-none">
@@ -41,6 +53,8 @@ const FlickMedia = ({ post, videoRef, isMuted, isActive }: any) => {
     );
   }
 
+  if (videoFailed || !url) return <VideoFallback title={post.content} />;
+
   return (
     <video
       ref={videoRef}
@@ -49,6 +63,7 @@ const FlickMedia = ({ post, videoRef, isMuted, isActive }: any) => {
       loop
       muted={isMuted}
       playsInline
+      onError={() => setVideoFailed(true)}
     />
   );
 };
@@ -97,7 +112,9 @@ const FlickCard = memo(
 
     const handleLike = async () => {
       setLiked(!liked);
-      await supabase.rpc("increment_likes", { post_id: post.id });
+      try {
+        await supabase.rpc("increment_likes", { post_id: post.id });
+      } catch (_) {}
     };
 
     return (

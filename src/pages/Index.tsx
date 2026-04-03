@@ -273,6 +273,13 @@ const Index = ({ session }: { session: Session }) => {
 
   // Yahan se fetchProfile shuru ho raha hai
   const fetchProfile = async () => {
+    // ── Fetch profile row from DB first ──────────────────────────────────
+    const { data } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", userId)
+      .maybeSingle();
+
     if (data) {
       // Existing profile — use DB values, but sync Google photo if still empty
       const meta = session.user.user_metadata ?? {};

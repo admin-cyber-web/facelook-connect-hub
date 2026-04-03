@@ -120,10 +120,12 @@ export default function MovieGame({ userId, userProfile }: Props) {
       .from("profiles").select("fame_points").eq("id", winnerId).single();
     const current = data?.fame_points ?? 0;
     await supabase.from("profiles").update({ fame_points: current + 18 }).eq("id", winnerId);
-    await supabase.from("admin_earnings").insert({
-      session_id: sessionId, amount: 2, reason: "movie_game_commission",
-      created_at: new Date().toISOString(),
-    }).catch(() => {});
+    try {
+      await supabase.from("admin_earnings").insert({
+        session_id: sessionId, amount: 2, reason: "movie_game_commission",
+        created_at: new Date().toISOString(),
+      });
+    } catch (_) {}
     if (winnerId === userId) setFamePoints(current + 18);
   };
 
