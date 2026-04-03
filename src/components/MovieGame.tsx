@@ -214,9 +214,17 @@ export default function MovieGame({ userId, userProfile }: Props) {
 
   // ── Matchmaking ───────────────────────────────────────────────────────────
   /**
-   * 1. Search for a 'waiting' room (not created by self)
-   * 2a. If found → join it, deduct fee, subscribe, go to matched
-   * 2b. If not  → create room, deduct fee, subscribe, poll for opponent
+   * INSERT-THEN-RECONCILE pattern — eliminates the race condition where
+   * two players both SELECT, both see nothing, and both INSERT.
+   *
+   * Flow:
+   *  1. Every player always INSERTs their own waiting room first.
+   *  2. Wait 400 ms so both inserts can land in the DB.
+   *  3. Look for a waiting room that is OLDER than ours (lower created_at)
+   *     and not ours. If found → we self-destruct and join that older room
+   *     as guest (atomic UPDATE with status+guest_id guard).
+   *  4. If no older room found → we are the true host; wait for someone
+   *     to join via Realtime + polling fallback.
    */
   const joinOrCreateSession = async () => {
     if (famePoints < 10) {
@@ -226,83 +234,89 @@ export default function MovieGame({ userId, userProfile }: Props) {
     setError(null);
     setPhaseSync("waiting");
 
-    // Step 1: look for an open room
-    const { data: waiting, error: findErr } = await supabase
-      .from("game_sessions")
-      .select("*")
-      .eq("status", "waiting")
-      .is("guest_id", null)
-      .neq("host_id", userId)
-      .order("created_at", { ascending: true })
-      .limit(1)
-      .maybeSingle();
+    const movies = getRandomMovies(5);
+    moviesRef.current = movies;
+    setCurrentMovies(movies);
 
-    if (findErr) {
-      setError("DB error — make sure game_sessions table exists.");
+    // ── Step 1: Everyone inserts their own room ──────────────────────────
+    const { data: myRoom, error: createErr } = await supabase
+      .from("game_sessions")
+      .insert({
+        host_id: userId,
+        guest_id: null,
+        status: "waiting",
+        host_score: 0,
+        guest_score: 0,
+        current_round: 1,
+        movie_indices: [],
+        winner_id: null,
+      })
+      .select()
+      .single();
+
+    if (createErr || !myRoom) {
+      setError("Could not reach game_sessions table. Please check Supabase setup.");
       setPhaseSync("lobby");
       return;
     }
 
-    if (waiting) {
-      // ── GUEST PATH ──────────────────────────────────────────────────────
-      const movies = getRandomMovies(5);
-      moviesRef.current = movies;
-      setCurrentMovies(movies);
+    // ── Step 2: Short pause — let concurrent inserts land ────────────────
+    await new Promise((r) => setTimeout(r, 400));
 
-      // Update the row — this triggers host's Realtime listener
-      const { error: joinErr } = await supabase
+    // ── Step 3: Look for a DIFFERENT waiting room older than mine ─────────
+    const { data: olderRoom } = await supabase
+      .from("game_sessions")
+      .select("*")
+      .eq("status", "waiting")
+      .is("guest_id", null)
+      .neq("host_id", userId)          // not mine
+      .lt("created_at", myRoom.created_at)  // strictly older
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    if (olderRoom) {
+      // ── GUEST PATH: join the older room, delete my room ─────────────────
+      // Delete my placeholder room first (clean up)
+      await supabase.from("game_sessions").delete().eq("id", myRoom.id);
+
+      // Atomically claim the older room (double-guard prevents double-join)
+      const { data: joined } = await supabase
         .from("game_sessions")
         .update({ guest_id: userId, status: "playing" })
-        .eq("id", waiting.id)
-        .eq("status", "waiting");   // guard: only join if still waiting
+        .eq("id", olderRoom.id)
+        .eq("status", "waiting")        // guard 1: still waiting
+        .is("guest_id", null)           // guard 2: not yet taken
+        .select()
+        .maybeSingle();
 
-      if (joinErr) {
-        // Room was taken between select & update — retry
+      if (!joined) {
+        // Another player claimed it between our select and update — retry
         return joinOrCreateSession();
       }
 
-      const joined: GameSession = { ...waiting, guest_id: userId, status: "playing" };
-      sessionRef.current = joined;
+      const joinedSession = joined as GameSession;
+      sessionRef.current = joinedSession;
       isHostRef.current  = false;
 
-      // Deduct AFTER successful join
+      // Points deducted only after confirmed join
       await deductEntryFee();
-      fetchOpponentName(waiting.host_id);
-      subscribeToSession(joined.id, false);
+      fetchOpponentName(joinedSession.host_id);
+      subscribeToSession(joinedSession.id, false);
 
       setPhaseSync("matched");
       playSound(MATCH_SFX);
       setTimeout(() => { setPhaseSync("game"); startTimer(); }, 2000);
 
     } else {
-      // ── HOST PATH ───────────────────────────────────────────────────────
-      const movies = getRandomMovies(5);
-      moviesRef.current = movies;
-      setCurrentMovies(movies);
-
-      const { data: created, error: createErr } = await supabase
-        .from("game_sessions")
-        .insert({
-          host_id: userId, guest_id: null, status: "waiting",
-          host_score: 0, guest_score: 0, current_round: 1,
-          movie_indices: [], winner_id: null,
-        })
-        .select()
-        .single();
-
-      if (createErr || !created) {
-        setError("Could not create game session. Ensure the game_sessions table exists in Supabase.");
-        setPhaseSync("lobby");
-        return;
-      }
-
-      sessionRef.current = created;
+      // ── HOST PATH: my room is the oldest (or only one) ──────────────────
+      sessionRef.current = myRoom;
       isHostRef.current  = true;
 
-      // Deduct AFTER successful session creation
+      // Points deducted only after confirmed room creation
       await deductEntryFee();
-      subscribeToSession(created.id, true);
-      startPollingForOpponent(created.id);  // backup in case Realtime is slow
+      subscribeToSession(myRoom.id, true);
+      startPollingForOpponent(myRoom.id); // polling fallback for Realtime lag
     }
   };
 
