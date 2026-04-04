@@ -329,7 +329,7 @@ function FrameModePage({ onBack, userProfile, userEmail }: { onBack: () => void;
   const displayed = tabRequests[activeTab];
 
   return (
-    <div className="min-h-screen w-full bg-gradient-to-b from-amber-50 via-white to-amber-50 overflow-y-auto pb-28">
+    <div className="h-full w-full bg-gradient-to-b from-amber-50 via-white to-amber-50 overflow-y-auto pb-28">
 
       {/* ── Sticky Header ─────────────────────────────────────────────────── */}
       <div className="sticky top-0 z-50 w-full bg-white/95 backdrop-blur-xl border-b-2 border-amber-200 flex items-center gap-3 px-4 py-2.5 shadow-sm">
@@ -558,6 +558,9 @@ function FrameModePage({ onBack, userProfile, userEmail }: { onBack: () => void;
         )}
       </AnimatePresence>
 
+      {/* ── Centred content wrapper (laptop: max-width + auto margins) ──── */}
+      <div className="w-full max-w-6xl mx-auto">
+
       {/* ── Admin Spotlight Mission ───────────────────────────────────────── */}
       {isAdmin && (
         <div className="mx-4 mt-4 mb-2 bg-gradient-to-r from-yellow-50 to-amber-50 border-2 border-yellow-400 rounded-3xl p-4 shadow-sm">
@@ -648,7 +651,7 @@ function FrameModePage({ onBack, userProfile, userEmail }: { onBack: () => void;
       )}
 
       {/* ── Request Cards ──────────────────────────────────────────────────── */}
-      <div className="px-4 space-y-4 pb-6">
+      <div className="px-4 pb-8 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         <AnimatePresence>
           {displayed.map((req) => {
             const cat    = FRAME_CATS[req.category as FrameCategory] || FRAME_CATS.Food;
@@ -778,6 +781,8 @@ function FrameModePage({ onBack, userProfile, userEmail }: { onBack: () => void;
           })}
         </AnimatePresence>
       </div>
+
+      </div>{/* ── end max-w-6xl centering wrapper ────────────────────────────── */}
 
       {/* ── Floating Action Button — Direct Help ──────────────────────────── */}
       <motion.button
