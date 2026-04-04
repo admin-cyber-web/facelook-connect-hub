@@ -104,10 +104,10 @@ const AVATAR_COLORS = [
 
 // ── Frame Mode — category config ─────────────────────────────────────────────
 const FRAME_CATS = {
-  Food:      { icon: "🍱", target: 50,  perAd: 5,  badge: "bg-orange-100 text-orange-700", bar: "bg-orange-400" },
-  Medicine:  { icon: "💊", target: 200, perAd: 20, badge: "bg-green-100 text-green-700",   bar: "bg-green-500"  },
-  Clothing:  { icon: "👕", target: 100, perAd: 10, badge: "bg-blue-100 text-blue-700",     bar: "bg-blue-500"   },
-  Shoes:     { icon: "👟", target: 80,  perAd: 8,  badge: "bg-purple-100 text-purple-700", bar: "bg-purple-500" },
+  Food:     { icon: "🍱", itemPrice: 200, delivery: 50,  target: 250, perAd: 0.5, badge: "bg-orange-100 text-orange-700", bar: "bg-orange-400" },
+  Slipper:  { icon: "🩴", itemPrice: 100, delivery: 30,  target: 130, perAd: 0.5, badge: "bg-purple-100 text-purple-700", bar: "bg-purple-500"  },
+  Medicine: { icon: "💊", itemPrice: 500, delivery: 50,  target: 550, perAd: 0.5, badge: "bg-green-100 text-green-700",   bar: "bg-green-500"  },
+  Clothes:  { icon: "👕", itemPrice: 800, delivery: 50,  target: 850, perAd: 0.5, badge: "bg-blue-100 text-blue-700",     bar: "bg-blue-500"   },
 } as const;
 type FrameCategory = keyof typeof FRAME_CATS;
 
@@ -128,27 +128,34 @@ interface FrameRequest {
   support_count: number;
   status: string;
   created_at: string;
+  is_priority?: boolean;
+  delivery_charge?: number;
 }
 
 // ── Frame Mode full-screen view ────────────────────────────────────────────────
-function FrameModePage({ onBack, userProfile }: { onBack: () => void; userProfile: any }) {
-  const [requests, setRequests]       = useState<FrameRequest[]>([]);
-  const [loading, setLoading]         = useState(true);
-  const [showForm, setShowForm]       = useState(false);
-  const [showSuccess, setShowSuccess] = useState(false);
-  const [successCode, setSuccessCode] = useState("");
-  const [submitting, setSubmitting]   = useState(false);
-  const [adWatching, setAdWatching]   = useState<string | null>(null);
-  const [supported, setSupported]     = useState<Set<string>>(new Set());
-  const [helpPopup, setHelpPopup]     = useState<string | null>(null);
-  const [formData, setFormData]       = useState({
+function FrameModePage({ onBack, userProfile, userEmail }: { onBack: () => void; userProfile: any; userEmail?: string }) {
+  const ADMIN_EMAIL = "tiwarijhumki@gmail.com";
+  const isAdmin = userEmail === ADMIN_EMAIL;
+
+  const [requests, setRequests]         = useState<FrameRequest[]>([]);
+  const [loading, setLoading]           = useState(true);
+  const [showForm, setShowForm]         = useState(false);
+  const [showSuccess, setShowSuccess]   = useState(false);
+  const [successCode, setSuccessCode]   = useState("");
+  const [submitting, setSubmitting]     = useState(false);
+  const [adWatching, setAdWatching]     = useState<string | null>(null);
+  const [supported, setSupported]       = useState<Set<string>>(new Set());
+  const [helpPopup, setHelpPopup]       = useState<string | null>(null);
+  const [activeTab, setActiveTab]       = useState<"current" | "pending" | "success">("pending");
+  const [showPhonePopup, setShowPhonePopup] = useState(false);
+  const [settingPriority, setSettingPriority] = useState<string | null>(null);
+  const [formData, setFormData]         = useState({
     needy_name: "", address: "", category: "Food" as FrameCategory, mobile: "", description: "",
   });
-  const [photoFile, setPhotoFile]       = useState<File | null>(null);
-  const [photoPreview, setPhotoPreview] = useState("");
+  const [photoFile, setPhotoFile]         = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview]   = useState("");
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
-  // Fetch requests from DB + realtime
   useEffect(() => {
     fetchRequests();
     const ch = supabase
@@ -164,7 +171,7 @@ function FrameModePage({ onBack, userProfile }: { onBack: () => void; userProfil
         .from("frame_requests")
         .select("*")
         .order("created_at", { ascending: false })
-        .limit(30);
+        .limit(50);
       if (data) setRequests(data);
     } catch (_) {}
     setLoading(false);
@@ -194,24 +201,26 @@ function FrameModePage({ onBack, userProfile }: { onBack: () => void; userProfil
       } catch (_) {}
       setUploadingPhoto(false);
     }
-    const code      = Math.floor(100000 + Math.random() * 900000).toString();
-    const catCfg    = FRAME_CATS[formData.category];
+    const code   = Math.floor(100000 + Math.random() * 900000).toString();
+    const catCfg = FRAME_CATS[formData.category];
     try {
       await supabase.from("frame_requests").insert({
-        request_code: code,
-        user_id:      userProfile?.id || "",
-        user_name:    userProfile?.full_name || "Anonymous",
-        user_avatar:  userProfile?.avatar_url || "",
-        needy_name:   formData.needy_name,
+        request_code:     code,
+        user_id:          userProfile?.id || "",
+        user_name:        userProfile?.full_name || "Anonymous",
+        user_avatar:      userProfile?.avatar_url || "",
+        needy_name:       formData.needy_name,
         needy_photo_url,
-        address:      formData.address,
-        category:     formData.category,
-        mobile:       formData.mobile,
-        description:  formData.description,
+        address:          formData.address,
+        category:         formData.category,
+        mobile:           formData.mobile,
+        description:      formData.description,
         collected_amount: 0,
         target_amount:    catCfg.target,
+        delivery_charge:  catCfg.delivery,
         support_count:    0,
         status:           "active",
+        is_priority:      false,
       });
       setSuccessCode(code);
       setShowForm(false);
@@ -228,14 +237,11 @@ function FrameModePage({ onBack, userProfile }: { onBack: () => void; userProfil
 
   const handleWatchAd = async (reqId: string) => {
     setAdWatching(reqId);
-    // Simulate rewarded ad (2s)
     await new Promise(r => setTimeout(r, 2000));
     const req    = requests.find(r => r.id === reqId);
     if (!req) { setAdWatching(null); return; }
-    const cat    = FRAME_CATS[req.category as FrameCategory];
-    const perAd  = cat?.perAd || 5;
     const target = req.target_amount;
-    const newAmt = Math.min((req.collected_amount || 0) + perAd, target);
+    const newAmt = parseFloat(Math.min((req.collected_amount || 0) + 0.5, target).toFixed(2));
     const done   = newAmt >= target;
     try {
       await supabase.from("frame_requests").update({
@@ -248,6 +254,15 @@ function FrameModePage({ onBack, userProfile }: { onBack: () => void; userProfil
     } catch (_) {}
     setAdWatching(null);
     setHelpPopup(null);
+  };
+
+  const handleSetPriority = async (reqId: string, priority: boolean) => {
+    setSettingPriority(reqId);
+    try {
+      await supabase.from("frame_requests").update({ is_priority: priority }).eq("id", reqId);
+      setRequests(prev => prev.map(r => r.id === reqId ? { ...r, is_priority: priority } : r));
+    } catch (_) {}
+    setSettingPriority(null);
   };
 
   const handleSupport = async (reqId: string) => {
@@ -274,26 +289,34 @@ function FrameModePage({ onBack, userProfile }: { onBack: () => void; userProfil
   const fld = (k: keyof typeof formData, v: string) =>
     setFormData(prev => ({ ...prev, [k]: v }));
 
+  const todayStr = new Date().toDateString();
+  const tabRequests = {
+    current: requests.filter(r => r.is_priority && new Date(r.created_at).toDateString() === todayStr && r.status !== "completed"),
+    pending: requests.filter(r => r.status === "active"),
+    success: requests.filter(r => r.status === "completed" || Math.round((r.collected_amount / r.target_amount) * 100) >= 100),
+  };
+  const displayed = tabRequests[activeTab];
+
   return (
-    <div className="min-h-screen w-full bg-gradient-to-b from-amber-50 via-white to-amber-50 overflow-y-auto pb-10">
+    <div className="min-h-screen w-full bg-gradient-to-b from-amber-50 via-white to-amber-50 overflow-y-auto pb-28">
 
       {/* ── Sticky Header ─────────────────────────────────────────────────── */}
-      <div className="sticky top-0 z-50 w-full bg-white/90 backdrop-blur-xl border-b-2 border-amber-200 flex items-center gap-3 px-4 py-3 shadow-sm">
-        <button onClick={onBack} className="p-2 rounded-xl bg-amber-100 border border-amber-200 text-amber-700 active:scale-95">
+      <div className="sticky top-0 z-50 w-full bg-white/95 backdrop-blur-xl border-b-2 border-amber-200 flex items-center gap-3 px-4 py-2.5 shadow-sm">
+        <button onClick={onBack} className="p-2 rounded-xl bg-amber-100 border border-amber-200 text-amber-700 active:scale-95 shrink-0">
           <ArrowLeft size={18} />
         </button>
-        <div className="flex-1">
+        <div className="flex-1 min-w-0">
           <p className="text-sm font-black text-amber-900 leading-none">FACELOOK FRAME</p>
-          <p className="text-[10px] text-amber-600 font-semibold">Ab Har Zarooratmand Hoga Frame</p>
+          <p className="text-[10px] text-amber-600 font-semibold leading-tight mt-0.5">एक छोटा सा प्रयास, किसी की बड़ी मदद</p>
         </div>
         <motion.button
           whileTap={{ scale: 0.95 }}
           onClick={() => setShowForm(true)}
-          className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 text-black font-black text-xs shadow-md shadow-amber-200 relative"
+          className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 text-black font-black text-[11px] shadow-md shadow-amber-200 relative shrink-0"
         >
           <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-red-500 animate-ping" />
           <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-red-500" />
-          <Handshake size={14} /> Submit Help Request
+          <Handshake size={13} /> Submit Request
         </motion.button>
       </div>
 
@@ -315,7 +338,6 @@ function FrameModePage({ onBack, userProfile }: { onBack: () => void; userProfil
                 <button onClick={() => setShowForm(false)} className="p-2 rounded-xl bg-gray-100 text-gray-500 text-sm font-black">✕</button>
               </div>
 
-              {/* Reporter (auto-filled) */}
               <div className="px-4 pt-4 pb-2 bg-amber-50 mx-4 mt-4 rounded-2xl border border-amber-100">
                 <p className="text-[10px] font-black text-amber-700 uppercase tracking-widest mb-2">Reporting By (Auto)</p>
                 <div className="flex items-center gap-3">
@@ -334,7 +356,6 @@ function FrameModePage({ onBack, userProfile }: { onBack: () => void; userProfil
               </div>
 
               <div className="px-4 py-4 space-y-4">
-                {/* Needy person's photo */}
                 <div>
                   <p className="text-xs font-black text-gray-700 mb-2">Zarooratmand ki Photo</p>
                   <label className="flex flex-col items-center justify-center w-full h-32 rounded-2xl border-2 border-dashed border-amber-300 bg-amber-50 cursor-pointer overflow-hidden">
@@ -350,14 +371,12 @@ function FrameModePage({ onBack, userProfile }: { onBack: () => void; userProfil
                   </label>
                 </div>
 
-                {/* Needy name */}
                 <div>
                   <p className="text-xs font-black text-gray-700 mb-1.5">Zarooratmand ka Naam *</p>
                   <input value={formData.needy_name} onChange={e => fld("needy_name", e.target.value)}
                     placeholder="Jaise: Ramesh Kumar" className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold text-gray-900 outline-none focus:ring-2 focus:ring-amber-400/40" />
                 </div>
 
-                {/* Category */}
                 <div>
                   <p className="text-xs font-black text-gray-700 mb-2">Category *</p>
                   <div className="grid grid-cols-4 gap-2">
@@ -369,12 +388,14 @@ function FrameModePage({ onBack, userProfile }: { onBack: () => void; userProfil
                       </button>
                     ))}
                   </div>
-                  <p className="text-[10px] text-amber-600 mt-1 font-semibold">
-                    Target: ₹{FRAME_CATS[formData.category].target} · Ad se +₹{FRAME_CATS[formData.category].perAd} per watch
-                  </p>
+                  <div className="mt-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+                    <p className="text-[10px] text-amber-700 font-black">
+                      Item: ₹{FRAME_CATS[formData.category].itemPrice} + Delivery: ₹{FRAME_CATS[formData.category].delivery} = Total: ₹{FRAME_CATS[formData.category].target}
+                    </p>
+                    <p className="text-[10px] text-amber-600 mt-0.5">Ad se +₹0.50 per watch</p>
+                  </div>
                 </div>
 
-                {/* Address */}
                 <div>
                   <p className="text-xs font-black text-gray-700 mb-1.5">Pura Address *</p>
                   <textarea value={formData.address} onChange={e => fld("address", e.target.value)}
@@ -382,7 +403,6 @@ function FrameModePage({ onBack, userProfile }: { onBack: () => void; userProfil
                     rows={3} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold text-gray-900 outline-none focus:ring-2 focus:ring-amber-400/40 resize-none" />
                 </div>
 
-                {/* Mobile */}
                 <div>
                   <p className="text-xs font-black text-gray-700 mb-1.5">Mobile No. *</p>
                   <input value={formData.mobile} onChange={e => fld("mobile", e.target.value)}
@@ -390,7 +410,6 @@ function FrameModePage({ onBack, userProfile }: { onBack: () => void; userProfil
                     className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold text-gray-900 outline-none focus:ring-2 focus:ring-amber-400/40" />
                 </div>
 
-                {/* Description */}
                 <div>
                   <p className="text-xs font-black text-gray-700 mb-1.5">Zaroorat ka Karan (Optional)</p>
                   <textarea value={formData.description} onChange={e => fld("description", e.target.value)}
@@ -453,9 +472,7 @@ function FrameModePage({ onBack, userProfile }: { onBack: () => void; userProfil
               <div className="w-10 h-1 rounded-full bg-gray-300 mx-auto mb-4" />
               <div className="text-center mb-5">
                 <p className="text-3xl mb-2">❤️</p>
-                <p className="font-black text-gray-900 text-base leading-snug">
-                  आपका एक छोटा सा प्रयास
-                </p>
+                <p className="font-black text-gray-900 text-base leading-snug">आपका एक छोटा सा प्रयास</p>
                 <p className="text-sm text-gray-500 mt-1 leading-relaxed">
                   किसी की ज़िंदगी बदल सकता है।<br/>
                   <span className="font-bold text-amber-700">Ad dekh kar help karein</span> — isse zarooratmand ko madad milegi.
@@ -474,7 +491,7 @@ function FrameModePage({ onBack, userProfile }: { onBack: () => void; userProfil
                 <div className="space-y-3">
                   <motion.button whileTap={{ scale: 0.97 }} onClick={() => handleWatchAd(helpPopup)}
                     className="w-full py-4 rounded-2xl bg-gradient-to-r from-amber-500 to-yellow-500 text-black font-black text-sm flex items-center justify-center gap-2 shadow-lg shadow-amber-200">
-                    <Video size={18} /> Watch Ad & Help (+₹{FRAME_CATS[(requests.find(r=>r.id===helpPopup)?.category as FrameCategory) || "Food"]?.perAd || 5})
+                    <Video size={18} /> Watch Ad & Help (+₹0.50)
                   </motion.button>
                   <motion.button whileTap={{ scale: 0.97 }} onClick={handleShare}
                     className="w-full py-4 rounded-2xl bg-gray-100 text-gray-700 font-black text-sm flex items-center justify-center gap-2">
@@ -487,49 +504,149 @@ function FrameModePage({ onBack, userProfile }: { onBack: () => void; userProfil
         )}
       </AnimatePresence>
 
-      {/* ── Help Wall header strip ─────────────────────────────────────────── */}
-      <div className="w-full px-4 pt-5 pb-3 flex items-center justify-between">
+      {/* ── Phone Popup ───────────────────────────────────────────────────── */}
+      <AnimatePresence>
+        {showPhonePopup && (
+          <>
+            <motion.div key="phonebg" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[80] bg-black/50 backdrop-blur-sm" onClick={() => setShowPhonePopup(false)} />
+            <motion.div key="phonebox" initial={{ opacity: 0, scale: 0.85, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.85 }}
+              className="fixed bottom-24 right-4 z-[81] bg-white rounded-3xl border-2 border-amber-300 shadow-2xl p-5 w-72"
+            >
+              <p className="text-[10px] font-black text-amber-600 uppercase tracking-widest mb-1">Direct Help / Status</p>
+              <p className="text-xs text-gray-500 mb-3">Call ya WhatsApp karein:</p>
+              <div className="bg-gradient-to-r from-amber-50 to-yellow-50 border-2 border-amber-300 rounded-2xl px-4 py-3 text-center mb-3">
+                <p className="text-xl font-black text-amber-800 tracking-widest">7-08-08-09-9-08</p>
+              </div>
+              <a href="tel:7080809908"
+                className="block w-full py-3 rounded-2xl bg-gradient-to-r from-amber-500 to-yellow-500 text-black font-black text-sm text-center">
+                📞 Call Now
+              </a>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* ── Admin Spotlight Mission ───────────────────────────────────────── */}
+      {isAdmin && (
+        <div className="mx-4 mt-4 mb-2 bg-gradient-to-r from-yellow-50 to-amber-50 border-2 border-yellow-400 rounded-3xl p-4 shadow-sm">
+          <div className="flex items-center gap-2 mb-3">
+            <Star size={16} className="text-yellow-500 fill-yellow-400" />
+            <p className="text-xs font-black text-yellow-800 uppercase tracking-widest">Spotlight Mission — Admin Panel</p>
+          </div>
+          <p className="text-[10px] text-yellow-700 mb-3">Kisi bhi request ko Priority mark karein — wo 'Current' tab mein aayegi.</p>
+          <div className="space-y-2 max-h-48 overflow-y-auto">
+            {requests.filter(r => r.status === "active").slice(0, 6).map(req => {
+              const cat = FRAME_CATS[req.category as FrameCategory] || FRAME_CATS.Food;
+              return (
+                <div key={req.id} className="flex items-center justify-between bg-white rounded-2xl px-3 py-2 border border-yellow-200">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-base">{cat.icon}</span>
+                    <div className="min-w-0">
+                      <p className="text-[11px] font-black text-gray-800 truncate">{req.needy_name}</p>
+                      <p className="text-[10px] text-gray-400">#{req.request_code}</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleSetPriority(req.id, !req.is_priority)}
+                    disabled={settingPriority === req.id}
+                    className={`shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-xl text-[10px] font-black transition-all ${req.is_priority ? "bg-yellow-400 text-black" : "bg-gray-100 text-gray-600 hover:bg-yellow-100"}`}
+                  >
+                    {settingPriority === req.id ? <Loader2 size={10} className="animate-spin" /> : <Star size={10} fill={req.is_priority ? "currentColor" : "none"} />}
+                    {req.is_priority ? "Priority ✓" : "Set Priority"}
+                  </button>
+                </div>
+              );
+            })}
+            {requests.filter(r => r.status === "active").length === 0 && (
+              <p className="text-[10px] text-gray-400 text-center py-2">Koi active request nahi hai</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Three Tabs ───────────────────────────────────────────────────── */}
+      <div className="mx-4 mt-4 mb-1">
+        <div className="flex items-center bg-amber-100/60 rounded-2xl p-1 gap-1">
+          {([
+            { key: "current", label: "⚡ Current", count: tabRequests.current.length },
+            { key: "pending", label: "⏳ Pending", count: tabRequests.pending.length },
+            { key: "success", label: "✅ Success", count: tabRequests.success.length },
+          ] as const).map(tab => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-[11px] font-black transition-all ${
+                activeTab === tab.key
+                  ? "bg-white shadow-sm text-amber-800 border border-amber-200"
+                  : "text-amber-600 hover:bg-white/50"
+              }`}
+            >
+              {tab.label}
+              <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-black ${activeTab === tab.key ? "bg-amber-500 text-white" : "bg-amber-200 text-amber-700"}`}>
+                {tab.count}
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Wall header ───────────────────────────────────────────────────── */}
+      <div className="w-full px-4 pt-3 pb-2 flex items-center justify-between">
         <p className="text-xs font-black text-amber-700 uppercase tracking-widest flex items-center gap-2">
-          <Handshake size={13} /> Frame Wall — Active Requests
+          <Handshake size={13} />
+          {activeTab === "current" ? "Today's Priority Requests" : activeTab === "pending" ? "Pending Requests" : "Completed Goals 🎉"}
         </p>
         {loading && <Loader2 size={14} className="animate-spin text-amber-400" />}
       </div>
 
-      {/* ── Request Cards ──────────────────────────────────────────────────── */}
-      {!loading && requests.length === 0 && (
-        <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
-          <p className="text-5xl mb-4">🙏</p>
-          <p className="font-black text-gray-600 text-base">Abhi koi request nahi hai</p>
-          <p className="text-sm text-gray-400 mt-1">Pehli help request submit karein!</p>
-          <button onClick={() => setShowForm(true)}
-            className="mt-4 px-6 py-3 rounded-2xl bg-gradient-to-r from-amber-500 to-yellow-500 text-black font-black text-sm shadow-md">
-            Submit Help Request ➕
-          </button>
+      {/* ── Empty state ───────────────────────────────────────────────────── */}
+      {!loading && displayed.length === 0 && (
+        <div className="flex flex-col items-center justify-center py-12 px-6 text-center">
+          <p className="text-5xl mb-4">{activeTab === "success" ? "🎉" : "🙏"}</p>
+          <p className="font-black text-gray-600 text-base">
+            {activeTab === "current" ? "Aaj koi priority request nahi" : activeTab === "success" ? "Abhi tak koi goal complete nahi" : "Koi active request nahi"}
+          </p>
+          {activeTab === "pending" && (
+            <button onClick={() => setShowForm(true)}
+              className="mt-4 px-6 py-3 rounded-2xl bg-gradient-to-r from-amber-500 to-yellow-500 text-black font-black text-sm shadow-md">
+              Submit Help Request ➕
+            </button>
+          )}
         </div>
       )}
 
+      {/* ── Request Cards ──────────────────────────────────────────────────── */}
       <div className="px-4 space-y-4 pb-6">
         <AnimatePresence>
-          {requests.map((req) => {
-            const cat      = FRAME_CATS[req.category as FrameCategory] || FRAME_CATS.Food;
-            const pct      = Math.min(100, Math.round((req.collected_amount / req.target_amount) * 100));
-            const done     = req.status === "completed" || pct >= 100;
-            const isSupp   = supported.has(req.id);
-            const timeAgo  = (() => {
+          {displayed.map((req) => {
+            const cat    = FRAME_CATS[req.category as FrameCategory] || FRAME_CATS.Food;
+            const pct    = Math.min(100, Math.round((req.collected_amount / req.target_amount) * 100));
+            const done   = req.status === "completed" || pct >= 100;
+            const isSupp = supported.has(req.id);
+            const timeAgo = (() => {
               const d = (Date.now() - new Date(req.created_at).getTime()) / 1000;
               if (d < 3600) return `${Math.floor(d / 60)}m ago`;
               if (d < 86400) return `${Math.floor(d / 3600)}h ago`;
               return `${Math.floor(d / 86400)}d ago`;
             })();
+            const itemPrice = (cat as any).itemPrice || req.target_amount;
+            const delivery  = req.delivery_charge ?? (cat as any).delivery ?? 0;
+            const total     = req.target_amount;
 
             return (
               <motion.div key={req.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
-                className={`bg-white rounded-3xl border-2 overflow-hidden shadow-sm ${done ? "border-green-200" : "border-amber-100"}`}
+                className={`bg-white rounded-3xl border-2 overflow-hidden shadow-sm ${req.is_priority ? "border-yellow-400 shadow-yellow-100" : done ? "border-green-200" : "border-amber-100"}`}
               >
-                {/* Reporter + Needy row */}
+                {req.is_priority && (
+                  <div className="bg-gradient-to-r from-yellow-400 to-amber-400 px-4 py-1.5 flex items-center gap-2">
+                    <Star size={11} className="text-white fill-white" />
+                    <p className="text-[10px] font-black text-white uppercase tracking-widest">Priority Mission</p>
+                  </div>
+                )}
+
                 <div className="px-4 pt-4">
                   <div className="flex items-center gap-2 mb-3">
-                    {/* Reporter */}
                     <div className="relative shrink-0">
                       {req.user_avatar ? (
                         <img src={req.user_avatar} className="w-10 h-10 rounded-full object-cover border-2 border-amber-200" />
@@ -544,13 +661,12 @@ function FrameModePage({ onBack, userProfile }: { onBack: () => void; userProfil
                       <p className="text-[11px] font-black text-gray-800 truncate">{req.user_name} ne report kiya</p>
                       <p className="text-[10px] text-gray-400">{timeAgo} · Code: <span className="font-bold text-amber-600">#{req.request_code}</span></p>
                     </div>
-                    <span className={`text-[10px] font-black px-2 py-1 rounded-full ${cat.badge}`}>
+                    <span className={`text-[10px] font-black px-2 py-1 rounded-full shrink-0 ${cat.badge}`}>
                       {cat.icon} {req.category}
                     </span>
                   </div>
 
-                  {/* Needy info row */}
-                  <div className="flex items-start gap-3 mb-3">
+                  <div className="flex items-start gap-3 mb-2">
                     {req.needy_photo_url ? (
                       <img src={req.needy_photo_url} className="w-16 h-16 rounded-2xl object-cover border-2 border-amber-100 shrink-0" />
                     ) : (
@@ -565,6 +681,13 @@ function FrameModePage({ onBack, userProfile }: { onBack: () => void; userProfil
                       {req.description && <p className="text-[11px] text-gray-600 mt-1 italic">"{req.description}"</p>}
                     </div>
                   </div>
+
+                  {/* Pricing transparency */}
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-1.5 mb-3">
+                    <p className="text-[10px] font-black text-amber-700">
+                      Item: ₹{itemPrice} | Delivery: ₹{delivery} | Total: ₹{total}
+                    </p>
+                  </div>
                 </div>
 
                 {/* Progress bar */}
@@ -577,7 +700,7 @@ function FrameModePage({ onBack, userProfile }: { onBack: () => void; userProfil
                   ) : (
                     <div>
                       <div className="flex justify-between text-[10px] font-bold text-gray-500 mb-1">
-                        <span>₹{req.collected_amount} collected</span>
+                        <span>₹{req.collected_amount.toFixed(2)} collected</span>
                         <span>Target: ₹{req.target_amount} ({pct}%)</span>
                       </div>
                       <div className="w-full h-2.5 bg-gray-100 rounded-full overflow-hidden">
@@ -612,6 +735,17 @@ function FrameModePage({ onBack, userProfile }: { onBack: () => void; userProfil
           })}
         </AnimatePresence>
       </div>
+
+      {/* ── Floating Action Button — Direct Help ──────────────────────────── */}
+      <motion.button
+        whileTap={{ scale: 0.92 }}
+        onClick={() => setShowPhonePopup(v => !v)}
+        className="fixed bottom-8 right-4 z-[75] flex flex-col items-center justify-center gap-0.5 px-4 py-3 bg-gradient-to-br from-amber-500 to-yellow-400 rounded-2xl shadow-2xl shadow-amber-300/60 border-2 border-white"
+      >
+        <PhoneCall size={18} className="text-black" />
+        <span className="text-[9px] font-black text-black leading-none">Direct Help</span>
+        <span className="text-[9px] font-black text-black leading-none">/ Status</span>
+      </motion.button>
     </div>
   );
 }
@@ -1184,7 +1318,7 @@ const Index = ({ session }: { session: Session }) => {
             transition={{ type: "spring", stiffness: 320, damping: 32 }}
             className="fixed inset-0 z-[9999] overflow-hidden"
           >
-            <FrameModePage onBack={() => setIsFrameMode(false)} userProfile={profile} />
+            <FrameModePage onBack={() => setIsFrameMode(false)} userProfile={profile} userEmail={userEmail} />
           </motion.div>
         )}
       </AnimatePresence>
