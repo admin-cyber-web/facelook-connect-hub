@@ -102,151 +102,515 @@ const AVATAR_COLORS = [
   "from-emerald-600 to-teal-500",
 ];
 
-// ── Mock Help Feed data for Frame Mode ────────────────────────────────────────
-const HELP_POSTS = [
-  { id: 1, user: "Riya S.", initials: "RS", category: "Education", need: "12th class ki books chahiye, ghar mein afford nahi ho pata 📚", time: "2h ago", helpers: 3 },
-  { id: 2, user: "Mohammed K.", initials: "MK", category: "Health", need: "Dawai ke liye paise nahi hain, koi madad kar sakta hai? 🤝", time: "5h ago", helpers: 7 },
-  { id: 3, user: "Priya M.", initials: "PM", category: "Career", need: "Job ki talash mein hoon, koi referral dega? 🙏", time: "1d ago", helpers: 2 },
-  { id: 4, user: "Arjun T.", initials: "AT", category: "Food", need: "Aaj khaana nahi tha, koi help karega? Bahut zaroorat hai 🍱", time: "3h ago", helpers: 5 },
-];
+// ── Frame Mode — category config ─────────────────────────────────────────────
+const FRAME_CATS = {
+  Food:      { icon: "🍱", target: 50,  perAd: 5,  badge: "bg-orange-100 text-orange-700", bar: "bg-orange-400" },
+  Medicine:  { icon: "💊", target: 200, perAd: 20, badge: "bg-green-100 text-green-700",   bar: "bg-green-500"  },
+  Clothing:  { icon: "👕", target: 100, perAd: 10, badge: "bg-blue-100 text-blue-700",     bar: "bg-blue-500"   },
+  Shoes:     { icon: "👟", target: 80,  perAd: 8,  badge: "bg-purple-100 text-purple-700", bar: "bg-purple-500" },
+} as const;
+type FrameCategory = keyof typeof FRAME_CATS;
 
-const HEROES = [
-  { initials: "SA", color: "from-amber-500 to-yellow-400", helped: 12 },
-  { initials: "NJ", color: "from-orange-500 to-red-400",  helped: 9  },
-  { initials: "PK", color: "from-yellow-500 to-amber-400", helped: 6  },
-];
-
-const CAT_COLORS: Record<string, string> = {
-  Education: "bg-blue-100 text-blue-700",
-  Health:    "bg-green-100 text-green-700",
-  Career:    "bg-purple-100 text-purple-700",
-  Food:      "bg-orange-100 text-orange-700",
-};
+interface FrameRequest {
+  id: string;
+  request_code: string;
+  user_id: string;
+  user_name: string;
+  user_avatar: string;
+  needy_name: string;
+  needy_photo_url: string;
+  address: string;
+  category: string;
+  mobile: string;
+  description: string;
+  collected_amount: number;
+  target_amount: number;
+  support_count: number;
+  status: string;
+  created_at: string;
+}
 
 // ── Frame Mode full-screen view ────────────────────────────────────────────────
 function FrameModePage({ onBack, userProfile }: { onBack: () => void; userProfile: any }) {
-  const [reportOpen, setReportOpen] = useState(false);
-  const [helped, setHelped] = useState<Set<number>>(new Set());
+  const [requests, setRequests]       = useState<FrameRequest[]>([]);
+  const [loading, setLoading]         = useState(true);
+  const [showForm, setShowForm]       = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [successCode, setSuccessCode] = useState("");
+  const [submitting, setSubmitting]   = useState(false);
+  const [adWatching, setAdWatching]   = useState<string | null>(null);
+  const [supported, setSupported]     = useState<Set<string>>(new Set());
+  const [helpPopup, setHelpPopup]     = useState<string | null>(null);
+  const [formData, setFormData]       = useState({
+    needy_name: "", address: "", category: "Food" as FrameCategory, mobile: "", description: "",
+  });
+  const [photoFile, setPhotoFile]       = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState("");
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+
+  // Fetch requests from DB + realtime
+  useEffect(() => {
+    fetchRequests();
+    const ch = supabase
+      .channel("frame-live")
+      .on("postgres_changes", { event: "*", schema: "public", table: "frame_requests" }, fetchRequests)
+      .subscribe();
+    return () => { ch.unsubscribe(); };
+  }, []);
+
+  const fetchRequests = async () => {
+    try {
+      const { data } = await supabase
+        .from("frame_requests")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(30);
+      if (data) setRequests(data);
+    } catch (_) {}
+    setLoading(false);
+  };
+
+  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setPhotoFile(file);
+    setPhotoPreview(URL.createObjectURL(file));
+  };
+
+  const handleSubmit = async () => {
+    if (!formData.needy_name.trim() || !formData.address.trim() || !formData.mobile.trim()) {
+      alert("Naam, address aur mobile zaroori hai!");
+      return;
+    }
+    setSubmitting(true);
+    let needy_photo_url = "";
+    if (photoFile) {
+      setUploadingPhoto(true);
+      try {
+        const ext  = photoFile.name.split(".").pop();
+        const name = `frame-needy/${Date.now()}.${ext}`;
+        await supabase.storage.from("avatars").upload(name, photoFile, { upsert: true });
+        needy_photo_url = supabase.storage.from("avatars").getPublicUrl(name).data.publicUrl;
+      } catch (_) {}
+      setUploadingPhoto(false);
+    }
+    const code      = Math.floor(100000 + Math.random() * 900000).toString();
+    const catCfg    = FRAME_CATS[formData.category];
+    try {
+      await supabase.from("frame_requests").insert({
+        request_code: code,
+        user_id:      userProfile?.id || "",
+        user_name:    userProfile?.full_name || "Anonymous",
+        user_avatar:  userProfile?.avatar_url || "",
+        needy_name:   formData.needy_name,
+        needy_photo_url,
+        address:      formData.address,
+        category:     formData.category,
+        mobile:       formData.mobile,
+        description:  formData.description,
+        collected_amount: 0,
+        target_amount:    catCfg.target,
+        support_count:    0,
+        status:           "active",
+      });
+      setSuccessCode(code);
+      setShowForm(false);
+      setShowSuccess(true);
+      setFormData({ needy_name: "", address: "", category: "Food", mobile: "", description: "" });
+      setPhotoFile(null);
+      setPhotoPreview("");
+      fetchRequests();
+    } catch (_) {
+      alert("Submit failed. Please run the SQL setup in Supabase first.");
+    }
+    setSubmitting(false);
+  };
+
+  const handleWatchAd = async (reqId: string) => {
+    setAdWatching(reqId);
+    // Simulate rewarded ad (2s)
+    await new Promise(r => setTimeout(r, 2000));
+    const req    = requests.find(r => r.id === reqId);
+    if (!req) { setAdWatching(null); return; }
+    const cat    = FRAME_CATS[req.category as FrameCategory];
+    const perAd  = cat?.perAd || 5;
+    const target = req.target_amount;
+    const newAmt = Math.min((req.collected_amount || 0) + perAd, target);
+    const done   = newAmt >= target;
+    try {
+      await supabase.from("frame_requests").update({
+        collected_amount: newAmt,
+        status: done ? "completed" : "active",
+      }).eq("id", reqId);
+      setRequests(prev => prev.map(r =>
+        r.id === reqId ? { ...r, collected_amount: newAmt, status: done ? "completed" : "active" } : r
+      ));
+    } catch (_) {}
+    setAdWatching(null);
+    setHelpPopup(null);
+  };
+
+  const handleSupport = async (reqId: string) => {
+    if (supported.has(reqId)) return;
+    setSupported(prev => new Set([...prev, reqId]));
+    const req = requests.find(r => r.id === reqId);
+    try {
+      await supabase.from("frame_requests").update({ support_count: (req?.support_count || 0) + 1 }).eq("id", reqId);
+      setRequests(prev => prev.map(r => r.id === reqId ? { ...r, support_count: r.support_count + 1 } : r));
+    } catch (_) {}
+  };
+
+  const handleShare = async () => {
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: "Facelook Frame", text: "Zarooratmand ki madad karein!", url: window.location.origin });
+      } else {
+        await navigator.clipboard.writeText(window.location.origin);
+        alert("Link copy ho gaya! Share karein apne doston ke saath 🤝");
+      }
+    } catch (_) {}
+  };
+
+  const fld = (k: keyof typeof formData, v: string) =>
+    setFormData(prev => ({ ...prev, [k]: v }));
 
   return (
-    <div className="min-h-screen w-full bg-gradient-to-b from-amber-50 via-white to-amber-50 overflow-y-auto">
-      {/* Header */}
-      <div className="sticky top-0 z-50 w-full bg-white/80 backdrop-blur-xl border-b-2 border-amber-300/60 px-4 py-3 flex items-center gap-3 shadow-sm">
-        <button
-          onClick={onBack}
-          className="p-2 rounded-xl bg-amber-100 border border-amber-200 text-amber-700 active:scale-95 transition-all"
-        >
+    <div className="min-h-screen w-full bg-gradient-to-b from-amber-50 via-white to-amber-50 overflow-y-auto pb-10">
+
+      {/* ── Sticky Header ─────────────────────────────────────────────────── */}
+      <div className="sticky top-0 z-50 w-full bg-white/90 backdrop-blur-xl border-b-2 border-amber-200 flex items-center gap-3 px-4 py-3 shadow-sm">
+        <button onClick={onBack} className="p-2 rounded-xl bg-amber-100 border border-amber-200 text-amber-700 active:scale-95">
           <ArrowLeft size={18} />
         </button>
-        <div className="flex items-center gap-2 flex-1">
-          <span className="text-2xl">🤲</span>
-          <div>
-            <p className="text-sm font-black text-amber-900 leading-none">FACELOOK FRAME</p>
-            <p className="text-[10px] text-amber-600 font-semibold">Ab Har Zarooratmand Hoga Frame</p>
-          </div>
+        <div className="flex-1">
+          <p className="text-sm font-black text-amber-900 leading-none">FACELOOK FRAME</p>
+          <p className="text-[10px] text-amber-600 font-semibold">Ab Har Zarooratmand Hoga Frame</p>
         </div>
-        <button
-          onClick={() => setReportOpen(!reportOpen)}
-          className="flex items-center gap-1 px-3 py-2 rounded-xl bg-red-100 border border-red-200 text-red-600 text-xs font-black active:scale-95"
+        <motion.button
+          whileTap={{ scale: 0.95 }}
+          onClick={() => setShowForm(true)}
+          className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 text-black font-black text-xs shadow-md shadow-amber-200 relative"
         >
-          <AlertTriangle size={14} /> Report
-        </button>
+          <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-red-500 animate-ping" />
+          <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-red-500" />
+          <Handshake size={14} /> Submit Help Request
+        </motion.button>
       </div>
 
-      {reportOpen && (
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mx-4 mt-4 p-4 rounded-2xl bg-red-50 border-2 border-red-200"
-        >
-          <p className="text-sm font-bold text-red-800 mb-2">🚨 Report an Issue</p>
-          <textarea
-            placeholder="Kya problem hai? Describe karein..."
-            className="w-full bg-white border border-red-200 rounded-xl px-3 py-2 text-sm text-red-900 placeholder:text-red-300 outline-none resize-none"
-            rows={3}
-          />
-          <button
-            onClick={() => setReportOpen(false)}
-            className="mt-2 w-full py-2 rounded-xl bg-red-500 text-white font-black text-xs"
-          >
-            Submit Report
+      {/* ── Help Request Form Modal ────────────────────────────────────────── */}
+      <AnimatePresence>
+        {showForm && (
+          <>
+            <motion.div key="formbg" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm" onClick={() => setShowForm(false)} />
+            <motion.div key="formsheet" initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
+              transition={{ type: "spring", stiffness: 300, damping: 30 }}
+              className="fixed bottom-0 left-0 w-full z-[61] bg-white rounded-t-3xl border-t-2 border-amber-200 max-h-[92vh] overflow-y-auto"
+            >
+              <div className="px-4 pt-4 pb-2 flex items-center justify-between border-b border-amber-100">
+                <div>
+                  <p className="font-black text-gray-900 text-base">Help Request Form</p>
+                  <p className="text-[10px] text-gray-500">Sab fields bharein — Team review karegi</p>
+                </div>
+                <button onClick={() => setShowForm(false)} className="p-2 rounded-xl bg-gray-100 text-gray-500 text-sm font-black">✕</button>
+              </div>
+
+              {/* Reporter (auto-filled) */}
+              <div className="px-4 pt-4 pb-2 bg-amber-50 mx-4 mt-4 rounded-2xl border border-amber-100">
+                <p className="text-[10px] font-black text-amber-700 uppercase tracking-widest mb-2">Reporting By (Auto)</p>
+                <div className="flex items-center gap-3">
+                  {userProfile?.avatar_url ? (
+                    <img src={userProfile.avatar_url} className="w-10 h-10 rounded-full object-cover border-2 border-amber-300" />
+                  ) : (
+                    <div className="w-10 h-10 rounded-full bg-amber-400 flex items-center justify-center text-white font-black">
+                      {(userProfile?.full_name || "U")[0]}
+                    </div>
+                  )}
+                  <div>
+                    <p className="font-bold text-sm text-gray-900">{userProfile?.full_name || "Anonymous"}</p>
+                    <p className="text-[10px] text-gray-500">Verified Facelook User</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="px-4 py-4 space-y-4">
+                {/* Needy person's photo */}
+                <div>
+                  <p className="text-xs font-black text-gray-700 mb-2">Zarooratmand ki Photo</p>
+                  <label className="flex flex-col items-center justify-center w-full h-32 rounded-2xl border-2 border-dashed border-amber-300 bg-amber-50 cursor-pointer overflow-hidden">
+                    {photoPreview ? (
+                      <img src={photoPreview} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="flex flex-col items-center gap-2 text-amber-500">
+                        <Camera size={28} />
+                        <p className="text-xs font-bold">Photo lein ya choose karein</p>
+                      </div>
+                    )}
+                    <input type="file" accept="image/*" className="hidden" onChange={handlePhotoChange} />
+                  </label>
+                </div>
+
+                {/* Needy name */}
+                <div>
+                  <p className="text-xs font-black text-gray-700 mb-1.5">Zarooratmand ka Naam *</p>
+                  <input value={formData.needy_name} onChange={e => fld("needy_name", e.target.value)}
+                    placeholder="Jaise: Ramesh Kumar" className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold text-gray-900 outline-none focus:ring-2 focus:ring-amber-400/40" />
+                </div>
+
+                {/* Category */}
+                <div>
+                  <p className="text-xs font-black text-gray-700 mb-2">Category *</p>
+                  <div className="grid grid-cols-4 gap-2">
+                    {(Object.keys(FRAME_CATS) as FrameCategory[]).map(cat => (
+                      <button key={cat} onClick={() => fld("category", cat)}
+                        className={`flex flex-col items-center gap-1 py-2 rounded-xl border-2 text-center transition-all ${formData.category === cat ? "border-amber-500 bg-amber-50" : "border-gray-200 bg-gray-50"}`}>
+                        <span className="text-xl">{FRAME_CATS[cat].icon}</span>
+                        <span className="text-[10px] font-black text-gray-700">{cat}</span>
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-amber-600 mt-1 font-semibold">
+                    Target: ₹{FRAME_CATS[formData.category].target} · Ad se +₹{FRAME_CATS[formData.category].perAd} per watch
+                  </p>
+                </div>
+
+                {/* Address */}
+                <div>
+                  <p className="text-xs font-black text-gray-700 mb-1.5">Pura Address *</p>
+                  <textarea value={formData.address} onChange={e => fld("address", e.target.value)}
+                    placeholder="Gali, Mohalla, Sheher, State..."
+                    rows={3} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold text-gray-900 outline-none focus:ring-2 focus:ring-amber-400/40 resize-none" />
+                </div>
+
+                {/* Mobile */}
+                <div>
+                  <p className="text-xs font-black text-gray-700 mb-1.5">Mobile No. *</p>
+                  <input value={formData.mobile} onChange={e => fld("mobile", e.target.value)}
+                    placeholder="+91 XXXXX XXXXX" type="tel"
+                    className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold text-gray-900 outline-none focus:ring-2 focus:ring-amber-400/40" />
+                </div>
+
+                {/* Description */}
+                <div>
+                  <p className="text-xs font-black text-gray-700 mb-1.5">Zaroorat ka Karan (Optional)</p>
+                  <textarea value={formData.description} onChange={e => fld("description", e.target.value)}
+                    placeholder="Thodi si aur baat..."
+                    rows={2} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold text-gray-900 outline-none focus:ring-2 focus:ring-amber-400/40 resize-none" />
+                </div>
+
+                <motion.button whileTap={{ scale: 0.97 }} onClick={handleSubmit} disabled={submitting || uploadingPhoto}
+                  className="w-full py-4 rounded-2xl bg-gradient-to-r from-amber-500 to-yellow-500 text-black font-black text-sm flex items-center justify-center gap-2 disabled:opacity-60 shadow-lg"
+                >
+                  {submitting ? <><Loader2 size={16} className="animate-spin" /> Submit ho raha hai...</> : "Submit Help Request ✅"}
+                </motion.button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* ── Success Popup ──────────────────────────────────────────────────── */}
+      <AnimatePresence>
+        {showSuccess && (
+          <>
+            <motion.div key="sucbg" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[70] bg-black/60 backdrop-blur-sm" />
+            <motion.div key="sucbox" initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }}
+              className="fixed inset-0 z-[71] flex items-center justify-center px-6"
+            >
+              <div className="bg-white rounded-3xl p-6 w-full max-w-sm text-center border-2 border-amber-300 shadow-2xl">
+                <div className="text-5xl mb-3">✅</div>
+                <p className="text-lg font-black text-amber-900 mb-2">Request Submit Ho Gayi!</p>
+                <p className="text-sm text-gray-600 leading-relaxed mb-4">
+                  हमें भरोसा है कि आपकी यह कोशिश किसी की ज़िंदगी बदल देगी।<br/>
+                  <span className="text-amber-700 font-bold">Facelook Frame Team</span> jald hi verify karegi.
+                </p>
+                <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl py-3 px-4 mb-4">
+                  <p className="text-[10px] text-amber-600 font-black uppercase tracking-widest">Aapka Request Code</p>
+                  <p className="text-3xl font-black text-amber-700 tracking-widest mt-1">{successCode}</p>
+                  <p className="text-[10px] text-gray-500 mt-1">Ye code sambhal ke rakhen — tracking ke liye</p>
+                </div>
+                <button onClick={() => setShowSuccess(false)}
+                  className="w-full py-3 rounded-2xl bg-gradient-to-r from-amber-500 to-yellow-500 text-black font-black text-sm">
+                  Theek Hai, Shukriya! 🙏
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* ── Help Popup (Watch Ad / Share) ────────────────────────────────── */}
+      <AnimatePresence>
+        {helpPopup && (
+          <>
+            <motion.div key="hpbg" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[70] bg-black/60 backdrop-blur-sm" onClick={() => setHelpPopup(null)} />
+            <motion.div key="hpbox" initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
+              transition={{ type: "spring", stiffness: 300, damping: 28 }}
+              className="fixed bottom-0 left-0 w-full z-[71] bg-white rounded-t-3xl border-t-2 border-amber-200 px-5 pt-5 pb-8"
+            >
+              <div className="w-10 h-1 rounded-full bg-gray-300 mx-auto mb-4" />
+              <div className="text-center mb-5">
+                <p className="text-3xl mb-2">❤️</p>
+                <p className="font-black text-gray-900 text-base leading-snug">
+                  आपका एक छोटा सा प्रयास
+                </p>
+                <p className="text-sm text-gray-500 mt-1 leading-relaxed">
+                  किसी की ज़िंदगी बदल सकता है।<br/>
+                  <span className="font-bold text-amber-700">Ad dekh kar help karein</span> — isse zarooratmand ko madad milegi.
+                </p>
+              </div>
+              {adWatching === helpPopup ? (
+                <div className="flex flex-col items-center gap-3 py-4">
+                  <Loader2 size={32} className="animate-spin text-amber-500" />
+                  <p className="text-sm font-bold text-amber-700">Ad chal raha hai...</p>
+                  <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
+                    <motion.div initial={{ width: 0 }} animate={{ width: "100%" }} transition={{ duration: 2, ease: "linear" }}
+                      className="h-full bg-gradient-to-r from-amber-400 to-yellow-500 rounded-full" />
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <motion.button whileTap={{ scale: 0.97 }} onClick={() => handleWatchAd(helpPopup)}
+                    className="w-full py-4 rounded-2xl bg-gradient-to-r from-amber-500 to-yellow-500 text-black font-black text-sm flex items-center justify-center gap-2 shadow-lg shadow-amber-200">
+                    <Video size={18} /> Watch Ad & Help (+₹{FRAME_CATS[(requests.find(r=>r.id===helpPopup)?.category as FrameCategory) || "Food"]?.perAd || 5})
+                  </motion.button>
+                  <motion.button whileTap={{ scale: 0.97 }} onClick={handleShare}
+                    className="w-full py-4 rounded-2xl bg-gray-100 text-gray-700 font-black text-sm flex items-center justify-center gap-2">
+                    <Globe size={18} /> Share App 🤝
+                  </motion.button>
+                </div>
+              )}
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* ── Help Wall header strip ─────────────────────────────────────────── */}
+      <div className="w-full px-4 pt-5 pb-3 flex items-center justify-between">
+        <p className="text-xs font-black text-amber-700 uppercase tracking-widest flex items-center gap-2">
+          <Handshake size={13} /> Frame Wall — Active Requests
+        </p>
+        {loading && <Loader2 size={14} className="animate-spin text-amber-400" />}
+      </div>
+
+      {/* ── Request Cards ──────────────────────────────────────────────────── */}
+      {!loading && requests.length === 0 && (
+        <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
+          <p className="text-5xl mb-4">🙏</p>
+          <p className="font-black text-gray-600 text-base">Abhi koi request nahi hai</p>
+          <p className="text-sm text-gray-400 mt-1">Pehli help request submit karein!</p>
+          <button onClick={() => setShowForm(true)}
+            className="mt-4 px-6 py-3 rounded-2xl bg-gradient-to-r from-amber-500 to-yellow-500 text-black font-black text-sm shadow-md">
+            Submit Help Request ➕
           </button>
-        </motion.div>
+        </div>
       )}
 
-      {/* Hero Wall */}
-      <div className="px-4 pt-5 pb-3">
-        <p className="text-xs font-black text-amber-700 uppercase tracking-widest mb-3 flex items-center gap-2">
-          <Star size={12} fill="currentColor" /> Hero Wall — Top Helpers
-        </p>
-        <div className="flex gap-3">
-          {HEROES.map((h, i) => (
-            <div key={i} className="flex flex-col items-center gap-1">
-              <div className={`w-14 h-14 rounded-full bg-gradient-to-br ${h.color} flex items-center justify-center text-white font-black text-lg border-4 border-amber-300 shadow-md`}>
-                {h.initials}
-              </div>
-              <p className="text-[10px] font-bold text-amber-700">{h.helped} helped</p>
-            </div>
-          ))}
-          <div className="flex flex-col items-center gap-1 justify-center">
-            <div className="w-14 h-14 rounded-full bg-amber-100 border-4 border-dashed border-amber-300 flex items-center justify-center">
-              <span className="text-amber-400 text-xl font-black">+</span>
-            </div>
-            <p className="text-[10px] font-bold text-amber-500">Be a Hero</p>
-          </div>
-        </div>
-      </div>
+      <div className="px-4 space-y-4 pb-6">
+        <AnimatePresence>
+          {requests.map((req) => {
+            const cat      = FRAME_CATS[req.category as FrameCategory] || FRAME_CATS.Food;
+            const pct      = Math.min(100, Math.round((req.collected_amount / req.target_amount) * 100));
+            const done     = req.status === "completed" || pct >= 100;
+            const isSupp   = supported.has(req.id);
+            const timeAgo  = (() => {
+              const d = (Date.now() - new Date(req.created_at).getTime()) / 1000;
+              if (d < 3600) return `${Math.floor(d / 60)}m ago`;
+              if (d < 86400) return `${Math.floor(d / 3600)}h ago`;
+              return `${Math.floor(d / 86400)}d ago`;
+            })();
 
-      {/* Divider */}
-      <div className="h-px mx-4 bg-amber-200 my-2" />
-
-      {/* Help Feed */}
-      <div className="px-4 pb-8 space-y-3 pt-2">
-        <p className="text-xs font-black text-amber-700 uppercase tracking-widest flex items-center gap-2">
-          <Handshake size={12} /> Help Feed — Zarooratmand Log
-        </p>
-        {HELP_POSTS.map((post) => (
-          <motion.div
-            key={post.id}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-white rounded-3xl border-2 border-amber-100 shadow-sm overflow-hidden"
-          >
-            <div className="px-4 pt-4 pb-3">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white font-black text-sm border-2 border-amber-200">
-                  {post.initials}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-black text-gray-900 truncate">{post.user}</p>
-                  <p className="text-[10px] text-gray-400">{post.time}</p>
-                </div>
-                <span className={`text-[10px] font-black px-2 py-1 rounded-full ${CAT_COLORS[post.category] || "bg-gray-100 text-gray-600"}`}>
-                  {post.category}
-                </span>
-              </div>
-              <p className="text-sm text-gray-700 leading-relaxed">{post.need}</p>
-            </div>
-            <div className="px-4 pb-3 flex items-center justify-between border-t border-amber-50 pt-3">
-              <span className="text-[11px] text-amber-600 font-bold">{post.helpers} log madad kar rahe hain</span>
-              <motion.button
-                whileTap={{ scale: 0.92 }}
-                onClick={() => setHelped(prev => { const s = new Set(prev); s.has(post.id) ? s.delete(post.id) : s.add(post.id); return s; })}
-                className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black transition-all ${helped.has(post.id) ? "bg-amber-500 text-white" : "bg-amber-50 text-amber-700 border border-amber-200"}`}
+            return (
+              <motion.div key={req.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
+                className={`bg-white rounded-3xl border-2 overflow-hidden shadow-sm ${done ? "border-green-200" : "border-amber-100"}`}
               >
-                <Heart size={13} fill={helped.has(post.id) ? "white" : "none"} />
-                {helped.has(post.id) ? "Helped ✓" : "I'll Help"}
-              </motion.button>
-            </div>
-          </motion.div>
-        ))}
+                {/* Reporter + Needy row */}
+                <div className="px-4 pt-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    {/* Reporter */}
+                    <div className="relative shrink-0">
+                      {req.user_avatar ? (
+                        <img src={req.user_avatar} className="w-10 h-10 rounded-full object-cover border-2 border-amber-200" />
+                      ) : (
+                        <div className="w-10 h-10 rounded-full bg-amber-400 flex items-center justify-center text-white font-black text-sm border-2 border-amber-200">
+                          {(req.user_name || "U")[0]}
+                        </div>
+                      )}
+                      <span className="absolute -bottom-0.5 -right-0.5 text-[10px] bg-white rounded-full border border-amber-200 px-0.5">📋</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[11px] font-black text-gray-800 truncate">{req.user_name} ne report kiya</p>
+                      <p className="text-[10px] text-gray-400">{timeAgo} · Code: <span className="font-bold text-amber-600">#{req.request_code}</span></p>
+                    </div>
+                    <span className={`text-[10px] font-black px-2 py-1 rounded-full ${cat.badge}`}>
+                      {cat.icon} {req.category}
+                    </span>
+                  </div>
 
-        {/* CTA Card */}
-        <div className="bg-gradient-to-br from-amber-400 to-orange-500 rounded-3xl p-5 text-white text-center shadow-lg">
-          <p className="text-2xl mb-1">🌟</p>
-          <p className="font-black text-sm">Aap bhi kisi ki madad kar sakte hain</p>
-          <p className="text-xs text-white/80 mt-1">Frame Mode mein share karein apni zaroorat ya kisi ki zaroorat poori karein</p>
-        </div>
+                  {/* Needy info row */}
+                  <div className="flex items-start gap-3 mb-3">
+                    {req.needy_photo_url ? (
+                      <img src={req.needy_photo_url} className="w-16 h-16 rounded-2xl object-cover border-2 border-amber-100 shrink-0" />
+                    ) : (
+                      <div className="w-16 h-16 rounded-2xl bg-amber-100 flex items-center justify-center text-2xl border-2 border-amber-100 shrink-0">
+                        {cat.icon}
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="font-black text-gray-900 text-sm">{req.needy_name}</p>
+                      <p className="text-[11px] text-gray-500 mt-0.5 flex items-center gap-1"><MapPin size={10} /> {req.address}</p>
+                      <p className="text-[11px] text-gray-500 flex items-center gap-1 mt-0.5"><Phone size={10} /> {req.mobile}</p>
+                      {req.description && <p className="text-[11px] text-gray-600 mt-1 italic">"{req.description}"</p>}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Progress bar */}
+                <div className="px-4 pb-3">
+                  {done ? (
+                    <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-2xl px-3 py-2">
+                      <CheckCircle size={16} className="text-green-500 shrink-0" />
+                      <p className="text-xs font-black text-green-700">Goal Reached! Team Dispatched 🚚</p>
+                    </div>
+                  ) : (
+                    <div>
+                      <div className="flex justify-between text-[10px] font-bold text-gray-500 mb-1">
+                        <span>₹{req.collected_amount} collected</span>
+                        <span>Target: ₹{req.target_amount} ({pct}%)</span>
+                      </div>
+                      <div className="w-full h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                        <motion.div
+                          initial={{ width: 0 }}
+                          animate={{ width: `${pct}%` }}
+                          transition={{ duration: 0.6, ease: "easeOut" }}
+                          className={`h-full ${cat.bar} rounded-full`}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Actions row */}
+                <div className="px-4 pb-4 flex items-center justify-between border-t border-gray-50 pt-3">
+                  <button onClick={() => handleSupport(req.id)}
+                    className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black transition-all ${isSupp ? "bg-amber-100 text-amber-700" : "bg-gray-100 text-gray-600"}`}>
+                    <Heart size={13} fill={isSupp ? "#D97706" : "none"} stroke={isSupp ? "#D97706" : "currentColor"} />
+                    {req.support_count} Support{req.support_count !== 1 ? "s" : ""}
+                  </button>
+                  {!done && (
+                    <motion.button whileTap={{ scale: 0.95 }} onClick={() => setHelpPopup(req.id)}
+                      className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 text-black text-xs font-black shadow-sm"
+                    >
+                      <Video size={13} /> Help Karein
+                    </motion.button>
+                  )}
+                </div>
+              </motion.div>
+            );
+          })}
+        </AnimatePresence>
       </div>
     </div>
   );
