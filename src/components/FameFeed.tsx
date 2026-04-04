@@ -123,6 +123,34 @@ const PostMedia = ({ post }: { post: any }) => {
   );
 };
 
+// ── Post caption: 3-line clamp + See More toggle ─────────────────────────────
+const CLAMP_THRESHOLD = 180; // chars before we show "See More"
+
+const PostCaption = ({ content }: { content: string }) => {
+  const [expanded, setExpanded] = useState(false);
+  const isLong = content.length > CLAMP_THRESHOLD;
+
+  return (
+    <div className="px-4 pb-3">
+      <p
+        className={`text-sm text-white/85 leading-relaxed whitespace-pre-wrap break-words ${
+          !expanded && isLong ? "line-clamp-3" : ""
+        }`}
+      >
+        {content}
+      </p>
+      {isLong && (
+        <button
+          onClick={() => setExpanded((v) => !v)}
+          className="mt-1 text-blue-400 text-xs font-black hover:text-blue-300 transition-colors"
+        >
+          {expanded ? "See Less ▲" : "See More ▼"}
+        </button>
+      )}
+    </div>
+  );
+};
+
 // ── Main Feed ─────────────────────────────────────────────────────────────────
 interface FameFeedProps {
   onPostClick?: () => void;
@@ -354,11 +382,7 @@ const FameFeed = ({ onPostClick, onImageSelect, userProfile }: FameFeedProps) =>
               </div>
 
               {/* ── Caption above media ── */}
-              {post.content && (
-                <p className="px-4 pb-3 text-sm text-white/85 leading-relaxed">
-                  {post.content}
-                </p>
-              )}
+              {post.content && <PostCaption content={post.content} />}
 
               {/* ── Media (full width, height driven by content type) ── */}
               <PostMedia post={post} />
