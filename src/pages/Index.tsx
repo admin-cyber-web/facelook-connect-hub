@@ -42,6 +42,7 @@ import CreatePost from "@/components/CreatePost";
 import ChatSystem from "@/components/ChatSystem";
 import SnapyStudio from "@/components/SnapyStudio";
 import MovieGame from "@/components/MovieGame";
+import ConnectionPanel from "@/components/ConnectionPanel";
 // ── Reusable styled blocks ───────────────────────────────────────────────────
 const GlassCard = ({ children, className = "", noPadding = false }: any) => (
   <div
@@ -373,6 +374,8 @@ const Index = ({ session }: { session: Session }) => {
   // Frame Mode
   const [isFrameMode, setIsFrameMode] = useState(false);
   const [onlineUsers, setOnlineUsers] = useState<{ id: string; full_name: string; avatar_url: string }[]>([]);
+  // Agora Video Call modal
+  const [isVideoCallOpen, setIsVideoCallOpen] = useState(false);
 
   // Profile
   const [profile, setProfile] = useState({
@@ -821,6 +824,51 @@ const Index = ({ session }: { session: Session }) => {
         )}
       </AnimatePresence>
 
+      {/* ── Agora Video Call bottom-sheet (FACELOOK FUN CALL) ───────────────── */}
+      <AnimatePresence>
+        {isVideoCallOpen && (
+          <>
+            {/* Backdrop */}
+            <motion.div
+              key="vcbg"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[8000] bg-black/70 backdrop-blur-sm"
+              onClick={() => setIsVideoCallOpen(false)}
+            />
+            {/* Sheet */}
+            <motion.div
+              key="vcsheet"
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", stiffness: 320, damping: 32 }}
+              className="fixed bottom-0 left-0 w-full z-[8001] rounded-t-3xl overflow-hidden bg-[#0d0035] border-t border-violet-500/20"
+            >
+              {/* Drag handle + close */}
+              <div className="flex items-center justify-between px-5 pt-4 pb-2">
+                <div className="w-10 h-1 rounded-full bg-white/20 mx-auto" />
+              </div>
+              <div className="px-4 pb-2 flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-black text-white">FACELOOK FUN CALL</p>
+                  <p className="text-[10px] text-violet-400">Stranger se live video call karo</p>
+                </div>
+                <button
+                  onClick={() => setIsVideoCallOpen(false)}
+                  className="p-2 rounded-xl bg-white/10 text-white/50 hover:text-white text-xs font-black"
+                >
+                  ✕ Close
+                </button>
+              </div>
+              <ConnectionPanel />
+              <div className="h-8" />
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
       {activeFeature !== "Flicks" && (
         <Header
           onProfileClick={() => setActiveFeature("Face")}
@@ -884,27 +932,27 @@ const Index = ({ session }: { session: Session }) => {
                   </div>
                 </div>
 
-                {/* ── Facelook Fun Call Button ────────────────────────────── */}
-                <div className="w-full px-4 pb-4">
-                  <motion.button
-                    whileTap={{ scale: 0.97 }}
-                    onClick={() => setIsChatOpen(true)}
-                    className="w-full flex items-center justify-between px-5 py-4 rounded-2xl bg-gradient-to-r from-violet-700 to-purple-800 border border-violet-500/30 shadow-xl shadow-purple-900/40 active:scale-95 transition-all"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center">
-                        <Video size={20} className="text-white" />
-                      </div>
-                      <div className="text-left">
-                        <p className="text-sm font-black text-white tracking-wide">FACELOOK FUN CALL</p>
-                        <p className="text-[10px] text-violet-300">Dosto ke saath jodo</p>
-                      </div>
-                    </div>
+                {/* ── Facelook Fun Call Button — edge-to-edge ─────────────── */}
+                <motion.button
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => setIsVideoCallOpen(true)}
+                  className="w-full flex items-center justify-between px-5 py-4 bg-gradient-to-r from-violet-800 via-purple-800 to-indigo-900 border-y border-violet-500/20 shadow-lg active:opacity-90 transition-all"
+                >
+                  <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center">
-                      <PhoneCall size={20} className="text-green-400" />
+                      <Video size={20} className="text-white" />
                     </div>
-                  </motion.button>
-                </div>
+                    <div className="text-left">
+                      <p className="text-sm font-black text-white tracking-wide">FACELOOK FUN CALL</p>
+                      <p className="text-[10px] text-violet-300">Stranger se video call karo</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-black text-green-400 uppercase tracking-wider">LIVE</span>
+                    <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+                    <PhoneCall size={18} className="text-green-400" />
+                  </div>
+                </motion.button>
 
                 {/* ── Facelook Frame Gateway ──────────────────────────────── */}
                 <div className="w-full border-t-2 border-b-2 border-amber-500/30 bg-gradient-to-r from-[#1a0a00]/80 via-[#2a1500]/60 to-[#1a0a00]/80 backdrop-blur-xl py-5 px-6 relative overflow-hidden">
@@ -914,8 +962,23 @@ const Index = ({ session }: { session: Session }) => {
                   <div className="absolute -bottom-px left-0 w-full h-px bg-gradient-to-r from-transparent via-amber-400/60 to-transparent" />
 
                   <div className="flex items-center gap-5 relative z-10">
-                    {/* Icon side */}
-                    <div className="text-5xl shrink-0 drop-shadow-lg select-none">🤲✨</div>
+                    {/* Humanity illustration — two people reaching toward each other */}
+                    <div className="shrink-0 w-[72px] h-[56px]">
+                      <svg viewBox="0 0 72 56" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
+                        {/* Left person */}
+                        <circle cx="13" cy="11" r="7" fill="#F59E0B" fillOpacity="0.9"/>
+                        <path d="M4 26 Q13 19 22 26 L22 44 Q13 48 4 44 Z" fill="#FDE68A" fillOpacity="0.7"/>
+                        {/* Left arm reaching right */}
+                        <path d="M22 33 Q32 28 38 33" stroke="#F59E0B" strokeWidth="3" strokeLinecap="round"/>
+                        {/* Right person */}
+                        <circle cx="59" cy="11" r="7" fill="#D97706" fillOpacity="0.9"/>
+                        <path d="M50 26 Q59 19 68 26 L68 44 Q59 48 50 44 Z" fill="#FCD34D" fillOpacity="0.7"/>
+                        {/* Right arm reaching left */}
+                        <path d="M50 33 Q42 28 36 33" stroke="#D97706" strokeWidth="3" strokeLinecap="round"/>
+                        {/* Joined hands / heart at center */}
+                        <path d="M35 30 C35 27 39 27 39 30 C39 33 35 36 35 36 C35 36 31 33 31 30 C31 27 35 27 35 30Z" fill="#EF4444" fillOpacity="0.85"/>
+                      </svg>
+                    </div>
 
                     {/* Content */}
                     <div className="flex-1 min-w-0">

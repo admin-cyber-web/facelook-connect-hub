@@ -16,7 +16,6 @@ import {
   Image as ImageIcon,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import ConnectionPanel from "./ConnectionPanel";
 
 // ── Inline video: full-width, unmuted-first autoplay ─────────────────────────
 const FeedVideo = ({ src }: { src: string }) => {
@@ -211,28 +210,22 @@ const FameFeed = ({ onPostClick, userProfile }: FameFeedProps) => {
 
   return (
     <>
-      {/* ── Agora section — first in the unified scroll ─────────────────────── */}
-      <div className="w-full border-b border-white/[0.06]">
-        {/* "What's on your mind" bar */}
-        <div
-          className="flex items-center gap-3 px-4 py-3 cursor-pointer active:bg-white/5 border-b border-white/[0.06]"
-          onClick={onPostClick}
-        >
-          {userProfile?.avatar_url ? (
-            <img src={userProfile.avatar_url} className="w-10 h-10 rounded-full object-cover border-2 border-blue-500/30" />
-          ) : (
-            <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-black text-sm border-2 border-blue-500/30">
-              {userProfile?.full_name?.[0] || "U"}
-            </div>
-          )}
-          <div className="flex-1 bg-white/5 py-2.5 px-5 rounded-full text-white/40 text-sm font-semibold border border-white/5">
-            What's on your mind?
+      {/* "What's on your mind" bar */}
+      <div
+        className="flex items-center gap-3 px-4 py-3 cursor-pointer active:bg-white/5 border-b border-white/[0.06]"
+        onClick={onPostClick}
+      >
+        {userProfile?.avatar_url ? (
+          <img src={userProfile.avatar_url} className="w-10 h-10 rounded-full object-cover border-2 border-blue-500/30" />
+        ) : (
+          <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-black text-sm border-2 border-blue-500/30">
+            {userProfile?.full_name?.[0] || "U"}
           </div>
-          <ImageIcon size={20} className="text-blue-400 shrink-0" />
+        )}
+        <div className="flex-1 bg-white/5 py-2.5 px-5 rounded-full text-white/40 text-sm font-semibold border border-white/5">
+          What's on your mind?
         </div>
-
-        {/* Agora */}
-        <ConnectionPanel />
+        <ImageIcon size={20} className="text-blue-400 shrink-0" />
       </div>
 
       {/* ── Loading state ─────────────────────────────────────────────────────── */}
