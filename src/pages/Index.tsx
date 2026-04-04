@@ -965,16 +965,15 @@ const Index = ({ session }: { session: Session }) => {
     supabase
       .from("frame_requests")
       .select("*")
-      .eq("user_id", userId)
       .order("created_at", { ascending: false })
       .then(({ data }) => { if (data) setMyFrameRequests(data as FrameRequest[]); });
 
     const myCh = supabase
       .channel(`my-frame-requests-${userId}`)
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "frame_requests", filter: `user_id=eq.${userId}` }, (payload) => {
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "frame_requests" }, (payload) => {
         setMyFrameRequests(prev => [payload.new as FrameRequest, ...prev]);
       })
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "frame_requests", filter: `user_id=eq.${userId}` }, (payload) => {
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "frame_requests" }, (payload) => {
         setMyFrameRequests(prev => prev.map(r => r.id === (payload.new as FrameRequest).id ? { ...r, ...payload.new as FrameRequest } : r));
       })
       .subscribe();
