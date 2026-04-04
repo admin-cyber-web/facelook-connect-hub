@@ -212,35 +212,41 @@ function FrameModePage({ onBack, userProfile, userEmail }: { onBack: () => void;
     }
     const code   = Math.floor(100000 + Math.random() * 900000).toString();
     const catCfg = FRAME_CATS[formData.category];
-    try {
-      await supabase.from("frame_requests").insert({
-        request_code:     code,
-        user_id:          userProfile?.id || "",
-        user_name:        userProfile?.full_name || "Anonymous",
-        user_avatar:      userProfile?.avatar_url || "",
-        needy_name:       formData.needy_name,
-        needy_photo_url,
-        address:          formData.address,
-        category:         formData.category,
-        mobile:           formData.mobile,
-        description:      formData.description,
-        collected_amount: 0,
-        target_amount:    catCfg.target,
-        delivery_charge:  catCfg.delivery,
-        support_count:    0,
-        status:           "active",
-        is_priority:      false,
-      });
-      setSuccessCode(code);
-      setShowForm(false);
-      setShowSuccess(true);
-      setFormData({ needy_name: "", address: "", category: "Food", mobile: "", description: "" });
-      setPhotoFile(null);
-      setPhotoPreview("");
-      fetchRequests();
-    } catch (_) {
-      alert("Submit failed. Please run the SQL setup in Supabase first.");
+
+    const { data, error } = await supabase.from("frame_requests").insert({
+      request_code:     code,
+      user_id:          userProfile?.id || "",
+      user_name:        userProfile?.full_name || "Anonymous",
+      user_avatar:      userProfile?.avatar_url || "",
+      needy_name:       formData.needy_name,
+      needy_photo_url,
+      address:          formData.address,
+      category:         formData.category,
+      mobile:           formData.mobile,
+      description:      formData.description,
+      collected_amount: 0,
+      target_amount:    catCfg.target,
+      delivery_charge:  catCfg.delivery,
+      support_count:    0,
+      status:           "active",
+      is_priority:      false,
+    });
+
+    console.log("Asli Insert Result:", { data, error });
+
+    if (error) {
+      alert(`Submit failed: ${error.message}`);
+      setSubmitting(false);
+      return;
     }
+
+    setSuccessCode(code);
+    setShowForm(false);
+    setShowSuccess(true);
+    setFormData({ needy_name: "", address: "", category: "Food", mobile: "", description: "" });
+    setPhotoFile(null);
+    setPhotoPreview("");
+    fetchRequests();
     setSubmitting(false);
   };
 
