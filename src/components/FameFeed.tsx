@@ -126,10 +126,11 @@ const PostMedia = ({ post }: { post: any }) => {
 // ── Main Feed ─────────────────────────────────────────────────────────────────
 interface FameFeedProps {
   onPostClick?: () => void;
+  onImageSelect?: (file: File) => void;
   userProfile?: any;
 }
 
-const FameFeed = ({ onPostClick, userProfile }: FameFeedProps) => {
+const FameFeed = ({ onPostClick, onImageSelect, userProfile }: FameFeedProps) => {
   const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -141,6 +142,7 @@ const FameFeed = ({ onPostClick, userProfile }: FameFeedProps) => {
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
   const [reportModal, setReportModal] = useState<{ postId: string; reason: string } | null>(null);
   const [reportSubmitting, setReportSubmitting] = useState(false);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setCurrentUserId(data.user?.id ?? null));
@@ -212,20 +214,49 @@ const FameFeed = ({ onPostClick, userProfile }: FameFeedProps) => {
     <>
       {/* "What's on your mind" bar */}
       <div
-        className="flex items-center gap-3 px-4 py-3 cursor-pointer active:bg-white/5 border-b border-white/[0.06]"
-        onClick={onPostClick}
+        className="flex items-center gap-3 px-4 py-3 border-b border-white/[0.06]"
       >
         {userProfile?.avatar_url ? (
-          <img src={userProfile.avatar_url} className="w-10 h-10 rounded-full object-cover border-2 border-blue-500/30" />
+          <img
+            src={userProfile.avatar_url}
+            className="w-10 h-10 rounded-full object-cover border-2 border-blue-500/30 cursor-pointer"
+            onClick={onPostClick}
+          />
         ) : (
-          <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-black text-sm border-2 border-blue-500/30">
+          <div
+            className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-black text-sm border-2 border-blue-500/30 cursor-pointer"
+            onClick={onPostClick}
+          >
             {userProfile?.full_name?.[0] || "U"}
           </div>
         )}
-        <div className="flex-1 bg-white/5 py-2.5 px-5 rounded-full text-white/40 text-sm font-semibold border border-white/5">
+        <div
+          className="flex-1 bg-white/5 py-2.5 px-5 rounded-full text-white/40 text-sm font-semibold border border-white/5 cursor-pointer active:bg-white/10"
+          onClick={onPostClick}
+        >
           What's on your mind?
         </div>
-        <ImageIcon size={20} className="text-blue-400 shrink-0" />
+
+        {/* Gallery icon — opens device photo picker directly */}
+        <button
+          className="p-2 active:scale-90 transition-transform shrink-0"
+          onClick={() => galleryInputRef.current?.click()}
+        >
+          <ImageIcon size={22} className="text-blue-400" />
+        </button>
+        <input
+          ref={galleryInputRef}
+          type="file"
+          accept="image/*,video/*"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (!f) return;
+            onImageSelect?.(f);
+            onPostClick?.();
+            e.target.value = "";
+          }}
+        />
       </div>
 
       {/* ── Loading state ─────────────────────────────────────────────────────── */}

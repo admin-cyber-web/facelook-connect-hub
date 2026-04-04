@@ -726,6 +726,7 @@ const Index = ({ session }: { session: Session }) => {
   const [activeFeature, setActiveFeature] = useState("Fame");
   const [isUploading, setIsUploading] = useState(false);
   const [isPostOpen, setIsPostOpen] = useState(false);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [showNav, setShowNav] = useState(true);
   const [bgImage, setBgImage] = useState(
     localStorage.getItem("facelook-bg") || "",
@@ -1368,6 +1369,7 @@ const Index = ({ session }: { session: Session }) => {
                 {/* ── Normal Fame Feed ────────────────────────────────────── */}
                 <FameFeed
                   onPostClick={() => setIsPostOpen(true)}
+                  onImageSelect={(f) => setPendingFile(f)}
                   userProfile={profile}
                 />
               </div>
@@ -1566,8 +1568,9 @@ const Index = ({ session }: { session: Session }) => {
 
       <CreatePost
         isOpen={isPostOpen}
-        onClose={() => setIsPostOpen(false)}
+        onClose={() => { setIsPostOpen(false); setPendingFile(null); }}
         userProfile={profile}
+        initialFile={pendingFile}
       />
     </div>
   );

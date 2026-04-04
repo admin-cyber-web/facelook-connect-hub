@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Image as ImageIcon, X, Send, Loader2, Globe } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { motion, AnimatePresence } from "framer-motion";
@@ -7,13 +7,29 @@ interface CreatePostProps {
   isOpen: boolean;
   onClose: () => void;
   userProfile: any;
+  initialFile?: File | null;
 }
 
-const CreatePost = ({ isOpen, onClose, userProfile }: CreatePostProps) => {
+const CreatePost = ({ isOpen, onClose, userProfile, initialFile }: CreatePostProps) => {
   const [content, setContent] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (initialFile) {
+      setFile(initialFile);
+      setPreview(URL.createObjectURL(initialFile));
+    }
+  }, [initialFile]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setContent("");
+      setFile(null);
+      setPreview(null);
+    }
+  }, [isOpen]);
 
   const ADMIN_EMAIL = "your-email@gmail.com";
 
