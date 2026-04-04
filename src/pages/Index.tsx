@@ -30,6 +30,7 @@ import {
   Star,
   Handshake,
   Share2,
+  Trash2,
 } from "lucide-react";
 
 // DHAYAN DEIN: Sirf ye ek supabase import rehna chahiye
@@ -315,6 +316,17 @@ function FrameModePage({ onBack, userProfile, userEmail }: { onBack: () => void;
         alert("WhatsApp share text copy ho gaya! 🤝");
       }
     } catch (_) {}
+  };
+
+  const handleDeleteRequest = async (reqId: string) => {
+    const confirmed = window.confirm("Kya aap sach mein is request ko delete karna chahte hain? Ye action undo nahi hoga.");
+    if (!confirmed) return;
+    const { error } = await supabase.from("frame_requests").delete().eq("id", reqId);
+    if (!error) {
+      fetchRequests();
+    } else {
+      alert("Delete failed: " + error.message);
+    }
   };
 
   const fld = (k: keyof typeof formData, v: string) =>
@@ -766,6 +778,16 @@ function FrameModePage({ onBack, userProfile, userEmail }: { onBack: () => void;
                   >
                     <Share2 size={13} /> Share
                   </motion.button>
+                  {isAdmin && (
+                    <motion.button
+                      whileTap={{ scale: 0.9 }}
+                      onClick={() => handleDeleteRequest(req.id)}
+                      className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-red-50 border border-red-200 text-red-600 text-xs font-black shrink-0 hover:bg-red-100 transition-colors"
+                      title="Admin: Delete Request"
+                    >
+                      <Trash2 size={13} />
+                    </motion.button>
+                  )}
                   {!done ? (
                     <motion.button whileTap={{ scale: 0.95 }} onClick={() => setHelpPopup(req.id)}
                       className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 text-black text-xs font-black shadow-sm"
