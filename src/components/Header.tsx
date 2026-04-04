@@ -132,7 +132,7 @@ const Header = ({
       <header className="w-full h-14 bg-white/10 backdrop-blur-2xl border-b border-white/10 sticky top-0 z-[100] px-3 sm:px-6 flex items-center justify-between gap-3 transition-all relative overflow-hidden">
 
         {/* ── ANIMATED CENTER LOGO ─────────────────────────────────────── */}
-        <div className="absolute left-1/2 -translate-x-1/2 pointer-events-none select-none flex items-center gap-1.5">
+        <div className="absolute left-1/2 -translate-x-1/2 pointer-events-none select-none hidden sm:flex items-center gap-1.5">
           {/* Animated "F" orb */}
           <motion.div
             animate={{ rotate: [0, -8, 8, -4, 4, 0] }}

@@ -29,6 +29,7 @@ import {
   AlertTriangle,
   Star,
   Handshake,
+  Share2,
 } from "lucide-react";
 
 // DHAYAN DEIN: Sirf ye ek supabase import rehna chahiye
@@ -160,7 +161,15 @@ function FrameModePage({ onBack, userProfile, userEmail }: { onBack: () => void;
     fetchRequests();
     const ch = supabase
       .channel("frame-live")
-      .on("postgres_changes", { event: "*", schema: "public", table: "frame_requests" }, fetchRequests)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "frame_requests" }, (payload) => {
+        setRequests(prev => [payload.new as FrameRequest, ...prev]);
+      })
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "frame_requests" }, (payload) => {
+        setRequests(prev => prev.map(r => r.id === (payload.new as FrameRequest).id ? { ...r, ...payload.new as FrameRequest } : r));
+      })
+      .on("postgres_changes", { event: "DELETE", schema: "public", table: "frame_requests" }, (payload) => {
+        setRequests(prev => prev.filter(r => r.id !== (payload.old as any).id));
+      })
       .subscribe();
     return () => { ch.unsubscribe(); };
   }, []);
@@ -282,6 +291,22 @@ function FrameModePage({ onBack, userProfile, userEmail }: { onBack: () => void;
       } else {
         await navigator.clipboard.writeText(window.location.origin);
         alert("Link copy ho gaya! Share karein apne doston ke saath 🤝");
+      }
+    } catch (_) {}
+  };
+
+  const handleShareRequest = async (req: FrameRequest) => {
+    const shareText = `🙏 *Madad Karen!* — Facelook Frame\n\n👤 Zarooratmand: *${req.needy_name}*\n📦 Zaroorat: *${req.category}*\n🎯 Target Amount: *₹${req.target_amount}*\n📍 Address: ${req.address}\n\nAd dekh kar help karein ya share karein:\n🔗 ${window.location.origin}\n\n🆔 Request Code: *#${req.request_code}*\n\n— Facelook Frame Team 🤝`;
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: `Help ${req.needy_name} — Facelook Frame`,
+          text: shareText,
+          url: window.location.origin,
+        });
+      } else {
+        await navigator.clipboard.writeText(shareText);
+        alert("WhatsApp share text copy ho gaya! 🤝");
       }
     } catch (_) {}
   };
@@ -638,10 +663,15 @@ function FrameModePage({ onBack, userProfile, userEmail }: { onBack: () => void;
               <motion.div key={req.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
                 className={`bg-white rounded-3xl border-2 overflow-hidden shadow-sm ${req.is_priority ? "border-yellow-400 shadow-yellow-100" : done ? "border-green-200" : "border-amber-100"}`}
               >
-                {req.is_priority && (
+                {req.is_priority ? (
                   <div className="bg-gradient-to-r from-yellow-400 to-amber-400 px-4 py-1.5 flex items-center gap-2">
                     <Star size={11} className="text-white fill-white" />
                     <p className="text-[10px] font-black text-white uppercase tracking-widest">Priority Mission</p>
+                  </div>
+                ) : (
+                  <div className="bg-blue-50 border-b border-blue-100 px-4 py-1.5 flex items-center gap-1.5">
+                    <Shield size={10} className="text-blue-500 shrink-0" />
+                    <p className="text-[10px] font-black text-blue-600 tracking-wide">Under Facelook Verification</p>
                   </div>
                 )}
 
@@ -716,18 +746,25 @@ function FrameModePage({ onBack, userProfile, userEmail }: { onBack: () => void;
                 </div>
 
                 {/* Actions row */}
-                <div className="px-4 pb-4 flex items-center justify-between border-t border-gray-50 pt-3">
+                <div className="px-4 pb-4 flex items-center gap-2 border-t border-gray-50 pt-3">
                   <button onClick={() => handleSupport(req.id)}
-                    className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black transition-all ${isSupp ? "bg-amber-100 text-amber-700" : "bg-gray-100 text-gray-600"}`}>
+                    className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black transition-all shrink-0 ${isSupp ? "bg-amber-100 text-amber-700" : "bg-gray-100 text-gray-600"}`}>
                     <Heart size={13} fill={isSupp ? "#D97706" : "none"} stroke={isSupp ? "#D97706" : "currentColor"} />
-                    {req.support_count} Support{req.support_count !== 1 ? "s" : ""}
+                    {req.support_count}
                   </button>
-                  {!done && (
+                  <motion.button whileTap={{ scale: 0.95 }} onClick={() => handleShareRequest(req)}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-green-50 border border-green-200 text-green-700 text-xs font-black shrink-0"
+                  >
+                    <Share2 size={13} /> Share
+                  </motion.button>
+                  {!done ? (
                     <motion.button whileTap={{ scale: 0.95 }} onClick={() => setHelpPopup(req.id)}
-                      className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 text-black text-xs font-black shadow-sm"
+                      className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 text-black text-xs font-black shadow-sm"
                     >
                       <Video size={13} /> Help Karein
                     </motion.button>
+                  ) : (
+                    <div className="flex-1" />
                   )}
                 </div>
               </motion.div>
@@ -873,6 +910,7 @@ const Index = ({ session }: { session: Session }) => {
   // Frame Mode
   const [isFrameMode, setIsFrameMode] = useState(false);
   const [onlineUsers, setOnlineUsers] = useState<{ id: string; full_name: string; avatar_url: string }[]>([]);
+  const [myFrameRequests, setMyFrameRequests] = useState<FrameRequest[]>([]);
   // Agora Video Call modal
   const [isVideoCallOpen, setIsVideoCallOpen] = useState(false);
 
@@ -919,6 +957,28 @@ const Index = ({ session }: { session: Session }) => {
       .neq("id", userId)
       .limit(3)
       .then(({ data }) => { if (data) setOnlineUsers(data); });
+  }, [userId]);
+
+  // ── My Frame Requests — fetch + realtime ──────────────────────────────────
+  useEffect(() => {
+    if (!userId) return;
+    supabase
+      .from("frame_requests")
+      .select("*")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .then(({ data }) => { if (data) setMyFrameRequests(data as FrameRequest[]); });
+
+    const myCh = supabase
+      .channel(`my-frame-requests-${userId}`)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "frame_requests", filter: `user_id=eq.${userId}` }, (payload) => {
+        setMyFrameRequests(prev => [payload.new as FrameRequest, ...prev]);
+      })
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "frame_requests", filter: `user_id=eq.${userId}` }, (payload) => {
+        setMyFrameRequests(prev => prev.map(r => r.id === (payload.new as FrameRequest).id ? { ...r, ...payload.new as FrameRequest } : r));
+      })
+      .subscribe();
+    return () => { myCh.unsubscribe(); };
   }, [userId]);
 
   // ── Fetch & Realtime (Updated for Auto-Refresh) ──────────────────────────────
@@ -1592,6 +1652,72 @@ const Index = ({ session }: { session: Session }) => {
                     </div>
                   </GlassCard>
                 </div>
+
+                {/* ── My Frame Requests ──────────────────────────────────── */}
+                <GlassCard className="sm:rounded-[2.5rem] border-x-0 sm:border-x border border-white/10">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <Handshake size={14} className="text-amber-400" />
+                      <p className="text-xs font-black text-white/80 uppercase tracking-widest">My Frame Requests</p>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+                      <span className="text-[10px] font-black text-green-400">Live</span>
+                    </div>
+                  </div>
+
+                  {myFrameRequests.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-6 text-center gap-2">
+                      <p className="text-2xl">🙏</p>
+                      <p className="text-xs font-black text-white/30">Koi request nahi abhi tak</p>
+                      <button
+                        onClick={() => setIsFrameMode(true)}
+                        className="mt-1 px-4 py-2 rounded-xl bg-amber-500/20 border border-amber-500/30 text-amber-400 text-xs font-black"
+                      >
+                        Submit Help Request
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {myFrameRequests.map(req => {
+                        const cat = FRAME_CATS[req.category as keyof typeof FRAME_CATS] || FRAME_CATS.Food;
+                        const pct = Math.min(100, Math.round((req.collected_amount / req.target_amount) * 100));
+                        const done = req.status === "completed" || pct >= 100;
+                        return (
+                          <div key={req.id} className="bg-white/5 border border-white/10 rounded-2xl p-3">
+                            <div className="flex items-center gap-3 mb-2">
+                              <span className="text-lg shrink-0">{cat.icon}</span>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs font-black text-white truncate">{req.needy_name}</p>
+                                <p className="text-[10px] text-white/40">#{req.request_code}</p>
+                              </div>
+                              {done ? (
+                                <span className="flex items-center gap-1 px-2 py-1 rounded-full bg-green-500/20 border border-green-500/30 text-[9px] font-black text-green-400 shrink-0">
+                                  <CheckCircle size={9} /> Completed
+                                </span>
+                              ) : req.is_priority ? (
+                                <span className="flex items-center gap-1 px-2 py-1 rounded-full bg-yellow-500/20 border border-yellow-500/30 text-[9px] font-black text-yellow-400 shrink-0">
+                                  <Star size={9} fill="currentColor" /> Priority
+                                </span>
+                              ) : (
+                                <span className="flex items-center gap-1 px-2 py-1 rounded-full bg-blue-500/20 border border-blue-500/30 text-[9px] font-black text-blue-400 shrink-0">
+                                  <Shield size={9} /> Verifying
+                                </span>
+                              )}
+                            </div>
+                            <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
+                              <div className={`h-full ${cat.bar} rounded-full transition-all duration-500`} style={{ width: `${pct}%` }} />
+                            </div>
+                            <div className="flex justify-between mt-1">
+                              <span className="text-[10px] text-white/40 font-bold">₹{req.collected_amount.toFixed(2)} raised</span>
+                              <span className="text-[10px] text-white/40 font-bold">{pct}% of ₹{req.target_amount}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </GlassCard>
               </div>
             )}
 
