@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Image as ImageIcon, X, Send, Loader2, Globe } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { motion, AnimatePresence } from "framer-motion";
@@ -10,11 +10,17 @@ interface CreatePostProps {
   initialFile?: File | null;
 }
 
-const CreatePost = ({ isOpen, onClose, userProfile, initialFile }: CreatePostProps) => {
+const CreatePost = ({
+  isOpen,
+  onClose,
+  userProfile,
+  initialFile,
+}: CreatePostProps) => {
   const [content, setContent] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (initialFile) {
@@ -33,14 +39,12 @@ const CreatePost = ({ isOpen, onClose, userProfile, initialFile }: CreatePostPro
 
   const ADMIN_EMAIL = "your-email@gmail.com";
 
-  // --- 1. Smart URL Detection (YouTube & Direct Videos) ---
   const getMediaInfoFromUrl = (text: string) => {
     const urlRegex = /(https?:\/\/[^\s]+)/g;
     const url = text.match(urlRegex)?.[0];
 
     if (!url) return { finalUrl: "", type: "text", isYoutube: false };
 
-    // YouTube Detection
     const ytRegExp =
       /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=|\/shorts\/)([^#\&\?]*).*/;
     const ytMatch = url.match(ytRegExp);
@@ -52,7 +56,6 @@ const CreatePost = ({ isOpen, onClose, userProfile, initialFile }: CreatePostPro
       };
     }
 
-    // Direct Video Link Detection (RapidCDN, Dropbox, etc.)
     const isDirectVideo =
       /\.(mp4|webm|ogg|mov|m4v)/i.test(url.split("?")[0]) ||
       url.includes("rapidcdn.app") ||
@@ -68,6 +71,7 @@ const CreatePost = ({ isOpen, onClose, userProfile, initialFile }: CreatePostPro
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
     if (selectedFile) {
+      if (preview) URL.revokeObjectURL(preview);
       setFile(selectedFile);
       setPreview(URL.createObjectURL(selectedFile));
     }
@@ -92,7 +96,6 @@ const CreatePost = ({ isOpen, onClose, userProfile, initialFile }: CreatePostPro
       let mediaType = "text";
       let isYoutube = false;
 
-      // 1. Link Detection (If no file is selected)
       if (!file) {
         const detection = getMediaInfoFromUrl(content);
         finalMediaUrl = detection.finalUrl;
@@ -100,7 +103,6 @@ const CreatePost = ({ isOpen, onClose, userProfile, initialFile }: CreatePostPro
         isYoutube = detection.isYoutube;
       }
 
-      // 2. File Upload Logic
       if (file) {
         mediaType = file.type.startsWith("video/") ? "video" : "image";
         const fileName = `${Date.now()}-${file.name.replace(/\s+/g, "_")}`;
@@ -120,7 +122,6 @@ const CreatePost = ({ isOpen, onClose, userProfile, initialFile }: CreatePostPro
         }
       }
 
-      // 3. Database Insert
       const { error: insertError } = await supabase.from("posts").insert([
         {
           author_id: user?.id || userProfile?.id,
@@ -150,18 +151,20 @@ const CreatePost = ({ isOpen, onClose, userProfile, initialFile }: CreatePostPro
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-[120] flex items-end sm:items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 z-[999] flex items-end sm:items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4 pointer-events-auto">
           <motion.div
             initial={{ y: "100%" }}
             animate={{ y: 0 }}
             exit={{ y: "100%" }}
-            className="bg-white w-full max-w-lg rounded-t-[3rem] sm:rounded-[3rem] overflow-hidden shadow-2xl"
+            transition={{ type: "spring", damping: 25, stiffness: 200 }}
+            className="bg-white w-full max-w-lg rounded-t-[3rem] sm:rounded-[3rem] overflow-hidden shadow-2xl relative z-[1000]"
+            onClick={(e) => e.stopPropagation()}
           >
             <div className="p-6 border-b border-slate-50 flex items-center justify-between">
               <h3 className="text-xl font-black text-slate-800">New Vibe</h3>
               <button
                 onClick={onClose}
-                className="p-2 bg-slate-100 rounded-full text-slate-400"
+                className="p-2 bg-slate-100 rounded-full text-slate-400 hover:text-red-500 transition-colors"
               >
                 <X size={20} />
               </button>
@@ -181,15 +184,16 @@ const CreatePost = ({ isOpen, onClose, userProfile, initialFile }: CreatePostPro
                   <p className="text-sm font-black text-slate-800">
                     {userProfile?.full_name || "You"}
                   </p>
-                  <span className="flex items-center gap-1 text-[8px] font-bold uppercase bg-blue-50 text-blue-600 px-2 py-0.5 rounded-md">
+                  <span className="flex items-center gap-1 text-[8px] font-bold uppercase bg-blue-50 text-blue-600 px-2 py-0.5 rounded-md w-fit">
                     <Globe size={10} /> Public
                   </span>
                 </div>
               </div>
 
               <textarea
+                autoFocus
                 placeholder="Paste a link (Insta/YouTube) or write something... 🔥"
-                className="w-full min-h-[120px] text-lg font-medium text-slate-700 outline-none resize-none"
+                className="w-full min-h-[140px] text-lg font-medium text-slate-700 outline-none resize-none bg-transparent pointer-events-auto"
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
               />
@@ -222,20 +226,25 @@ const CreatePost = ({ isOpen, onClose, userProfile, initialFile }: CreatePostPro
               )}
 
               <div className="flex items-center justify-between pt-4 border-t border-slate-50">
-                <label className="p-3 bg-blue-50 text-blue-600 rounded-2xl cursor-pointer">
-                  <ImageIcon size={20} />
+                <label
+                  htmlFor="gallery-picker"
+                  className="p-4 bg-blue-50 text-blue-600 rounded-2xl cursor-pointer hover:bg-blue-100 transition-all active:scale-90"
+                >
+                  <ImageIcon size={24} />
                   <input
+                    id="gallery-picker"
                     type="file"
-                    hidden
+                    className="hidden"
                     accept="image/*,video/*"
                     onChange={handleFileChange}
+                    ref={fileInputRef}
                   />
                 </label>
 
                 <button
                   onClick={handlePost}
                   disabled={loading || (!content && !file)}
-                  className="flex items-center gap-2 px-8 py-4 rounded-2xl font-black text-xs uppercase bg-blue-600 text-white disabled:bg-slate-100 shadow-lg"
+                  className="flex items-center gap-2 px-8 py-4 rounded-2xl font-black text-xs uppercase bg-blue-600 text-white disabled:bg-slate-100 shadow-lg active:scale-95 transition-all"
                 >
                   {loading ? (
                     <Loader2 size={16} className="animate-spin" />
