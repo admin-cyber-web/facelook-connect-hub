@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { Bell, Search, X, UserPlus, Home, Settings } from "lucide-react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { Bell, Search, X, UserPlus, Home, Settings, Loader2, Heart, Users, FileText } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -121,6 +121,264 @@ const TirangaFlag = () => (
   </motion.span>
 );
 
+// ── Search Result Helpers ──────────────────────────────────────────────────────
+const CIRCLE_GRADS = ["#6366f1","#ec4899","#f59e0b","#10b981","#3b82f6","#8b5cf6"];
+function circleGrad(id: string) {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = ((h << 5) + h) ^ id.charCodeAt(i);
+  return CIRCLE_GRADS[Math.abs(h) % CIRCLE_GRADS.length];
+}
+
+// ── Search Modal ───────────────────────────────────────────────────────────────
+const SearchModal = ({ onClose }: { onClose: () => void }) => {
+  const [query, setQuery]       = useState("");
+  const [loading, setLoading]   = useState(false);
+  const [people, setPeople]     = useState<any[]>([]);
+  const [circles, setCircles]   = useState<any[]>([]);
+  const [posts, setPosts]       = useState<any[]>([]);
+  const [sugPeople, setSugPeople]   = useState<any[]>([]);
+  const [sugCircles, setSugCircles] = useState<any[]>([]);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Auto-focus + load suggestions
+  useEffect(() => {
+    setTimeout(() => inputRef.current?.focus(), 80);
+    (async () => {
+      const [{ data: p }, { data: c }] = await Promise.all([
+        supabase.from("profiles").select("id,full_name,avatar_url,fame_points")
+          .order("fame_points", { ascending: false }).limit(8),
+        supabase.from("groups").select("id,name,cover_url,member_count")
+          .order("member_count", { ascending: false }).limit(8),
+      ]);
+      setSugPeople(p || []);
+      setSugCircles(c || []);
+    })();
+  }, []);
+
+  // Debounced search
+  const doSearch = useCallback(async (q: string) => {
+    if (!q.trim()) { setPeople([]); setCircles([]); setPosts([]); return; }
+    setLoading(true);
+    const like = `%${q.trim()}%`;
+    const [{ data: p }, { data: c }, { data: ps }] = await Promise.all([
+      supabase.from("profiles").select("id,full_name,avatar_url,fame_points").ilike("full_name", like).limit(10),
+      supabase.from("groups").select("id,name,cover_url,member_count,privacy").ilike("name", like).limit(8),
+      supabase.from("posts").select("id,content,author,media_url,likes_count").ilike("content", like).limit(6),
+    ]);
+    setPeople(p || []);
+    setCircles(c || []);
+    setPosts(ps || []);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    const t = setTimeout(() => doSearch(query), 300);
+    return () => clearTimeout(t);
+  }, [query, doSearch]);
+
+  const isSearching = query.trim().length > 0;
+  const noResults   = isSearching && !loading && people.length + circles.length + posts.length === 0;
+
+  // Close on ESC
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, [onClose]);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -16 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -16 }}
+      transition={{ duration: 0.18, ease: "easeOut" }}
+      className="fixed inset-0 z-[200] flex flex-col"
+      style={{ background: "rgba(10,14,28,0.97)", backdropFilter: "blur(24px)" }}
+    >
+      {/* ── Search Bar ─────────────────────────────────────────────────────── */}
+      <div className="flex items-center gap-3 px-4 py-3 border-b border-white/10 bg-white/5">
+        <Search size={18} className="text-blue-400 shrink-0" />
+        <input
+          ref={inputRef}
+          type="text"
+          placeholder="Search people, circles, posts…"
+          value={query}
+          onChange={e => setQuery(e.target.value)}
+          className="flex-1 bg-transparent text-white text-[15px] font-semibold outline-none placeholder:text-white/25"
+        />
+        {loading && <Loader2 size={16} className="text-blue-400 animate-spin shrink-0" />}
+        <button onClick={onClose}
+          className="p-1.5 hover:bg-white/10 rounded-xl text-white/50 hover:text-white transition-all shrink-0">
+          <X size={20} />
+        </button>
+      </div>
+
+      {/* ── Results / Suggestions ──────────────────────────────────────────── */}
+      <div className="flex-1 overflow-y-auto pb-10">
+
+        {/* No results state */}
+        {noResults && (
+          <div className="flex flex-col items-center justify-center py-24 gap-3 text-white/20">
+            <Search size={40} strokeWidth={1.5} />
+            <p className="text-[11px] font-black uppercase tracking-widest">No results for "{query}"</p>
+          </div>
+        )}
+
+        {/* ── SEARCH RESULTS ─────────────────────────────────────────── */}
+        {isSearching && !noResults && (
+          <>
+            {/* People results */}
+            {people.length > 0 && (
+              <div className="pt-5">
+                <div className="flex items-center gap-2 px-4 mb-3">
+                  <Users size={12} className="text-blue-400" />
+                  <p className="text-[10px] font-black text-white/40 uppercase tracking-widest">People</p>
+                </div>
+                {people.map(person => (
+                  <div key={person.id} className="flex items-center gap-3 px-4 py-3 border-b border-white/5 hover:bg-white/5 transition-colors">
+                    <div className="w-11 h-11 rounded-full bg-blue-600 overflow-hidden border border-white/10 shrink-0">
+                      {person.avatar_url
+                        ? <img src={person.avatar_url} className="w-full h-full object-cover" alt="" />
+                        : <div className="w-full h-full flex items-center justify-center text-white font-black text-sm">{person.full_name?.[0]}</div>
+                      }
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-white font-bold text-[13px] truncate">{person.full_name}</p>
+                      {(person.fame_points || 0) > 0 && (
+                        <p className="text-yellow-400/60 text-[10px]">⭐ {person.fame_points} fame</p>
+                      )}
+                    </div>
+                    <button className="px-3 py-1.5 bg-blue-600 rounded-xl text-[10px] font-black text-white active:scale-95 transition-transform shrink-0">
+                      + Add
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Circle results */}
+            {circles.length > 0 && (
+              <div className="pt-5">
+                <div className="flex items-center gap-2 px-4 mb-3">
+                  <Users size={12} className="text-purple-400" />
+                  <p className="text-[10px] font-black text-white/40 uppercase tracking-widest">Circles</p>
+                </div>
+                {circles.map(circle => (
+                  <div key={circle.id} className="flex items-center gap-3 px-4 py-3 border-b border-white/5 hover:bg-white/5 transition-colors">
+                    <div className="w-11 h-11 rounded-xl overflow-hidden shrink-0 border border-white/10"
+                      style={{ background: circleGrad(circle.id) }}>
+                      {circle.cover_url && <img src={circle.cover_url} className="w-full h-full object-cover" alt="" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-white font-bold text-[13px] truncate">{circle.name}</p>
+                      <p className="text-white/40 text-[10px]">{circle.member_count ?? 0} members · {circle.privacy || "public"}</p>
+                    </div>
+                    <button className="px-3 py-1.5 bg-purple-600 rounded-xl text-[10px] font-black text-white active:scale-95 transition-transform shrink-0">
+                      Join
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Post results */}
+            {posts.length > 0 && (
+              <div className="pt-5">
+                <div className="flex items-center gap-2 px-4 mb-3">
+                  <FileText size={12} className="text-green-400" />
+                  <p className="text-[10px] font-black text-white/40 uppercase tracking-widest">Posts</p>
+                </div>
+                {posts.map(post => (
+                  <div key={post.id} className="px-4 py-3 border-b border-white/5 hover:bg-white/5 transition-colors">
+                    <p className="text-white/40 text-[10px] mb-1 font-semibold">@{post.author}</p>
+                    <p className="text-white/80 text-[13px] leading-snug line-clamp-2">{post.content}</p>
+                    {post.media_url && (
+                      <div className="mt-2 w-16 h-12 rounded-lg overflow-hidden bg-white/5">
+                        <img src={post.media_url} className="w-full h-full object-cover" loading="lazy" alt="" />
+                      </div>
+                    )}
+                    <div className="flex items-center gap-1 mt-1.5">
+                      <Heart size={10} className="text-red-400" />
+                      <span className="text-white/30 text-[10px] font-semibold">{post.likes_count || 0}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+
+        {/* ── SUGGESTIONS (shown when query is empty) ────────────────── */}
+        {!isSearching && (
+          <>
+            {/* Suggested People */}
+            {sugPeople.length > 0 && (
+              <div className="pt-5">
+                <div className="flex items-center gap-2 px-4 mb-3">
+                  <span className="text-[12px]">🔥</span>
+                  <p className="text-[10px] font-black text-white/40 uppercase tracking-widest">Suggested People</p>
+                </div>
+                {sugPeople.map(person => (
+                  <div key={person.id} className="flex items-center gap-3 px-4 py-3 border-b border-white/5 hover:bg-white/5 transition-colors">
+                    <div className="w-11 h-11 rounded-full bg-blue-600 overflow-hidden border border-white/10 shrink-0">
+                      {person.avatar_url
+                        ? <img src={person.avatar_url} className="w-full h-full object-cover" alt="" />
+                        : <div className="w-full h-full flex items-center justify-center text-white font-black text-sm">{person.full_name?.[0]}</div>
+                      }
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-white font-bold text-[13px] truncate">{person.full_name}</p>
+                      {(person.fame_points || 0) > 0 && (
+                        <p className="text-yellow-400/60 text-[10px]">⭐ {person.fame_points} fame</p>
+                      )}
+                    </div>
+                    <button className="px-3 py-1.5 bg-white/10 border border-white/15 rounded-xl text-[10px] font-black text-white/70 active:scale-95 transition-transform shrink-0">
+                      + Add
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Popular Circles */}
+            {sugCircles.length > 0 && (
+              <div className="pt-5">
+                <div className="flex items-center gap-2 px-4 mb-3">
+                  <span className="text-[12px]">👥</span>
+                  <p className="text-[10px] font-black text-white/40 uppercase tracking-widest">Popular Circles</p>
+                </div>
+                {sugCircles.map(circle => (
+                  <div key={circle.id} className="flex items-center gap-3 px-4 py-3 border-b border-white/5 hover:bg-white/5 transition-colors">
+                    <div className="w-11 h-11 rounded-xl overflow-hidden shrink-0 border border-white/10"
+                      style={{ background: circleGrad(circle.id) }}>
+                      {circle.cover_url && <img src={circle.cover_url} className="w-full h-full object-cover" alt="" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-white font-bold text-[13px] truncate">{circle.name}</p>
+                      <p className="text-white/40 text-[10px]">{circle.member_count ?? 0} members</p>
+                    </div>
+                    <button className="px-3 py-1.5 bg-white/10 border border-white/15 rounded-xl text-[10px] font-black text-white/70 active:scale-95 transition-transform shrink-0">
+                      Join
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Empty suggestions state */}
+            {sugPeople.length === 0 && sugCircles.length === 0 && (
+              <div className="flex flex-col items-center justify-center py-24 gap-3 text-white/20">
+                <Search size={40} strokeWidth={1.5} />
+                <p className="text-[11px] font-black uppercase tracking-widest">Start typing to search</p>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </motion.div>
+  );
+};
+
 // ── Main Header ────────────────────────────────────────────────────────────────
 const Header = ({
   onProfileClick,
@@ -135,7 +393,7 @@ const Header = ({
 }) => {
   const [notifications, setNotifications] = useState<any[]>([]);
   const [showNotif, setShowNotif]         = useState(false);
-  const [searchQuery, setSearchQuery]     = useState("");
+  const [showSearch, setShowSearch]       = useState(false);
   const [pendingFriendCount, setPendingFriendCount] = useState(0);
   const [userData, setUserData] = useState({
     full_name: "...",
@@ -236,20 +494,6 @@ const Header = ({
         {/* 3. RIGHT: Compact Search + Bell + Avatar ────────────────────────── */}
         <div className="flex items-center gap-2 flex-shrink-0">
 
-          {/* Compact search — hidden on mobile, shown on sm+ */}
-          <div className="relative group hidden sm:flex items-center">
-            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40 group-focus-within:text-blue-400 transition-colors pointer-events-none">
-              <Search size={14} />
-            </div>
-            <input
-              type="text"
-              placeholder="Search..."
-              className="h-9 w-44 bg-white/5 border border-white/10 rounded-2xl pl-8 pr-3 text-[11px] font-bold text-white placeholder:text-white/30 outline-none focus:ring-2 focus:ring-blue-500/30 focus:bg-white/10 focus:w-52 transition-all duration-300 shadow-inner"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-          </div>
-
           {/* Friend request mini-badge */}
           {pendingFriendCount > 0 && (
             <motion.div
@@ -270,6 +514,16 @@ const Header = ({
             title="Back to Home"
           >
             <Home size={17} />
+          </motion.button>
+
+          {/* Search button */}
+          <motion.button
+            whileTap={{ scale: 0.88 }}
+            onClick={() => setShowSearch(true)}
+            className="p-2 bg-white/10 border border-white/15 text-white rounded-xl hover:bg-blue-500/20 hover:border-blue-500/40 transition-all active:scale-90 flex-shrink-0"
+            title="Search"
+          >
+            <Search size={17} />
           </motion.button>
 
           {/* Bell */}
@@ -315,6 +569,11 @@ const Header = ({
           </div>
         </div>
       </header>
+
+      {/* ── SEARCH MODAL ─────────────────────────────────────────────────── */}
+      <AnimatePresence>
+        {showSearch && <SearchModal onClose={() => setShowSearch(false)} />}
+      </AnimatePresence>
 
       {/* ── NOTIFICATIONS DRAWER ─────────────────────────────────────────── */}
       <AnimatePresence>
