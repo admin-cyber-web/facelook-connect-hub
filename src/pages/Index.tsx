@@ -46,6 +46,7 @@ import SnapyStudio from "@/components/SnapyStudio";
 import MovieGame from "@/components/MovieGame";
 import ConnectionPanel from "@/components/ConnectionPanel";
 import CirclePage from "@/components/CirclePage";
+import HooksHub from "@/components/HooksHub";
 // ── Reusable styled blocks ───────────────────────────────────────────────────
 const GlassCard = ({ children, className = "", noPadding = false }: any) => (
   <div
@@ -1785,6 +1786,11 @@ const Index = ({ session }: { session: Session }) => {
               <SnapyStudio userId={userId} />
             )}
 
+            {/* HOOKS ───────────────────────────────────────────────────────── */}
+            {activeFeature === "Hooks" && (
+              <HooksHub userId={userId} />
+            )}
+
             {/* 5. TASK (Movie Game) ────────────────────────────────────────── */}
             {activeFeature === "Task" && (
               <MovieGame
@@ -1873,7 +1879,6 @@ const Index = ({ session }: { session: Session }) => {
             activeFeature={activeFeature}
             onFeatureChange={(f) => {
               if (f === "Circle") { setActiveFeature("Circle"); return; }
-              if (f === "Fun")   { setIsVideoCallOpen(true); return; }
               setActiveFeature(f);
               setSettingsView("main");
             }}

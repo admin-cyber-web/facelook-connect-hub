@@ -1,9 +1,9 @@
 import { motion } from "framer-motion";
-import { Film, Smile, CheckSquare, Users, Camera } from "lucide-react";
+import { Film, Anchor, CheckSquare, Users, Camera } from "lucide-react";
 
 const NAV_ITEMS = [
   { label: "Flicks", feature: "Flicks", Icon: Film  },
-  { label: "Fun",    feature: "Fun",    Icon: Smile },
+  { label: "Hooks",  feature: "Hooks",  Icon: Anchor },
   { label: "Task",   feature: "Task",   Icon: CheckSquare },
   { label: "Circle", feature: "Circle", Icon: Users },
   { label: "Snapy",  feature: "Snapy",  Icon: Camera },
