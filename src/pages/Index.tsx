@@ -1392,7 +1392,6 @@ const Index = ({ session }: { session: Session }) => {
     <div
       className="min-h-screen w-full bg-[#020617] bg-cover bg-center bg-fixed transition-all duration-700 relative overflow-x-hidden"
       style={{ backgroundImage: bgImage ? `url('${bgImage}')` : "none" }}
-      onClick={() => setShowNav(true)}
     >
       {/* Overlay */}
       <div
@@ -1469,7 +1468,7 @@ const Index = ({ session }: { session: Session }) => {
 
       <main
         className={`relative z-10 transition-all duration-500 
-          ${activeFeature === "Flicks" ? "pt-0 pb-0" : "pt-0 pb-40"} 
+          ${activeFeature === "Flicks" ? "pt-0 pb-0" : "pt-0 pb-24"} 
           ${activeFeature === "Flicks" ? "w-full" : "max-w-2xl mx-auto px-0 sm:px-0"}`}
       >
         <AnimatePresence mode="wait">
@@ -1482,122 +1481,126 @@ const Index = ({ session }: { session: Session }) => {
           >
             {/* 1. FAME ─────────────────────────────────────────────────────── */}
             {activeFeature === "Fame" && (
-              <div className="w-full overflow-y-auto">
+              <div className="w-full overflow-y-auto bg-gray-100 min-h-screen">
 
-                {/* ── Video Call Section ─────────────────────────────────── */}
-                <div className="w-full px-4 pt-4 pb-3">
-                  <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-3">Live Online</p>
-                  <div className="flex gap-4 overflow-x-auto pb-1 no-scrollbar">
-                    {/* Current user */}
-                    {[{ id: userId, full_name: profile.full_name || "You", avatar_url: profile.avatar_url }, ...onlineUsers].slice(0, 4).map((u, i) => (
-                      <div key={u.id} className="flex flex-col items-center gap-1.5 shrink-0">
-                        <div className="relative">
-                          <div className={`w-16 h-16 rounded-full border-[3px] border-violet-500/60 shadow-lg shadow-violet-900/30 overflow-hidden bg-gradient-to-br ${AVATAR_COLORS[i % 4]}`}>
+                {/* ── Feature Cards: Fun Call (Red) + Frame (Blue) ────────── */}
+                <div className="px-3 pt-3 pb-1 grid grid-cols-2 gap-3">
+                  {/* Fun Video Call — Red */}
+                  <motion.button
+                    whileTap={{ scale: 0.96 }}
+                    onClick={() => setIsVideoCallOpen(true)}
+                    className="flex flex-col items-start gap-2 p-4 rounded-2xl text-white shadow-md active:opacity-90 transition-all text-left overflow-hidden relative"
+                    style={{ background: "linear-gradient(135deg,#ef4444 0%,#b91c1c 100%)" }}
+                  >
+                    <div className="absolute -top-3 -right-3 w-16 h-16 rounded-full bg-white/10" />
+                    <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
+                      <Video size={18} className="text-white" />
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-black leading-tight">Fun Video Call</p>
+                      <p className="text-[9px] text-white/70 font-semibold leading-tight mt-0.5">Stranger se baat karo</p>
+                    </div>
+                    <div className="flex items-center gap-1 mt-0.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-green-300 animate-pulse" />
+                      <span className="text-[9px] font-black text-green-200 uppercase">Live</span>
+                    </div>
+                  </motion.button>
+
+                  {/* Facelook Frame — Blue */}
+                  <motion.button
+                    whileTap={{ scale: 0.96 }}
+                    onClick={() => setIsFrameMode(true)}
+                    className="flex flex-col items-start gap-2 p-4 rounded-2xl text-white shadow-md active:opacity-90 transition-all text-left overflow-hidden relative"
+                    style={{ background: "linear-gradient(135deg,#2563eb 0%,#1e40af 100%)" }}
+                  >
+                    <div className="absolute -top-3 -right-3 w-16 h-16 rounded-full bg-white/10" />
+                    <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
+                      <Star size={18} className="text-white fill-white" />
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-black leading-tight">Facelook Frame</p>
+                      <p className="text-[9px] text-white/70 font-semibold leading-tight mt-0.5">Zarooratmand ki madad</p>
+                    </div>
+                    <div className="flex items-center gap-1 mt-0.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-300 animate-pulse" />
+                      <span className="text-[9px] font-black text-amber-200 uppercase">Help Now</span>
+                    </div>
+                  </motion.button>
+                </div>
+
+                {/* ── Suggestions ─────────────────────────────────────────── */}
+                {onlineUsers.length > 0 && (
+                  <div className="mx-3 mt-3 bg-white rounded-2xl px-3 pt-3 pb-3 shadow-sm">
+                    <p className="text-[11px] font-black text-gray-700 mb-2.5">People You May Know</p>
+                    <div className="grid grid-cols-3 gap-2">
+                      {onlineUsers.slice(0, 3).map((u) => (
+                        <div key={u.id} className="flex flex-col items-center gap-1.5 border border-gray-100 rounded-xl p-2">
+                          <div className="w-14 h-14 rounded-xl overflow-hidden bg-blue-100 shrink-0 border border-gray-200">
                             {u.avatar_url ? (
                               <img src={u.avatar_url} className="w-full h-full object-cover" />
                             ) : (
-                              <div className="w-full h-full flex items-center justify-center text-white font-black text-xl">
+                              <div className="w-full h-full flex items-center justify-center font-black text-blue-600 text-lg">
                                 {(u.full_name || "U")[0].toUpperCase()}
                               </div>
                             )}
                           </div>
-                          <span className="absolute bottom-0.5 right-0.5 w-3.5 h-3.5 rounded-full bg-green-400 border-2 border-[#07001a] shadow" />
+                          <p className="text-[10px] font-black text-gray-800 text-center truncate w-full leading-tight">
+                            {u.full_name?.split(" ")[0] || "User"}
+                          </p>
+                          <button className="w-full py-1 bg-green-500 text-white text-[9px] font-black rounded-lg tracking-wide">
+                            + Add
+                          </button>
                         </div>
-                        <p className="text-[10px] font-bold text-white/70 text-center max-w-[60px] truncate">
-                          {i === 0 ? "You" : u.full_name?.split(" ")[0] || "User"}
-                        </p>
-                      </div>
-                    ))}
-                    {/* Pad with placeholders if < 4 */}
-                    {Array.from({ length: Math.max(0, 4 - Math.min(4, 1 + onlineUsers.length)) }).map((_, i) => (
-                      <div key={`pad-${i}`} className="flex flex-col items-center gap-1.5 shrink-0">
-                        <div className="relative">
-                          <div className={`w-16 h-16 rounded-full border-[3px] border-white/10 shadow-lg overflow-hidden bg-gradient-to-br ${AVATAR_COLORS[(1 + onlineUsers.length + i) % 4]}`}>
-                            <div className="w-full h-full flex items-center justify-center text-white/40 font-black text-xl">?</div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* ── Reels Strip ─────────────────────────────────────────── */}
+                <div className="mx-3 mt-3 bg-white rounded-2xl px-3 pt-3 pb-3 shadow-sm">
+                  <p className="text-[11px] font-black text-gray-700 mb-2.5">Reels</p>
+                  <div className="flex gap-2.5 overflow-x-auto pb-1 no-scrollbar">
+                    {/* Current user reel */}
+                    {[
+                      { id: userId, full_name: profile.full_name || "You", avatar_url: profile.avatar_url, isMe: true },
+                      ...onlineUsers.map((u) => ({ ...u, isMe: false })),
+                    ].slice(0, 6).map((u, i) => (
+                      <div key={u.id} className="flex flex-col items-center gap-1 shrink-0">
+                        <div
+                          className="w-[72px] h-[100px] rounded-xl overflow-hidden relative shadow border-2 border-blue-500"
+                          style={{ background: `linear-gradient(160deg,${["#6366f1","#ec4899","#f59e0b","#10b981","#3b82f6","#8b5cf6"][i % 6]} 0%,#1e1b4b 100%)` }}
+                        >
+                          {u.avatar_url ? (
+                            <img src={u.avatar_url} className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-white font-black text-2xl">
+                              {(u.full_name || "U")[0].toUpperCase()}
+                            </div>
+                          )}
+                          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent pt-4 pb-1 px-1">
+                            <p className="text-white text-[8px] font-black truncate">
+                              {u.isMe ? "Your Reel" : u.full_name?.split(" ")[0] || "User"}
+                            </p>
                           </div>
-                          <span className="absolute bottom-0.5 right-0.5 w-3.5 h-3.5 rounded-full bg-gray-500 border-2 border-[#07001a]" />
+                          {u.isMe && (
+                            <div className="absolute top-1.5 left-1.5 w-5 h-5 rounded-full bg-blue-600 flex items-center justify-center border-2 border-white">
+                              <span className="text-white text-[8px] font-black">+</span>
+                            </div>
+                          )}
                         </div>
-                        <p className="text-[10px] font-bold text-white/30 text-center">Offline</p>
                       </div>
                     ))}
                   </div>
                 </div>
 
-                {/* ── Facelook Fun Call Button — edge-to-edge ─────────────── */}
-                <motion.button
-                  whileTap={{ scale: 0.98 }}
-                  onClick={() => setIsVideoCallOpen(true)}
-                  className="w-full flex items-center justify-between px-5 py-4 bg-gradient-to-r from-violet-800 via-purple-800 to-indigo-900 border-y border-violet-500/20 shadow-lg active:opacity-90 transition-all"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center">
-                      <Video size={20} className="text-white" />
-                    </div>
-                    <div className="text-left">
-                      <p className="text-sm font-black text-white tracking-wide">FACELOOK FUN CALL</p>
-                      <p className="text-[10px] text-violet-300">Stranger se video call karo</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-black text-green-400 uppercase tracking-wider">LIVE</span>
-                    <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-                    <PhoneCall size={18} className="text-green-400" />
-                  </div>
-                </motion.button>
-
-                {/* ── Facelook Frame Gateway ──────────────────────────────── */}
-                <div className="w-full border-t-2 border-b-2 border-amber-500/30 bg-gradient-to-r from-[#1a0a00]/80 via-[#2a1500]/60 to-[#1a0a00]/80 backdrop-blur-xl py-5 px-6 relative overflow-hidden">
-                  {/* Golden halo glow */}
-                  <div className="absolute inset-0 bg-gradient-to-b from-amber-500/5 via-transparent to-amber-500/5 pointer-events-none" />
-                  <div className="absolute -top-px left-0 w-full h-px bg-gradient-to-r from-transparent via-amber-400/60 to-transparent" />
-                  <div className="absolute -bottom-px left-0 w-full h-px bg-gradient-to-r from-transparent via-amber-400/60 to-transparent" />
-
-                  <div className="flex items-center gap-5 relative z-10">
-                    {/* Humanity illustration — two people reaching toward each other */}
-                    <div className="shrink-0 w-[72px] h-[56px]">
-                      <svg viewBox="0 0 72 56" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
-                        {/* Left person */}
-                        <circle cx="13" cy="11" r="7" fill="#F59E0B" fillOpacity="0.9"/>
-                        <path d="M4 26 Q13 19 22 26 L22 44 Q13 48 4 44 Z" fill="#FDE68A" fillOpacity="0.7"/>
-                        {/* Left arm reaching right */}
-                        <path d="M22 33 Q32 28 38 33" stroke="#F59E0B" strokeWidth="3" strokeLinecap="round"/>
-                        {/* Right person */}
-                        <circle cx="59" cy="11" r="7" fill="#D97706" fillOpacity="0.9"/>
-                        <path d="M50 26 Q59 19 68 26 L68 44 Q59 48 50 44 Z" fill="#FCD34D" fillOpacity="0.7"/>
-                        {/* Right arm reaching left */}
-                        <path d="M50 33 Q42 28 36 33" stroke="#D97706" strokeWidth="3" strokeLinecap="round"/>
-                        {/* Joined hands / heart at center */}
-                        <path d="M35 30 C35 27 39 27 39 30 C39 33 35 36 35 36 C35 36 31 33 31 30 C31 27 35 27 35 30Z" fill="#EF4444" fillOpacity="0.85"/>
-                      </svg>
-                    </div>
-
-                    {/* Content */}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[10px] font-black text-amber-500/70 uppercase tracking-widest mb-0.5">Premium Gateway</p>
-                      <p className="text-lg font-black bg-gradient-to-r from-amber-300 via-yellow-300 to-amber-400 bg-clip-text text-transparent leading-tight">
-                        FACELOOK FRAME
-                      </p>
-                      <p className="text-[11px] text-amber-200/60 font-semibold mt-0.5 leading-snug">
-                        Ab Har Zarooratmand Hoga Frame
-                      </p>
-                      <motion.button
-                        whileTap={{ scale: 0.96 }}
-                        onClick={() => setIsFrameMode(true)}
-                        className="mt-3 flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 text-black font-black text-[11px] uppercase tracking-wider shadow-lg shadow-amber-900/40 active:scale-95 transition-all"
-                      >
-                        <Star size={13} fill="black" />
-                        ENTER FRAME MODE
-                      </motion.button>
-                    </div>
-                  </div>
+                {/* ── What's on your mind + News Feed ─────────────────────── */}
+                <div className="mt-3 bg-white rounded-t-2xl">
+                  <FameFeed
+                    onPostClick={() => setIsPostOpen(true)}
+                    onImageSelect={(f) => setPendingFile(f)}
+                    userProfile={profile}
+                  />
                 </div>
-
-                {/* ── Normal Fame Feed ────────────────────────────────────── */}
-                <FameFeed
-                  onPostClick={() => setIsPostOpen(true)}
-                  onImageSelect={(f) => setPendingFile(f)}
-                  userProfile={profile}
-                />
               </div>
             )}
 
@@ -1830,8 +1833,8 @@ const Index = ({ session }: { session: Session }) => {
       {/* Chat FAB ──────────────────────────────────────────────────────────── */}
       <motion.button
         animate={{
-          y: showNav && activeFeature !== "Flicks" ? 0 : 150,
-          opacity: showNav ? 1 : 0,
+          y: activeFeature !== "Flicks" ? 0 : 150,
+          opacity: 1,
         }}
         onClick={() => setIsChatOpen(true)}
         className="fixed bottom-32 right-6 w-16 h-16 bg-blue-600 rounded-full shadow-2xl flex items-center justify-center z-[80] border-2 border-white/20 active:scale-90"
@@ -1844,13 +1847,16 @@ const Index = ({ session }: { session: Session }) => {
 
       {/* Bottom Nav ────────────────────────────────────────────────────────── */}
       <motion.div
-        animate={{ y: showNav && activeFeature !== "Flicks" ? 0 : 120 }}
+        animate={{ y: activeFeature !== "Flicks" ? 0 : 120 }}
         transition={{ type: "spring", stiffness: 280, damping: 26 }}
-        className="fixed bottom-0 left-0 w-full z-[200] pb-7 px-3 pointer-events-none"
+        className="fixed bottom-0 left-0 w-full z-[200] pointer-events-none"
       >
         <div className="max-w-md mx-auto pointer-events-auto">
           <GolSlider
+            activeFeature={activeFeature}
             onFeatureChange={(f) => {
+              if (f === "Flame") { setIsFrameMode(true); return; }
+              if (f === "Fun")   { setIsVideoCallOpen(true); return; }
               setActiveFeature(f);
               setSettingsView("main");
             }}
