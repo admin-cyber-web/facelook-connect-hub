@@ -1,11 +1,11 @@
 import { motion } from "framer-motion";
-import { Film, Smile, CheckSquare, Flame, Camera } from "lucide-react";
+import { Film, Smile, CheckSquare, Users, Camera } from "lucide-react";
 
 const NAV_ITEMS = [
   { label: "Flicks", feature: "Flicks", Icon: Film  },
   { label: "Fun",    feature: "Fun",    Icon: Smile },
   { label: "Task",   feature: "Task",   Icon: CheckSquare },
-  { label: "Flame",  feature: "Flame",  Icon: Flame },
+  { label: "Circle", feature: "Circle", Icon: Users },
   { label: "Snapy",  feature: "Snapy",  Icon: Camera },
 ] as const;
 
@@ -37,7 +37,6 @@ const GolSlider = ({ onFeatureChange, activeFeature }: GolSliderProps) => {
             onClick={() => onFeatureChange?.(feature)}
             className="flex flex-col items-center justify-center gap-[3px] px-4 py-1.5 rounded-xl relative"
           >
-            {/* Active indicator pill */}
             {isActive && (
               <motion.div
                 layoutId="nav-active-pill"

@@ -45,6 +45,7 @@ import ChatSystem from "@/components/ChatSystem";
 import SnapyStudio from "@/components/SnapyStudio";
 import MovieGame from "@/components/MovieGame";
 import ConnectionPanel from "@/components/ConnectionPanel";
+import CirclePage from "@/components/CirclePage";
 // ── Reusable styled blocks ───────────────────────────────────────────────────
 const GlassCard = ({ children, className = "", noPadding = false }: any) => (
   <div
@@ -1762,7 +1763,14 @@ const Index = ({ session }: { session: Session }) => {
               </div>
             )}
 
-            {/* 4. SNAPY ────────────────────────────────────────────────────── */}
+            {/* 4. CIRCLE (Groups) ──────────────────────────────────────────── */}
+            {activeFeature === "Circle" && (
+              <div className="min-h-screen bg-gray-50">
+                <CirclePage userProfile={profile} currentUserId={userId} />
+              </div>
+            )}
+
+            {/* 5. SNAPY ────────────────────────────────────────────────────── */}
             {activeFeature === "Snapy" && (
               <SnapyStudio userId={userId} />
             )}
@@ -1854,7 +1862,7 @@ const Index = ({ session }: { session: Session }) => {
           <GolSlider
             activeFeature={activeFeature}
             onFeatureChange={(f) => {
-              if (f === "Flame") { setIsFrameMode(true); return; }
+              if (f === "Circle") { setActiveFeature("Circle"); return; }
               if (f === "Fun")   { setIsVideoCallOpen(true); return; }
               setActiveFeature(f);
               setSettingsView("main");
