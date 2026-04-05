@@ -1599,6 +1599,8 @@ const Index = ({ session }: { session: Session }) => {
                     onImageSelect={(f) => setPendingFile(f)}
                     userProfile={profile}
                     suggestions={onlineUsers}
+                    onNavigateToCircles={() => setActiveFeature("Circle")}
+                    onNavigateToPages={() => setActiveFeature("Circle")}
                   />
                 </div>
               </div>

@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { supabase } from "../lib/supabaseClient";
+import { toast } from "sonner";
 import {
   Send, Heart, MessageCircle, Share2, MoreVertical,
   Loader2, Trash2, EyeOff, Flag, X, Volume2, VolumeX, Image as ImageIcon,
-  Play, Users, Film,
+  Play, Users, Film, Plus,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -133,41 +134,137 @@ const TrendingFlicksRow = ({ flicks, loaded }: { flicks: any[]; loaded: boolean 
   );
 };
 
-// ── Pages & Groups Section ─────────────────────────────────────────────────────
-const PAGE_COLORS = ["#6366f1","#ec4899","#f59e0b","#10b981","#3b82f6","#8b5cf6"];
+// ── In-Feed Suggestion Card (native post style) ────────────────────────────────
+const SUGG_GRADS = ["#6366f1","#ec4899","#f59e0b","#10b981","#3b82f6","#8b5cf6"];
 
-const PagesGroupsSection = ({ items }: { items: any[] }) => {
-  if (!items.length) return null;
+function gradForSugg(id: string) {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = ((h << 5) + h) ^ id.charCodeAt(i);
+  return SUGG_GRADS[Math.abs(h) % SUGG_GRADS.length];
+}
+
+const InFeedSuggestionCard = ({
+  item,
+  actionDone,
+  onAction,
+}: {
+  item: any;
+  actionDone: boolean;
+  onAction: (id: string) => void;
+}) => {
+  const isGroup = item.type === "group" || item.type === "circle";
+  const grad = gradForSugg(item.id || item.name || "x");
   return (
-    <div className="bg-white py-3">
-      <p className="text-[12px] font-black text-gray-700 px-4 mb-3">Pages & Groups You May Like</p>
-      <div className="grid grid-cols-3 gap-3 px-3">
-        {items.slice(0, 3).map((item, i) => (
-          <div key={item.id}
-            className="bg-gray-50 rounded-xl overflow-hidden flex flex-col items-center"
-            style={{ boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
-            <div className="w-full aspect-square overflow-hidden"
-              style={{ background: `linear-gradient(135deg, ${PAGE_COLORS[i % PAGE_COLORS.length]}, #1e1b4b)` }}>
-              {item.cover_url ? (
-                <img src={item.cover_url} className="w-full h-full object-cover" loading="lazy" alt={item.name} />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center">
-                  <Users size={28} className="text-white/80" />
-                </div>
-              )}
+    <motion.article layout className="bg-white border-b border-gray-100">
+      {/* Header — like a post author row */}
+      <div className="flex items-center gap-3 px-4 py-3">
+        <div
+          className="w-10 h-10 rounded-full overflow-hidden border border-gray-100 shrink-0"
+          style={{ background: `linear-gradient(135deg, ${grad}, #1e1b4b)` }}
+        >
+          {item.cover_url ? (
+            <img src={item.cover_url} className="w-full h-full object-cover" alt={item.name} />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center">
+              <Users size={16} className="text-white/80" />
             </div>
-            <p className="text-[11px] font-bold text-gray-900 text-center px-2 mt-2 mb-0.5 truncate w-full">
-              {item.name || "Community"}
-            </p>
-            <button className="mt-1 mb-3 px-3 py-1.5 bg-blue-600 text-white text-[10px] font-bold rounded-lg">
-              {item.type === "group" ? "Join" : "Follow"}
-            </button>
-          </div>
-        ))}
+          )}
+        </div>
+        <div>
+          <p className="text-gray-900 font-bold text-sm leading-none">{item.name || "Community"}</p>
+          <p className="text-[10px] text-blue-600 font-semibold uppercase tracking-wide mt-0.5">
+            {isGroup ? "👥 Suggested Circle" : "📄 Suggested Page"}
+          </p>
+        </div>
       </div>
-    </div>
+
+      {/* Big cover photo */}
+      <div className="w-full relative bg-gray-100" style={{ aspectRatio: "16/9" }}>
+        {item.cover_url ? (
+          <img
+            src={item.cover_url}
+            className="w-full h-full object-cover"
+            loading="lazy"
+            alt={item.name}
+          />
+        ) : (
+          <div
+            className="w-full h-full flex items-center justify-center"
+            style={{ background: `linear-gradient(135deg, ${grad}, #1e1b4b)` }}
+          >
+            <Users size={52} className="text-white/40" />
+          </div>
+        )}
+        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent px-4 py-3">
+          <p className="text-white/80 text-[11px] font-semibold">
+            {item.member_count ?? 0} members
+            {item.privacy ? ` · ${item.privacy}` : ""}
+          </p>
+        </div>
+      </div>
+
+      {/* Optional description */}
+      {item.description && (
+        <div className="px-4 pt-2 pb-0">
+          <p className="text-[13px] text-gray-600 line-clamp-2 leading-snug">{item.description}</p>
+        </div>
+      )}
+
+      {/* Big action button */}
+      <div className="px-4 py-3">
+        <button
+          onClick={() => { if (!actionDone) onAction(item.id); }}
+          className={`w-full py-3.5 rounded-2xl font-black text-sm transition-all active:scale-[0.98] ${
+            actionDone
+              ? "bg-gray-100 text-gray-400 cursor-default"
+              : "bg-blue-600 text-white"
+          }`}
+        >
+          {actionDone
+            ? (isGroup ? "Joined ✓" : "Following ✓")
+            : (isGroup ? "Join Circle" : "Follow")}
+        </button>
+      </div>
+    </motion.article>
   );
 };
+
+// ── Suggestion Placeholder (zero-demo) ─────────────────────────────────────────
+const SuggestionPlaceholder = ({
+  onCreateCircle,
+  onCreatePage,
+}: {
+  onCreateCircle?: () => void;
+  onCreatePage?: () => void;
+}) => (
+  <div className="bg-white border-b border-gray-100 px-4 py-8 flex flex-col items-center gap-4">
+    <div className="w-16 h-16 rounded-full bg-blue-50 flex items-center justify-center">
+      <Users size={30} className="text-blue-400" />
+    </div>
+    <div className="text-center">
+      <p className="text-gray-800 font-black text-base">No Pages or Circles yet</p>
+      <p className="text-gray-400 text-[12px] mt-1">Be the first to create one!</p>
+    </div>
+    <div className="flex gap-3 w-full">
+      {onCreatePage && (
+        <button
+          onClick={onCreatePage}
+          className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl border-2 border-blue-600 text-blue-600 font-black text-sm active:scale-[0.98] transition-transform"
+        >
+          <Plus size={16} /> Create Page
+        </button>
+      )}
+      {onCreateCircle && (
+        <button
+          onClick={onCreateCircle}
+          className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl bg-blue-600 text-white font-black text-sm active:scale-[0.98] transition-transform"
+        >
+          <Plus size={16} /> Create Circle
+        </button>
+      )}
+    </div>
+  </div>
+);
 
 // ── Single Full-Width Vertical Reel ───────────────────────────────────────────
 const SingleReelBlock = ({ post }: { post: any }) => {
@@ -251,9 +348,14 @@ interface FameFeedProps {
   onImageSelect?: (file: File) => void;
   userProfile?: any;
   suggestions?: { id: string; full_name: string; avatar_url?: string }[];
+  onNavigateToCircles?: () => void;
+  onNavigateToPages?: () => void;
 }
 
-const FameFeed = ({ onPostClick, onImageSelect, userProfile, suggestions = [] }: FameFeedProps) => {
+const FameFeed = ({
+  onPostClick, onImageSelect, userProfile, suggestions = [],
+  onNavigateToCircles, onNavigateToPages,
+}: FameFeedProps) => {
   const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeComment, setActiveComment] = useState<string | null>(null);
@@ -264,7 +366,10 @@ const FameFeed = ({ onPostClick, onImageSelect, userProfile, suggestions = [] }:
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
   const [reportModal, setReportModal] = useState<{ postId: string; reason: string } | null>(null);
   const [reportSubmitting, setReportSubmitting] = useState(false);
-  const [pagesGroups, setPagesGroups] = useState<any[]>([]);
+  const [pageSuggestions, setPageSuggestions] = useState<any[]>([]);
+  const [groupSuggestions, setGroupSuggestions] = useState<any[]>([]);
+  const [suggestionsLoaded, setSuggestionsLoaded] = useState(false);
+  const [inFeedDoneIds, setInFeedDoneIds] = useState<Set<string>>(new Set());
   const [trendingFlicks, setTrendingFlicks] = useState<any[]>([]);
   const [flicksLoaded, setFlicksLoaded] = useState(false);
   const galleryInputRef = useRef<HTMLInputElement>(null);
@@ -318,18 +423,67 @@ const FameFeed = ({ onPostClick, onImageSelect, userProfile, suggestions = [] }:
   }, []);
 
   useEffect(() => {
-    async function fetchPagesGroups() {
+    if (currentUserId === null && !suggestionsLoaded) return; // wait for auth check
+    async function fetchSuggestions() {
       try {
-        const { data: groups } = await supabase
-          .from("groups")
-          .select("id, name, cover_url")
-          .limit(6);
-        const combined = (groups || []).map((g: any) => ({ ...g, type: "group" }));
-        setPagesGroups(combined);
+        // Fetch user's already-joined group IDs to filter them out
+        let joinedIds = new Set<string>();
+        if (currentUserId) {
+          const { data: memberships } = await supabase
+            .from("group_members")
+            .select("group_id")
+            .eq("user_id", currentUserId);
+          joinedIds = new Set((memberships || []).map((m: any) => m.group_id));
+        }
+
+        // Try community_suggestions view first
+        const { data: viewData, error: viewErr } = await supabase
+          .from("community_suggestions")
+          .select("*")
+          .limit(20);
+
+        if (!viewErr && viewData && viewData.length > 0) {
+          const filtered = viewData.filter(
+            (item: any) => item.type !== "group" && item.type !== "circle" || !joinedIds.has(item.id)
+          );
+          setPageSuggestions(filtered.filter((i: any) => i.type === "page"));
+          setGroupSuggestions(filtered.filter((i: any) => i.type === "group" || i.type === "circle"));
+        } else {
+          // Fallback: groups table
+          const { data: groups } = await supabase
+            .from("groups")
+            .select("id, name, cover_url, description, member_count, privacy")
+            .order("member_count", { ascending: false })
+            .limit(12);
+          const filtered = (groups || [])
+            .filter((g: any) => !joinedIds.has(g.id))
+            .map((g: any) => ({ ...g, type: "group" }));
+          setGroupSuggestions(filtered);
+          setPageSuggestions([]);
+        }
       } catch (_) {}
+      setSuggestionsLoaded(true);
     }
-    fetchPagesGroups();
-  }, []);
+    fetchSuggestions();
+  }, [currentUserId]);
+
+  const handleInFeedAction = async (item: any) => {
+    const isGroup = item.type === "group" || item.type === "circle";
+    setInFeedDoneIds(prev => new Set([...prev, item.id]));
+    if (isGroup && currentUserId) {
+      const { error } = await supabase
+        .from("group_members")
+        .insert([{ group_id: item.id, user_id: currentUserId, role: "member" }]);
+      if (error) {
+        setInFeedDoneIds(prev => { const n = new Set(prev); n.delete(item.id); return n; });
+        toast.error("Could not join. Please try again.");
+      } else {
+        toast.success(`Joined "${item.name}"!`);
+      }
+    } else if (!isGroup) {
+      toast.success(`Following "${item.name}"!`);
+    }
+  };
 
   const handleLike = async (post: any) => {
     if (likedIds.has(post.id)) return;
@@ -499,36 +653,62 @@ const FameFeed = ({ onPostClick, onImageSelect, userProfile, suggestions = [] }:
   // ── Build dynamic feed blocks ──────────────────────────────────────────────
   const feedBlocks = useMemo(() => {
     const BATCH = 3;
-    const blocks: { type: string; posts?: any[]; post?: any; key: string }[] = [];
+    type Block = { type: string; posts?: any[]; post?: any; item?: any; key: string };
+    const blocks: Block[] = [];
     if (visiblePosts.length === 0) return blocks;
 
     let postCursor = 0;
     let reelCursor = 0;
-    let cycle = 0;
+    let pageCursor = 0;
+    let groupCursor = 0;
+    // Alternate: even slots → page suggestion, odd slots → circle suggestion
+    let suggSlot = 0;
+    let placeholderShown = false;
 
     while (postCursor < visiblePosts.length) {
-      const batch1 = visiblePosts.slice(postCursor, postCursor + BATCH);
+      // Batch of 3 posts
+      const batch = visiblePosts.slice(postCursor, postCursor + BATCH);
       postCursor += BATCH;
-      if (batch1.length > 0) blocks.push({ type: "posts", posts: batch1, key: `b1-${cycle}` });
+      if (batch.length > 0) blocks.push({ type: "posts", posts: batch, key: `b-${postCursor}` });
 
-      if (videoPosts.length > 0) blocks.push({ type: "reels-row", key: `rr-${cycle}` });
+      // After every 3 posts: inject a suggestion
+      if (suggSlot % 2 === 0) {
+        // Page suggestion slot
+        if (pageSuggestions.length > 0) {
+          const item = pageSuggestions[pageCursor % pageSuggestions.length];
+          pageCursor++;
+          blocks.push({ type: "page-suggestion", item, key: `ps-${pageCursor}` });
+        } else if (groupSuggestions.length === 0 && suggestionsLoaded && !placeholderShown) {
+          placeholderShown = true;
+          blocks.push({ type: "suggestion-placeholder", key: "placeholder" });
+        }
+      } else {
+        // Circle/Group suggestion slot
+        if (groupSuggestions.length > 0) {
+          const item = groupSuggestions[groupCursor % groupSuggestions.length];
+          groupCursor++;
+          blocks.push({ type: "circle-suggestion", item, key: `cs-${groupCursor}` });
+        } else if (pageSuggestions.length === 0 && suggestionsLoaded && !placeholderShown) {
+          placeholderShown = true;
+          blocks.push({ type: "suggestion-placeholder", key: "placeholder" });
+        }
+      }
+      suggSlot++;
 
-      const batch2 = visiblePosts.slice(postCursor, postCursor + BATCH);
-      postCursor += BATCH;
-      if (batch2.length > 0) blocks.push({ type: "posts", posts: batch2, key: `b2-${cycle}` });
-
-      blocks.push({ type: "pages-groups", key: `pg-${cycle}` });
-
-      if (videoPosts.length > 0) {
-        blocks.push({ type: "single-reel", post: videoPosts[reelCursor % videoPosts.length], key: `sr-${cycle}` });
-        reelCursor++;
+      // Trending flicks row — once after 6th post
+      if (reelCursor === 0 && videoPosts.length > 0 && postCursor >= 6) {
+        blocks.push({ type: "reels-row", key: "rr-main" });
       }
 
-      cycle++;
+      // Single reel
+      if (videoPosts.length > 0) {
+        blocks.push({ type: "single-reel", post: videoPosts[reelCursor % videoPosts.length], key: `sr-${reelCursor}` });
+        reelCursor++;
+      }
     }
 
     return blocks;
-  }, [visiblePosts, videoPosts]);
+  }, [visiblePosts, videoPosts, pageSuggestions, groupSuggestions, suggestionsLoaded]);
 
   return (
     <div className="bg-gray-50">
@@ -623,11 +803,38 @@ const FameFeed = ({ onPostClick, onImageSelect, userProfile, suggestions = [] }:
             </div>
           );
         }
-        if (block.type === "pages-groups") {
+        if (block.type === "page-suggestion" && block.item) {
           return (
             <div key={block.key}>
-              <PagesGroupsSection items={pagesGroups} />
-              {pagesGroups.length > 0 && <FeedDivider />}
+              <InFeedSuggestionCard
+                item={block.item}
+                actionDone={inFeedDoneIds.has(block.item.id)}
+                onAction={() => handleInFeedAction(block.item)}
+              />
+              <FeedDivider />
+            </div>
+          );
+        }
+        if (block.type === "circle-suggestion" && block.item) {
+          return (
+            <div key={block.key}>
+              <InFeedSuggestionCard
+                item={block.item}
+                actionDone={inFeedDoneIds.has(block.item.id)}
+                onAction={() => handleInFeedAction(block.item)}
+              />
+              <FeedDivider />
+            </div>
+          );
+        }
+        if (block.type === "suggestion-placeholder") {
+          return (
+            <div key={block.key}>
+              <SuggestionPlaceholder
+                onCreateCircle={onNavigateToCircles}
+                onCreatePage={onNavigateToPages}
+              />
+              <FeedDivider />
             </div>
           );
         }
