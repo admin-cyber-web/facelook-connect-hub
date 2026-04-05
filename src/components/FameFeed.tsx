@@ -101,9 +101,9 @@ const TrendingFlicksRow = ({ flicks, loaded }: { flicks: any[]; loaded: boolean 
   if (!loaded) return null;
   if (flicks.length === 0) return null; // hide entirely when no real flicks
   return (
-    <div className="bg-white py-3">
+    <div className="bg-white pt-2 pb-1">
       <p className="text-[12px] font-black text-gray-700 px-4 mb-2">🔥 Trending Flicks</p>
-      <div className="flex gap-2.5 overflow-x-auto px-4 pb-1 no-scrollbar">
+      <div className="flex gap-2.5 overflow-x-auto px-4 pb-2 no-scrollbar">
         {flicks.map((flick, i) => {
           const isYT = flick.media_url?.includes("youtube.com") || flick.media_url?.includes("youtu.be");
           const isVid = !isYT && flick.media_url && /\.(mp4|webm|ogg|mov|m4v)/i.test(flick.media_url.split("?")[0]);
@@ -147,27 +147,11 @@ const SuggestedPagesRow = ({
   pages: any[]; doneIds: Set<string>;
   onAction: (item: any) => void; onCreatePage?: () => void;
 }) => {
-  if (pages.length === 0) {
-    return (
-      <div className="bg-white border-b border-gray-100 px-5 py-8 flex flex-col items-center gap-3">
-        <div className="w-14 h-14 rounded-full bg-purple-50 flex items-center justify-center">
-          <Film size={26} className="text-purple-400" />
-        </div>
-        <p className="text-gray-800 font-black text-sm text-center">No Pages yet</p>
-        <p className="text-gray-400 text-[11px] text-center">Be the first to create a Page!</p>
-        {onCreatePage && (
-          <button onClick={onCreatePage}
-            className="flex items-center gap-2 px-6 py-2.5 rounded-2xl bg-blue-600 text-white font-black text-[12px] active:scale-[0.98] transition-transform">
-            <Plus size={14} /> Create Page
-          </button>
-        )}
-      </div>
-    );
-  }
+  if (pages.length === 0) return null;
   return (
-    <div className="bg-white border-b border-gray-100 pt-4 pb-2">
-      <p className="text-[12px] font-black text-gray-700 px-4 mb-3">📄 Suggested Pages</p>
-      <div className="flex gap-3 overflow-x-auto px-4 pb-3 no-scrollbar">
+    <div className="bg-white border-b border-gray-100 pt-3 pb-1">
+      <p className="text-[12px] font-black text-gray-700 px-4 mb-2">📄 Trending Pages</p>
+      <div className="flex gap-3 overflow-x-auto px-4 pb-2 no-scrollbar">
         {pages.map(page => {
           const grad = gradForSugg(page.id || page.name || "p");
           const done = doneIds.has(page.id);
@@ -210,27 +194,11 @@ const SuggestedCirclesRow = ({
   circles: any[]; doneIds: Set<string>;
   onAction: (item: any) => void; onCreateCircle?: () => void;
 }) => {
-  if (circles.length === 0) {
-    return (
-      <div className="bg-white border-b border-gray-100 px-5 py-8 flex flex-col items-center gap-3">
-        <div className="w-14 h-14 rounded-full bg-blue-50 flex items-center justify-center">
-          <Users size={26} className="text-blue-400" />
-        </div>
-        <p className="text-gray-800 font-black text-sm text-center">No Circles yet</p>
-        <p className="text-gray-400 text-[11px] text-center">Be the first to create a Circle!</p>
-        {onCreateCircle && (
-          <button onClick={onCreateCircle}
-            className="flex items-center gap-2 px-6 py-2.5 rounded-2xl bg-blue-600 text-white font-black text-[12px] active:scale-[0.98] transition-transform">
-            <Plus size={14} /> Create Circle
-          </button>
-        )}
-      </div>
-    );
-  }
+  if (circles.length === 0) return null;
   return (
-    <div className="bg-white border-b border-gray-100 pt-4 pb-2">
-      <p className="text-[12px] font-black text-gray-700 px-4 mb-3">👥 Suggested Circles</p>
-      <div className="flex gap-3 overflow-x-auto px-4 pb-3 no-scrollbar">
+    <div className="bg-white border-b border-gray-100 pt-3 pb-1">
+      <p className="text-[12px] font-black text-gray-700 px-4 mb-2">👥 Suggested Circles</p>
+      <div className="flex gap-3 overflow-x-auto px-4 pb-2 no-scrollbar">
         {circles.map(circle => {
           const grad = gradForSugg(circle.id || circle.name || "c");
           const done = doneIds.has(circle.id);
@@ -464,7 +432,7 @@ const SingleReelBlock = ({ post }: { post: any }) => {
 };
 
 // ── Divider ────────────────────────────────────────────────────────────────────
-const FeedDivider = () => <div className="h-2 bg-gray-100" />;
+const FeedDivider = () => <div className="h-1 bg-gray-100" />;
 
 // ── Main Feed ─────────────────────────────────────────────────────────────────
 interface FameFeedProps {
@@ -593,20 +561,43 @@ const FameFeed = ({
           const filtered = viewData.filter(
             (item: any) => item.type !== "group" && item.type !== "circle" || !joinedIds.has(item.id)
           );
-          setPageSuggestions(filtered.filter((i: any) => i.type === "page"));
+          const viewPages = filtered.filter((i: any) => i.type === "page");
           setGroupSuggestions(filtered.filter((i: any) => i.type === "group" || i.type === "circle"));
+
+          // If view returned no pages, also try hook_pages directly
+          if (viewPages.length > 0) {
+            setPageSuggestions(viewPages);
+          } else {
+            const { data: hookPages } = await supabase
+              .from("hook_pages")
+              .select("id, name, cover_url, avatar_url, follower_count, category")
+              .order("follower_count", { ascending: false })
+              .limit(8);
+            setPageSuggestions(
+              (hookPages || []).map((p: any) => ({ ...p, type: "page", member_count: p.follower_count ?? 0 }))
+            );
+          }
         } else {
-          // Fallback: groups table — newest first so user's own new group appears at top
-          const { data: groups } = await supabase
-            .from("groups")
-            .select("id, name, cover_url, description, member_count, privacy, created_at")
-            .order("created_at", { ascending: false })
-            .limit(20);
-          const filtered = (groups || [])
+          // Fallback: fetch groups + hook_pages in parallel
+          const [{ data: groups }, { data: hookPages }] = await Promise.all([
+            supabase
+              .from("groups")
+              .select("id, name, cover_url, description, member_count, privacy, created_at")
+              .order("created_at", { ascending: false })
+              .limit(20),
+            supabase
+              .from("hook_pages")
+              .select("id, name, cover_url, avatar_url, follower_count, category")
+              .order("follower_count", { ascending: false })
+              .limit(8),
+          ]);
+          const filteredGroups = (groups || [])
             .filter((g: any) => !joinedIds.has(g.id))
             .map((g: any) => ({ ...g, type: "group" }));
-          setGroupSuggestions(filtered);
-          setPageSuggestions([]);
+          setGroupSuggestions(filteredGroups);
+          setPageSuggestions(
+            (hookPages || []).map((p: any) => ({ ...p, type: "page", member_count: p.follower_count ?? 0 }))
+          );
         }
       } catch (_) {}
       setSuggestionsLoaded(true);
@@ -855,7 +846,7 @@ const FameFeed = ({
   return (
     <div className="bg-gray-50">
       {/* ── "What's on your mind" bar ──────────────────────────────────── */}
-      <div className="flex items-center gap-3 px-4 py-3 bg-white border-b border-gray-100">
+      <div className="flex items-center gap-3 px-4 py-2 bg-white border-b border-gray-100">
         {userProfile?.avatar_url ? (
           <img src={userProfile.avatar_url} loading="lazy"
             className="w-10 h-10 rounded-full object-cover border border-gray-200 cursor-pointer shrink-0"
@@ -880,9 +871,9 @@ const FameFeed = ({
 
       {/* ── People You May Know — same card size as Flicks ───────────── */}
       {suggestions.length > 0 && (
-        <div className="bg-white border-b border-gray-100 pt-3 pb-2">
-          <p className="text-[12px] font-black text-gray-700 px-4 mb-2">People You May Know</p>
-          <div className="flex gap-3 overflow-x-auto px-4 pb-1 no-scrollbar">
+        <div className="bg-white border-b border-gray-100 pt-2 pb-1">
+          <p className="text-[12px] font-black text-gray-700 px-4 mb-1.5">People You May Know</p>
+          <div className="flex gap-2.5 overflow-x-auto px-4 pb-1 no-scrollbar">
             {suggestions.map((u, i) => {
               const GRAD = ["#6366f1","#ec4899","#f59e0b","#10b981","#3b82f6","#8b5cf6","#ef4444","#06b6d4"];
               return (
