@@ -79,7 +79,7 @@ const PostCaption = ({ content }: { content: string }) => {
   const isLong = content.length > CLAMP_THRESHOLD;
   return (
     <div className="px-4 pb-2">
-      <p className={`text-[13px] text-gray-800 leading-snug whitespace-pre-wrap break-words ${!expanded && isLong ? "line-clamp-2" : ""}`}>
+      <p className={`text-[15px] font-semibold text-slate-900 leading-relaxed whitespace-pre-wrap break-words ${!expanded && isLong ? "line-clamp-2" : ""}`}>
         {content}
       </p>
       {isLong && (
