@@ -1530,37 +1530,6 @@ const Index = ({ session }: { session: Session }) => {
                   </motion.button>
                 </div>
 
-                {/* ── People You May Know (horizontal scroll, 2× bigger) ─── */}
-                {onlineUsers.length > 0 && (
-                  <div className="pt-3 pb-1">
-                    <p className="text-[12px] font-black text-gray-700 px-3 mb-2">People You May Know</p>
-                    <div className="flex gap-3 overflow-x-auto px-3 pb-2 no-scrollbar">
-                      {onlineUsers.map((u) => (
-                        <div key={u.id}
-                          className="flex-shrink-0 flex flex-col items-center gap-2 bg-white rounded-2xl p-3 border border-gray-200 shadow-sm"
-                          style={{ minWidth: "108px" }}
-                        >
-                          <div className="w-[76px] h-[76px] rounded-2xl overflow-hidden bg-blue-100 border border-gray-100">
-                            {u.avatar_url ? (
-                              <img src={u.avatar_url} loading="lazy" className="w-full h-full object-cover" />
-                            ) : (
-                              <div className="w-full h-full flex items-center justify-center font-black text-blue-600 text-2xl">
-                                {(u.full_name || "U")[0].toUpperCase()}
-                              </div>
-                            )}
-                          </div>
-                          <p className="text-[11px] font-black text-gray-800 text-center truncate w-full leading-tight">
-                            {u.full_name?.split(" ")[0] || "User"}
-                          </p>
-                          <button className="w-full py-1.5 bg-green-500 text-white text-[10px] font-black rounded-xl">
-                            + Add
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
                 {/* ── Flicks Strip (real posts, 3× size, 3 visible) ────────── */}
                 <div className="pt-2 pb-1">
                   <p className="text-[12px] font-black text-gray-700 px-3 mb-2">Flicks</p>
@@ -1628,6 +1597,7 @@ const Index = ({ session }: { session: Session }) => {
                     onPostClick={() => setIsPostOpen(true)}
                     onImageSelect={(f) => setPendingFile(f)}
                     userProfile={profile}
+                    suggestions={onlineUsers}
                   />
                 </div>
               </div>

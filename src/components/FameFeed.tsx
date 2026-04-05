@@ -95,9 +95,10 @@ interface FameFeedProps {
   onPostClick?: () => void;
   onImageSelect?: (file: File) => void;
   userProfile?: any;
+  suggestions?: { id: string; full_name: string; avatar_url?: string }[];
 }
 
-const FameFeed = ({ onPostClick, onImageSelect, userProfile }: FameFeedProps) => {
+const FameFeed = ({ onPostClick, onImageSelect, userProfile, suggestions = [] }: FameFeedProps) => {
   const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeComment, setActiveComment] = useState<string | null>(null);
@@ -191,6 +192,46 @@ const FameFeed = ({ onPostClick, onImageSelect, userProfile }: FameFeedProps) =>
         <input ref={galleryInputRef} type="file" accept="image/*,video/*" className="hidden"
           onChange={e => { const f = e.target.files?.[0]; if (!f) return; onImageSelect?.(f); onPostClick?.(); e.target.value = ""; }} />
       </div>
+
+      {/* ── People You May Know — same card size as Flicks ───────────── */}
+      {suggestions.length > 0 && (
+        <div className="bg-white border-b border-gray-100 pt-3 pb-2">
+          <p className="text-[12px] font-black text-gray-700 px-4 mb-2">People You May Know</p>
+          <div className="flex gap-3 overflow-x-auto px-4 pb-1 no-scrollbar">
+            {suggestions.map((u, i) => {
+              const GRAD = ["#6366f1","#ec4899","#f59e0b","#10b981","#3b82f6","#8b5cf6","#ef4444","#06b6d4"];
+              return (
+                <div key={u.id} className="flex-shrink-0 relative rounded-2xl overflow-hidden border border-gray-200 shadow-sm"
+                  style={{
+                    width: "calc((100vw - 48px) / 3)",
+                    height: "calc((100vw - 48px) / 3 * 1.4)",
+                    maxWidth: "160px",
+                    maxHeight: "224px",
+                    background: `linear-gradient(160deg,${GRAD[i % GRAD.length]} 0%,#1e1b4b 100%)`,
+                  }}
+                >
+                  {u.avatar_url ? (
+                    <img src={u.avatar_url} loading="lazy" className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-white font-black text-4xl">
+                      {(u.full_name || "U")[0].toUpperCase()}
+                    </div>
+                  )}
+                  {/* Gradient overlay with name + add button */}
+                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/85 via-black/40 to-transparent pt-8 pb-2.5 px-2 flex flex-col items-center gap-1.5">
+                    <p className="text-white text-[10px] font-black truncate w-full text-center leading-tight">
+                      {u.full_name?.split(" ")[0] || "User"}
+                    </p>
+                    <button className="w-full py-1 bg-green-500 text-white text-[9px] font-black rounded-lg leading-none">
+                      + Add
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* ── Loading ───────────────────────────────────────────────────── */}
       {loading && (
