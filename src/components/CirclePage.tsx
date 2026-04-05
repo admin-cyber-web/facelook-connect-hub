@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { useProfileViewer } from "../context/ProfileViewerContext";
 import { motion, AnimatePresence } from "framer-motion";
@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import {
   Plus, Users, Lock, Globe, ChevronLeft, Settings, Send,
   Heart, Camera, Shield, X, Check, ImageIcon, Loader2, Trash2,
+  Share2, MessageCircle, FileText, Bell,
 } from "lucide-react";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -34,6 +35,16 @@ interface GroupPost {
   likes_count: number;
 }
 
+interface GroupMessage {
+  id: string;
+  group_id: string;
+  sender_id: string;
+  sender_name: string;
+  sender_avatar?: string | null;
+  content: string;
+  created_at: string;
+}
+
 const COVER_GRADS = [
   "linear-gradient(135deg,#6366f1,#1e1b4b)",
   "linear-gradient(135deg,#ec4899,#7c3aed)",
@@ -51,9 +62,9 @@ function gradFor(id: string) {
 
 // ── Group Card ─────────────────────────────────────────────────────────────────
 const GroupCard = ({
-  group, isMember, onJoin, onClick,
+  group, isMember, onJoin, onClick, justJoined,
 }: {
-  group: Group; isMember: boolean; onJoin: () => void; onClick: () => void;
+  group: Group; isMember: boolean; onJoin: () => void; onClick: () => void; justJoined?: boolean;
 }) => (
   <div
     className="bg-white rounded-xl overflow-hidden flex flex-col"
@@ -77,12 +88,12 @@ const GroupCard = ({
       <button
         onClick={isMember ? onClick : onJoin}
         className={`w-full py-1.5 rounded-lg text-[10px] font-black transition-all active:scale-95 ${
-          isMember
-            ? "bg-blue-50 text-blue-600 border border-blue-200"
+          isMember || justJoined
+            ? "bg-green-50 text-green-700 border border-green-200"
             : "bg-blue-600 text-white"
         }`}
       >
-        {isMember ? "View" : "Join"}
+        {justJoined ? "✓ Joined!" : isMember ? "View" : "Join"}
       </button>
     </div>
   </div>
@@ -94,14 +105,19 @@ interface Props {
   currentUserId: string | null;
 }
 
+type GroupTab = "posts" | "chat" | "members";
+
 export default function CirclePage({ userProfile, currentUserId }: Props) {
   const { openProfile } = useProfileViewer();
   const [view, setView] = useState<"dashboard" | "group">("dashboard");
   const [groups, setGroups] = useState<Group[]>([]);
   const [myGroupIds, setMyGroupIds] = useState<Set<string>>(new Set());
+  const [justJoinedIds, setJustJoinedIds] = useState<Set<string>>(new Set());
   const [selectedGroup, setSelectedGroup] = useState<Group | null>(null);
+  const [groupTab, setGroupTab] = useState<GroupTab>("posts");
   const [groupPosts, setGroupPosts] = useState<GroupPost[]>([]);
   const [groupMembers, setGroupMembers] = useState<any[]>([]);
+  const [newMemberCount, setNewMemberCount] = useState(0);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -122,6 +138,15 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
   const [postMedia, setPostMedia] = useState<File | null>(null);
   const [posting, setPosting] = useState(false);
   const [likedPostIds, setLikedPostIds] = useState<Set<string>>(new Set());
+
+  // Chat
+  const [chatMessages, setChatMessages] = useState<GroupMessage[]>([]);
+  const [chatText, setChatText] = useState("");
+  const [sendingChat, setSendingChat] = useState(false);
+  const [chatLoaded, setChatLoaded] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+  const chatSubRef = useRef<any>(null);
+  const memberSubRef = useRef<any>(null);
 
   const coverInputRef = useRef<HTMLInputElement>(null);
   const mediaInputRef = useRef<HTMLInputElement>(null);
@@ -150,16 +175,18 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
     fetchMyMemberships();
   }, [currentUserId]);
 
+  // ── Cleanup realtime subscriptions on unmount ────────────────────────────────
+  useEffect(() => {
+    return () => {
+      if (chatSubRef.current) supabase.removeChannel(chatSubRef.current);
+      if (memberSubRef.current) supabase.removeChannel(memberSubRef.current);
+    };
+  }, []);
+
   // ── Create Group ─────────────────────────────────────────────────────────────
   const handleCreateGroup = async () => {
     if (!form.name.trim()) return;
-
-    // Authentication check
-    if (!currentUserId) {
-      toast.error("Please log in to create a Circle.");
-      return;
-    }
-
+    if (!currentUserId) { toast.error("Please log in to create a Circle."); return; }
     setCreating(true);
     try {
       let cover_url: string | null = null;
@@ -186,30 +213,17 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
         .select()
         .single();
 
-      if (error) {
-        toast.error(`Failed to create Circle: ${error.message}`);
-        return;
-      }
+      if (error) { toast.error(`Failed to create Circle: ${error.message}`); return; }
 
       if (newGroup) {
-        // Add creator as admin member
-        await supabase.from("group_members").insert([{
-          group_id: newGroup.id,
-          user_id: currentUserId,
-          role: "admin",
-        }]);
-
-        // Sync display immediately — add to state without page refresh
+        await supabase.from("group_members").insert([{ group_id: newGroup.id, user_id: currentUserId, role: "admin" }]);
         const createdGroup: Group = { ...newGroup, member_count: 1 };
         setGroups(prev => [createdGroup, ...prev]);
         setMyGroupIds(prev => new Set([...prev, newGroup.id]));
-
-        // Reset form & close modal
         setForm({ name: "", description: "", privacy: "public" });
         setCoverFile(null);
         setCoverPreview(null);
         setShowCreate(false);
-
         toast.success("Circle created successfully!");
       }
     } catch (err: any) {
@@ -222,16 +236,39 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
   // ── Join Group ───────────────────────────────────────────────────────────────
   const handleJoin = async (groupId: string) => {
     if (!currentUserId) return;
+    setJustJoinedIds(prev => new Set([...prev, groupId]));
+    setMyGroupIds(prev => new Set([...prev, groupId]));
     await supabase.from("group_members").insert([{ group_id: groupId, user_id: currentUserId, role: "member" }]);
     await supabase.from("groups").update({ member_count: (groups.find(g => g.id === groupId)?.member_count ?? 0) + 1 }).eq("id", groupId);
-    setMyGroupIds(prev => new Set([...prev, groupId]));
     fetchGroups();
+    toast.success("Joined! Welcome to the Circle 🎉");
+  };
+
+  // ── Share Circle ─────────────────────────────────────────────────────────────
+  const shareCircle = (group: Group) => {
+    const link = `${window.location.origin}?circle=${group.id}`;
+    const text = `Join "${group.name}" on Facelook! 🔥`;
+    if (navigator.share) {
+      navigator.share({ title: group.name, text, url: link }).catch(() => {});
+    } else {
+      navigator.clipboard.writeText(link);
+      toast.success("Invite link copied! Share it anywhere 🔗");
+    }
+  };
+
+  const shareOnWhatsApp = (group: Group) => {
+    const link = `${window.location.origin}?circle=${group.id}`;
+    const text = encodeURIComponent(`Join "${group.name}" on Facelook! 🔥 ${link}`);
+    window.open(`https://wa.me/?text=${text}`, "_blank");
   };
 
   // ── Open Group Profile ───────────────────────────────────────────────────────
   const openGroup = async (group: Group) => {
     setSelectedGroup(group);
     setView("group");
+    setGroupTab("posts");
+    setChatLoaded(false);
+    setNewMemberCount(0);
 
     // Fetch posts
     const { data: posts } = await supabase
@@ -246,14 +283,121 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
       .from("group_members")
       .select("*, profiles(full_name, avatar_url)")
       .eq("group_id", group.id)
-      .limit(20);
+      .limit(50);
     setGroupMembers(members ?? []);
 
-    // Check if current user is admin
     const adminRow = (members ?? []).find((m: any) => m.user_id === currentUserId && m.role === "admin");
     setIsAdmin(!!adminRow);
-
     setSettingsForm({ rules: group.rules ?? "", post_approval: group.post_approval ?? false });
+
+    // Real-time member subscription (for owner new-member notifications)
+    if (memberSubRef.current) supabase.removeChannel(memberSubRef.current);
+    const memberCh = supabase
+      .channel(`members-${group.id}`)
+      .on("postgres_changes", {
+        event: "INSERT",
+        schema: "public",
+        table: "group_members",
+        filter: `group_id=eq.${group.id}`,
+      }, (payload) => {
+        const newRow = payload.new as any;
+        // Refresh members list
+        supabase
+          .from("group_members")
+          .select("*, profiles(full_name, avatar_url)")
+          .eq("group_id", group.id)
+          .limit(50)
+          .then(({ data }) => {
+            if (data) setGroupMembers(data);
+          });
+        // Update group member count in state
+        setSelectedGroup(prev => prev ? { ...prev, member_count: (prev.member_count ?? 0) + 1 } : prev);
+        // New member indicator for admin
+        if (newRow.user_id !== currentUserId) {
+          setNewMemberCount(c => c + 1);
+        }
+      })
+      .subscribe();
+    memberSubRef.current = memberCh;
+  };
+
+  // ── Load chat messages + subscribe ──────────────────────────────────────────
+  const loadChat = useCallback(async (groupId: string) => {
+    setChatLoaded(false);
+    const { data, error } = await supabase
+      .from("group_messages")
+      .select("*")
+      .eq("group_id", groupId)
+      .order("created_at", { ascending: true })
+      .limit(100);
+
+    if (error) {
+      toast.error("Chat unavailable — table may not exist yet.");
+      setChatLoaded(true);
+      return;
+    }
+    setChatMessages((data as GroupMessage[]) ?? []);
+    setChatLoaded(true);
+
+    // Subscribe to new messages
+    if (chatSubRef.current) supabase.removeChannel(chatSubRef.current);
+    const ch = supabase
+      .channel(`chat-${groupId}`)
+      .on("postgres_changes", {
+        event: "INSERT",
+        schema: "public",
+        table: "group_messages",
+        filter: `group_id=eq.${groupId}`,
+      }, (payload) => {
+        setChatMessages(prev => {
+          const msg = payload.new as GroupMessage;
+          if (prev.some(m => m.id === msg.id)) return prev;
+          return [...prev, msg];
+        });
+        setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }), 80);
+      })
+      .subscribe();
+    chatSubRef.current = ch;
+  }, []);
+
+  useEffect(() => {
+    if (groupTab === "chat" && selectedGroup) {
+      loadChat(selectedGroup.id);
+    }
+    // Cleanup chat subscription when leaving chat tab
+    if (groupTab !== "chat" && chatSubRef.current) {
+      supabase.removeChannel(chatSubRef.current);
+      chatSubRef.current = null;
+    }
+  }, [groupTab, selectedGroup]);
+
+  // Auto scroll chat to bottom
+  useEffect(() => {
+    if (chatLoaded) {
+      setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+    }
+  }, [chatLoaded, chatMessages.length]);
+
+  // ── Send chat message ────────────────────────────────────────────────────────
+  const sendChatMessage = async () => {
+    if (!chatText.trim() || !currentUserId || !selectedGroup || sendingChat) return;
+    setSendingChat(true);
+    const content = chatText.trim();
+    setChatText("");
+
+    const { error } = await supabase.from("group_messages").insert([{
+      group_id: selectedGroup.id,
+      sender_id: currentUserId,
+      sender_name: userProfile?.full_name || "Member",
+      sender_avatar: userProfile?.avatar_url || null,
+      content,
+    }]);
+
+    if (error) {
+      toast.error("Message not sent. Please try again.");
+      setChatText(content);
+    }
+    setSendingChat(false);
   };
 
   // ── Post in Group ────────────────────────────────────────────────────────────
@@ -271,7 +415,6 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
           media_url = pub.publicUrl;
         }
       }
-
       await supabase.from("group_posts").insert([{
         group_id: selectedGroup.id,
         author_id: currentUserId,
@@ -283,7 +426,6 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
       }]);
       setPostText("");
       setPostMedia(null);
-      // Refresh posts
       const { data: posts } = await supabase
         .from("group_posts")
         .select("*")
@@ -321,20 +463,31 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
   // ── GROUP PROFILE VIEW ────────────────────────────────────────────────────────
   if (view === "group" && selectedGroup) {
     const isMember = myGroupIds.has(selectedGroup.id);
+
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-gray-50 flex flex-col">
         {/* Cover + Back */}
-        <div className="relative w-full" style={{ height: 200, background: selectedGroup.cover_url ? undefined : gradFor(selectedGroup.id) }}>
+        <div className="relative w-full flex-shrink-0" style={{ height: 180, background: selectedGroup.cover_url ? undefined : gradFor(selectedGroup.id) }}>
           {selectedGroup.cover_url && (
             <img src={selectedGroup.cover_url} className="w-full h-full object-cover" alt={selectedGroup.name} />
           )}
-          <div className="absolute inset-0 bg-gradient-to-b from-black/30 to-black/60" />
+          <div className="absolute inset-0 bg-gradient-to-b from-black/30 to-black/70" />
+
+          {/* Back */}
           <button
-            onClick={() => { setView("dashboard"); setSelectedGroup(null); }}
+            onClick={() => {
+              setView("dashboard");
+              setSelectedGroup(null);
+              setNewMemberCount(0);
+              if (chatSubRef.current) { supabase.removeChannel(chatSubRef.current); chatSubRef.current = null; }
+              if (memberSubRef.current) { supabase.removeChannel(memberSubRef.current); memberSubRef.current = null; }
+            }}
             className="absolute top-4 left-4 w-9 h-9 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center border border-white/20"
           >
             <ChevronLeft size={20} className="text-white" />
           </button>
+
+          {/* Admin settings */}
           {isAdmin && (
             <button
               onClick={() => setShowSettings(true)}
@@ -343,48 +496,313 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
               <Settings size={18} className="text-white" />
             </button>
           )}
-          <div className="absolute bottom-4 left-4 right-4">
-            <div className="flex items-center gap-2 mb-1">
-              <h2 className="text-white font-black text-xl drop-shadow-lg">{selectedGroup.name}</h2>
-              {isAdmin && (
-                <span className="bg-yellow-500 text-black text-[9px] font-black px-2 py-0.5 rounded-full">ADMIN</span>
-              )}
+
+          {/* Title */}
+          <div className="absolute bottom-3 left-4 right-4">
+            <div className="flex items-center gap-2 mb-0.5">
+              <h2 className="text-white font-black text-lg drop-shadow-lg">{selectedGroup.name}</h2>
+              {isAdmin && <span className="bg-yellow-500 text-black text-[9px] font-black px-2 py-0.5 rounded-full">ADMIN</span>}
             </div>
-            <div className="flex items-center gap-2">
-              {selectedGroup.privacy === "private" ? <Lock size={11} className="text-white/80" /> : <Globe size={11} className="text-white/80" />}
-              <span className="text-white/80 text-[11px] font-semibold">{selectedGroup.privacy} · {selectedGroup.member_count ?? 0} members</span>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1">
+                {selectedGroup.privacy === "private" ? <Lock size={10} className="text-white/80" /> : <Globe size={10} className="text-white/80" />}
+                <span className="text-white/80 text-[11px] font-semibold">
+                  {selectedGroup.privacy} · {selectedGroup.member_count ?? groupMembers.length} members
+                </span>
+              </div>
+              {/* Share button */}
+              <div className="flex items-center gap-1.5 ml-auto">
+                <button
+                  onClick={() => shareOnWhatsApp(selectedGroup)}
+                  className="flex items-center gap-1 bg-green-500/90 text-white text-[10px] font-black px-2.5 py-1 rounded-full active:scale-95 transition-transform"
+                >
+                  <Share2 size={10} />
+                  WhatsApp
+                </button>
+                <button
+                  onClick={() => shareCircle(selectedGroup)}
+                  className="flex items-center gap-1 bg-white/20 backdrop-blur-sm text-white text-[10px] font-black px-2.5 py-1 rounded-full border border-white/30 active:scale-95 transition-transform"
+                >
+                  <Share2 size={10} />
+                  Copy Link
+                </button>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* About / Description */}
-        {(selectedGroup.description || selectedGroup.rules) && (
-          <div className="bg-white border-b border-gray-100 px-4 py-3">
-            {selectedGroup.description && (
-              <p className="text-[13px] text-gray-700 mb-2">{selectedGroup.description}</p>
+        {/* Tab Bar */}
+        <div className="bg-white border-b border-gray-100 flex sticky top-0 z-20">
+          {([
+            { id: "posts", icon: FileText, label: "Posts" },
+            { id: "chat", icon: MessageCircle, label: "Chat" },
+            { id: "members", icon: Users, label: `Members${newMemberCount > 0 && isAdmin ? ` +${newMemberCount}` : ""}` },
+          ] as const).map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => {
+                setGroupTab(tab.id);
+                if (tab.id === "members") setNewMemberCount(0);
+              }}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-3 text-[12px] font-black border-b-2 transition-colors relative ${
+                groupTab === tab.id
+                  ? "border-blue-600 text-blue-600"
+                  : "border-transparent text-gray-400"
+              }`}
+            >
+              <tab.icon size={14} />
+              {tab.label}
+              {tab.id === "members" && newMemberCount > 0 && isAdmin && (
+                <span className="absolute top-1.5 right-4 w-4 h-4 bg-red-500 rounded-full text-white text-[8px] font-black flex items-center justify-center">
+                  {newMemberCount}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        {/* ── POSTS TAB ──────────────────────────────────────────────────────── */}
+        {groupTab === "posts" && (
+          <div className="flex-1 overflow-y-auto">
+            {/* About */}
+            {(selectedGroup.description || selectedGroup.rules) && (
+              <div className="bg-white border-b border-gray-100 px-4 py-3">
+                {selectedGroup.description && (
+                  <p className="text-[13px] text-gray-700 mb-2">{selectedGroup.description}</p>
+                )}
+                {selectedGroup.rules && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Shield size={13} className="text-amber-600" />
+                      <span className="text-[11px] font-black text-amber-700 uppercase tracking-wide">Group Rules</span>
+                    </div>
+                    <p className="text-[12px] text-amber-800 whitespace-pre-wrap">{selectedGroup.rules}</p>
+                  </div>
+                )}
+              </div>
             )}
-            {selectedGroup.rules && (
-              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
-                <div className="flex items-center gap-2 mb-1">
-                  <Shield size={13} className="text-amber-600" />
-                  <span className="text-[11px] font-black text-amber-700 uppercase tracking-wide">Group Rules</span>
+
+            {/* Post box — only for members */}
+            {isMember && (
+              <div className="bg-white border-b border-gray-100 px-4 py-3">
+                <div className="flex items-start gap-3">
+                  <div className="w-9 h-9 rounded-full bg-blue-600 flex items-center justify-center text-white font-black text-sm shrink-0 overflow-hidden">
+                    {userProfile?.avatar_url ? (
+                      <img src={userProfile.avatar_url} className="w-full h-full object-cover" alt="" />
+                    ) : (
+                      (userProfile?.full_name || "U")[0]
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <textarea
+                      value={postText}
+                      onChange={e => setPostText(e.target.value)}
+                      placeholder="Post something in this Circle…"
+                      className="w-full bg-gray-100 rounded-xl px-3 py-2.5 text-sm text-gray-800 outline-none resize-none focus:ring-2 focus:ring-blue-400/30 border border-gray-200"
+                      rows={2}
+                    />
+                    {postMedia && (
+                      <div className="relative mt-2 w-20 h-20 rounded-lg overflow-hidden">
+                        <img src={URL.createObjectURL(postMedia)} className="w-full h-full object-cover" alt="" />
+                        <button onClick={() => setPostMedia(null)} className="absolute top-1 right-1 bg-black/60 rounded-full p-0.5">
+                          <X size={10} className="text-white" />
+                        </button>
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between mt-2">
+                      <button onClick={() => mediaInputRef.current?.click()} className="p-1.5 rounded-lg bg-gray-100 text-gray-500">
+                        <ImageIcon size={16} />
+                      </button>
+                      <input ref={mediaInputRef} type="file" accept="image/*,video/*" className="hidden"
+                        onChange={e => { const f = e.target.files?.[0]; if (f) setPostMedia(f); e.target.value = ""; }} />
+                      <button
+                        onClick={handleGroupPost}
+                        disabled={!postText.trim() || posting}
+                        className="flex items-center gap-1.5 bg-blue-600 text-white px-4 py-1.5 rounded-xl text-sm font-bold disabled:opacity-40 active:scale-95 transition-transform"
+                      >
+                        {posting ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+                        Post
+                      </button>
+                    </div>
+                  </div>
                 </div>
-                <p className="text-[12px] text-amber-800 whitespace-pre-wrap">{selectedGroup.rules}</p>
+              </div>
+            )}
+
+            {/* Posts list */}
+            <div className="space-y-0">
+              {groupPosts.length === 0 ? (
+                <div className="flex flex-col items-center py-16 text-gray-300">
+                  <FileText size={32} className="mb-3 opacity-40" />
+                  <p className="text-xs font-black uppercase tracking-widest">No posts yet</p>
+                  {isMember && <p className="text-[11px] text-gray-400 mt-1">Be the first to post!</p>}
+                </div>
+              ) : (
+                groupPosts.map(post => (
+                  <div key={post.id} className="bg-white border-b border-gray-100">
+                    <div className="flex items-center gap-3 px-4 py-3">
+                      <div className="w-9 h-9 rounded-full bg-blue-600 flex items-center justify-center text-white font-black text-sm shrink-0 overflow-hidden border border-gray-100">
+                        {post.author_avatar ? (
+                          <img src={post.author_avatar} className="w-full h-full object-cover" alt="" />
+                        ) : (
+                          (post.author_name || "M")[0].toUpperCase()
+                        )}
+                      </div>
+                      <div>
+                        <p className="text-gray-900 font-bold text-sm leading-none">{post.author_name}</p>
+                        <p className="text-[10px] text-gray-400 mt-0.5">{new Date(post.created_at).toLocaleDateString()}</p>
+                      </div>
+                    </div>
+                    {post.content && <p className="px-4 pb-2 text-[13px] text-gray-800 leading-snug">{post.content}</p>}
+                    {post.media_url && (
+                      <div className="w-full bg-gray-100">
+                        <img src={post.media_url} className="w-full object-cover" style={{ maxHeight: "60vh" }} loading="lazy" alt="" />
+                      </div>
+                    )}
+                    <div className="flex items-center gap-4 px-4 py-2.5">
+                      <button onClick={() => handleLikePost(post)} className="flex items-center gap-1.5">
+                        <Heart size={20} className={likedPostIds.has(post.id) ? "fill-red-500 text-red-500" : "text-gray-400"} />
+                        <span className="text-xs font-bold text-gray-500">{post.likes_count || 0}</span>
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Not a member CTA */}
+            {!isMember && (
+              <div className="fixed bottom-24 left-0 right-0 flex justify-center px-4 z-50">
+                <button
+                  onClick={() => handleJoin(selectedGroup.id)}
+                  className="flex items-center gap-2 text-white px-8 py-3.5 rounded-2xl font-black text-sm shadow-xl active:scale-95 transition-transform"
+                  style={{ background: "linear-gradient(135deg,#2563eb,#4f46e5)" }}
+                >
+                  <Users size={16} />
+                  Join this Circle
+                </button>
               </div>
             )}
           </div>
         )}
 
-        {/* Members row */}
-        {groupMembers.length > 0 && (
-          <div className="bg-white border-b border-gray-100 px-4 py-3">
-            <p className="text-[11px] font-black text-gray-500 uppercase tracking-wide mb-2">Members · {groupMembers.length}</p>
-            <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+        {/* ── CHAT TAB ──────────────────────────────────────────────────────── */}
+        {groupTab === "chat" && (
+          <div className="flex flex-col flex-1 overflow-hidden" style={{ height: "calc(100vh - 220px)" }}>
+            {!isMember ? (
+              <div className="flex flex-col items-center justify-center flex-1 py-12 px-6 text-center">
+                <MessageCircle size={40} className="text-gray-200 mb-3" />
+                <p className="text-sm font-black text-gray-400 mb-4">Join this Circle to chat</p>
+                <button
+                  onClick={() => handleJoin(selectedGroup.id)}
+                  className="text-white px-6 py-3 rounded-2xl font-black text-sm active:scale-95 transition-transform"
+                  style={{ background: "linear-gradient(135deg,#2563eb,#4f46e5)" }}
+                >
+                  Join Circle
+                </button>
+              </div>
+            ) : (
+              <>
+                {/* Messages */}
+                <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2">
+                  {!chatLoaded ? (
+                    <div className="flex justify-center py-12">
+                      <Loader2 size={24} className="animate-spin text-blue-400" />
+                    </div>
+                  ) : chatMessages.length === 0 ? (
+                    <div className="flex flex-col items-center py-12 text-gray-300">
+                      <MessageCircle size={32} className="mb-2 opacity-40" />
+                      <p className="text-xs font-black uppercase tracking-widest">No messages yet</p>
+                      <p className="text-[11px] text-gray-400 mt-1">Say hello! 👋</p>
+                    </div>
+                  ) : (
+                    chatMessages.map((msg, i) => {
+                      const isMe = msg.sender_id === currentUserId;
+                      const showAvatar = i === 0 || chatMessages[i - 1].sender_id !== msg.sender_id;
+                      return (
+                        <div key={msg.id} className={`flex items-end gap-2 ${isMe ? "flex-row-reverse" : ""}`}>
+                          {/* Avatar */}
+                          {!isMe && (
+                            <div className="w-7 h-7 rounded-full bg-blue-600 flex items-center justify-center text-white font-black text-[10px] shrink-0 overflow-hidden"
+                              style={{ opacity: showAvatar ? 1 : 0 }}>
+                              {msg.sender_avatar
+                                ? <img src={msg.sender_avatar} className="w-full h-full object-cover" alt="" />
+                                : (msg.sender_name || "M")[0].toUpperCase()}
+                            </div>
+                          )}
+                          <div className={`max-w-[72%] flex flex-col ${isMe ? "items-end" : "items-start"}`}>
+                            {showAvatar && !isMe && (
+                              <span className="text-[9px] font-black text-gray-400 mb-0.5 px-1">{msg.sender_name}</span>
+                            )}
+                            <div className={`px-3 py-2 rounded-2xl text-sm leading-snug ${
+                              isMe
+                                ? "text-white rounded-br-sm"
+                                : "bg-white text-gray-800 rounded-bl-sm border border-gray-100"
+                            }`}
+                              style={isMe ? { background: "linear-gradient(135deg,#2563eb,#4f46e5)" } : {}}>
+                              {msg.content}
+                            </div>
+                            <span className="text-[8px] text-gray-400 mt-0.5 px-1">
+                              {new Date(msg.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                  <div ref={chatEndRef} />
+                </div>
+
+                {/* Input bar */}
+                <div className="bg-white border-t border-gray-100 px-3 py-2.5 flex items-center gap-2 flex-shrink-0">
+                  <input
+                    type="text"
+                    value={chatText}
+                    onChange={e => setChatText(e.target.value)}
+                    onKeyDown={e => e.key === "Enter" && !e.shiftKey && (e.preventDefault(), sendChatMessage())}
+                    placeholder="Message the circle…"
+                    className="flex-1 bg-gray-100 border border-gray-200 rounded-2xl px-4 py-2.5 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-blue-400/30"
+                  />
+                  <button
+                    onClick={sendChatMessage}
+                    disabled={!chatText.trim() || sendingChat}
+                    className="w-10 h-10 rounded-full flex items-center justify-center text-white disabled:opacity-40 active:scale-90 transition-transform shrink-0"
+                    style={{ background: "linear-gradient(135deg,#2563eb,#4f46e5)" }}
+                  >
+                    {sendingChat ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* ── MEMBERS TAB ──────────────────────────────────────────────────── */}
+        {groupTab === "members" && (
+          <div className="flex-1 overflow-y-auto bg-gray-50">
+            {/* Members count header */}
+            <div className="bg-white border-b border-gray-100 px-4 py-3 flex items-center justify-between">
+              <div>
+                <p className="text-[13px] font-black text-gray-900">
+                  {groupMembers.length} Member{groupMembers.length !== 1 ? "s" : ""} Joined
+                </p>
+                <p className="text-[10px] text-gray-400 mt-0.5">Real-time · Updates live</p>
+              </div>
+              {newMemberCount > 0 && isAdmin && (
+                <div className="flex items-center gap-1.5 bg-green-50 border border-green-200 rounded-xl px-3 py-1.5">
+                  <Bell size={12} className="text-green-600" />
+                  <span className="text-[11px] font-black text-green-700">+{newMemberCount} New</span>
+                </div>
+              )}
+            </div>
+
+            {/* Members list */}
+            <div className="divide-y divide-gray-100">
               {groupMembers.map((m: any) => (
-                <div key={m.id} className="flex-shrink-0 flex flex-col items-center gap-1">
+                <div key={m.id} className="bg-white flex items-center gap-3 px-4 py-3">
                   <div
-                    className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-black text-sm overflow-hidden border-2 border-white shadow-sm cursor-pointer"
-                    style={{ boxShadow: m.role === "admin" ? "0 0 0 2px #f59e0b" : undefined }}
+                    className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-black text-sm overflow-hidden shrink-0 cursor-pointer"
+                    style={{ boxShadow: m.role === "admin" ? "0 0 0 2px #f59e0b" : "0 0 0 1px #e5e7eb" }}
                     onClick={() => m.user_id && openProfile(m.user_id)}
                   >
                     {m.profiles?.avatar_url ? (
@@ -393,113 +811,58 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
                       (m.profiles?.full_name || "M")[0].toUpperCase()
                     )}
                   </div>
-                  {m.role === "admin" && (
-                    <span className="text-[8px] font-black text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full">Admin</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[13px] font-bold text-gray-900 truncate">
+                      {m.profiles?.full_name || "Member"}
+                      {m.user_id === currentUserId && (
+                        <span className="text-[10px] text-gray-400 font-medium ml-1">(you)</span>
+                      )}
+                    </p>
+                    {m.role === "admin" && (
+                      <span className="text-[9px] font-black text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full">
+                        Admin
+                      </span>
+                    )}
+                  </div>
+                  {m.user_id !== currentUserId && (
+                    <button
+                      onClick={() => m.user_id && openProfile(m.user_id)}
+                      className="text-[10px] font-black text-blue-600 border border-blue-200 px-3 py-1.5 rounded-xl bg-blue-50 active:scale-95 transition-transform"
+                    >
+                      View
+                    </button>
                   )}
                 </div>
               ))}
+              {groupMembers.length === 0 && (
+                <div className="flex flex-col items-center py-12 text-gray-300">
+                  <Users size={32} className="mb-2 opacity-40" />
+                  <p className="text-xs font-black uppercase tracking-widest">No members yet</p>
+                </div>
+              )}
             </div>
-          </div>
-        )}
 
-        {/* Post box — only for members */}
-        {isMember && (
-          <div className="bg-white border-b border-gray-100 px-4 py-3">
-            <div className="flex items-start gap-3">
-              <div className="w-9 h-9 rounded-full bg-blue-600 flex items-center justify-center text-white font-black text-sm shrink-0 overflow-hidden">
-                {userProfile?.avatar_url ? (
-                  <img src={userProfile.avatar_url} className="w-full h-full object-cover" alt="" />
-                ) : (
-                  (userProfile?.full_name || "U")[0]
-                )}
-              </div>
-              <div className="flex-1">
-                <textarea
-                  value={postText}
-                  onChange={e => setPostText(e.target.value)}
-                  placeholder="Post something in this Circle…"
-                  className="w-full bg-gray-100 rounded-xl px-3 py-2.5 text-sm text-gray-800 outline-none resize-none focus:ring-2 focus:ring-blue-400/30 border border-gray-200"
-                  rows={2}
-                />
-                {postMedia && (
-                  <div className="relative mt-2 w-20 h-20 rounded-lg overflow-hidden">
-                    <img src={URL.createObjectURL(postMedia)} className="w-full h-full object-cover" alt="" />
-                    <button onClick={() => setPostMedia(null)} className="absolute top-1 right-1 bg-black/60 rounded-full p-0.5">
-                      <X size={10} className="text-white" />
-                    </button>
-                  </div>
-                )}
-                <div className="flex items-center justify-between mt-2">
-                  <button onClick={() => mediaInputRef.current?.click()} className="p-1.5 rounded-lg bg-gray-100 text-gray-500">
-                    <ImageIcon size={16} />
-                  </button>
-                  <input ref={mediaInputRef} type="file" accept="image/*,video/*" className="hidden"
-                    onChange={e => { const f = e.target.files?.[0]; if (f) setPostMedia(f); e.target.value = ""; }} />
+            {/* Share to invite */}
+            <div className="p-4">
+              <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4">
+                <p className="text-[12px] font-black text-blue-800 mb-2">Invite more members</p>
+                <p className="text-[11px] text-blue-600 mb-3">Share this Circle so others can join</p>
+                <div className="flex gap-2">
                   <button
-                    onClick={handleGroupPost}
-                    disabled={!postText.trim() || posting}
-                    className="flex items-center gap-1.5 bg-blue-600 text-white px-4 py-1.5 rounded-xl text-sm font-bold disabled:opacity-40 active:scale-95 transition-transform"
+                    onClick={() => shareOnWhatsApp(selectedGroup)}
+                    className="flex-1 flex items-center justify-center gap-1.5 bg-green-500 text-white py-2.5 rounded-xl text-[12px] font-black active:scale-95 transition-transform"
                   >
-                    {posting ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
-                    Post
+                    <Share2 size={13} /> WhatsApp
+                  </button>
+                  <button
+                    onClick={() => shareCircle(selectedGroup)}
+                    className="flex-1 flex items-center justify-center gap-1.5 bg-blue-600 text-white py-2.5 rounded-xl text-[12px] font-black active:scale-95 transition-transform"
+                  >
+                    <Share2 size={13} /> Copy Link
                   </button>
                 </div>
               </div>
             </div>
-          </div>
-        )}
-
-        {/* Group Posts */}
-        <div className="space-y-0">
-          {groupPosts.length === 0 ? (
-            <div className="flex flex-col items-center py-16 text-gray-300">
-              <Users size={32} className="mb-3 opacity-40" />
-              <p className="text-xs font-black uppercase tracking-widest">No posts yet</p>
-              {isMember && <p className="text-[11px] text-gray-400 mt-1">Be the first to post!</p>}
-            </div>
-          ) : (
-            groupPosts.map(post => (
-              <div key={post.id} className="bg-white border-b border-gray-100">
-                <div className="flex items-center gap-3 px-4 py-3">
-                  <div className="w-9 h-9 rounded-full bg-blue-600 flex items-center justify-center text-white font-black text-sm shrink-0 overflow-hidden border border-gray-100">
-                    {post.author_avatar ? (
-                      <img src={post.author_avatar} className="w-full h-full object-cover" alt="" />
-                    ) : (
-                      (post.author_name || "M")[0].toUpperCase()
-                    )}
-                  </div>
-                  <div>
-                    <p className="text-gray-900 font-bold text-sm leading-none">{post.author_name}</p>
-                    <p className="text-[10px] text-gray-400 mt-0.5">{new Date(post.created_at).toLocaleDateString()}</p>
-                  </div>
-                </div>
-                {post.content && <p className="px-4 pb-2 text-[13px] text-gray-800 leading-snug">{post.content}</p>}
-                {post.media_url && (
-                  <div className="w-full bg-gray-100">
-                    <img src={post.media_url} className="w-full object-cover" style={{ maxHeight: "60vh" }} loading="lazy" alt="" />
-                  </div>
-                )}
-                <div className="flex items-center gap-4 px-4 py-2.5">
-                  <button onClick={() => handleLikePost(post)} className="flex items-center gap-1.5">
-                    <Heart size={20}
-                      className={likedPostIds.has(post.id) ? "fill-red-500 text-red-500" : "text-gray-400"} />
-                    <span className="text-xs font-bold text-gray-500">{post.likes_count || 0}</span>
-                  </button>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-
-        {/* Not a member CTA */}
-        {!isMember && (
-          <div className="fixed bottom-24 left-0 right-0 flex justify-center px-4 z-50">
-            <button
-              onClick={() => { handleJoin(selectedGroup.id); setMyGroupIds(prev => new Set([...prev, selectedGroup.id])); }}
-              className="bg-blue-600 text-white px-8 py-3 rounded-2xl font-black text-sm shadow-xl active:scale-95 transition-transform"
-            >
-              Join this Circle
-            </button>
           </div>
         )}
 
@@ -582,8 +945,8 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
         <>
           {/* My Circles */}
           {myGroups.length > 0 && (
-            <div className="bg-white border-b border-gray-100 py-4">
-              <p className="text-[12px] font-black text-gray-700 px-4 mb-3">My Circles</p>
+            <div className="bg-white border-b border-gray-100 py-3">
+              <p className="text-[12px] font-black text-gray-700 px-4 mb-2">My Circles</p>
               <div className="flex gap-4 overflow-x-auto px-4 no-scrollbar pb-1">
                 {myGroups.map(g => (
                   <button
@@ -605,7 +968,7 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
           )}
 
           {/* Suggested Groups */}
-          <div className="px-3 py-4">
+          <div className="px-3 py-3">
             <p className="text-[12px] font-black text-gray-700 mb-3 px-1">
               {suggestedGroups.length > 0 ? "Suggested Circles" : myGroups.length === 0 ? "No circles yet" : "You've joined all circles!"}
             </p>
@@ -616,6 +979,7 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
                     key={g.id}
                     group={g}
                     isMember={myGroupIds.has(g.id)}
+                    justJoined={justJoinedIds.has(g.id)}
                     onJoin={() => handleJoin(g.id)}
                     onClick={() => openGroup(g)}
                   />
