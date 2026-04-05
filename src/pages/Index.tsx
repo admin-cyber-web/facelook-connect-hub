@@ -41,6 +41,7 @@ import GolSlider from "@/components/GolSlider";
 import FameFeed from "@/components/FameFeed";
 import FlicksFeed from "@/components/FlicksFeed";
 import CreatePost from "@/components/CreatePost";
+import PeopleYouMayKnow from "@/components/PeopleYouMayKnow";
 import ChatSystem from "@/components/ChatSystem";
 import SnapyStudio from "@/components/SnapyStudio";
 import MovieGame from "@/components/MovieGame";
@@ -1590,6 +1591,9 @@ const Index = ({ session }: { session: Session }) => {
                     ))}
                   </div>
                 </div>
+
+                {/* ── People You May Know ──────────────────────────────── */}
+                <PeopleYouMayKnow currentUserId={profile?.id} />
 
                 {/* ── What's on your mind + News Feed ─────────────────────── */}
                 <div className="mt-2">
