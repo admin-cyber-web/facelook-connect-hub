@@ -1,7 +1,15 @@
 # Facelook - Social App
 
 ## Project Overview
-A social media app called "Facelook" built with React, Vite, TypeScript, and Tailwind CSS. The app features a glassmorphism design aesthetic and includes sections for Fame Feed, Face (profile), Flame (groups), Flicks, Film (stories), and Fun (memes/entertainment).
+A social media and entertainment platform called "Facelook" built with React 18, Vite, TypeScript, Tailwind CSS, and Supabase. Features: Fame Feed, Flicks (TikTok-style reels), Chat, Movie Game (KBC Quiz), Snapy Studio, and Facelook Frame (charity wall).
+
+## UI Design System (latest)
+- **Theme**: Light/white native-app feel. Background `#f0f2f5` (Facebook-gray), white cards, dark gray text
+- **FameFeed**: Fully light themed — white post cards, `text-gray-800/900`, 2-line clamp (threshold 90 chars) with "...more"/"...less" toggle; image always below caption text
+- **Header**: Logo + Tiranga flag + (sm+) search bar | Home button + Bell + Settings gear + Avatar on right. Home → setActiveFeature("Fame"), Settings → setActiveFeature("Settings")
+- **Bottom nav (GolSlider)**: 5-tab flat nav — Flicks, Fun, Task, Flame, Snapy — spring pill animation; Flame → Frame overlay, Fun → video call overlay
+- **Fame home**: Feature cards (red Fun Call, blue Frame) → People You May Know horizontal scroll (2× bigger 76px square avatars) → Flicks strip (3× taller portrait cards showing real DB posts) → FameFeed
+- **Flicks strip**: Real posts from `posts` table (videos shown with play icon, images shown as thumbnails), width = 1/3 viewport, ~9:16 aspect ratio
 
 ## Architecture
 - **Frontend only** — pure React SPA (single-page application), no backend server

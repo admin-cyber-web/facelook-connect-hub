@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Bell, Search, X, UserPlus } from "lucide-react";
+import { Bell, Search, X, UserPlus, Home, Settings } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -124,9 +124,13 @@ const TirangaFlag = () => (
 // ── Main Header ────────────────────────────────────────────────────────────────
 const Header = ({
   onProfileClick,
+  onHomeClick,
+  onSettingsClick,
   userId,
 }: {
   onProfileClick?: () => void;
+  onHomeClick?: () => void;
+  onSettingsClick?: () => void;
   userId?: string;
 }) => {
   const [notifications, setNotifications] = useState<any[]>([]);
@@ -232,15 +236,15 @@ const Header = ({
         {/* 3. RIGHT: Compact Search + Bell + Avatar ────────────────────────── */}
         <div className="flex items-center gap-2 flex-shrink-0">
 
-          {/* Compact search */}
-          <div className="relative group flex items-center">
+          {/* Compact search — hidden on mobile, shown on sm+ */}
+          <div className="relative group hidden sm:flex items-center">
             <div className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40 group-focus-within:text-blue-400 transition-colors pointer-events-none">
               <Search size={14} />
             </div>
             <input
               type="text"
               placeholder="Search..."
-              className="h-9 w-28 sm:w-44 bg-white/5 border border-white/10 rounded-2xl pl-8 pr-3 text-[11px] font-bold text-white placeholder:text-white/30 outline-none focus:ring-2 focus:ring-blue-500/30 focus:bg-white/10 focus:w-40 sm:focus:w-52 transition-all duration-300 shadow-inner"
+              className="h-9 w-44 bg-white/5 border border-white/10 rounded-2xl pl-8 pr-3 text-[11px] font-bold text-white placeholder:text-white/30 outline-none focus:ring-2 focus:ring-blue-500/30 focus:bg-white/10 focus:w-52 transition-all duration-300 shadow-inner"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
@@ -257,6 +261,16 @@ const Header = ({
               <span className="text-[9px] font-black text-blue-300">{pendingFriendCount}</span>
             </motion.div>
           )}
+
+          {/* Home back button */}
+          <motion.button
+            whileTap={{ scale: 0.88 }}
+            onClick={onHomeClick}
+            className="p-2 bg-white/10 border border-white/15 text-white rounded-xl hover:bg-white/15 transition-all active:scale-90 flex-shrink-0"
+            title="Back to Home"
+          >
+            <Home size={17} />
+          </motion.button>
 
           {/* Bell */}
           <button
@@ -276,13 +290,23 @@ const Header = ({
             )}
           </button>
 
-          {/* Avatar */}
+          {/* Settings gear */}
+          <motion.button
+            whileTap={{ scale: 0.88 }}
+            onClick={onSettingsClick}
+            className="p-2 bg-white/10 border border-white/15 text-white rounded-xl hover:bg-white/15 transition-all active:scale-90 flex-shrink-0"
+            title="Settings"
+          >
+            <Settings size={17} />
+          </motion.button>
+
+          {/* Avatar — profile */}
           <div
             onClick={onProfileClick}
             className="w-9 h-9 rounded-xl overflow-hidden border border-white/30 shadow-lg cursor-pointer active:scale-90 transition-transform flex-shrink-0"
           >
             {userData.avatar_url ? (
-              <img src={userData.avatar_url} className="w-full h-full object-cover" alt="Profile" />
+              <img src={userData.avatar_url} loading="lazy" className="w-full h-full object-cover" alt="Profile" />
             ) : (
               <div className="w-full h-full bg-blue-600 flex items-center justify-center text-white font-black text-xs">
                 {userData.full_name[0]}

@@ -982,14 +982,20 @@ const Index = ({ session }: { session: Session }) => {
   const [profileHidden, setProfileHidden] = useState(false);
   const [resetSent, setResetSent] = useState(false);
 
-  // ── Fetch online users for Video Call section ─────────────────────────────
+  // ── Reel posts (real videos/posts for Flicks strip) ──────────────────────
+  const [reelPosts, setReelPosts] = useState<any[]>([]);
+
+  // ── Fetch online users + real reel posts in parallel ─────────────────────
   useEffect(() => {
-    supabase
-      .from("profiles")
-      .select("id, full_name, avatar_url")
-      .neq("id", userId)
-      .limit(3)
+    supabase.from("profiles").select("id, full_name, avatar_url")
+      .neq("id", userId).limit(8)
       .then(({ data }) => { if (data) setOnlineUsers(data); });
+
+    supabase.from("posts")
+      .select("id, author, author_id, media_url, type, metadata, content")
+      .order("created_at", { ascending: false })
+      .limit(15)
+      .then(({ data }) => { if (data) setReelPosts(data); });
   }, [userId]);
 
   // ── My Frame Requests — fetch + realtime ──────────────────────────────────
@@ -1462,6 +1468,8 @@ const Index = ({ session }: { session: Session }) => {
       {activeFeature !== "Flicks" && (
         <Header
           onProfileClick={() => setActiveFeature("Face")}
+          onHomeClick={() => setActiveFeature("Fame")}
+          onSettingsClick={() => { setActiveFeature("Settings"); setSettingsView("main"); }}
           userId={userId}
         />
       )}
@@ -1481,73 +1489,70 @@ const Index = ({ session }: { session: Session }) => {
           >
             {/* 1. FAME ─────────────────────────────────────────────────────── */}
             {activeFeature === "Fame" && (
-              <div className="w-full overflow-y-auto bg-gray-100 min-h-screen">
+              <div className="w-full overflow-y-auto bg-[#f0f2f5] min-h-screen">
 
                 {/* ── Feature Cards: Fun Call (Red) + Frame (Blue) ────────── */}
                 <div className="px-3 pt-3 pb-1 grid grid-cols-2 gap-3">
-                  {/* Fun Video Call — Red */}
-                  <motion.button
-                    whileTap={{ scale: 0.96 }}
-                    onClick={() => setIsVideoCallOpen(true)}
-                    className="flex flex-col items-start gap-2 p-4 rounded-2xl text-white shadow-md active:opacity-90 transition-all text-left overflow-hidden relative"
+                  <motion.button whileTap={{ scale: 0.96 }} onClick={() => setIsVideoCallOpen(true)}
+                    className="flex flex-col items-start gap-2 p-4 rounded-2xl text-white shadow-md text-left overflow-hidden relative"
                     style={{ background: "linear-gradient(135deg,#ef4444 0%,#b91c1c 100%)" }}
                   >
-                    <div className="absolute -top-3 -right-3 w-16 h-16 rounded-full bg-white/10" />
-                    <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
+                    <div className="absolute -top-4 -right-4 w-20 h-20 rounded-full bg-white/10" />
+                    <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center">
                       <Video size={18} className="text-white" />
                     </div>
                     <div>
-                      <p className="text-[11px] font-black leading-tight">Fun Video Call</p>
-                      <p className="text-[9px] text-white/70 font-semibold leading-tight mt-0.5">Stranger se baat karo</p>
+                      <p className="text-[12px] font-black leading-tight">Fun Video Call</p>
+                      <p className="text-[9px] text-white/75 font-semibold mt-0.5">Stranger se baat karo</p>
                     </div>
-                    <div className="flex items-center gap-1 mt-0.5">
+                    <div className="flex items-center gap-1">
                       <span className="w-1.5 h-1.5 rounded-full bg-green-300 animate-pulse" />
                       <span className="text-[9px] font-black text-green-200 uppercase">Live</span>
                     </div>
                   </motion.button>
 
-                  {/* Facelook Frame — Blue */}
-                  <motion.button
-                    whileTap={{ scale: 0.96 }}
-                    onClick={() => setIsFrameMode(true)}
-                    className="flex flex-col items-start gap-2 p-4 rounded-2xl text-white shadow-md active:opacity-90 transition-all text-left overflow-hidden relative"
-                    style={{ background: "linear-gradient(135deg,#2563eb 0%,#1e40af 100%)" }}
+                  <motion.button whileTap={{ scale: 0.96 }} onClick={() => setIsFrameMode(true)}
+                    className="flex flex-col items-start gap-2 p-4 rounded-2xl text-white shadow-md text-left overflow-hidden relative"
+                    style={{ background: "linear-gradient(135deg,#2563eb 0%,#1d4ed8 100%)" }}
                   >
-                    <div className="absolute -top-3 -right-3 w-16 h-16 rounded-full bg-white/10" />
-                    <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
+                    <div className="absolute -top-4 -right-4 w-20 h-20 rounded-full bg-white/10" />
+                    <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center">
                       <Star size={18} className="text-white fill-white" />
                     </div>
                     <div>
-                      <p className="text-[11px] font-black leading-tight">Facelook Frame</p>
-                      <p className="text-[9px] text-white/70 font-semibold leading-tight mt-0.5">Zarooratmand ki madad</p>
+                      <p className="text-[12px] font-black leading-tight">Facelook Frame</p>
+                      <p className="text-[9px] text-white/75 font-semibold mt-0.5">Zarooratmand ki madad</p>
                     </div>
-                    <div className="flex items-center gap-1 mt-0.5">
+                    <div className="flex items-center gap-1">
                       <span className="w-1.5 h-1.5 rounded-full bg-amber-300 animate-pulse" />
                       <span className="text-[9px] font-black text-amber-200 uppercase">Help Now</span>
                     </div>
                   </motion.button>
                 </div>
 
-                {/* ── Suggestions ─────────────────────────────────────────── */}
+                {/* ── People You May Know (horizontal scroll, 2× bigger) ─── */}
                 {onlineUsers.length > 0 && (
-                  <div className="mx-3 mt-3 bg-white rounded-2xl px-3 pt-3 pb-3 shadow-sm">
-                    <p className="text-[11px] font-black text-gray-700 mb-2.5">People You May Know</p>
-                    <div className="grid grid-cols-3 gap-2">
-                      {onlineUsers.slice(0, 3).map((u) => (
-                        <div key={u.id} className="flex flex-col items-center gap-1.5 border border-gray-100 rounded-xl p-2">
-                          <div className="w-14 h-14 rounded-xl overflow-hidden bg-blue-100 shrink-0 border border-gray-200">
+                  <div className="pt-3 pb-1">
+                    <p className="text-[12px] font-black text-gray-700 px-3 mb-2">People You May Know</p>
+                    <div className="flex gap-3 overflow-x-auto px-3 pb-2 no-scrollbar">
+                      {onlineUsers.map((u) => (
+                        <div key={u.id}
+                          className="flex-shrink-0 flex flex-col items-center gap-2 bg-white rounded-2xl p-3 border border-gray-200 shadow-sm"
+                          style={{ minWidth: "108px" }}
+                        >
+                          <div className="w-[76px] h-[76px] rounded-2xl overflow-hidden bg-blue-100 border border-gray-100">
                             {u.avatar_url ? (
-                              <img src={u.avatar_url} className="w-full h-full object-cover" />
+                              <img src={u.avatar_url} loading="lazy" className="w-full h-full object-cover" />
                             ) : (
-                              <div className="w-full h-full flex items-center justify-center font-black text-blue-600 text-lg">
+                              <div className="w-full h-full flex items-center justify-center font-black text-blue-600 text-2xl">
                                 {(u.full_name || "U")[0].toUpperCase()}
                               </div>
                             )}
                           </div>
-                          <p className="text-[10px] font-black text-gray-800 text-center truncate w-full leading-tight">
+                          <p className="text-[11px] font-black text-gray-800 text-center truncate w-full leading-tight">
                             {u.full_name?.split(" ")[0] || "User"}
                           </p>
-                          <button className="w-full py-1 bg-green-500 text-white text-[9px] font-black rounded-lg tracking-wide">
+                          <button className="w-full py-1.5 bg-green-500 text-white text-[10px] font-black rounded-xl">
                             + Add
                           </button>
                         </div>
@@ -1556,45 +1561,69 @@ const Index = ({ session }: { session: Session }) => {
                   </div>
                 )}
 
-                {/* ── Reels Strip ─────────────────────────────────────────── */}
-                <div className="mx-3 mt-3 bg-white rounded-2xl px-3 pt-3 pb-3 shadow-sm">
-                  <p className="text-[11px] font-black text-gray-700 mb-2.5">Reels</p>
-                  <div className="flex gap-2.5 overflow-x-auto pb-1 no-scrollbar">
-                    {/* Current user reel */}
-                    {[
-                      { id: userId, full_name: profile.full_name || "You", avatar_url: profile.avatar_url, isMe: true },
-                      ...onlineUsers.map((u) => ({ ...u, isMe: false })),
-                    ].slice(0, 6).map((u, i) => (
-                      <div key={u.id} className="flex flex-col items-center gap-1 shrink-0">
-                        <div
-                          className="w-[72px] h-[100px] rounded-xl overflow-hidden relative shadow border-2 border-blue-500"
-                          style={{ background: `linear-gradient(160deg,${["#6366f1","#ec4899","#f59e0b","#10b981","#3b82f6","#8b5cf6"][i % 6]} 0%,#1e1b4b 100%)` }}
-                        >
-                          {u.avatar_url ? (
-                            <img src={u.avatar_url} className="w-full h-full object-cover" />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center text-white font-black text-2xl">
-                              {(u.full_name || "U")[0].toUpperCase()}
-                            </div>
-                          )}
-                          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent pt-4 pb-1 px-1">
-                            <p className="text-white text-[8px] font-black truncate">
-                              {u.isMe ? "Your Reel" : u.full_name?.split(" ")[0] || "User"}
-                            </p>
-                          </div>
-                          {u.isMe && (
-                            <div className="absolute top-1.5 left-1.5 w-5 h-5 rounded-full bg-blue-600 flex items-center justify-center border-2 border-white">
-                              <span className="text-white text-[8px] font-black">+</span>
-                            </div>
-                          )}
+                {/* ── Flicks Strip (real posts, 3× size, 3 visible) ────────── */}
+                <div className="pt-2 pb-1">
+                  <p className="text-[12px] font-black text-gray-700 px-3 mb-2">Flicks</p>
+                  <div className="flex gap-3 overflow-x-auto px-3 pb-2 no-scrollbar">
+                    {/* Current user reel card first */}
+                    <div className="flex-shrink-0 relative rounded-2xl overflow-hidden border-2 border-blue-500 shadow-md"
+                      style={{ width: "calc((100vw - 48px) / 3)", height: "calc((100vw - 48px) / 3 * 1.78)", maxWidth: "160px", maxHeight: "280px", background: "linear-gradient(160deg,#6366f1 0%,#1e1b4b 100%)" }}
+                    >
+                      {profile.avatar_url ? (
+                        <img src={profile.avatar_url} loading="lazy" className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-white font-black text-4xl">
+                          {(profile.full_name || "Y")[0]}
                         </div>
+                      )}
+                      <div className="absolute top-2 left-2 w-7 h-7 rounded-full bg-blue-600 flex items-center justify-center border-2 border-white shadow">
+                        <span className="text-white text-[11px] font-black">+</span>
                       </div>
+                      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent pt-6 pb-2 px-2">
+                        <p className="text-white text-[10px] font-black truncate">Your Reel</p>
+                      </div>
+                    </div>
+
+                    {/* Real posts from DB */}
+                    {reelPosts.slice(0, 9).map((post, i) => {
+                      const isVid = post.type === "video" || (post.media_url && (/\.(mp4|webm|ogg|mov|m4v)/i.test(post.media_url.split("?")[0]) || post.media_url.includes("rapidcdn.app")));
+                      const thumb = post.media_url;
+                      const GRAD = ["#ec4899","#f59e0b","#10b981","#3b82f6","#8b5cf6","#ef4444","#06b6d4","#84cc16","#f97316"];
+                      return (
+                        <div key={post.id}
+                          className="flex-shrink-0 relative rounded-2xl overflow-hidden border border-gray-200 shadow-sm"
+                          style={{ width: "calc((100vw - 48px) / 3)", height: "calc((100vw - 48px) / 3 * 1.78)", maxWidth: "160px", maxHeight: "280px", background: `linear-gradient(160deg,${GRAD[i % GRAD.length]} 0%,#1e1b4b 100%)` }}
+                          onClick={() => setActiveFeature("Flicks")}
+                        >
+                          {thumb && !isVid ? (
+                            <img src={thumb} loading="lazy" className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-white/40">
+                              <Video size={32} />
+                            </div>
+                          )}
+                          {isVid && (
+                            <div className="absolute top-2 right-2 bg-black/50 rounded-full p-1">
+                              <Video size={10} className="text-white" />
+                            </div>
+                          )}
+                          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent pt-6 pb-2 px-2">
+                            <p className="text-white text-[10px] font-black truncate">{post.author || "User"}</p>
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    {/* Placeholder if no posts yet */}
+                    {reelPosts.length === 0 && [0,1].map(i => (
+                      <div key={i} className="flex-shrink-0 rounded-2xl bg-gray-200 border border-gray-200"
+                        style={{ width: "calc((100vw - 48px) / 3)", height: "calc((100vw - 48px) / 3 * 1.78)", maxWidth: "160px", maxHeight: "280px" }} />
                     ))}
                   </div>
                 </div>
 
                 {/* ── What's on your mind + News Feed ─────────────────────── */}
-                <div className="mt-3 bg-white rounded-t-2xl">
+                <div className="mt-2">
                   <FameFeed
                     onPostClick={() => setIsPostOpen(true)}
                     onImageSelect={(f) => setPendingFile(f)}
