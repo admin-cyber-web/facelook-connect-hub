@@ -1496,17 +1496,21 @@ const Index = ({ session }: { session: Session }) => {
                 <div className="px-3 pt-3 pb-1 grid grid-cols-2 gap-3">
                   <motion.button whileTap={{ scale: 0.96 }} onClick={() => setIsVideoCallOpen(true)}
                     className="flex flex-col items-start gap-2 p-4 rounded-2xl text-white shadow-md text-left overflow-hidden relative"
-                    style={{ background: "linear-gradient(135deg,#ef4444 0%,#b91c1c 100%)" }}
+                    style={{
+                      backgroundImage: "url('https://images.unsplash.com/photo-1609921212029-bb5a28e60960?w=600&q=80')",
+                      backgroundSize: "cover",
+                      backgroundPosition: "center",
+                    }}
                   >
-                    <div className="absolute -top-4 -right-4 w-20 h-20 rounded-full bg-white/10" />
-                    <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center">
+                    <div className="absolute inset-0 rounded-2xl" style={{ background: "linear-gradient(135deg,rgba(239,68,68,0.78) 0%,rgba(185,28,28,0.82) 100%)" }} />
+                    <div className="relative z-10 w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center">
                       <Video size={18} className="text-white" />
                     </div>
-                    <div>
-                      <p className="text-[12px] font-black leading-tight">Fun Video Call</p>
-                      <p className="text-[9px] text-white/75 font-semibold mt-0.5">Stranger se baat karo</p>
+                    <div className="relative z-10">
+                      <p className="text-[12px] font-black leading-tight text-white">Fun Video Call</p>
+                      <p className="text-[9px] text-white font-semibold mt-0.5 opacity-90">Stranger se baat karo</p>
                     </div>
-                    <div className="flex items-center gap-1">
+                    <div className="relative z-10 flex items-center gap-1">
                       <span className="w-1.5 h-1.5 rounded-full bg-green-300 animate-pulse" />
                       <span className="text-[9px] font-black text-green-200 uppercase">Live</span>
                     </div>
@@ -1514,17 +1518,21 @@ const Index = ({ session }: { session: Session }) => {
 
                   <motion.button whileTap={{ scale: 0.96 }} onClick={() => setIsFrameMode(true)}
                     className="flex flex-col items-start gap-2 p-4 rounded-2xl text-white shadow-md text-left overflow-hidden relative"
-                    style={{ background: "linear-gradient(135deg,#2563eb 0%,#1d4ed8 100%)" }}
+                    style={{
+                      backgroundImage: "url('https://images.unsplash.com/photo-1516534775068-ba3e7458af70?w=600&q=80')",
+                      backgroundSize: "cover",
+                      backgroundPosition: "center",
+                    }}
                   >
-                    <div className="absolute -top-4 -right-4 w-20 h-20 rounded-full bg-white/10" />
-                    <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center">
+                    <div className="absolute inset-0 rounded-2xl" style={{ background: "linear-gradient(135deg,rgba(37,99,235,0.80) 0%,rgba(29,78,216,0.85) 100%)" }} />
+                    <div className="relative z-10 w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center">
                       <Star size={18} className="text-white fill-white" />
                     </div>
-                    <div>
-                      <p className="text-[12px] font-black leading-tight">Facelook Frame</p>
-                      <p className="text-[9px] text-white/75 font-semibold mt-0.5">Zarooratmand ki madad</p>
+                    <div className="relative z-10">
+                      <p className="text-[12px] font-black leading-tight text-white">Facelook Frame</p>
+                      <p className="text-[9px] text-white font-semibold mt-0.5 opacity-90">Zarooratmand ki madad</p>
                     </div>
-                    <div className="flex items-center gap-1">
+                    <div className="relative z-10 flex items-center gap-1">
                       <span className="w-1.5 h-1.5 rounded-full bg-amber-300 animate-pulse" />
                       <span className="text-[9px] font-black text-amber-200 uppercase">Help Now</span>
                     </div>
