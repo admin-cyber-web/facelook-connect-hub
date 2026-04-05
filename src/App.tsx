@@ -8,6 +8,7 @@ import { supabase } from "@/lib/supabaseClient";
 import type { Session } from "@supabase/supabase-js";
 import { Plus, X } from "lucide-react"; // Icons for Admin Button
 import AdminPostPanel from "./components/AdminPostPanel"; // Make sure to create this file
+import SteamOverlay from "./components/SteamOverlay";
 
 // ── Lazy-loaded pages ────────────────────────────────────────────────────────
 const Index = lazy(() => import("./pages/Index"));
@@ -72,6 +73,8 @@ const App = () => {
             </div>
           </div>
         )}
+
+        {session && <SteamOverlay />}
 
         <BrowserRouter>
           <Suspense fallback={<PageLoader />}>
