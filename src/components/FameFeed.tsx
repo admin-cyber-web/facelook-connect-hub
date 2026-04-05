@@ -94,43 +94,9 @@ const PostCaption = ({ content }: { content: string }) => {
 // ── Trending Flicks Row (real data, real-time) ─────────────────────────────────
 const FLICK_GRADS = ["#ec4899","#f59e0b","#10b981","#3b82f6","#8b5cf6","#ef4444","#06b6d4","#f97316","#84cc16"];
 
-const TrendingFlicksRow = () => {
-  const [flicks, setFlicks] = useState<any[]>([]);
-  const [loaded, setLoaded] = useState(false);
-
-  const fetchFlicks = async () => {
-    // Try the trending_flicks view first; fall back to posts table
-    const { data: viewData, error: viewErr } = await supabase
-      .from("trending_flicks")
-      .select("*")
-      .limit(10);
-
-    if (!viewErr && viewData) {
-      setFlicks(viewData);
-    } else {
-      // Fallback: video posts ordered by likes
-      const { data: posts } = await supabase
-        .from("posts")
-        .select("id, author, media_url, type, likes_count, content")
-        .or("type.eq.video,media_url.ilike.%.mp4%,media_url.ilike.%.webm%,media_url.ilike.%youtu%")
-        .order("likes_count", { ascending: false })
-        .limit(10);
-      setFlicks(posts || []);
-    }
-    setLoaded(true);
-  };
-
-  useEffect(() => {
-    fetchFlicks();
-    const sub = supabase
-      .channel("trending-flicks-rt")
-      .on("postgres_changes", { event: "*", schema: "public", table: "posts" }, fetchFlicks)
-      .subscribe();
-    return () => { supabase.removeChannel(sub); };
-  }, []);
-
+// Pure display component — data is fetched once at FameFeed level, no per-instance channels
+const TrendingFlicksRow = ({ flicks, loaded }: { flicks: any[]; loaded: boolean }) => {
   if (!loaded) return null;
-
   return (
     <div className="bg-white py-3">
       <p className="text-[12px] font-black text-gray-700 px-4 mb-2">🔥 Trending Flicks</p>
@@ -182,8 +148,8 @@ const PagesGroupsSection = ({ items }: { items: any[] }) => {
             style={{ boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
             <div className="w-full aspect-square overflow-hidden"
               style={{ background: `linear-gradient(135deg, ${PAGE_COLORS[i % PAGE_COLORS.length]}, #1e1b4b)` }}>
-              {item.logo_url ? (
-                <img src={item.logo_url} className="w-full h-full object-cover" loading="lazy" alt={item.name} />
+              {item.cover_url ? (
+                <img src={item.cover_url} className="w-full h-full object-cover" loading="lazy" alt={item.name} />
               ) : (
                 <div className="w-full h-full flex items-center justify-center">
                   <Users size={28} className="text-white/80" />
@@ -299,7 +265,11 @@ const FameFeed = ({ onPostClick, onImageSelect, userProfile, suggestions = [] }:
   const [reportModal, setReportModal] = useState<{ postId: string; reason: string } | null>(null);
   const [reportSubmitting, setReportSubmitting] = useState(false);
   const [pagesGroups, setPagesGroups] = useState<any[]>([]);
+  const [trendingFlicks, setTrendingFlicks] = useState<any[]>([]);
+  const [flicksLoaded, setFlicksLoaded] = useState(false);
   const galleryInputRef = useRef<HTMLInputElement>(null);
+  // Unique channel ID per mount — prevents "cannot add callbacks after subscribe()" error
+  const channelId = useRef(`fame-rt-${Date.now()}`);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setCurrentUserId(data.user?.id ?? null));
@@ -313,10 +283,36 @@ const FameFeed = ({ onPostClick, onImageSelect, userProfile, suggestions = [] }:
     setLoading(false);
   };
 
+  const fetchFlicks = async () => {
+    try {
+      const { data: viewData, error: viewErr } = await supabase
+        .from("trending_flicks")
+        .select("*")
+        .limit(10);
+      if (!viewErr && viewData) {
+        setTrendingFlicks(viewData);
+      } else {
+        const { data: posts } = await supabase
+          .from("posts")
+          .select("id, author, media_url, type, likes_count, content")
+          .or("type.eq.video,media_url.ilike.%.mp4%,media_url.ilike.%.webm%")
+          .order("likes_count", { ascending: false })
+          .limit(10);
+        setTrendingFlicks(posts || []);
+      }
+    } catch (_) {}
+    setFlicksLoaded(true);
+  };
+
   useEffect(() => {
     fetchPosts();
-    const sub = supabase.channel("fame-rt")
-      .on("postgres_changes", { event: "*", schema: "public", table: "posts" }, fetchPosts)
+    fetchFlicks();
+    const sub = supabase
+      .channel(channelId.current)
+      .on("postgres_changes", { event: "*", schema: "public", table: "posts" }, () => {
+        fetchPosts();
+        fetchFlicks();
+      })
       .subscribe();
     return () => { supabase.removeChannel(sub); };
   }, []);
@@ -324,15 +320,12 @@ const FameFeed = ({ onPostClick, onImageSelect, userProfile, suggestions = [] }:
   useEffect(() => {
     async function fetchPagesGroups() {
       try {
-        const [{ data: pages }, { data: groups }] = await Promise.all([
-          supabase.from("pages").select("id, name, logo_url").limit(6),
-          supabase.from("groups").select("id, name, logo_url").limit(6),
-        ]);
-        const combined = [
-          ...(pages || []).map((p: any) => ({ ...p, type: "page" })),
-          ...(groups || []).map((g: any) => ({ ...g, type: "group" })),
-        ];
-        setPagesGroups(combined.slice(0, 6));
+        const { data: groups } = await supabase
+          .from("groups")
+          .select("id, name, cover_url")
+          .limit(6);
+        const combined = (groups || []).map((g: any) => ({ ...g, type: "group" }));
+        setPagesGroups(combined);
       } catch (_) {}
     }
     fetchPagesGroups();
@@ -625,7 +618,7 @@ const FameFeed = ({ onPostClick, onImageSelect, userProfile, suggestions = [] }:
         if (block.type === "reels-row") {
           return (
             <div key={block.key}>
-              <TrendingFlicksRow />
+              <TrendingFlicksRow flicks={trendingFlicks} loaded={flicksLoaded} />
               <FeedDivider />
             </div>
           );
