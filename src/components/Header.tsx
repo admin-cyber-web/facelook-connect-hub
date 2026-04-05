@@ -484,35 +484,46 @@ const Header = ({
 
   const fetchNotifications = useCallback(async () => {
     if (!userId) return;
-    // Try notifier_id first (new schema), fall back to user_id (legacy)
-    let { data, error } = await supabase
+    const { data, error } = await supabase
       .from("notifications")
-      .select("*, actor:profiles!notifications_actor_id_fkey(full_name, avatar_url)")
+      .select("*")
       .eq("notifier_id", userId)
       .order("created_at", { ascending: false })
       .limit(30);
-    if (error) {
-      // fallback: no join, use user_id
-      const { data: fallback } = await supabase
-        .from("notifications")
-        .select("*")
-        .eq("user_id", userId)
-        .order("created_at", { ascending: false })
-        .limit(30);
-      data = fallback;
+    console.log("[Facelook][Notifs] fetch →", data, error);
+    if (data && data.length > 0) {
+      // Separately fetch actor profiles (avoids FK name guessing)
+      const actorIds = [...new Set(data.filter(n => n.actor_id).map(n => n.actor_id))];
+      let profileMap: Record<string, any> = {};
+      if (actorIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles").select("id, full_name, avatar_url").in("id", actorIds);
+        profileMap = Object.fromEntries((profiles || []).map(p => [p.id, p]));
+      }
+      setNotifications(data.map(n => ({ ...n, actor: profileMap[n.actor_id] || null })));
+    } else {
+      setNotifications([]);
     }
-    if (data) setNotifications(data);
   }, [userId]);
 
   const fetchFriendRequests = useCallback(async () => {
     if (!userId) return;
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("friendships")
-      .select("*, sender:profiles!friendships_sender_id_fkey(full_name, avatar_url)")
+      .select("*")
       .eq("receiver_id", userId)
       .eq("status", "pending")
       .order("created_at", { ascending: false });
-    if (data) setFriendRequests(data);
+    console.log("[Facelook][FriendReqs] fetch →", data, error);
+    if (data && data.length > 0) {
+      const senderIds = [...new Set(data.map(r => r.sender_id))];
+      const { data: profiles } = await supabase
+        .from("profiles").select("id, full_name, avatar_url").in("id", senderIds);
+      const profileMap = Object.fromEntries((profiles || []).map(p => [p.id, p]));
+      setFriendRequests(data.map(r => ({ ...r, sender: profileMap[r.sender_id] || null })));
+    } else {
+      setFriendRequests([]);
+    }
   }, [userId]);
 
   // ── Actions ───────────────────────────────────────────────────────────────
@@ -552,33 +563,61 @@ const Header = ({
   };
 
   // ── Real-time setup ───────────────────────────────────────────────────────
+  // Keep stable refs so useEffect only runs once per userId (avoids re-subscription loops)
+  const fetchNotifsRef      = useRef(fetchNotifications);
+  const fetchFriendReqsRef  = useRef(fetchFriendRequests);
+  useEffect(() => { fetchNotifsRef.current     = fetchNotifications; }, [fetchNotifications]);
+  useEffect(() => { fetchFriendReqsRef.current = fetchFriendRequests; }, [fetchFriendRequests]);
+
   useEffect(() => {
     if (!userId) return;
     fetchProfile();
-    fetchNotifications();
-    fetchFriendRequests();
+    fetchNotifsRef.current();
+    fetchFriendReqsRef.current();
 
-    const notifCh = supabase.channel(`notif-live-${userId}`)
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "notifications",
-        filter: `notifier_id=eq.${userId}` },
-        () => fetchNotifications())
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "notifications",
-        filter: `notifier_id=eq.${userId}` },
-        () => fetchNotifications())
-      .subscribe();
+    // ── Notifications channel (NO server-side filter — filter client-side for reliability)
+    const notifCh = supabase
+      .channel(`notif-live-v2-${userId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "notifications" },
+        (payload) => {
+          const row = (payload.new || payload.old) as any;
+          console.log("[Facelook][Notif RT] payload received →", payload.eventType, row);
+          // Client-side user filter
+          if (row?.notifier_id !== userId) return;
+          console.log("[Facelook][Notif RT] matches current user → refetching");
+          fetchNotifsRef.current();
+        }
+      )
+      .subscribe((status, err) => {
+        console.log("[Facelook][Notif RT] subscribe status →", status, err || "");
+      });
 
-    const friendCh = supabase.channel(`friend-live-${userId}`)
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "friendships",
-        filter: `receiver_id=eq.${userId}` }, () => fetchFriendRequests())
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "friendships",
-        filter: `receiver_id=eq.${userId}` }, () => fetchFriendRequests())
-      .subscribe();
+    // ── Friend requests channel (NO server-side filter — filter client-side)
+    const friendCh = supabase
+      .channel(`friend-live-v2-${userId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "friendships" },
+        (payload) => {
+          const row = (payload.new || payload.old) as any;
+          console.log("[Facelook][Friend RT] payload received →", payload.eventType, row);
+          if (row?.receiver_id !== userId) return;
+          console.log("[Facelook][Friend RT] matches current user → refetching");
+          fetchFriendReqsRef.current();
+        }
+      )
+      .subscribe((status, err) => {
+        console.log("[Facelook][Friend RT] subscribe status →", status, err || "");
+      });
 
     return () => {
       supabase.removeChannel(notifCh);
       supabase.removeChannel(friendCh);
     };
-  }, [userId, fetchProfile, fetchNotifications, fetchFriendRequests]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId]);
 
   const unreadCount  = notifications.filter(n => !n.is_read).length;
   const totalBadge   = unreadCount + friendRequests.length;
