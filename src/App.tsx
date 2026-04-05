@@ -8,6 +8,7 @@ import { supabase } from "@/lib/supabaseClient";
 import type { Session } from "@supabase/supabase-js";
 import { Plus, X } from "lucide-react"; // Icons for Admin Button
 import AdminPostPanel from "./components/AdminPostPanel"; // Make sure to create this file
+import CurvedEdgeOverlay from "./components/CurvedEdgeOverlay";
 
 // ── Lazy-loaded pages ────────────────────────────────────────────────────────
 const Index = lazy(() => import("./pages/Index"));
@@ -52,6 +53,9 @@ const App = () => {
       <TooltipProvider>
         <Toaster />
         <Sonner />
+
+        {/* ── CURVED GLASS EDGE EFFECT ── */}
+        <CurvedEdgeOverlay />
 
         {/* ── SECRET ADMIN BUTTON ── */}
         {/* Ye sirf tab dikhega jab aapka email match karega */}
