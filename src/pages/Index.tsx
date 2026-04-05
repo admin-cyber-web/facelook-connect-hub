@@ -1758,7 +1758,7 @@ const Index = ({ session }: { session: Session }) => {
             {/* 3. FLICKS ───────────────────────────────────────────────────── */}
             {activeFeature === "Flicks" && (
               <div className="fixed inset-0 z-[300] bg-black">
-                <FlicksFeed />
+                <FlicksFeed onBack={() => setActiveFeature("Fame")} />
               </div>
             )}
 

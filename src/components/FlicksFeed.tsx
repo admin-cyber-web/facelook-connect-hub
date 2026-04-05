@@ -63,6 +63,7 @@ const FlickMedia = ({ post, videoRef, isMuted, isActive }: any) => {
       loop
       muted={isMuted}
       playsInline
+      preload="metadata"
       onError={() => setVideoFailed(true)}
     />
   );
@@ -297,7 +298,7 @@ const FlickCard = memo(
   },
 );
 
-export default function FlicksApp() {
+export default function FlicksApp({ onBack }: { onBack?: () => void }) {
   const [flicks, setFlicks] = useState<any[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -331,7 +332,7 @@ export default function FlicksApp() {
         );
         setFlicks(videos);
       }
-      setTimeout(() => setLoading(false), 2000);
+      setLoading(false);
     };
     fetchFlicks();
   }, []);
@@ -401,6 +402,16 @@ export default function FlicksApp() {
   return (
     <>
       <div className="fixed inset-0 bg-black flex justify-center overflow-hidden touch-none">
+        {/* Back / Close button — top left */}
+        {onBack && (
+          <button
+            onClick={onBack}
+            className="fixed top-10 left-4 z-[110] flex items-center justify-center w-9 h-9 rounded-full bg-black/50 backdrop-blur-md border border-white/10 active:scale-90 transition-transform"
+          >
+            <X size={18} className="text-white" />
+          </button>
+        )}
+
         <div className="fixed top-0 left-0 w-full z-[100] flex justify-center pt-8 pointer-events-none">
           <motion.div
             key={currentIndex}
