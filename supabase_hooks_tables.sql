@@ -19,13 +19,14 @@ CREATE TABLE IF NOT EXISTS hook_pages (
 
 -- 2. Posts on Hook Pages
 CREATE TABLE IF NOT EXISTS hook_page_posts (
-  id         uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-  page_id    uuid REFERENCES hook_pages(id) ON DELETE CASCADE,
-  author_id  uuid REFERENCES profiles(id),
-  content    text,
-  media_url  text,
+  id          uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  page_id     uuid REFERENCES hook_pages(id) ON DELETE CASCADE,
+  author_id   uuid REFERENCES profiles(id),
+  content     text,
+  media_url   text,
+  media_type  text DEFAULT '',
   likes_count int DEFAULT 0,
-  created_at timestamptz DEFAULT now()
+  created_at  timestamptz DEFAULT now()
 );
 
 -- 3. Hook Invites (who invited whom to which page)
