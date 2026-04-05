@@ -3,7 +3,7 @@ import { supabase } from "../lib/supabaseClient";
 import {
   Send, Heart, MessageCircle, Share2, MoreVertical,
   Loader2, Trash2, EyeOff, Flag, X, Volume2, VolumeX, Image as ImageIcon,
-  Play, Eye, Users,
+  Play, Users, Film,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -91,34 +91,62 @@ const PostCaption = ({ content }: { content: string }) => {
   );
 };
 
-// ── Stable hash helper (deterministic fake view counts) ───────────────────────
-function hashNum(id: string, max: number): number {
-  let h = 5381;
-  for (let i = 0; i < id.length; i++) h = ((h << 5) + h) ^ id.charCodeAt(i);
-  return Math.abs(h) % max;
-}
-function fmtViews(n: number): string {
-  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
-  if (n >= 1000) return (n / 1000).toFixed(1) + "K";
-  return String(n);
-}
+// ── Trending Flicks Row (real data, real-time) ─────────────────────────────────
+const FLICK_GRADS = ["#ec4899","#f59e0b","#10b981","#3b82f6","#8b5cf6","#ef4444","#06b6d4","#f97316","#84cc16"];
 
-// ── Trending Reels Row ─────────────────────────────────────────────────────────
-const REEL_GRADS = ["#ec4899","#f59e0b","#10b981","#3b82f6","#8b5cf6","#ef4444","#06b6d4","#f97316","#84cc16"];
+const TrendingFlicksRow = () => {
+  const [flicks, setFlicks] = useState<any[]>([]);
+  const [loaded, setLoaded] = useState(false);
 
-const TrendingReelsRow = ({ posts }: { posts: any[] }) => {
-  if (!posts.length) return null;
+  const fetchFlicks = async () => {
+    // Try the trending_flicks view first; fall back to posts table
+    const { data: viewData, error: viewErr } = await supabase
+      .from("trending_flicks")
+      .select("*")
+      .limit(10);
+
+    if (!viewErr && viewData) {
+      setFlicks(viewData);
+    } else {
+      // Fallback: video posts ordered by likes
+      const { data: posts } = await supabase
+        .from("posts")
+        .select("id, author, media_url, type, likes_count, content")
+        .or("type.eq.video,media_url.ilike.%.mp4%,media_url.ilike.%.webm%,media_url.ilike.%youtu%")
+        .order("likes_count", { ascending: false })
+        .limit(10);
+      setFlicks(posts || []);
+    }
+    setLoaded(true);
+  };
+
+  useEffect(() => {
+    fetchFlicks();
+    const sub = supabase
+      .channel("trending-flicks-rt")
+      .on("postgres_changes", { event: "*", schema: "public", table: "posts" }, fetchFlicks)
+      .subscribe();
+    return () => { supabase.removeChannel(sub); };
+  }, []);
+
+  if (!loaded) return null;
+
   return (
     <div className="bg-white py-3">
-      <p className="text-[12px] font-black text-gray-700 px-4 mb-2">🔥 Trending Reels</p>
-      <div className="flex gap-2.5 overflow-x-auto px-4 pb-1 no-scrollbar">
-        {posts.map((post, i) => {
-          const views = fmtViews(hashNum(post.id, 85000) + 5000);
-          const bg = REEL_GRADS[i % REEL_GRADS.length];
-          return (
-            <div key={post.id}
+      <p className="text-[12px] font-black text-gray-700 px-4 mb-2">🔥 Trending Flicks</p>
+      {flicks.length === 0 ? (
+        <div className="px-4 py-4 flex flex-col items-center gap-1.5 text-gray-400">
+          <Film size={28} className="opacity-30" />
+          <p className="text-[11px] font-semibold text-center text-gray-400">
+            No Flicks yet. Be the first to upload!
+          </p>
+        </div>
+      ) : (
+        <div className="flex gap-2.5 overflow-x-auto px-4 pb-1 no-scrollbar">
+          {flicks.map((flick, i) => (
+            <div key={flick.id}
               className="flex-shrink-0 relative rounded-xl overflow-hidden"
-              style={{ width: 108, height: 192, background: `linear-gradient(160deg, ${bg} 0%, #1e1b4b 100%)` }}>
+              style={{ width: 108, height: 192, background: `linear-gradient(160deg, ${FLICK_GRADS[i % FLICK_GRADS.length]} 0%, #1e1b4b 100%)` }}>
               <div className="absolute inset-0 flex items-center justify-center">
                 <div className="w-10 h-10 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center border border-white/20">
                   <Play size={16} fill="white" className="text-white ml-0.5" />
@@ -126,15 +154,15 @@ const TrendingReelsRow = ({ posts }: { posts: any[] }) => {
               </div>
               <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent px-2 py-2">
                 <div className="flex items-center gap-1 mb-0.5">
-                  <Eye size={9} className="text-white/80" />
-                  <span className="text-white text-[9px] font-bold">{views}</span>
+                  <Heart size={9} className="text-red-400" fill="#f87171" />
+                  <span className="text-white text-[9px] font-bold">{flick.likes_count || 0}</span>
                 </div>
-                <p className="text-white text-[9px] font-semibold truncate">@{post.author || "user"}</p>
+                <p className="text-white text-[9px] font-semibold truncate">@{flick.author || "user"}</p>
               </div>
             </div>
-          );
-        })}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 };
@@ -597,7 +625,7 @@ const FameFeed = ({ onPostClick, onImageSelect, userProfile, suggestions = [] }:
         if (block.type === "reels-row") {
           return (
             <div key={block.key}>
-              <TrendingReelsRow posts={videoPosts} />
+              <TrendingFlicksRow />
               <FeedDivider />
             </div>
           );
