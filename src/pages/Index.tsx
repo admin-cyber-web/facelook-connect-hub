@@ -987,6 +987,61 @@ const Index = ({ session }: { session: Session }) => {
   // ── Reel posts (real videos/posts for Flicks strip) ──────────────────────
   const [reelPosts, setReelPosts] = useState<any[]>([]);
 
+  // ── Current user's own reels ──────────────────────────────────────────────
+  const [myReels, setMyReels]           = useState<any[]>([]);
+  const [reelUploadPct, setReelUploadPct] = useState(0);   // 0 = idle
+  const [reelUploading, setReelUploading] = useState(false);
+  const reelInputRef = useRef<HTMLInputElement>(null);
+
+  const fetchMyReels = () => {
+    supabase.from("posts")
+      .select("id, media_url, type, content, created_at")
+      .eq("author_id", userId)
+      .eq("type", "video")
+      .order("created_at", { ascending: false })
+      .limit(5)
+      .then(({ data }) => { if (data) setMyReels(data); });
+  };
+
+  const handleReelCardClick = () => {
+    if (myReels.length === 0) {
+      reelInputRef.current?.click();
+    } else {
+      setActiveFeature("Flicks");
+    }
+  };
+
+  const handleReelFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setReelUploading(true);
+    setReelUploadPct(10);
+    try {
+      const fileName = `reel_${userId}_${Date.now()}.${file.name.split(".").pop()}`;
+      const { data: upData, error: upErr } = await supabase.storage
+        .from("posts")
+        .upload(fileName, file, { cacheControl: "3600", upsert: false });
+      if (upErr) throw upErr;
+      setReelUploadPct(75);
+      const { data: urlData } = supabase.storage.from("posts").getPublicUrl(fileName);
+      await supabase.from("posts").insert([{
+        author_id: userId,
+        author: profile.full_name || "User",
+        content: "",
+        media_url: urlData.publicUrl,
+        type: "video",
+        metadata: { is_youtube: false },
+      }]);
+      setReelUploadPct(100);
+      fetchMyReels();
+      setTimeout(() => { setReelUploading(false); setReelUploadPct(0); }, 800);
+    } catch {
+      setReelUploading(false);
+      setReelUploadPct(0);
+    }
+    e.target.value = "";
+  };
+
   // ── Fetch online users + real reel posts in parallel ─────────────────────
   useEffect(() => {
     supabase.from("profiles").select("id, full_name, avatar_url")
@@ -998,6 +1053,8 @@ const Index = ({ session }: { session: Session }) => {
       .order("created_at", { ascending: false })
       .limit(15)
       .then(({ data }) => { if (data) setReelPosts(data); });
+
+    fetchMyReels();
   }, [userId]);
 
   // ── My Frame Requests — fetch + realtime ──────────────────────────────────
@@ -1544,24 +1601,91 @@ const Index = ({ session }: { session: Session }) => {
                 <div className="pt-2 pb-1">
                   <p className="text-[12px] font-black text-gray-700 px-3 mb-2">Flicks</p>
                   <div className="flex gap-3 overflow-x-auto px-3 pb-2 no-scrollbar">
-                    {/* Current user reel card first */}
-                    <div className="flex-shrink-0 relative rounded-2xl overflow-hidden border-2 border-blue-500 shadow-md"
-                      style={{ width: "calc((100vw - 48px) / 3)", height: "calc((100vw - 48px) / 3 * 1.78)", maxWidth: "160px", maxHeight: "280px", background: "linear-gradient(160deg,#6366f1 0%,#1e1b4b 100%)" }}
+
+                    {/* Hidden video file input */}
+                    <input
+                      ref={reelInputRef}
+                      type="file"
+                      accept="video/*"
+                      className="hidden"
+                      onChange={handleReelFileSelected}
+                    />
+
+                    {/* ── Smart "Your Reels" card ──────────────────────────── */}
+                    <motion.div
+                      whileTap={{ scale: 0.94 }}
+                      onClick={reelUploading ? undefined : handleReelCardClick}
+                      className="flex-shrink-0 relative rounded-2xl overflow-hidden shadow-md cursor-pointer"
+                      style={{
+                        width: "calc((100vw - 48px) / 3)",
+                        height: "calc((100vw - 48px) / 3 * 1.78)",
+                        maxWidth: "160px",
+                        maxHeight: "280px",
+                        border: myReels.length > 0 ? "2.5px solid #3b82f6" : "2.5px dashed #6366f1",
+                        background: "linear-gradient(160deg,#6366f1 0%,#1e1b4b 100%)",
+                      }}
                     >
-                      {profile.avatar_url ? (
-                        <img src={profile.avatar_url} loading="lazy" className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-white font-black text-4xl">
-                          {(profile.full_name || "Y")[0]}
+                      {/* Case B: has reels → show latest thumbnail */}
+                      {myReels.length > 0 && myReels[0].media_url && (
+                        <video
+                          src={myReels[0].media_url}
+                          className="w-full h-full object-cover"
+                          muted playsInline preload="metadata"
+                        />
+                      )}
+
+                      {/* Case A: no reels → show avatar + upload hint */}
+                      {myReels.length === 0 && !reelUploading && (
+                        <>
+                          {profile.avatar_url ? (
+                            <img src={profile.avatar_url} loading="lazy" className="w-full h-full object-cover opacity-60" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-white/30 font-black text-4xl">
+                              {(profile.full_name || "Y")[0]}
+                            </div>
+                          )}
+                          {/* Upload "+" badge */}
+                          <div className="absolute inset-0 flex flex-col items-center justify-center gap-1">
+                            <div className="w-10 h-10 rounded-full bg-blue-600 border-2 border-white shadow-lg flex items-center justify-center">
+                              <span className="text-white text-[20px] font-black leading-none">+</span>
+                            </div>
+                            <span className="text-white/90 text-[9px] font-black uppercase tracking-wider mt-1">Upload Reel</span>
+                          </div>
+                        </>
+                      )}
+
+                      {/* Uploading state → progress bar */}
+                      {reelUploading && (
+                        <div className="w-full h-full flex flex-col items-center justify-center gap-2 px-3">
+                          <Loader2 size={24} className="text-white animate-spin" />
+                          <div className="w-full bg-white/20 rounded-full h-1.5">
+                            <motion.div
+                              className="bg-blue-400 h-1.5 rounded-full"
+                              initial={{ width: "0%" }}
+                              animate={{ width: `${reelUploadPct}%` }}
+                              transition={{ duration: 0.4 }}
+                            />
+                          </div>
+                          <span className="text-white text-[9px] font-black">{reelUploadPct}%</span>
                         </div>
                       )}
-                      <div className="absolute top-2 left-2 w-7 h-7 rounded-full bg-blue-600 flex items-center justify-center border-2 border-white shadow">
-                        <span className="text-white text-[11px] font-black">+</span>
-                      </div>
-                      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent pt-6 pb-2 px-2">
-                        <p className="text-white text-[10px] font-black truncate">Your Reel</p>
-                      </div>
-                    </div>
+
+                      {/* Play icon overlay when reels exist */}
+                      {myReels.length > 0 && !reelUploading && (
+                        <div className="absolute top-2 right-2 bg-black/50 rounded-full p-1.5">
+                          <Video size={11} className="text-white" />
+                        </div>
+                      )}
+
+                      {/* Bottom label */}
+                      {!reelUploading && (
+                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/85 to-transparent pt-6 pb-2 px-2">
+                          <p className="text-white text-[10px] font-black truncate">
+                            {myReels.length > 0 ? `My Reels (${myReels.length})` : "Your Reel"}
+                          </p>
+                        </div>
+                      )}
+                    </motion.div>
 
                     {/* Real posts from DB */}
                     {reelPosts.slice(0, 9).map((post, i) => {
