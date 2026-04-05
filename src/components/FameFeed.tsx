@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { toast } from "sonner";
+import { useProfileViewer } from "../context/ProfileViewerContext";
 import {
   Send, Heart, MessageCircle, Share2, MoreVertical,
   Loader2, Trash2, EyeOff, Flag, X, Volume2, VolumeX, Image as ImageIcon,
@@ -479,6 +480,7 @@ const FameFeed = ({
   onPostClick, onImageSelect, userProfile, suggestions = [],
   onNavigateToCircles, onNavigateToPages,
 }: FameFeedProps) => {
+  const { openProfile } = useProfileViewer();
   const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeComment, setActiveComment] = useState<string | null>(null);
@@ -689,11 +691,19 @@ const FameFeed = ({
         {/* Post header */}
         <div className="flex items-center justify-between px-4 py-3">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-black text-sm shrink-0 border border-gray-100">
+            <button
+              onClick={(e) => { e.stopPropagation(); if (post.author_id) openProfile(post.author_id); }}
+              className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-black text-sm shrink-0 border border-gray-100 active:scale-90 transition-transform overflow-hidden"
+            >
               {post.author?.[0]?.toUpperCase() || "V"}
-            </div>
+            </button>
             <div>
-              <p className="text-gray-900 font-bold text-sm leading-none">{post.author || "Vibe User"}</p>
+              <button
+                onClick={(e) => { e.stopPropagation(); if (post.author_id) openProfile(post.author_id); }}
+                className="text-gray-900 font-bold text-sm leading-none hover:underline active:opacity-70 text-left"
+              >
+                {post.author || "Vibe User"}
+              </button>
               <p className="text-[10px] text-blue-600 font-semibold uppercase tracking-wide mt-0.5">
                 {isVideo ? "🎬 Reel" : "📷 Post"} · Verified Creator
               </p>

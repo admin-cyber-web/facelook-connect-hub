@@ -9,6 +9,7 @@ import type { Session } from "@supabase/supabase-js";
 import { Plus, X } from "lucide-react"; // Icons for Admin Button
 import AdminPostPanel from "./components/AdminPostPanel"; // Make sure to create this file
 import CurvedEdgeOverlay from "./components/CurvedEdgeOverlay";
+import { ProfileViewerProvider } from "./context/ProfileViewerContext";
 
 // ── Lazy-loaded pages ────────────────────────────────────────────────────────
 const Index = lazy(() => import("./pages/Index"));
@@ -78,19 +79,21 @@ const App = () => {
         )}
 
 
-        <BrowserRouter>
-          <Suspense fallback={<PageLoader />}>
-            {!session ? (
-              <LoginScreen />
-            ) : (
-              <Routes>
-                <Route path="/" element={<Index session={session} />} />
-                <Route path="/privacy" element={<Privacy />} />
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            )}
-          </Suspense>
-        </BrowserRouter>
+        <ProfileViewerProvider currentUserId={session?.user?.id ?? ""}>
+          <BrowserRouter>
+            <Suspense fallback={<PageLoader />}>
+              {!session ? (
+                <LoginScreen />
+              ) : (
+                <Routes>
+                  <Route path="/" element={<Index session={session} />} />
+                  <Route path="/privacy" element={<Privacy />} />
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+              )}
+            </Suspense>
+          </BrowserRouter>
+        </ProfileViewerProvider>
       </TooltipProvider>
     </QueryClientProvider>
   );
