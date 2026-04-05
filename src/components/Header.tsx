@@ -1,7 +1,35 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Bell, Search, X, UserPlus, Home, Settings, Loader2, Heart, Users, FileText } from "lucide-react";
+import {
+  Bell, Search, X, UserPlus, Home, Settings, Loader2,
+  Heart, Users, FileText, MessageCircle, UserCheck, UserX,
+  CheckCheck, AtSign, Check,
+} from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { motion, AnimatePresence } from "framer-motion";
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
+function timeAgo(ts: string): string {
+  const diff = Date.now() - new Date(ts).getTime();
+  const m = Math.floor(diff / 60000);
+  if (m < 1)  return "abhi";
+  if (m < 60) return `${m}m`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h`;
+  const d = Math.floor(h / 24);
+  if (d < 7)  return `${d}d`;
+  return `${Math.floor(d / 7)}w`;
+}
+
+const NOTIF_META: Record<string, { icon: React.ReactNode; color: string; label: string }> = {
+  like:            { icon: <Heart size={13} fill="currentColor" />,    color: "bg-red-500/20 text-red-400",    label: "ne like kiya" },
+  comment:         { icon: <MessageCircle size={13} />,                color: "bg-green-500/20 text-green-400", label: "ne comment kiya" },
+  follow:          { icon: <UserPlus size={13} />,                     color: "bg-purple-500/20 text-purple-400", label: "ne follow kiya" },
+  friend_request:  { icon: <UserPlus size={13} />,                     color: "bg-blue-500/20 text-blue-400",  label: "ne friend request bheji" },
+  friend_accepted: { icon: <UserCheck size={13} />,                    color: "bg-teal-500/20 text-teal-400",  label: "ne friend request accept ki" },
+  circle_join:     { icon: <Users size={13} />,                        color: "bg-yellow-500/20 text-yellow-400", label: "aapke circle mein join hua" },
+  new_post:        { icon: <FileText size={13} />,                     color: "bg-gray-500/20 text-gray-400",  label: "ne naya post kiya" },
+  mention:         { icon: <AtSign size={13} />,                       color: "bg-orange-500/20 text-orange-400", label: "ne mention kiya" },
+};
 
 // ── Scramble config ────────────────────────────────────────────────────────────
 const CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz#@!%&$";
@@ -416,6 +444,18 @@ const SearchModal = ({ onClose, userId }: { onClose: () => void; userId?: string
   );
 };
 
+// ── Actor Avatar ────────────────────────────────────────────────────────────────
+const ActorAvatar = ({ name, avatarUrl, size = 36 }: { name: string; avatarUrl?: string; size?: number }) => (
+  <div
+    className="rounded-full overflow-hidden bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-black shrink-0 border-2 border-white/10"
+    style={{ width: size, height: size, fontSize: size * 0.38 }}
+  >
+    {avatarUrl
+      ? <img src={avatarUrl} className="w-full h-full object-cover" alt="" />
+      : (name?.[0] || "?").toUpperCase()}
+  </div>
+);
+
 // ── Main Header ────────────────────────────────────────────────────────────────
 const Header = ({
   onProfileClick,
@@ -428,79 +468,121 @@ const Header = ({
   onSettingsClick?: () => void;
   userId?: string;
 }) => {
-  const [notifications, setNotifications] = useState<any[]>([]);
-  const [showNotif, setShowNotif]         = useState(false);
-  const [showSearch, setShowSearch]       = useState(false);
-  const [pendingFriendCount, setPendingFriendCount] = useState(0);
-  const [userData, setUserData] = useState({
-    full_name: "...",
-    avatar_url: "",
-    id: userId || "",
-  });
+  const [notifications, setNotifications]     = useState<any[]>([]);
+  const [friendRequests, setFriendRequests]   = useState<any[]>([]);
+  const [showNotif, setShowNotif]             = useState(false);
+  const [showSearch, setShowSearch]           = useState(false);
+  const [actionLoading, setActionLoading]     = useState<string | null>(null);
+  const [userData, setUserData] = useState({ full_name: "...", avatar_url: "", id: userId || "" });
 
+  // ── Fetchers ──────────────────────────────────────────────────────────────
+  const fetchProfile = useCallback(async () => {
+    if (!userId) return;
+    const { data } = await supabase.from("profiles").select("full_name, avatar_url").eq("id", userId).single();
+    if (data) setUserData(prev => ({ ...prev, ...data }));
+  }, [userId]);
+
+  const fetchNotifications = useCallback(async () => {
+    if (!userId) return;
+    // Try notifier_id first (new schema), fall back to user_id (legacy)
+    let { data, error } = await supabase
+      .from("notifications")
+      .select("*, actor:profiles!notifications_actor_id_fkey(full_name, avatar_url)")
+      .eq("notifier_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(30);
+    if (error) {
+      // fallback: no join, use user_id
+      const { data: fallback } = await supabase
+        .from("notifications")
+        .select("*")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false })
+        .limit(30);
+      data = fallback;
+    }
+    if (data) setNotifications(data);
+  }, [userId]);
+
+  const fetchFriendRequests = useCallback(async () => {
+    if (!userId) return;
+    const { data } = await supabase
+      .from("friendships")
+      .select("*, sender:profiles!friendships_sender_id_fkey(full_name, avatar_url)")
+      .eq("receiver_id", userId)
+      .eq("status", "pending")
+      .order("created_at", { ascending: false });
+    if (data) setFriendRequests(data);
+  }, [userId]);
+
+  // ── Actions ───────────────────────────────────────────────────────────────
+  const acceptRequest = async (reqId: string, senderId: string) => {
+    setActionLoading(reqId);
+    await supabase.from("friendships").update({ status: "accepted" }).eq("id", reqId);
+    // Notify sender that request was accepted
+    await supabase.from("notifications").insert({
+      notifier_id: senderId,
+      actor_id: userId,
+      type: "friend_accepted",
+      entity_id: reqId,
+      content: `${userData.full_name} ne aapki friend request accept ki`,
+      is_read: false,
+    }).select();
+    setFriendRequests(prev => prev.filter(r => r.id !== reqId));
+    setActionLoading(null);
+  };
+
+  const rejectRequest = async (reqId: string) => {
+    setActionLoading(reqId + "_reject");
+    await supabase.from("friendships").update({ status: "rejected" }).eq("id", reqId);
+    setFriendRequests(prev => prev.filter(r => r.id !== reqId));
+    setActionLoading(null);
+  };
+
+  const markAllRead = async () => {
+    if (!userId) return;
+    await supabase.from("notifications").update({ is_read: true })
+      .eq("notifier_id", userId).eq("is_read", false);
+    setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+  };
+
+  const markOneRead = async (id: string) => {
+    await supabase.from("notifications").update({ is_read: true }).eq("id", id);
+    setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n));
+  };
+
+  // ── Real-time setup ───────────────────────────────────────────────────────
   useEffect(() => {
     if (!userId) return;
     fetchProfile();
     fetchNotifications();
-    fetchPendingFriendCount();
+    fetchFriendRequests();
 
-    const notifChannel = supabase
-      .channel(`notif-changes-${userId}`)
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${userId}` },
-        (payload) => setNotifications((prev) => [payload.new, ...prev])
-      )
+    const notifCh = supabase.channel(`notif-live-${userId}`)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "notifications",
+        filter: `notifier_id=eq.${userId}` },
+        () => fetchNotifications())
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "notifications",
+        filter: `notifier_id=eq.${userId}` },
+        () => fetchNotifications())
       .subscribe();
 
-    const friendChannel = supabase
-      .channel(`friend-req-badge-${userId}`)
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "friendships", filter: `receiver_id=eq.${userId}` },
-        (payload) => { if (payload.new.status === "pending") setPendingFriendCount((p) => p + 1); }
-      )
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "friendships", filter: `receiver_id=eq.${userId}` },
-        (payload) => {
-          if (payload.new.status === "accepted" || payload.new.status === "rejected")
-            setPendingFriendCount((p) => Math.max(0, p - 1));
-        }
-      )
+    const friendCh = supabase.channel(`friend-live-${userId}`)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "friendships",
+        filter: `receiver_id=eq.${userId}` }, () => fetchFriendRequests())
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "friendships",
+        filter: `receiver_id=eq.${userId}` }, () => fetchFriendRequests())
       .subscribe();
 
     return () => {
-      supabase.removeChannel(notifChannel);
-      supabase.removeChannel(friendChannel);
+      supabase.removeChannel(notifCh);
+      supabase.removeChannel(friendCh);
     };
-  }, [userId]);
+  }, [userId, fetchProfile, fetchNotifications, fetchFriendRequests]);
 
-  const fetchProfile = async () => {
-    if (!userId) return;
-    const { data } = await supabase
-      .from("profiles").select("full_name, avatar_url").eq("id", userId).single();
-    if (data) setUserData((prev) => ({ ...prev, ...data }));
-  };
-
-  const fetchNotifications = async () => {
-    if (!userId) return;
-    const { data } = await supabase
-      .from("notifications").select("*").eq("user_id", userId).order("created_at", { ascending: false });
-    if (data) setNotifications(data);
-  };
-
-  const fetchPendingFriendCount = async () => {
-    if (!userId) return;
-    const { count } = await supabase
-      .from("friendships")
-      .select("id", { count: "exact", head: true })
-      .eq("receiver_id", userId).eq("status", "pending");
-    setPendingFriendCount(count || 0);
-  };
-
-  const unreadNotifCount = notifications.filter((n) => !n.is_read).length;
-  const totalBadge = unreadNotifCount + pendingFriendCount;
+  const unreadCount  = notifications.filter(n => !n.is_read).length;
+  const totalBadge   = unreadCount + friendRequests.length;
+  const hasAnything  = notifications.length > 0 || friendRequests.length > 0;
 
   return (
     <>
@@ -509,7 +591,6 @@ const Header = ({
 
         {/* 1. LEFT: Logo + Tagline + Tiranga ─────────────────────────────── */}
         <div className="flex items-center gap-2 flex-shrink-0">
-          {/* Animated "F" orb */}
           <motion.div
             animate={{ rotate: [0, -8, 8, -4, 4, 0] }}
             transition={{ duration: 3.5, repeat: Infinity, repeatDelay: 4, ease: "easeInOut" }}
@@ -517,92 +598,53 @@ const Header = ({
           >
             <span className="text-white font-black text-[12px] italic">F</span>
           </motion.div>
-
-          {/* Scramble logo + tagline */}
           <FacelookLogo />
-
-          {/* Tiranga waving */}
           <TirangaFlag />
         </div>
 
         {/* 2. SPACER ───────────────────────────────────────────────────────── */}
         <div className="flex-1" />
 
-        {/* 3. RIGHT: Compact Search + Bell + Avatar ────────────────────────── */}
+        {/* 3. RIGHT: Home + Search + Bell + Settings + Avatar ─────────────── */}
         <div className="flex items-center gap-2 flex-shrink-0">
 
-          {/* Friend request mini-badge */}
-          {pendingFriendCount > 0 && (
-            <motion.div
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              className="hidden sm:flex items-center gap-1 px-2 py-1 bg-blue-600/20 border border-blue-500/30 rounded-full"
-            >
-              <UserPlus size={10} className="text-blue-400" />
-              <span className="text-[9px] font-black text-blue-300">{pendingFriendCount}</span>
-            </motion.div>
-          )}
-
           {/* Home back button */}
-          <motion.button
-            whileTap={{ scale: 0.88 }}
-            onClick={onHomeClick}
-            className="p-2 bg-white/10 border border-white/15 text-white rounded-xl hover:bg-white/15 transition-all active:scale-90 flex-shrink-0"
-            title="Back to Home"
-          >
+          <motion.button whileTap={{ scale: 0.88 }} onClick={onHomeClick}
+            className="p-2 bg-white/10 border border-white/15 text-white rounded-xl hover:bg-white/15 transition-all active:scale-90 flex-shrink-0" title="Back to Home">
             <Home size={17} />
           </motion.button>
 
           {/* Search button */}
-          <motion.button
-            whileTap={{ scale: 0.88 }}
-            onClick={() => setShowSearch(true)}
-            className="p-2 bg-white/10 border border-white/15 text-white rounded-xl hover:bg-blue-500/20 hover:border-blue-500/40 transition-all active:scale-90 flex-shrink-0"
-            title="Search"
-          >
+          <motion.button whileTap={{ scale: 0.88 }} onClick={() => setShowSearch(true)}
+            className="p-2 bg-white/10 border border-white/15 text-white rounded-xl hover:bg-blue-500/20 hover:border-blue-500/40 transition-all active:scale-90 flex-shrink-0" title="Search">
             <Search size={17} />
           </motion.button>
 
-          {/* Bell */}
-          <button
-            onClick={() => setShowNotif(!showNotif)}
-            className="p-2.5 bg-white/5 border border-white/10 text-white rounded-2xl relative hover:bg-white/10 transition-all active:scale-90 flex-shrink-0"
-          >
+          {/* Bell with live badge */}
+          <motion.button whileTap={{ scale: 0.9 }}
+            onClick={() => { setShowNotif(v => !v); if (!showNotif) fetchFriendRequests(); }}
+            className="p-2.5 bg-white/5 border border-white/10 text-white rounded-2xl relative hover:bg-white/10 transition-all flex-shrink-0">
             <Bell size={18} className="drop-shadow-md" />
             {totalBadge > 0 && (
-              <motion.span
-                key={totalBadge}
-                initial={{ scale: 0.5 }}
-                animate={{ scale: 1 }}
-                className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-red-500 text-white text-[9px] font-black rounded-full flex items-center justify-center border-2 border-slate-900 px-0.5"
-              >
+              <motion.span key={totalBadge} initial={{ scale: 0.5 }} animate={{ scale: 1 }}
+                className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-red-500 text-white text-[9px] font-black rounded-full flex items-center justify-center border-2 border-slate-900 px-0.5">
                 {totalBadge > 99 ? "99+" : totalBadge}
               </motion.span>
             )}
-          </button>
+          </motion.button>
 
           {/* Settings gear */}
-          <motion.button
-            whileTap={{ scale: 0.88 }}
-            onClick={onSettingsClick}
-            className="p-2 bg-white/10 border border-white/15 text-white rounded-xl hover:bg-white/15 transition-all active:scale-90 flex-shrink-0"
-            title="Settings"
-          >
+          <motion.button whileTap={{ scale: 0.88 }} onClick={onSettingsClick}
+            className="p-2 bg-white/10 border border-white/15 text-white rounded-xl hover:bg-white/15 transition-all active:scale-90 flex-shrink-0" title="Settings">
             <Settings size={17} />
           </motion.button>
 
-          {/* Avatar — profile */}
-          <div
-            onClick={onProfileClick}
-            className="w-9 h-9 rounded-xl overflow-hidden border border-white/30 shadow-lg cursor-pointer active:scale-90 transition-transform flex-shrink-0"
-          >
-            {userData.avatar_url ? (
-              <img src={userData.avatar_url} loading="lazy" className="w-full h-full object-cover" alt="Profile" />
-            ) : (
-              <div className="w-full h-full bg-blue-600 flex items-center justify-center text-white font-black text-xs">
-                {userData.full_name[0]}
-              </div>
-            )}
+          {/* Avatar */}
+          <div onClick={onProfileClick}
+            className="w-9 h-9 rounded-xl overflow-hidden border border-white/30 shadow-lg cursor-pointer active:scale-90 transition-transform flex-shrink-0">
+            {userData.avatar_url
+              ? <img src={userData.avatar_url} loading="lazy" className="w-full h-full object-cover" alt="Profile" />
+              : <div className="w-full h-full bg-blue-600 flex items-center justify-center text-white font-black text-xs">{userData.full_name[0]}</div>}
           </div>
         </div>
       </header>
@@ -616,66 +658,153 @@ const Header = ({
       <AnimatePresence>
         {showNotif && (
           <>
-            <motion.div
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            {/* Backdrop */}
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               onClick={() => setShowNotif(false)}
-              className="fixed inset-0 bg-black/20 backdrop-blur-sm z-[105]"
-            />
+              className="fixed inset-0 bg-black/30 backdrop-blur-sm z-[105]" />
+
+            {/* Drawer */}
             <motion.div
               initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }}
-              transition={{ type: "spring", damping: 25, stiffness: 200 }}
-              className="fixed top-0 right-0 h-full w-full max-w-xs bg-slate-900/80 backdrop-blur-3xl shadow-2xl z-[110] border-l border-white/10 overflow-hidden"
+              transition={{ type: "spring", damping: 28, stiffness: 220 }}
+              className="fixed top-0 right-0 h-full w-full max-w-sm bg-slate-900/90 backdrop-blur-3xl shadow-2xl z-[110] border-l border-white/10 flex flex-col overflow-hidden"
             >
-              <div className="p-6 flex items-center justify-between border-b border-white/10 bg-white/5">
+              {/* ── Drawer Header */}
+              <div className="px-5 py-4 flex items-center justify-between border-b border-white/10 bg-white/5 shrink-0">
                 <div className="flex items-center gap-2">
-                  <h2 className="font-black text-white tracking-widest text-xs uppercase">Notifications</h2>
-                  {pendingFriendCount > 0 && (
-                    <span className="flex items-center gap-1 px-2 py-0.5 bg-blue-600/20 border border-blue-500/30 rounded-full text-[9px] font-black text-blue-300">
-                      <UserPlus size={9} /> {pendingFriendCount} friend{pendingFriendCount > 1 ? "s" : ""}
+                  <Bell size={16} className="text-white/70" />
+                  <h2 className="font-black text-white tracking-wide text-[13px]">Notifications</h2>
+                  {unreadCount > 0 && (
+                    <span className="px-1.5 py-0.5 bg-red-500/80 rounded-full text-[9px] font-black text-white">
+                      {unreadCount}
                     </span>
                   )}
                 </div>
-                <button onClick={() => setShowNotif(false)} className="p-2 hover:bg-white/10 rounded-full text-white/50 hover:text-white transition-all">
-                  <X size={20} />
-                </button>
+                <div className="flex items-center gap-2">
+                  {unreadCount > 0 && (
+                    <button onClick={markAllRead}
+                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/15 text-white/60 hover:text-white text-[10px] font-bold transition-all">
+                      <CheckCheck size={11} /> Mark all read
+                    </button>
+                  )}
+                  <button onClick={() => setShowNotif(false)}
+                    className="p-1.5 hover:bg-white/10 rounded-full text-white/40 hover:text-white transition-all">
+                    <X size={18} />
+                  </button>
+                </div>
               </div>
 
-              <div className="p-4 space-y-3 overflow-y-auto h-[calc(100%-80px)]">
-                {pendingFriendCount > 0 && (
-                  <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
-                    className="p-4 bg-blue-600/10 border border-blue-500/20 rounded-2xl"
-                  >
-                    <div className="flex gap-3 items-start">
-                      <div className="p-2 bg-blue-500/20 rounded-lg text-blue-400 shrink-0"><UserPlus size={14} /></div>
-                      <div>
-                        <p className="text-xs font-black text-white leading-tight">
-                          {pendingFriendCount} pending friend request{pendingFriendCount > 1 ? "s" : ""}
-                        </p>
-                        <p className="text-[10px] text-white/40 mt-0.5">Open Messages → Requests to respond</p>
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
-
-                {notifications.length > 0 ? (
-                  notifications.map((n) => (
-                    <motion.div
-                      initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-                      key={n.id}
-                      className="text-[11px] p-4 bg-white/5 border border-white/10 rounded-2xl font-bold text-white/80 hover:bg-white/10 transition-all cursor-default"
-                    >
-                      <div className="flex gap-3 items-start">
-                        <div className="p-2 bg-blue-500/20 rounded-lg text-blue-400 shrink-0"><Bell size={14} /></div>
-                        <p className="leading-relaxed">{n.content}</p>
-                      </div>
-                    </motion.div>
-                  ))
-                ) : pendingFriendCount === 0 ? (
-                  <div className="h-full flex flex-col items-center justify-center text-white/20">
-                    <Bell size={40} strokeWidth={1} className="mb-2" />
-                    <p className="text-[10px] font-black uppercase tracking-tighter">No new updates</p>
+              {/* ── Drawer Body */}
+              <div className="flex-1 overflow-y-auto">
+                {!hasAnything ? (
+                  <div className="h-full flex flex-col items-center justify-center gap-3 text-white/20 py-16">
+                    <Bell size={44} strokeWidth={1} />
+                    <p className="text-[11px] font-black uppercase tracking-widest">Koi notification nahi</p>
                   </div>
-                ) : null}
+                ) : (
+                  <div className="p-3 space-y-2">
+
+                    {/* ── Friend Requests Section */}
+                    {friendRequests.length > 0 && (
+                      <div>
+                        <p className="text-[9px] font-black text-white/30 uppercase tracking-widest px-1 mb-1.5">
+                          Friend Requests · {friendRequests.length}
+                        </p>
+                        {friendRequests.map(req => {
+                          const sender = req.sender || {};
+                          const isAccLoading = actionLoading === req.id;
+                          const isRejLoading = actionLoading === req.id + "_reject";
+                          return (
+                            <motion.div key={req.id}
+                              initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                              className="p-3 bg-blue-600/10 border border-blue-500/20 rounded-2xl mb-2"
+                            >
+                              <div className="flex items-center gap-3">
+                                <ActorAvatar name={sender.full_name || "?"} avatarUrl={sender.avatar_url} size={40} />
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-[12px] font-black text-white leading-tight truncate">
+                                    {sender.full_name || "Koi user"}
+                                  </p>
+                                  <p className="text-[10px] text-white/40 mt-0.5">ne friend request bheji</p>
+                                </div>
+                                <p className="text-[9px] text-white/30 shrink-0">
+                                  {req.created_at ? timeAgo(req.created_at) : ""}
+                                </p>
+                              </div>
+                              {/* Confirm / Delete buttons */}
+                              <div className="flex gap-2 mt-2.5">
+                                <motion.button whileTap={{ scale: 0.95 }}
+                                  onClick={() => acceptRequest(req.id, req.sender_id)}
+                                  disabled={isAccLoading || isRejLoading}
+                                  className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-black transition-all disabled:opacity-50">
+                                  {isAccLoading
+                                    ? <Loader2 size={12} className="animate-spin" />
+                                    : <><UserCheck size={12} /> Confirm</>}
+                                </motion.button>
+                                <motion.button whileTap={{ scale: 0.95 }}
+                                  onClick={() => rejectRequest(req.id)}
+                                  disabled={isAccLoading || isRejLoading}
+                                  className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-white/70 text-[11px] font-black transition-all disabled:opacity-50">
+                                  {isRejLoading
+                                    ? <Loader2 size={12} className="animate-spin" />
+                                    : <><UserX size={12} /> Delete</>}
+                                </motion.button>
+                              </div>
+                            </motion.div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* ── Notifications List */}
+                    {notifications.length > 0 && (
+                      <div>
+                        {friendRequests.length > 0 && (
+                          <p className="text-[9px] font-black text-white/30 uppercase tracking-widest px-1 mb-1.5 mt-3">
+                            Activity
+                          </p>
+                        )}
+                        {notifications.map((n, i) => {
+                          const meta = NOTIF_META[n.type] || NOTIF_META["new_post"];
+                          const actor = n.actor || {};
+                          const actorName = actor.full_name || n.actor_name || "Koi user";
+                          const displayText = n.content || `${actorName} ${meta.label}`;
+                          return (
+                            <motion.div key={n.id}
+                              initial={{ opacity: 0, y: 8 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ delay: i * 0.03 }}
+                              onClick={() => !n.is_read && markOneRead(n.id)}
+                              className={`flex items-start gap-3 p-3 rounded-2xl mb-1.5 cursor-pointer transition-all
+                                ${n.is_read ? "bg-white/3 hover:bg-white/6" : "bg-white/8 hover:bg-white/12 border border-white/8"}`}
+                            >
+                              {/* Actor avatar OR type icon */}
+                              <div className="relative shrink-0">
+                                <ActorAvatar name={actorName} avatarUrl={actor.avatar_url} size={38} />
+                                <div className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center ${meta.color}`}>
+                                  {meta.icon}
+                                </div>
+                              </div>
+                              {/* Text */}
+                              <div className="flex-1 min-w-0">
+                                <p className="text-[11px] font-semibold text-white/85 leading-snug line-clamp-2">
+                                  {displayText}
+                                </p>
+                                <p className="text-[9px] text-white/30 mt-1">
+                                  {n.created_at ? timeAgo(n.created_at) : ""}
+                                </p>
+                              </div>
+                              {/* Unread dot */}
+                              {!n.is_read && (
+                                <div className="w-2 h-2 rounded-full bg-blue-500 shrink-0 mt-1" />
+                              )}
+                            </motion.div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </motion.div>
           </>
