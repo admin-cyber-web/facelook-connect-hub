@@ -181,20 +181,21 @@ const UserProfileModal = ({ userId, currentUserId, onClose }: Props) => {
                     <button
                       onClick={handleAddFriend}
                       disabled={friendStatus !== "none"}
-                      className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl font-black text-sm transition-all active:scale-95 ${
+                      className={`flex-1 flex items-center justify-center gap-2 py-4 rounded-2xl font-extrabold text-lg transition-all active:scale-95 ${
                         friendStatus === "accepted"
                           ? "bg-green-100 text-green-700"
                           : friendStatus === "pending"
                           ? "bg-gray-100 text-gray-500"
-                          : "bg-blue-600 text-white shadow-md shadow-blue-200"
+                          : "text-white"
                       }`}
+                      style={friendStatus === "none" ? { background: "linear-gradient(135deg, #2563eb 0%, #4f46e5 100%)", boxShadow: "0 6px 18px rgba(79,70,229,0.45)" } : {}}
                     >
                       {friendStatus === "accepted" ? (
-                        <><Check size={15} /> Friends</>
+                        <><Check size={18} /> Friends</>
                       ) : friendStatus === "pending" ? (
-                        <><UserPlus size={15} /> Request Sent</>
+                        <><UserPlus size={18} /> Request Sent</>
                       ) : (
-                        <><UserPlus size={15} /> Add Friend</>
+                        <><UserPlus size={18} /> Add Friend</>
                       )}
                     </button>
                   </div>

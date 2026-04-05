@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { UserPlus } from "lucide-react";
+import { UserPlus, Check, Clock } from "lucide-react";
 import { useProfileViewer } from "@/context/ProfileViewerContext";
 
 interface Profile {
@@ -16,26 +16,43 @@ interface Props {
 
 export default function PeopleYouMayKnow({ currentUserId }: Props) {
   const [people, setPeople] = useState<Profile[]>([]);
+  const [sentRequests, setSentRequests] = useState<Set<string>>(new Set());
   const { openProfile } = useProfileViewer();
 
   useEffect(() => {
     async function fetchPeople() {
-      let query = supabase
-        .from("profiles")
-        .select("id, full_name, avatar_url, username")
-        .limit(9);
+      if (!currentUserId) return;
 
-      if (currentUserId) {
-        query = query.neq("id", currentUserId);
-      }
+      const [{ data: profiles }, { data: existing }] = await Promise.all([
+        supabase
+          .from("profiles")
+          .select("id, full_name, avatar_url, username")
+          .neq("id", currentUserId)
+          .limit(9),
+        supabase
+          .from("friend_requests")
+          .select("receiver_id")
+          .eq("sender_id", currentUserId),
+      ]);
 
-      const { data, error } = await query;
-      if (!error && data) {
-        setPeople(data as Profile[]);
+      if (profiles) setPeople(profiles as Profile[]);
+      if (existing) {
+        setSentRequests(new Set(existing.map((r: any) => r.receiver_id)));
       }
     }
     fetchPeople();
   }, [currentUserId]);
+
+  const handleAddFriend = async (e: React.MouseEvent, personId: string) => {
+    e.stopPropagation();
+    if (!currentUserId || sentRequests.has(personId)) return;
+    setSentRequests((prev) => new Set([...prev, personId]));
+    await supabase.from("friend_requests").insert({
+      sender_id: currentUserId,
+      receiver_id: personId,
+      status: "pending",
+    });
+  };
 
   if (people.length === 0) return null;
 
@@ -50,7 +67,6 @@ export default function PeopleYouMayKnow({ currentUserId }: Props) {
             style={{ boxShadow: "0 1px 6px rgba(0,0,0,0.07)" }}
             onClick={() => openProfile(person.id)}
           >
-            {/* Square profile photo */}
             <div className="w-full aspect-square bg-gradient-to-br from-blue-400 to-indigo-600 overflow-hidden">
               {person.avatar_url ? (
                 <img
@@ -66,18 +82,29 @@ export default function PeopleYouMayKnow({ currentUserId }: Props) {
               )}
             </div>
 
-            {/* Name */}
             <p className="text-[12px] font-bold text-gray-900 text-center px-2 mt-2 leading-tight line-clamp-1 w-full truncate">
               {person.full_name || person.username || "Facelook User"}
             </p>
 
-            {/* Add Friend button */}
             <button
-              className="flex items-center gap-1 mt-2 mb-3 px-3 py-1.5 rounded-lg text-white text-[11px] font-bold transition-opacity active:opacity-80"
-              style={{ background: "#22c55e" }}
+              onClick={(e) => handleAddFriend(e, person.id)}
+              disabled={sentRequests.has(person.id)}
+              className={`flex items-center justify-center gap-1.5 mt-2 mb-3 px-4 py-2.5 rounded-xl text-sm font-extrabold transition-all active:scale-95 w-[90%] shadow-md ${
+                sentRequests.has(person.id)
+                  ? "bg-gray-200 text-gray-500 shadow-none"
+                  : "text-white"
+              }`}
+              style={
+                sentRequests.has(person.id)
+                  ? {}
+                  : { background: "linear-gradient(135deg, #2563eb 0%, #4f46e5 100%)", boxShadow: "0 4px 12px rgba(79,70,229,0.4)" }
+              }
             >
-              <UserPlus size={12} strokeWidth={2.5} />
-              Add Friend
+              {sentRequests.has(person.id) ? (
+                <><Clock size={14} strokeWidth={2.5} /> Requested</>
+              ) : (
+                <><UserPlus size={14} strokeWidth={2.5} /> Add Friend</>
+              )}
             </button>
           </div>
         ))}

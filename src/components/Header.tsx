@@ -130,7 +130,7 @@ function circleGrad(id: string) {
 }
 
 // ── Search Modal ───────────────────────────────────────────────────────────────
-const SearchModal = ({ onClose }: { onClose: () => void }) => {
+const SearchModal = ({ onClose, userId }: { onClose: () => void; userId?: string }) => {
   const [query, setQuery]       = useState("");
   const [loading, setLoading]   = useState(false);
   const [people, setPeople]     = useState<any[]>([]);
@@ -138,22 +138,41 @@ const SearchModal = ({ onClose }: { onClose: () => void }) => {
   const [posts, setPosts]       = useState<any[]>([]);
   const [sugPeople, setSugPeople]   = useState<any[]>([]);
   const [sugCircles, setSugCircles] = useState<any[]>([]);
+  const [sentRequests, setSentRequests] = useState<Set<string>>(new Set());
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Auto-focus + load suggestions
+  // Auto-focus + load suggestions + existing requests
   useEffect(() => {
     setTimeout(() => inputRef.current?.focus(), 80);
     (async () => {
-      const [{ data: p }, { data: c }] = await Promise.all([
+      const queries: Promise<any>[] = [
         supabase.from("profiles").select("id,full_name,avatar_url,fame_points")
           .order("fame_points", { ascending: false }).limit(8),
         supabase.from("groups").select("id,name,cover_url,member_count")
           .order("member_count", { ascending: false }).limit(8),
-      ]);
-      setSugPeople(p || []);
+      ];
+      if (userId) {
+        queries.push(supabase.from("friend_requests").select("receiver_id").eq("sender_id", userId));
+      }
+      const [{ data: p }, { data: c }, reqRes] = await Promise.all(queries);
+      setSugPeople((p || []).filter((x: any) => x.id !== userId));
       setSugCircles(c || []);
+      if (reqRes?.data) {
+        setSentRequests(new Set(reqRes.data.map((r: any) => r.receiver_id)));
+      }
     })();
-  }, []);
+  }, [userId]);
+
+  const handleAddFriend = async (e: React.MouseEvent, personId: string) => {
+    e.stopPropagation();
+    if (!userId || sentRequests.has(personId)) return;
+    setSentRequests((prev) => new Set([...prev, personId]));
+    await supabase.from("friend_requests").insert({
+      sender_id: userId,
+      receiver_id: personId,
+      status: "pending",
+    });
+  };
 
   // Debounced search
   const doSearch = useCallback(async (q: string) => {
@@ -165,11 +184,11 @@ const SearchModal = ({ onClose }: { onClose: () => void }) => {
       supabase.from("groups").select("id,name,cover_url,member_count,privacy").ilike("name", like).limit(8),
       supabase.from("posts").select("id,content,author,media_url,likes_count").ilike("content", like).limit(6),
     ]);
-    setPeople(p || []);
+    setPeople((p || []).filter((x: any) => x.id !== userId));
     setCircles(c || []);
     setPosts(ps || []);
     setLoading(false);
-  }, []);
+  }, [userId]);
 
   useEffect(() => {
     const t = setTimeout(() => doSearch(query), 300);
@@ -248,8 +267,17 @@ const SearchModal = ({ onClose }: { onClose: () => void }) => {
                         <p className="text-yellow-400/60 text-[10px]">⭐ {person.fame_points} fame</p>
                       )}
                     </div>
-                    <button className="px-3 py-1.5 bg-blue-600 rounded-xl text-[10px] font-black text-white active:scale-95 transition-transform shrink-0">
-                      + Add
+                    <button
+                      onClick={(e) => handleAddFriend(e, person.id)}
+                      disabled={sentRequests.has(person.id)}
+                      className={`px-4 py-2.5 rounded-xl text-sm font-extrabold active:scale-95 transition-all shrink-0 ${
+                        sentRequests.has(person.id)
+                          ? "bg-white/10 text-white/40"
+                          : "text-white shadow-lg"
+                      }`}
+                      style={sentRequests.has(person.id) ? {} : { background: "linear-gradient(135deg, #2563eb 0%, #4f46e5 100%)", boxShadow: "0 4px 14px rgba(79,70,229,0.5)" }}
+                    >
+                      {sentRequests.has(person.id) ? "Requested" : "+ Add Friend"}
                     </button>
                   </div>
                 ))}
@@ -332,8 +360,17 @@ const SearchModal = ({ onClose }: { onClose: () => void }) => {
                         <p className="text-yellow-400/60 text-[10px]">⭐ {person.fame_points} fame</p>
                       )}
                     </div>
-                    <button className="px-3 py-1.5 bg-white/10 border border-white/15 rounded-xl text-[10px] font-black text-white/70 active:scale-95 transition-transform shrink-0">
-                      + Add
+                    <button
+                      onClick={(e) => handleAddFriend(e, person.id)}
+                      disabled={sentRequests.has(person.id)}
+                      className={`px-4 py-2.5 rounded-xl text-sm font-extrabold active:scale-95 transition-all shrink-0 ${
+                        sentRequests.has(person.id)
+                          ? "bg-white/10 text-white/40"
+                          : "text-white shadow-lg"
+                      }`}
+                      style={sentRequests.has(person.id) ? {} : { background: "linear-gradient(135deg, #2563eb 0%, #4f46e5 100%)", boxShadow: "0 4px 14px rgba(79,70,229,0.5)" }}
+                    >
+                      {sentRequests.has(person.id) ? "Requested" : "+ Add Friend"}
                     </button>
                   </div>
                 ))}
@@ -572,7 +609,7 @@ const Header = ({
 
       {/* ── SEARCH MODAL ─────────────────────────────────────────────────── */}
       <AnimatePresence>
-        {showSearch && <SearchModal onClose={() => setShowSearch(false)} />}
+        {showSearch && <SearchModal onClose={() => setShowSearch(false)} userId={userId} />}
       </AnimatePresence>
 
       {/* ── NOTIFICATIONS DRAWER ─────────────────────────────────────────── */}
