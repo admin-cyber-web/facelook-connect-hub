@@ -59,7 +59,12 @@ const ImagePicker = ({ label, preview, onChange, aspectClass = "aspect-video", r
 };
 
 // ── Page Banner Card (used on landing) ────────────────────────────────────────
-const PageBannerCard = ({ pg, onClick, memberCount }: { pg: HookPage; onClick: () => void; memberCount: number }) => (
+const PageBannerCard = ({
+  pg, onClick, memberCount, isOwner, isFollowing, onToggleFollow,
+}: {
+  pg: HookPage; onClick: () => void; memberCount: number;
+  isOwner: boolean; isFollowing: boolean; onToggleFollow: (e: React.MouseEvent) => void;
+}) => (
   <motion.div whileTap={{ scale: 0.97 }} onClick={onClick}
     className="rounded-2xl overflow-hidden border border-gray-100 shadow-sm bg-white cursor-pointer"
   >
@@ -83,13 +88,29 @@ const PageBannerCard = ({ pg, onClick, memberCount }: { pg: HookPage; onClick: (
     <div className="pt-8 px-3 pb-3">
       <p className="font-black text-gray-800 text-[14px] truncate">{pg.name}</p>
       {pg.description && <p className="text-[11px] text-gray-500 font-medium leading-snug line-clamp-2 mt-0.5">{pg.description}</p>}
-      <div className="flex items-center gap-3 mt-2">
-        <span className="text-[10px] text-gray-400 font-bold flex items-center gap-1">
-          <Users size={10} className="text-blue-500" /> {memberCount} Followers
-        </span>
-        <span className="text-[10px] text-gray-400 font-bold flex items-center gap-1">
-          <Anchor size={10} className="text-purple-500" /> {pg.hook_count} Hooks
-        </span>
+      <div className="flex items-center justify-between mt-2">
+        <div className="flex items-center gap-3">
+          <span className="text-[10px] text-gray-400 font-bold flex items-center gap-1">
+            <Users size={10} className="text-blue-500" /> {memberCount} Followers
+          </span>
+          <span className="text-[10px] text-gray-400 font-bold flex items-center gap-1">
+            <Anchor size={10} className="text-purple-500" /> {pg.hook_count} Hooks
+          </span>
+        </div>
+        {!isOwner && (
+          <motion.button
+            whileTap={{ scale: 0.9 }}
+            onClick={onToggleFollow}
+            className="px-3 py-1 rounded-lg text-[11px] font-black border transition-all"
+            style={{
+              background: isFollowing ? "white" : "linear-gradient(135deg,#2563eb,#7c3aed)",
+              borderColor: isFollowing ? "#d1d5db" : "transparent",
+              color: isFollowing ? "#374151" : "white",
+            }}
+          >
+            {isFollowing ? "✓ Joined" : "+ Join"}
+          </motion.button>
+        )}
       </div>
     </div>
   </motion.div>
@@ -454,16 +475,17 @@ const StatCard = ({ icon, label, value, color }: { icon: React.ReactNode; label:
 );
 
 // ── Page Dashboard ────────────────────────────────────────────────────────────
-const PageDashboard = ({ page, userId, onBack, onPageUpdated }:
-  { page: HookPage; userId: string; onBack: () => void; onPageUpdated: (p: HookPage) => void }) => {
+const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing = false, initialMemberCount = 0 }:
+  { page: HookPage; userId: string; onBack: () => void; onPageUpdated: (p: HookPage) => void;
+    initialIsFollowing?: boolean; initialMemberCount?: number }) => {
   const [posts, setPosts]         = useState<PagePost[]>([]);
   const [loading, setLoading]     = useState(true);
   const [hookModal, setHookModal] = useState(false);
   const [shareModal, setShareModal] = useState(false);
   const [addPost, setAddPost]     = useState(false);
   const [livePage, setLivePage]   = useState<HookPage>(page);
-  const [memberCount, setMemberCount] = useState(0);
-  const [isFollowing, setIsFollowing] = useState(false);
+  const [memberCount, setMemberCount] = useState(initialMemberCount);
+  const [isFollowing, setIsFollowing] = useState(initialIsFollowing);
 
   const fetchPosts = async () => {
     setLoading(true);
@@ -651,12 +673,13 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated }:
 const HooksHub = ({ userId }: { userId: string }) => {
   const [myPages, setMyPages]       = useState<HookPage[]>([]);
   const [suggested, setSuggested]   = useState<HookPage[]>([]);
-  const [memberCounts, setMemberCounts] = useState<Record<string, number>>({});
+  const [memberCounts, setMemberCounts]   = useState<Record<string, number>>({});
+  const [followingPages, setFollowingPages] = useState<Record<string, boolean>>({});
   const [loading, setLoading]       = useState(true);
   const [activePage, setActivePage] = useState<HookPage | null>(null);
   const [showCreate, setShowCreate] = useState(false);
 
-  const fetchPages = async () => {
+  const fetchPages = useCallback(async () => {
     setLoading(true);
     const [{ data: mine }, { data: all }] = await Promise.all([
       supabase.from("hook_pages").select("*").eq("owner_id", userId).order("created_at", { ascending: false }),
@@ -666,33 +689,69 @@ const HooksHub = ({ userId }: { userId: string }) => {
     setMyPages(mine || []);
     setSuggested(all || []);
 
-    // Fetch real member counts for all pages
     if (pages.length) {
       const ids = pages.map(p => p.id);
+      // Fetch real member counts + current user's follow status in parallel
+      const [countsArr, { data: myFollows }] = await Promise.all([
+        Promise.all(ids.map(async id => {
+          const { count } = await supabase
+            .from("hook_members")
+            .select("id", { count: "exact", head: true })
+            .eq("page_id", id);
+          return { id, count: count || 0 };
+        })),
+        supabase.from("hook_members").select("page_id").eq("user_id", userId).in("page_id", ids),
+      ]);
       const counts: Record<string, number> = {};
-      await Promise.all(ids.map(async id => {
-        const { count } = await supabase.from("hook_members").select("id", { count: "exact", head: true }).eq("page_id", id);
-        counts[id] = count || 0;
-      }));
+      countsArr.forEach(({ id, count }) => { counts[id] = count; });
       setMemberCounts(counts);
+
+      const following: Record<string, boolean> = {};
+      (myFollows || []).forEach(row => { following[row.page_id] = true; });
+      setFollowingPages(following);
     }
     setLoading(false);
+  }, [userId]);
+
+  // Toggle follow directly from the card on the listing screen
+  const toggleFollowOnCard = async (e: React.MouseEvent, pg: HookPage) => {
+    e.stopPropagation();
+    const already = !!followingPages[pg.id];
+    // Optimistic update
+    setFollowingPages(prev => ({ ...prev, [pg.id]: !already }));
+    setMemberCounts(prev => ({ ...prev, [pg.id]: Math.max(0, (prev[pg.id] || 0) + (already ? -1 : 1)) }));
+    if (already) {
+      await supabase.from("hook_members").delete().eq("page_id", pg.id).eq("user_id", userId);
+    } else {
+      await supabase.from("hook_members").upsert([{ page_id: pg.id, user_id: userId }], { onConflict: "page_id,user_id" });
+    }
+    // Refresh real count from DB to confirm
+    const { count } = await supabase
+      .from("hook_members")
+      .select("id", { count: "exact", head: true })
+      .eq("page_id", pg.id);
+    setMemberCounts(prev => ({ ...prev, [pg.id]: count || 0 }));
   };
 
   useEffect(() => {
     fetchPages();
-    // Real-time: any member join/leave updates counts
+    // Real-time: any member join/leave refreshes counts
     const ch = supabase.channel("hook-hub-members")
       .on("postgres_changes", { event: "*", schema: "public", table: "hook_members" }, () => fetchPages())
       .subscribe();
     return () => { supabase.removeChannel(ch); };
-  }, [userId]);
+  }, [userId, fetchPages]);
 
   if (activePage) {
     return (
-      <PageDashboard page={activePage} userId={userId}
+      <PageDashboard
+        page={activePage}
+        userId={userId}
+        initialIsFollowing={!!followingPages[activePage.id]}
+        initialMemberCount={memberCounts[activePage.id] || 0}
         onBack={() => { setActivePage(null); fetchPages(); }}
-        onPageUpdated={updated => setActivePage(updated)} />
+        onPageUpdated={updated => setActivePage(updated)}
+      />
     );
   }
 
@@ -731,7 +790,13 @@ const HooksHub = ({ userId }: { userId: string }) => {
               </div>
               <div className="grid grid-cols-1 gap-3 px-4">
                 {myPages.map(pg => (
-                  <PageBannerCard key={pg.id} pg={pg} onClick={() => setActivePage(pg)} memberCount={memberCounts[pg.id] || 0} />
+                  <PageBannerCard
+                    key={pg.id} pg={pg} onClick={() => setActivePage(pg)}
+                    memberCount={memberCounts[pg.id] || 0}
+                    isOwner={true}
+                    isFollowing={false}
+                    onToggleFollow={e => toggleFollowOnCard(e, pg)}
+                  />
                 ))}
               </div>
             </section>
@@ -764,7 +829,13 @@ const HooksHub = ({ userId }: { userId: string }) => {
               </div>
               <div className="grid grid-cols-2 gap-3 px-4">
                 {suggested.map(pg => (
-                  <PageBannerCard key={pg.id} pg={pg} onClick={() => setActivePage(pg)} memberCount={memberCounts[pg.id] || 0} />
+                  <PageBannerCard
+                    key={pg.id} pg={pg} onClick={() => setActivePage(pg)}
+                    memberCount={memberCounts[pg.id] || 0}
+                    isOwner={false}
+                    isFollowing={!!followingPages[pg.id]}
+                    onToggleFollow={e => toggleFollowOnCard(e, pg)}
+                  />
                 ))}
               </div>
             </section>

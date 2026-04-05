@@ -71,4 +71,10 @@ CREATE POLICY "Update hook_invites"         ON hook_invites    FOR UPDATE USING 
 
 CREATE POLICY "Public read hook_members"    ON hook_members    FOR SELECT USING (true);
 CREATE POLICY "Self insert hook_members"    ON hook_members    FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Self update hook_members"    ON hook_members    FOR UPDATE USING (auth.uid() = user_id);
 CREATE POLICY "Self delete hook_members"    ON hook_members    FOR DELETE USING (auth.uid() = user_id);
+
+-- page_followers is an alias view of hook_members (page_id + user_id = follower relationship)
+-- The hook_members table IS the followers/join table. No separate page_followers table needed.
+-- To query followers of a page: SELECT count(*) FROM hook_members WHERE page_id = '<page_uuid>';
+-- To check if user is following: SELECT id FROM hook_members WHERE page_id = '<page_uuid>' AND user_id = '<user_uuid>';
