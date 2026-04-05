@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { motion, AnimatePresence } from "framer-motion";
+import { toast } from "sonner";
 import {
   Plus, Users, Lock, Globe, ChevronLeft, Settings, Send,
   Heart, Camera, Shield, X, Check, ImageIcon, Loader2, Trash2,
@@ -16,6 +17,7 @@ interface Group {
   rules: string | null;
   post_approval: boolean;
   created_by: string | null;
+  admin_id?: string | null;
   member_count?: number;
 }
 
@@ -148,7 +150,14 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
 
   // ── Create Group ─────────────────────────────────────────────────────────────
   const handleCreateGroup = async () => {
-    if (!form.name.trim() || !currentUserId) return;
+    if (!form.name.trim()) return;
+
+    // Authentication check
+    if (!currentUserId) {
+      toast.error("Please log in to create a Circle.");
+      return;
+    }
+
     setCreating(true);
     try {
       let cover_url: string | null = null;
@@ -164,20 +173,45 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
 
       const { data: newGroup, error } = await supabase
         .from("groups")
-        .insert([{ name: form.name.trim(), description: form.description.trim(), privacy: form.privacy, cover_url, created_by: currentUserId, member_count: 1 }])
+        .insert([{
+          name: form.name.trim(),
+          description: form.description.trim() || null,
+          privacy: form.privacy,
+          cover_url,
+          created_by: currentUserId,
+          admin_id: currentUserId,
+        }])
         .select()
         .single();
 
-      if (!error && newGroup) {
-        await supabase.from("group_members").insert([{ group_id: newGroup.id, user_id: currentUserId, role: "admin" }]);
+      if (error) {
+        toast.error(`Failed to create Circle: ${error.message}`);
+        return;
+      }
+
+      if (newGroup) {
+        // Add creator as admin member
+        await supabase.from("group_members").insert([{
+          group_id: newGroup.id,
+          user_id: currentUserId,
+          role: "admin",
+        }]);
+
+        // Sync display immediately — add to state without page refresh
+        const createdGroup: Group = { ...newGroup, member_count: 1 };
+        setGroups(prev => [createdGroup, ...prev]);
         setMyGroupIds(prev => new Set([...prev, newGroup.id]));
+
+        // Reset form & close modal
         setForm({ name: "", description: "", privacy: "public" });
         setCoverFile(null);
         setCoverPreview(null);
         setShowCreate(false);
-        fetchGroups();
-        fetchMyMemberships();
+
+        toast.success("Circle created successfully!");
       }
+    } catch (err: any) {
+      toast.error(err?.message || "Something went wrong. Please try again.");
     } finally {
       setCreating(false);
     }
