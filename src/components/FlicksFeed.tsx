@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, memo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "../lib/supabaseClient";
+import { useProfileViewer } from "../context/ProfileViewerContext";
 import {
   Heart,
   MessageCircle,
@@ -89,6 +90,7 @@ const FlickCard = memo(
     const [isMuted, setIsMuted] = useState(false);
     const [liked, setLiked] = useState(false);
     const [menuOpen, setMenuOpen] = useState(false);
+    const { openProfile } = useProfileViewer();
 
     useEffect(() => {
       if (videoRef.current) {
@@ -223,7 +225,10 @@ const FlickCard = memo(
         {/* Right Sidebar Actions */}
         <div className="absolute right-3 bottom-24 flex flex-col items-center gap-6 z-40 text-white">
           <div className="relative mb-2">
-            <div className="w-12 h-12 rounded-full border-2 border-white bg-zinc-800 flex items-center justify-center font-bold text-lg overflow-hidden shadow-xl">
+            <div
+              className="w-12 h-12 rounded-full border-2 border-white bg-zinc-800 flex items-center justify-center font-bold text-lg overflow-hidden shadow-xl cursor-pointer"
+              onClick={(e) => { e.stopPropagation(); if (post.author_id) openProfile(post.author_id); }}
+            >
               {post.author ? post.author[0].toUpperCase() : "V"}
             </div>
             <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-[#ff2d55] rounded-full p-0.5 border-2 border-black">
@@ -271,7 +276,10 @@ const FlickCard = memo(
         {/* Bottom Content */}
         <div className="absolute bottom-8 left-4 right-16 text-white z-40 pointer-events-none">
           <div className="flex items-center gap-2 mb-2">
-            <h3 className="font-bold text-base drop-shadow-lg">
+            <h3
+              className="font-bold text-base drop-shadow-lg cursor-pointer pointer-events-auto"
+              onClick={(e) => { e.stopPropagation(); if (post.author_id) openProfile(post.author_id); }}
+            >
               @{post.author || "vibe_user"}
             </h3>
             <span className="bg-blue-500 p-0.5 rounded-full shadow-lg">

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "../lib/supabaseClient";
+import { useProfileViewer } from "../context/ProfileViewerContext";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import {
@@ -94,6 +95,7 @@ interface Props {
 }
 
 export default function CirclePage({ userProfile, currentUserId }: Props) {
+  const { openProfile } = useProfileViewer();
   const [view, setView] = useState<"dashboard" | "group">("dashboard");
   const [groups, setGroups] = useState<Group[]>([]);
   const [myGroupIds, setMyGroupIds] = useState<Set<string>>(new Set());
@@ -380,8 +382,11 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
             <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
               {groupMembers.map((m: any) => (
                 <div key={m.id} className="flex-shrink-0 flex flex-col items-center gap-1">
-                  <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-black text-sm overflow-hidden border-2 border-white shadow-sm"
-                    style={{ boxShadow: m.role === "admin" ? "0 0 0 2px #f59e0b" : undefined }}>
+                  <div
+                    className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-black text-sm overflow-hidden border-2 border-white shadow-sm cursor-pointer"
+                    style={{ boxShadow: m.role === "admin" ? "0 0 0 2px #f59e0b" : undefined }}
+                    onClick={() => m.user_id && openProfile(m.user_id)}
+                  >
                     {m.profiles?.avatar_url ? (
                       <img src={m.profiles.avatar_url} className="w-full h-full object-cover" alt="" />
                     ) : (

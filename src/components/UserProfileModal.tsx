@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "../lib/supabaseClient";
 import { X, MapPin, GraduationCap, UserPlus, MessageCircle, Check, Users } from "lucide-react";
+import { useProfileViewer } from "../context/ProfileViewerContext";
 
 interface Props {
   userId: string;
@@ -25,6 +26,7 @@ interface Friend {
 }
 
 const UserProfileModal = ({ userId, currentUserId, onClose }: Props) => {
+  const { openProfile } = useProfileViewer();
   const [profile, setProfile]         = useState<ProfileData | null>(null);
   const [friends, setFriends]         = useState<Friend[]>([]);
   const [postCount, setPostCount]     = useState(0);
@@ -207,7 +209,7 @@ const UserProfileModal = ({ userId, currentUserId, onClose }: Props) => {
                     </div>
                     <div className="grid grid-cols-4 gap-3">
                       {friends.slice(0, 12).map((f) => (
-                        <div key={f.id} className="flex flex-col items-center gap-1">
+                        <div key={f.id} className="flex flex-col items-center gap-1 cursor-pointer" onClick={() => { onClose(); setTimeout(() => openProfile(f.id), 150); }}>
                           <div className="w-14 h-14 rounded-2xl overflow-hidden bg-blue-100 border border-gray-100 shadow-sm">
                             {f.avatar_url ? (
                               <img src={f.avatar_url} className="w-full h-full object-cover" alt={f.full_name} />

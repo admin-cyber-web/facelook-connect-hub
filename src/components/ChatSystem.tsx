@@ -4,6 +4,7 @@ import React, {
   useRef,
   useCallback,
 } from "react";
+import { useProfileViewer } from "../context/ProfileViewerContext";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Search,
@@ -124,6 +125,7 @@ const MediaBubble = ({ url, type }: { url: string; type: string }) => {
 
 // ── Main Component ─────────────────────────────────────────────────────────────
 const ChatSystem: React.FC<ChatSystemProps> = ({ isOpen, onClose, userId }) => {
+  const { openProfile } = useProfileViewer();
   // Sidebar tab
   const [sidebarTab, setSidebarTab] = useState<"chats" | "requests">("chats");
 
@@ -898,8 +900,10 @@ const ChatSystem: React.FC<ChatSystemProps> = ({ isOpen, onClose, userId }) => {
                   >
                     <ChevronLeft size={18} />
                   </button>
-                  <Avatar url={selectedUser.avatar_url} name={selectedUser.full_name} size="sm" />
-                  <div className="flex-1 min-w-0">
+                  <div className="cursor-pointer" onClick={() => selectedUser.id && openProfile(selectedUser.id)}>
+                    <Avatar url={selectedUser.avatar_url} name={selectedUser.full_name} size="sm" />
+                  </div>
+                  <div className="flex-1 min-w-0 cursor-pointer" onClick={() => selectedUser.id && openProfile(selectedUser.id)}>
                     <p className="text-sm font-black text-white truncate">{selectedUser.full_name}</p>
                     <p className="text-[10px] text-white/40">@{selectedUser.username}</p>
                   </div>

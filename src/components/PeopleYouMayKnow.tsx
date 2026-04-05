@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { UserPlus } from "lucide-react";
+import { useProfileViewer } from "@/context/ProfileViewerContext";
 
 interface Profile {
   id: string;
@@ -15,6 +16,7 @@ interface Props {
 
 export default function PeopleYouMayKnow({ currentUserId }: Props) {
   const [people, setPeople] = useState<Profile[]>([]);
+  const { openProfile } = useProfileViewer();
 
   useEffect(() => {
     async function fetchPeople() {
@@ -44,8 +46,9 @@ export default function PeopleYouMayKnow({ currentUserId }: Props) {
         {people.slice(0, 3).map((person) => (
           <div
             key={person.id}
-            className="bg-white rounded-xl flex flex-col items-center overflow-hidden shadow-sm"
+            className="bg-white rounded-xl flex flex-col items-center overflow-hidden shadow-sm cursor-pointer"
             style={{ boxShadow: "0 1px 6px rgba(0,0,0,0.07)" }}
+            onClick={() => openProfile(person.id)}
           >
             {/* Square profile photo */}
             <div className="w-full aspect-square bg-gradient-to-br from-blue-400 to-indigo-600 overflow-hidden">
