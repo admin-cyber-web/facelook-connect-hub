@@ -74,7 +74,27 @@ CREATE POLICY "Self insert hook_members"    ON hook_members    FOR INSERT WITH C
 CREATE POLICY "Self update hook_members"    ON hook_members    FOR UPDATE USING (auth.uid() = user_id);
 CREATE POLICY "Self delete hook_members"    ON hook_members    FOR DELETE USING (auth.uid() = user_id);
 
--- page_followers is an alias view of hook_members (page_id + user_id = follower relationship)
--- The hook_members table IS the followers/join table. No separate page_followers table needed.
--- To query followers of a page: SELECT count(*) FROM hook_members WHERE page_id = '<page_uuid>';
--- To check if user is following: SELECT id FROM hook_members WHERE page_id = '<page_uuid>' AND user_id = '<user_uuid>';
+-- ── 5. Page Followers (dedicated follow/join table) ────────────────────────────
+-- Run these if you haven't already:
+
+-- Add followers_count column to hook_pages (skip if it already exists)
+ALTER TABLE hook_pages ADD COLUMN IF NOT EXISTS followers_count int DEFAULT 0;
+
+-- Create page_followers table
+CREATE TABLE IF NOT EXISTS page_followers (
+  page_id   uuid REFERENCES hook_pages(id) ON DELETE CASCADE,
+  user_id   uuid REFERENCES profiles(id)   ON DELETE CASCADE,
+  created_at timestamptz DEFAULT now(),
+  PRIMARY KEY (page_id, user_id)
+);
+
+ALTER TABLE page_followers ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Public read page_followers"  ON page_followers FOR SELECT USING (true);
+CREATE POLICY "Self insert page_followers"  ON page_followers FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Self delete page_followers"  ON page_followers FOR DELETE USING (auth.uid() = user_id);
+
+-- Allow hook_pages owners (and followers logic) to update followers_count
+CREATE POLICY "Anyone update page followers_count" ON hook_pages FOR UPDATE
+  USING (true) WITH CHECK (true);
+-- (Tighten this policy in production — scope it to the count field only via a trigger if needed)

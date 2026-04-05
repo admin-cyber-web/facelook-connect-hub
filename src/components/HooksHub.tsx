@@ -6,6 +6,7 @@ import {
   DollarSign, Send, CheckSquare, Square, Loader2, Star,
   ChevronRight, Zap, Share2, Copy, MessageCircle, Upload,
   PlayCircle, Image as ImgIcon, Video as VideoIcon, Check,
+  AlertTriangle,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -486,6 +487,8 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
   const [livePage, setLivePage]   = useState<HookPage>(page);
   const [memberCount, setMemberCount] = useState(initialMemberCount);
   const [isFollowing, setIsFollowing] = useState(initialIsFollowing);
+  const [followError, setFollowError] = useState<string | null>(null);
+  const [followLoading, setFollowLoading] = useState(false);
 
   const fetchPosts = async () => {
     setLoading(true);
@@ -499,31 +502,91 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
     if (data) { setLivePage(data as HookPage); onPageUpdated(data as HookPage); }
   };
 
-  const fetchMemberCount = async () => {
-    const { count } = await supabase.from("hook_members").select("id", { count: "exact", head: true }).eq("page_id", page.id);
-    setMemberCount(count || 0);
-    const { data: myRow } = await supabase.from("hook_members").select("id").eq("page_id", page.id).eq("user_id", userId).maybeSingle();
-    setIsFollowing(!!myRow);
+  const fetchFollowData = async () => {
+    setFollowError(null);
+    // 1. Get authoritative followers_count from hook_pages
+    const { data: pg, error: pgErr } = await supabase
+      .from("hook_pages").select("followers_count").eq("id", page.id).single();
+    if (pgErr) {
+      const msg = pgErr.code === "42703"
+        ? "followers_count column missing — run latest SQL migration."
+        : `Count fetch failed: ${pgErr.message}`;
+      setFollowError(msg);
+      console.error("[HooksHub] fetchFollowData page error:", pgErr);
+    } else {
+      setMemberCount((pg as any).followers_count ?? 0);
+    }
+    // 2. Check if current user is a follower in page_followers
+    const { data: myRow, error: pfErr } = await supabase
+      .from("page_followers")
+      .select("user_id")
+      .eq("page_id", page.id)
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (pfErr) {
+      const msg = pfErr.code === "42P01"
+        ? "page_followers table missing — run SQL: CREATE TABLE page_followers (page_id uuid, user_id uuid, UNIQUE(page_id,user_id));"
+        : pfErr.code === "42501" || pfErr.code === "PGRST116"
+        ? "RLS policy blocking read on page_followers — check Supabase policies."
+        : `Follow status fetch failed: ${pfErr.message}`;
+      setFollowError(msg);
+      console.error("[HooksHub] fetchFollowData follower error:", pfErr);
+    } else {
+      setIsFollowing(!!myRow);
+    }
   };
 
   useEffect(() => {
-    fetchPosts(); fetchMemberCount();
-
-    // Real-time subscription for member count
-    const ch = supabase.channel(`hook-members-${page.id}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "hook_members", filter: `page_id=eq.${page.id}` },
-        () => fetchMemberCount())
+    fetchPosts();
+    fetchFollowData();
+    // Real-time: watch page_followers for this page
+    const ch = supabase.channel(`page-followers-${page.id}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "page_followers",
+        filter: `page_id=eq.${page.id}` }, () => fetchFollowData())
       .subscribe();
     return () => { supabase.removeChannel(ch); };
   }, [page.id]);
 
   const toggleFollow = async () => {
-    if (isFollowing) {
-      await supabase.from("hook_members").delete().eq("page_id", page.id).eq("user_id", userId);
-      setIsFollowing(false); setMemberCount(p => Math.max(0, p - 1));
-    } else {
-      await supabase.from("hook_members").upsert([{ page_id: page.id, user_id: userId }], { onConflict: "page_id,user_id" });
-      setIsFollowing(true); setMemberCount(p => p + 1);
+    if (followLoading) return;
+    setFollowLoading(true);
+    setFollowError(null);
+    const wasFollowing = isFollowing;
+    // Optimistic update
+    setIsFollowing(!wasFollowing);
+    setMemberCount(p => Math.max(0, p + (wasFollowing ? -1 : 1)));
+    try {
+      if (wasFollowing) {
+        const { error } = await supabase.from("page_followers")
+          .delete().eq("page_id", page.id).eq("user_id", userId);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("page_followers")
+          .upsert([{ page_id: page.id, user_id: userId }], { onConflict: "page_id,user_id" });
+        if (error) throw error;
+      }
+      // Sync count from DB and update hook_pages.followers_count
+      const { count, error: cErr } = await supabase
+        .from("page_followers").select("user_id", { count: "exact", head: true })
+        .eq("page_id", page.id);
+      if (!cErr) {
+        const trueCount = count ?? 0;
+        setMemberCount(trueCount);
+        await supabase.from("hook_pages").update({ followers_count: trueCount }).eq("id", page.id);
+      }
+    } catch (err: any) {
+      // Rollback optimistic update
+      setIsFollowing(wasFollowing);
+      setMemberCount(p => Math.max(0, p + (wasFollowing ? 1 : -1)));
+      const msg = err?.code === "42P01"
+        ? "page_followers table nahi mili. Supabase mein SQL migration run karo."
+        : err?.code === "42501"
+        ? "Permission denied — check RLS policies on page_followers."
+        : `Follow failed: ${err?.message || "Unknown error"}`;
+      setFollowError(msg);
+      console.error("[HooksHub] toggleFollow error:", err);
+    } finally {
+      setFollowLoading(false);
     }
   };
 
@@ -566,14 +629,19 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
             {/* Action buttons */}
             <div className="flex items-center gap-2 pb-1">
               {!isOwner && (
-                <motion.button whileTap={{ scale: 0.93 }} onClick={toggleFollow}
-                  className="px-4 py-2 rounded-xl text-[12px] font-black border-2 transition-all"
+                <motion.button
+                  whileTap={{ scale: followLoading ? 1 : 0.93 }}
+                  onClick={toggleFollow}
+                  disabled={followLoading}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-[12px] font-black border-2 transition-all disabled:opacity-60"
                   style={{
                     background: isFollowing ? "white" : "linear-gradient(135deg,#2563eb,#7c3aed)",
                     borderColor: isFollowing ? "#d1d5db" : "transparent",
                     color: isFollowing ? "#374151" : "white",
                   }}>
-                  {isFollowing ? "✓ Following" : "+ Follow"}
+                  {followLoading
+                    ? <><Loader2 size={12} className="animate-spin" /> Saving…</>
+                    : isFollowing ? "✓ Following" : "+ Follow"}
                 </motion.button>
               )}
               {isOwner && (
@@ -600,7 +668,15 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
           <p className="text-[11px] text-blue-600 font-bold mt-0.5">{livePage.category}</p>
           {livePage.description && <p className="text-[13px] text-gray-500 font-medium leading-snug mt-1 mb-2">{livePage.description}</p>}
 
-          {/* Stats Row */}
+          {/* DB Error Banner */}
+          {followError && (
+            <div className="flex items-start gap-2 mt-2 mb-2 px-3 py-2.5 rounded-xl bg-red-50 border border-red-200">
+              <AlertTriangle size={14} className="text-red-500 mt-0.5 shrink-0" />
+              <p className="text-[11px] text-red-700 font-semibold leading-snug">{followError}</p>
+            </div>
+          )}
+
+          {/* Stats Row — Followers from hook_pages.followers_count */}
           <div className="flex gap-2 mt-3 mb-4">
             <StatCard icon={<Users size={18} className="text-blue-600" />}    label="Followers" value={memberCount}              color="bg-blue-50" />
             <StatCard icon={<Anchor size={18} className="text-purple-600" />} label="Hooks"     value={livePage.hook_count || 0} color="bg-purple-50" />
@@ -671,73 +747,105 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
 
 // ── Main HooksHub ──────────────────────────────────────────────────────────────
 const HooksHub = ({ userId }: { userId: string }) => {
-  const [myPages, setMyPages]       = useState<HookPage[]>([]);
-  const [suggested, setSuggested]   = useState<HookPage[]>([]);
-  const [memberCounts, setMemberCounts]   = useState<Record<string, number>>({});
+  const [myPages, setMyPages]           = useState<HookPage[]>([]);
+  const [suggested, setSuggested]       = useState<HookPage[]>([]);
+  const [memberCounts, setMemberCounts] = useState<Record<string, number>>({});
   const [followingPages, setFollowingPages] = useState<Record<string, boolean>>({});
-  const [loading, setLoading]       = useState(true);
-  const [activePage, setActivePage] = useState<HookPage | null>(null);
-  const [showCreate, setShowCreate] = useState(false);
+  const [loading, setLoading]           = useState(true);
+  const [dbError, setDbError]           = useState<string | null>(null);
+  const [activePage, setActivePage]     = useState<HookPage | null>(null);
+  const [showCreate, setShowCreate]     = useState(false);
 
   const fetchPages = useCallback(async () => {
     setLoading(true);
-    const [{ data: mine }, { data: all }] = await Promise.all([
+    setDbError(null);
+    const [{ data: mine, error: mErr }, { data: all, error: aErr }] = await Promise.all([
       supabase.from("hook_pages").select("*").eq("owner_id", userId).order("created_at", { ascending: false }),
       supabase.from("hook_pages").select("*").neq("owner_id", userId).order("hook_count", { ascending: false }).limit(12),
     ]);
+    if (mErr || aErr) {
+      const e = mErr || aErr;
+      setDbError(`Pages fetch failed: ${e?.message} (code: ${e?.code})`);
+      console.error("[HooksHub] fetchPages error:", e);
+      setLoading(false);
+      return;
+    }
     const pages = [...(mine || []), ...(all || [])];
     setMyPages(mine || []);
     setSuggested(all || []);
 
     if (pages.length) {
       const ids = pages.map(p => p.id);
-      // Fetch real member counts + current user's follow status in parallel
-      const [countsArr, { data: myFollows }] = await Promise.all([
-        Promise.all(ids.map(async id => {
-          const { count } = await supabase
-            .from("hook_members")
-            .select("id", { count: "exact", head: true })
-            .eq("page_id", id);
-          return { id, count: count || 0 };
-        })),
-        supabase.from("hook_members").select("page_id").eq("user_id", userId).in("page_id", ids),
-      ]);
+      // followers_count comes directly from hook_pages.* — no extra count query needed
       const counts: Record<string, number> = {};
-      countsArr.forEach(({ id, count }) => { counts[id] = count; });
+      pages.forEach(p => { counts[p.id] = (p as any).followers_count ?? p.follower_count ?? 0; });
       setMemberCounts(counts);
 
-      const following: Record<string, boolean> = {};
-      (myFollows || []).forEach(row => { following[row.page_id] = true; });
-      setFollowingPages(following);
+      // Check which pages the current user follows from page_followers
+      const { data: myFollows, error: pfErr } = await supabase
+        .from("page_followers")
+        .select("page_id")
+        .eq("user_id", userId)
+        .in("page_id", ids);
+      if (pfErr) {
+        const msg = pfErr.code === "42P01"
+          ? "page_followers table missing — run SQL migration in Supabase."
+          : `Follow status load failed: ${pfErr.message} (code: ${pfErr.code})`;
+        setDbError(msg);
+        console.error("[HooksHub] fetchPages follow status error:", pfErr);
+      } else {
+        const following: Record<string, boolean> = {};
+        (myFollows || []).forEach(row => { following[row.page_id] = true; });
+        setFollowingPages(following);
+      }
     }
     setLoading(false);
   }, [userId]);
 
-  // Toggle follow directly from the card on the listing screen
+  // Toggle follow directly from the listing card
   const toggleFollowOnCard = async (e: React.MouseEvent, pg: HookPage) => {
     e.stopPropagation();
     const already = !!followingPages[pg.id];
+    const prevCount = memberCounts[pg.id] || 0;
     // Optimistic update
     setFollowingPages(prev => ({ ...prev, [pg.id]: !already }));
-    setMemberCounts(prev => ({ ...prev, [pg.id]: Math.max(0, (prev[pg.id] || 0) + (already ? -1 : 1)) }));
-    if (already) {
-      await supabase.from("hook_members").delete().eq("page_id", pg.id).eq("user_id", userId);
-    } else {
-      await supabase.from("hook_members").upsert([{ page_id: pg.id, user_id: userId }], { onConflict: "page_id,user_id" });
+    setMemberCounts(prev => ({ ...prev, [pg.id]: Math.max(0, prevCount + (already ? -1 : 1)) }));
+    try {
+      if (already) {
+        const { error } = await supabase.from("page_followers")
+          .delete().eq("page_id", pg.id).eq("user_id", userId);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("page_followers")
+          .upsert([{ page_id: pg.id, user_id: userId }], { onConflict: "page_id,user_id" });
+        if (error) throw error;
+      }
+      // Get real count and sync it to hook_pages.followers_count
+      const { count, error: cErr } = await supabase
+        .from("page_followers").select("user_id", { count: "exact", head: true })
+        .eq("page_id", pg.id);
+      if (!cErr) {
+        const trueCount = count ?? 0;
+        setMemberCounts(prev => ({ ...prev, [pg.id]: trueCount }));
+        await supabase.from("hook_pages").update({ followers_count: trueCount }).eq("id", pg.id);
+      }
+    } catch (err: any) {
+      // Rollback
+      setFollowingPages(prev => ({ ...prev, [pg.id]: already }));
+      setMemberCounts(prev => ({ ...prev, [pg.id]: prevCount }));
+      const msg = err?.code === "42P01"
+        ? "page_followers table missing — run SQL migration."
+        : `Follow failed: ${err?.message || "Unknown error"} (code: ${err?.code})`;
+      setDbError(msg);
+      console.error("[HooksHub] toggleFollowOnCard error:", err);
     }
-    // Refresh real count from DB to confirm
-    const { count } = await supabase
-      .from("hook_members")
-      .select("id", { count: "exact", head: true })
-      .eq("page_id", pg.id);
-    setMemberCounts(prev => ({ ...prev, [pg.id]: count || 0 }));
   };
 
   useEffect(() => {
     fetchPages();
-    // Real-time: any member join/leave refreshes counts
-    const ch = supabase.channel("hook-hub-members")
-      .on("postgres_changes", { event: "*", schema: "public", table: "hook_members" }, () => fetchPages())
+    // Real-time: any follow/unfollow refreshes the listing
+    const ch = supabase.channel("hub-page-followers")
+      .on("postgres_changes", { event: "*", schema: "public", table: "page_followers" }, () => fetchPages())
       .subscribe();
     return () => { supabase.removeChannel(ch); };
   }, [userId, fetchPages]);
@@ -776,6 +884,20 @@ const HooksHub = ({ userId }: { userId: string }) => {
           </motion.button>
         </div>
       </div>
+
+      {/* DB Error Banner */}
+      {dbError && (
+        <div className="mx-4 mt-3 flex items-start gap-2 px-3 py-3 rounded-xl bg-red-50 border border-red-200">
+          <AlertTriangle size={15} className="text-red-500 mt-0.5 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-[11px] font-black text-red-700 mb-0.5">Database Error</p>
+            <p className="text-[11px] text-red-600 font-medium leading-snug break-all">{dbError}</p>
+          </div>
+          <button onClick={() => setDbError(null)} className="text-red-400 hover:text-red-600 shrink-0">
+            <X size={14} />
+          </button>
+        </div>
+      )}
 
       {loading && <div className="flex justify-center py-16"><Loader2 size={28} className="animate-spin text-blue-500" /></div>}
 
