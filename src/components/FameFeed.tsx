@@ -1,8 +1,9 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { supabase } from "../lib/supabaseClient";
 import {
   Send, Heart, MessageCircle, Share2, MoreVertical,
   Loader2, Trash2, EyeOff, Flag, X, Volume2, VolumeX, Image as ImageIcon,
+  Play, Eye, Users,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -90,6 +91,166 @@ const PostCaption = ({ content }: { content: string }) => {
   );
 };
 
+// ── Stable hash helper (deterministic fake view counts) ───────────────────────
+function hashNum(id: string, max: number): number {
+  let h = 5381;
+  for (let i = 0; i < id.length; i++) h = ((h << 5) + h) ^ id.charCodeAt(i);
+  return Math.abs(h) % max;
+}
+function fmtViews(n: number): string {
+  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
+  if (n >= 1000) return (n / 1000).toFixed(1) + "K";
+  return String(n);
+}
+
+// ── Trending Reels Row ─────────────────────────────────────────────────────────
+const REEL_GRADS = ["#ec4899","#f59e0b","#10b981","#3b82f6","#8b5cf6","#ef4444","#06b6d4","#f97316","#84cc16"];
+
+const TrendingReelsRow = ({ posts }: { posts: any[] }) => {
+  if (!posts.length) return null;
+  return (
+    <div className="bg-white py-3">
+      <p className="text-[12px] font-black text-gray-700 px-4 mb-2">🔥 Trending Reels</p>
+      <div className="flex gap-2.5 overflow-x-auto px-4 pb-1 no-scrollbar">
+        {posts.map((post, i) => {
+          const views = fmtViews(hashNum(post.id, 85000) + 5000);
+          const bg = REEL_GRADS[i % REEL_GRADS.length];
+          return (
+            <div key={post.id}
+              className="flex-shrink-0 relative rounded-xl overflow-hidden"
+              style={{ width: 108, height: 192, background: `linear-gradient(160deg, ${bg} 0%, #1e1b4b 100%)` }}>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="w-10 h-10 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center border border-white/20">
+                  <Play size={16} fill="white" className="text-white ml-0.5" />
+                </div>
+              </div>
+              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent px-2 py-2">
+                <div className="flex items-center gap-1 mb-0.5">
+                  <Eye size={9} className="text-white/80" />
+                  <span className="text-white text-[9px] font-bold">{views}</span>
+                </div>
+                <p className="text-white text-[9px] font-semibold truncate">@{post.author || "user"}</p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+// ── Pages & Groups Section ─────────────────────────────────────────────────────
+const PAGE_COLORS = ["#6366f1","#ec4899","#f59e0b","#10b981","#3b82f6","#8b5cf6"];
+
+const PagesGroupsSection = ({ items }: { items: any[] }) => {
+  if (!items.length) return null;
+  return (
+    <div className="bg-white py-3">
+      <p className="text-[12px] font-black text-gray-700 px-4 mb-3">Pages & Groups You May Like</p>
+      <div className="grid grid-cols-3 gap-3 px-3">
+        {items.slice(0, 3).map((item, i) => (
+          <div key={item.id}
+            className="bg-gray-50 rounded-xl overflow-hidden flex flex-col items-center"
+            style={{ boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
+            <div className="w-full aspect-square overflow-hidden"
+              style={{ background: `linear-gradient(135deg, ${PAGE_COLORS[i % PAGE_COLORS.length]}, #1e1b4b)` }}>
+              {item.logo_url ? (
+                <img src={item.logo_url} className="w-full h-full object-cover" loading="lazy" alt={item.name} />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center">
+                  <Users size={28} className="text-white/80" />
+                </div>
+              )}
+            </div>
+            <p className="text-[11px] font-bold text-gray-900 text-center px-2 mt-2 mb-0.5 truncate w-full">
+              {item.name || "Community"}
+            </p>
+            <button className="mt-1 mb-3 px-3 py-1.5 bg-blue-600 text-white text-[10px] font-bold rounded-lg">
+              {item.type === "group" ? "Join" : "Follow"}
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+// ── Single Full-Width Vertical Reel ───────────────────────────────────────────
+const SingleReelBlock = ({ post }: { post: any }) => {
+  const ref = useRef<HTMLVideoElement>(null);
+  const [muted, setMuted] = useState(true);
+  const [liked, setLiked] = useState(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(([entry]) => {
+      if (!ref.current) return;
+      if (entry.isIntersecting) {
+        ref.current.muted = true;
+        ref.current.play().catch(() => {});
+      } else {
+        ref.current.pause();
+      }
+    }, { threshold: 0.5 });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [post.media_url]);
+
+  const isYT = post.media_url?.includes("youtube.com") || post.media_url?.includes("youtu.be");
+
+  return (
+    <div className="bg-black relative w-full" style={{ aspectRatio: "9/16", maxHeight: "80vh" }}>
+      {isYT ? (
+        <div className="w-full h-full flex items-center justify-center bg-zinc-900">
+          <Play size={40} className="text-white/40" />
+        </div>
+      ) : (
+        <video
+          ref={ref}
+          src={post.media_url}
+          className="w-full h-full object-cover"
+          loop
+          muted={muted}
+          playsInline
+          preload="metadata"
+        />
+      )}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none" />
+      {!isYT && (
+        <button
+          onClick={() => {
+            if (ref.current) {
+              ref.current.muted = !ref.current.muted;
+              setMuted(ref.current.muted);
+            }
+          }}
+          className="absolute top-4 right-4 p-2 bg-black/40 backdrop-blur-sm rounded-full border border-white/10"
+        >
+          {muted ? <VolumeX size={16} className="text-white" /> : <Volume2 size={16} className="text-white" />}
+        </button>
+      )}
+      <div className="absolute bottom-4 left-4 right-14 text-white pointer-events-none">
+        <p className="font-bold text-sm drop-shadow-lg">@{post.author || "user"}</p>
+        {post.content && <p className="text-xs opacity-80 mt-1 line-clamp-2">{post.content}</p>}
+      </div>
+      <div className="absolute right-3 bottom-16 flex flex-col items-center gap-4">
+        <button onClick={() => setLiked(!liked)} className="flex flex-col items-center">
+          <Heart size={26} fill={liked ? "#ff2d55" : "none"} className={liked ? "text-[#ff2d55]" : "text-white"} />
+          <span className="text-white text-[10px] font-bold mt-1">{post.likes_count || 0}</span>
+        </button>
+        <button className="flex flex-col items-center" onClick={() => navigator.share?.({ url: window.location.href })}>
+          <Share2 size={24} fill="white" className="text-white" />
+          <span className="text-white text-[10px] font-bold mt-1">Share</span>
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// ── Divider ────────────────────────────────────────────────────────────────────
+const FeedDivider = () => <div className="h-2 bg-gray-100" />;
+
 // ── Main Feed ─────────────────────────────────────────────────────────────────
 interface FameFeedProps {
   onPostClick?: () => void;
@@ -109,6 +270,7 @@ const FameFeed = ({ onPostClick, onImageSelect, userProfile, suggestions = [] }:
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
   const [reportModal, setReportModal] = useState<{ postId: string; reason: string } | null>(null);
   const [reportSubmitting, setReportSubmitting] = useState(false);
+  const [pagesGroups, setPagesGroups] = useState<any[]>([]);
   const galleryInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -129,6 +291,23 @@ const FameFeed = ({ onPostClick, onImageSelect, userProfile, suggestions = [] }:
       .on("postgres_changes", { event: "*", schema: "public", table: "posts" }, fetchPosts)
       .subscribe();
     return () => { supabase.removeChannel(sub); };
+  }, []);
+
+  useEffect(() => {
+    async function fetchPagesGroups() {
+      try {
+        const [{ data: pages }, { data: groups }] = await Promise.all([
+          supabase.from("pages").select("id, name, logo_url").limit(6),
+          supabase.from("groups").select("id, name, logo_url").limit(6),
+        ]);
+        const combined = [
+          ...(pages || []).map((p: any) => ({ ...p, type: "page" })),
+          ...(groups || []).map((g: any) => ({ ...g, type: "group" })),
+        ];
+        setPagesGroups(combined.slice(0, 6));
+      } catch (_) {}
+    }
+    fetchPagesGroups();
   }, []);
 
   const handleLike = async (post: any) => {
@@ -166,6 +345,169 @@ const FameFeed = ({ onPostClick, onImageSelect, userProfile, suggestions = [] }:
   };
 
   const visiblePosts = posts.filter(p => !hiddenIds.has(p.id));
+
+  const videoPosts = useMemo(() =>
+    visiblePosts.filter(p =>
+      p.media_url && (
+        /\.(mp4|webm|ogg|mov|m4v)/i.test(p.media_url.split("?")[0]) ||
+        p.media_url.includes("youtube.com") ||
+        p.media_url.includes("youtu.be") ||
+        p.media_url.includes("rapidcdn.app")
+      )
+    ), [visiblePosts]);
+
+  const renderPost = (post: any) => {
+    const isVideo = post.type === "video" || post.metadata?.is_youtube ||
+      (post.media_url && (/\.(mp4|webm|ogg|mov|m4v)/i.test(post.media_url.split("?")[0]) ||
+        post.media_url.includes("youtube.com") || post.media_url.includes("youtu.be") || post.media_url.includes("rapidcdn.app")));
+
+    return (
+      <motion.article key={post.id} layout
+        exit={{ opacity: 0, x: 60, transition: { duration: 0.2 } }}
+        className="bg-white border-b border-gray-100"
+      >
+        {/* Post header */}
+        <div className="flex items-center justify-between px-4 py-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-black text-sm shrink-0 border border-gray-100">
+              {post.author?.[0]?.toUpperCase() || "V"}
+            </div>
+            <div>
+              <p className="text-gray-900 font-bold text-sm leading-none">{post.author || "Vibe User"}</p>
+              <p className="text-[10px] text-blue-600 font-semibold uppercase tracking-wide mt-0.5">
+                {isVideo ? "🎬 Reel" : "📷 Post"} · Verified Creator
+              </p>
+            </div>
+          </div>
+          <div className="relative" onClick={e => e.stopPropagation()}>
+            <button onClick={() => setOpenMenuId(openMenuId === post.id ? null : post.id)}
+              className="p-2 rounded-full hover:bg-gray-100 transition-colors">
+              <MoreVertical size={18} className="text-gray-400" />
+            </button>
+            <AnimatePresence>
+              {openMenuId === post.id && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setOpenMenuId(null)} />
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.88, y: -6 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.88, y: -6 }}
+                    transition={{ duration: 0.12 }}
+                    className="absolute right-0 top-10 z-50 w-44 bg-white border border-gray-100 rounded-2xl overflow-hidden shadow-xl"
+                    onClick={e => e.stopPropagation()}
+                  >
+                    {post.author_id === currentUserId && (
+                      <button onClick={() => handleDelete(post.id)}
+                        className="w-full flex items-center gap-3 px-4 py-3.5 text-red-500 hover:bg-red-50 text-sm font-semibold border-b border-gray-100">
+                        <Trash2 size={15} /> Delete
+                      </button>
+                    )}
+                    <button onClick={() => handleHide(post.id)}
+                      className="w-full flex items-center gap-3 px-4 py-3.5 text-gray-600 hover:bg-gray-50 text-sm font-semibold border-b border-gray-100">
+                      <EyeOff size={15} /> Hide
+                    </button>
+                    <button onClick={() => { setOpenMenuId(null); setReportModal({ postId: post.id, reason: "" }); }}
+                      className="w-full flex items-center gap-3 px-4 py-3.5 text-orange-500 hover:bg-orange-50 text-sm font-semibold">
+                      <Flag size={15} /> Report
+                    </button>
+                  </motion.div>
+                </>
+              )}
+            </AnimatePresence>
+          </div>
+        </div>
+
+        {post.content && <PostCaption content={post.content} />}
+        <PostMedia post={post} />
+
+        {/* Action bar */}
+        <div className="flex items-center gap-5 px-4 py-2.5">
+          <button onClick={() => handleLike(post)} className="flex items-center gap-1.5 group">
+            <Heart size={22}
+              className={likedIds.has(post.id) ? "fill-red-500 text-red-500" : "text-gray-400 group-hover:text-red-400 transition-colors"} />
+            <span className="text-xs font-bold text-gray-500">{post.likes_count || 0}</span>
+          </button>
+          <button onClick={() => setActiveComment(activeComment === post.id ? null : post.id)}
+            className="flex items-center gap-1.5 group">
+            <MessageCircle size={22} className="text-gray-400 group-hover:text-blue-500 transition-colors" />
+            <span className="text-xs font-bold text-gray-500">{post.comments?.length || 0}</span>
+          </button>
+          <button onClick={() => navigator.share?.({ url: window.location.href })}
+            className="flex items-center gap-1.5 group ml-auto">
+            <Share2 size={20} className="text-gray-400 group-hover:text-gray-600 transition-colors" />
+          </button>
+        </div>
+
+        {/* Inline comments */}
+        <AnimatePresence>
+          {activeComment === post.id && (
+            <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }}
+              className="overflow-hidden border-t border-gray-100">
+              <div className="px-4 pt-3 pb-1 flex gap-2">
+                <input type="text" placeholder="Write a comment…"
+                  className="flex-1 bg-gray-100 border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-blue-400/30"
+                  value={commentText}
+                  onChange={e => setCommentText(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && handleAddComment(post.id)} />
+                <button onClick={() => handleAddComment(post.id)}
+                  className="bg-blue-600 text-white px-4 rounded-xl">
+                  <Send size={16} />
+                </button>
+              </div>
+              <div className="px-4 py-2 space-y-2 max-h-48 overflow-y-auto">
+                {post.comments?.map((c: any) => (
+                  <div key={c.id} className="flex gap-3 py-1">
+                    <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center text-[10px] font-black text-blue-600 shrink-0">
+                      {c.author?.[0]}
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-black text-blue-600 uppercase tracking-tight">{c.author}</span>
+                      <p className="text-xs text-gray-600 mt-0.5 leading-snug">{c.content}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </motion.article>
+    );
+  };
+
+  // ── Build dynamic feed blocks ──────────────────────────────────────────────
+  const feedBlocks = useMemo(() => {
+    const BATCH = 3;
+    const blocks: { type: string; posts?: any[]; post?: any; key: string }[] = [];
+    if (visiblePosts.length === 0) return blocks;
+
+    let postCursor = 0;
+    let reelCursor = 0;
+    let cycle = 0;
+
+    while (postCursor < visiblePosts.length) {
+      const batch1 = visiblePosts.slice(postCursor, postCursor + BATCH);
+      postCursor += BATCH;
+      if (batch1.length > 0) blocks.push({ type: "posts", posts: batch1, key: `b1-${cycle}` });
+
+      if (videoPosts.length > 0) blocks.push({ type: "reels-row", key: `rr-${cycle}` });
+
+      const batch2 = visiblePosts.slice(postCursor, postCursor + BATCH);
+      postCursor += BATCH;
+      if (batch2.length > 0) blocks.push({ type: "posts", posts: batch2, key: `b2-${cycle}` });
+
+      blocks.push({ type: "pages-groups", key: `pg-${cycle}` });
+
+      if (videoPosts.length > 0) {
+        blocks.push({ type: "single-reel", post: videoPosts[reelCursor % videoPosts.length], key: `sr-${cycle}` });
+        reelCursor++;
+      }
+
+      cycle++;
+    }
+
+    return blocks;
+  }, [visiblePosts, videoPosts]);
 
   return (
     <div className="bg-gray-50">
@@ -217,7 +559,6 @@ const FameFeed = ({ onPostClick, onImageSelect, userProfile, suggestions = [] }:
                       {(u.full_name || "U")[0].toUpperCase()}
                     </div>
                   )}
-                  {/* Gradient overlay with name + add button */}
                   <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/85 via-black/40 to-transparent pt-8 pb-2.5 px-2 flex flex-col items-center gap-1.5">
                     <p className="text-white text-[10px] font-black truncate w-full text-center leading-tight">
                       {u.full_name?.split(" ")[0] || "User"}
@@ -241,131 +582,44 @@ const FameFeed = ({ onPostClick, onImageSelect, userProfile, suggestions = [] }:
         </div>
       )}
 
-      {/* ── Posts ─────────────────────────────────────────────────────── */}
-      <AnimatePresence>
-        {visiblePosts.map(post => {
-          const isVideo = post.type === "video" || post.metadata?.is_youtube ||
-            (post.media_url && (/\.(mp4|webm|ogg|mov|m4v)/i.test(post.media_url.split("?")[0]) ||
-              post.media_url.includes("youtube.com") || post.media_url.includes("youtu.be") || post.media_url.includes("rapidcdn.app")));
-
+      {/* ── Dynamic Feed ──────────────────────────────────────────────── */}
+      {feedBlocks.map(block => {
+        if (block.type === "posts") {
           return (
-            <motion.article key={post.id} layout
-              exit={{ opacity: 0, x: 60, transition: { duration: 0.2 } }}
-              className="bg-white border-b border-gray-100"
-            >
-              {/* ── Post header ── */}
-              <div className="flex items-center justify-between px-4 py-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-black text-sm shrink-0 border border-gray-100">
-                    {post.author?.[0]?.toUpperCase() || "V"}
-                  </div>
-                  <div>
-                    <p className="text-gray-900 font-bold text-sm leading-none">{post.author || "Vibe User"}</p>
-                    <p className="text-[10px] text-blue-600 font-semibold uppercase tracking-wide mt-0.5">
-                      {isVideo ? "🎬 Reel" : "📷 Post"} · Verified Creator
-                    </p>
-                  </div>
-                </div>
-                {/* Three-dots */}
-                <div className="relative" onClick={e => e.stopPropagation()}>
-                  <button onClick={() => setOpenMenuId(openMenuId === post.id ? null : post.id)}
-                    className="p-2 rounded-full hover:bg-gray-100 transition-colors">
-                    <MoreVertical size={18} className="text-gray-400" />
-                  </button>
-                  <AnimatePresence>
-                    {openMenuId === post.id && (
-                      <>
-                        <div className="fixed inset-0 z-40" onClick={() => setOpenMenuId(null)} />
-                        <motion.div
-                          initial={{ opacity: 0, scale: 0.88, y: -6 }}
-                          animate={{ opacity: 1, scale: 1, y: 0 }}
-                          exit={{ opacity: 0, scale: 0.88, y: -6 }}
-                          transition={{ duration: 0.12 }}
-                          className="absolute right-0 top-10 z-50 w-44 bg-white border border-gray-100 rounded-2xl overflow-hidden shadow-xl"
-                          onClick={e => e.stopPropagation()}
-                        >
-                          {post.author_id === currentUserId && (
-                            <button onClick={() => handleDelete(post.id)}
-                              className="w-full flex items-center gap-3 px-4 py-3.5 text-red-500 hover:bg-red-50 text-sm font-semibold border-b border-gray-100">
-                              <Trash2 size={15} /> Delete
-                            </button>
-                          )}
-                          <button onClick={() => handleHide(post.id)}
-                            className="w-full flex items-center gap-3 px-4 py-3.5 text-gray-600 hover:bg-gray-50 text-sm font-semibold border-b border-gray-100">
-                            <EyeOff size={15} /> Hide
-                          </button>
-                          <button onClick={() => { setOpenMenuId(null); setReportModal({ postId: post.id, reason: "" }); }}
-                            className="w-full flex items-center gap-3 px-4 py-3.5 text-orange-500 hover:bg-orange-50 text-sm font-semibold">
-                            <Flag size={15} /> Report
-                          </button>
-                        </motion.div>
-                      </>
-                    )}
-                  </AnimatePresence>
-                </div>
-              </div>
-
-              {/* ── Caption (2-line clamp) then image ── */}
-              {post.content && <PostCaption content={post.content} />}
-
-              {/* ── Media ── */}
-              <PostMedia post={post} />
-
-              {/* ── Action bar ── */}
-              <div className="flex items-center gap-5 px-4 py-2.5">
-                <button onClick={() => handleLike(post)} className="flex items-center gap-1.5 group">
-                  <Heart size={22}
-                    className={likedIds.has(post.id) ? "fill-red-500 text-red-500" : "text-gray-400 group-hover:text-red-400 transition-colors"} />
-                  <span className="text-xs font-bold text-gray-500">{post.likes_count || 0}</span>
-                </button>
-                <button onClick={() => setActiveComment(activeComment === post.id ? null : post.id)}
-                  className="flex items-center gap-1.5 group">
-                  <MessageCircle size={22} className="text-gray-400 group-hover:text-blue-500 transition-colors" />
-                  <span className="text-xs font-bold text-gray-500">{post.comments?.length || 0}</span>
-                </button>
-                <button onClick={() => navigator.share?.({ url: window.location.href })}
-                  className="flex items-center gap-1.5 group ml-auto">
-                  <Share2 size={20} className="text-gray-400 group-hover:text-gray-600 transition-colors" />
-                </button>
-              </div>
-
-              {/* ── Inline comments ── */}
+            <div key={block.key}>
               <AnimatePresence>
-                {activeComment === post.id && (
-                  <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }}
-                    className="overflow-hidden border-t border-gray-100">
-                    <div className="px-4 pt-3 pb-1 flex gap-2">
-                      <input type="text" placeholder="Write a comment…"
-                        className="flex-1 bg-gray-100 border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-blue-400/30"
-                        value={commentText}
-                        onChange={e => setCommentText(e.target.value)}
-                        onKeyDown={e => e.key === "Enter" && handleAddComment(post.id)} />
-                      <button onClick={() => handleAddComment(post.id)}
-                        className="bg-blue-600 text-white px-4 rounded-xl">
-                        <Send size={16} />
-                      </button>
-                    </div>
-                    <div className="px-4 py-2 space-y-2 max-h-48 overflow-y-auto">
-                      {post.comments?.map((c: any) => (
-                        <div key={c.id} className="flex gap-3 py-1">
-                          <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center text-[10px] font-black text-blue-600 shrink-0">
-                            {c.author?.[0]}
-                          </div>
-                          <div>
-                            <span className="text-[10px] font-black text-blue-600 uppercase tracking-tight">{c.author}</span>
-                            <p className="text-xs text-gray-600 mt-0.5 leading-snug">{c.content}</p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </motion.div>
-                )}
+                {block.posts!.map(post => renderPost(post))}
               </AnimatePresence>
-            </motion.article>
+              <FeedDivider />
+            </div>
           );
-        })}
-      </AnimatePresence>
+        }
+        if (block.type === "reels-row") {
+          return (
+            <div key={block.key}>
+              <TrendingReelsRow posts={videoPosts} />
+              <FeedDivider />
+            </div>
+          );
+        }
+        if (block.type === "pages-groups") {
+          return (
+            <div key={block.key}>
+              <PagesGroupsSection items={pagesGroups} />
+              {pagesGroups.length > 0 && <FeedDivider />}
+            </div>
+          );
+        }
+        if (block.type === "single-reel" && block.post) {
+          return (
+            <div key={block.key}>
+              <SingleReelBlock post={block.post} />
+              <FeedDivider />
+            </div>
+          );
+        }
+        return null;
+      })}
 
       {!loading && visiblePosts.length === 0 && (
         <div className="flex flex-col items-center py-20 text-gray-300 bg-white">
