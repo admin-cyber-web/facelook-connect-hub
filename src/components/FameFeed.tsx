@@ -231,38 +231,30 @@ const InFeedSuggestionCard = ({
 
 // ── Suggestion Placeholder (zero-demo) ─────────────────────────────────────────
 const SuggestionPlaceholder = ({
-  onCreateCircle,
-  onCreatePage,
+  forType,
+  onAction,
 }: {
-  onCreateCircle?: () => void;
-  onCreatePage?: () => void;
+  forType: "page" | "circle";
+  onAction?: () => void;
 }) => (
   <div className="bg-white border-b border-gray-100 px-4 py-8 flex flex-col items-center gap-4">
     <div className="w-16 h-16 rounded-full bg-blue-50 flex items-center justify-center">
       <Users size={30} className="text-blue-400" />
     </div>
     <div className="text-center">
-      <p className="text-gray-800 font-black text-base">No Pages or Circles yet</p>
+      <p className="text-gray-800 font-black text-base">
+        {forType === "page" ? "No Pages yet" : "No Circles yet"}
+      </p>
       <p className="text-gray-400 text-[12px] mt-1">Be the first to create one!</p>
     </div>
-    <div className="flex gap-3 w-full">
-      {onCreatePage && (
-        <button
-          onClick={onCreatePage}
-          className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl border-2 border-blue-600 text-blue-600 font-black text-sm active:scale-[0.98] transition-transform"
-        >
-          <Plus size={16} /> Create Page
-        </button>
-      )}
-      {onCreateCircle && (
-        <button
-          onClick={onCreateCircle}
-          className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl bg-blue-600 text-white font-black text-sm active:scale-[0.98] transition-transform"
-        >
-          <Plus size={16} /> Create Circle
-        </button>
-      )}
-    </div>
+    {onAction && (
+      <button
+        onClick={onAction}
+        className="flex items-center justify-center gap-2 px-8 py-3 rounded-2xl bg-blue-600 text-white font-black text-sm active:scale-[0.98] transition-transform"
+      >
+        <Plus size={16} /> {forType === "page" ? "Create Page" : "Create Circle"}
+      </button>
+    )}
   </div>
 );
 
@@ -653,7 +645,7 @@ const FameFeed = ({
   // ── Build dynamic feed blocks ──────────────────────────────────────────────
   const feedBlocks = useMemo(() => {
     const BATCH = 3;
-    type Block = { type: string; posts?: any[]; post?: any; item?: any; key: string };
+    type Block = { type: string; posts?: any[]; post?: any; item?: any; forType?: "page" | "circle"; key: string };
     const blocks: Block[] = [];
     if (visiblePosts.length === 0) return blocks;
 
@@ -661,50 +653,56 @@ const FameFeed = ({
     let reelCursor = 0;
     let pageCursor = 0;
     let groupCursor = 0;
-    // Alternate: even slots → page suggestion, odd slots → circle suggestion
-    let suggSlot = 0;
-    let placeholderShown = false;
+    let cycle = 0;
+    // Show each placeholder at most once across the whole feed
+    let pagePlaceholderShown = false;
+    let circlePlaceholderShown = false;
 
     while (postCursor < visiblePosts.length) {
-      // Batch of 3 posts
-      const batch = visiblePosts.slice(postCursor, postCursor + BATCH);
+      // ── Batch 1: first 3 posts ──────────────────────────────────────
+      const batch1 = visiblePosts.slice(postCursor, postCursor + BATCH);
       postCursor += BATCH;
-      if (batch.length > 0) blocks.push({ type: "posts", posts: batch, key: `b-${postCursor}` });
+      if (batch1.length > 0) blocks.push({ type: "posts", posts: batch1, key: `b1-${cycle}` });
 
-      // After every 3 posts: inject a suggestion
-      if (suggSlot % 2 === 0) {
-        // Page suggestion slot
+      // ── Page Suggestion (after first 3 posts) ──────────────────────
+      if (suggestionsLoaded) {
         if (pageSuggestions.length > 0) {
           const item = pageSuggestions[pageCursor % pageSuggestions.length];
           pageCursor++;
           blocks.push({ type: "page-suggestion", item, key: `ps-${pageCursor}` });
-        } else if (groupSuggestions.length === 0 && suggestionsLoaded && !placeholderShown) {
-          placeholderShown = true;
-          blocks.push({ type: "suggestion-placeholder", key: "placeholder" });
+        } else if (!pagePlaceholderShown) {
+          pagePlaceholderShown = true;
+          blocks.push({ type: "page-placeholder", forType: "page", key: `pp-${cycle}` });
         }
-      } else {
-        // Circle/Group suggestion slot
+      }
+
+      // ── Trending Flicks Row (RESTORED – every cycle) ────────────────
+      if (videoPosts.length > 0) blocks.push({ type: "reels-row", key: `rr-${cycle}` });
+
+      // ── Batch 2: next 3 posts ───────────────────────────────────────
+      const batch2 = visiblePosts.slice(postCursor, postCursor + BATCH);
+      postCursor += BATCH;
+      if (batch2.length > 0) blocks.push({ type: "posts", posts: batch2, key: `b2-${cycle}` });
+
+      // ── Circle Suggestion (after next 3 posts) ──────────────────────
+      if (suggestionsLoaded) {
         if (groupSuggestions.length > 0) {
           const item = groupSuggestions[groupCursor % groupSuggestions.length];
           groupCursor++;
           blocks.push({ type: "circle-suggestion", item, key: `cs-${groupCursor}` });
-        } else if (pageSuggestions.length === 0 && suggestionsLoaded && !placeholderShown) {
-          placeholderShown = true;
-          blocks.push({ type: "suggestion-placeholder", key: "placeholder" });
+        } else if (!circlePlaceholderShown) {
+          circlePlaceholderShown = true;
+          blocks.push({ type: "circle-placeholder", forType: "circle", key: `cp-${cycle}` });
         }
       }
-      suggSlot++;
 
-      // Trending flicks row — once after 6th post
-      if (reelCursor === 0 && videoPosts.length > 0 && postCursor >= 6) {
-        blocks.push({ type: "reels-row", key: "rr-main" });
-      }
-
-      // Single reel
+      // ── Single Full-Width Reel (RESTORED – every cycle) ────────────
       if (videoPosts.length > 0) {
-        blocks.push({ type: "single-reel", post: videoPosts[reelCursor % videoPosts.length], key: `sr-${reelCursor}` });
+        blocks.push({ type: "single-reel", post: videoPosts[reelCursor % videoPosts.length], key: `sr-${cycle}` });
         reelCursor++;
       }
+
+      cycle++;
     }
 
     return blocks;
@@ -827,13 +825,18 @@ const FameFeed = ({
             </div>
           );
         }
-        if (block.type === "suggestion-placeholder") {
+        if (block.type === "page-placeholder") {
           return (
             <div key={block.key}>
-              <SuggestionPlaceholder
-                onCreateCircle={onNavigateToCircles}
-                onCreatePage={onNavigateToPages}
-              />
+              <SuggestionPlaceholder forType="page" onAction={onNavigateToPages} />
+              <FeedDivider />
+            </div>
+          );
+        }
+        if (block.type === "circle-placeholder") {
+          return (
+            <div key={block.key}>
+              <SuggestionPlaceholder forType="circle" onAction={onNavigateToCircles} />
               <FeedDivider />
             </div>
           );
