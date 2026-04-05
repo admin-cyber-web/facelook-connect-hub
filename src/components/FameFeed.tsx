@@ -98,24 +98,29 @@ const FLICK_GRADS = ["#ec4899","#f59e0b","#10b981","#3b82f6","#8b5cf6","#ef4444"
 // Pure display component — data is fetched once at FameFeed level, no per-instance channels
 const TrendingFlicksRow = ({ flicks, loaded }: { flicks: any[]; loaded: boolean }) => {
   if (!loaded) return null;
+  if (flicks.length === 0) return null; // hide entirely when no real flicks
   return (
     <div className="bg-white py-3">
       <p className="text-[12px] font-black text-gray-700 px-4 mb-2">🔥 Trending Flicks</p>
-      {flicks.length === 0 ? (
-        <div className="px-4 py-4 flex flex-col items-center gap-1.5 text-gray-400">
-          <Film size={28} className="opacity-30" />
-          <p className="text-[11px] font-semibold text-center text-gray-400">
-            No Flicks yet. Be the first to upload!
-          </p>
-        </div>
-      ) : (
-        <div className="flex gap-2.5 overflow-x-auto px-4 pb-1 no-scrollbar">
-          {flicks.map((flick, i) => (
+      <div className="flex gap-2.5 overflow-x-auto px-4 pb-1 no-scrollbar">
+        {flicks.map((flick, i) => {
+          const isYT = flick.media_url?.includes("youtube.com") || flick.media_url?.includes("youtu.be");
+          const isVid = !isYT && flick.media_url && /\.(mp4|webm|ogg|mov|m4v)/i.test(flick.media_url.split("?")[0]);
+          const isImg = flick.media_url && !isVid && !isYT;
+          return (
             <div key={flick.id}
               className="flex-shrink-0 relative rounded-xl overflow-hidden"
               style={{ width: 108, height: 192, background: `linear-gradient(160deg, ${FLICK_GRADS[i % FLICK_GRADS.length]} 0%, #1e1b4b 100%)` }}>
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="w-10 h-10 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center border border-white/20">
+              {/* Real thumbnail */}
+              {isImg && (
+                <img src={flick.media_url} className="absolute inset-0 w-full h-full object-cover" loading="lazy" alt="" />
+              )}
+              {isVid && (
+                <video src={flick.media_url} className="absolute inset-0 w-full h-full object-cover" muted playsInline preload="metadata" />
+              )}
+              {/* Play overlay */}
+              <div className="absolute inset-0 flex items-center justify-center bg-black/10">
+                <div className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center border border-white/20">
                   <Play size={16} fill="white" className="text-white ml-0.5" />
                 </div>
               </div>
@@ -127,9 +132,135 @@ const TrendingFlicksRow = ({ flicks, loaded }: { flicks: any[]; loaded: boolean 
                 <p className="text-white text-[9px] font-semibold truncate">@{flick.author || "user"}</p>
               </div>
             </div>
-          ))}
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+// ── Suggested Pages Row (horizontal scroll, 3-4 visible) ───────────────────────
+const SuggestedPagesRow = ({
+  pages, doneIds, onAction, onCreatePage,
+}: {
+  pages: any[]; doneIds: Set<string>;
+  onAction: (item: any) => void; onCreatePage?: () => void;
+}) => {
+  if (pages.length === 0) {
+    return (
+      <div className="bg-white border-b border-gray-100 px-5 py-8 flex flex-col items-center gap-3">
+        <div className="w-14 h-14 rounded-full bg-purple-50 flex items-center justify-center">
+          <Film size={26} className="text-purple-400" />
         </div>
-      )}
+        <p className="text-gray-800 font-black text-sm text-center">No Pages yet</p>
+        <p className="text-gray-400 text-[11px] text-center">Be the first to create a Page!</p>
+        {onCreatePage && (
+          <button onClick={onCreatePage}
+            className="flex items-center gap-2 px-6 py-2.5 rounded-2xl bg-blue-600 text-white font-black text-[12px] active:scale-[0.98] transition-transform">
+            <Plus size={14} /> Create Page
+          </button>
+        )}
+      </div>
+    );
+  }
+  return (
+    <div className="bg-white border-b border-gray-100 pt-4 pb-2">
+      <p className="text-[12px] font-black text-gray-700 px-4 mb-3">📄 Suggested Pages</p>
+      <div className="flex gap-3 overflow-x-auto px-4 pb-3 no-scrollbar">
+        {pages.map(page => {
+          const grad = gradForSugg(page.id || page.name || "p");
+          const done = doneIds.has(page.id);
+          return (
+            <div key={page.id}
+              className="flex-shrink-0 bg-gray-50 rounded-2xl overflow-hidden flex flex-col"
+              style={{ width: 132, boxShadow: "0 1px 6px rgba(0,0,0,0.07)" }}>
+              <div className="w-full relative overflow-hidden" style={{ height: 100, background: grad }}>
+                {page.cover_url && (
+                  <img src={page.cover_url} className="w-full h-full object-cover" loading="lazy" alt={page.name} />
+                )}
+                {!page.cover_url && (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <Film size={28} className="text-white/50" />
+                  </div>
+                )}
+              </div>
+              <div className="p-2.5 flex flex-col gap-1 flex-1">
+                <p className="text-[11px] font-black text-gray-900 truncate leading-tight">{page.name}</p>
+                <p className="text-[9px] text-gray-400">{page.member_count ?? 0} followers</p>
+                <button onClick={() => !done && onAction(page)}
+                  className={`w-full py-2 rounded-xl text-[10px] font-black mt-auto transition-all active:scale-95 ${
+                    done ? "bg-gray-100 text-gray-400" : "bg-blue-600 text-white"
+                  }`}>
+                  {done ? "Following ✓" : "Follow"}
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+// ── Suggested Circles Row (horizontal scroll, 3-4 visible) ─────────────────────
+const SuggestedCirclesRow = ({
+  circles, doneIds, onAction, onCreateCircle,
+}: {
+  circles: any[]; doneIds: Set<string>;
+  onAction: (item: any) => void; onCreateCircle?: () => void;
+}) => {
+  if (circles.length === 0) {
+    return (
+      <div className="bg-white border-b border-gray-100 px-5 py-8 flex flex-col items-center gap-3">
+        <div className="w-14 h-14 rounded-full bg-blue-50 flex items-center justify-center">
+          <Users size={26} className="text-blue-400" />
+        </div>
+        <p className="text-gray-800 font-black text-sm text-center">No Circles yet</p>
+        <p className="text-gray-400 text-[11px] text-center">Be the first to create a Circle!</p>
+        {onCreateCircle && (
+          <button onClick={onCreateCircle}
+            className="flex items-center gap-2 px-6 py-2.5 rounded-2xl bg-blue-600 text-white font-black text-[12px] active:scale-[0.98] transition-transform">
+            <Plus size={14} /> Create Circle
+          </button>
+        )}
+      </div>
+    );
+  }
+  return (
+    <div className="bg-white border-b border-gray-100 pt-4 pb-2">
+      <p className="text-[12px] font-black text-gray-700 px-4 mb-3">👥 Suggested Circles</p>
+      <div className="flex gap-3 overflow-x-auto px-4 pb-3 no-scrollbar">
+        {circles.map(circle => {
+          const grad = gradForSugg(circle.id || circle.name || "c");
+          const done = doneIds.has(circle.id);
+          return (
+            <div key={circle.id}
+              className="flex-shrink-0 bg-gray-50 rounded-2xl overflow-hidden flex flex-col"
+              style={{ width: 132, boxShadow: "0 1px 6px rgba(0,0,0,0.07)" }}>
+              <div className="w-full relative overflow-hidden" style={{ height: 100, background: grad }}>
+                {circle.cover_url && (
+                  <img src={circle.cover_url} className="w-full h-full object-cover" loading="lazy" alt={circle.name} />
+                )}
+                {!circle.cover_url && (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <Users size={28} className="text-white/50" />
+                  </div>
+                )}
+              </div>
+              <div className="p-2.5 flex flex-col gap-1 flex-1">
+                <p className="text-[11px] font-black text-gray-900 truncate leading-tight">{circle.name}</p>
+                <p className="text-[9px] text-gray-400">{circle.member_count ?? 0} members</p>
+                <button onClick={() => !done && onAction(circle)}
+                  className={`w-full py-2 rounded-xl text-[10px] font-black mt-auto transition-all active:scale-95 ${
+                    done ? "bg-gray-100 text-gray-400" : "bg-blue-600 text-white"
+                  }`}>
+                  {done ? "Joined ✓" : "Join Circle"}
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 };
@@ -382,21 +513,43 @@ const FameFeed = ({
 
   const fetchFlicks = async () => {
     try {
+      // 1) Try trending_flicks view
       const { data: viewData, error: viewErr } = await supabase
         .from("trending_flicks")
         .select("*")
-        .limit(10);
-      if (!viewErr && viewData) {
+        .limit(20);
+      if (!viewErr && viewData && viewData.length > 0) {
         setTrendingFlicks(viewData);
-      } else {
-        const { data: posts } = await supabase
-          .from("posts")
-          .select("id, author, media_url, type, likes_count, content")
-          .or("type.eq.video,media_url.ilike.%.mp4%,media_url.ilike.%.webm%")
-          .order("likes_count", { ascending: false })
-          .limit(10);
-        setTrendingFlicks(posts || []);
+        setFlicksLoaded(true);
+        return;
       }
+      // 2) Try dedicated flicks table
+      const { data: flicksData, error: flicksErr } = await supabase
+        .from("flicks")
+        .select("id, author, media_url, type, likes_count, content, cover_url")
+        .order("likes_count", { ascending: false })
+        .limit(20);
+      if (!flicksErr && flicksData && flicksData.length > 0) {
+        setTrendingFlicks(flicksData);
+        setFlicksLoaded(true);
+        return;
+      }
+      // 3) Fallback: posts table — broad video filter
+      const { data: posts } = await supabase
+        .from("posts")
+        .select("id, author, media_url, type, likes_count, content")
+        .or(
+          "type.eq.video," +
+          "media_url.ilike.%.mp4%," +
+          "media_url.ilike.%.webm%," +
+          "media_url.ilike.%.mov%," +
+          "media_url.ilike.%.m4v%," +
+          "media_url.ilike.%youtube%," +
+          "media_url.ilike.%rapidcdn%"
+        )
+        .order("likes_count", { ascending: false })
+        .limit(20);
+      setTrendingFlicks(posts || []);
     } catch (_) {}
     setFlicksLoaded(true);
   };
@@ -441,12 +594,12 @@ const FameFeed = ({
           setPageSuggestions(filtered.filter((i: any) => i.type === "page"));
           setGroupSuggestions(filtered.filter((i: any) => i.type === "group" || i.type === "circle"));
         } else {
-          // Fallback: groups table
+          // Fallback: groups table — newest first so user's own new group appears at top
           const { data: groups } = await supabase
             .from("groups")
-            .select("id, name, cover_url, description, member_count, privacy")
-            .order("member_count", { ascending: false })
-            .limit(12);
+            .select("id, name, cover_url, description, member_count, privacy, created_at")
+            .order("created_at", { ascending: false })
+            .limit(20);
           const filtered = (groups || [])
             .filter((g: any) => !joinedIds.has(g.id))
             .map((g: any) => ({ ...g, type: "group" }));
@@ -645,58 +798,39 @@ const FameFeed = ({
   // ── Build dynamic feed blocks ──────────────────────────────────────────────
   const feedBlocks = useMemo(() => {
     const BATCH = 3;
-    type Block = { type: string; posts?: any[]; post?: any; item?: any; forType?: "page" | "circle"; key: string };
+    type Block = { type: string; posts?: any[]; post?: any; key: string };
     const blocks: Block[] = [];
     if (visiblePosts.length === 0) return blocks;
 
     let postCursor = 0;
     let reelCursor = 0;
-    let pageCursor = 0;
-    let groupCursor = 0;
     let cycle = 0;
-    // Show each placeholder at most once across the whole feed
-    let pagePlaceholderShown = false;
-    let circlePlaceholderShown = false;
 
     while (postCursor < visiblePosts.length) {
-      // ── Batch 1: first 3 posts ──────────────────────────────────────
+      // ── Batch 1: first 3 posts ─────────────────────────────────────
       const batch1 = visiblePosts.slice(postCursor, postCursor + BATCH);
       postCursor += BATCH;
       if (batch1.length > 0) blocks.push({ type: "posts", posts: batch1, key: `b1-${cycle}` });
 
-      // ── Page Suggestion (after first 3 posts) ──────────────────────
-      if (suggestionsLoaded) {
-        if (pageSuggestions.length > 0) {
-          const item = pageSuggestions[pageCursor % pageSuggestions.length];
-          pageCursor++;
-          blocks.push({ type: "page-suggestion", item, key: `ps-${pageCursor}` });
-        } else if (!pagePlaceholderShown) {
-          pagePlaceholderShown = true;
-          blocks.push({ type: "page-placeholder", forType: "page", key: `pp-${cycle}` });
-        }
+      // ── Pages Row (shown once on first cycle, then every 4 cycles) ──
+      if (suggestionsLoaded && (cycle === 0 || cycle % 4 === 0)) {
+        blocks.push({ type: "pages-row", key: `pr-${cycle}` });
       }
 
-      // ── Trending Flicks Row (RESTORED – every cycle) ────────────────
+      // ── Trending Flicks Row (every cycle) ──────────────────────────
       if (videoPosts.length > 0) blocks.push({ type: "reels-row", key: `rr-${cycle}` });
 
-      // ── Batch 2: next 3 posts ───────────────────────────────────────
+      // ── Batch 2: next 3 posts ──────────────────────────────────────
       const batch2 = visiblePosts.slice(postCursor, postCursor + BATCH);
       postCursor += BATCH;
       if (batch2.length > 0) blocks.push({ type: "posts", posts: batch2, key: `b2-${cycle}` });
 
-      // ── Circle Suggestion (after next 3 posts) ──────────────────────
-      if (suggestionsLoaded) {
-        if (groupSuggestions.length > 0) {
-          const item = groupSuggestions[groupCursor % groupSuggestions.length];
-          groupCursor++;
-          blocks.push({ type: "circle-suggestion", item, key: `cs-${groupCursor}` });
-        } else if (!circlePlaceholderShown) {
-          circlePlaceholderShown = true;
-          blocks.push({ type: "circle-placeholder", forType: "circle", key: `cp-${cycle}` });
-        }
+      // ── Circles Row (shown once on first cycle, then every 4 cycles) ─
+      if (suggestionsLoaded && (cycle === 0 || cycle % 4 === 0)) {
+        blocks.push({ type: "circles-row", key: `cr-${cycle}` });
       }
 
-      // ── Single Full-Width Reel (RESTORED – every cycle) ────────────
+      // ── Single Full-Width Reel (every cycle) ──────────────────────
       if (videoPosts.length > 0) {
         blocks.push({ type: "single-reel", post: videoPosts[reelCursor % videoPosts.length], key: `sr-${cycle}` });
         reelCursor++;
@@ -706,7 +840,7 @@ const FameFeed = ({
     }
 
     return blocks;
-  }, [visiblePosts, videoPosts, pageSuggestions, groupSuggestions, suggestionsLoaded]);
+  }, [visiblePosts, videoPosts, suggestionsLoaded]);
 
   return (
     <div className="bg-gray-50">
@@ -801,42 +935,28 @@ const FameFeed = ({
             </div>
           );
         }
-        if (block.type === "page-suggestion" && block.item) {
+        if (block.type === "pages-row") {
           return (
             <div key={block.key}>
-              <InFeedSuggestionCard
-                item={block.item}
-                actionDone={inFeedDoneIds.has(block.item.id)}
-                onAction={() => handleInFeedAction(block.item)}
+              <SuggestedPagesRow
+                pages={pageSuggestions}
+                doneIds={inFeedDoneIds}
+                onAction={handleInFeedAction}
+                onCreatePage={onNavigateToPages}
               />
               <FeedDivider />
             </div>
           );
         }
-        if (block.type === "circle-suggestion" && block.item) {
+        if (block.type === "circles-row") {
           return (
             <div key={block.key}>
-              <InFeedSuggestionCard
-                item={block.item}
-                actionDone={inFeedDoneIds.has(block.item.id)}
-                onAction={() => handleInFeedAction(block.item)}
+              <SuggestedCirclesRow
+                circles={groupSuggestions}
+                doneIds={inFeedDoneIds}
+                onAction={handleInFeedAction}
+                onCreateCircle={onNavigateToCircles}
               />
-              <FeedDivider />
-            </div>
-          );
-        }
-        if (block.type === "page-placeholder") {
-          return (
-            <div key={block.key}>
-              <SuggestionPlaceholder forType="page" onAction={onNavigateToPages} />
-              <FeedDivider />
-            </div>
-          );
-        }
-        if (block.type === "circle-placeholder") {
-          return (
-            <div key={block.key}>
-              <SuggestionPlaceholder forType="circle" onAction={onNavigateToCircles} />
               <FeedDivider />
             </div>
           );
