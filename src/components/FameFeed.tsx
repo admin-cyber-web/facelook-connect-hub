@@ -97,9 +97,13 @@ const PostCaption = ({ content }: { content: string }) => {
 const FLICK_GRADS = ["#ec4899","#f59e0b","#10b981","#3b82f6","#8b5cf6","#ef4444","#06b6d4","#f97316","#84cc16"];
 
 // Pure display component — data is fetched once at FameFeed level, no per-instance channels
-const TrendingFlicksRow = ({ flicks, loaded }: { flicks: any[]; loaded: boolean }) => {
+const TrendingFlicksRow = ({
+  flicks, loaded, onFlickClick,
+}: {
+  flicks: any[]; loaded: boolean; onFlickClick: (flick: any) => void;
+}) => {
   if (!loaded) return null;
-  if (flicks.length === 0) return null; // hide entirely when no real flicks
+  if (flicks.length === 0) return null;
   return (
     <div className="bg-white pt-2 pb-1">
       <p className="text-[12px] font-black text-gray-700 px-4 mb-2">🔥 Trending Flicks</p>
@@ -109,9 +113,14 @@ const TrendingFlicksRow = ({ flicks, loaded }: { flicks: any[]; loaded: boolean 
           const isVid = !isYT && flick.media_url && /\.(mp4|webm|ogg|mov|m4v)/i.test(flick.media_url.split("?")[0]);
           const isImg = flick.media_url && !isVid && !isYT;
           return (
-            <div key={flick.id}
-              className="flex-shrink-0 relative rounded-xl overflow-hidden"
-              style={{ width: 108, height: 192, background: `linear-gradient(160deg, ${FLICK_GRADS[i % FLICK_GRADS.length]} 0%, #1e1b4b 100%)` }}>
+            <motion.div
+              key={flick.id}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => onFlickClick(flick)}
+              className="flex-shrink-0 relative rounded-xl overflow-hidden cursor-pointer select-none"
+              style={{ width: 108, height: 192, background: `linear-gradient(160deg, ${FLICK_GRADS[i % FLICK_GRADS.length]} 0%, #1e1b4b 100%)` }}
+            >
               {/* Real thumbnail */}
               {isImg && (
                 <img src={flick.media_url} className="absolute inset-0 w-full h-full object-cover" loading="lazy" alt="" />
@@ -119,11 +128,14 @@ const TrendingFlicksRow = ({ flicks, loaded }: { flicks: any[]; loaded: boolean 
               {isVid && (
                 <video src={flick.media_url} className="absolute inset-0 w-full h-full object-cover" muted playsInline preload="metadata" />
               )}
-              {/* Play overlay */}
-              <div className="absolute inset-0 flex items-center justify-center bg-black/10">
-                <div className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center border border-white/20">
-                  <Play size={16} fill="white" className="text-white ml-0.5" />
-                </div>
+              {/* Play icon overlay — always visible, pulses on hover */}
+              <div className="absolute inset-0 flex items-center justify-center bg-black/20 transition-colors hover:bg-black/30">
+                <motion.div
+                  whileHover={{ scale: 1.2 }}
+                  className="w-11 h-11 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center border-2 border-white/40 shadow-lg"
+                >
+                  <Play size={18} fill="white" className="text-white ml-1" />
+                </motion.div>
               </div>
               <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent px-2 py-2">
                 <div className="flex items-center gap-1 mb-0.5">
@@ -132,7 +144,7 @@ const TrendingFlicksRow = ({ flicks, loaded }: { flicks: any[]; loaded: boolean 
                 </div>
                 <p className="text-white text-[9px] font-semibold truncate">@{flick.author || "user"}</p>
               </div>
-            </div>
+            </motion.div>
           );
         })}
       </div>
@@ -434,6 +446,89 @@ const SingleReelBlock = ({ post }: { post: any }) => {
 // ── Divider ────────────────────────────────────────────────────────────────────
 const FeedDivider = () => <div className="h-1 bg-gray-100" />;
 
+// ── Fullscreen Flick Player Modal ─────────────────────────────────────────────
+const FlickPlayerModal = ({ flick, onClose }: { flick: any; onClose: () => void }) => {
+  const isYT = flick.media_url?.includes("youtube.com") || flick.media_url?.includes("youtu.be");
+  const isVid = !isYT && flick.media_url && /\.(mp4|webm|ogg|mov|m4v)/i.test(flick.media_url.split("?")[0]);
+
+  const getYtEmbedUrl = (url: string) => {
+    const match = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&?/]+)/);
+    return match ? `https://www.youtube.com/embed/${match[1]}?autoplay=1&playsinline=1` : url;
+  };
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        key="flick-modal"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 z-[999] bg-black flex flex-col"
+        onClick={onClose}
+      >
+        {/* Close button */}
+        <div className="absolute top-4 right-4 z-10">
+          <button
+            onClick={onClose}
+            className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center text-white border border-white/20"
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        {/* Author tag */}
+        <div className="absolute top-4 left-4 z-10">
+          <p className="text-white text-[13px] font-bold drop-shadow-lg">@{flick.author || "user"}</p>
+        </div>
+
+        {/* Video / Embed */}
+        <div className="flex-1 flex items-center justify-center" onClick={e => e.stopPropagation()}>
+          {isYT && (
+            <iframe
+              src={getYtEmbedUrl(flick.media_url)}
+              className="w-full h-full"
+              allow="autoplay; fullscreen"
+              allowFullScreen
+              style={{ border: "none", maxHeight: "100dvh" }}
+            />
+          )}
+          {isVid && (
+            <video
+              src={flick.media_url}
+              className="w-full h-full object-contain"
+              autoPlay
+              controls
+              playsInline
+              style={{ maxHeight: "100dvh" }}
+            />
+          )}
+          {!isVid && !isYT && flick.media_url && (
+            <img
+              src={flick.media_url}
+              className="w-full h-full object-contain"
+              alt=""
+              style={{ maxHeight: "100dvh" }}
+            />
+          )}
+          {!flick.media_url && (
+            <div className="flex flex-col items-center gap-3 text-white/50">
+              <Film size={48} strokeWidth={1} />
+              <p className="text-[13px]">No media available</p>
+            </div>
+          )}
+        </div>
+
+        {/* Caption */}
+        {flick.content && (
+          <div className="absolute bottom-8 left-4 right-16 z-10">
+            <p className="text-white text-[13px] font-medium drop-shadow-lg line-clamp-3">{flick.content}</p>
+          </div>
+        )}
+      </motion.div>
+    </AnimatePresence>
+  );
+};
+
 // ── Main Feed ─────────────────────────────────────────────────────────────────
 interface FameFeedProps {
   onPostClick?: () => void;
@@ -442,11 +537,12 @@ interface FameFeedProps {
   suggestions?: { id: string; full_name: string; avatar_url?: string }[];
   onNavigateToCircles?: () => void;
   onNavigateToPages?: () => void;
+  onNavigateToFlicks?: () => void;
 }
 
 const FameFeed = ({
   onPostClick, onImageSelect, userProfile, suggestions = [],
-  onNavigateToCircles, onNavigateToPages,
+  onNavigateToCircles, onNavigateToPages, onNavigateToFlicks,
 }: FameFeedProps) => {
   const { openProfile } = useProfileViewer();
   const [posts, setPosts] = useState<any[]>([]);
@@ -465,6 +561,7 @@ const FameFeed = ({
   const [inFeedDoneIds, setInFeedDoneIds] = useState<Set<string>>(new Set());
   const [trendingFlicks, setTrendingFlicks] = useState<any[]>([]);
   const [flicksLoaded, setFlicksLoaded] = useState(false);
+  const [flickModal, setFlickModal] = useState<any | null>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
   // Unique channel ID per mount — prevents "cannot add callbacks after subscribe()" error
   const channelId = useRef(`fame-rt-${Date.now()}`);
@@ -931,7 +1028,11 @@ const FameFeed = ({
         if (block.type === "reels-row") {
           return (
             <div key={block.key}>
-              <TrendingFlicksRow flicks={trendingFlicks} loaded={flicksLoaded} />
+              <TrendingFlicksRow
+                flicks={trendingFlicks}
+                loaded={flicksLoaded}
+                onFlickClick={flick => setFlickModal(flick)}
+              />
               <FeedDivider />
             </div>
           );
@@ -1017,6 +1118,11 @@ const FameFeed = ({
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* ── Fullscreen Flick Player Modal ────────────────────────────── */}
+      {flickModal && (
+        <FlickPlayerModal flick={flickModal} onClose={() => setFlickModal(null)} />
+      )}
     </div>
   );
 };

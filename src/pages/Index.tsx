@@ -1734,6 +1734,7 @@ const Index = ({ session }: { session: Session }) => {
                     suggestions={onlineUsers}
                     onNavigateToCircles={() => setActiveFeature("Circle")}
                     onNavigateToPages={() => setActiveFeature("Circle")}
+                    onNavigateToFlicks={() => setActiveFeature("Flicks")}
                   />
                 </div>
               </div>
