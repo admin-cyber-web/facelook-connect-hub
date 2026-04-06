@@ -566,8 +566,28 @@ const FameFeed = ({
   // Unique channel ID per mount — prevents "cannot add callbacks after subscribe()" error
   const channelId = useRef(`fame-rt-${Date.now()}`);
 
+  // ── DB se current user ki liked post IDs fetch karo ─────────────────────
+  const fetchLikedPostIds = async (uid: string) => {
+    const { data, error } = await supabase
+      .from("likes")
+      .select("post_id")
+      .eq("user_id", uid);
+    if (error) {
+      console.warn("[FameFeed] fetchLikedPostIds error:", error.message);
+      return;
+    }
+    const ids = new Set<string>((data || []).map((r: any) => r.post_id));
+    setLikedIds(ids);
+    console.log("[FameFeed] Liked post IDs loaded from DB:", ids.size);
+  };
+
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => setCurrentUserId(data.user?.id ?? null));
+    supabase.auth.getUser().then(({ data }) => {
+      const uid = data.user?.id ?? null;
+      setCurrentUserId(uid);
+      // ✅ User ID milte hi DB se liked posts fetch karein
+      if (uid) fetchLikedPostIds(uid);
+    });
   }, []);
 
   const fetchPosts = async () => {
