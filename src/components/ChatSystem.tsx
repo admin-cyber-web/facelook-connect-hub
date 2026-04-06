@@ -992,7 +992,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({ isOpen, onClose, userId, onLogo
                 </div>
 
                 {/* Input */}
-                <div className={`px-4 py-3 border-t ${T.divider} ${T.input} shrink-0`}>
+                <div className={`px-4 pt-3 pb-[max(12px,env(safe-area-inset-bottom))] border-t ${T.divider} ${T.input} shrink-0`}>
                   <div className="flex items-end gap-2">
                     <button onClick={() => fileInputRef.current?.click()} disabled={isUploadingMedia}
                       className={`w-10 h-10 rounded-2xl bg-white/10 border ${T.divider} flex items-center justify-center ${T.text3} hover:bg-white/20 shrink-0 disabled:opacity-40`}>

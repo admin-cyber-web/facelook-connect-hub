@@ -2051,8 +2051,8 @@ const Index = ({ session }: { session: Session }) => {
       {/* Chat FAB ──────────────────────────────────────────────────────────── */}
       <motion.button
         animate={{
-          y: activeFeature !== "Flicks" ? 0 : 150,
-          opacity: 1,
+          y: activeFeature !== "Flicks" && !isChatOpen ? 0 : 150,
+          opacity: isChatOpen ? 0 : 1,
         }}
         onClick={() => setIsChatOpen(true)}
         className="fixed bottom-32 right-6 w-16 h-16 bg-blue-600 rounded-full shadow-2xl flex items-center justify-center z-[80] border-2 border-white/20 active:scale-90"
@@ -2066,6 +2066,7 @@ const Index = ({ session }: { session: Session }) => {
       {/* Side DVD-Tray Nav ──────────────────────────────────────────────── */}
       <GolSlider
         activeFeature={activeFeature}
+        hidden={isChatOpen}
         onFeatureChange={(f) => {
           if (f === "Circle") { setActiveFeature("Circle"); return; }
           setActiveFeature(f);
