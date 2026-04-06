@@ -55,6 +55,7 @@ interface Message {
   media_url?: string;
   media_type?: string;
   created_at: string;
+  seen_at?: string;
 }
 interface Story {
   id: string;
@@ -359,11 +360,20 @@ const ChatSystem: React.FC<ChatSystemProps> = ({ isOpen, onClose, userId, onLogo
   const [viewingStory, setViewingStory] = useState<Story | null>(null);
   const storyInputRef = useRef<HTMLInputElement>(null);
 
+  // ── Advanced features state ────────────────────────────────────────────────
+  const [panicMode, setPanicMode] = useState(false);
+  const [isOtherTyping, setIsOtherTyping] = useState(false);
+  const [showChatMenu, setShowChatMenu] = useState(false);
+  const [deletingForMe, setDeletingForMe] = useState<string | null>(null);
+
   // ── Refs ──────────────────────────────────────────────────────────────────
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const prevMsgCount = useRef(0);
+  const typingChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const panicClickRef = useRef<{ count: number; timer: ReturnType<typeof setTimeout> | null }>({ count: 0, timer: null });
 
   const T = THEME_CFG[theme];
 
@@ -567,6 +577,8 @@ const ChatSystem: React.FC<ChatSystemProps> = ({ isOpen, onClose, userId, onLogo
   // ── Messages for selected chat ────────────────────────────────────────────
   useEffect(() => {
     if (!selectedUser) return;
+    setIsOtherTyping(false); setShowChatMenu(false); setPanicMode(false);
+
     const load = async () => {
       setLoadingMessages(true);
       const { data } = await supabase.from("messages").select("*")
@@ -574,15 +586,54 @@ const ChatSystem: React.FC<ChatSystemProps> = ({ isOpen, onClose, userId, onLogo
         .order("created_at", { ascending: true });
       setMessages((data as Message[]) || []);
       setLoadingMessages(false);
+      // Mark all received messages as seen
+      await supabase.from("messages")
+        .update({ seen_at: new Date().toISOString() })
+        .eq("receiver_id", userId)
+        .eq("sender_id", selectedUser.id)
+        .is("seen_at", null);
     };
     load();
+
+    // Chat realtime: INSERT + UPDATE (for seen_at ticks)
     const ch = supabase.channel(`chat-${userId}-${selectedUser.id}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, (p) => {
         const msg = p.new as Message;
         const relevant = (msg.sender_id === userId && msg.receiver_id === selectedUser.id) || (msg.sender_id === selectedUser.id && msg.receiver_id === userId);
-        if (relevant) { setMessages((prev) => prev.find((m) => m.id === msg.id) ? prev : [...prev, msg]); fetchContacts(); }
-      }).subscribe();
-    return () => { supabase.removeChannel(ch); };
+        if (relevant) {
+          setMessages((prev) => prev.find((m) => m.id === msg.id) ? prev : [...prev, msg]);
+          fetchContacts();
+          // Auto-mark as seen if we're in the conversation and it's for us
+          if (msg.receiver_id === userId && msg.sender_id === selectedUser.id) {
+            supabase.from("messages").update({ seen_at: new Date().toISOString() }).eq("id", msg.id).then(() => {});
+          }
+        }
+      })
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "messages" }, (p) => {
+        const msg = p.new as Message;
+        const relevant = msg.sender_id === userId || msg.receiver_id === userId;
+        if (relevant) {
+          setMessages((prev) => prev.map((m) => m.id === msg.id ? { ...m, seen_at: msg.seen_at } : m));
+        }
+      })
+      .subscribe();
+
+    // Typing presence channel
+    const typingKey = [userId, selectedUser.id].sort().join("-");
+    const typingCh = supabase.channel(`typing-${typingKey}`, { config: { presence: { key: userId } } });
+    typingCh.on("presence", { event: "sync" }, () => {
+      const state = typingCh.presenceState<{ is_typing?: boolean }>();
+      const other = (state[selectedUser.id] || [])[0] as { is_typing?: boolean } | undefined;
+      setIsOtherTyping(other?.is_typing === true);
+    }).subscribe();
+    typingChannelRef.current = typingCh;
+
+    return () => {
+      supabase.removeChannel(ch);
+      supabase.removeChannel(typingCh);
+      typingChannelRef.current = null;
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    };
   }, [selectedUser, userId, fetchContacts]);
 
   // ── Friend actions ────────────────────────────────────────────────────────
@@ -683,6 +734,45 @@ const ChatSystem: React.FC<ChatSystemProps> = ({ isOpen, onClose, userId, onLogo
   const toggleMute = (id: string) => setMutedChats((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const toggleArchive = (id: string) => setArchivedChats((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
 
+  // ── Typing tracker ────────────────────────────────────────────────────────
+  const handleTyping = () => {
+    const ch = typingChannelRef.current;
+    if (!ch) return;
+    ch.track({ is_typing: true });
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    typingTimeoutRef.current = setTimeout(() => { ch.track({ is_typing: false }); }, 2000);
+  };
+
+  // ── Panic mode triple-click handler ───────────────────────────────────────
+  const handlePanicUnlock = () => {
+    if (!panicMode) return;
+    panicClickRef.current.count += 1;
+    if (panicClickRef.current.timer) clearTimeout(panicClickRef.current.timer);
+    if (panicClickRef.current.count >= 3) {
+      panicClickRef.current.count = 0;
+      setPanicMode(false);
+    } else {
+      panicClickRef.current.timer = setTimeout(() => { panicClickRef.current.count = 0; }, 800);
+    }
+  };
+
+  // ── Delete for Me (local only) ────────────────────────────────────────────
+  const deleteForMe = (msgId: string) => {
+    setMessages(prev => prev.filter(m => m.id !== msgId));
+    setMsgMenuId(null);
+    setDeletingForMe(null);
+  };
+
+  // ── Tick component ────────────────────────────────────────────────────────
+  const MessageTick = ({ msg }: { msg: Message }) => {
+    if (msg.sender_id !== userId) return null;
+    const isTemp = msg.id.startsWith("temp-");
+    const isSeen = !!msg.seen_at;
+    if (isTemp) return <span className="text-[10px] text-white/30 ml-1">✓</span>;
+    if (isSeen) return <span className="text-[10px] text-blue-400 ml-1 font-black">✓✓</span>;
+    return <span className="text-[10px] text-white/50 ml-1">✓✓</span>;
+  };
+
   const visibleContacts = contacts.filter((c) => !archivedChats.has(c.id));
   const archivedContactsList = contacts.filter((c) => archivedChats.has(c.id));
   const filteredMessages = chatSearch.trim() ? messages.filter((m) => m.content?.toLowerCase().includes(chatSearch.toLowerCase())) : messages;
@@ -754,6 +844,36 @@ const ChatSystem: React.FC<ChatSystemProps> = ({ isOpen, onClose, userId, onLogo
           transition={{ type: "spring", stiffness: 300, damping: 30 }}
           className={`fixed inset-0 z-[150] flex flex-col ${T.wrap} overflow-hidden`}
         >
+          {/* ── PANIC MODE OVERLAY ───────────────────────────────────────── */}
+          <AnimatePresence>
+            {panicMode && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                className="absolute inset-0 z-[999] bg-white flex flex-col items-center justify-center select-none">
+                <motion.div
+                  animate={{ rotate: [0, -5, 5, -5, 5, 0] }}
+                  transition={{ duration: 0.5, repeat: Infinity, repeatDelay: 2 }}
+                  className="text-[120px] leading-none mb-8">
+                  🖕
+                </motion.div>
+                <p className="text-gray-300 text-sm font-bold tracking-widest uppercase mb-6">Triple-tap your avatar to unlock</p>
+                <button onClick={handlePanicUnlock}
+                  className="w-16 h-16 rounded-full overflow-hidden border-2 border-gray-200 active:scale-95 transition-all shadow-lg">
+                  {myProfile?.avatar_url
+                    ? <img src={myProfile.avatar_url} alt="" className="w-full h-full object-cover" />
+                    : <div className="w-full h-full bg-gray-100 flex items-center justify-center text-2xl">👤</div>
+                  }
+                </button>
+                <div className="mt-6 flex gap-2">
+                  {[0,1,2].map(i => (
+                    <motion.div key={i} className="w-2 h-2 rounded-full bg-gray-200"
+                      animate={{ scale: [1, 1.5, 1] }}
+                      transition={{ duration: 0.8, delay: i * 0.25, repeat: Infinity }} />
+                  ))}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           {/* ── Rose petals ──────────────────────────────────────────────── */}
           {theme === "velvet" && <RosePetals />}
 
@@ -974,11 +1094,23 @@ const ChatSystem: React.FC<ChatSystemProps> = ({ isOpen, onClose, userId, onLogo
                     className={`w-10 h-10 rounded-2xl bg-white/10 border ${T.divider} flex items-center justify-center ${T.text1} hover:bg-white/20 active:scale-90 transition-all`}>
                     <ArrowLeft size={20} />
                   </button>
-                  <div className="flex items-center gap-2.5 flex-1 min-w-0 cursor-pointer" onClick={() => openProfile?.(selectedUser.id)}>
+                  <div className="flex items-center gap-2.5 flex-1 min-w-0 cursor-pointer" onClick={() => { openProfile?.(selectedUser.id); handlePanicUnlock(); }}>
                     <Avatar url={selectedUser.avatar_url} name={selectedUser.full_name} size="md" online={onlineUsers.has(selectedUser.id)} />
                     <div className="min-w-0">
                       <p className={`text-base font-black truncate leading-tight ${T.text1}`}>{selectedUser.full_name}</p>
-                      <p className={`text-[11px] font-semibold ${onlineUsers.has(selectedUser.id) ? "text-green-400" : "text-red-400"}`}>{onlineUsers.has(selectedUser.id) ? "● Online" : "● Offline"}</p>
+                      {isOtherTyping ? (
+                        <p className="text-[11px] font-semibold text-emerald-400 flex items-center gap-1">
+                          Typing
+                          <span className="flex gap-[3px] items-center">
+                            {[0, 1, 2].map(i => (
+                              <span key={i} className="w-1 h-1 rounded-full bg-emerald-400 inline-block"
+                                style={{ animation: `bounce 1s ${i * 0.2}s infinite` }} />
+                            ))}
+                          </span>
+                        </p>
+                      ) : (
+                        <p className={`text-[11px] font-semibold ${onlineUsers.has(selectedUser.id) ? "text-green-400" : "text-red-400"}`}>{onlineUsers.has(selectedUser.id) ? "● Online" : "● Offline"}</p>
+                      )}
                     </div>
                   </div>
                   <button onClick={() => setShowChatSearch(!showChatSearch)} className={`w-9 h-9 rounded-xl bg-white/10 border ${T.divider} flex items-center justify-center ${T.text1} hover:bg-white/20`}><Search size={16} /></button>
@@ -994,6 +1126,38 @@ const ChatSystem: React.FC<ChatSystemProps> = ({ isOpen, onClose, userId, onLogo
                               {em}
                             </button>
                           ))}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                  {/* Panic toggle */}
+                  <button onClick={() => setPanicMode(p => !p)} title="Panic Mode"
+                    className={`w-9 h-9 rounded-xl border flex items-center justify-center text-base transition-all hover:bg-white/20 ${panicMode ? "bg-red-500/30 border-red-400/40 animate-pulse" : `bg-white/5 ${T.divider}`}`}>
+                    🔴
+                  </button>
+                  {/* 3-dot chat menu */}
+                  <div className="relative">
+                    <button onClick={() => setShowChatMenu(p => !p)}
+                      className={`w-9 h-9 rounded-xl bg-white/10 border ${T.divider} flex items-center justify-center ${T.text1} hover:bg-white/20`}>
+                      <MoreVertical size={16} />
+                    </button>
+                    <AnimatePresence>
+                      {showChatMenu && (
+                        <motion.div initial={{ opacity: 0, scale: 0.9, y: 4 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 4 }}
+                          className={`absolute right-0 top-12 z-50 rounded-2xl border shadow-2xl overflow-hidden min-w-[170px] ${T.msgMenuBg}`}
+                          onClick={e => e.stopPropagation()}>
+                          <button onClick={() => { setMessages([]); setShowChatMenu(false); toast.success("Chat wiped locally 🧽"); }}
+                            className={`flex items-center gap-2 w-full px-4 py-3 text-sm font-bold hover:bg-white/8 ${T.text1}`}>
+                            🧽 Wipe Chat
+                          </button>
+                          <button onClick={() => { if (selectedUser) { toggleArchive(selectedUser.id); setSelectedUser(null); setMessages([]); setShowChatMenu(false); } }}
+                            className={`flex items-center gap-2 w-full px-4 py-3 text-sm font-bold hover:bg-white/8 ${T.text1}`}>
+                            🙈 Hide Chat
+                          </button>
+                          <button onClick={() => { setPanicMode(true); setShowChatMenu(false); }}
+                            className="flex items-center gap-2 w-full px-4 py-3 text-sm font-bold text-red-400 hover:bg-red-500/10">
+                            🖕 Panic Mode
+                          </button>
                         </motion.div>
                       )}
                     </AnimatePresence>
@@ -1031,19 +1195,23 @@ const ChatSystem: React.FC<ChatSystemProps> = ({ isOpen, onClose, userId, onLogo
                             <div className={`px-4 py-2.5 rounded-2xl ${isMine ? `${T.bubbleSent} rounded-tr-sm` : `${T.bubbleRecv} rounded-tl-sm`}`}>
                               {msg.media_url && msg.media_type ? <MediaBubble url={msg.media_url} type={msg.media_type} />
                                 : <p className="text-lg font-bold leading-snug break-words">{msg.content}</p>}
-                              <p className={`text-[10px] mt-0.5 font-medium ${isMine ? "text-white/50" : T.text3} text-right`}>{formatTime(msg.created_at)}</p>
+                              <p className={`text-[10px] mt-0.5 font-medium ${isMine ? "text-white/50" : T.text3} text-right flex items-center justify-end gap-1`}>
+                                {formatTime(msg.created_at)}
+                                <MessageTick msg={msg} />
+                              </p>
                             </div>
-                            {isMine && (
-                              <button onClick={(e) => { e.stopPropagation(); setMsgMenuId(msgMenuId === msg.id ? null : msg.id); }}
-                                className={`absolute -left-8 top-1/2 -translate-y-1/2 w-6 h-6 rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all ${T.text3} hover:bg-white/10`}>
-                                <MoreVertical size={13} />
-                              </button>
-                            )}
+                            <button onClick={(e) => { e.stopPropagation(); setMsgMenuId(msgMenuId === msg.id ? null : msg.id); }}
+                              className={`absolute ${isMine ? "-left-8" : "-right-8"} top-1/2 -translate-y-1/2 w-6 h-6 rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all ${T.text3} hover:bg-white/10`}>
+                              <MoreVertical size={13} />
+                            </button>
                             <AnimatePresence>
                               {msgMenuId === msg.id && (
                                 <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}
-                                  className={`absolute ${isMine ? "right-0" : "left-0"} bottom-full mb-1 z-50 rounded-2xl border shadow-xl overflow-hidden min-w-[130px] ${T.msgMenuBg}`}>
-                                  {isMine && <button onClick={(e) => deleteMessage(msg, e)} className="flex items-center gap-2 w-full px-4 py-3 text-sm font-bold text-red-400 hover:bg-red-500/10"><Trash2 size={13} /> Delete</button>}
+                                  className={`absolute ${isMine ? "right-0" : "left-0"} bottom-full mb-1 z-50 rounded-2xl border shadow-xl overflow-hidden min-w-[170px] ${T.msgMenuBg}`}>
+                                  <button onClick={() => deleteForMe(msg.id)} className={`flex items-center gap-2 w-full px-4 py-3 text-sm font-bold hover:bg-white/8 ${T.text1}`}>
+                                    <EyeOff size={13} /> Delete for Me
+                                  </button>
+                                  {isMine && <button onClick={(e) => deleteMessage(msg, e)} className="flex items-center gap-2 w-full px-4 py-3 text-sm font-bold text-red-400 hover:bg-red-500/10"><Trash2 size={13} /> Delete for Everyone</button>}
                                 </motion.div>
                               )}
                             </AnimatePresence>
@@ -1062,7 +1230,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({ isOpen, onClose, userId, onLogo
                       {isUploadingMedia ? <Loader2 size={16} className="animate-spin" /> : <Paperclip size={16} />}
                     </button>
                     <input type="file" ref={fileInputRef} className="hidden" onChange={handleMediaUpload} accept="image/*,video/*,audio/*" />
-                    <textarea value={newMessage} onChange={(e) => setNewMessage(e.target.value)}
+                    <textarea value={newMessage} onChange={(e) => { setNewMessage(e.target.value); handleTyping(); }}
                       onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
                       placeholder="Type a message..." rows={1}
                       className={`flex-1 rounded-2xl px-4 py-2.5 text-lg font-bold outline-none border resize-none max-h-28 overflow-y-auto ${T.searchBg} focus:ring-2 focus:ring-blue-500/30`} />
