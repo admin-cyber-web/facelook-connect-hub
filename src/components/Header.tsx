@@ -348,12 +348,12 @@ const Header = ({
   const [dashTab, setDashTab]         = useState<DashTab>("friends");
   const [dashStats, setDashStats]     = useState({ posts: 0, hooks: 0, likes: 0, friends: 0 });
   const [dashLoading, setDashLoading] = useState(false);
-  const [dashFriends, setDashFriends] = useState<FriendEntry[]>([]);
-  const [dashPosts, setDashPosts]     = useState<any[]>([]);
-  const [dashHooks, setDashHooks]     = useState<any[]>([]);
-  const [dashFriendsFetched, setDashFriendsFetched] = useState(false);
-  const [dashPostsFetched, setDashPostsFetched]     = useState(false);
-  const [dashHooksFetched, setDashHooksFetched]     = useState(false);
+  const [dashFriends, setDashFriends]         = useState<FriendEntry[]>([]);
+  const [dashFriendsLoading, setDashFriendsLoading] = useState(false);
+  const [dashPosts, setDashPosts]             = useState<any[]>([]);
+  const [dashHooks, setDashHooks]             = useState<any[]>([]);
+  const [dashPostsFetched, setDashPostsFetched] = useState(false);
+  const [dashHooksFetched, setDashHooksFetched] = useState(false);
 
   // ── KICK state ─────────────────────────────────────────────────────────────
   const [kickTarget, setKickTarget]   = useState<FriendEntry | null>(null);
@@ -418,23 +418,49 @@ const Header = ({
   }, [userId]);
 
   const fetchDashFriends = useCallback(async () => {
-    if (!userId || dashFriendsFetched) return;
-    const { data } = await supabase
+    if (!userId) return;
+    setDashFriendsLoading(true);
+    console.log("[PowerDash] fetchDashFriends — userId:", userId);
+
+    // Step 1: get accepted friendship rows
+    const { data: rows, error } = await supabase
       .from("friendships")
-      .select("id, sender_id, receiver_id, profiles!friendships_sender_id_fkey(id,full_name,avatar_url), profiles!friendships_receiver_id_fkey(id,full_name,avatar_url)")
+      .select("id, sender_id, receiver_id")
       .eq("status", "accepted")
       .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
       .limit(50);
-    if (data) {
-      const parsed: FriendEntry[] = data.map((row: any) => {
-        const isSender = row.sender_id === userId;
-        const p = isSender ? row["profiles!friendships_receiver_id_fkey"] : row["profiles!friendships_sender_id_fkey"];
-        return p ? { friendshipId: row.id, id: p.id, full_name: p.full_name, avatar_url: p.avatar_url } : null;
-      }).filter((f: FriendEntry | null): f is FriendEntry => !!f && !!f.id);
-      setDashFriends(parsed);
-      setDashFriendsFetched(true);
+
+    console.log("[PowerDash] friendships rows:", rows?.length ?? 0, "| error:", error ?? "none");
+
+    if (!rows || rows.length === 0) {
+      setDashFriends([]);
+      setDashFriendsLoading(false);
+      return;
     }
-  }, [userId, dashFriendsFetched]);
+
+    // Step 2: collect the friend's profile ids (the "other" person)
+    const friendIds = rows.map((r: any) => r.sender_id === userId ? r.receiver_id : r.sender_id);
+    console.log("[PowerDash] friendIds to fetch profiles for:", friendIds);
+
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("id, full_name, avatar_url")
+      .in("id", friendIds);
+
+    console.log("[PowerDash] profiles fetched:", profiles?.length ?? 0);
+
+    const profileMap: Record<string, any> = Object.fromEntries((profiles || []).map(p => [p.id, p]));
+
+    const parsed: FriendEntry[] = rows.map((r: any) => {
+      const friendId = r.sender_id === userId ? r.receiver_id : r.sender_id;
+      const p = profileMap[friendId];
+      return p ? { friendshipId: r.id, id: p.id, full_name: p.full_name, avatar_url: p.avatar_url } : null;
+    }).filter((f): f is FriendEntry => !!f && !!f.id);
+
+    console.log("[PowerDash] parsed friends:", parsed.length);
+    setDashFriends(parsed);
+    setDashFriendsLoading(false);
+  }, [userId]);
 
   const fetchDashPosts = useCallback(async () => {
     if (!userId || dashPostsFetched) return;
@@ -616,7 +642,7 @@ const Header = ({
           </motion.button>
 
           {/* Avatar → opens Power Dashboard */}
-          <motion.div whileTap={{ scale: 0.88 }} onClick={() => setShowDash(true)}
+          <motion.div whileTap={{ scale: 0.88 }} onClick={() => { setShowDash(true); setDashFriends([]); }}
             className="w-9 h-9 rounded-xl overflow-hidden border-2 border-yellow-400/60 shadow-lg cursor-pointer flex-shrink-0 relative"
             style={{ boxShadow: "0 0 12px rgba(250,204,21,0.35)" }}>
             {userData.avatar_url
@@ -747,7 +773,7 @@ const Header = ({
           <>
             {/* Backdrop */}
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              onClick={() => { setShowDash(false); setKickTarget(null); }}
+              onClick={() => { setShowDash(false); setKickTarget(null); setDashFriends([]); }}
               className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[115]" />
 
             {/* Sidebar */}
@@ -759,7 +785,7 @@ const Header = ({
               {/* ── Dashboard Header ─────────────────────────────────────── */}
               <div className="relative px-5 pt-5 pb-4 shrink-0" style={{ background: "linear-gradient(135deg, rgba(37,99,235,0.25) 0%, rgba(79,70,229,0.15) 100%)", borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
                 {/* Close */}
-                <button onClick={() => { setShowDash(false); setKickTarget(null); }}
+                <button onClick={() => { setShowDash(false); setKickTarget(null); setDashFriends([]); }}
                   className="absolute top-4 right-4 p-1.5 hover:bg-white/10 rounded-full text-white/40 hover:text-white transition-all">
                   <X size={18} />
                 </button>
@@ -851,12 +877,34 @@ const Header = ({
                       <span className="ml-auto text-[9px] text-red-400 font-black bg-red-500/10 border border-red-500/20 px-2 py-0.5 rounded-full">⚽ Kick Mode ON</span>
                     </div>
 
-                    {dashFriends.length === 0 ? (
+                    {/* ── Skeleton loader ── */}
+                    {dashFriendsLoading && (
+                      <div className="flex flex-col gap-2">
+                        {[1, 2, 3].map(i => (
+                          <div key={i} className="flex items-center gap-3 rounded-2xl px-3 py-3 animate-pulse"
+                            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                            <div className="w-11 h-11 rounded-xl bg-white/10 shrink-0" />
+                            <div className="flex-1 space-y-2">
+                              <div className="h-3 bg-white/10 rounded-full w-3/4" />
+                              <div className="h-2 bg-white/6 rounded-full w-1/2" />
+                            </div>
+                            <div className="w-20 h-9 rounded-xl bg-red-500/10 shrink-0" />
+                          </div>
+                        ))}
+                        <p className="text-center text-white/30 text-[11px] font-bold mt-2">Loading friends...</p>
+                      </div>
+                    )}
+
+                    {/* ── Empty state ── */}
+                    {!dashFriendsLoading && dashFriends.length === 0 && (
                       <div className="flex flex-col items-center justify-center py-16 gap-3 text-white/20">
                         <Users size={36} strokeWidth={1} />
                         <p className="text-[11px] font-black uppercase tracking-widest">Koi dost nahi abhi</p>
                       </div>
-                    ) : (
+                    )}
+
+                    {/* ── Friends list ── */}
+                    {!dashFriendsLoading && dashFriends.length > 0 && (
                       <div className="flex flex-col gap-2">
                         <AnimatePresence>
                           {dashFriends.map(f => (
@@ -867,24 +915,36 @@ const Header = ({
                               transition={kickingId === f.id ? { type: "spring", stiffness: 280, damping: 18 } : { duration: 0.2 }}
                               className="flex items-center gap-3 rounded-2xl px-3 py-2.5"
                               style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}>
+
                               {/* Avatar */}
-                              <div className="w-10 h-10 rounded-xl overflow-hidden shrink-0" style={{ background: "linear-gradient(135deg, #1d4ed8, #4f46e5)" }}>
+                              <div className="w-11 h-11 rounded-xl overflow-hidden shrink-0" style={{ background: "linear-gradient(135deg, #1d4ed8, #4f46e5)" }}>
                                 {f.avatar_url
                                   ? <img src={f.avatar_url} className="w-full h-full object-cover" alt={f.full_name} />
-                                  : <div className="w-full h-full flex items-center justify-center text-white font-black text-sm">{(f.full_name || "?")[0].toUpperCase()}</div>}
+                                  : <div className="w-full h-full flex items-center justify-center text-white font-black text-base">{(f.full_name || "?")[0].toUpperCase()}</div>}
                               </div>
+
                               {/* Name */}
                               <div className="flex-1 min-w-0">
-                                <p className="text-white font-bold text-[13px] truncate">{f.full_name}</p>
-                                <p className="text-white/30 text-[10px] font-semibold">Friend ✓</p>
+                                <p className="text-white font-bold text-[14px] truncate">{f.full_name}</p>
+                                <p className="text-emerald-400/60 text-[10px] font-semibold">✓ Friend</p>
                               </div>
-                              {/* KICK button */}
-                              <motion.button whileTap={{ scale: 0.86 }} whileHover={{ scale: 1.05 }}
+
+                              {/* ── BIG BOLD KICK BUTTON ── */}
+                              <motion.button
+                                whileTap={{ scale: 0.82 }}
+                                whileHover={{ scale: 1.08, boxShadow: "0 6px 24px rgba(239,68,68,0.55)" }}
                                 onClick={() => setKickTarget(f)}
                                 disabled={!!kickingId}
-                                className="flex items-center gap-1.5 px-3 py-2 rounded-xl font-black text-[11px] tracking-wide transition-colors disabled:opacity-40 shrink-0"
-                                style={{ border: "1.5px solid rgba(239,68,68,0.6)", color: "#f87171", background: "rgba(239,68,68,0.1)", boxShadow: "0 2px 10px rgba(239,68,68,0.2)" }}>
-                                <span className="text-sm">⚽</span> KICK
+                                className="flex items-center gap-2 px-4 py-2.5 rounded-2xl font-black text-[13px] tracking-widest uppercase transition-all disabled:opacity-40 shrink-0"
+                                style={{
+                                  border: "2px solid rgba(239,68,68,0.8)",
+                                  color: "#fff",
+                                  background: "linear-gradient(135deg, rgba(220,38,38,0.7), rgba(239,68,68,0.5))",
+                                  boxShadow: "0 4px 16px rgba(239,68,68,0.35)",
+                                  letterSpacing: "0.08em",
+                                }}>
+                                <span className="text-[17px] leading-none">⚽</span>
+                                <span>KICK</span>
                               </motion.button>
                             </motion.div>
                           ))}
