@@ -2063,23 +2063,15 @@ const Index = ({ session }: { session: Session }) => {
         </span>
       </motion.button>
 
-      {/* Bottom Nav ────────────────────────────────────────────────────────── */}
-      <motion.div
-        animate={{ y: activeFeature !== "Flicks" ? 0 : 120 }}
-        transition={{ type: "spring", stiffness: 280, damping: 26 }}
-        className="fixed bottom-0 left-0 w-full z-[200] pointer-events-none"
-      >
-        <div className="max-w-md mx-auto pointer-events-auto">
-          <GolSlider
-            activeFeature={activeFeature}
-            onFeatureChange={(f) => {
-              if (f === "Circle") { setActiveFeature("Circle"); return; }
-              setActiveFeature(f);
-              setSettingsView("main");
-            }}
-          />
-        </div>
-      </motion.div>
+      {/* Side DVD-Tray Nav ──────────────────────────────────────────────── */}
+      <GolSlider
+        activeFeature={activeFeature}
+        onFeatureChange={(f) => {
+          if (f === "Circle") { setActiveFeature("Circle"); return; }
+          setActiveFeature(f);
+          setSettingsView("main");
+        }}
+      />
 
       <CreatePost
         isOpen={isPostOpen}

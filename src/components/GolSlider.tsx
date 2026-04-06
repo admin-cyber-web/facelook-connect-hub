@@ -1,12 +1,12 @@
-import { motion } from "framer-motion";
-import { Film, Anchor, CheckSquare, Users, Camera } from "lucide-react";
+import { useState } from "react";
+import { Film, Anchor, CheckSquare, Users, Camera, ChevronLeft, ChevronRight } from "lucide-react";
 
 const NAV_ITEMS = [
-  { label: "Flicks", feature: "Flicks", Icon: Film  },
-  { label: "Hooks",  feature: "Hooks",  Icon: Anchor },
+  { label: "Flicks", feature: "Flicks", Icon: Film       },
+  { label: "Hooks",  feature: "Hooks",  Icon: Anchor     },
   { label: "Task",   feature: "Task",   Icon: CheckSquare },
-  { label: "Circle", feature: "Circle", Icon: Users },
-  { label: "Snapy",  feature: "Snapy",  Icon: Camera },
+  { label: "Circle", feature: "Circle", Icon: Users      },
+  { label: "Snapy",  feature: "Snapy",  Icon: Camera     },
 ] as const;
 
 interface GolSliderProps {
@@ -15,54 +15,114 @@ interface GolSliderProps {
 }
 
 const GolSlider = ({ onFeatureChange, activeFeature }: GolSliderProps) => {
+  const [isOpen, setIsOpen] = useState(false);
+
   return (
     <div
-      className="flex items-center justify-around w-full"
-      style={{
-        background: "rgba(255,255,255,0.96)",
-        backdropFilter: "blur(24px)",
-        WebkitBackdropFilter: "blur(24px)",
-        borderTop: "1px solid rgba(0,0,0,0.09)",
-        paddingTop: "8px",
-        paddingBottom: "env(safe-area-inset-bottom, 8px)",
-      }}
+      className="fixed right-0 z-[200] flex flex-row items-center"
+      style={{ top: "50%", transform: "translateY(-50%)" }}
     >
-      {NAV_ITEMS.map(({ label, feature, Icon }) => {
-        const isActive = activeFeature === feature;
-
-        return (
-          <motion.button
-            key={feature}
-            whileTap={{ scale: 0.88 }}
-            onClick={() => onFeatureChange?.(feature)}
-            className="flex flex-col items-center justify-center gap-[3px] px-4 py-1.5 rounded-xl relative"
-          >
-            {isActive && (
-              <motion.div
-                layoutId="nav-active-pill"
-                className="absolute inset-0 rounded-xl"
-                style={{ background: "rgba(37,99,235,0.08)" }}
-                transition={{ type: "spring", stiffness: 400, damping: 32 }}
-              />
-            )}
-
-            <Icon
-              size={22}
-              className={isActive ? "text-blue-600" : "text-gray-400"}
-              fill={isActive ? "currentColor" : "none"}
-              strokeWidth={isActive ? 0 : 1.8}
-              style={{ position: "relative", zIndex: 1 }}
-            />
-            <span
-              className={`text-[10px] font-black tracking-tight leading-none relative z-10 ${
-                isActive ? "text-blue-600" : "text-gray-400"
-              }`}
+      {/* ── TRAY ──────────────────────────────────────────────────────────── */}
+      <div
+        style={{
+          transform: isOpen ? "translateX(0)" : "translateX(100%)",
+          transition: "transform 500ms cubic-bezier(0.4, 0, 0.2, 1)",
+          background: "rgba(15, 23, 42, 0.72)",
+          backdropFilter: "blur(28px)",
+          WebkitBackdropFilter: "blur(28px)",
+          border: "1px solid rgba(255,255,255,0.12)",
+          borderRight: "none",
+          borderRadius: "20px 0 0 20px",
+          boxShadow: "-8px 0 40px rgba(0,0,0,0.35), inset 1px 0 0 rgba(255,255,255,0.06)",
+          willChange: "transform",
+        }}
+        className="flex flex-col items-center py-4 gap-1"
+      >
+        {NAV_ITEMS.map(({ label, feature, Icon }) => {
+          const isActive = activeFeature === feature;
+          return (
+            <button
+              key={feature}
+              onClick={() => {
+                onFeatureChange?.(feature);
+                setIsOpen(false);
+              }}
+              style={{
+                background: isActive
+                  ? "rgba(59,130,246,0.25)"
+                  : "transparent",
+                borderRadius: 14,
+                border: isActive
+                  ? "1px solid rgba(59,130,246,0.4)"
+                  : "1px solid transparent",
+                transition: "all 220ms ease",
+              }}
+              className="flex flex-col items-center justify-center gap-1.5 w-16 py-3 mx-2 active:scale-90"
             >
-              {label}
-            </span>
-          </motion.button>
-        );
-      })}
+              <Icon
+                size={26}
+                style={{
+                  color: isActive ? "#60a5fa" : "rgba(255,255,255,0.55)",
+                  filter: isActive ? "drop-shadow(0 0 6px rgba(96,165,250,0.7))" : "none",
+                  transition: "all 220ms ease",
+                }}
+                strokeWidth={isActive ? 2.2 : 1.6}
+              />
+              <span
+                style={{
+                  fontSize: 10,
+                  fontWeight: 900,
+                  letterSpacing: "0.06em",
+                  lineHeight: 1,
+                  color: isActive ? "#93c5fd" : "rgba(255,255,255,0.40)",
+                  transition: "color 220ms ease",
+                }}
+              >
+                {label}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* ── HANDLE ────────────────────────────────────────────────────────── */}
+      <button
+        onClick={() => setIsOpen((prev) => !prev)}
+        style={{
+          background: isOpen
+            ? "rgba(59,130,246,0.18)"
+            : "rgba(15, 23, 42, 0.80)",
+          backdropFilter: "blur(28px)",
+          WebkitBackdropFilter: "blur(28px)",
+          border: "1px solid rgba(255,255,255,0.14)",
+          borderLeft: isOpen ? "1px solid rgba(59,130,246,0.25)" : "1px solid rgba(255,255,255,0.14)",
+          borderRadius: "0 14px 14px 0",
+          boxShadow: "4px 0 20px rgba(0,0,0,0.30), inset -1px 0 0 rgba(255,255,255,0.06)",
+          width: 28,
+          height: 80,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          flexShrink: 0,
+          transition: "background 300ms ease, border-color 300ms ease",
+          cursor: "pointer",
+        }}
+        aria-label={isOpen ? "Close navigation" : "Open navigation"}
+      >
+        {isOpen ? (
+          <ChevronRight
+            size={16}
+            style={{ color: "#93c5fd", transition: "color 300ms ease" }}
+            strokeWidth={2.5}
+          />
+        ) : (
+          <ChevronLeft
+            size={16}
+            style={{ color: "rgba(255,255,255,0.6)", transition: "color 300ms ease" }}
+            strokeWidth={2.5}
+          />
+        )}
+      </button>
     </div>
   );
 };
