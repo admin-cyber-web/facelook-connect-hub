@@ -1,7 +1,16 @@
 # Facelook - Social App
 
 ## Project Overview
-A social media and entertainment platform called "Facelook" built with React 18, Vite, TypeScript, Tailwind CSS, and Supabase. Features: Fame Feed, Flicks (TikTok-style reels), Chat, Movie Game (KBC Quiz), Snapy Studio, and Facelook Frame (charity wall).
+A social media and entertainment platform called "Facelook" built with React 18, Vite, TypeScript, Tailwind CSS, and Supabase. Features: Fame Feed, Flicks (TikTok-style reels), Chat Messenger Ecosystem, Movie Game (KBC Quiz), Snapy Studio, and Facelook Frame (charity wall).
+
+## Messenger Ecosystem (ChatSystem.tsx) — v2
+Full-screen messenger with 6 modules:
+1. **Bottom Nav** — 4 tabs: Chat 💬, Story 📖, Alert 🔔, Menu ☰ (with badges)
+2. **Full-Screen Chat** — Bold text-lg bubbles, ArrowLeft back, in-chat search, profile DP + status light (green blink = online, red = offline)
+3. **Triple Theme** — 💧 Water (sky gradient + frosted glass), 🌿 Nature (beige/green + leaf bubbles), ⚪ Plain White (minimal); persisted to localStorage; switcher in chat header + settings
+4. **Stealth & Privacy** — 3-dot → Hide chat (stored in localStorage); Menu > Archive to view/unhide. Message Requests folder in Menu > Requests. Active Status toggle (OFF = show red dot)
+5. **Sound, Smoke & Fun** — Web Audio API sounds (send/receive/delete tones); smoke particle animation on delete; Emoji War (🥊😂💩🔥 grid → fullscreen blast animation)
+6. **Settings** — Bio/School/Location from `profiles` table with save; Mute/Unmute per chat; Active Status toggle
 
 ## UI Design System (latest)
 - **Theme**: Light/white native-app feel. Background `#f0f2f5` (Facebook-gray), white cards, dark gray text

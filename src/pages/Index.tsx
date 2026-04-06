@@ -2045,6 +2045,7 @@ const Index = ({ session }: { session: Session }) => {
         isOpen={isChatOpen}
         onClose={() => setIsChatOpen(false)}
         userId={userId}
+        onLogout={handleLogout}
       />
 
       {/* Chat FAB ──────────────────────────────────────────────────────────── */}
