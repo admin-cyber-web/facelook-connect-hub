@@ -831,6 +831,9 @@ interface PersonalInfoViewProps {
   isSavingPersonal: boolean;
   personalSaved: boolean;
   handleSavePersonalInfo: () => void;
+  userId: string;
+  currentAvatarUrl: string;
+  onAvatarUpdated: (url: string) => void;
 }
 
 const PersonalInfoView = React.memo(({
@@ -841,8 +844,48 @@ const PersonalInfoView = React.memo(({
   isSavingPersonal,
   personalSaved,
   handleSavePersonalInfo,
+  userId,
+  currentAvatarUrl,
+  onAvatarUpdated,
 }: PersonalInfoViewProps) => {
   const t = (en: string, hi: string) => (lang === "hi" ? hi : en);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string>(currentAvatarUrl);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+
+  const handleAvatarFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Show immediate local preview
+    const localUrl = URL.createObjectURL(file);
+    setAvatarPreview(localUrl);
+    setIsUploadingAvatar(true);
+
+    try {
+      const fileName = `${userId}-${Date.now()}.png`;
+      const { error: uploadErr } = await supabase.storage.from("avatars").upload(fileName, file, { upsert: true });
+      if (uploadErr) throw uploadErr;
+
+      const publicUrl = supabase.storage.from("avatars").getPublicUrl(fileName).data.publicUrl;
+
+      await supabase.from("profiles").update({ avatar_url: publicUrl }).eq("id", userId);
+
+      setAvatarPreview(publicUrl);
+      onAvatarUpdated(publicUrl);
+
+      // Broadcast live update to Header and other listeners
+      window.dispatchEvent(new CustomEvent("facelook-avatar-updated", { detail: { url: publicUrl } }));
+    } catch (err: any) {
+      console.error("[DP Upload] error:", err);
+      alert("Photo upload nahi ho saki. Dobara try karo.");
+      setAvatarPreview(currentAvatarUrl);
+    } finally {
+      setIsUploadingAvatar(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3 px-4 pt-4">
@@ -858,44 +901,70 @@ const PersonalInfoView = React.memo(({
       </div>
 
       <GlassCard className="rounded-[2.5rem] p-6 space-y-4 border border-white/10">
+
+        {/* ── DP Upload Section ── */}
+        <div className="flex flex-col items-center gap-3 pb-2">
+          <div className="relative">
+            {/* Circular Avatar Preview */}
+            <div
+              className="w-24 h-24 rounded-full overflow-hidden border-4 shadow-xl"
+              style={{ borderColor: "rgba(96,165,250,0.6)", boxShadow: "0 0 24px rgba(96,165,250,0.35)" }}
+            >
+              {avatarPreview ? (
+                <img src={avatarPreview} className="w-full h-full object-cover" alt="Profile" />
+              ) : (
+                <div className="w-full h-full bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center text-white font-black text-3xl">
+                  {personalForm.full_name?.[0]?.toUpperCase() || "?"}
+                </div>
+              )}
+              {/* Uploading overlay */}
+              {isUploadingAvatar && (
+                <div className="absolute inset-0 bg-black/60 flex items-center justify-center rounded-full">
+                  <Loader2 size={22} className="text-white animate-spin" />
+                </div>
+              )}
+            </div>
+
+            {/* Camera edit button */}
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isUploadingAvatar}
+              className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full flex items-center justify-center border-2 border-slate-900 transition-transform active:scale-90 disabled:opacity-50"
+              style={{ background: "linear-gradient(135deg, #2563eb, #4f46e5)", boxShadow: "0 4px 12px rgba(79,70,229,0.5)" }}
+            >
+              <Camera size={14} className="text-white" />
+            </button>
+          </div>
+
+          <p className="text-[10px] text-white/30 font-semibold">
+            {isUploadingAvatar ? t("Uploading...", "अपलोड हो रहा है...") : t("Tap camera to change photo", "फ़ोटो बदलने के लिए कैमरा दबाएं")}
+          </p>
+
+          {/* Hidden file input */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handleAvatarFileChange}
+          />
+        </div>
+
+        {/* ── Form Fields ── */}
         {[
-          {
-            key: "full_name",
-            label: t("Full Name", "पूरा नाम"),
-            placeholder: t("Your full name", "आपका नाम"),
-          },
-          {
-            key: "bio",
-            label: t("Bio", "परिचय"),
-            placeholder: t("Tell the world about you", "अपने बारे में लिखें"),
-          },
-          {
-            key: "school",
-            label: t("School / College", "स्कूल / कॉलेज"),
-            placeholder: t("Your school", "आपका स्कूल"),
-          },
-          {
-            key: "mobile",
-            label: t("Mobile", "मोबाइल"),
-            placeholder: "+92 300 0000000",
-          },
-          {
-            key: "location",
-            label: t("Location", "स्थान"),
-            placeholder: t("City, Country", "शहर, देश"),
-          },
+          { key: "full_name", label: t("Full Name", "पूरा नाम"),               placeholder: t("Your full name", "आपका नाम") },
+          { key: "bio",       label: t("Bio", "परिचय"),                         placeholder: t("Tell the world about you", "अपने बारे में लिखें") },
+          { key: "school",    label: t("School / College", "स्कूल / कॉलेज"),   placeholder: t("Your school", "आपका स्कूल") },
+          { key: "mobile",    label: t("Mobile", "मोबाइल"),                     placeholder: "+92 300 0000000" },
+          { key: "location",  label: t("Location", "स्थान"),                    placeholder: t("City, Country", "शहर, देश") },
         ].map(({ key, label, placeholder }) => (
           <div key={key} className="space-y-1">
-            <p className="text-[10px] font-black text-white/40 uppercase tracking-widest">
-              {label}
-            </p>
+            <p className="text-[10px] font-black text-white/40 uppercase tracking-widest">{label}</p>
             <input
               type="text"
               placeholder={placeholder}
               value={(personalForm as any)[key]}
-              onChange={(e) =>
-                setPersonalForm((prev) => ({ ...prev, [key]: e.target.value }))
-              }
+              onChange={(e) => setPersonalForm((prev) => ({ ...prev, [key]: e.target.value }))}
               className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-sm font-bold text-white placeholder:text-white/20 outline-none focus:ring-2 focus:ring-blue-500/40 transition-all"
             />
           </div>
@@ -909,13 +978,9 @@ const PersonalInfoView = React.memo(({
           {isSavingPersonal ? (
             <Loader2 size={16} className="animate-spin" />
           ) : personalSaved ? (
-            <>
-              <CheckCircle size={16} /> {t("Saved!", "सहेजा!")}
-            </>
+            <><CheckCircle size={16} /> {t("Saved!", "सहेजा!")}</>
           ) : (
-            <>
-              <Save size={16} /> {t("Save Changes", "बदलाव सहेजें")}
-            </>
+            <><Save size={16} /> {t("Save Changes", "बदलाव सहेजें")}</>
           )}
         </button>
       </GlassCard>
@@ -1952,6 +2017,9 @@ const Index = ({ session }: { session: Session }) => {
                       isSavingPersonal={isSavingPersonal}
                       personalSaved={personalSaved}
                       handleSavePersonalInfo={handleSavePersonalInfo}
+                      userId={userId}
+                      currentAvatarUrl={profile.avatar_url}
+                      onAvatarUpdated={(url) => setProfile(prev => ({ ...prev, avatar_url: url }))}
                     />
                   </motion.div>
                 )}

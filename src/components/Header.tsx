@@ -591,6 +591,16 @@ const Header = ({
     }
   }, [showDash, fetchDashStats, fetchDashFriends]);
 
+  // ── Live DP update from Settings > Personal Info ───────────────────────────
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const url = (e as CustomEvent<{ url: string }>).detail?.url;
+      if (url) setUserData(prev => ({ ...prev, avatar_url: url }));
+    };
+    window.addEventListener("facelook-avatar-updated", handler);
+    return () => window.removeEventListener("facelook-avatar-updated", handler);
+  }, []);
+
   // ── Fetch tab-specific data on tab change ──────────────────────────────────
   useEffect(() => {
     if (!showDash) return;
