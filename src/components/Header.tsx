@@ -3,6 +3,7 @@ import {
   Bell, Search, X, UserPlus, Home, Settings, Loader2,
   Heart, Users, FileText, MessageCircle, UserCheck, UserX,
   CheckCheck, AtSign, Check, Link2, Flame, Zap,
+  MapPin, BookOpen, Phone,
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { toast } from "sonner";
@@ -341,7 +342,7 @@ const Header = ({
   const [showNotif, setShowNotif]           = useState(false);
   const [showSearch, setShowSearch]         = useState(false);
   const [actionLoading, setActionLoading]   = useState<string | null>(null);
-  const [userData, setUserData] = useState({ full_name: "...", avatar_url: "", id: userId || "" });
+  const [userData, setUserData] = useState({ full_name: "...", avatar_url: "", id: userId || "", bio: "", school: "", mobile: "", location: "" });
 
   // ── Power Dashboard state ──────────────────────────────────────────────────
   const [showDash, setShowDash]       = useState(false);
@@ -362,7 +363,7 @@ const Header = ({
   // ── Fetchers ──────────────────────────────────────────────────────────────
   const fetchProfile = useCallback(async () => {
     if (!userId) return;
-    const { data } = await supabase.from("profiles").select("full_name, avatar_url").eq("id", userId).single();
+    const { data } = await supabase.from("profiles").select("full_name, avatar_url, bio, school, mobile, location").eq("id", userId).single();
     if (data) setUserData(prev => ({ ...prev, ...data }));
   }, [userId]);
 
@@ -593,13 +594,18 @@ const Header = ({
 
   // ── Live DP update from Settings > Personal Info ───────────────────────────
   useEffect(() => {
-    const handler = (e: Event) => {
+    const avatarHandler = (e: Event) => {
       const url = (e as CustomEvent<{ url: string }>).detail?.url;
       if (url) setUserData(prev => ({ ...prev, avatar_url: url }));
     };
-    window.addEventListener("facelook-avatar-updated", handler);
-    return () => window.removeEventListener("facelook-avatar-updated", handler);
-  }, []);
+    const profileHandler = () => { fetchProfile(); };
+    window.addEventListener("facelook-avatar-updated", avatarHandler);
+    window.addEventListener("facelook-profile-updated", profileHandler);
+    return () => {
+      window.removeEventListener("facelook-avatar-updated", avatarHandler);
+      window.removeEventListener("facelook-profile-updated", profileHandler);
+    };
+  }, [fetchProfile]);
 
   // ── Fetch tab-specific data on tab change ──────────────────────────────────
   useEffect(() => {
@@ -801,18 +807,51 @@ const Header = ({
                 </button>
 
                 {/* Profile card */}
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-14 h-14 rounded-2xl overflow-hidden border-2 shrink-0"
+                <div className="flex gap-3 mb-4">
+                  {/* Avatar */}
+                  <div className="w-16 h-16 rounded-2xl overflow-hidden border-2 shrink-0 self-start"
                     style={{ borderColor: "rgba(250,204,21,0.5)", boxShadow: "0 0 18px rgba(250,204,21,0.3)" }}>
                     {userData.avatar_url
                       ? <img src={userData.avatar_url} className="w-full h-full object-cover" alt="" />
                       : <div className="w-full h-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-black text-xl">{userData.full_name[0]}</div>}
                   </div>
-                  <div className="flex-1 min-w-0">
+
+                  {/* Name + bio + meta */}
+                  <div className="flex-1 min-w-0 space-y-1">
                     <p className="text-white font-black text-[16px] truncate leading-tight">{userData.full_name}</p>
-                    <div className="flex items-center gap-1.5 mt-1">
+
+                    <div className="flex items-center gap-1.5">
                       <Zap size={10} className="text-yellow-400" />
                       <span className="text-[10px] font-black tracking-widest uppercase" style={{ color: "#facc15", textShadow: "0 0 8px rgba(250,204,21,0.6)" }}>Power Dashboard</span>
+                    </div>
+
+                    {/* Bio */}
+                    {userData.bio ? (
+                      <p className="text-[11px] text-white/55 leading-snug italic line-clamp-2 pt-0.5">
+                        "{userData.bio}"
+                      </p>
+                    ) : null}
+
+                    {/* School / Location / Mobile pills */}
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      {userData.school ? (
+                        <span className="flex items-center gap-1 text-[10px] font-semibold text-white/50 bg-white/5 border border-white/10 rounded-full px-2 py-0.5">
+                          <BookOpen size={9} className="text-blue-400" />
+                          <span className="truncate max-w-[100px]">{userData.school}</span>
+                        </span>
+                      ) : null}
+                      {userData.location ? (
+                        <span className="flex items-center gap-1 text-[10px] font-semibold text-white/50 bg-white/5 border border-white/10 rounded-full px-2 py-0.5">
+                          <MapPin size={9} className="text-rose-400" />
+                          <span className="truncate max-w-[90px]">{userData.location}</span>
+                        </span>
+                      ) : null}
+                      {userData.mobile ? (
+                        <span className="flex items-center gap-1 text-[10px] font-semibold text-white/50 bg-white/5 border border-white/10 rounded-full px-2 py-0.5">
+                          <Phone size={9} className="text-green-400" />
+                          <span className="truncate max-w-[90px]">{userData.mobile}</span>
+                        </span>
+                      ) : null}
                     </div>
                   </div>
                 </div>

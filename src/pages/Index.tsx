@@ -1275,6 +1275,7 @@ const Index = ({ session }: { session: Session }) => {
     if (!error) {
       setProfile((prev) => ({ ...prev, ...personalForm }));
       setPersonalSaved(true);
+      window.dispatchEvent(new CustomEvent("facelook-profile-updated"));
       setTimeout(() => {
         setPersonalSaved(false);
         setSettingsView("main");
