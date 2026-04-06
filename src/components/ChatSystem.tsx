@@ -10,7 +10,7 @@ import {
   Search, X, ChevronLeft, Send, Paperclip, Music, Loader2,
   MessageSquare, UserPlus, UserCheck, Clock, Check, Users,
   Bell, BookOpen, Settings, LogOut, Archive, MoreVertical,
-  Trash2, EyeOff, Eye, Volume2, VolumeX,
+  Trash2, EyeOff, Eye, Volume2, VolumeX, UserX,
   LayoutGrid, Info, MapPin, GraduationCap, ArrowLeft,
   Camera, Plus, Smile,
 } from "lucide-react";
@@ -294,8 +294,13 @@ const ChatSystem: React.FC<ChatSystemProps> = ({ isOpen, onClose, userId, onLogo
     return (s === "water" || s === "nature" || s === "velvet") ? s : "water";
   });
   const [activeStatus, setActiveStatus] = useState(() => localStorage.getItem("cx_active_status") !== "false");
+  const [soundEnabled, setSoundEnabled] = useState(() => localStorage.getItem("cx_sound") !== "false");
   const [mutedChats, setMutedChats] = useState<Set<string>>(() => { try { return new Set(JSON.parse(localStorage.getItem("cx_muted") || "[]")); } catch { return new Set(); } });
   const [archivedChats, setArchivedChats] = useState<Set<string>>(() => { try { return new Set(JSON.parse(localStorage.getItem("cx_archived") || "[]")); } catch { return new Set(); } });
+
+  // ── Online users via Supabase Presence ────────────────────────────────────
+  const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
+  const presenceChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   // ── Navigation ────────────────────────────────────────────────────────────
   const [bottomTab, setBottomTab] = useState<BottomTab>("chat");
@@ -365,6 +370,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({ isOpen, onClose, userId, onLogo
   // ── Persist ───────────────────────────────────────────────────────────────
   useEffect(() => { localStorage.setItem("cx_theme", theme); }, [theme]);
   useEffect(() => { localStorage.setItem("cx_active_status", String(activeStatus)); }, [activeStatus]);
+  useEffect(() => { localStorage.setItem("cx_sound", String(soundEnabled)); }, [soundEnabled]);
   useEffect(() => { localStorage.setItem("cx_muted", JSON.stringify([...mutedChats])); }, [mutedChats]);
   useEffect(() => { localStorage.setItem("cx_archived", JSON.stringify([...archivedChats])); }, [archivedChats]);
 
@@ -373,10 +379,10 @@ const ChatSystem: React.FC<ChatSystemProps> = ({ isOpen, onClose, userId, onLogo
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     if (messages.length > prevMsgCount.current) {
       const last = messages[messages.length - 1];
-      if (last?.sender_id !== userId) playSound("receive");
+      if (last?.sender_id !== userId && soundEnabled) playSound("receive");
     }
     prevMsgCount.current = messages.length;
-  }, [messages, userId]);
+  }, [messages, userId, soundEnabled]);
 
   // ── Fetch my profile ──────────────────────────────────────────────────────
   const fetchMyProfile = useCallback(async () => {
@@ -469,7 +475,16 @@ const ChatSystem: React.FC<ChatSystemProps> = ({ isOpen, onClose, userId, onLogo
       setShowStoryEditor(false); setStoryFile(null); setStoryPreviewUrl(""); setStoryCaption(""); setStoryEmoji("");
       fetchStories();
     } catch (e: any) {
-      toast.error(e?.message?.includes("does not exist") ? "Stories table not set up yet. Ask admin." : "Story post failed.");
+      const msg = e?.message || "";
+      if (msg.includes("does not exist") || msg.includes("relation") || msg.includes("stories")) {
+        toast.error("Stories table missing. Run the stories SQL setup first.");
+      } else if (msg.includes("storage") || msg.includes("bucket") || msg.includes("not found")) {
+        toast.error("Storage bucket error. Check Supabase storage permissions.");
+      } else if (msg.includes("row-level") || msg.includes("policy") || msg.includes("permission")) {
+        toast.error("Permission denied. Check Supabase RLS policies.");
+      } else {
+        toast.error(`Story failed: ${msg || "Unknown error"}`);
+      }
     } finally { setUploadingStory(false); }
   };
 
@@ -478,6 +493,32 @@ const ChatSystem: React.FC<ChatSystemProps> = ({ isOpen, onClose, userId, onLogo
     if (!isOpen) return;
     fetchFriendships(); fetchPendingRequests(); fetchContacts(); fetchMyProfile(); fetchStories();
   }, [isOpen, fetchFriendships, fetchPendingRequests, fetchContacts, fetchMyProfile, fetchStories]);
+
+  // ── Presence: track who's actually online ─────────────────────────────────
+  useEffect(() => {
+    if (!isOpen || !userId) return;
+    const ch = supabase.channel("cx-presence", { config: { presence: { key: userId } } });
+    ch.on("presence", { event: "sync" }, () => {
+      const state = ch.presenceState<{ user_id: string }>();
+      const ids = new Set<string>();
+      Object.values(state).flat().forEach((p: any) => { if (p.user_id) ids.add(p.user_id); });
+      setOnlineUsers(ids);
+    }).subscribe(async (status) => {
+      if (status === "SUBSCRIBED" && activeStatus) {
+        await ch.track({ user_id: userId });
+      }
+    });
+    presenceChannelRef.current = ch;
+    return () => { supabase.removeChannel(ch); presenceChannelRef.current = null; };
+  }, [isOpen, userId]);
+
+  // ── When activeStatus toggles, update presence tracking ───────────────────
+  useEffect(() => {
+    const ch = presenceChannelRef.current;
+    if (!ch) return;
+    if (activeStatus) { ch.track({ user_id: userId }); }
+    else { ch.untrack(); }
+  }, [activeStatus, userId]);
 
   // ── Realtime: friendships ─────────────────────────────────────────────────
   useEffect(() => {
@@ -583,8 +624,19 @@ const ChatSystem: React.FC<ChatSystemProps> = ({ isOpen, onClose, userId, onLogo
   // ── Send message ──────────────────────────────────────────────────────────
   const sendMessage = async () => {
     if (!newMessage.trim() || !selectedUser || isSending) return;
-    const text = newMessage.trim(); setNewMessage(""); setIsSending(true); playSound("send");
-    await supabase.from("messages").insert({ sender_id: userId, receiver_id: selectedUser.id, content: text });
+    const text = newMessage.trim(); setNewMessage(""); setIsSending(true);
+    if (soundEnabled) playSound("send");
+    const tempId = `temp-${Date.now()}`;
+    const tempMsg: Message = { id: tempId, sender_id: userId, receiver_id: selectedUser.id, content: text, created_at: new Date().toISOString() };
+    setMessages(prev => [...prev, tempMsg]);
+    const { data, error } = await supabase.from("messages").insert({ sender_id: userId, receiver_id: selectedUser.id, content: text }).select().single();
+    if (data) {
+      setMessages(prev => prev.map(m => m.id === tempId ? (data as Message) : m));
+      fetchContacts();
+    } else if (error) {
+      setMessages(prev => prev.filter(m => m.id !== tempId));
+      toast.error("Message send failed. Try again.");
+    }
     setIsSending(false);
   };
 
@@ -592,7 +644,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({ isOpen, onClose, userId, onLogo
   const deleteMessage = async (msg: Message, e: React.MouseEvent) => {
     if (msg.sender_id !== userId) return;
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    playSound("delete");
+    if (soundEnabled) playSound("delete");
     const newId = ++smokeIdRef.current;
     setSmokeParticles((prev) => [...prev, { id: newId, x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }]);
     setMsgMenuId(null);
@@ -610,9 +662,10 @@ const ChatSystem: React.FC<ChatSystemProps> = ({ isOpen, onClose, userId, onLogo
       const { error } = await supabase.storage.from("chat-media").upload(fileName, file);
       if (error) throw error;
       const { data: urlData } = supabase.storage.from("chat-media").getPublicUrl(fileName);
-      playSound("send");
-      await supabase.from("messages").insert({ sender_id: userId, receiver_id: selectedUser.id, content: "", media_url: urlData.publicUrl, media_type: file.type });
-    } catch (err) { console.error("Upload failed:", err); } finally { setIsUploadingMedia(false); }
+      if (soundEnabled) playSound("send");
+      const { data } = await supabase.from("messages").insert({ sender_id: userId, receiver_id: selectedUser.id, content: "", media_url: urlData.publicUrl, media_type: file.type }).select().single();
+      if (data) { setMessages(prev => prev.find(m => m.id === (data as Message).id) ? prev : [...prev, data as Message]); fetchContacts(); }
+    } catch (err: any) { toast.error(`Upload failed: ${err?.message || "Unknown error"}`); } finally { setIsUploadingMedia(false); }
   };
 
   // ── Save profile ──────────────────────────────────────────────────────────
@@ -863,7 +916,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({ isOpen, onClose, userId, onLogo
                               <motion.div key={c.id} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }}
                                 className="flex items-center gap-3 px-4 py-3.5 hover:bg-white/5 transition-colors cursor-pointer relative"
                                 onClick={() => handleSelectContact(c)}>
-                                <Avatar url={c.avatar_url} name={c.full_name} online={activeStatus} />
+                                <Avatar url={c.avatar_url} name={c.full_name} online={onlineUsers.has(c.id)} />
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-center justify-between">
                                     <p className={`text-sm font-black truncate ${T.text1}`}>{c.full_name}</p>
@@ -889,6 +942,16 @@ const ChatSystem: React.FC<ChatSystemProps> = ({ isOpen, onClose, userId, onLogo
                                       <button onClick={() => { toggleArchive(c.id); setMsgMenuId(null); }} className={`flex items-center gap-2 w-full px-4 py-3 text-sm font-bold hover:bg-white/5 ${T.text1}`}>
                                         <EyeOff size={14} /> Hide Chat
                                       </button>
+                                      <button onClick={async () => {
+                                        const fs = friendshipMap.get(c.id);
+                                        if (!fs) return;
+                                        await supabase.from("friendships").delete().eq("id", fs.id);
+                                        await Promise.all([fetchFriendships(), fetchContacts()]);
+                                        setMsgMenuId(null);
+                                        toast.success(`${c.full_name} blocked`);
+                                      }} className="flex items-center gap-2 w-full px-4 py-3 text-sm font-bold text-red-400 hover:bg-red-500/10">
+                                        <UserX size={14} /> Block (Kick)
+                                      </button>
                                     </motion.div>
                                   )}
                                 </AnimatePresence>
@@ -912,10 +975,10 @@ const ChatSystem: React.FC<ChatSystemProps> = ({ isOpen, onClose, userId, onLogo
                     <ArrowLeft size={20} />
                   </button>
                   <div className="flex items-center gap-2.5 flex-1 min-w-0 cursor-pointer" onClick={() => openProfile?.(selectedUser.id)}>
-                    <Avatar url={selectedUser.avatar_url} name={selectedUser.full_name} size="md" online={activeStatus} />
+                    <Avatar url={selectedUser.avatar_url} name={selectedUser.full_name} size="md" online={onlineUsers.has(selectedUser.id)} />
                     <div className="min-w-0">
                       <p className={`text-base font-black truncate leading-tight ${T.text1}`}>{selectedUser.full_name}</p>
-                      <p className={`text-[11px] font-semibold ${activeStatus ? "text-green-400" : "text-red-400"}`}>{activeStatus ? "● Online" : "● Offline"}</p>
+                      <p className={`text-[11px] font-semibold ${onlineUsers.has(selectedUser.id) ? "text-green-400" : "text-red-400"}`}>{onlineUsers.has(selectedUser.id) ? "● Online" : "● Offline"}</p>
                     </div>
                   </div>
                   <button onClick={() => setShowChatSearch(!showChatSearch)} className={`w-9 h-9 rounded-xl bg-white/10 border ${T.divider} flex items-center justify-center ${T.text1} hover:bg-white/20`}><Search size={16} /></button>
@@ -1171,6 +1234,19 @@ const ChatSystem: React.FC<ChatSystemProps> = ({ isOpen, onClose, userId, onLogo
                         <button onClick={() => setActiveStatus(!activeStatus)}
                           className={`relative w-12 h-6 rounded-full transition-all border ${activeStatus ? "bg-green-500 border-green-400" : "bg-gray-500 border-gray-400"}`}>
                           <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${activeStatus ? "left-6" : "left-0.5"}`} />
+                        </button>
+                      </div>
+                    </div>
+                    <div className={`p-4 rounded-2xl border ${T.divider} bg-white/5`}>
+                      <p className={`text-xs font-black uppercase tracking-widest mb-3 ${T.text3}`}>Notification Sound</p>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className={`text-sm font-black ${T.text1}`}>Message Sounds</p>
+                          <p className={`text-xs ${T.text3}`}>{soundEnabled ? "🔊 Sound On — ping on message" : "🔇 Muted — no sound"}</p>
+                        </div>
+                        <button onClick={() => setSoundEnabled(s => !s)}
+                          className={`relative w-12 h-6 rounded-full transition-all border ${soundEnabled ? "bg-blue-500 border-blue-400" : "bg-gray-500 border-gray-400"}`}>
+                          <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${soundEnabled ? "left-6" : "left-0.5"}`} />
                         </button>
                       </div>
                     </div>
