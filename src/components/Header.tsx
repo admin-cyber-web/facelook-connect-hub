@@ -2,11 +2,19 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import {
   Bell, Search, X, UserPlus, Home, Settings, Loader2,
   Heart, Users, FileText, MessageCircle, UserCheck, UserX,
-  CheckCheck, AtSign, Check,
+  CheckCheck, AtSign, Check, Link2, Flame, Zap,
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
+
+// ── Types ───────────────────────────────────────────────────────────────────────
+interface FriendEntry {
+  friendshipId: string;
+  id: string;
+  full_name: string;
+  avatar_url?: string;
+}
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 function timeAgo(ts: string): string {
@@ -35,11 +43,10 @@ const NOTIF_META: Record<string, { icon: React.ReactNode; color: string; label: 
 // ── Scramble config ────────────────────────────────────────────────────────────
 const CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz#@!%&$";
 const WORD = ["F", "a", "c", "e", "l", "o", "o", "k"] as const;
-const SCRAMBLE_STEPS = 10;   // random frames per letter before it settles
-const STEP_MS       = 50;    // ms between each frame
-const STAGGER_MS    = 75;    // ms offset between each letter's start
+const SCRAMBLE_STEPS = 10;
+const STEP_MS       = 50;
+const STAGGER_MS    = 75;
 
-// ── Animated Facelook wordmark with scramble + bullet ─────────────────────────
 const FacelookLogo = () => {
   const [letters, setLetters] = useState<string[]>(() =>
     WORD.map(() => CHARS[Math.floor(Math.random() * CHARS.length)])
@@ -48,109 +55,55 @@ const FacelookLogo = () => {
 
   useEffect(() => {
     const timers: ReturnType<typeof setTimeout>[] = [];
-
     WORD.forEach((finalChar, idx) => {
       const start = idx * STAGGER_MS;
-
       for (let step = 0; step <= SCRAMBLE_STEPS; step++) {
         const t = setTimeout(() => {
           setLetters((prev) => {
             const next = [...prev];
-            next[idx] =
-              step === SCRAMBLE_STEPS
-                ? finalChar
-                : CHARS[Math.floor(Math.random() * CHARS.length)];
+            next[idx] = step === SCRAMBLE_STEPS ? finalChar : CHARS[Math.floor(Math.random() * CHARS.length)];
             return next;
           });
-
-          // Last letter just settled → fire the bullet
           if (idx === WORD.length - 1 && step === SCRAMBLE_STEPS) {
-            setTimeout(() => {
-              setShowBullet(true);
-              setTimeout(() => setShowBullet(false), 700);
-            }, 40);
+            setTimeout(() => { setShowBullet(true); setTimeout(() => setShowBullet(false), 700); }, 40);
           }
         }, start + step * STEP_MS);
-
         timers.push(t);
       }
     });
-
     return () => timers.forEach(clearTimeout);
   }, []);
 
   return (
     <div className="relative flex flex-col items-start select-none leading-none">
-      {/* Letter row */}
       <div className="relative flex items-baseline gap-0">
         {WORD.map((_, i) => (
-          <span
-            key={i}
-            className="text-[18px] sm:text-[20px] font-black tracking-tight tabular-nums"
-            style={{
-              color: i < 4 ? "#ffffff" : "#60a5fa",
-              textShadow:
-                i < 4
-                  ? "0 0 10px rgba(255,255,255,0.18)"
-                  : "0 0 10px rgba(96,165,250,0.45)",
-              minWidth: "0.55em",
-              display: "inline-block",
-              textAlign: "center",
-            }}
-          >
+          <span key={i} className="text-[18px] sm:text-[20px] font-black tracking-tight tabular-nums"
+            style={{ color: i < 4 ? "#ffffff" : "#60a5fa", textShadow: i < 4 ? "0 0 10px rgba(255,255,255,0.18)" : "0 0 10px rgba(96,165,250,0.45)", minWidth: "0.55em", display: "inline-block", textAlign: "center" }}>
             {letters[i]}
           </span>
         ))}
-
-        {/* ── Bullet / slider that sweeps across the centerline ── */}
         <AnimatePresence>
           {showBullet && (
-            <motion.div
-              key="bullet"
-              initial={{ scaleX: 0, opacity: 1 }}
-              animate={{ scaleX: 1, opacity: 1 }}
-              exit={{ opacity: 0 }}
+            <motion.div key="bullet" initial={{ scaleX: 0, opacity: 1 }} animate={{ scaleX: 1, opacity: 1 }} exit={{ opacity: 0 }}
               transition={{ duration: 0.38, ease: [0.4, 0, 0.2, 1] }}
               className="absolute left-0 right-0 pointer-events-none"
-              style={{
-                top: "50%",
-                height: "2px",
-                transformOrigin: "left center",
-                background:
-                  "linear-gradient(90deg, transparent 0%, #60a5fa 30%, #ffffff 50%, #60a5fa 70%, transparent 100%)",
-                boxShadow: "0 0 8px 2px rgba(96,165,250,0.7)",
-              }}
-            />
+              style={{ top: "50%", height: "2px", transformOrigin: "left center", background: "linear-gradient(90deg, transparent 0%, #60a5fa 30%, #ffffff 50%, #60a5fa 70%, transparent 100%)", boxShadow: "0 0 8px 2px rgba(96,165,250,0.7)" }} />
           )}
         </AnimatePresence>
       </div>
-
-      {/* Tagline */}
-      <p className="text-[7px] sm:text-[8px] font-black tracking-[0.22em] text-white/40 uppercase mt-0.5">
-        Made in India
-      </p>
+      <p className="text-[7px] sm:text-[8px] font-black tracking-[0.22em] text-white/40 uppercase mt-0.5">Made in India</p>
     </div>
   );
 };
 
-// ── Waving Indian flag ─────────────────────────────────────────────────────────
 const TirangaFlag = () => (
-  <motion.span
-    animate={{ rotate: [0, -5, 5, -3, 3, -1, 1, 0] }}
-    transition={{
-      duration: 1.8,
-      repeat: Infinity,
-      repeatDelay: 1.2,
-      ease: "easeInOut",
-    }}
-    style={{ display: "inline-block", transformOrigin: "50% 100%", fontSize: "20px", lineHeight: 1 }}
-    className="select-none"
-  >
+  <motion.span animate={{ rotate: [0, -5, 5, -3, 3, -1, 1, 0] }} transition={{ duration: 1.8, repeat: Infinity, repeatDelay: 1.2, ease: "easeInOut" }}
+    style={{ display: "inline-block", transformOrigin: "50% 100%", fontSize: "20px", lineHeight: 1 }} className="select-none">
     🇮🇳
   </motion.span>
 );
 
-// ── Search Result Helpers ──────────────────────────────────────────────────────
 const CIRCLE_GRADS = ["#6366f1","#ec4899","#f59e0b","#10b981","#3b82f6","#8b5cf6"];
 function circleGrad(id: string) {
   let h = 0;
@@ -170,25 +123,18 @@ const SearchModal = ({ onClose, userId }: { onClose: () => void; userId?: string
   const [sentRequests, setSentRequests] = useState<Set<string>>(new Set());
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Auto-focus + load suggestions + existing requests
   useEffect(() => {
     setTimeout(() => inputRef.current?.focus(), 80);
     (async () => {
       const queries: Promise<any>[] = [
-        supabase.from("profiles").select("id,full_name,avatar_url,fame_points")
-          .order("fame_points", { ascending: false }).limit(8),
-        supabase.from("groups").select("id,name,cover_url,member_count")
-          .order("member_count", { ascending: false }).limit(8),
+        supabase.from("profiles").select("id,full_name,avatar_url,fame_points").order("fame_points", { ascending: false }).limit(8),
+        supabase.from("groups").select("id,name,cover_url,member_count").order("member_count", { ascending: false }).limit(8),
       ];
-      if (userId) {
-        queries.push(supabase.from("friend_requests").select("receiver_id").eq("sender_id", userId));
-      }
+      if (userId) queries.push(supabase.from("friend_requests").select("receiver_id").eq("sender_id", userId));
       const [{ data: p }, { data: c }, reqRes] = await Promise.all(queries);
       setSugPeople((p || []).filter((x: any) => x.id !== userId));
       setSugCircles(c || []);
-      if (reqRes?.data) {
-        setSentRequests(new Set(reqRes.data.map((r: any) => r.receiver_id)));
-      }
+      if (reqRes?.data) setSentRequests(new Set(reqRes.data.map((r: any) => r.receiver_id)));
     })();
   }, [userId]);
 
@@ -196,36 +142,17 @@ const SearchModal = ({ onClose, userId }: { onClose: () => void; userId?: string
     e.stopPropagation();
     if (!userId || sentRequests.has(personId)) return;
     setSentRequests((prev) => new Set([...prev, personId]));
-
-    // ✅ Unified: sirf "friendships" table use karein
-    const { error } = await supabase.from("friendships").insert({
-      sender_id: userId,
-      receiver_id: personId,
-      status: "pending",
-    });
-
+    const { error } = await supabase.from("friendships").insert({ sender_id: userId, receiver_id: personId, status: "pending" });
     if (error) {
-      console.error("[SearchModal] friendships insert error:", error);
-      // Agar duplicate entry hai toh silently skip, warna revert
       if (!error.message?.includes("duplicate") && !error.message?.includes("unique")) {
         setSentRequests((prev) => { const n = new Set(prev); n.delete(personId); return n; });
         toast.error("Friend request nahi bheji ja saki.");
       }
       return;
     }
-
-    // Receiver ko notification bhejo
-    await supabase.from("notifications").insert({
-      notifier_id: personId,
-      actor_id: userId,
-      type: "friend_request",
-      entity_id: personId,
-      content: "ne aapko friend request bheji",
-      is_read: false,
-    });
+    await supabase.from("notifications").insert({ notifier_id: personId, actor_id: userId, type: "friend_request", entity_id: personId, content: "ne aapko friend request bheji", is_read: false });
   };
 
-  // Debounced search
   const doSearch = useCallback(async (q: string) => {
     if (!q.trim()) { setPeople([]); setCircles([]); setPosts([]); return; }
     setLoading(true);
@@ -241,219 +168,131 @@ const SearchModal = ({ onClose, userId }: { onClose: () => void; userId?: string
     setLoading(false);
   }, [userId]);
 
-  useEffect(() => {
-    const t = setTimeout(() => doSearch(query), 300);
-    return () => clearTimeout(t);
-  }, [query, doSearch]);
+  useEffect(() => { const t = setTimeout(() => doSearch(query), 300); return () => clearTimeout(t); }, [query, doSearch]);
 
   const isSearching = query.trim().length > 0;
   const noResults   = isSearching && !loading && people.length + circles.length + posts.length === 0;
 
-  // Close on ESC
   useEffect(() => {
     const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
   }, [onClose]);
 
+  const AddBtn = ({ id }: { id: string }) => (
+    <button onClick={(e) => handleAddFriend(e, id)} disabled={sentRequests.has(id)}
+      className={`px-4 py-2.5 rounded-xl text-sm font-extrabold active:scale-95 transition-all shrink-0 ${sentRequests.has(id) ? "bg-white/10 text-white/40" : "text-white shadow-lg"}`}
+      style={sentRequests.has(id) ? {} : { background: "linear-gradient(135deg, #2563eb 0%, #4f46e5 100%)", boxShadow: "0 4px 14px rgba(79,70,229,0.5)" }}>
+      {sentRequests.has(id) ? "Requested" : "+ Add Friend"}
+    </button>
+  );
+
   return (
-    <motion.div
-      initial={{ opacity: 0, y: -16 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -16 }}
+    <motion.div initial={{ opacity: 0, y: -16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -16 }}
       transition={{ duration: 0.18, ease: "easeOut" }}
-      className="fixed inset-0 z-[200] flex flex-col"
-      style={{ background: "rgba(10,14,28,0.97)", backdropFilter: "blur(24px)" }}
-    >
-      {/* ── Search Bar ─────────────────────────────────────────────────────── */}
+      className="fixed inset-0 z-[200] flex flex-col" style={{ background: "rgba(10,14,28,0.97)", backdropFilter: "blur(24px)" }}>
       <div className="flex items-center gap-3 px-4 py-3 border-b border-white/10 bg-white/5">
         <Search size={18} className="text-blue-400 shrink-0" />
-        <input
-          ref={inputRef}
-          type="text"
-          placeholder="Search people, circles, posts…"
-          value={query}
+        <input ref={inputRef} type="text" placeholder="Search people, circles, posts…" value={query}
           onChange={e => setQuery(e.target.value)}
-          className="flex-1 bg-transparent text-white text-[15px] font-semibold outline-none placeholder:text-white/25"
-        />
+          className="flex-1 bg-transparent text-white text-[15px] font-semibold outline-none placeholder:text-white/25" />
         {loading && <Loader2 size={16} className="text-blue-400 animate-spin shrink-0" />}
-        <button onClick={onClose}
-          className="p-1.5 hover:bg-white/10 rounded-xl text-white/50 hover:text-white transition-all shrink-0">
-          <X size={20} />
-        </button>
+        <button onClick={onClose} className="p-1.5 hover:bg-white/10 rounded-xl text-white/50 hover:text-white transition-all shrink-0"><X size={20} /></button>
       </div>
-
-      {/* ── Results / Suggestions ──────────────────────────────────────────── */}
       <div className="flex-1 overflow-y-auto pb-10">
-
-        {/* No results state */}
         {noResults && (
           <div className="flex flex-col items-center justify-center py-24 gap-3 text-white/20">
             <Search size={40} strokeWidth={1.5} />
             <p className="text-[11px] font-black uppercase tracking-widest">No results for "{query}"</p>
           </div>
         )}
-
-        {/* ── SEARCH RESULTS ─────────────────────────────────────────── */}
         {isSearching && !noResults && (
           <>
-            {/* People results */}
             {people.length > 0 && (
               <div className="pt-5">
-                <div className="flex items-center gap-2 px-4 mb-3">
-                  <Users size={12} className="text-blue-400" />
-                  <p className="text-[10px] font-black text-white/40 uppercase tracking-widest">People</p>
-                </div>
+                <div className="flex items-center gap-2 px-4 mb-3"><Users size={12} className="text-blue-400" /><p className="text-[10px] font-black text-white/40 uppercase tracking-widest">People</p></div>
                 {people.map(person => (
                   <div key={person.id} className="flex items-center gap-3 px-4 py-3 border-b border-white/5 hover:bg-white/5 transition-colors">
                     <div className="w-11 h-11 rounded-full bg-blue-600 overflow-hidden border border-white/10 shrink-0">
-                      {person.avatar_url
-                        ? <img src={person.avatar_url} className="w-full h-full object-cover" alt="" />
-                        : <div className="w-full h-full flex items-center justify-center text-white font-black text-sm">{person.full_name?.[0]}</div>
-                      }
+                      {person.avatar_url ? <img src={person.avatar_url} className="w-full h-full object-cover" alt="" /> : <div className="w-full h-full flex items-center justify-center text-white font-black text-sm">{person.full_name?.[0]}</div>}
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-white font-bold text-[13px] truncate">{person.full_name}</p>
-                      {(person.fame_points || 0) > 0 && (
-                        <p className="text-yellow-400/60 text-[10px]">⭐ {person.fame_points} fame</p>
-                      )}
+                      {(person.fame_points || 0) > 0 && <p className="text-yellow-400/60 text-[10px]">⭐ {person.fame_points} fame</p>}
                     </div>
-                    <button
-                      onClick={(e) => handleAddFriend(e, person.id)}
-                      disabled={sentRequests.has(person.id)}
-                      className={`px-4 py-2.5 rounded-xl text-sm font-extrabold active:scale-95 transition-all shrink-0 ${
-                        sentRequests.has(person.id)
-                          ? "bg-white/10 text-white/40"
-                          : "text-white shadow-lg"
-                      }`}
-                      style={sentRequests.has(person.id) ? {} : { background: "linear-gradient(135deg, #2563eb 0%, #4f46e5 100%)", boxShadow: "0 4px 14px rgba(79,70,229,0.5)" }}
-                    >
-                      {sentRequests.has(person.id) ? "Requested" : "+ Add Friend"}
-                    </button>
+                    <AddBtn id={person.id} />
                   </div>
                 ))}
               </div>
             )}
-
-            {/* Circle results */}
             {circles.length > 0 && (
               <div className="pt-5">
-                <div className="flex items-center gap-2 px-4 mb-3">
-                  <Users size={12} className="text-purple-400" />
-                  <p className="text-[10px] font-black text-white/40 uppercase tracking-widest">Circles</p>
-                </div>
+                <div className="flex items-center gap-2 px-4 mb-3"><Users size={12} className="text-purple-400" /><p className="text-[10px] font-black text-white/40 uppercase tracking-widest">Circles</p></div>
                 {circles.map(circle => (
                   <div key={circle.id} className="flex items-center gap-3 px-4 py-3 border-b border-white/5 hover:bg-white/5 transition-colors">
-                    <div className="w-11 h-11 rounded-xl overflow-hidden shrink-0 border border-white/10"
-                      style={{ background: circleGrad(circle.id) }}>
+                    <div className="w-11 h-11 rounded-xl overflow-hidden shrink-0 border border-white/10" style={{ background: circleGrad(circle.id) }}>
                       {circle.cover_url && <img src={circle.cover_url} className="w-full h-full object-cover" alt="" />}
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-white font-bold text-[13px] truncate">{circle.name}</p>
                       <p className="text-white/40 text-[10px]">{circle.member_count ?? 0} members · {circle.privacy || "public"}</p>
                     </div>
-                    <button className="px-3 py-1.5 bg-purple-600 rounded-xl text-[10px] font-black text-white active:scale-95 transition-transform shrink-0">
-                      Join
-                    </button>
+                    <button className="px-3 py-1.5 bg-purple-600 rounded-xl text-[10px] font-black text-white active:scale-95 transition-transform shrink-0">Join</button>
                   </div>
                 ))}
               </div>
             )}
-
-            {/* Post results */}
             {posts.length > 0 && (
               <div className="pt-5">
-                <div className="flex items-center gap-2 px-4 mb-3">
-                  <FileText size={12} className="text-green-400" />
-                  <p className="text-[10px] font-black text-white/40 uppercase tracking-widest">Posts</p>
-                </div>
+                <div className="flex items-center gap-2 px-4 mb-3"><FileText size={12} className="text-green-400" /><p className="text-[10px] font-black text-white/40 uppercase tracking-widest">Posts</p></div>
                 {posts.map(post => (
                   <div key={post.id} className="px-4 py-3 border-b border-white/5 hover:bg-white/5 transition-colors">
                     <p className="text-white/40 text-[10px] mb-1 font-semibold">@{post.author}</p>
                     <p className="text-white/80 text-[13px] leading-snug line-clamp-2">{post.content}</p>
-                    {post.media_url && (
-                      <div className="mt-2 w-16 h-12 rounded-lg overflow-hidden bg-white/5">
-                        <img src={post.media_url} className="w-full h-full object-cover" loading="lazy" alt="" />
-                      </div>
-                    )}
-                    <div className="flex items-center gap-1 mt-1.5">
-                      <Heart size={10} className="text-red-400" />
-                      <span className="text-white/30 text-[10px] font-semibold">{post.likes_count || 0}</span>
-                    </div>
+                    {post.media_url && <div className="mt-2 w-16 h-12 rounded-lg overflow-hidden bg-white/5"><img src={post.media_url} className="w-full h-full object-cover" loading="lazy" alt="" /></div>}
+                    <div className="flex items-center gap-1 mt-1.5"><Heart size={10} className="text-red-400" /><span className="text-white/30 text-[10px] font-semibold">{post.likes_count || 0}</span></div>
                   </div>
                 ))}
               </div>
             )}
           </>
         )}
-
-        {/* ── SUGGESTIONS (shown when query is empty) ────────────────── */}
         {!isSearching && (
           <>
-            {/* Suggested People */}
             {sugPeople.length > 0 && (
               <div className="pt-5">
-                <div className="flex items-center gap-2 px-4 mb-3">
-                  <span className="text-[12px]">🔥</span>
-                  <p className="text-[10px] font-black text-white/40 uppercase tracking-widest">Suggested People</p>
-                </div>
+                <div className="flex items-center gap-2 px-4 mb-3"><span className="text-[12px]">🔥</span><p className="text-[10px] font-black text-white/40 uppercase tracking-widest">Suggested People</p></div>
                 {sugPeople.map(person => (
                   <div key={person.id} className="flex items-center gap-3 px-4 py-3 border-b border-white/5 hover:bg-white/5 transition-colors">
                     <div className="w-11 h-11 rounded-full bg-blue-600 overflow-hidden border border-white/10 shrink-0">
-                      {person.avatar_url
-                        ? <img src={person.avatar_url} className="w-full h-full object-cover" alt="" />
-                        : <div className="w-full h-full flex items-center justify-center text-white font-black text-sm">{person.full_name?.[0]}</div>
-                      }
+                      {person.avatar_url ? <img src={person.avatar_url} className="w-full h-full object-cover" alt="" /> : <div className="w-full h-full flex items-center justify-center text-white font-black text-sm">{person.full_name?.[0]}</div>}
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-white font-bold text-[13px] truncate">{person.full_name}</p>
-                      {(person.fame_points || 0) > 0 && (
-                        <p className="text-yellow-400/60 text-[10px]">⭐ {person.fame_points} fame</p>
-                      )}
+                      {(person.fame_points || 0) > 0 && <p className="text-yellow-400/60 text-[10px]">⭐ {person.fame_points} fame</p>}
                     </div>
-                    <button
-                      onClick={(e) => handleAddFriend(e, person.id)}
-                      disabled={sentRequests.has(person.id)}
-                      className={`px-4 py-2.5 rounded-xl text-sm font-extrabold active:scale-95 transition-all shrink-0 ${
-                        sentRequests.has(person.id)
-                          ? "bg-white/10 text-white/40"
-                          : "text-white shadow-lg"
-                      }`}
-                      style={sentRequests.has(person.id) ? {} : { background: "linear-gradient(135deg, #2563eb 0%, #4f46e5 100%)", boxShadow: "0 4px 14px rgba(79,70,229,0.5)" }}
-                    >
-                      {sentRequests.has(person.id) ? "Requested" : "+ Add Friend"}
-                    </button>
+                    <AddBtn id={person.id} />
                   </div>
                 ))}
               </div>
             )}
-
-            {/* Popular Circles */}
             {sugCircles.length > 0 && (
               <div className="pt-5">
-                <div className="flex items-center gap-2 px-4 mb-3">
-                  <span className="text-[12px]">👥</span>
-                  <p className="text-[10px] font-black text-white/40 uppercase tracking-widest">Popular Circles</p>
-                </div>
+                <div className="flex items-center gap-2 px-4 mb-3"><span className="text-[12px]">👥</span><p className="text-[10px] font-black text-white/40 uppercase tracking-widest">Popular Circles</p></div>
                 {sugCircles.map(circle => (
                   <div key={circle.id} className="flex items-center gap-3 px-4 py-3 border-b border-white/5 hover:bg-white/5 transition-colors">
-                    <div className="w-11 h-11 rounded-xl overflow-hidden shrink-0 border border-white/10"
-                      style={{ background: circleGrad(circle.id) }}>
+                    <div className="w-11 h-11 rounded-xl overflow-hidden shrink-0 border border-white/10" style={{ background: circleGrad(circle.id) }}>
                       {circle.cover_url && <img src={circle.cover_url} className="w-full h-full object-cover" alt="" />}
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-white font-bold text-[13px] truncate">{circle.name}</p>
                       <p className="text-white/40 text-[10px]">{circle.member_count ?? 0} members</p>
                     </div>
-                    <button className="px-3 py-1.5 bg-white/10 border border-white/15 rounded-xl text-[10px] font-black text-white/70 active:scale-95 transition-transform shrink-0">
-                      Join
-                    </button>
+                    <button className="px-3 py-1.5 bg-white/10 border border-white/15 rounded-xl text-[10px] font-black text-white/70 active:scale-95 transition-transform shrink-0">Join</button>
                   </div>
                 ))}
               </div>
             )}
-
-            {/* Empty suggestions state */}
             {sugPeople.length === 0 && sugCircles.length === 0 && (
               <div className="flex flex-col items-center justify-center py-24 gap-3 text-white/20">
                 <Search size={40} strokeWidth={1.5} />
@@ -469,15 +308,20 @@ const SearchModal = ({ onClose, userId }: { onClose: () => void; userId?: string
 
 // ── Actor Avatar ────────────────────────────────────────────────────────────────
 const ActorAvatar = ({ name, avatarUrl, size = 36 }: { name: string; avatarUrl?: string; size?: number }) => (
-  <div
-    className="rounded-full overflow-hidden bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-black shrink-0 border-2 border-white/10"
-    style={{ width: size, height: size, fontSize: size * 0.38 }}
-  >
-    {avatarUrl
-      ? <img src={avatarUrl} className="w-full h-full object-cover" alt="" />
-      : (name?.[0] || "?").toUpperCase()}
+  <div className="rounded-full overflow-hidden bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-black shrink-0 border-2 border-white/10"
+    style={{ width: size, height: size, fontSize: size * 0.38 }}>
+    {avatarUrl ? <img src={avatarUrl} className="w-full h-full object-cover" alt="" /> : (name?.[0] || "?").toUpperCase()}
   </div>
 );
+
+// ── Stat Pill ───────────────────────────────────────────────────────────────────
+type DashTab = "posts" | "hooks" | "likes" | "friends";
+const DASH_TABS: { key: DashTab; label: string; icon: React.ReactNode; color: string; glow: string }[] = [
+  { key: "posts",   label: "Posts",   icon: <FileText size={15} />, color: "from-indigo-500 to-blue-600",   glow: "rgba(99,102,241,0.5)"  },
+  { key: "hooks",   label: "Hooks",   icon: <Link2 size={15} />,    color: "from-purple-500 to-fuchsia-600", glow: "rgba(168,85,247,0.5)" },
+  { key: "likes",   label: "Likes",   icon: <Heart size={15} />,    color: "from-rose-500 to-pink-600",     glow: "rgba(244,63,94,0.5)"  },
+  { key: "friends", label: "Friends", icon: <Users size={15} />,    color: "from-emerald-500 to-teal-600",  glow: "rgba(16,185,129,0.5)" },
+];
 
 // ── Main Header ────────────────────────────────────────────────────────────────
 const Header = ({
@@ -491,12 +335,29 @@ const Header = ({
   onSettingsClick?: () => void;
   userId?: string;
 }) => {
-  const [notifications, setNotifications]     = useState<any[]>([]);
-  const [friendRequests, setFriendRequests]   = useState<any[]>([]);
-  const [showNotif, setShowNotif]             = useState(false);
-  const [showSearch, setShowSearch]           = useState(false);
-  const [actionLoading, setActionLoading]     = useState<string | null>(null);
+  // ── Existing state ─────────────────────────────────────────────────────────
+  const [notifications, setNotifications]   = useState<any[]>([]);
+  const [friendRequests, setFriendRequests] = useState<any[]>([]);
+  const [showNotif, setShowNotif]           = useState(false);
+  const [showSearch, setShowSearch]         = useState(false);
+  const [actionLoading, setActionLoading]   = useState<string | null>(null);
   const [userData, setUserData] = useState({ full_name: "...", avatar_url: "", id: userId || "" });
+
+  // ── Power Dashboard state ──────────────────────────────────────────────────
+  const [showDash, setShowDash]       = useState(false);
+  const [dashTab, setDashTab]         = useState<DashTab>("friends");
+  const [dashStats, setDashStats]     = useState({ posts: 0, hooks: 0, likes: 0, friends: 0 });
+  const [dashLoading, setDashLoading] = useState(false);
+  const [dashFriends, setDashFriends] = useState<FriendEntry[]>([]);
+  const [dashPosts, setDashPosts]     = useState<any[]>([]);
+  const [dashHooks, setDashHooks]     = useState<any[]>([]);
+  const [dashFriendsFetched, setDashFriendsFetched] = useState(false);
+  const [dashPostsFetched, setDashPostsFetched]     = useState(false);
+  const [dashHooksFetched, setDashHooksFetched]     = useState(false);
+
+  // ── KICK state ─────────────────────────────────────────────────────────────
+  const [kickTarget, setKickTarget]   = useState<FriendEntry | null>(null);
+  const [kickingId, setKickingId]     = useState<string | null>(null);
 
   // ── Fetchers ──────────────────────────────────────────────────────────────
   const fetchProfile = useCallback(async () => {
@@ -506,26 +367,15 @@ const Header = ({
   }, [userId]);
 
   const fetchNotifications = useCallback(async () => {
-    if (!userId) {
-      console.warn("[Facelook][Notifs] fetchNotifications skipped — userId missing");
-      return;
-    }
-    console.log("[Facelook][Notifs] Fetching for notifier_id =", userId);
+    if (!userId) return;
     const { data, error } = await supabase
-      .from("notifications")
-      .select("*")
-      .eq("notifier_id", userId)
-      .order("created_at", { ascending: false })
-      .limit(30);
-    console.log("[Facelook][Notifs] fetch result → rows:", data?.length ?? 0, "| error:", error ?? "none");
-    console.log("[Facelook][Notifs] raw data →", data);
+      .from("notifications").select("*").eq("notifier_id", userId)
+      .order("created_at", { ascending: false }).limit(30);
     if (data && data.length > 0) {
-      // Separately fetch actor profiles (avoids FK name guessing)
       const actorIds = [...new Set(data.filter(n => n.actor_id).map(n => n.actor_id))];
       let profileMap: Record<string, any> = {};
       if (actorIds.length > 0) {
-        const { data: profiles } = await supabase
-          .from("profiles").select("id, full_name, avatar_url").in("id", actorIds);
+        const { data: profiles } = await supabase.from("profiles").select("id, full_name, avatar_url").in("id", actorIds);
         profileMap = Object.fromEntries((profiles || []).map(p => [p.id, p]));
       }
       setNotifications(data.map(n => ({ ...n, actor: profileMap[n.actor_id] || null })));
@@ -535,26 +385,11 @@ const Header = ({
   }, [userId]);
 
   const fetchFriendRequests = useCallback(async () => {
-    if (!userId) {
-      console.warn("[Facelook][FriendReqs] fetchFriendRequests skipped — userId missing");
-      return;
-    }
-    // ⚠️ NOTE: SearchModal inserts into "friend_requests" table,
-    //    lekin yahan "friendships" table query ho rahi hai.
-    //    Agar requests nahi dikh rahe, to table name check karo.
-    console.log("[Facelook][FriendReqs] Fetching from 'friendships' for receiver_id =", userId);
-    const { data, error } = await supabase
-      .from("friendships")
-      .select("*")
-      .eq("receiver_id", userId)
-      .eq("status", "pending")
-      .order("created_at", { ascending: false });
-    console.log("[Facelook][FriendReqs] fetch result → rows:", data?.length ?? 0, "| error:", error ?? "none");
-    console.log("[Facelook][FriendReqs] raw data →", data);
+    if (!userId) return;
+    const { data } = await supabase.from("friendships").select("*").eq("receiver_id", userId).eq("status", "pending").order("created_at", { ascending: false });
     if (data && data.length > 0) {
       const senderIds = [...new Set(data.map(r => r.sender_id))];
-      const { data: profiles } = await supabase
-        .from("profiles").select("id, full_name, avatar_url").in("id", senderIds);
+      const { data: profiles } = await supabase.from("profiles").select("id, full_name, avatar_url").in("id", senderIds);
       const profileMap = Object.fromEntries((profiles || []).map(p => [p.id, p]));
       setFriendRequests(data.map(r => ({ ...r, sender: profileMap[r.sender_id] || null })));
     } else {
@@ -562,32 +397,92 @@ const Header = ({
     }
   }, [userId]);
 
+  // ── Dashboard Fetchers ─────────────────────────────────────────────────────
+  const fetchDashStats = useCallback(async () => {
+    if (!userId) return;
+    setDashLoading(true);
+    const [postsRes, hooksRes, friendsRes, postsLikesRes] = await Promise.all([
+      supabase.from("posts").select("id", { count: "exact", head: true }).eq("author_id", userId),
+      supabase.from("page_followers").select("page_id", { count: "exact", head: true }).eq("user_id", userId),
+      supabase.from("friendships").select("id", { count: "exact", head: true }).or(`sender_id.eq.${userId},receiver_id.eq.${userId}`).eq("status", "accepted"),
+      supabase.from("posts").select("likes_count").eq("author_id", userId),
+    ]);
+    const totalLikes = (postsLikesRes.data || []).reduce((sum: number, p: any) => sum + (p.likes_count || 0), 0);
+    setDashStats({
+      posts:   postsRes.count ?? 0,
+      hooks:   hooksRes.count ?? 0,
+      likes:   totalLikes,
+      friends: friendsRes.count ?? 0,
+    });
+    setDashLoading(false);
+  }, [userId]);
+
+  const fetchDashFriends = useCallback(async () => {
+    if (!userId || dashFriendsFetched) return;
+    const { data } = await supabase
+      .from("friendships")
+      .select("id, sender_id, receiver_id, profiles!friendships_sender_id_fkey(id,full_name,avatar_url), profiles!friendships_receiver_id_fkey(id,full_name,avatar_url)")
+      .eq("status", "accepted")
+      .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
+      .limit(50);
+    if (data) {
+      const parsed: FriendEntry[] = data.map((row: any) => {
+        const isSender = row.sender_id === userId;
+        const p = isSender ? row["profiles!friendships_receiver_id_fkey"] : row["profiles!friendships_sender_id_fkey"];
+        return p ? { friendshipId: row.id, id: p.id, full_name: p.full_name, avatar_url: p.avatar_url } : null;
+      }).filter((f: FriendEntry | null): f is FriendEntry => !!f && !!f.id);
+      setDashFriends(parsed);
+      setDashFriendsFetched(true);
+    }
+  }, [userId, dashFriendsFetched]);
+
+  const fetchDashPosts = useCallback(async () => {
+    if (!userId || dashPostsFetched) return;
+    const { data } = await supabase.from("posts").select("id,content,media_url,likes_count,created_at").eq("author_id", userId).order("created_at", { ascending: false }).limit(10);
+    setDashPosts(data || []);
+    setDashPostsFetched(true);
+  }, [userId, dashPostsFetched]);
+
+  const fetchDashHooks = useCallback(async () => {
+    if (!userId || dashHooksFetched) return;
+    const { data } = await supabase.from("page_followers").select("page_id, hook_pages(id,name,avatar_url,follower_count,followers_count)").eq("user_id", userId).limit(20);
+    setDashHooks(data || []);
+    setDashHooksFetched(true);
+  }, [userId, dashHooksFetched]);
+
+  // ── KICK Logic ─────────────────────────────────────────────────────────────
+  const confirmKick = async () => {
+    if (!kickTarget || kickingId) return;
+    const target = kickTarget;
+    setKickTarget(null);
+    setKickingId(target.id);
+
+    await supabase.from("friendships").delete().eq("id", target.friendshipId);
+
+    setTimeout(() => {
+      setDashFriends(prev => prev.filter(f => f.id !== target.id));
+      setDashStats(prev => ({ ...prev, friends: Math.max(0, prev.friends - 1) }));
+      setKickingId(null);
+    }, 650);
+
+    toast(
+      <div className="flex items-center gap-2 font-bold text-sm">
+        <span className="text-2xl">⚽</span>
+        <span>Chal hat hawa aane de... Kicked out of the field!</span>
+      </div>,
+      {
+        duration: 3500,
+        style: { background: "#1a1a2e", color: "#fff", border: "1.5px solid #ef4444", borderRadius: "14px", fontFamily: "inherit" },
+      }
+    );
+  };
+
   // ── Actions ───────────────────────────────────────────────────────────────
   const acceptRequest = async (reqId: string, senderId: string) => {
     setActionLoading(reqId);
-    const { error } = await supabase
-      .from("friendships")
-      .update({ status: "accepted" })
-      .eq("id", reqId);
-
-    if (error) {
-      console.error("[Header][acceptRequest] DB error:", error);
-      toast.error("Request accept nahi ho saki: " + error.message);
-      setActionLoading(null);
-      return;
-    }
-
-    // Sender ko notification bhejo
-    const { error: notifErr } = await supabase.from("notifications").insert({
-      notifier_id: senderId,
-      actor_id: userId,
-      type: "friend_accepted",
-      entity_id: reqId,
-      content: `${userData.full_name} ne aapki friend request accept ki`,
-      is_read: false,
-    });
-    if (notifErr) console.warn("[Header][acceptRequest] notification insert warning:", notifErr);
-
+    const { error } = await supabase.from("friendships").update({ status: "accepted" }).eq("id", reqId);
+    if (error) { toast.error("Request accept nahi ho saki: " + error.message); setActionLoading(null); return; }
+    await supabase.from("notifications").insert({ notifier_id: senderId, actor_id: userId, type: "friend_accepted", entity_id: reqId, content: `${userData.full_name} ne aapki friend request accept ki`, is_read: false });
     toast.success("Friend request accept ho gayi!");
     setFriendRequests(prev => prev.filter(r => r.id !== reqId));
     setActionLoading(null);
@@ -602,8 +497,7 @@ const Header = ({
 
   const markAllRead = async () => {
     if (!userId) return;
-    await supabase.from("notifications").update({ is_read: true })
-      .eq("notifier_id", userId).eq("is_read", false);
+    await supabase.from("notifications").update({ is_read: true }).eq("notifier_id", userId).eq("is_read", false);
     setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
   };
 
@@ -612,149 +506,99 @@ const Header = ({
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n));
   };
 
-  // ── Notification sound (two-tone ding from public/notif.wav) ─────────────
   const playNotifSound = () => {
-    try {
-      const audio = new Audio("/notif.wav");
-      audio.volume = 1.0;
-      audio.play().catch(e => console.warn("[Facelook][Sound] autoplay blocked:", e));
-    } catch (e) {
-      console.warn("[Facelook][Sound] play error:", e);
-    }
+    try { const audio = new Audio("/notif.wav"); audio.volume = 1.0; audio.play().catch(() => {}); } catch {}
   };
 
-  // ── Navigate to post on notification click ───────────────────────────────
   const handleNotifClick = (n: any) => {
     if (!n.is_read) markOneRead(n.id);
-    const postTypes = ["like", "comment", "mention", "new_post"];
+    const postTypes = ["like","comment","mention","new_post"];
     if (n.entity_id && postTypes.includes(n.type)) {
-      setShowNotif(false);
-      onHomeClick?.();
-      // Give the feed a moment to render, then scroll to the post
+      setShowNotif(false); onHomeClick?.();
       setTimeout(() => {
         const el = document.getElementById(n.entity_id);
         if (el) {
           el.scrollIntoView({ behavior: "smooth", block: "center" });
-          el.style.outline = "2px solid #3b82f6";
-          el.style.borderRadius = "16px";
+          el.style.outline = "2px solid #3b82f6"; el.style.borderRadius = "16px";
           setTimeout(() => { el.style.outline = ""; el.style.borderRadius = ""; }, 2200);
         }
       }, 420);
     }
   };
 
-  // ── Real-time setup ───────────────────────────────────────────────────────
-  // Keep stable refs so useEffect only runs once per userId (avoids re-subscription loops)
-  const fetchNotifsRef      = useRef(fetchNotifications);
-  const fetchFriendReqsRef  = useRef(fetchFriendRequests);
+  // ── Real-time setup ────────────────────────────────────────────────────────
+  const fetchNotifsRef     = useRef(fetchNotifications);
+  const fetchFriendReqsRef = useRef(fetchFriendRequests);
   useEffect(() => { fetchNotifsRef.current     = fetchNotifications; }, [fetchNotifications]);
   useEffect(() => { fetchFriendReqsRef.current = fetchFriendRequests; }, [fetchFriendRequests]);
 
   useEffect(() => {
-    console.log("[Facelook][Header] useEffect fired — userId:", userId ?? "UNDEFINED ❌");
-    if (!userId) {
-      console.warn("[Facelook][Header] userId nahi mila, subscription skip ho rahi hai.");
-      return;
-    }
+    if (!userId) return;
     fetchProfile();
     fetchNotifsRef.current();
     fetchFriendReqsRef.current();
 
-    // ── Notifications channel (NO server-side filter — filter client-side for reliability)
-    const notifCh = supabase
-      .channel(`notif-live-v2-${userId}`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "notifications" },
-        (payload) => {
-          const row = (payload.new || payload.old) as any;
-          console.log("[Facelook][Notif RT] payload received →", payload.eventType, row);
-          // Client-side user filter
-          if (row?.notifier_id !== userId) return;
-          console.log("[Facelook][Notif RT] matches current user → refetching");
-          // 🔔 Sound sirf naye INSERT par bajao
-          if (payload.eventType === "INSERT") playNotifSound();
-          fetchNotifsRef.current();
-        }
-      )
-      .subscribe((status, err) => {
-        console.log("[Facelook][Notif RT] subscribe status →", status, err || "");
-      });
+    const notifCh = supabase.channel(`notif-live-v2-${userId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "notifications" }, (payload) => {
+        const row = (payload.new || payload.old) as any;
+        if (row?.notifier_id !== userId) return;
+        if (payload.eventType === "INSERT") playNotifSound();
+        fetchNotifsRef.current();
+      }).subscribe();
 
-    // ── Friend requests channel (NO server-side filter — filter client-side)
-    const friendCh = supabase
-      .channel(`friend-live-v2-${userId}`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "friendships" },
-        (payload) => {
-          const row = (payload.new || payload.old) as any;
-          console.log("[Facelook][Friend RT] payload received →", payload.eventType, row);
-          if (row?.receiver_id !== userId) return;
-          console.log("[Facelook][Friend RT] matches current user → refetching");
-          fetchFriendReqsRef.current();
-        }
-      )
-      .subscribe((status, err) => {
-        console.log("[Facelook][Friend RT] subscribe status →", status, err || "");
-      });
+    const friendCh = supabase.channel(`friend-live-v2-${userId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "friendships" }, (payload) => {
+        const row = (payload.new || payload.old) as any;
+        if (row?.receiver_id !== userId) return;
+        fetchFriendReqsRef.current();
+      }).subscribe();
 
-    return () => {
-      supabase.removeChannel(notifCh);
-      supabase.removeChannel(friendCh);
-    };
+    return () => { supabase.removeChannel(notifCh); supabase.removeChannel(friendCh); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
 
-  const unreadCount  = notifications.filter(n => !n.is_read).length;
-  const totalBadge   = unreadCount + friendRequests.length;
-  const hasAnything  = notifications.length > 0 || friendRequests.length > 0;
+  // ── Fetch dashboard stats when it opens ────────────────────────────────────
+  useEffect(() => {
+    if (showDash) {
+      fetchDashStats();
+      fetchDashFriends();
+    }
+  }, [showDash, fetchDashStats, fetchDashFriends]);
 
-  // 🔍 DEBUG — Bell counter breakdown (console mein dekhein)
-  console.log(
-    "[Facelook][Bell] totalBadge:", totalBadge,
-    "| unread notifications:", unreadCount,
-    "| total notifications:", notifications.length,
-    "| pending friend requests:", friendRequests.length
-  );
+  // ── Fetch tab-specific data on tab change ──────────────────────────────────
+  useEffect(() => {
+    if (!showDash) return;
+    if (dashTab === "friends") fetchDashFriends();
+    if (dashTab === "posts")   fetchDashPosts();
+    if (dashTab === "hooks")   fetchDashHooks();
+  }, [dashTab, showDash, fetchDashFriends, fetchDashPosts, fetchDashHooks]);
+
+  const unreadCount = notifications.filter(n => !n.is_read).length;
+  const totalBadge  = unreadCount + friendRequests.length;
+  const hasAnything = notifications.length > 0 || friendRequests.length > 0;
 
   return (
     <>
       {/* ── GLASS HEADER ─────────────────────────────────────────────────── */}
       <header className="w-full h-14 bg-white/10 backdrop-blur-2xl border-b border-white/10 sticky top-0 z-[100] px-3 sm:px-5 flex items-center gap-3 transition-all relative overflow-hidden">
-
-        {/* 1. LEFT: Logo + Tagline + Tiranga ─────────────────────────────── */}
         <div className="flex items-center gap-2 flex-shrink-0">
-          <motion.div
-            animate={{ rotate: [0, -8, 8, -4, 4, 0] }}
-            transition={{ duration: 3.5, repeat: Infinity, repeatDelay: 4, ease: "easeInOut" }}
-            className="w-7 h-7 rounded-lg bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center shadow-lg shadow-blue-500/30 flex-shrink-0"
-          >
+          <motion.div animate={{ rotate: [0, -8, 8, -4, 4, 0] }} transition={{ duration: 3.5, repeat: Infinity, repeatDelay: 4, ease: "easeInOut" }}
+            className="w-7 h-7 rounded-lg bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center shadow-lg shadow-blue-500/30 flex-shrink-0">
             <span className="text-white font-black text-[12px] italic">F</span>
           </motion.div>
           <FacelookLogo />
           <TirangaFlag />
         </div>
-
-        {/* 2. SPACER ───────────────────────────────────────────────────────── */}
         <div className="flex-1" />
-
-        {/* 3. RIGHT: Home + Search + Bell + Settings + Avatar ─────────────── */}
         <div className="flex items-center gap-2 flex-shrink-0">
-
-          {/* Home back button */}
           <motion.button whileTap={{ scale: 0.88 }} onClick={onHomeClick}
-            className="p-2 bg-white/10 border border-white/15 text-white rounded-xl hover:bg-white/15 transition-all active:scale-90 flex-shrink-0" title="Back to Home">
+            className="p-2 bg-white/10 border border-white/15 text-white rounded-xl hover:bg-white/15 transition-all active:scale-90 flex-shrink-0">
             <Home size={17} />
           </motion.button>
-
-          {/* Search button */}
           <motion.button whileTap={{ scale: 0.88 }} onClick={() => setShowSearch(true)}
-            className="p-2 bg-white/10 border border-white/15 text-white rounded-xl hover:bg-blue-500/20 hover:border-blue-500/40 transition-all active:scale-90 flex-shrink-0" title="Search">
+            className="p-2 bg-white/10 border border-white/15 text-white rounded-xl hover:bg-blue-500/20 hover:border-blue-500/40 transition-all active:scale-90 flex-shrink-0">
             <Search size={17} />
           </motion.button>
-
-          {/* Bell with live badge */}
           <motion.button whileTap={{ scale: 0.9 }}
             onClick={() => { setShowNotif(v => !v); if (!showNotif) fetchFriendRequests(); }}
             className="p-2.5 bg-white/5 border border-white/10 text-white rounded-2xl relative hover:bg-white/10 transition-all flex-shrink-0">
@@ -766,20 +610,19 @@ const Header = ({
               </motion.span>
             )}
           </motion.button>
-
-          {/* Settings gear */}
           <motion.button whileTap={{ scale: 0.88 }} onClick={onSettingsClick}
-            className="p-2 bg-white/10 border border-white/15 text-white rounded-xl hover:bg-white/15 transition-all active:scale-90 flex-shrink-0" title="Settings">
+            className="p-2 bg-white/10 border border-white/15 text-white rounded-xl hover:bg-white/15 transition-all active:scale-90 flex-shrink-0">
             <Settings size={17} />
           </motion.button>
 
-          {/* Avatar */}
-          <div onClick={onProfileClick}
-            className="w-9 h-9 rounded-xl overflow-hidden border border-white/30 shadow-lg cursor-pointer active:scale-90 transition-transform flex-shrink-0">
+          {/* Avatar → opens Power Dashboard */}
+          <motion.div whileTap={{ scale: 0.88 }} onClick={() => setShowDash(true)}
+            className="w-9 h-9 rounded-xl overflow-hidden border-2 border-yellow-400/60 shadow-lg cursor-pointer flex-shrink-0 relative"
+            style={{ boxShadow: "0 0 12px rgba(250,204,21,0.35)" }}>
             {userData.avatar_url
               ? <img src={userData.avatar_url} loading="lazy" className="w-full h-full object-cover" alt="Profile" />
               : <div className="w-full h-full bg-blue-600 flex items-center justify-center text-white font-black text-xs">{userData.full_name[0]}</div>}
-          </div>
+          </motion.div>
         </div>
       </header>
 
@@ -792,43 +635,27 @@ const Header = ({
       <AnimatePresence>
         {showNotif && (
           <>
-            {/* Backdrop */}
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               onClick={() => setShowNotif(false)}
               className="fixed inset-0 bg-black/30 backdrop-blur-sm z-[105]" />
-
-            {/* Drawer */}
-            <motion.div
-              initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }}
+            <motion.div initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }}
               transition={{ type: "spring", damping: 28, stiffness: 220 }}
-              className="fixed top-0 right-0 h-full w-full max-w-sm bg-slate-900/90 backdrop-blur-3xl shadow-2xl z-[110] border-l border-white/10 flex flex-col overflow-hidden"
-            >
-              {/* ── Drawer Header */}
+              className="fixed top-0 right-0 h-full w-full max-w-sm bg-slate-900/90 backdrop-blur-3xl shadow-2xl z-[110] border-l border-white/10 flex flex-col overflow-hidden">
               <div className="px-5 py-4 flex items-center justify-between border-b border-white/10 bg-white/5 shrink-0">
                 <div className="flex items-center gap-2">
                   <Bell size={16} className="text-white/70" />
                   <h2 className="font-black text-white tracking-wide text-[13px]">Notifications</h2>
-                  {unreadCount > 0 && (
-                    <span className="px-1.5 py-0.5 bg-red-500/80 rounded-full text-[9px] font-black text-white">
-                      {unreadCount}
-                    </span>
-                  )}
+                  {unreadCount > 0 && <span className="px-1.5 py-0.5 bg-red-500/80 rounded-full text-[9px] font-black text-white">{unreadCount}</span>}
                 </div>
                 <div className="flex items-center gap-2">
                   {unreadCount > 0 && (
-                    <button onClick={markAllRead}
-                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/15 text-white/60 hover:text-white text-[10px] font-bold transition-all">
+                    <button onClick={markAllRead} className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/15 text-white/60 hover:text-white text-[10px] font-bold transition-all">
                       <CheckCheck size={11} /> Mark all read
                     </button>
                   )}
-                  <button onClick={() => setShowNotif(false)}
-                    className="p-1.5 hover:bg-white/10 rounded-full text-white/40 hover:text-white transition-all">
-                    <X size={18} />
-                  </button>
+                  <button onClick={() => setShowNotif(false)} className="p-1.5 hover:bg-white/10 rounded-full text-white/40 hover:text-white transition-all"><X size={18} /></button>
                 </div>
               </div>
-
-              {/* ── Drawer Body */}
               <div className="flex-1 overflow-y-auto">
                 {!hasAnything ? (
                   <div className="h-full flex flex-col items-center justify-center gap-3 text-white/20 py-16">
@@ -837,51 +664,31 @@ const Header = ({
                   </div>
                 ) : (
                   <div className="p-3 space-y-2">
-
-                    {/* ── Friend Requests Section */}
                     {friendRequests.length > 0 && (
                       <div>
-                        <p className="text-[9px] font-black text-white/30 uppercase tracking-widest px-1 mb-1.5">
-                          Friend Requests · {friendRequests.length}
-                        </p>
+                        <p className="text-[9px] font-black text-white/30 uppercase tracking-widest px-1 mb-1.5">Friend Requests · {friendRequests.length}</p>
                         {friendRequests.map(req => {
                           const sender = req.sender || {};
                           const isAccLoading = actionLoading === req.id;
                           const isRejLoading = actionLoading === req.id + "_reject";
                           return (
-                            <motion.div key={req.id}
-                              initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-                              className="p-3 bg-blue-600/10 border border-blue-500/20 rounded-2xl mb-2"
-                            >
+                            <motion.div key={req.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="p-3 bg-blue-600/10 border border-blue-500/20 rounded-2xl mb-2">
                               <div className="flex items-center gap-3">
                                 <ActorAvatar name={sender.full_name || "?"} avatarUrl={sender.avatar_url} size={40} />
                                 <div className="flex-1 min-w-0">
-                                  <p className="text-[12px] font-black text-white leading-tight truncate">
-                                    {sender.full_name || "Koi user"}
-                                  </p>
+                                  <p className="text-[12px] font-black text-white leading-tight truncate">{sender.full_name || "Koi user"}</p>
                                   <p className="text-[10px] text-white/40 mt-0.5">ne friend request bheji</p>
                                 </div>
-                                <p className="text-[9px] text-white/30 shrink-0">
-                                  {req.created_at ? timeAgo(req.created_at) : ""}
-                                </p>
+                                <p className="text-[9px] text-white/30 shrink-0">{req.created_at ? timeAgo(req.created_at) : ""}</p>
                               </div>
-                              {/* Confirm / Delete buttons */}
                               <div className="flex gap-2 mt-2.5">
-                                <motion.button whileTap={{ scale: 0.95 }}
-                                  onClick={() => acceptRequest(req.id, req.sender_id)}
-                                  disabled={isAccLoading || isRejLoading}
+                                <motion.button whileTap={{ scale: 0.95 }} onClick={() => acceptRequest(req.id, req.sender_id)} disabled={isAccLoading || isRejLoading}
                                   className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-black transition-all disabled:opacity-50">
-                                  {isAccLoading
-                                    ? <Loader2 size={12} className="animate-spin" />
-                                    : <><UserCheck size={12} /> Confirm</>}
+                                  {isAccLoading ? <Loader2 size={12} className="animate-spin" /> : <><UserCheck size={12} /> Confirm</>}
                                 </motion.button>
-                                <motion.button whileTap={{ scale: 0.95 }}
-                                  onClick={() => rejectRequest(req.id)}
-                                  disabled={isAccLoading || isRejLoading}
+                                <motion.button whileTap={{ scale: 0.95 }} onClick={() => rejectRequest(req.id)} disabled={isAccLoading || isRejLoading}
                                   className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-white/70 text-[11px] font-black transition-all disabled:opacity-50">
-                                  {isRejLoading
-                                    ? <Loader2 size={12} className="animate-spin" />
-                                    : <><UserX size={12} /> Delete</>}
+                                  {isRejLoading ? <Loader2 size={12} className="animate-spin" /> : <><UserX size={12} /> Delete</>}
                                 </motion.button>
                               </div>
                             </motion.div>
@@ -889,67 +696,32 @@ const Header = ({
                         })}
                       </div>
                     )}
-
-                    {/* ── Notifications List */}
                     {notifications.length > 0 && (
                       <div>
-                        {friendRequests.length > 0 && (
-                          <p className="text-[9px] font-black text-white/30 uppercase tracking-widest px-1 mb-1.5 mt-3">
-                            Activity
-                          </p>
-                        )}
+                        {friendRequests.length > 0 && <p className="text-[9px] font-black text-white/30 uppercase tracking-widest px-1 mb-1.5 mt-3">Activity</p>}
                         {notifications.map((n, i) => {
                           const meta = NOTIF_META[n.type] || NOTIF_META["new_post"];
                           const actor = n.actor || {};
                           const actorName = actor.full_name || n.actor_name || "Koi user";
-                          const bodyText = n.content
-                            ? n.content.replace(actorName, "").trim()
-                            : meta.label;
+                          const bodyText = n.content ? n.content.replace(actorName, "").trim() : meta.label;
                           const isNavigable = n.entity_id && ["like","comment","mention","new_post"].includes(n.type);
                           return (
-                            <motion.div key={n.id}
-                              initial={{ opacity: 0, y: 10, scale: 0.97 }}
-                              animate={{ opacity: 1, y: 0, scale: 1 }}
+                            <motion.div key={n.id} initial={{ opacity: 0, y: 10, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }}
                               transition={{ delay: i * 0.04, type: "spring", stiffness: 260, damping: 22 }}
                               onClick={() => handleNotifClick(n)}
-                              className={`flex items-start gap-3.5 p-4 rounded-2xl mb-2 cursor-pointer transition-all active:scale-[0.98]
-                                ${n.is_read
-                                  ? "bg-white/[0.04] hover:bg-white/[0.07]"
-                                  : "bg-gradient-to-r from-blue-600/15 via-blue-500/10 to-transparent border border-blue-500/20 hover:from-blue-600/20 shadow-sm"
-                                }`}
-                            >
-                              {/* Actor avatar with type badge */}
+                              className={`flex items-start gap-3.5 p-4 rounded-2xl mb-2 cursor-pointer transition-all active:scale-[0.98] ${n.is_read ? "bg-white/[0.04] hover:bg-white/[0.07]" : "bg-gradient-to-r from-blue-600/15 via-blue-500/10 to-transparent border border-blue-500/20 hover:from-blue-600/20 shadow-sm"}`}>
                               <div className="relative shrink-0">
                                 <ActorAvatar name={actorName} avatarUrl={actor.avatar_url} size={46} />
-                                <div className={`absolute -bottom-1 -right-1 w-6 h-6 rounded-full flex items-center justify-center shadow-lg ${meta.color}`}>
-                                  {meta.icon}
-                                </div>
+                                <div className={`absolute -bottom-1 -right-1 w-6 h-6 rounded-full flex items-center justify-center shadow-lg ${meta.color}`}>{meta.icon}</div>
                               </div>
-
-                              {/* Text content */}
                               <div className="flex-1 min-w-0">
-                                {/* Actor name — big & bold */}
-                                <p className="text-[14px] font-black text-white leading-tight truncate">
-                                  {actorName}
-                                </p>
-                                {/* Action text */}
-                                <p className="text-[13px] font-semibold text-white/70 mt-0.5 leading-snug line-clamp-2">
-                                  {bodyText}
-                                </p>
-                                {/* Time + tap hint row */}
+                                <p className="text-[14px] font-black text-white leading-tight truncate">{actorName}</p>
+                                <p className="text-[13px] font-semibold text-white/70 mt-0.5 leading-snug line-clamp-2">{bodyText}</p>
                                 <div className="flex items-center gap-2 mt-1.5">
-                                  <p className="text-[10px] text-white/35 font-semibold">
-                                    {n.created_at ? timeAgo(n.created_at) : ""}
-                                  </p>
-                                  {isNavigable && (
-                                    <span className="text-[9px] text-blue-400/70 font-black uppercase tracking-wide">
-                                      · Post dekho →
-                                    </span>
-                                  )}
+                                  <p className="text-[10px] text-white/35 font-semibold">{n.created_at ? timeAgo(n.created_at) : ""}</p>
+                                  {isNavigable && <span className="text-[9px] text-blue-400/70 font-black uppercase tracking-wide">· Post dekho →</span>}
                                 </div>
                               </div>
-
-                              {/* Unread indicator — pulsing dot */}
                               {!n.is_read && (
                                 <div className="relative shrink-0 mt-1">
                                   <div className="w-2.5 h-2.5 rounded-full bg-blue-500" />
@@ -960,6 +732,266 @@ const Header = ({
                           );
                         })}
                       </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* ── POWER DASHBOARD DRAWER ────────────────────────────────────────── */}
+      <AnimatePresence>
+        {showDash && (
+          <>
+            {/* Backdrop */}
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => { setShowDash(false); setKickTarget(null); }}
+              className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[115]" />
+
+            {/* Sidebar */}
+            <motion.div initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }}
+              transition={{ type: "spring", damping: 26, stiffness: 210 }}
+              className="fixed top-0 right-0 h-full w-full max-w-sm z-[120] flex flex-col overflow-hidden"
+              style={{ background: "linear-gradient(160deg, #0f0c29 0%, #141428 50%, #0a0a1a 100%)", borderLeft: "1px solid rgba(255,255,255,0.08)" }}>
+
+              {/* ── Dashboard Header ─────────────────────────────────────── */}
+              <div className="relative px-5 pt-5 pb-4 shrink-0" style={{ background: "linear-gradient(135deg, rgba(37,99,235,0.25) 0%, rgba(79,70,229,0.15) 100%)", borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
+                {/* Close */}
+                <button onClick={() => { setShowDash(false); setKickTarget(null); }}
+                  className="absolute top-4 right-4 p-1.5 hover:bg-white/10 rounded-full text-white/40 hover:text-white transition-all">
+                  <X size={18} />
+                </button>
+
+                {/* Profile card */}
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-14 h-14 rounded-2xl overflow-hidden border-2 shrink-0"
+                    style={{ borderColor: "rgba(250,204,21,0.5)", boxShadow: "0 0 18px rgba(250,204,21,0.3)" }}>
+                    {userData.avatar_url
+                      ? <img src={userData.avatar_url} className="w-full h-full object-cover" alt="" />
+                      : <div className="w-full h-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-black text-xl">{userData.full_name[0]}</div>}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-white font-black text-[16px] truncate leading-tight">{userData.full_name}</p>
+                    <div className="flex items-center gap-1.5 mt-1">
+                      <Zap size={10} className="text-yellow-400" />
+                      <span className="text-[10px] font-black tracking-widest uppercase" style={{ color: "#facc15", textShadow: "0 0 8px rgba(250,204,21,0.6)" }}>Power Dashboard</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* ── 4 Stat Pills ─────────────────────────────────────── */}
+                <div className="grid grid-cols-4 gap-2">
+                  {DASH_TABS.map(tab => (
+                    <motion.button key={tab.key} whileTap={{ scale: 0.92 }} onClick={() => setDashTab(tab.key)}
+                      className={`flex flex-col items-center gap-1 py-2.5 px-1 rounded-2xl border transition-all ${dashTab === tab.key ? "border-white/20" : "border-white/8 hover:border-white/15"}`}
+                      style={dashTab === tab.key ? { background: `linear-gradient(135deg, ${tab.color.includes("indigo") ? "rgba(99,102,241,0.35)" : tab.color.includes("purple") ? "rgba(168,85,247,0.35)" : tab.color.includes("rose") ? "rgba(244,63,94,0.35)" : "rgba(16,185,129,0.35)"})`, boxShadow: `0 4px 16px ${tab.glow}` } : { background: "rgba(255,255,255,0.05)" }}>
+                      <div className={`text-white/60 ${dashTab === tab.key ? "text-white" : ""}`}>{tab.icon}</div>
+                      {dashLoading ? (
+                        <div className="w-3 h-3 border border-white/30 border-t-white/80 rounded-full animate-spin" />
+                      ) : (
+                        <span className="text-white font-black text-[13px] leading-none">
+                          {dashStats[tab.key] > 999 ? `${(dashStats[tab.key] / 1000).toFixed(1)}k` : dashStats[tab.key]}
+                        </span>
+                      )}
+                      <span className={`text-[9px] font-black uppercase tracking-wide ${dashTab === tab.key ? "text-white/80" : "text-white/35"}`}>{tab.label}</span>
+                    </motion.button>
+                  ))}
+                </div>
+              </div>
+
+              {/* ── Tab Content ──────────────────────────────────────────── */}
+              <div className="flex-1 overflow-y-auto relative">
+
+                {/* ── KICK CONFIRMATION POPUP ─────────────────────────── */}
+                <AnimatePresence>
+                  {kickTarget && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                      className="absolute inset-0 z-10 flex items-center justify-center px-5"
+                      style={{ background: "rgba(10,10,26,0.88)", backdropFilter: "blur(12px)" }}>
+                      <motion.div initial={{ scale: 0.85, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.85, y: 20 }}
+                        transition={{ type: "spring", stiffness: 300, damping: 22 }}
+                        className="w-full rounded-3xl p-6 text-center"
+                        style={{ background: "linear-gradient(145deg, #1a1a35, #12122a)", border: "1.5px solid rgba(239,68,68,0.4)", boxShadow: "0 20px 60px rgba(239,68,68,0.25)" }}>
+
+                        <div className="text-5xl mb-3">⚽🥊</div>
+                        <p className="text-white font-black text-[15px] leading-snug mb-1">
+                          Bhai, kya aap sach mein
+                        </p>
+                        <p className="text-white font-black text-[15px] leading-snug mb-1">
+                          <span className="text-yellow-400">{kickTarget.full_name}</span> ko
+                        </p>
+                        <p className="text-white font-black text-[15px] leading-snug mb-5">
+                          bahar ka rasta dikha rahe hain?
+                        </p>
+
+                        <div className="flex gap-3">
+                          <motion.button whileTap={{ scale: 0.94 }} onClick={confirmKick}
+                            className="flex-1 py-3 rounded-2xl font-black text-[13px] text-white transition-all"
+                            style={{ background: "linear-gradient(135deg, #dc2626, #b91c1c)", boxShadow: "0 6px 20px rgba(220,38,38,0.45)" }}>
+                            💨 Ha, Chal hat hawa aane de!
+                          </motion.button>
+                          <motion.button whileTap={{ scale: 0.94 }} onClick={() => setKickTarget(null)}
+                            className="flex-1 py-3 rounded-2xl font-black text-[13px] text-white/70 border border-white/15 hover:bg-white/10 transition-all">
+                            Nhi, Rehne do
+                          </motion.button>
+                        </div>
+                      </motion.div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {/* ── FRIENDS TAB ──────────────────────────────────────── */}
+                {dashTab === "friends" && (
+                  <div className="p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Users size={13} className="text-emerald-400" />
+                      <p className="text-[11px] font-black text-white/50 uppercase tracking-widest">Friends · {dashStats.friends}</p>
+                      <span className="ml-auto text-[9px] text-red-400 font-black bg-red-500/10 border border-red-500/20 px-2 py-0.5 rounded-full">⚽ Kick Mode ON</span>
+                    </div>
+
+                    {dashFriends.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-16 gap-3 text-white/20">
+                        <Users size={36} strokeWidth={1} />
+                        <p className="text-[11px] font-black uppercase tracking-widest">Koi dost nahi abhi</p>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col gap-2">
+                        <AnimatePresence>
+                          {dashFriends.map(f => (
+                            <motion.div key={f.id} layout
+                              initial={{ opacity: 1, x: 0, rotate: 0 }}
+                              animate={kickingId === f.id ? { x: 420, rotate: 18, opacity: 0, scale: 0.8 } : { opacity: 1, x: 0, rotate: 0, scale: 1 }}
+                              exit={{ x: 420, rotate: 18, opacity: 0, scale: 0.8 }}
+                              transition={kickingId === f.id ? { type: "spring", stiffness: 280, damping: 18 } : { duration: 0.2 }}
+                              className="flex items-center gap-3 rounded-2xl px-3 py-2.5"
+                              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                              {/* Avatar */}
+                              <div className="w-10 h-10 rounded-xl overflow-hidden shrink-0" style={{ background: "linear-gradient(135deg, #1d4ed8, #4f46e5)" }}>
+                                {f.avatar_url
+                                  ? <img src={f.avatar_url} className="w-full h-full object-cover" alt={f.full_name} />
+                                  : <div className="w-full h-full flex items-center justify-center text-white font-black text-sm">{(f.full_name || "?")[0].toUpperCase()}</div>}
+                              </div>
+                              {/* Name */}
+                              <div className="flex-1 min-w-0">
+                                <p className="text-white font-bold text-[13px] truncate">{f.full_name}</p>
+                                <p className="text-white/30 text-[10px] font-semibold">Friend ✓</p>
+                              </div>
+                              {/* KICK button */}
+                              <motion.button whileTap={{ scale: 0.86 }} whileHover={{ scale: 1.05 }}
+                                onClick={() => setKickTarget(f)}
+                                disabled={!!kickingId}
+                                className="flex items-center gap-1.5 px-3 py-2 rounded-xl font-black text-[11px] tracking-wide transition-colors disabled:opacity-40 shrink-0"
+                                style={{ border: "1.5px solid rgba(239,68,68,0.6)", color: "#f87171", background: "rgba(239,68,68,0.1)", boxShadow: "0 2px 10px rgba(239,68,68,0.2)" }}>
+                                <span className="text-sm">⚽</span> KICK
+                              </motion.button>
+                            </motion.div>
+                          ))}
+                        </AnimatePresence>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* ── POSTS TAB ────────────────────────────────────────── */}
+                {dashTab === "posts" && (
+                  <div className="p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <FileText size={13} className="text-indigo-400" />
+                      <p className="text-[11px] font-black text-white/50 uppercase tracking-widest">Your Posts · {dashStats.posts}</p>
+                    </div>
+                    {dashPosts.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-16 gap-3 text-white/20">
+                        <FileText size={36} strokeWidth={1} />
+                        <p className="text-[11px] font-black uppercase tracking-widest">Koi post nahi abhi</p>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col gap-2">
+                        {dashPosts.map(post => (
+                          <div key={post.id} className="rounded-2xl p-3" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                            {post.media_url && (
+                              <div className="w-full h-24 rounded-xl overflow-hidden mb-2 bg-white/5">
+                                <img src={post.media_url} className="w-full h-full object-cover" loading="lazy" alt="" />
+                              </div>
+                            )}
+                            {post.content && <p className="text-white/80 text-[13px] leading-snug line-clamp-3 mb-2">{post.content}</p>}
+                            <div className="flex items-center gap-3">
+                              <div className="flex items-center gap-1"><Heart size={11} className="text-red-400" /><span className="text-white/40 text-[10px] font-bold">{post.likes_count || 0}</span></div>
+                              <span className="text-white/25 text-[10px]">{post.created_at ? timeAgo(post.created_at) : ""}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* ── HOOKS TAB ────────────────────────────────────────── */}
+                {dashTab === "hooks" && (
+                  <div className="p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Link2 size={13} className="text-purple-400" />
+                      <p className="text-[11px] font-black text-white/50 uppercase tracking-widest">Pages You Follow · {dashStats.hooks}</p>
+                    </div>
+                    {dashHooks.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-16 gap-3 text-white/20">
+                        <Link2 size={36} strokeWidth={1} />
+                        <p className="text-[11px] font-black uppercase tracking-widest">Koi page follow nahi kiya</p>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col gap-2">
+                        {dashHooks.map((item: any, i: number) => {
+                          const page = item.hook_pages || {};
+                          return (
+                            <div key={item.page_id || i} className="flex items-center gap-3 rounded-2xl px-3 py-2.5" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                              <div className="w-10 h-10 rounded-xl overflow-hidden shrink-0" style={{ background: "linear-gradient(135deg, #7c3aed, #a855f7)" }}>
+                                {page.avatar_url ? <img src={page.avatar_url} className="w-full h-full object-cover" alt="" /> : <div className="w-full h-full flex items-center justify-center text-white font-black text-sm">{(page.name || "P")[0]}</div>}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-white font-bold text-[13px] truncate">{page.name || "Hook Page"}</p>
+                                <p className="text-white/30 text-[10px]">{page.followers_count || page.follower_count || 0} followers</p>
+                              </div>
+                              <Link2 size={14} className="text-purple-400/50 shrink-0" />
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* ── LIKES TAB ────────────────────────────────────────── */}
+                {dashTab === "likes" && (
+                  <div className="p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Heart size={13} className="text-rose-400" />
+                      <p className="text-[11px] font-black text-white/50 uppercase tracking-widest">Total Likes Received</p>
+                    </div>
+                    <div className="flex flex-col items-center justify-center py-8 mb-4">
+                      <motion.div animate={{ scale: [1, 1.08, 1] }} transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                        className="text-6xl mb-3">❤️</motion.div>
+                      <p className="text-white font-black text-[48px] leading-none" style={{ textShadow: "0 0 30px rgba(244,63,94,0.6)" }}>{dashStats.likes}</p>
+                      <p className="text-white/40 text-[12px] font-bold mt-2">total likes on your posts</p>
+                    </div>
+                    {dashPosts.length === 0 && (
+                      <div className="text-center text-white/20 text-[11px] font-black uppercase tracking-widest py-4">Koi post nahi abhi</div>
+                    )}
+                    {dashPosts.length > 0 && (
+                      <>
+                        <p className="text-[9px] font-black text-white/30 uppercase tracking-widest mb-2">Top Liked Posts</p>
+                        <div className="flex flex-col gap-2">
+                          {[...dashPosts].sort((a, b) => (b.likes_count || 0) - (a.likes_count || 0)).slice(0, 5).map(post => (
+                            <div key={post.id} className="flex items-center gap-3 rounded-2xl px-3 py-2.5" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                              <div className="flex items-center gap-1 shrink-0">
+                                <Heart size={12} className="text-rose-400" fill="currentColor" />
+                                <span className="text-rose-300 font-black text-[13px]">{post.likes_count || 0}</span>
+                              </div>
+                              <p className="text-white/70 text-[12px] line-clamp-1 flex-1 min-w-0">{post.content || "(image post)"}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </>
                     )}
                   </div>
                 )}
