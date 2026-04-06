@@ -616,6 +616,12 @@ const ChatSystem: React.FC<ChatSystemProps> = ({ isOpen, onClose, userId, onLogo
           setMessages((prev) => prev.map((m) => m.id === msg.id ? { ...m, seen_at: msg.seen_at } : m));
         }
       })
+      .on("postgres_changes", { event: "DELETE", schema: "public", table: "messages" }, (p) => {
+        const deletedId = (p.old as { id: string })?.id;
+        if (deletedId) {
+          setMessages((prev) => prev.filter((m) => m.id !== deletedId));
+        }
+      })
       .subscribe();
 
     // Typing presence channel
@@ -691,16 +697,24 @@ const ChatSystem: React.FC<ChatSystemProps> = ({ isOpen, onClose, userId, onLogo
     setIsSending(false);
   };
 
-  // ── Delete message ────────────────────────────────────────────────────────
+  // ── Delete message (for everyone) ─────────────────────────────────────────
   const deleteMessage = async (msg: Message, e: React.MouseEvent) => {
     if (msg.sender_id !== userId) return;
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    // Instant local remove so sender sees it gone immediately
+    setMessages((prev) => prev.filter((m) => m.id !== msg.id));
+    setMsgMenuId(null);
     if (soundEnabled) playSound("delete");
     const newId = ++smokeIdRef.current;
     setSmokeParticles((prev) => [...prev, { id: newId, x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }]);
-    setMsgMenuId(null);
-    await supabase.from("messages").delete().eq("id", msg.id);
-    setMessages((prev) => prev.filter((m) => m.id !== msg.id));
+    const { error } = await supabase.from("messages").delete().eq("id", msg.id);
+    if (error) {
+      toast.error("Delete failed: " + error.message);
+      // Restore the message if DB delete failed
+      setMessages((prev) => [...prev, msg].sort((a, b) => a.created_at.localeCompare(b.created_at)));
+    } else {
+      toast.success("Message deleted for everyone 🗑️");
+    }
   };
 
   // ── Media upload ──────────────────────────────────────────────────────────
