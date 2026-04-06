@@ -721,19 +721,69 @@ const FameFeed = ({
   };
 
   const handleLike = async (post: any) => {
-    if (likedIds.has(post.id)) return;
+    if (likedIds.has(post.id) || !currentUserId) return;
     setLikedIds(p => new Set([...p, post.id]));
-    await supabase.from("posts").update({ likes_count: (post.likes_count || 0) + 1 }).eq("id", post.id);
+
+    // ✅ likes table mein insert karein (proper row tracking)
+    const { error: likeErr } = await supabase
+      .from("likes")
+      .insert({ post_id: post.id, user_id: currentUserId });
+    if (likeErr) console.warn("[FameFeed][like] likes insert:", likeErr.message);
+
+    // posts.likes_count bhi update karein (denormalized counter)
+    await supabase
+      .from("posts")
+      .update({ likes_count: (post.likes_count || 0) + 1 })
+      .eq("id", post.id);
+
+    // Post author ko notification bhejo (agar khud apni post nahi like ki)
+    if (post.author_id && post.author_id !== currentUserId) {
+      const { error: notifErr } = await supabase.from("notifications").insert({
+        notifier_id: post.author_id,
+        actor_id: currentUserId,
+        type: "like",
+        entity_id: post.id,
+        content: "ne aapki post like ki",
+        is_read: false,
+      });
+      if (notifErr) console.warn("[FameFeed][like] notification insert:", notifErr.message);
+    }
+
     fetchPosts();
   };
 
   const handleAddComment = async (postId: string) => {
     if (!commentText.trim()) return;
     const { data: { user } } = await supabase.auth.getUser();
-    await supabase.from("comments").insert([{
-      post_id: postId, content: commentText,
+    const commentContent = commentText.trim();
+
+    // ✅ comments table mein insert (author_id bhi save karein)
+    const { error: commentErr } = await supabase.from("comments").insert([{
+      post_id: postId,
+      content: commentContent,
       author: user?.user_metadata?.full_name || "Vibe User",
+      author_id: user?.id ?? null,
     }]);
+    if (commentErr) {
+      console.error("[FameFeed][comment] insert error:", commentErr);
+      toast.error("Comment post nahi ho saka.");
+      return;
+    }
+
+    // Post author ko notification bhejo
+    const post = posts.find(p => p.id === postId);
+    if (post?.author_id && post.author_id !== user?.id) {
+      const { error: notifErr } = await supabase.from("notifications").insert({
+        notifier_id: post.author_id,
+        actor_id: user?.id ?? null,
+        type: "comment",
+        entity_id: postId,
+        content: `ne aapki post par comment kiya: "${commentContent.slice(0, 50)}"`,
+        is_read: false,
+      });
+      if (notifErr) console.warn("[FameFeed][comment] notification insert:", notifErr.message);
+    }
+
     setCommentText("");
     fetchPosts();
   };

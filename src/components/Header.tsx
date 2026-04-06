@@ -5,6 +5,7 @@ import {
   CheckCheck, AtSign, Check,
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
+import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -195,10 +196,32 @@ const SearchModal = ({ onClose, userId }: { onClose: () => void; userId?: string
     e.stopPropagation();
     if (!userId || sentRequests.has(personId)) return;
     setSentRequests((prev) => new Set([...prev, personId]));
-    await supabase.from("friend_requests").insert({
+
+    // ✅ Unified: sirf "friendships" table use karein
+    const { error } = await supabase.from("friendships").insert({
       sender_id: userId,
       receiver_id: personId,
       status: "pending",
+    });
+
+    if (error) {
+      console.error("[SearchModal] friendships insert error:", error);
+      // Agar duplicate entry hai toh silently skip, warna revert
+      if (!error.message?.includes("duplicate") && !error.message?.includes("unique")) {
+        setSentRequests((prev) => { const n = new Set(prev); n.delete(personId); return n; });
+        toast.error("Friend request nahi bheji ja saki.");
+      }
+      return;
+    }
+
+    // Receiver ko notification bhejo
+    await supabase.from("notifications").insert({
+      notifier_id: personId,
+      actor_id: userId,
+      type: "friend_request",
+      entity_id: personId,
+      content: "ne aapko friend request bheji",
+      is_read: false,
     });
   };
 
@@ -542,16 +565,30 @@ const Header = ({
   // ── Actions ───────────────────────────────────────────────────────────────
   const acceptRequest = async (reqId: string, senderId: string) => {
     setActionLoading(reqId);
-    await supabase.from("friendships").update({ status: "accepted" }).eq("id", reqId);
-    // Notify sender that request was accepted
-    await supabase.from("notifications").insert({
+    const { error } = await supabase
+      .from("friendships")
+      .update({ status: "accepted" })
+      .eq("id", reqId);
+
+    if (error) {
+      console.error("[Header][acceptRequest] DB error:", error);
+      toast.error("Request accept nahi ho saki: " + error.message);
+      setActionLoading(null);
+      return;
+    }
+
+    // Sender ko notification bhejo
+    const { error: notifErr } = await supabase.from("notifications").insert({
       notifier_id: senderId,
       actor_id: userId,
       type: "friend_accepted",
       entity_id: reqId,
       content: `${userData.full_name} ne aapki friend request accept ki`,
       is_read: false,
-    }).select();
+    });
+    if (notifErr) console.warn("[Header][acceptRequest] notification insert warning:", notifErr);
+
+    toast.success("Friend request accept ho gayi!");
     setFriendRequests(prev => prev.filter(r => r.id !== reqId));
     setActionLoading(null);
   };
