@@ -1116,8 +1116,10 @@ const FameFeed = ({
                   transition={{ delay: i * 0.05, type: "spring", stiffness: 240, damping: 20 }}
                   className="flex-shrink-0 relative rounded-2xl overflow-hidden border border-gray-200 shadow-md"
                   style={{
-                    width: "min(48vw, 192px)",
-                    height: "min(67.2vw, 268px)",
+                    width: "calc((100vw - 56px) / 3)",
+                    height: "calc((100vw - 56px) / 3 * 1.45)",
+                    maxWidth: "148px",
+                    maxHeight: "215px",
                     background: `linear-gradient(160deg,${GRAD[i % GRAD.length]} 0%,#1e1b4b 100%)`,
                   }}
                 >
