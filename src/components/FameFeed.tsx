@@ -559,6 +559,8 @@ const FameFeed = ({
   const [groupSuggestions, setGroupSuggestions] = useState<any[]>([]);
   const [suggestionsLoaded, setSuggestionsLoaded] = useState(false);
   const [inFeedDoneIds, setInFeedDoneIds] = useState<Set<string>>(new Set());
+  const [peopleSuggestions, setPeopleSuggestions] = useState<any[]>([]);
+  const [sentFriendIds, setSentFriendIds] = useState<Set<string>>(new Set());
   const [trendingFlicks, setTrendingFlicks] = useState<any[]>([]);
   const [flicksLoaded, setFlicksLoaded] = useState(false);
   const [flickModal, setFlickModal] = useState<any | null>(null);
@@ -581,12 +583,71 @@ const FameFeed = ({
     console.log("[FameFeed] Liked post IDs loaded from DB:", ids.size);
   };
 
+  // ── Random profile suggestions fetch ──────────────────────────────────────
+  const fetchPeopleSuggestions = async (uid: string) => {
+    try {
+      // Existing friends + pending requests (both directions)
+      const { data: fships } = await supabase
+        .from("friendships")
+        .select("sender_id, receiver_id")
+        .or(`sender_id.eq.${uid},receiver_id.eq.${uid}`);
+      const knownIds = new Set<string>([uid]);
+      (fships || []).forEach((f: any) => {
+        knownIds.add(f.sender_id);
+        knownIds.add(f.receiver_id);
+      });
+
+      // Fetch a pool of profiles, then pick random from those not already connected
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, full_name, avatar_url, fame_points")
+        .limit(60);
+      const candidates = (profiles || []).filter((p: any) => !knownIds.has(p.id));
+      // Shuffle and take up to 12
+      const shuffled = candidates.sort(() => Math.random() - 0.5).slice(0, 12);
+      setPeopleSuggestions(shuffled);
+    } catch (e) {
+      console.warn("[FameFeed] fetchPeopleSuggestions error:", e);
+    }
+  };
+
+  // ── Make Friend handler ───────────────────────────────────────────────────
+  const handleMakeFriend = async (targetId: string, targetName: string) => {
+    if (!currentUserId || sentFriendIds.has(targetId)) return;
+    setSentFriendIds(prev => new Set([...prev, targetId]));
+
+    const { error } = await supabase.from("friendships").insert({
+      sender_id: currentUserId,
+      receiver_id: targetId,
+      status: "pending",
+    });
+    if (error) {
+      if (!error.message?.includes("duplicate") && !error.message?.includes("unique")) {
+        setSentFriendIds(prev => { const n = new Set(prev); n.delete(targetId); return n; });
+      }
+      return;
+    }
+
+    // Notification + sound to receiver
+    await supabase.from("notifications").insert({
+      notifier_id: targetId,
+      actor_id: currentUserId,
+      type: "friend_request",
+      entity_id: targetId,
+      content: `ne aapko friend request bheji`,
+      is_read: false,
+    });
+  };
+
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
       const uid = data.user?.id ?? null;
       setCurrentUserId(uid);
-      // ✅ User ID milte hi DB se liked posts fetch karein
-      if (uid) fetchLikedPostIds(uid);
+      // ✅ User ID milte hi DB se liked posts + people suggestions fetch karein
+      if (uid) {
+        fetchLikedPostIds(uid);
+        fetchPeopleSuggestions(uid);
+      }
     });
   }, []);
 
@@ -1036,39 +1097,74 @@ const FameFeed = ({
           onChange={e => { const f = e.target.files?.[0]; if (!f) return; onImageSelect?.(f); onPostClick?.(); e.target.value = ""; }} />
       </div>
 
-      {/* ── People You May Know — same card size as Flicks ───────────── */}
-      {suggestions.length > 0 && (
-        <div className="bg-white border-b border-gray-100 pt-2 pb-1">
-          <p className="text-[12px] font-black text-gray-700 px-4 mb-1.5">People You May Know</p>
-          <div className="flex gap-2.5 overflow-x-auto px-4 pb-1 no-scrollbar">
-            {suggestions.map((u, i) => {
+      {/* ── People You May Know ───────────────────────────────────────── */}
+      {peopleSuggestions.length > 0 && (
+        <div className="bg-white border-b border-gray-100 pt-3 pb-2">
+          <p className="text-[13px] font-black text-gray-800 px-4 mb-2 tracking-tight">
+            People You May Know
+          </p>
+          <div className="flex gap-3 overflow-x-auto px-4 pb-2 no-scrollbar scroll-smooth">
+            {peopleSuggestions.map((u, i) => {
               const GRAD = ["#6366f1","#ec4899","#f59e0b","#10b981","#3b82f6","#8b5cf6","#ef4444","#06b6d4"];
+              const isSent = sentFriendIds.has(u.id);
+              const firstName = (u.full_name || "User").split(" ")[0];
               return (
-                <div key={u.id} className="flex-shrink-0 relative rounded-2xl overflow-hidden border border-gray-200 shadow-sm"
+                <motion.div
+                  key={u.id}
+                  initial={{ opacity: 0, scale: 0.92 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: i * 0.05, type: "spring", stiffness: 240, damping: 20 }}
+                  className="flex-shrink-0 relative rounded-2xl overflow-hidden border border-gray-200 shadow-md"
                   style={{
-                    width: "calc((100vw - 48px) / 3)",
-                    height: "calc((100vw - 48px) / 3 * 1.4)",
-                    maxWidth: "160px",
-                    maxHeight: "224px",
+                    width: "min(48vw, 192px)",
+                    height: "min(67.2vw, 268px)",
                     background: `linear-gradient(160deg,${GRAD[i % GRAD.length]} 0%,#1e1b4b 100%)`,
                   }}
                 >
+                  {/* Avatar */}
                   {u.avatar_url ? (
                     <img src={u.avatar_url} loading="lazy" className="w-full h-full object-cover" />
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center text-white font-black text-4xl">
+                    <div className="w-full h-full flex items-center justify-center text-white font-black text-5xl">
                       {(u.full_name || "U")[0].toUpperCase()}
                     </div>
                   )}
-                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/85 via-black/40 to-transparent pt-8 pb-2.5 px-2 flex flex-col items-center gap-1.5">
-                    <p className="text-white text-[10px] font-black truncate w-full text-center leading-tight">
-                      {u.full_name?.split(" ")[0] || "User"}
+
+                  {/* Bottom overlay */}
+                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/55 to-transparent pt-10 pb-3 px-2.5 flex flex-col items-center gap-2">
+                    {/* Name — big & bold */}
+                    <p className="text-white text-xl font-black truncate w-full text-center leading-tight drop-shadow-sm">
+                      {firstName}
                     </p>
-                    <button className="w-full py-1 bg-green-500 text-white text-[9px] font-black rounded-lg leading-none">
-                      + Add
-                    </button>
+                    {/* Fame points as "mutual" indicator */}
+                    {u.fame_points > 0 && (
+                      <p className="text-white/70 text-[11px] font-black leading-none">
+                        ⭐ {u.fame_points} Fame
+                      </p>
+                    )}
+
+                    {/* Make Friend button — two lines */}
+                    <motion.button
+                      whileTap={{ scale: 0.94 }}
+                      onClick={() => handleMakeFriend(u.id, u.full_name)}
+                      disabled={isSent}
+                      className={`w-full py-2.5 rounded-xl font-black text-[13px] leading-tight flex flex-col items-center justify-center transition-all
+                        ${isSent
+                          ? "bg-white/20 text-white/50 cursor-default"
+                          : "bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-900/30 active:from-blue-600 active:to-blue-700"
+                        }`}
+                    >
+                      {isSent ? (
+                        <span className="text-[11px] font-black leading-tight">Request Sent ✓</span>
+                      ) : (
+                        <>
+                          <span className="leading-tight">MAKE</span>
+                          <span className="leading-tight">FRIEND</span>
+                        </>
+                      )}
+                    </motion.button>
                   </div>
-                </div>
+                </motion.div>
               );
             })}
           </div>
