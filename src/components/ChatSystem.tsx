@@ -358,6 +358,8 @@ const ChatSystem: React.FC<ChatSystemProps> = ({ isOpen, onClose, userId, onLogo
   const [storyEmoji, setStoryEmoji] = useState("");
   const [uploadingStory, setUploadingStory] = useState(false);
   const [viewingStory, setViewingStory] = useState<Story | null>(null);
+  const [editingStory, setEditingStory] = useState<Story | null>(null);
+  const [deletingStory, setDeletingStory] = useState(false);
   const storyInputRef = useRef<HTMLInputElement>(null);
 
   // ── Advanced features state ────────────────────────────────────────────────
@@ -497,6 +499,39 @@ const ChatSystem: React.FC<ChatSystemProps> = ({ isOpen, onClose, userId, onLogo
       }
     } finally { setUploadingStory(false); }
   };
+
+  // ── Delete story ───────────────────────────────────────────────────────────
+  const deleteStory = async (story: Story) => {
+    setDeletingStory(true);
+    try {
+      const { error } = await supabase.from("stories").delete().eq("id", story.id).eq("user_id", userId);
+      if (error) throw error;
+      setStories(prev => prev.filter(s => s.id !== story.id));
+      setViewingStory(null);
+      toast.success("Story deleted ✓");
+    } catch (e: any) {
+      toast.error("Could not delete story: " + (e?.message || "Unknown error"));
+    } finally { setDeletingStory(false); }
+  };
+
+  // ── Update story (caption + emoji only) ───────────────────────────────────
+  const updateStory = async () => {
+    if (!editingStory) return;
+    setUploadingStory(true);
+    try {
+      const { error } = await supabase.from("stories")
+        .update({ caption: storyCaption, emoji: storyEmoji })
+        .eq("id", editingStory.id)
+        .eq("user_id", userId);
+      if (error) throw error;
+      setStories(prev => prev.map(s => s.id === editingStory.id ? { ...s, caption: storyCaption, emoji: storyEmoji } : s));
+      toast.success("Story updated ✨");
+      setShowStoryEditor(false); setEditingStory(null); setStoryCaption(""); setStoryEmoji(""); setStoryPreviewUrl(""); setStoryFile(null);
+    } catch (e: any) {
+      toast.error("Update failed: " + (e?.message || "Unknown error"));
+    } finally { setUploadingStory(false); }
+  };
+
 
   // ── Bootstrap ─────────────────────────────────────────────────────────────
   useEffect(() => {
