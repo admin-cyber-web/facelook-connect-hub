@@ -612,6 +612,37 @@ const Header = ({
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n));
   };
 
+  // ── Notification sound (two-tone ding from public/notif.wav) ─────────────
+  const playNotifSound = () => {
+    try {
+      const audio = new Audio("/notif.wav");
+      audio.volume = 1.0;
+      audio.play().catch(e => console.warn("[Facelook][Sound] autoplay blocked:", e));
+    } catch (e) {
+      console.warn("[Facelook][Sound] play error:", e);
+    }
+  };
+
+  // ── Navigate to post on notification click ───────────────────────────────
+  const handleNotifClick = (n: any) => {
+    if (!n.is_read) markOneRead(n.id);
+    const postTypes = ["like", "comment", "mention", "new_post"];
+    if (n.entity_id && postTypes.includes(n.type)) {
+      setShowNotif(false);
+      onHomeClick?.();
+      // Give the feed a moment to render, then scroll to the post
+      setTimeout(() => {
+        const el = document.getElementById(n.entity_id);
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth", block: "center" });
+          el.style.outline = "2px solid #3b82f6";
+          el.style.borderRadius = "16px";
+          setTimeout(() => { el.style.outline = ""; el.style.borderRadius = ""; }, 2200);
+        }
+      }, 420);
+    }
+  };
+
   // ── Real-time setup ───────────────────────────────────────────────────────
   // Keep stable refs so useEffect only runs once per userId (avoids re-subscription loops)
   const fetchNotifsRef      = useRef(fetchNotifications);
@@ -641,6 +672,8 @@ const Header = ({
           // Client-side user filter
           if (row?.notifier_id !== userId) return;
           console.log("[Facelook][Notif RT] matches current user → refetching");
+          // 🔔 Sound sirf naye INSERT par bajao
+          if (payload.eventType === "INSERT") playNotifSound();
           fetchNotifsRef.current();
         }
       )
@@ -869,35 +902,59 @@ const Header = ({
                           const meta = NOTIF_META[n.type] || NOTIF_META["new_post"];
                           const actor = n.actor || {};
                           const actorName = actor.full_name || n.actor_name || "Koi user";
-                          const displayText = n.content || `${actorName} ${meta.label}`;
+                          const bodyText = n.content
+                            ? n.content.replace(actorName, "").trim()
+                            : meta.label;
+                          const isNavigable = n.entity_id && ["like","comment","mention","new_post"].includes(n.type);
                           return (
                             <motion.div key={n.id}
-                              initial={{ opacity: 0, y: 8 }}
-                              animate={{ opacity: 1, y: 0 }}
-                              transition={{ delay: i * 0.03 }}
-                              onClick={() => !n.is_read && markOneRead(n.id)}
-                              className={`flex items-start gap-3 p-3 rounded-2xl mb-1.5 cursor-pointer transition-all
-                                ${n.is_read ? "bg-white/3 hover:bg-white/6" : "bg-white/8 hover:bg-white/12 border border-white/8"}`}
+                              initial={{ opacity: 0, y: 10, scale: 0.97 }}
+                              animate={{ opacity: 1, y: 0, scale: 1 }}
+                              transition={{ delay: i * 0.04, type: "spring", stiffness: 260, damping: 22 }}
+                              onClick={() => handleNotifClick(n)}
+                              className={`flex items-start gap-3.5 p-4 rounded-2xl mb-2 cursor-pointer transition-all active:scale-[0.98]
+                                ${n.is_read
+                                  ? "bg-white/[0.04] hover:bg-white/[0.07]"
+                                  : "bg-gradient-to-r from-blue-600/15 via-blue-500/10 to-transparent border border-blue-500/20 hover:from-blue-600/20 shadow-sm"
+                                }`}
                             >
-                              {/* Actor avatar OR type icon */}
+                              {/* Actor avatar with type badge */}
                               <div className="relative shrink-0">
-                                <ActorAvatar name={actorName} avatarUrl={actor.avatar_url} size={38} />
-                                <div className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center ${meta.color}`}>
+                                <ActorAvatar name={actorName} avatarUrl={actor.avatar_url} size={46} />
+                                <div className={`absolute -bottom-1 -right-1 w-6 h-6 rounded-full flex items-center justify-center shadow-lg ${meta.color}`}>
                                   {meta.icon}
                                 </div>
                               </div>
-                              {/* Text */}
+
+                              {/* Text content */}
                               <div className="flex-1 min-w-0">
-                                <p className="text-[11px] font-semibold text-white/85 leading-snug line-clamp-2">
-                                  {displayText}
+                                {/* Actor name — big & bold */}
+                                <p className="text-[14px] font-black text-white leading-tight truncate">
+                                  {actorName}
                                 </p>
-                                <p className="text-[9px] text-white/30 mt-1">
-                                  {n.created_at ? timeAgo(n.created_at) : ""}
+                                {/* Action text */}
+                                <p className="text-[13px] font-semibold text-white/70 mt-0.5 leading-snug line-clamp-2">
+                                  {bodyText}
                                 </p>
+                                {/* Time + tap hint row */}
+                                <div className="flex items-center gap-2 mt-1.5">
+                                  <p className="text-[10px] text-white/35 font-semibold">
+                                    {n.created_at ? timeAgo(n.created_at) : ""}
+                                  </p>
+                                  {isNavigable && (
+                                    <span className="text-[9px] text-blue-400/70 font-black uppercase tracking-wide">
+                                      · Post dekho →
+                                    </span>
+                                  )}
+                                </div>
                               </div>
-                              {/* Unread dot */}
+
+                              {/* Unread indicator — pulsing dot */}
                               {!n.is_read && (
-                                <div className="w-2 h-2 rounded-full bg-blue-500 shrink-0 mt-1" />
+                                <div className="relative shrink-0 mt-1">
+                                  <div className="w-2.5 h-2.5 rounded-full bg-blue-500" />
+                                  <div className="absolute inset-0 rounded-full bg-blue-400 animate-ping opacity-60" />
+                                </div>
                               )}
                             </motion.div>
                           );

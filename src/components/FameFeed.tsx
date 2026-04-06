@@ -842,7 +842,7 @@ const FameFeed = ({
         post.media_url.includes("youtube.com") || post.media_url.includes("youtu.be") || post.media_url.includes("rapidcdn.app")));
 
     return (
-      <motion.article key={post.id} layout
+      <motion.article key={post.id} id={post.id} layout
         exit={{ opacity: 0, x: 60, transition: { duration: 0.2 } }}
         className="bg-white border-b border-gray-100"
       >
