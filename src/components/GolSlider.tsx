@@ -12,9 +12,9 @@ const NAV_ITEMS = [
 interface GolSliderProps {
   onFeatureChange?: (feature: string) => void;
   activeFeature?: string;
+  hidden?: boolean;
 }
 
-// Inject red-blue pulse keyframes once
 const STYLE_ID = "gol-arrow-pulse";
 function injectKeyframes() {
   if (document.getElementById(STYLE_ID)) return;
@@ -35,10 +35,12 @@ function injectKeyframes() {
   document.head.appendChild(s);
 }
 
-const GolSlider = ({ onFeatureChange, activeFeature }: GolSliderProps) => {
+const GolSlider = ({ onFeatureChange, activeFeature, hidden }: GolSliderProps) => {
   const [isOpen, setIsOpen] = useState(false);
 
   useEffect(() => { injectKeyframes(); }, []);
+
+  if (hidden) return null;
 
   return (
     <div
@@ -126,25 +128,12 @@ const GolSlider = ({ onFeatureChange, activeFeature }: GolSliderProps) => {
         }}
         aria-label={isOpen ? "Close menu" : "Open menu"}
       >
-        {/* Decorative dots */}
         <span style={{ width: 20, height: 2, borderRadius: 2, background: "rgba(255,255,255,0.12)" }} />
-
-        {/* Animated arrow */}
         {isOpen ? (
-          <ChevronDown
-            size={18}
-            strokeWidth={2.8}
-            style={{ animation: "arrow-redblue 1.4s ease-in-out infinite" }}
-          />
+          <ChevronDown size={18} strokeWidth={2.8} style={{ animation: "arrow-redblue 1.4s ease-in-out infinite" }} />
         ) : (
-          <ChevronUp
-            size={18}
-            strokeWidth={2.8}
-            style={{ animation: "arrow-redblue 1.4s ease-in-out infinite" }}
-          />
+          <ChevronUp size={18} strokeWidth={2.8} style={{ animation: "arrow-redblue 1.4s ease-in-out infinite" }} />
         )}
-
-        {/* Decorative dots */}
         <span style={{ width: 20, height: 2, borderRadius: 2, background: "rgba(255,255,255,0.12)" }} />
       </button>
     </div>
