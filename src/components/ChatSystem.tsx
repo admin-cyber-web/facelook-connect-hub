@@ -869,7 +869,6 @@ const ChatSystem: React.FC<ChatSystemProps> = ({ isOpen, onClose, userId, onLogo
                   className="text-[120px] leading-none mb-8">
                   🖕
                 </motion.div>
-                <p className="text-gray-300 text-sm font-bold tracking-widest uppercase mb-6">Triple-tap your avatar to unlock</p>
                 <button onClick={handlePanicUnlock}
                   className="w-16 h-16 rounded-full overflow-hidden border-2 border-gray-200 active:scale-95 transition-all shadow-lg">
                   {myProfile?.avatar_url
