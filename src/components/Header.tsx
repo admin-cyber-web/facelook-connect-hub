@@ -483,14 +483,19 @@ const Header = ({
   }, [userId]);
 
   const fetchNotifications = useCallback(async () => {
-    if (!userId) return;
+    if (!userId) {
+      console.warn("[Facelook][Notifs] fetchNotifications skipped — userId missing");
+      return;
+    }
+    console.log("[Facelook][Notifs] Fetching for notifier_id =", userId);
     const { data, error } = await supabase
       .from("notifications")
       .select("*")
       .eq("notifier_id", userId)
       .order("created_at", { ascending: false })
       .limit(30);
-    console.log("[Facelook][Notifs] fetch →", data, error);
+    console.log("[Facelook][Notifs] fetch result → rows:", data?.length ?? 0, "| error:", error ?? "none");
+    console.log("[Facelook][Notifs] raw data →", data);
     if (data && data.length > 0) {
       // Separately fetch actor profiles (avoids FK name guessing)
       const actorIds = [...new Set(data.filter(n => n.actor_id).map(n => n.actor_id))];
@@ -507,14 +512,22 @@ const Header = ({
   }, [userId]);
 
   const fetchFriendRequests = useCallback(async () => {
-    if (!userId) return;
+    if (!userId) {
+      console.warn("[Facelook][FriendReqs] fetchFriendRequests skipped — userId missing");
+      return;
+    }
+    // ⚠️ NOTE: SearchModal inserts into "friend_requests" table,
+    //    lekin yahan "friendships" table query ho rahi hai.
+    //    Agar requests nahi dikh rahe, to table name check karo.
+    console.log("[Facelook][FriendReqs] Fetching from 'friendships' for receiver_id =", userId);
     const { data, error } = await supabase
       .from("friendships")
       .select("*")
       .eq("receiver_id", userId)
       .eq("status", "pending")
       .order("created_at", { ascending: false });
-    console.log("[Facelook][FriendReqs] fetch →", data, error);
+    console.log("[Facelook][FriendReqs] fetch result → rows:", data?.length ?? 0, "| error:", error ?? "none");
+    console.log("[Facelook][FriendReqs] raw data →", data);
     if (data && data.length > 0) {
       const senderIds = [...new Set(data.map(r => r.sender_id))];
       const { data: profiles } = await supabase
@@ -570,7 +583,11 @@ const Header = ({
   useEffect(() => { fetchFriendReqsRef.current = fetchFriendRequests; }, [fetchFriendRequests]);
 
   useEffect(() => {
-    if (!userId) return;
+    console.log("[Facelook][Header] useEffect fired — userId:", userId ?? "UNDEFINED ❌");
+    if (!userId) {
+      console.warn("[Facelook][Header] userId nahi mila, subscription skip ho rahi hai.");
+      return;
+    }
     fetchProfile();
     fetchNotifsRef.current();
     fetchFriendReqsRef.current();
@@ -622,6 +639,14 @@ const Header = ({
   const unreadCount  = notifications.filter(n => !n.is_read).length;
   const totalBadge   = unreadCount + friendRequests.length;
   const hasAnything  = notifications.length > 0 || friendRequests.length > 0;
+
+  // 🔍 DEBUG — Bell counter breakdown (console mein dekhein)
+  console.log(
+    "[Facelook][Bell] totalBadge:", totalBadge,
+    "| unread notifications:", unreadCount,
+    "| total notifications:", notifications.length,
+    "| pending friend requests:", friendRequests.length
+  );
 
   return (
     <>
