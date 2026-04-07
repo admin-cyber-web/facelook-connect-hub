@@ -371,6 +371,11 @@ const ChatSystem: React.FC<ChatSystemProps> = ({ isOpen, onClose, userId, onLogo
   const [showChatMenu, setShowChatMenu] = useState(false);
   const [deletingForMe, setDeletingForMe] = useState<string | null>(null);
 
+  // ── Voice Mode state ───────────────────────────────────────────────────────
+  const [voiceMode, setVoiceMode] = useState(false);
+  const [voiceSecondsLeft, setVoiceSecondsLeft] = useState(300);
+  const [voiceStatus, setVoiceStatus] = useState<"listening" | "processing">("listening");
+
   // ── Refs ──────────────────────────────────────────────────────────────────
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -379,6 +384,9 @@ const ChatSystem: React.FC<ChatSystemProps> = ({ isOpen, onClose, userId, onLogo
   const typingChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const panicClickRef = useRef<{ count: number; timer: ReturnType<typeof setTimeout> | null }>({ count: 0, timer: null });
+  const recognitionRef = useRef<InstanceType<typeof (window as any).webkitSpeechRecognition> | null>(null);
+  const voiceTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const voiceActiveRef = useRef(false);
 
   const T = THEME_CFG[theme];
 
@@ -615,7 +623,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({ isOpen, onClose, userId, onLogo
   // ── Messages for selected chat ────────────────────────────────────────────
   useEffect(() => {
     if (!selectedUser) return;
-    setIsOtherTyping(false); setShowChatMenu(false); setPanicMode(false);
+    setIsOtherTyping(false); setShowChatMenu(false); setPanicMode(false); setReplyTo(null); setShowInputEmoji(false);
 
     const load = async () => {
       setLoadingMessages(true);
@@ -788,6 +796,108 @@ const ChatSystem: React.FC<ChatSystemProps> = ({ isOpen, onClose, userId, onLogo
   const lastMsgPreview = (c: ChatContact) => { if (c.last_media_type) { if (c.last_media_type.startsWith("image/")) return "📷 Photo"; if (c.last_media_type.startsWith("video/")) return "🎥 Video"; if (c.last_media_type.startsWith("audio/")) return "🎵 Audio"; return "📎 File"; } return c.last_message || ""; };
   const toggleMute = (id: string) => setMutedChats((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const toggleArchive = (id: string) => setArchivedChats((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+
+  // ── Voice Mode ────────────────────────────────────────────────────────────
+  const stopVoiceMode = () => {
+    voiceActiveRef.current = false;
+    if (voiceTimerRef.current) { clearInterval(voiceTimerRef.current); voiceTimerRef.current = null; }
+    if (recognitionRef.current) { try { recognitionRef.current.stop(); } catch {} recognitionRef.current = null; }
+    setVoiceMode(false);
+    setVoiceSecondsLeft(300);
+    setVoiceStatus("listening");
+  };
+
+  const startVoiceMode = () => {
+    const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
+    if (!SpeechRecognition) { toast.error("Voice not supported in this browser. Try Chrome."); return; }
+
+    voiceActiveRef.current = true;
+    setVoiceMode(true);
+    setVoiceSecondsLeft(300);
+    setVoiceStatus("listening");
+
+    // 5-minute countdown
+    voiceTimerRef.current = setInterval(() => {
+      setVoiceSecondsLeft(prev => {
+        if (prev <= 1) { stopVoiceMode(); return 0; }
+        return prev - 1;
+      });
+    }, 1000);
+
+    const createRecognition = () => {
+      const rec = new SpeechRecognition();
+      rec.continuous = true;
+      rec.interimResults = false;
+      rec.lang = "hi-IN";
+
+      rec.onresult = (e: any) => {
+        setVoiceStatus("processing");
+        const raw = Array.from(e.results as SpeechRecognitionResultList)
+          .slice(e.resultIndex)
+          .map((r: any) => r[0].transcript.trim())
+          .join(" ")
+          .toLowerCase();
+
+        // ── Command: Write / Likh ─────────────────────────────────────────
+        const writeMatch = raw.match(/^(?:likh|likho|write|type)\s+(.+)/i);
+        if (writeMatch) {
+          setNewMessage(writeMatch[1]);
+          toast.success(`✍️ Writing: "${writeMatch[1]}"`);
+          setTimeout(() => setVoiceStatus("listening"), 600);
+          return;
+        }
+        // ── Command: Send / Bhej do ───────────────────────────────────────
+        if (/^(send|bhej do|bhejna|bhejo|message bhejo|send karo)$/i.test(raw)) {
+          setVoiceStatus("processing");
+          sendMessage();
+          toast.success("📤 Message sent!");
+          setTimeout(() => setVoiceStatus("listening"), 600);
+          return;
+        }
+        // ── Command: Clear / Sab saaf ─────────────────────────────────────
+        if (/^(clear|clear chat|saaf|sab saaf|sab saaf karo|wipe|wipe chat)$/i.test(raw)) {
+          setMessages([]);
+          toast.success("🧹 Chat cleared!");
+          setTimeout(() => setVoiceStatus("listening"), 600);
+          return;
+        }
+        // ── Command: Panic Mode ───────────────────────────────────────────
+        if (/^(panic|panic mode|emergency)$/i.test(raw)) {
+          setPanicMode(true);
+          setTimeout(() => setVoiceStatus("listening"), 600);
+          return;
+        }
+        // ── Command: Stop Voice ───────────────────────────────────────────
+        if (/^(stop|stop voice|band karo|band kar|voice band|mic band)$/i.test(raw)) {
+          stopVoiceMode();
+          toast.success("🔇 Voice mode stopped");
+          return;
+        }
+        // ── Fallback: treat as message text ──────────────────────────────
+        setNewMessage(prev => prev ? prev + " " + raw : raw);
+        setTimeout(() => setVoiceStatus("listening"), 600);
+      };
+
+      rec.onerror = () => { setTimeout(() => setVoiceStatus("listening"), 500); };
+
+      rec.onend = () => {
+        // Auto-restart if still in voice mode
+        if (voiceActiveRef.current) {
+          setTimeout(() => {
+            if (voiceActiveRef.current) {
+              try { rec.start(); } catch {}
+            }
+          }, 300);
+        }
+      };
+
+      return rec;
+    };
+
+    const rec = createRecognition();
+    recognitionRef.current = rec;
+    try { rec.start(); } catch { toast.error("Could not access microphone."); stopVoiceMode(); }
+  };
 
   // ── Typing tracker ────────────────────────────────────────────────────────
   const handleTyping = () => {
@@ -1220,6 +1330,43 @@ const ChatSystem: React.FC<ChatSystemProps> = ({ isOpen, onClose, userId, onLogo
                   </div>
                 </div>
 
+                {/* ── Voice Mode Banner ─────────────────────────────────── */}
+                <AnimatePresence>
+                  {voiceMode && (
+                    <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+                      className="overflow-hidden shrink-0">
+                      <div className="flex items-center gap-3 px-4 py-2.5 bg-red-500/15 border-b border-red-500/20">
+                        {/* Glowing pulsing mic */}
+                        <div className="relative shrink-0">
+                          <div className="absolute inset-0 rounded-full bg-red-500/40 animate-ping" />
+                          <div className="w-8 h-8 rounded-full bg-red-500 flex items-center justify-center text-white text-base relative z-10">
+                            🎙️
+                          </div>
+                        </div>
+                        {/* Status + timer */}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-black text-red-400 uppercase tracking-wider">
+                            {voiceStatus === "listening" ? "Listening…" : "Processing…"}
+                          </p>
+                          <p className="text-[10px] text-white/40 font-semibold">
+                            Say: Likh [msg] · Send · Sab Saaf · Panic Mode · Band Karo
+                          </p>
+                        </div>
+                        {/* Countdown MM:SS */}
+                        <div className="text-right shrink-0">
+                          <p className="text-base font-black text-red-400 tabular-nums">
+                            {String(Math.floor(voiceSecondsLeft / 60)).padStart(2, "0")}:{String(voiceSecondsLeft % 60).padStart(2, "0")}
+                          </p>
+                          <button onClick={stopVoiceMode}
+                            className="text-[10px] font-black text-white/50 hover:text-red-400 uppercase tracking-wider transition-colors">
+                            Stop
+                          </button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
                 {/* In-chat search */}
                 <AnimatePresence>
                   {showChatSearch && (
@@ -1358,6 +1505,12 @@ const ChatSystem: React.FC<ChatSystemProps> = ({ isOpen, onClose, userId, onLogo
                     <button onClick={sendMessage} disabled={!newMessage.trim() || isSending}
                       className={`w-10 h-10 rounded-2xl flex items-center justify-center text-white shrink-0 active:scale-90 disabled:opacity-40 ${T.accent}`}>
                       {isSending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+                    </button>
+                    {/* Mic / Voice Mode button */}
+                    <button onClick={() => voiceMode ? stopVoiceMode() : startVoiceMode()}
+                      className={`w-10 h-10 rounded-2xl border flex items-center justify-center text-lg shrink-0 active:scale-90 transition-all
+                        ${voiceMode ? "bg-red-500 border-red-400 animate-pulse text-white" : `bg-white/10 ${T.divider} hover:bg-white/20`}`}>
+                      🎙️
                     </button>
                   </div>
                 </div>
