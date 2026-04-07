@@ -154,10 +154,13 @@ const TrendingFlicksRow = ({
 
 // ── Suggested Pages Row (horizontal scroll, 3-4 visible) ───────────────────────
 const SuggestedPagesRow = ({
-  pages, doneIds, onAction, onCreatePage,
+  pages, hookedIds, followerCounts, onHook, onPageClick,
 }: {
-  pages: any[]; doneIds: Set<string>;
-  onAction: (item: any) => void; onCreatePage?: () => void;
+  pages: any[];
+  hookedIds: string[];
+  followerCounts: { [key: string]: number };
+  onHook: (e: React.MouseEvent, pageId: string) => void;
+  onPageClick: (page: any) => void;
 }) => {
   if (pages.length === 0) return null;
   return (
@@ -166,16 +169,19 @@ const SuggestedPagesRow = ({
       <div className="flex gap-3 overflow-x-auto px-4 pb-2 no-scrollbar">
         {pages.map(page => {
           const grad = gradForSugg(page.id || page.name || "p");
-          const done = doneIds.has(page.id);
+          const hooked = hookedIds.includes(page.id);
+          const count = followerCounts[page.id] ?? page.member_count ?? 0;
           return (
-            <div key={page.id}
-              className="flex-shrink-0 bg-gray-50 rounded-2xl overflow-hidden flex flex-col"
-              style={{ width: 132, boxShadow: "0 1px 6px rgba(0,0,0,0.07)" }}>
+            <div
+              key={page.id}
+              className="flex-shrink-0 bg-gray-50 rounded-2xl overflow-hidden flex flex-col cursor-pointer"
+              style={{ width: 132, boxShadow: "0 1px 6px rgba(0,0,0,0.07)" }}
+              onClick={() => onPageClick(page)}
+            >
               <div className="w-full relative overflow-hidden" style={{ height: 100, background: grad }}>
-                {page.cover_url && (
+                {page.cover_url ? (
                   <img src={page.cover_url} className="w-full h-full object-cover" loading="lazy" alt={page.name} />
-                )}
-                {!page.cover_url && (
+                ) : (
                   <div className="w-full h-full flex items-center justify-center">
                     <Film size={28} className="text-white/50" />
                   </div>
@@ -183,12 +189,17 @@ const SuggestedPagesRow = ({
               </div>
               <div className="p-2.5 flex flex-col gap-1 flex-1">
                 <p className="text-[11px] font-black text-gray-900 truncate leading-tight">{page.name}</p>
-                <p className="text-[9px] text-gray-400">{page.member_count ?? 0} followers</p>
-                <button onClick={() => !done && onAction(page)}
+                <p className="text-[9px] text-gray-400">{count} Followers</p>
+                <button
+                  onClick={(e) => { e.stopPropagation(); onHook(e, page.id); }}
+                  disabled={hooked}
                   className={`w-full py-2 rounded-xl text-[10px] font-black mt-auto transition-all active:scale-95 ${
-                    done ? "bg-gray-100 text-gray-400" : "bg-blue-600 text-white"
-                  }`}>
-                  {done ? "Following ✓" : "Follow"}
+                    hooked
+                      ? "bg-green-100 text-green-700 cursor-default"
+                      : "bg-blue-600 text-white"
+                  }`}
+                >
+                  {hooked ? "HOOKED ✓" : "HOOK"}
                 </button>
               </div>
             </div>
@@ -561,6 +572,8 @@ const FameFeed = ({
   const [inFeedDoneIds, setInFeedDoneIds] = useState<Set<string>>(new Set());
   const [peopleSuggestions, setPeopleSuggestions] = useState<any[]>([]);
   const [sentRequestIds, setSentRequestIds] = useState<string[]>([]);
+  const [hookedPageIds, setHookedPageIds] = useState<string[]>([]);
+  const [pageFollowerCounts, setPageFollowerCounts] = useState<{ [key: string]: number }>({});
   const [trendingFlicks, setTrendingFlicks] = useState<any[]>([]);
   const [flicksLoaded, setFlicksLoaded] = useState(false);
   const [flickModal, setFlickModal] = useState<any | null>(null);
@@ -648,9 +661,61 @@ const FameFeed = ({
         if (sentRows) {
           setSentRequestIds(sentRows.map((r: any) => r.receiver_id));
         }
+        // Fetch already-hooked pages for persistence across refreshes
+        const { data: hookedRows } = await supabase
+          .from("page_followers")
+          .select("page_id")
+          .eq("user_id", uid);
+        if (hookedRows) {
+          setHookedPageIds(hookedRows.map((r: any) => r.page_id));
+        }
       }
     });
   }, []);
+
+  // ── Fetch real follower counts once page suggestions are loaded ──────────
+  useEffect(() => {
+    if (pageSuggestions.length === 0) return;
+    const ids = pageSuggestions.map((p: any) => p.id);
+    supabase
+      .from("page_followers")
+      .select("page_id")
+      .in("page_id", ids)
+      .then(({ data }) => {
+        if (!data) return;
+        const counts: { [key: string]: number } = {};
+        data.forEach((r: any) => {
+          counts[r.page_id] = (counts[r.page_id] || 0) + 1;
+        });
+        setPageFollowerCounts(counts);
+      });
+  }, [pageSuggestions]);
+
+  // ── Hook a page ──────────────────────────────────────────────────────────
+  const handleHookPage = async (e: React.MouseEvent, pageId: string) => {
+    e.stopPropagation();
+    if (!currentUserId || hookedPageIds.includes(pageId)) return;
+
+    // Optimistic update
+    setHookedPageIds(prev => [...prev, pageId]);
+    setPageFollowerCounts(prev => ({ ...prev, [pageId]: (prev[pageId] || 0) + 1 }));
+
+    const { error } = await supabase.from("page_followers").insert({
+      user_id: currentUserId,
+      page_id: pageId,
+    });
+
+    if (error) {
+      if (!error.message?.includes("duplicate") && !error.message?.includes("unique")) {
+        setHookedPageIds(prev => prev.filter(id => id !== pageId));
+        setPageFollowerCounts(prev => ({ ...prev, [pageId]: Math.max((prev[pageId] || 1) - 1, 0) }));
+        toast.error("Could not hook this page. Please try again.");
+      }
+      return;
+    }
+
+    toast.success("Page hooked!");
+  };
 
   const fetchPosts = async () => {
     const { data } = await supabase.from("posts")
@@ -1212,9 +1277,10 @@ const FameFeed = ({
             <div key={block.key}>
               <SuggestedPagesRow
                 pages={pageSuggestions}
-                doneIds={inFeedDoneIds}
-                onAction={handleInFeedAction}
-                onCreatePage={onNavigateToPages}
+                hookedIds={hookedPageIds}
+                followerCounts={pageFollowerCounts}
+                onHook={handleHookPage}
+                onPageClick={() => onNavigateToPages?.()}
               />
               <FeedDivider />
             </div>
