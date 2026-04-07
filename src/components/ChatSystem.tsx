@@ -56,6 +56,7 @@ interface Message {
   media_type?: string;
   created_at: string;
   seen_at?: string;
+  reply_to_id?: string;
 }
 interface Story {
   id: string;
@@ -330,11 +331,13 @@ const ChatSystem: React.FC<ChatSystemProps> = ({ isOpen, onClose, userId, onLogo
   const [chatSearch, setChatSearch] = useState("");
   const [showChatSearch, setShowChatSearch] = useState(false);
   const [msgMenuId, setMsgMenuId] = useState<string | null>(null);
+  const [replyTo, setReplyTo] = useState<Message | null>(null);
 
   // ── Fun ───────────────────────────────────────────────────────────────────
   const [smokeParticles, setSmokeParticles] = useState<{ id: number; x: number; y: number }[]>([]);
   const [emojiBlast, setEmojiBlast] = useState<{ id: number; emoji: string } | null>(null);
   const [showEmojiGrid, setShowEmojiGrid] = useState(false);
+  const [showInputEmoji, setShowInputEmoji] = useState(false);
   const smokeIdRef = useRef(0);
   const blastIdRef = useRef(0);
 
@@ -705,7 +708,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({ isOpen, onClose, userId, onLogo
   const handleSelectContact = (user: ChatContact) => {
     const fs = friendshipMap.get(user.id);
     if (!fs || fs.status !== "accepted") return;
-    setSelectedUser(user); setSearchQuery(""); setSearchResults([]); setShowChatSearch(false); setChatSearch(""); setShowEmojiGrid(false); setMsgMenuId(null);
+    setSelectedUser(user); setSearchQuery(""); setSearchResults([]); setShowChatSearch(false); setChatSearch(""); setShowEmojiGrid(false); setShowInputEmoji(false); setMsgMenuId(null); setReplyTo(null);
   };
   const handleSelectFromSearch = (user: Profile) => {
     const fs = friendshipMap.get(user.id);
@@ -717,11 +720,14 @@ const ChatSystem: React.FC<ChatSystemProps> = ({ isOpen, onClose, userId, onLogo
   const sendMessage = async () => {
     if (!newMessage.trim() || !selectedUser || isSending) return;
     const text = newMessage.trim(); setNewMessage(""); setIsSending(true);
+    const replyRef = replyTo; setReplyTo(null);
     if (soundEnabled) playSound("send");
     const tempId = `temp-${Date.now()}`;
-    const tempMsg: Message = { id: tempId, sender_id: userId, receiver_id: selectedUser.id, content: text, created_at: new Date().toISOString() };
+    const tempMsg: Message = { id: tempId, sender_id: userId, receiver_id: selectedUser.id, content: text, created_at: new Date().toISOString(), reply_to_id: replyRef?.id };
     setMessages(prev => [...prev, tempMsg]);
-    const { data, error } = await supabase.from("messages").insert({ sender_id: userId, receiver_id: selectedUser.id, content: text }).select().single();
+    const insertPayload: Record<string, unknown> = { sender_id: userId, receiver_id: selectedUser.id, content: text };
+    if (replyRef?.id) insertPayload.reply_to_id = replyRef.id;
+    const { data, error } = await supabase.from("messages").insert(insertPayload).select().single();
     if (data) {
       setMessages(prev => prev.map(m => m.id === tempId ? (data as Message) : m));
       fetchContacts();
@@ -812,15 +818,17 @@ const ChatSystem: React.FC<ChatSystemProps> = ({ isOpen, onClose, userId, onLogo
     setDeletingForMe(null);
   };
 
-  // ── Tick component ────────────────────────────────────────────────────────
-  const MessageTick = ({ msg }: { msg: Message }) => {
+  // ── Status text component (replaces ticks) ────────────────────────────────
+  const MessageStatus = ({ msg }: { msg: Message }) => {
     if (msg.sender_id !== userId) return null;
     const isTemp = msg.id.startsWith("temp-");
-    const isSeen = !!msg.seen_at;
-    if (isTemp) return <span className="text-[10px] text-white/30 ml-1">✓</span>;
-    if (isSeen) return <span className="text-[10px] text-blue-400 ml-1 font-black">✓✓</span>;
-    return <span className="text-[10px] text-white/50 ml-1">✓✓</span>;
+    if (isTemp) return <span className="text-[10px] text-white/30 ml-1 italic">Sending…</span>;
+    if (msg.seen_at) return <span className="text-[10px] text-blue-400 ml-1 font-black">Seen</span>;
+    return <span className="text-[10px] text-white/40 ml-1">Delivered</span>;
   };
+
+  // ── Emoji list for input picker ────────────────────────────────────────────
+  const INPUT_EMOJIS = ["❤️","🔥","😂","😍","🥰","😭","🤣","💀","✨","🎉","😊","🥺","😤","💯","🖕","🌹","💕","🤯","😏","🫶","💪","🙏","😈","🤩","👀","🫠","💔","🥹"];
 
   const visibleContacts = contacts.filter((c) => !archivedChats.has(c.id));
   const archivedContactsList = contacts.filter((c) => archivedChats.has(c.id));
@@ -1227,25 +1235,46 @@ const ChatSystem: React.FC<ChatSystemProps> = ({ isOpen, onClose, userId, onLogo
                 </AnimatePresence>
 
                 {/* Messages */}
-                <div className="flex-1 overflow-y-auto px-4 py-4 space-y-2" onClick={() => { setMsgMenuId(null); setShowEmojiGrid(false); }}>
+                <div className="flex-1 overflow-y-auto px-4 py-4 space-y-2" onClick={() => { setMsgMenuId(null); setShowEmojiGrid(false); setShowInputEmoji(false); }}>
                   {loadingMessages ? <div className="flex items-center justify-center py-10"><Loader2 size={20} className={`animate-spin ${T.text3}`} /></div>
                     : filteredMessages.length === 0 ? (
                       <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
-                        <p className="text-4xl">💬</p>
-                        <p className={`text-sm font-black ${T.text3}`}>{chatSearch ? "No messages found" : "Say hello!"}</p>
+                        <p className="text-5xl">👋</p>
+                        <p className={`text-base font-black ${T.text1}`}>{chatSearch ? "No messages found" : `Hi ${selectedUser?.full_name?.split(" ")[0] || "there"}, kaise ho?`}</p>
+                        <p className={`text-xs ${T.text3}`}>{chatSearch ? "" : "Pehla message bhejo!"}</p>
                       </div>
                     ) : filteredMessages.map((msg) => {
                       const isMine = msg.sender_id === userId;
+                      const quotedMsg = msg.reply_to_id ? messages.find(m => m.id === msg.reply_to_id) : null;
                       return (
                         <motion.div key={msg.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-                          className={`flex ${isMine ? "justify-end" : "justify-start"} group relative`}>
+                          drag="x"
+                          dragConstraints={{ left: 0, right: 64 }}
+                          dragElastic={{ left: 0, right: 0.25 }}
+                          dragDirectionLock
+                          onDragEnd={(_e, info) => { if (info.offset.x > 48) { setReplyTo(msg); setMsgMenuId(null); } }}
+                          className={`flex ${isMine ? "justify-end" : "justify-start"} group relative select-none`}
+                          style={{ cursor: "default" }}>
+                          {/* Swipe hint icon */}
+                          <div className={`absolute ${isMine ? "left-0" : "right-0"} top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-white/10 flex items-center justify-center opacity-0 group-active:opacity-60 pointer-events-none transition-opacity`}>
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-white/60"><polyline points="9 18 15 12 9 6"/></svg>
+                          </div>
                           <div className="relative max-w-[78%]">
+                            {/* Quote block for replied message */}
+                            {quotedMsg && (
+                              <div className={`mb-1 px-3 py-1.5 rounded-xl border-l-4 border-blue-400 bg-white/8 backdrop-blur-sm max-w-full`}>
+                                <p className="text-[10px] font-black text-blue-400 mb-0.5">
+                                  {quotedMsg.sender_id === userId ? "You" : selectedUser?.full_name?.split(" ")[0]}
+                                </p>
+                                <p className={`text-[11px] font-semibold truncate ${T.text3}`}>{quotedMsg.content || "📎 Media"}</p>
+                              </div>
+                            )}
                             <div className={`px-4 py-2.5 rounded-2xl ${isMine ? `${T.bubbleSent} rounded-tr-sm` : `${T.bubbleRecv} rounded-tl-sm`}`}>
                               {msg.media_url && msg.media_type ? <MediaBubble url={msg.media_url} type={msg.media_type} />
                                 : <p className="text-lg font-bold leading-snug break-words">{msg.content}</p>}
                               <p className={`text-[10px] mt-0.5 font-medium ${isMine ? "text-white/50" : T.text3} text-right flex items-center justify-end gap-1`}>
                                 {formatTime(msg.created_at)}
-                                <MessageTick msg={msg} />
+                                <MessageStatus msg={msg} />
                               </p>
                             </div>
                             <button onClick={(e) => { e.stopPropagation(); setMsgMenuId(msgMenuId === msg.id ? null : msg.id); }}
@@ -1256,6 +1285,9 @@ const ChatSystem: React.FC<ChatSystemProps> = ({ isOpen, onClose, userId, onLogo
                               {msgMenuId === msg.id && (
                                 <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}
                                   className={`absolute ${isMine ? "right-0" : "left-0"} bottom-full mb-1 z-50 rounded-2xl border shadow-xl overflow-hidden min-w-[170px] ${T.msgMenuBg}`}>
+                                  <button onClick={() => { setReplyTo(msg); setMsgMenuId(null); }} className={`flex items-center gap-2 w-full px-4 py-3 text-sm font-bold hover:bg-white/8 ${T.text1}`}>
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg> Reply
+                                  </button>
                                   <button onClick={() => deleteForMe(msg.id)} className={`flex items-center gap-2 w-full px-4 py-3 text-sm font-bold hover:bg-white/8 ${T.text1}`}>
                                     <EyeOff size={13} /> Delete for Me
                                   </button>
@@ -1271,8 +1303,49 @@ const ChatSystem: React.FC<ChatSystemProps> = ({ isOpen, onClose, userId, onLogo
                 </div>
 
                 {/* Input */}
-                <div className={`px-4 pt-3 pb-[max(12px,env(safe-area-inset-bottom))] border-t ${T.divider} ${T.input} shrink-0`}>
-                  <div className="flex items-end gap-2">
+                <div className={`border-t ${T.divider} ${T.input} shrink-0`}>
+                  {/* Reply preview bar */}
+                  <AnimatePresence>
+                    {replyTo && (
+                      <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+                        className={`flex items-center gap-2 px-4 py-2 border-b ${T.divider} bg-white/5`}>
+                        <div className="w-0.5 h-8 rounded-full bg-blue-400 shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[10px] font-black text-blue-400">
+                            {replyTo.sender_id === userId ? "You" : selectedUser?.full_name?.split(" ")[0]}
+                          </p>
+                          <p className={`text-[11px] truncate ${T.text3}`}>{replyTo.content || "📎 Media"}</p>
+                        </div>
+                        <button onClick={() => setReplyTo(null)} className={`w-6 h-6 rounded-full bg-white/10 flex items-center justify-center ${T.text3} hover:bg-white/20`}>
+                          <X size={11} />
+                        </button>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  {/* Emoji grid (input picker) */}
+                  <AnimatePresence>
+                    {showInputEmoji && (
+                      <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+                        className={`border-b ${T.divider} overflow-hidden`}>
+                        <div className="p-3 grid grid-cols-7 gap-1.5">
+                          {INPUT_EMOJIS.map(em => (
+                            <button key={em} onClick={() => setNewMessage(prev => prev + em)}
+                              className="w-9 h-9 rounded-xl text-xl flex items-center justify-center hover:bg-white/10 active:scale-90 transition-all">
+                              {em}
+                            </button>
+                          ))}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  <div className="flex items-end gap-2 px-4 pt-3 pb-[max(12px,env(safe-area-inset-bottom))]">
+                    {/* Emoji button — left of textarea */}
+                    <button onClick={() => setShowInputEmoji(p => !p)}
+                      className={`w-10 h-10 rounded-2xl border ${T.divider} flex items-center justify-center text-xl hover:bg-white/20 shrink-0 transition-all ${showInputEmoji ? "bg-white/20" : "bg-white/10"}`}>
+                      😊
+                    </button>
                     <button onClick={() => fileInputRef.current?.click()} disabled={isUploadingMedia}
                       className={`w-10 h-10 rounded-2xl bg-white/10 border ${T.divider} flex items-center justify-center ${T.text3} hover:bg-white/20 shrink-0 disabled:opacity-40`}>
                       {isUploadingMedia ? <Loader2 size={16} className="animate-spin" /> : <Paperclip size={16} />}
