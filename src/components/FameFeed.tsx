@@ -609,29 +609,16 @@ const FameFeed = ({
     console.log("[FameFeed] Liked post IDs loaded from DB:", ids.size);
   };
 
-  // ── Random profile suggestions fetch ──────────────────────────────────────
+  // ── Profile suggestions fetch — always show newest first, never empty ────
   const fetchPeopleSuggestions = async (uid: string) => {
     try {
-      // Existing friends + pending requests (both directions)
-      const { data: fships } = await supabase
-        .from("friendships")
-        .select("sender_id, receiver_id")
-        .or(`sender_id.eq.${uid},receiver_id.eq.${uid}`);
-      const knownIds = new Set<string>([uid]);
-      (fships || []).forEach((f: any) => {
-        knownIds.add(f.sender_id);
-        knownIds.add(f.receiver_id);
-      });
-
-      // Fetch a pool of profiles, then pick random from those not already connected
       const { data: profiles } = await supabase
         .from("profiles")
-        .select("id, full_name, avatar_url, fame_points")
-        .limit(60);
-      const candidates = (profiles || []).filter((p: any) => !knownIds.has(p.id));
-      // Shuffle and take up to 12
-      const shuffled = candidates.sort(() => Math.random() - 0.5).slice(0, 12);
-      setPeopleSuggestions(shuffled);
+        .select("id, full_name, avatar_url, fame_points, created_at")
+        .neq("id", uid)
+        .order("created_at", { ascending: false })
+        .limit(20);
+      setPeopleSuggestions(profiles || []);
     } catch (e) {
       console.warn("[FameFeed] fetchPeopleSuggestions error:", e);
     }
@@ -850,28 +837,18 @@ const FameFeed = ({
     if (currentUserId === null && !suggestionsLoaded) return; // wait for auth check
     async function fetchSuggestions() {
       try {
-        // Fetch user's already-joined group IDs to filter them out
-        let joinedIds = new Set<string>();
-        if (currentUserId) {
-          const { data: memberships } = await supabase
-            .from("group_members")
-            .select("group_id")
-            .eq("user_id", currentUserId);
-          joinedIds = new Set((memberships || []).map((m: any) => m.group_id));
-        }
-
         // Try community_suggestions view first
         const { data: viewData, error: viewErr } = await supabase
           .from("community_suggestions")
           .select("*")
+          .order("created_at", { ascending: false })
           .limit(20);
 
         if (!viewErr && viewData && viewData.length > 0) {
-          const filtered = viewData.filter(
-            (item: any) => item.type !== "group" && item.type !== "circle" || !joinedIds.has(item.id)
-          );
-          const viewPages = filtered.filter((i: any) => i.type === "page");
-          setGroupSuggestions(filtered.filter((i: any) => i.type === "group" || i.type === "circle"));
+          // Show all — never filter joined ones; UI marks them as joined
+          const viewPages = viewData.filter((i: any) => i.type === "page");
+          const viewCircles = viewData.filter((i: any) => i.type === "group" || i.type === "circle");
+          setGroupSuggestions(viewCircles);
 
           // If view returned no pages, also try hook_pages directly
           if (viewPages.length > 0) {
@@ -879,15 +856,15 @@ const FameFeed = ({
           } else {
             const { data: hookPages } = await supabase
               .from("hook_pages")
-              .select("id, name, cover_url, avatar_url, follower_count, category")
-              .order("follower_count", { ascending: false })
-              .limit(8);
+              .select("id, name, cover_url, avatar_url, follower_count, category, created_at")
+              .order("created_at", { ascending: false })
+              .limit(12);
             setPageSuggestions(
               (hookPages || []).map((p: any) => ({ ...p, type: "page", member_count: p.follower_count ?? 0 }))
             );
           }
         } else {
-          // Fallback: fetch groups + hook_pages in parallel
+          // Fallback: fetch groups + hook_pages in parallel — newest first, no filtering
           const [{ data: groups }, { data: hookPages }] = await Promise.all([
             supabase
               .from("groups")
@@ -896,14 +873,11 @@ const FameFeed = ({
               .limit(20),
             supabase
               .from("hook_pages")
-              .select("id, name, cover_url, avatar_url, follower_count, category")
-              .order("follower_count", { ascending: false })
-              .limit(8),
+              .select("id, name, cover_url, avatar_url, follower_count, category, created_at")
+              .order("created_at", { ascending: false })
+              .limit(12),
           ]);
-          const filteredGroups = (groups || [])
-            .filter((g: any) => !joinedIds.has(g.id))
-            .map((g: any) => ({ ...g, type: "group" }));
-          setGroupSuggestions(filteredGroups);
+          setGroupSuggestions((groups || []).map((g: any) => ({ ...g, type: "group" })));
           setPageSuggestions(
             (hookPages || []).map((p: any) => ({ ...p, type: "page", member_count: p.follower_count ?? 0 }))
           );
