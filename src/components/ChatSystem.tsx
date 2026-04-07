@@ -832,49 +832,62 @@ const ChatSystem: React.FC<ChatSystemProps> = ({ isOpen, onClose, userId, onLogo
 
       rec.onresult = (e: any) => {
         setVoiceStatus("processing");
-        const raw = Array.from(e.results as SpeechRecognitionResultList)
-          .slice(e.resultIndex)
-          .map((r: any) => r[0].transcript.trim())
-          .join(" ")
-          .toLowerCase();
 
-        // ── Command: Write / Likh ─────────────────────────────────────────
-        const writeMatch = raw.match(/^(?:likh|likho|write|type)\s+(.+)/i);
-        if (writeMatch) {
-          setNewMessage(writeMatch[1]);
-          toast.success(`✍️ Writing: "${writeMatch[1]}"`);
-          setTimeout(() => setVoiceStatus("listening"), 600);
-          return;
-        }
-        // ── Command: Send / Bhej do ───────────────────────────────────────
-        if (/^(send|bhej do|bhejna|bhejo|message bhejo|send karo)$/i.test(raw)) {
-          setVoiceStatus("processing");
+        // Grab only the latest spoken segment (not the full accumulated list)
+        const latest = e.results[e.resultIndex];
+        if (!latest || !latest[0]) { setVoiceStatus("listening"); return; }
+
+        // Clean: lowercase + strip trailing punctuation (। . ! ?)
+        const raw = latest[0].transcript
+          .trim()
+          .toLowerCase()
+          .replace(/[।,.!?]+$/, "")
+          .trim();
+
+        if (!raw) { setVoiceStatus("listening"); return; }
+
+        // ── SEND ──────────────────────────────────────────────────────────
+        if (/^(send|भेज दो|भेजो|भेजना|send karo|message send|message bhejo|bhej do|bhejo)$/.test(raw)) {
           sendMessage();
           toast.success("📤 Message sent!");
           setTimeout(() => setVoiceStatus("listening"), 600);
           return;
         }
-        // ── Command: Clear / Sab saaf ─────────────────────────────────────
-        if (/^(clear|clear chat|saaf|sab saaf|sab saaf karo|wipe|wipe chat)$/i.test(raw)) {
+
+        // ── CLEAR CHAT ────────────────────────────────────────────────────
+        if (/^(clear|clear chat|wipe|wipe chat|sab saaf|sab saaf karo|सब साफ|सब साफ करो|saaf karo|chat saaf|saaf)$/.test(raw)) {
           setMessages([]);
           toast.success("🧹 Chat cleared!");
           setTimeout(() => setVoiceStatus("listening"), 600);
           return;
         }
-        // ── Command: Panic Mode ───────────────────────────────────────────
-        if (/^(panic|panic mode|emergency)$/i.test(raw)) {
+
+        // ── PANIC MODE ────────────────────────────────────────────────────
+        if (/^(panic|panic mode|emergency|पैनिक|पैनिक मोड)$/.test(raw)) {
           setPanicMode(true);
           setTimeout(() => setVoiceStatus("listening"), 600);
           return;
         }
-        // ── Command: Stop Voice ───────────────────────────────────────────
-        if (/^(stop|stop voice|band karo|band kar|voice band|mic band)$/i.test(raw)) {
+
+        // ── STOP VOICE ────────────────────────────────────────────────────
+        if (/^(stop|stop voice|band karo|band kar|बंद करो|रुको|mic band|voice band)$/.test(raw)) {
           stopVoiceMode();
           toast.success("🔇 Voice mode stopped");
           return;
         }
-        // ── Fallback: treat as message text ──────────────────────────────
-        setNewMessage(prev => prev ? prev + " " + raw : raw);
+
+        // ── WRITE / LIKH (strip command word, put rest in input) ──────────
+        const writeMatch = raw.match(/^(?:likh|likho|likhna|write|type|लिख|लिखो|लिखना)\s+(.+)/);
+        if (writeMatch) {
+          const msg = writeMatch[1].trim();
+          setNewMessage(msg);
+          toast.success(`✍️ "${msg}"`);
+          setTimeout(() => setVoiceStatus("listening"), 600);
+          return;
+        }
+
+        // ── FALLBACK: only if no command matched → append to input ────────
+        setNewMessage(prev => (prev ? prev + " " + raw : raw));
         setTimeout(() => setVoiceStatus("listening"), 600);
       };
 
