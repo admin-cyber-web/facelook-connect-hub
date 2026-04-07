@@ -225,12 +225,26 @@ const Avatar = ({ url, name, size = "md", online }: { url?: string; name?: strin
 
 // ── MediaBubble ───────────────────────────────────────────────────────────────
 const MediaBubble = ({ url, type }: { url: string; type: string }) => {
-  if (type.startsWith("image/")) return <img src={url} className="max-w-[200px] rounded-2xl object-cover cursor-pointer" onClick={() => window.open(url, "_blank")} />;
-  if (type.startsWith("video/")) return <video src={url} controls className="max-w-[200px] rounded-2xl" />;
+  if (type.startsWith("image/")) return (
+    <img src={url} className="max-w-[220px] rounded-2xl object-cover cursor-pointer shadow-lg" onClick={() => window.open(url, "_blank")} />
+  );
+  if (type.startsWith("video/")) return (
+    <video
+      src={url}
+      controls
+      preload="metadata"
+      playsInline
+      className="max-w-[240px] rounded-2xl shadow-lg bg-black"
+      style={{ maxHeight: 200 }}
+    />
+  );
   if (type.startsWith("audio/")) return (
-    <div className="flex items-center gap-2 bg-white/10 px-3 py-2 rounded-2xl">
-      <Music size={14} className="text-blue-400 shrink-0" />
-      <audio src={url} controls className="h-7 max-w-[160px]" />
+    <div className="flex items-center gap-2 bg-white/10 px-3 py-2 rounded-2xl min-w-[200px]">
+      <Music size={16} className="text-blue-400 shrink-0" />
+      <div className="flex flex-col flex-1 min-w-0">
+        <span className="text-[10px] text-white/50 mb-0.5">Audio message</span>
+        <audio src={url} controls className="w-full h-8" style={{ accentColor: "#60a5fa" }} />
+      </div>
     </div>
   );
   return <a href={url} target="_blank" rel="noreferrer" className="text-blue-400 underline text-xs">Open file</a>;
@@ -327,6 +341,8 @@ const ChatSystem: React.FC<ChatSystemProps> = ({ isOpen, onClose, userId, onLogo
   const [newMessage, setNewMessage] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [isUploadingMedia, setIsUploadingMedia] = useState(false);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [pendingFilePreview, setPendingFilePreview] = useState<string | null>(null);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [chatSearch, setChatSearch] = useState("");
   const [showChatSearch, setShowChatSearch] = useState(false);
@@ -387,6 +403,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({ isOpen, onClose, userId, onLogo
   const recognitionRef = useRef<any>(null);
   const voiceTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const voiceActiveRef = useRef(false);
+  const pendingFileRef = useRef<File | null>(null);
 
   const T = THEME_CFG[theme];
 
@@ -727,7 +744,16 @@ const ChatSystem: React.FC<ChatSystemProps> = ({ isOpen, onClose, userId, onLogo
   // ── Send message ──────────────────────────────────────────────────────────
   const sendMessage = async (overrideText?: string) => {
     const text = (overrideText ?? newMessage).trim();
-    if (!text || !selectedUser || isSending) return;
+    const fileToSend = pendingFileRef.current;
+
+    if (!text && !fileToSend) return;
+    if (!selectedUser || isSending) return;
+
+    if (fileToSend) {
+      clearPendingFile();
+      uploadAndSendFile(fileToSend);
+      if (!text) return;
+    }
     setIsSending(true);
     const replyRef = replyTo; setReplyTo(null);
     if (soundEnabled) playSound("send");
@@ -777,19 +803,67 @@ const ChatSystem: React.FC<ChatSystemProps> = ({ isOpen, onClose, userId, onLogo
   };
 
   // ── Media upload ──────────────────────────────────────────────────────────
-  const handleMediaUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleMediaUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !selectedUser) return; e.target.value = ""; setIsUploadingMedia(true);
+    if (!file) return;
+    e.target.value = "";
+
+    const MAX_BYTES = 100 * 1024 * 1024; // 100 MB
+    if (file.size > MAX_BYTES) {
+      toast.error("File too large. Maximum allowed size is 100 MB.");
+      return;
+    }
+
+    setPendingFile(file);
+    pendingFileRef.current = file;
+
+    if (file.type.startsWith("image/") || file.type.startsWith("video/")) {
+      const objectUrl = URL.createObjectURL(file);
+      setPendingFilePreview(objectUrl);
+    } else {
+      setPendingFilePreview(null);
+    }
+
+    const label = file.type.startsWith("video/") ? "🎥 Video" : file.type.startsWith("audio/") ? "🎵 Audio" : "🖼️ Image";
+    toast.success(`${label} attached — tap Send or say "Bhej do" to send`);
+  };
+
+  const clearPendingFile = () => {
+    if (pendingFilePreview) URL.revokeObjectURL(pendingFilePreview);
+    setPendingFile(null);
+    setPendingFilePreview(null);
+    pendingFileRef.current = null;
+  };
+
+  const uploadAndSendFile = async (file: File): Promise<void> => {
+    if (!selectedUser) return;
+    setIsUploadingMedia(true);
     try {
       const ext = file.name.split(".").pop();
       const fileName = `${userId}-${Date.now()}.${ext}`;
-      const { error } = await supabase.storage.from("chat-media").upload(fileName, file);
-      if (error) throw error;
+      const { error: storageError } = await supabase.storage
+        .from("chat-media")
+        .upload(fileName, file, { contentType: file.type, upsert: false });
+      if (storageError) throw storageError;
       const { data: urlData } = supabase.storage.from("chat-media").getPublicUrl(fileName);
-      if (soundEnabled) playSound("send");
-      const { data } = await supabase.from("messages").insert({ sender_id: userId, receiver_id: selectedUser.id, content: "", media_url: urlData.publicUrl, media_type: file.type }).select().single();
-      if (data) { setMessages(prev => prev.find(m => m.id === (data as Message).id) ? prev : [...prev, data as Message]); fetchContacts(); }
-    } catch (err: any) { toast.error(`Upload failed: ${err?.message || "Unknown error"}`); } finally { setIsUploadingMedia(false); }
+      const { data, error: dbError } = await supabase
+        .from("messages")
+        .insert({ sender_id: userId, receiver_id: selectedUser.id, content: "", media_url: urlData.publicUrl, media_type: file.type })
+        .select()
+        .single();
+      if (dbError) throw dbError;
+      if (data) {
+        setMessages(prev => prev.find(m => m.id === (data as Message).id) ? prev : [...prev, data as Message]);
+        fetchContacts();
+        if (soundEnabled) playSound("send");
+        toast.success("📎 File sent!");
+      }
+    } catch (err: any) {
+      console.error("Media upload error:", err);
+      toast.error(`Upload failed: ${err?.message || "Unknown error"}`);
+    } finally {
+      setIsUploadingMedia(false);
+    }
   };
 
   // ── Save profile ──────────────────────────────────────────────────────────
@@ -1509,6 +1583,36 @@ const ChatSystem: React.FC<ChatSystemProps> = ({ isOpen, onClose, userId, onLogo
                     )}
                   </AnimatePresence>
 
+                  {/* Pending file preview strip */}
+                  <AnimatePresence>
+                    {pendingFile && (
+                      <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+                        className={`flex items-center gap-3 px-4 py-2 border-b ${T.divider} bg-white/5`}>
+                        {pendingFile.type.startsWith("image/") && pendingFilePreview && (
+                          <img src={pendingFilePreview} className="w-12 h-12 rounded-xl object-cover shrink-0" />
+                        )}
+                        {pendingFile.type.startsWith("video/") && pendingFilePreview && (
+                          <video src={pendingFilePreview} className="w-16 h-12 rounded-xl object-cover shrink-0 bg-black" muted playsInline />
+                        )}
+                        {pendingFile.type.startsWith("audio/") && (
+                          <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center shrink-0">
+                            <Music size={18} className="text-blue-400" />
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-xs font-bold ${T.text1} truncate`}>{pendingFile.name}</p>
+                          <p className={`text-[10px] ${T.text3}`}>
+                            {pendingFile.type.startsWith("video/") ? "🎥 Video" : pendingFile.type.startsWith("audio/") ? "🎵 Audio" : "🖼️ Image"}
+                            {" · "}{(pendingFile.size / (1024 * 1024)).toFixed(1)} MB
+                          </p>
+                        </div>
+                        <button onClick={clearPendingFile} className={`w-6 h-6 rounded-full bg-white/10 flex items-center justify-center ${T.text3} hover:bg-red-500/50 transition-colors`}>
+                          <X size={11} />
+                        </button>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
                   <div className="flex items-end gap-2 px-4 pt-3 pb-[max(12px,env(safe-area-inset-bottom))]">
                     {/* Emoji button — left of textarea */}
                     <button onClick={() => setShowInputEmoji(p => !p)}
@@ -1516,7 +1620,8 @@ const ChatSystem: React.FC<ChatSystemProps> = ({ isOpen, onClose, userId, onLogo
                       😊
                     </button>
                     <button onClick={() => fileInputRef.current?.click()} disabled={isUploadingMedia}
-                      className={`w-10 h-10 rounded-2xl bg-white/10 border ${T.divider} flex items-center justify-center ${T.text3} hover:bg-white/20 shrink-0 disabled:opacity-40`}>
+                      className={`w-10 h-10 rounded-2xl border flex items-center justify-center shrink-0 disabled:opacity-40 transition-colors
+                        ${pendingFile ? "bg-blue-500 border-blue-400 text-white" : `bg-white/10 ${T.divider} ${T.text3} hover:bg-white/20`}`}>
                       {isUploadingMedia ? <Loader2 size={16} className="animate-spin" /> : <Paperclip size={16} />}
                     </button>
                     <input type="file" ref={fileInputRef} className="hidden" onChange={handleMediaUpload} accept="image/*,video/*,audio/*" />
@@ -1524,9 +1629,9 @@ const ChatSystem: React.FC<ChatSystemProps> = ({ isOpen, onClose, userId, onLogo
                       onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
                       placeholder="Type a message..." rows={1}
                       className={`flex-1 rounded-2xl px-4 py-2.5 text-lg font-bold outline-none border resize-none max-h-28 overflow-y-auto ${T.searchBg} focus:ring-2 focus:ring-blue-500/30`} />
-                    <button onClick={sendMessage} disabled={!newMessage.trim() || isSending}
+                    <button onClick={sendMessage} disabled={(!newMessage.trim() && !pendingFile) || isSending || isUploadingMedia}
                       className={`w-10 h-10 rounded-2xl flex items-center justify-center text-white shrink-0 active:scale-90 disabled:opacity-40 ${T.accent}`}>
-                      {isSending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+                      {isSending || isUploadingMedia ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
                     </button>
                     {/* Mic / Voice Mode button */}
                     <button onClick={() => voiceMode ? stopVoiceMode() : startVoiceMode()}
