@@ -560,7 +560,7 @@ const FameFeed = ({
   const [suggestionsLoaded, setSuggestionsLoaded] = useState(false);
   const [inFeedDoneIds, setInFeedDoneIds] = useState<Set<string>>(new Set());
   const [peopleSuggestions, setPeopleSuggestions] = useState<any[]>([]);
-  const [sentFriendIds, setSentFriendIds] = useState<Set<string>>(new Set());
+  const [sentRequestIds, setSentRequestIds] = useState<string[]>([]);
   const [trendingFlicks, setTrendingFlicks] = useState<any[]>([]);
   const [flicksLoaded, setFlicksLoaded] = useState(false);
   const [flickModal, setFlickModal] = useState<any | null>(null);
@@ -611,42 +611,43 @@ const FameFeed = ({
     }
   };
 
-  // ── Make Friend handler ───────────────────────────────────────────────────
-  const handleMakeFriend = async (targetId: string, targetName: string) => {
-    if (!currentUserId || sentFriendIds.has(targetId)) return;
-    setSentFriendIds(prev => new Set([...prev, targetId]));
+  // ── Send Friend Request handler ───────────────────────────────────────────
+  const handleSendFriendRequest = async (e: React.MouseEvent, targetUserId: string) => {
+    e.stopPropagation();
+    if (!currentUserId || sentRequestIds.includes(targetUserId)) return;
 
-    const { error } = await supabase.from("friendships").insert({
+    const { error } = await supabase.from("friend_requests").insert({
       sender_id: currentUserId,
-      receiver_id: targetId,
+      receiver_id: targetUserId,
       status: "pending",
     });
+
     if (error) {
       if (!error.message?.includes("duplicate") && !error.message?.includes("unique")) {
-        setSentFriendIds(prev => { const n = new Set(prev); n.delete(targetId); return n; });
+        toast.error("Could not send friend request. Please try again.");
       }
       return;
     }
 
-    // Notification + sound to receiver
-    await supabase.from("notifications").insert({
-      notifier_id: targetId,
-      actor_id: currentUserId,
-      type: "friend_request",
-      entity_id: targetId,
-      content: `ne aapko friend request bheji`,
-      is_read: false,
-    });
+    setSentRequestIds(prev => [...prev, targetUserId]);
+    toast.success("Friend request sent!");
   };
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
+    supabase.auth.getUser().then(async ({ data }) => {
       const uid = data.user?.id ?? null;
       setCurrentUserId(uid);
-      // ✅ User ID milte hi DB se liked posts + people suggestions fetch karein
       if (uid) {
         fetchLikedPostIds(uid);
         fetchPeopleSuggestions(uid);
+        // Fetch already-sent friend requests for persistence across refreshes
+        const { data: sentRows } = await supabase
+          .from("friend_requests")
+          .select("receiver_id")
+          .eq("sender_id", uid);
+        if (sentRows) {
+          setSentRequestIds(sentRows.map((r: any) => r.receiver_id));
+        }
       }
     });
   }, []);
@@ -1106,7 +1107,7 @@ const FameFeed = ({
           <div className="flex gap-3 overflow-x-auto px-4 pb-2 no-scrollbar scroll-smooth">
             {peopleSuggestions.map((u, i) => {
               const GRAD = ["#6366f1","#ec4899","#f59e0b","#10b981","#3b82f6","#8b5cf6","#ef4444","#06b6d4"];
-              const isSent = sentFriendIds.has(u.id);
+              const isSent = sentRequestIds.includes(u.id);
               const firstName = (u.full_name || "User").split(" ")[0];
               return (
                 <motion.div
@@ -1114,7 +1115,7 @@ const FameFeed = ({
                   initial={{ opacity: 0, scale: 0.92 }}
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ delay: i * 0.05, type: "spring", stiffness: 240, damping: 20 }}
-                  className="flex-shrink-0 relative rounded-2xl overflow-hidden border border-gray-200 shadow-md"
+                  className="flex-shrink-0 relative rounded-2xl overflow-hidden border border-gray-200 shadow-md cursor-pointer"
                   style={{
                     width: "calc((100vw - 56px) / 3)",
                     height: "calc((100vw - 56px) / 3 * 1.45)",
@@ -1122,6 +1123,7 @@ const FameFeed = ({
                     maxHeight: "215px",
                     background: `linear-gradient(160deg,${GRAD[i % GRAD.length]} 0%,#1e1b4b 100%)`,
                   }}
+                  onClick={() => openProfile(u.id)}
                 >
                   {/* Avatar */}
                   {u.avatar_url ? (
@@ -1145,19 +1147,19 @@ const FameFeed = ({
                       </p>
                     )}
 
-                    {/* Make Friend button — two lines */}
+                    {/* Make Friend button */}
                     <motion.button
                       whileTap={{ scale: 0.94 }}
-                      onClick={() => handleMakeFriend(u.id, u.full_name)}
+                      onClick={(e) => handleSendFriendRequest(e, u.id)}
                       disabled={isSent}
                       className={`w-full py-2.5 rounded-xl font-black text-[13px] leading-tight flex flex-col items-center justify-center transition-all
                         ${isSent
-                          ? "bg-white/20 text-white/50 cursor-default"
+                          ? "bg-gray-200 text-gray-500 cursor-default"
                           : "bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-900/30 active:from-blue-600 active:to-blue-700"
                         }`}
                     >
                       {isSent ? (
-                        <span className="text-[11px] font-black leading-tight">Request Sent ✓</span>
+                        <span className="text-[11px] font-black leading-tight">Already Request Sended</span>
                       ) : (
                         <>
                           <span className="leading-tight">MAKE</span>
