@@ -810,7 +810,7 @@ const FameFeed = ({
 
   const fetchPosts = async () => {
     const { data } = await supabase.from("posts")
-      .select(`*, comments:comments(*)`)
+      .select(`*, comments:comments(*), likes:likes(reaction_type, user_id, profiles(full_name))`)
       .order("created_at", { ascending: false });
     setPosts(data ?? []);
     setLoading(false);
