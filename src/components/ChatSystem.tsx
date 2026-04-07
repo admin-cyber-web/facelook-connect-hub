@@ -17,6 +17,9 @@ import {
 import { supabase } from "@/lib/supabaseClient";
 import { toast } from "sonner";
 
+// ── Storage bucket (must match the bucket created in Supabase dashboard) ───────
+const CHAT_BUCKET = "chat-images";
+
 // ── Types ──────────────────────────────────────────────────────────────────────
 type Theme = "water" | "nature" | "velvet";
 type BottomTab = "chat" | "story" | "alert" | "menu";
@@ -844,19 +847,19 @@ const ChatSystem: React.FC<ChatSystemProps> = ({ isOpen, onClose, userId, onLogo
 
       // ── Step 1: Upload to storage ────────────────────────────────────────
       const { error: storageError } = await supabase.storage
-        .from("chat-media")
+        .from(CHAT_BUCKET)
         .upload(fileName, file, { contentType: file.type, upsert: false });
       if (storageError) {
         console.error("Supabase Storage Error:", storageError);
         toast.error(`Storage upload failed: ${storageError.message}`);
         alert(
-          `Storage Upload Failed!\n\nBucket: chat-media\nFile: ${fileName}\nType: ${file.type}\nSize: ${(file.size / 1024 / 1024).toFixed(2)} MB\n\nError: ${storageError.message}\nCode: ${storageError.name || "—"}`
+          `Storage Upload Failed!\n\nTarget Bucket: ${CHAT_BUCKET}\nFile: ${fileName}\nType: ${file.type}\nSize: ${(file.size / 1024 / 1024).toFixed(2)} MB\n\nError: ${storageError.message}\nCode: ${storageError.name || "—"}\n\nFix: Make sure a bucket named "${CHAT_BUCKET}" exists in your Supabase Storage dashboard.`
         );
         return;
       }
 
       // ── Step 2: Get public URL ───────────────────────────────────────────
-      const { data: urlData } = supabase.storage.from("chat-media").getPublicUrl(fileName);
+      const { data: urlData } = supabase.storage.from(CHAT_BUCKET).getPublicUrl(fileName);
       const publicUrl = urlData.publicUrl;
 
       // ── Step 3: Insert message row ───────────────────────────────────────
