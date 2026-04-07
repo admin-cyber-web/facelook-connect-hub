@@ -1,13 +1,46 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { toast } from "sonner";
 import { useProfileViewer } from "../context/ProfileViewerContext";
 import {
   Send, Heart, MessageCircle, Share2, MoreVertical,
   Loader2, Trash2, EyeOff, Flag, X, Volume2, VolumeX, Image as ImageIcon,
-  Play, Users, Film, Plus,
+  Play, Users, Film, Plus, Eye,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+
+// ── Reaction config ─────────────────────────────────────────────────────────
+const REACTIONS = [
+  { type: "like",  emoji: "👍", label: "Like"  },
+  { type: "love",  emoji: "❤️", label: "Love"  },
+  { type: "haha",  emoji: "😂", label: "Haha"  },
+  { type: "wow",   emoji: "😮", label: "Wow"   },
+  { type: "sad",   emoji: "😢", label: "Sad"   },
+  { type: "angry", emoji: "😡", label: "Angry" },
+];
+const reactionEmoji = (type?: string) =>
+  REACTIONS.find(r => r.type === type)?.emoji ?? "👍";
+
+// ── PostViewTracker — fires onView once when post scrolls into view ─────────
+const PostViewTracker = ({
+  postId, onView, children,
+}: { postId: string; onView: (id: string) => void; children: React.ReactNode }) => {
+  const ref = useRef<HTMLDivElement>(null);
+  const fired = useRef(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting && !fired.current) {
+        fired.current = true;
+        onView(postId);
+      }
+    }, { threshold: 0.5 });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [postId, onView]);
+  return <div ref={ref}>{children}</div>;
+};
 
 // ── Inline video ───────────────────────────────────────────────────────────────
 const FeedVideo = ({ src }: { src: string }) => {
@@ -575,6 +608,12 @@ const FameFeed = ({
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
+  const [userReactions, setUserReactions] = useState<{ [postId: string]: string }>({});
+  const [reactionBarPostId, setReactionBarPostId] = useState<string | null>(null);
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [viewedPostIds, setViewedPostIds] = useState<Set<string>>(new Set());
+  const [replyingTo, setReplyingTo] = useState<{ postId: string; commentId: string; author: string } | null>(null);
+  const [replyText, setReplyText] = useState("");
   const [reportModal, setReportModal] = useState<{ postId: string; reason: string } | null>(null);
   const [reportSubmitting, setReportSubmitting] = useState(false);
   const [pageSuggestions, setPageSuggestions] = useState<any[]>([]);
@@ -598,15 +637,14 @@ const FameFeed = ({
   const fetchLikedPostIds = async (uid: string) => {
     const { data, error } = await supabase
       .from("likes")
-      .select("post_id")
+      .select("post_id, reaction_type")
       .eq("user_id", uid);
-    if (error) {
-      console.warn("[FameFeed] fetchLikedPostIds error:", error.message);
-      return;
-    }
+    if (error) { console.warn("[FameFeed] fetchLikedPostIds error:", error.message); return; }
     const ids = new Set<string>((data || []).map((r: any) => r.post_id));
     setLikedIds(ids);
-    console.log("[FameFeed] Liked post IDs loaded from DB:", ids.size);
+    const reactions: { [postId: string]: string } = {};
+    (data || []).forEach((r: any) => { if (r.reaction_type) reactions[r.post_id] = r.reaction_type; });
+    setUserReactions(reactions);
   };
 
   // ── Profile suggestions fetch — always show, never filter sent-request users
@@ -906,49 +944,76 @@ const FameFeed = ({
     }
   };
 
-  const handleLike = async (post: any) => {
-    if (likedIds.has(post.id) || !currentUserId) return;
-    setLikedIds(p => new Set([...p, post.id]));
+  const handleReact = async (post: any, reactionType: string) => {
+    if (!currentUserId) return;
+    setReactionBarPostId(null);
 
-    // ✅ likes table mein insert karein (proper row tracking)
-    const { error: likeErr } = await supabase
-      .from("likes")
-      .insert({ post_id: post.id, user_id: currentUserId });
-    if (likeErr) console.warn("[FameFeed][like] likes insert:", likeErr.message);
-
-    // posts.likes_count bhi update karein (denormalized counter)
-    await supabase
-      .from("posts")
-      .update({ likes_count: (post.likes_count || 0) + 1 })
-      .eq("id", post.id);
-
-    // Post author ko notification bhejo (agar khud apni post nahi like ki)
-    if (post.author_id && post.author_id !== currentUserId) {
-      const { error: notifErr } = await supabase.from("notifications").insert({
-        notifier_id: post.author_id,
-        actor_id: currentUserId,
-        type: "like",
-        entity_id: post.id,
-        content: "ne aapki post like ki",
-        is_read: false,
-      });
-      if (notifErr) console.warn("[FameFeed][like] notification insert:", notifErr.message);
+    const alreadySame = likedIds.has(post.id) && userReactions[post.id] === reactionType;
+    if (alreadySame) {
+      // Toggle off — unlike
+      setLikedIds(p => { const n = new Set(p); n.delete(post.id); return n; });
+      setUserReactions(p => { const n = { ...p }; delete n[post.id]; return n; });
+      await supabase.from("likes").delete().eq("post_id", post.id).eq("user_id", currentUserId);
+      await supabase.from("posts").update({ likes_count: Math.max((post.likes_count || 1) - 1, 0) }).eq("id", post.id);
+      fetchPosts();
+      return;
     }
 
+    const wasLiked = likedIds.has(post.id);
+    setLikedIds(p => new Set([...p, post.id]));
+    setUserReactions(p => ({ ...p, [post.id]: reactionType }));
+
+    // Upsert so changing reaction type works cleanly
+    await supabase.from("likes").upsert(
+      { post_id: post.id, user_id: currentUserId, reaction_type: reactionType },
+      { onConflict: "post_id,user_id" }
+    );
+
+    if (!wasLiked) {
+      await supabase.from("posts").update({ likes_count: (post.likes_count || 0) + 1 }).eq("id", post.id);
+      if (post.author_id && post.author_id !== currentUserId) {
+        await supabase.from("notifications").insert({
+          notifier_id: post.author_id,
+          actor_id: currentUserId,
+          type: "like",
+          entity_id: post.id,
+          content: "ne aapki post react kiya",
+          is_read: false,
+        });
+      }
+    }
     fetchPosts();
   };
 
-  const handleAddComment = async (postId: string) => {
-    if (!commentText.trim()) return;
-    const { data: { user } } = await supabase.auth.getUser();
-    const commentContent = commentText.trim();
+  const handleShare = async (post: any) => {
+    navigator.share?.({ url: window.location.href }).catch(() => {});
+    await supabase.from("posts").update({ shares_count: (post.shares_count || 0) + 1 }).eq("id", post.id);
+    setPosts(prev => prev.map(p => p.id === post.id ? { ...p, shares_count: (p.shares_count || 0) + 1 } : p));
+  };
 
-    // ✅ comments table mein insert (author_id bhi save karein)
+  const incrementView = useCallback(async (postId: string) => {
+    if (viewedPostIds.has(postId)) return;
+    setViewedPostIds(p => new Set([...p, postId]));
+    setPosts(prev => prev.map(p => p.id === postId ? { ...p, views_count: (p.views_count || 0) + 1 } : p));
+    if (currentUserId) {
+      await supabase.from("post_views").insert({ post_id: postId, user_id: currentUserId }).then(() => {});
+    }
+    await supabase.from("posts").update({ views_count: (posts.find(p => p.id === postId)?.views_count || 0) + 1 }).eq("id", postId);
+  }, [viewedPostIds, currentUserId, posts]);
+
+  const handleAddComment = async (postId: string, parentId?: string | null) => {
+    const isReply = !!parentId;
+    const text = (isReply ? replyText : commentText).trim();
+    if (!text) return;
+
+    const { data: { user } } = await supabase.auth.getUser();
+
     const { error: commentErr } = await supabase.from("comments").insert([{
       post_id: postId,
-      content: commentContent,
+      content: text,
       author: user?.user_metadata?.full_name || "Vibe User",
       author_id: user?.id ?? null,
+      parent_id: parentId ?? null,
     }]);
     if (commentErr) {
       console.error("[FameFeed][comment] insert error:", commentErr);
@@ -956,21 +1021,24 @@ const FameFeed = ({
       return;
     }
 
-    // Post author ko notification bhejo
-    const post = posts.find(p => p.id === postId);
-    if (post?.author_id && post.author_id !== user?.id) {
-      const { error: notifErr } = await supabase.from("notifications").insert({
-        notifier_id: post.author_id,
-        actor_id: user?.id ?? null,
-        type: "comment",
-        entity_id: postId,
-        content: `ne aapki post par comment kiya: "${commentContent.slice(0, 50)}"`,
-        is_read: false,
-      });
-      if (notifErr) console.warn("[FameFeed][comment] notification insert:", notifErr.message);
+    if (isReply) { setReplyText(""); setReplyingTo(null); }
+    else setCommentText("");
+
+    // Notification (only for top-level comments, not replies)
+    if (!isReply) {
+      const post = posts.find(p => p.id === postId);
+      if (post?.author_id && post.author_id !== user?.id) {
+        await supabase.from("notifications").insert({
+          notifier_id: post.author_id,
+          actor_id: user?.id ?? null,
+          type: "comment",
+          entity_id: postId,
+          content: `ne aapki post par comment kiya: "${text.slice(0, 50)}"`,
+          is_read: false,
+        });
+      }
     }
 
-    setCommentText("");
     fetchPosts();
   };
 
@@ -1008,7 +1076,8 @@ const FameFeed = ({
         post.media_url.includes("youtube.com") || post.media_url.includes("youtu.be") || post.media_url.includes("rapidcdn.app")));
 
     return (
-      <motion.article key={post.id} id={post.id} layout
+      <PostViewTracker key={post.id} postId={post.id} onView={incrementView}>
+      <motion.article id={post.id} layout
         exit={{ opacity: 0, x: 60, transition: { duration: 0.2 } }}
         className="bg-white border-b border-gray-100"
       >
@@ -1074,58 +1143,184 @@ const FameFeed = ({
         {post.content && <PostCaption content={post.content} />}
         <PostMedia post={post} />
 
-        {/* Action bar */}
-        <div className="flex items-center gap-5 px-4 py-2.5">
-          <button onClick={() => handleLike(post)} className="flex items-center gap-1.5 group">
-            <Heart size={22}
-              className={likedIds.has(post.id) ? "fill-red-500 text-red-500" : "text-gray-400 group-hover:text-red-400 transition-colors"} />
-            <span className="text-xs font-bold text-gray-500">{post.likes_count || 0}</span>
-          </button>
-          <button onClick={() => setActiveComment(activeComment === post.id ? null : post.id)}
-            className="flex items-center gap-1.5 group">
+        {/* ── Action bar ─────────────────────────────────────────────── */}
+        <div className="flex items-center gap-4 px-4 py-2.5">
+
+          {/* Reaction button — hover shows bar on desktop, long-press on mobile */}
+          <div
+            className="relative"
+            onMouseEnter={() => setReactionBarPostId(post.id)}
+            onMouseLeave={() => setReactionBarPostId(null)}
+          >
+            {/* Floating reaction bar */}
+            <AnimatePresence>
+              {reactionBarPostId === post.id && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10, scale: 0.8 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 10, scale: 0.8 }}
+                  transition={{ type: "spring", stiffness: 420, damping: 22 }}
+                  className="absolute bottom-10 left-0 flex items-center gap-0.5 bg-white rounded-full shadow-2xl border border-gray-100 px-2 py-1.5 z-50"
+                >
+                  {REACTIONS.map((r, i) => (
+                    <motion.button
+                      key={r.type}
+                      initial={{ scale: 0, y: 8 }}
+                      animate={{ scale: 1, y: 0 }}
+                      transition={{ delay: i * 0.04, type: "spring", stiffness: 500, damping: 20 }}
+                      whileHover={{ scale: 1.5, y: -5 }}
+                      onClick={() => handleReact(post, r.type)}
+                      title={r.label}
+                      className="text-[22px] leading-none px-1 cursor-pointer select-none"
+                    >
+                      {r.emoji}
+                    </motion.button>
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Like / Reaction toggle button */}
+            <button
+              onPointerDown={() => {
+                longPressTimer.current = setTimeout(() => setReactionBarPostId(post.id), 500);
+              }}
+              onPointerUp={() => { if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; } }}
+              onPointerLeave={() => { if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; } }}
+              onClick={() => {
+                if (reactionBarPostId === post.id) return; // bar showing, let user pick
+                handleReact(post, userReactions[post.id] || "like");
+              }}
+              className="flex items-center gap-1.5 select-none"
+            >
+              <span className={`text-[22px] leading-none transition-transform active:scale-125 ${likedIds.has(post.id) ? "" : "grayscale opacity-40"}`}>
+                {likedIds.has(post.id) ? reactionEmoji(userReactions[post.id]) : "👍"}
+              </span>
+              <span className="text-xs font-bold text-gray-500">{post.likes_count || 0}</span>
+            </button>
+          </div>
+
+          {/* Comment button */}
+          <button
+            onClick={() => { setActiveComment(activeComment === post.id ? null : post.id); setReplyingTo(null); setReplyText(""); }}
+            className="flex items-center gap-1.5 group"
+          >
             <MessageCircle size={22} className="text-gray-400 group-hover:text-blue-500 transition-colors" />
-            <span className="text-xs font-bold text-gray-500">{post.comments?.length || 0}</span>
+            <span className="text-xs font-bold text-gray-500">
+              {post.comments?.length || 0}
+            </span>
           </button>
-          <button onClick={() => navigator.share?.({ url: window.location.href })}
-            className="flex items-center gap-1.5 group ml-auto">
-            <Share2 size={20} className="text-gray-400 group-hover:text-gray-600 transition-colors" />
+
+          {/* Views */}
+          <div className="flex items-center gap-1">
+            <Eye size={17} className="text-gray-300" />
+            <span className="text-xs font-bold text-gray-400">{post.views_count || 0}</span>
+          </div>
+
+          {/* Share */}
+          <button onClick={() => handleShare(post)} className="flex items-center gap-1.5 group ml-auto">
+            <Share2 size={20} className="text-gray-400 group-hover:text-blue-500 transition-colors" />
+            {(post.shares_count || 0) > 0 && (
+              <span className="text-xs font-bold text-gray-400">{post.shares_count}</span>
+            )}
           </button>
         </div>
 
-        {/* Inline comments */}
+        {/* ── Comment section ─────────────────────────────────────────── */}
         <AnimatePresence>
           {activeComment === post.id && (
-            <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }}
+            <motion.div
+              initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }}
               exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }}
-              className="overflow-hidden border-t border-gray-100">
-              <div className="px-4 pt-3 pb-1 flex gap-2">
-                <input type="text" placeholder="Write a comment…"
+              className="overflow-hidden border-t border-gray-100"
+            >
+              {/* Reply-to banner */}
+              {replyingTo?.postId === post.id && (
+                <div className="flex items-center justify-between px-4 pt-2">
+                  <span className="text-[11px] text-blue-500 font-semibold">
+                    ↩ Replying to {replyingTo.author}
+                  </span>
+                  <button onClick={() => { setReplyingTo(null); setReplyText(""); }}>
+                    <X size={13} className="text-gray-400" />
+                  </button>
+                </div>
+              )}
+
+              {/* Input */}
+              <div className="px-4 pt-2 pb-1 flex gap-2">
+                <input
+                  type="text"
+                  placeholder={replyingTo?.postId === post.id ? `Reply to ${replyingTo.author}…` : "Write a comment…"}
                   className="flex-1 bg-gray-100 border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-blue-400/30"
-                  value={commentText}
-                  onChange={e => setCommentText(e.target.value)}
-                  onKeyDown={e => e.key === "Enter" && handleAddComment(post.id)} />
-                <button onClick={() => handleAddComment(post.id)}
-                  className="bg-blue-600 text-white px-4 rounded-xl">
+                  value={replyingTo?.postId === post.id ? replyText : commentText}
+                  onChange={e => replyingTo?.postId === post.id ? setReplyText(e.target.value) : setCommentText(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key !== "Enter") return;
+                    replyingTo?.postId === post.id
+                      ? handleAddComment(post.id, replyingTo.commentId)
+                      : handleAddComment(post.id);
+                  }}
+                />
+                <button
+                  onClick={() => replyingTo?.postId === post.id
+                    ? handleAddComment(post.id, replyingTo.commentId)
+                    : handleAddComment(post.id)}
+                  className="bg-blue-600 text-white px-4 rounded-xl"
+                >
                   <Send size={16} />
                 </button>
               </div>
-              <div className="px-4 py-2 space-y-2 max-h-48 overflow-y-auto">
-                {post.comments?.map((c: any) => (
-                  <div key={c.id} className="flex gap-3 py-1">
-                    <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center text-[10px] font-black text-blue-600 shrink-0">
-                      {c.author?.[0]}
-                    </div>
-                    <div>
-                      <span className="text-[10px] font-black text-blue-600 uppercase tracking-tight">{c.author}</span>
-                      <p className="text-xs text-gray-600 mt-0.5 leading-snug">{c.content}</p>
-                    </div>
-                  </div>
-                ))}
+
+              {/* Threaded comment list */}
+              <div className="px-4 py-2 space-y-3 max-h-64 overflow-y-auto">
+                {post.comments
+                  ?.filter((c: any) => !c.parent_id)
+                  .map((c: any) => {
+                    const replies = (post.comments || []).filter((r: any) => r.parent_id === c.id);
+                    return (
+                      <div key={c.id}>
+                        {/* Top-level comment */}
+                        <div className="flex gap-2.5 py-0.5">
+                          <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center text-[10px] font-black text-blue-600 shrink-0">
+                            {c.author?.[0]}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <span className="text-[10px] font-black text-blue-600 uppercase tracking-tight">{c.author}</span>
+                            <p className="text-xs text-gray-700 mt-0.5 leading-snug">{c.content}</p>
+                            <button
+                              onClick={() => setReplyingTo({ postId: post.id, commentId: c.id, author: c.author })}
+                              className="text-[10px] text-blue-400 font-bold mt-1 hover:text-blue-600"
+                            >
+                              Reply
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Replies — indented */}
+                        {replies.length > 0 && (
+                          <div className="ml-9 mt-1 space-y-1.5 border-l-2 border-blue-50 pl-2.5">
+                            {replies.map((r: any) => (
+                              <div key={r.id} className="flex gap-2 py-0.5">
+                                <div className="w-6 h-6 rounded-full bg-indigo-50 flex items-center justify-center text-[9px] font-black text-indigo-500 shrink-0">
+                                  {r.author?.[0]}
+                                </div>
+                                <div>
+                                  <span className="text-[10px] font-black text-indigo-500 uppercase tracking-tight">{r.author}</span>
+                                  <p className="text-xs text-gray-600 mt-0.5 leading-snug">{r.content}</p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
               </div>
             </motion.div>
           )}
         </AnimatePresence>
       </motion.article>
+      </PostViewTracker>
     );
   };
 
