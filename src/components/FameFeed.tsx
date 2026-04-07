@@ -609,16 +609,17 @@ const FameFeed = ({
     console.log("[FameFeed] Liked post IDs loaded from DB:", ids.size);
   };
 
-  // ── Profile suggestions fetch — always show newest first, never empty ────
+  // ── Profile suggestions fetch — always show, never filter sent-request users
   const fetchPeopleSuggestions = async (uid: string) => {
     try {
-      const { data: profiles } = await supabase
+      const { data: profiles, error } = await supabase
         .from("profiles")
-        .select("id, full_name, avatar_url, fame_points, created_at")
+        .select("id, full_name, avatar_url, fame_points")
         .neq("id", uid)
-        .order("created_at", { ascending: false })
         .limit(20);
-      setPeopleSuggestions(profiles || []);
+      if (error) { console.warn("[FameFeed] fetchPeopleSuggestions error:", error.message); return; }
+      // Sort newest-first by id (UUIDs are roughly time-ordered in Supabase)
+      setPeopleSuggestions((profiles || []).reverse());
     } catch (e) {
       console.warn("[FameFeed] fetchPeopleSuggestions error:", e);
     }
@@ -841,7 +842,6 @@ const FameFeed = ({
         const { data: viewData, error: viewErr } = await supabase
           .from("community_suggestions")
           .select("*")
-          .order("created_at", { ascending: false })
           .limit(20);
 
         if (!viewErr && viewData && viewData.length > 0) {
