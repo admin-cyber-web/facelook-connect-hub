@@ -212,10 +212,13 @@ const SuggestedPagesRow = ({
 
 // ── Suggested Circles Row (horizontal scroll, 3-4 visible) ─────────────────────
 const SuggestedCirclesRow = ({
-  circles, doneIds, onAction, onCreateCircle,
+  circles, joinedIds, memberCounts, onJoin, onCircleClick,
 }: {
-  circles: any[]; doneIds: Set<string>;
-  onAction: (item: any) => void; onCreateCircle?: () => void;
+  circles: any[];
+  joinedIds: string[];
+  memberCounts: { [key: string]: number };
+  onJoin: (e: React.MouseEvent, circleId: string) => void;
+  onCircleClick: (circle: any) => void;
 }) => {
   if (circles.length === 0) return null;
   return (
@@ -224,16 +227,19 @@ const SuggestedCirclesRow = ({
       <div className="flex gap-3 overflow-x-auto px-4 pb-2 no-scrollbar">
         {circles.map(circle => {
           const grad = gradForSugg(circle.id || circle.name || "c");
-          const done = doneIds.has(circle.id);
+          const joined = joinedIds.includes(circle.id);
+          const count = memberCounts[circle.id] ?? circle.member_count ?? 0;
           return (
-            <div key={circle.id}
-              className="flex-shrink-0 bg-gray-50 rounded-2xl overflow-hidden flex flex-col"
-              style={{ width: 132, boxShadow: "0 1px 6px rgba(0,0,0,0.07)" }}>
+            <div
+              key={circle.id}
+              className="flex-shrink-0 bg-gray-50 rounded-2xl overflow-hidden flex flex-col cursor-pointer"
+              style={{ width: 132, boxShadow: "0 1px 6px rgba(0,0,0,0.07)" }}
+              onClick={() => onCircleClick(circle)}
+            >
               <div className="w-full relative overflow-hidden" style={{ height: 100, background: grad }}>
-                {circle.cover_url && (
+                {circle.cover_url ? (
                   <img src={circle.cover_url} className="w-full h-full object-cover" loading="lazy" alt={circle.name} />
-                )}
-                {!circle.cover_url && (
+                ) : (
                   <div className="w-full h-full flex items-center justify-center">
                     <Users size={28} className="text-white/50" />
                   </div>
@@ -241,12 +247,17 @@ const SuggestedCirclesRow = ({
               </div>
               <div className="p-2.5 flex flex-col gap-1 flex-1">
                 <p className="text-[11px] font-black text-gray-900 truncate leading-tight">{circle.name}</p>
-                <p className="text-[9px] text-gray-400">{circle.member_count ?? 0} members</p>
-                <button onClick={() => !done && onAction(circle)}
+                <p className="text-[9px] text-gray-400">{count} Members</p>
+                <button
+                  onClick={(e) => { e.stopPropagation(); onJoin(e, circle.id); }}
+                  disabled={joined}
                   className={`w-full py-2 rounded-xl text-[10px] font-black mt-auto transition-all active:scale-95 ${
-                    done ? "bg-gray-100 text-gray-400" : "bg-blue-600 text-white"
-                  }`}>
-                  {done ? "Joined ✓" : "Join Circle"}
+                    joined
+                      ? "bg-blue-100 text-blue-700 cursor-default"
+                      : "bg-blue-600 text-white"
+                  }`}
+                >
+                  {joined ? "JOINED ✓" : "Join Circle"}
                 </button>
               </div>
             </div>
@@ -574,6 +585,8 @@ const FameFeed = ({
   const [sentRequestIds, setSentRequestIds] = useState<string[]>([]);
   const [hookedPageIds, setHookedPageIds] = useState<string[]>([]);
   const [pageFollowerCounts, setPageFollowerCounts] = useState<{ [key: string]: number }>({});
+  const [joinedCircleIds, setJoinedCircleIds] = useState<string[]>([]);
+  const [circleMemberCounts, setCircleMemberCounts] = useState<{ [key: string]: number }>({});
   const [trendingFlicks, setTrendingFlicks] = useState<any[]>([]);
   const [flicksLoaded, setFlicksLoaded] = useState(false);
   const [flickModal, setFlickModal] = useState<any | null>(null);
@@ -669,6 +682,14 @@ const FameFeed = ({
         if (hookedRows) {
           setHookedPageIds(hookedRows.map((r: any) => r.page_id));
         }
+        // Fetch already-joined circles for persistence across refreshes
+        const { data: circleRows } = await supabase
+          .from("circle_members")
+          .select("circle_id")
+          .eq("user_id", uid);
+        if (circleRows) {
+          setJoinedCircleIds(circleRows.map((r: any) => r.circle_id));
+        }
       }
     });
   }, []);
@@ -715,6 +736,50 @@ const FameFeed = ({
     }
 
     toast.success("Page hooked!");
+  };
+
+  // ── Fetch real member counts once circle suggestions are loaded ───────────
+  useEffect(() => {
+    if (groupSuggestions.length === 0) return;
+    const ids = groupSuggestions.map((c: any) => c.id);
+    supabase
+      .from("circle_members")
+      .select("circle_id")
+      .in("circle_id", ids)
+      .then(({ data }) => {
+        if (!data) return;
+        const counts: { [key: string]: number } = {};
+        data.forEach((r: any) => {
+          counts[r.circle_id] = (counts[r.circle_id] || 0) + 1;
+        });
+        setCircleMemberCounts(counts);
+      });
+  }, [groupSuggestions]);
+
+  // ── Join a Circle ─────────────────────────────────────────────────────────
+  const handleJoinCircle = async (e: React.MouseEvent, circleId: string) => {
+    e.stopPropagation();
+    if (!currentUserId || joinedCircleIds.includes(circleId)) return;
+
+    // Optimistic update
+    setJoinedCircleIds(prev => [...prev, circleId]);
+    setCircleMemberCounts(prev => ({ ...prev, [circleId]: (prev[circleId] || 0) + 1 }));
+
+    const { error } = await supabase.from("circle_members").insert({
+      user_id: currentUserId,
+      circle_id: circleId,
+    });
+
+    if (error) {
+      if (!error.message?.includes("duplicate") && !error.message?.includes("unique")) {
+        setJoinedCircleIds(prev => prev.filter(id => id !== circleId));
+        setCircleMemberCounts(prev => ({ ...prev, [circleId]: Math.max((prev[circleId] || 1) - 1, 0) }));
+        toast.error("Could not join the circle. Please try again.");
+      }
+      return;
+    }
+
+    toast.success("Welcome to the Circle! ⭕");
   };
 
   const fetchPosts = async () => {
@@ -1291,9 +1356,10 @@ const FameFeed = ({
             <div key={block.key}>
               <SuggestedCirclesRow
                 circles={groupSuggestions}
-                doneIds={inFeedDoneIds}
-                onAction={handleInFeedAction}
-                onCreateCircle={onNavigateToCircles}
+                joinedIds={joinedCircleIds}
+                memberCounts={circleMemberCounts}
+                onJoin={handleJoinCircle}
+                onCircleClick={() => onNavigateToCircles?.()}
               />
               <FeedDivider />
             </div>
