@@ -841,17 +841,49 @@ const ChatSystem: React.FC<ChatSystemProps> = ({ isOpen, onClose, userId, onLogo
     try {
       const ext = file.name.split(".").pop();
       const fileName = `${userId}-${Date.now()}.${ext}`;
+
+      // ── Step 1: Upload to storage ────────────────────────────────────────
       const { error: storageError } = await supabase.storage
         .from("chat-media")
         .upload(fileName, file, { contentType: file.type, upsert: false });
-      if (storageError) throw storageError;
+      if (storageError) {
+        console.error("Supabase Storage Error:", storageError);
+        toast.error(`Storage upload failed: ${storageError.message}`);
+        alert(
+          `Storage Upload Failed!\n\nBucket: chat-media\nFile: ${fileName}\nType: ${file.type}\nSize: ${(file.size / 1024 / 1024).toFixed(2)} MB\n\nError: ${storageError.message}\nCode: ${storageError.name || "—"}`
+        );
+        return;
+      }
+
+      // ── Step 2: Get public URL ───────────────────────────────────────────
       const { data: urlData } = supabase.storage.from("chat-media").getPublicUrl(fileName);
+      const publicUrl = urlData.publicUrl;
+
+      // ── Step 3: Insert message row ───────────────────────────────────────
+      const insertPayload = {
+        sender_id: userId,
+        receiver_id: selectedUser.id,
+        content: "",
+        media_url: publicUrl,
+        media_type: file.type,
+      };
+      console.log("Inserting media message with payload:", insertPayload);
+
       const { data, error: dbError } = await supabase
         .from("messages")
-        .insert({ sender_id: userId, receiver_id: selectedUser.id, content: "", media_url: urlData.publicUrl, media_type: file.type })
+        .insert(insertPayload)
         .select()
         .single();
-      if (dbError) throw dbError;
+
+      if (dbError) {
+        console.error("Supabase DB Insert Error:", dbError);
+        toast.error(`DB insert failed: ${dbError.message}`);
+        alert(
+          `Database Insert Failed!\n\nTable: messages\nField: media_url ✓ (correct column name)\n\nPayload sent:\n${JSON.stringify(insertPayload, null, 2)}\n\nError: ${dbError.message}\nCode: ${dbError.code}\nHint: ${dbError.hint || "—"}\nDetails: ${dbError.details || "—"}`
+        );
+        return;
+      }
+
       if (data) {
         setMessages(prev => prev.find(m => m.id === (data as Message).id) ? prev : [...prev, data as Message]);
         fetchContacts();
@@ -859,8 +891,9 @@ const ChatSystem: React.FC<ChatSystemProps> = ({ isOpen, onClose, userId, onLogo
         toast.success("📎 File sent!");
       }
     } catch (err: any) {
-      console.error("Media upload error:", err);
+      console.error("Unexpected media upload error:", err);
       toast.error(`Upload failed: ${err?.message || "Unknown error"}`);
+      alert(`Unexpected Error during upload!\n\n${err?.message || "Unknown error"}`);
     } finally {
       setIsUploadingMedia(false);
     }
