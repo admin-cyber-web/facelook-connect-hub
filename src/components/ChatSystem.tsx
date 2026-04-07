@@ -725,9 +725,10 @@ const ChatSystem: React.FC<ChatSystemProps> = ({ isOpen, onClose, userId, onLogo
   };
 
   // ── Send message ──────────────────────────────────────────────────────────
-  const sendMessage = async () => {
-    if (!newMessage.trim() || !selectedUser || isSending) return;
-    const text = newMessage.trim(); setNewMessage(""); setIsSending(true);
+  const sendMessage = async (overrideText?: string) => {
+    const text = (overrideText ?? newMessage).trim();
+    if (!text || !selectedUser || isSending) return;
+    setIsSending(true);
     const replyRef = replyTo; setReplyTo(null);
     if (soundEnabled) playSound("send");
     const tempId = `temp-${Date.now()}`;
@@ -737,11 +738,20 @@ const ChatSystem: React.FC<ChatSystemProps> = ({ isOpen, onClose, userId, onLogo
     if (replyRef?.id) insertPayload.reply_to_id = replyRef.id;
     const { data, error } = await supabase.from("messages").insert(insertPayload).select().single();
     if (data) {
+      setNewMessage("");
       setMessages(prev => prev.map(m => m.id === tempId ? (data as Message) : m));
+      toast.success("📤 Message sent!");
       fetchContacts();
     } else if (error) {
       setMessages(prev => prev.filter(m => m.id !== tempId));
-      toast.error("Message send failed. Try again.");
+      console.error("Supabase Error:", error);
+      const reason = error.code === "PGRST301" || error.code?.startsWith("42")
+        ? "Database Permission Error"
+        : error.message?.toLowerCase().includes("fetch") || error.message?.toLowerCase().includes("network")
+          ? "Network Issue"
+          : error.message || "Unknown Error";
+      toast.error(`Message failed: ${reason}`);
+      alert(`Message send failed!\nReason: ${reason}\n\nDetails: ${error.message}`);
     }
     setIsSending(false);
   };
@@ -848,8 +858,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({ isOpen, onClose, userId, onLogo
 
         // ── SEND ──────────────────────────────────────────────────────────
         if (/^(send|भेज दो|भेजो|भेजना|send karo|message send|message bhejo|bhej do|bhejo)$/.test(raw)) {
-          sendMessage();
-          toast.success("📤 Message sent!");
+          setNewMessage(prev => { sendMessage(prev); return prev; });
           setTimeout(() => setVoiceStatus("listening"), 600);
           return;
         }
