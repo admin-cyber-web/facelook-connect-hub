@@ -97,6 +97,7 @@ interface ChatSystemProps {
   onClose: () => void;
   userId: string;
   onLogout?: () => void;
+  onUnreadCountChange?: (count: number) => void;
 }
 
 // ── Inject global keyframes once ───────────────────────────────────────────────
@@ -483,6 +484,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   onClose,
   userId,
   onLogout,
+  onUnreadCountChange,
 }) => {
   const { openProfile } = useProfileViewer();
 
@@ -532,6 +534,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   >(new Map());
   const [pendingRequests, setPendingRequests] = useState<FriendRequest[]>([]);
   const [pendingCount, setPendingCount] = useState(0);
+  const [unseenMsgCount, setUnseenMsgCount] = useState(0);
   const [actionLoading, setActionLoading] = useState("");
   const [contacts, setContacts] = useState<ChatContact[]>([]);
   const [loadingContacts, setLoadingContacts] = useState(false);
@@ -1061,6 +1064,41 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       supabase.removeChannel(ch);
     };
   }, [isOpen, userId, contacts, mutedChats]);
+
+  // ── Unseen message count (always-on, drives FAB badge) ────────────────────
+  const fetchUnseenCount = useCallback(async () => {
+    if (!userId) return;
+    const { count } = await supabase
+      .from("messages")
+      .select("id", { count: "exact", head: true })
+      .eq("receiver_id", userId)
+      .is("seen_at", null);
+    setUnseenMsgCount(count ?? 0);
+  }, [userId]);
+
+  useEffect(() => {
+    if (!userId) return;
+    fetchUnseenCount();
+    const ch = supabase
+      .channel(`unseen-count-${userId}`)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, (p) => {
+        const msg = p.new as any;
+        if (msg.receiver_id === userId && !msg.seen_at) {
+          setUnseenMsgCount(prev => prev + 1);
+        }
+      })
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "messages" }, (p) => {
+        const msg = p.new as any;
+        if (msg.receiver_id === userId) fetchUnseenCount();
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [userId, fetchUnseenCount]);
+
+  // ── Report total unread count to parent (for FAB badge) ──────────────────
+  useEffect(() => {
+    onUnreadCountChange?.(pendingCount + unseenMsgCount);
+  }, [pendingCount, unseenMsgCount, onUnreadCountChange]);
 
   // ── Search debounce ───────────────────────────────────────────────────────
   useEffect(() => {

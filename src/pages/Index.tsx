@@ -1006,6 +1006,7 @@ const Index = ({ session }: { session: Session }) => {
 
   // Chat
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [chatBadgeCount, setChatBadgeCount] = useState(0);
 
   // Frame Mode
   const [isFrameMode, setIsFrameMode] = useState(false);
@@ -2046,6 +2047,7 @@ const Index = ({ session }: { session: Session }) => {
         onClose={() => setIsChatOpen(false)}
         userId={userId}
         onLogout={handleLogout}
+        onUnreadCountChange={setChatBadgeCount}
       />
 
       {/* Chat FAB ──────────────────────────────────────────────────────────── */}
@@ -2058,9 +2060,11 @@ const Index = ({ session }: { session: Session }) => {
         className="fixed bottom-32 right-6 w-16 h-16 bg-blue-600 rounded-full shadow-2xl flex items-center justify-center z-[80] border-2 border-white/20 active:scale-90"
       >
         <MessageSquare size={28} fill="currentColor" />
-        <span className="absolute -top-1 -right-1 w-6 h-6 bg-red-500 rounded-full border-2 border-white text-[10px] font-black flex items-center justify-center animate-bounce">
-          3
-        </span>
+        {chatBadgeCount > 0 && (
+          <span className="absolute -top-1 -right-1 min-w-[24px] h-6 px-1 bg-red-500 rounded-full border-2 border-white text-[10px] font-black flex items-center justify-center animate-bounce">
+            {chatBadgeCount > 99 ? "99+" : chatBadgeCount}
+          </span>
+        )}
       </motion.button>
 
       {/* Side DVD-Tray Nav ──────────────────────────────────────────────── */}
