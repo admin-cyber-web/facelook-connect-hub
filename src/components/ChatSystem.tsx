@@ -37,6 +37,7 @@ import {
   Plus,
   Smile,
   Mic,
+  Pencil,
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { toast } from "sonner";
@@ -723,6 +724,9 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   const [selectedMusic, setSelectedMusic] = useState<File | null>(null);
   const [selectedMusicName, setSelectedMusicName] = useState<string>("");
   const musicInputRef = useRef<HTMLInputElement>(null);
+  const [viewerEditing, setViewerEditing] = useState(false);
+  const [viewerEditCaption, setViewerEditCaption] = useState("");
+  const [viewerEditMood, setViewerEditMood] = useState("");
 
   // ── Advanced features state ────────────────────────────────────────────────
   const [panicMode, setPanicMode] = useState(false);
@@ -1057,6 +1061,45 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     }
   };
 
+  // ── Delete story from viewer ───────────────────────────────────────────────
+  const deleteViewerStory = async () => {
+    const group = storyGroups[viewerGroupIdx];
+    const story = group?.stories[viewerStoryIdx];
+    if (!story) return;
+    const { error } = await supabase.from("stories").delete().eq("id", story.id).eq("user_id", userId);
+    if (error) { toast.error("Could not delete story"); return; }
+    toast.success("Story deleted ✓");
+    // Rebuild storyGroups without this story
+    const newGroups = storyGroups.map((g, gi) =>
+      gi === viewerGroupIdx ? { ...g, stories: g.stories.filter((_, si) => si !== viewerStoryIdx) } : g
+    ).filter(g => g.stories.length > 0);
+    setStoryGroups(newGroups);
+    if (newGroups.length === 0) { setStoryViewerOpen(false); setViewingStory(null); return; }
+    const newGroupIdx = Math.min(viewerGroupIdx, newGroups.length - 1);
+    const newStoryIdx = Math.min(viewerStoryIdx, newGroups[newGroupIdx].stories.length - 1);
+    setViewerGroupIdx(newGroupIdx);
+    setViewerStoryIdx(newStoryIdx);
+    setStoryElapsed(0);
+  };
+
+  // ── Save caption/mood edit from viewer ────────────────────────────────────
+  const saveViewerEdit = async () => {
+    const group = storyGroups[viewerGroupIdx];
+    const story = group?.stories[viewerStoryIdx];
+    if (!story) return;
+    const { error } = await supabase.from("stories").update({ caption: viewerEditCaption, mood: viewerEditMood || null }).eq("id", story.id).eq("user_id", userId);
+    if (error) { toast.error("Could not save changes"); return; }
+    // Update local state
+    const newGroups = storyGroups.map((g, gi) =>
+      gi === viewerGroupIdx
+        ? { ...g, stories: g.stories.map((s, si) => si === viewerStoryIdx ? { ...s, caption: viewerEditCaption, mood: viewerEditMood || null } : s) }
+        : g
+    );
+    setStoryGroups(newGroups);
+    setViewerEditing(false);
+    toast.success("Story updated ✨");
+  };
+
   // ── Update story (caption + emoji only) ───────────────────────────────────
   const updateStory = async () => {
     if (!editingStory) return;
@@ -1137,19 +1180,27 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     setStoryElapsed(0);
   }, [viewerGroupIdx, viewerStoryIdx]);
 
-  // ── Story viewer: music autoplay ──────────────────────────────────────────
+  // ── Story viewer: music autoplay (with full cleanup) ─────────────────────
   useEffect(() => {
-    if (!storyViewerOpen) { storyAudioRef.current?.pause(); return; }
+    const stopAudio = () => {
+      if (storyAudioRef.current) {
+        storyAudioRef.current.pause();
+        storyAudioRef.current.src = "";
+        storyAudioRef.current = null;
+      }
+    };
+    if (!storyViewerOpen) { stopAudio(); return; }
     const group = storyGroups[viewerGroupIdx];
     const story = group?.stories[viewerStoryIdx];
-    storyAudioRef.current?.pause();
+    stopAudio();
     if (story?.music_url) {
-      storyAudioRef.current = new Audio(story.music_url);
-      storyAudioRef.current.volume = 0.4;
-      storyAudioRef.current.loop = true;
-      storyAudioRef.current.play().catch(() => {});
+      const audio = new Audio(story.music_url);
+      audio.volume = 0.4;
+      audio.loop = true;
+      audio.play().catch(() => {});
+      storyAudioRef.current = audio;
     }
-    return () => { storyAudioRef.current?.pause(); };
+    return stopAudio;
   }, [storyViewerOpen, viewerGroupIdx, viewerStoryIdx, storyGroups]);
 
   // ── Story viewer: view tracking ───────────────────────────────────────────
@@ -2330,12 +2381,66 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                       <p className="text-white font-bold text-[13px] leading-none truncate">{pName}</p>
                       <p className="text-white/60 text-[10px] mt-0.5">{viewerStoryIdx + 1}/{totalInGroup} · {Math.max(0, Math.ceil(15 - storyElapsed))}s</p>
                     </div>
-                    {story.music_url && <Music size={14} className="text-white/60" />}
-                    <button onClick={() => { setStoryViewerOpen(false); setViewingStory(null); }}
+                    {story.music_url && <Music size={14} className="text-white/60 shrink-0" />}
+                    {/* Owner-only: Edit + Delete */}
+                    {story.user_id === userId && (
+                      <>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setViewerEditCaption(story.caption || ""); setViewerEditMood(story.mood || ""); setViewerEditing(v => !v); setStoryPaused(true); }}
+                          className="w-9 h-9 rounded-full bg-black/40 flex items-center justify-center border border-white/20"
+                        >
+                          <Pencil size={15} className="text-white" />
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); deleteViewerStory(); }}
+                          className="w-9 h-9 rounded-full bg-red-500/30 flex items-center justify-center border border-red-400/40"
+                        >
+                          <Trash2 size={15} className="text-red-300" />
+                        </button>
+                      </>
+                    )}
+                    <button onClick={() => { setStoryViewerOpen(false); setViewingStory(null); setViewerEditing(false); }}
                       className="w-9 h-9 rounded-full bg-black/40 flex items-center justify-center border border-white/20">
                       <X size={18} className="text-white" />
                     </button>
                   </div>
+                  {/* Inline edit panel — only shown to owner */}
+                  {viewerEditing && story.user_id === userId && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
+                      className="mx-3 mb-2 rounded-2xl overflow-hidden z-40 relative"
+                      style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(16px)", border: "1px solid rgba(255,255,255,0.12)" }}
+                      onPointerDown={e => e.stopPropagation()} onPointerUp={e => e.stopPropagation()}
+                    >
+                      <div className="p-3 flex flex-col gap-2">
+                        <input
+                          value={viewerEditCaption}
+                          onChange={e => setViewerEditCaption(e.target.value)}
+                          placeholder="Edit caption…"
+                          className="w-full rounded-xl px-3 py-2 text-sm text-white bg-white/10 border border-white/15 outline-none font-medium"
+                        />
+                        <div className="flex gap-1.5 flex-wrap">
+                          {[{k:"",l:"None"},{k:"happy",l:"😊"},{k:"sad",l:"😢"},{k:"love",l:"❤️"},{k:"angry",l:"😡"},{k:"party",l:"🎉"},{k:"chill",l:"😌"}].map(m => (
+                            <button key={m.k} onClick={() => setViewerEditMood(m.k)}
+                              className={`px-2.5 py-1 rounded-full text-xs font-bold border transition-all ${viewerEditMood === m.k ? "bg-white/25 text-white border-white/50" : "bg-white/8 text-white/50 border-white/15"}`}>
+                              {m.l}
+                            </button>
+                          ))}
+                        </div>
+                        <div className="flex gap-2">
+                          <button onClick={() => { setViewerEditing(false); setStoryPaused(false); }}
+                            className="flex-1 py-1.5 rounded-xl text-xs text-white/50 bg-white/5 border border-white/10">
+                            Cancel
+                          </button>
+                          <button onClick={() => { saveViewerEdit(); setStoryPaused(false); }}
+                            className="flex-1 py-1.5 rounded-xl text-xs text-white font-black"
+                            style={{ background: "linear-gradient(135deg,#f43f5e,#ef4444)" }}>
+                            Save
+                          </button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
                   {/* Story content */}
                   <div className="flex-1 relative overflow-hidden">
                     <AnimatePresence mode="wait">
