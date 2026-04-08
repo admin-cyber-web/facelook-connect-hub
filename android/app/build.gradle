@@ -10,9 +10,6 @@ android {
         versionCode 1
         versionName "1.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
-        aaptOptions {
-             instanceOf(com.android.build.gradle.internal.dsl.AaptOptions) ? nocompress("wav", "aidl", "bm", "gif", "jpg", "jpeg", "png", "obj", "stl", "csv", "arsc", "dat", "res", "bin", "lproj", "js", "bundle", "json", "ttf", "otf", "fnt", "afm", "pfb", "pfa", "pnc", "pnm", "ppm", "pbm", "pgm", "ras", "rgb", "cm", "ico", "cur", "ani", "tga", "pcx", "iff", "ilbm", "lbm", "ham", "ham8", "pica", "pict", "pct", "bmp", "dib", "webp", "vob", "m4v", "mp4", "mov", "wmv", "avi", "mpg", "mpeg", "mp3", "m4a", "ogg", "wav", "flac", "amr", "awb", "mid", "midi", "smf", "imy", "rtx", "ota", "mxmf", "xmf", "rtttl") : null
-        }
     }
     buildTypes {
         release {
@@ -38,17 +35,8 @@ dependencies {
 
 apply from: 'capacitor.build.gradle'
 
-try {
-    def servicesJSON = file('google-services.json')
-    if (servicesJSON.text) {
-        apply plugin: 'com.google.gms.google-services'
-    }
-} catch(Exception e) {
-    logger.info("google-services.json not found")
-}
-
 configurations.all {
-    resolutionStrategy.eachDependency { DependencyResolveDetails details ->
+    resolutionStrategy.eachDependency { details ->
         if (details.requested.group == 'org.jetbrains.kotlin') {
             details.useVersion "1.8.22"
         }
