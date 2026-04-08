@@ -253,8 +253,18 @@ const StoryViewer = ({
           duration={DURATION}
         />
 
+        {/* Close button — absolute top-right, always visible & tappable */}
+        <button
+          className="absolute top-14 right-3 z-[60] w-10 h-10 rounded-full bg-black/60 backdrop-blur-sm flex items-center justify-center border border-white/30"
+          onPointerDown={(e) => e.stopPropagation()}
+          onPointerUp={(e) => e.stopPropagation()}
+          onClick={(e) => { e.stopPropagation(); onClose(); }}
+        >
+          <X size={20} className="text-white" />
+        </button>
+
         {/* Header */}
-        <div className="flex items-center gap-2.5 px-3 py-2 z-20">
+        <div className="flex items-center gap-2.5 px-3 py-2 pr-16 z-20">
           {avatarUrl ? (
             <img src={avatarUrl} className="w-9 h-9 rounded-full object-cover border-2 border-white/60" />
           ) : (
@@ -272,12 +282,6 @@ const StoryViewer = ({
             </p>
           </div>
           {story.music_url && <Music size={14} className="text-white/60" />}
-          <button
-            onClick={(e) => { e.stopPropagation(); onClose(); }}
-            className="w-9 h-9 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center border border-white/20"
-          >
-            <X size={18} className="text-white" />
-          </button>
         </div>
 
         {/* Story content */}

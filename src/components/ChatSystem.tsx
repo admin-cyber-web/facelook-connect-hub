@@ -1186,6 +1186,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       if (storyAudioRef.current) {
         storyAudioRef.current.pause();
         storyAudioRef.current.src = "";
+        storyAudioRef.current.load();
         storyAudioRef.current = null;
       }
     };
@@ -2354,17 +2355,6 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                   onPointerUp={() => setStoryPaused(false)}
                   onPointerLeave={() => setStoryPaused(false)}
                 >
-                  {/* Background music audio tag — auto-plays with story */}
-                  {story.music_url && (
-                    <audio
-                      key={story.music_url}
-                      src={story.music_url}
-                      autoPlay
-                      loop
-                      style={{ display: "none" }}
-                      ref={(el) => { if (el) { storyAudioRef.current = el; el.volume = 0.4; el.play().catch(() => {}); } }}
-                    />
-                  )}
                   {/* Progress bar */}
                   <StoryProgressBar total={totalInGroup} current={viewerStoryIdx} elapsed={storyElapsed} duration={15} />
                   {/* Header */}
