@@ -35,8 +35,8 @@ export default defineConfig({
   build: {
     chunkSizeWarningLimit: 600,
     rollupOptions: {
-      // FIX: Externalizing the missing webgpu module to prevent build failure
-      external: ["onnxruntime-web/webgpu"],
+      // FIX: Dono modules ko externalize kiya hai taaki Rollup build na tute
+      external: ["onnxruntime-web", "onnxruntime-web/webgpu"],
       output: {
         // ── Manual Chunks ─────────────────────────────────────────────────
         manualChunks: (id: string) => {

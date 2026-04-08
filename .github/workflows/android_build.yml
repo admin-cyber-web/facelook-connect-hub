@@ -15,7 +15,9 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
       - name: Install Dependencies
-        run: npm install --legacy-peer-deps
+        run: |
+          npm install --legacy-peer-deps
+          npm install onnxruntime-web @imgly/background-removal
       - name: Build Web Project
         run: npm run build
       - name: Sync Capacitor
