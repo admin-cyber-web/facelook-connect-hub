@@ -5,7 +5,7 @@ import { useProfileViewer } from "../context/ProfileViewerContext";
 import {
   Send, Heart, MessageCircle, Share2, MoreVertical,
   Loader2, Trash2, EyeOff, Flag, X, Volume2, VolumeX, Image as ImageIcon,
-  Play, Users, Film, Plus, Eye,
+  Play, Users, Film, Plus, Eye, SmilePlus,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -614,6 +614,10 @@ const FameFeed = ({
   const [viewedPostIds, setViewedPostIds] = useState<Set<string>>(new Set());
   const [replyingTo, setReplyingTo] = useState<{ postId: string; commentId: string; author: string } | null>(null);
   const [replyText, setReplyText] = useState("");
+  const [insightsPostId, setInsightsPostId] = useState<string | null>(null);
+  const [insightsData, setInsightsData]     = useState<any[]>([]);
+  const [insightsLoading, setInsightsLoading] = useState(false);
+  const [insightsTab, setInsightsTab]       = useState("all");
   const [reportModal, setReportModal] = useState<{ postId: string; reason: string } | null>(null);
   const [reportSubmitting, setReportSubmitting] = useState(false);
   const [pageSuggestions, setPageSuggestions] = useState<any[]>([]);
@@ -1006,6 +1010,19 @@ const FameFeed = ({
     setPosts(prev => prev.map(p => p.id === post.id ? { ...p, shares_count: (p.shares_count || 0) + 1 } : p));
   };
 
+  const openInsights = async (postId: string) => {
+    setInsightsPostId(postId);
+    setInsightsTab("all");
+    setInsightsData([]);
+    setInsightsLoading(true);
+    const { data } = await supabase
+      .from("likes")
+      .select("reaction_type, profiles(id, full_name, avatar_url)")
+      .eq("post_id", postId);
+    setInsightsData(data || []);
+    setInsightsLoading(false);
+  };
+
   const incrementView = useCallback(async (postId: string) => {
     if (viewedPostIds.has(postId)) return;
     setViewedPostIds(p => new Set([...p, postId]));
@@ -1266,6 +1283,18 @@ const FameFeed = ({
             <Eye size={17} className="text-gray-300" />
             <span className="text-xs font-bold text-gray-400">{post.views_count || 0}</span>
           </div>
+
+          {/* Reaction Insights trigger */}
+          {(post.likes_count || 0) > 0 && (
+            <button
+              onClick={e => { e.stopPropagation(); openInsights(post.id); }}
+              className="flex items-center gap-1 group"
+              title="See who reacted"
+            >
+              <SmilePlus size={18} className="text-gray-300 group-hover:text-pink-500 transition-colors" />
+              <span className="text-xs font-bold text-gray-400">{post.likes_count}</span>
+            </button>
+          )}
 
           {/* Share */}
           <button onClick={() => handleShare(post)} className="flex items-center gap-1.5 group ml-auto">
@@ -1635,6 +1664,120 @@ const FameFeed = ({
                 className="w-full py-4 rounded-2xl bg-orange-500 text-white font-black text-sm uppercase tracking-wider disabled:opacity-40">
                 {reportSubmitting ? "Submitting…" : "Submit Report"}
               </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Reaction Insights Modal ───────────────────────────────────── */}
+      <AnimatePresence>
+        {insightsPostId && (
+          <motion.div
+            key="insights-backdrop"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[300] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm"
+            onClick={() => setInsightsPostId(null)}
+          >
+            <motion.div
+              key="insights-sheet"
+              initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 30, stiffness: 320 }}
+              className="w-full sm:max-w-md sm:rounded-3xl rounded-t-3xl bg-white/95 backdrop-blur-xl shadow-2xl flex flex-col max-h-[80vh]"
+              onClick={e => e.stopPropagation()}
+            >
+              {/* Handle pill */}
+              <div className="flex justify-center pt-3 pb-1 sm:hidden">
+                <div className="w-10 h-1 rounded-full bg-gray-300" />
+              </div>
+
+              {/* Header */}
+              <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+                <h3 className="font-black text-gray-900 text-base flex items-center gap-2">
+                  <SmilePlus size={18} className="text-pink-500" /> Reactions
+                </h3>
+                <button onClick={() => setInsightsPostId(null)}
+                  className="p-1.5 rounded-full bg-gray-100 hover:bg-gray-200 transition-colors">
+                  <X size={17} className="text-gray-500" />
+                </button>
+              </div>
+
+              {/* Reaction type tabs */}
+              {(() => {
+                const typesPresent = ["all", ...Array.from(new Set(insightsData.map((r: any) => r.reaction_type)))];
+                const filtered = insightsTab === "all"
+                  ? insightsData
+                  : insightsData.filter((r: any) => r.reaction_type === insightsTab);
+                return (
+                  <>
+                    <div className="flex items-center gap-2 px-4 py-3 overflow-x-auto no-scrollbar border-b border-gray-50">
+                      {typesPresent.map(type => {
+                        const r = REACTIONS.find(x => x.type === type);
+                        const label = type === "all" ? `All ${insightsData.length}` : `${r?.emoji ?? type} ${insightsData.filter((d: any) => d.reaction_type === type).length}`;
+                        return (
+                          <button key={type}
+                            onClick={() => setInsightsTab(type)}
+                            className={`shrink-0 px-3 py-1.5 rounded-full text-sm font-bold transition-all ${
+                              insightsTab === type
+                                ? "bg-blue-600 text-white shadow"
+                                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                            }`}>
+                            {label}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Reactor list */}
+                    <div className="overflow-y-auto flex-1 px-4 py-3 space-y-1">
+                      {insightsLoading ? (
+                        <div className="flex justify-center py-10">
+                          <Loader2 size={28} className="animate-spin text-blue-400" />
+                        </div>
+                      ) : filtered.length === 0 ? (
+                        <div className="flex flex-col items-center py-12 gap-3 text-gray-400">
+                          <SmilePlus size={40} className="opacity-30" />
+                          <p className="text-sm font-semibold">No reactions yet</p>
+                        </div>
+                      ) : (
+                        filtered.map((item: any, i: number) => {
+                          const profile = item.profiles;
+                          const emoji = REACTIONS.find(r => r.type === item.reaction_type)?.emoji ?? "👍";
+                          const initials = (profile?.full_name || "?")[0].toUpperCase();
+                          return (
+                            <motion.div
+                              key={i}
+                              initial={{ opacity: 0, x: -12 }}
+                              animate={{ opacity: 1, x: 0 }}
+                              transition={{ delay: i * 0.03 }}
+                              onClick={() => { if (profile?.id) { openProfile(profile.id); setInsightsPostId(null); } }}
+                              className="flex items-center gap-3 p-2.5 rounded-2xl hover:bg-gray-50 active:bg-gray-100 cursor-pointer transition-colors"
+                            >
+                              {/* Avatar + emoji badge */}
+                              <div className="relative shrink-0">
+                                {profile?.avatar_url ? (
+                                  <img src={profile.avatar_url} alt={profile.full_name}
+                                    className="w-10 h-10 rounded-full object-cover border-2 border-white shadow" />
+                                ) : (
+                                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-indigo-600 flex items-center justify-center text-white font-black text-sm border-2 border-white shadow">
+                                    {initials}
+                                  </div>
+                                )}
+                                <span className="absolute -bottom-1 -right-1 text-base leading-none bg-white rounded-full p-0.5 shadow">
+                                  {emoji}
+                                </span>
+                              </div>
+                              {/* Name */}
+                              <p className="font-bold text-gray-800 text-sm flex-1 truncate">
+                                {profile?.full_name || "Unknown"}
+                              </p>
+                            </motion.div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </>
+                );
+              })()}
             </motion.div>
           </motion.div>
         )}
