@@ -46,6 +46,7 @@ import { supabase } from "@/lib/supabaseClient";
 import Header from "@/components/Header";
 import GolSlider from "@/components/GolSlider";
 import FameFeed from "@/components/FameFeed";
+import { StoryBar } from "@/components/StoryBar";
 import FlicksFeed from "@/components/FlicksFeed";
 import CreatePost from "@/components/CreatePost";
 import ChatSystem from "@/components/ChatSystem";
@@ -1624,8 +1625,11 @@ const Index = ({ session }: { session: Session }) => {
             {activeFeature === "Fame" && (
               <div className="w-full overflow-y-auto bg-[#f0f2f5] min-h-screen">
 
+                {/* ── Stories Strip ─────────────────────────────────────────── */}
+                <StoryBar userProfile={profile} />
+
                 {/* ── Feature Cards: Fun Call + Frame (Section B style) ────── */}
-                <div className="px-3 pt-3 pb-1 grid grid-cols-2 gap-2.5">
+                <div className="px-3 pt-1 pb-1 grid grid-cols-2 gap-2.5">
 
                   {/* ── Fun Video Call Card ──────────────────────────────────── */}
                   <motion.button

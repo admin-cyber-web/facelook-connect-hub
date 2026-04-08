@@ -1453,9 +1453,6 @@ const FameFeed = ({
 
   return (
     <div className="bg-gray-50">
-      {/* ── Stories / Status Row ──────────────────────────────────────── */}
-      <StoryBar userProfile={userProfile} />
-
       {/* ── "What's on your mind" bar ──────────────────────────────────── */}
       <div className="flex items-center gap-3 px-4 py-2 bg-white border-b border-gray-100">
         {userProfile?.avatar_url ? (

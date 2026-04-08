@@ -701,15 +701,16 @@ const StoryBubble = ({
     <motion.button
       whileTap={{ scale: 0.9 }}
       onClick={onClick}
-      className="flex flex-col items-center gap-1.5 shrink-0"
-      style={{ width: 64 }}
+      className="flex flex-col items-center gap-2 shrink-0"
+      style={{ width: "calc((100vw - 28px) / 4.2)", maxWidth: 84 }}
     >
       <div
-        className={`w-14 h-14 rounded-full p-0.5 ${
+        className={`rounded-full p-0.5 ${
           hasStory
             ? "bg-gradient-to-tr from-orange-400 via-pink-500 to-purple-600"
             : "bg-gray-200"
         }`}
+        style={{ width: "calc((100vw - 28px) / 4.2 - 10px)", height: "calc((100vw - 28px) / 4.2 - 10px)", maxWidth: 74, maxHeight: 74 }}
       >
         <div className="w-full h-full rounded-full overflow-hidden bg-white p-0.5">
           {isSelf && !avatarUrl ? (
@@ -717,13 +718,13 @@ const StoryBubble = ({
               className="w-full h-full rounded-full flex items-center justify-center relative"
               style={{ background: "linear-gradient(135deg,#6366f1,#ec4899)" }}
             >
-              <Plus size={20} className="text-white" />
+              <Plus size={24} className="text-white" />
             </div>
           ) : avatarUrl ? (
             <img src={avatarUrl} className="w-full h-full rounded-full object-cover" />
           ) : (
             <div
-              className="w-full h-full rounded-full flex items-center justify-center text-white font-black text-base"
+              className="w-full h-full rounded-full flex items-center justify-center text-white font-black text-lg"
               style={{ background: gradFor(userId) }}
             >
               {firstName[0]}
@@ -731,7 +732,7 @@ const StoryBubble = ({
           )}
         </div>
       </div>
-      <span className="text-[10px] font-semibold text-gray-700 truncate w-full text-center">
+      <span className="text-[11px] font-semibold text-gray-700 truncate w-full text-center leading-tight">
         {isSelf ? "Your Story" : firstName}
       </span>
     </motion.button>
@@ -803,7 +804,7 @@ export const StoryBar = ({ userProfile }: { userProfile?: any }) => {
   return (
     <>
       <div className="bg-white border-b border-gray-100 py-3">
-        <div className="flex gap-3 overflow-x-auto px-4 no-scrollbar">
+        <div className="flex gap-2 overflow-x-auto px-3 no-scrollbar">
           {/* Your Story bubble */}
           <StoryBubble
             isSelf
