@@ -5,6 +5,7 @@ import {
   Search,
   X,
   ChevronLeft,
+  ChevronRight,
   Send,
   Paperclip,
   Music,
@@ -35,6 +36,7 @@ import {
   Camera,
   Plus,
   Smile,
+  Mic,
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { toast } from "sonner";
@@ -89,8 +91,17 @@ interface Story {
   image_url: string;
   caption?: string;
   emoji?: string;
+  mood?: string;
+  media_type?: string;
+  is_help_request?: boolean;
+  music_url?: string;
   created_at: string;
   profile?: Profile;
+}
+interface StoryGroup {
+  user_id: string;
+  profile: Profile;
+  stories: Story[];
 }
 interface ChatSystemProps {
   isOpen: boolean;
@@ -455,7 +466,85 @@ const EmojiBlast = ({
   );
 };
 
-// ── Story Circle ──────────────────────────────────────────────────────────────
+// ── Story mood filter map ─────────────────────────────────────────────────────
+const STORY_MOOD_FILTER: Record<string, string> = {
+  sad:   "grayscale(80%) brightness(0.75)",
+  happy: "saturate(1.4) brightness(1.05)",
+  angry: "saturate(1.8) hue-rotate(330deg) brightness(0.9)",
+  party: "saturate(2) contrast(1.15) brightness(1.1)",
+  love:  "sepia(0.4) saturate(1.6) brightness(1.05)",
+  chill: "saturate(0.8) brightness(0.95) hue-rotate(200deg)",
+};
+
+// ── Rain overlay ──────────────────────────────────────────────────────────────
+const StoryRainOverlay = () => (
+  <div className="absolute inset-0 pointer-events-none overflow-hidden z-10">
+    {Array.from({ length: 20 }).map((_, i) => (
+      <motion.div key={i} className="absolute w-px bg-blue-300/40 rounded-full"
+        style={{ left: `${(i / 20) * 100}%`, height: `${28 + Math.random() * 44}px`, top: "-10%" }}
+        animate={{ y: ["0%", "130%"], opacity: [0.7, 0] }}
+        transition={{ duration: 0.8 + Math.random() * 0.5, repeat: Infinity, delay: Math.random() * 1.4, ease: "linear" }}
+      />
+    ))}
+  </div>
+);
+
+// ── Neon overlay ──────────────────────────────────────────────────────────────
+const StoryNeonOverlay = () => (
+  <motion.div className="absolute inset-0 pointer-events-none z-10"
+    animate={{ background: [
+      "radial-gradient(circle at 30% 40%, rgba(236,72,153,0.25) 0%, transparent 60%)",
+      "radial-gradient(circle at 70% 60%, rgba(99,102,241,0.25) 0%, transparent 60%)",
+      "radial-gradient(circle at 50% 20%, rgba(245,158,11,0.25) 0%, transparent 60%)",
+      "radial-gradient(circle at 30% 40%, rgba(236,72,153,0.25) 0%, transparent 60%)",
+    ]}}
+    transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+  />
+);
+
+// ── Audio wave ────────────────────────────────────────────────────────────────
+const StoryAudioWave = () => (
+  <div className="flex items-center gap-1 justify-center">
+    {Array.from({ length: 7 }).map((_, i) => (
+      <motion.div key={i} className="w-1.5 rounded-full bg-white/80"
+        animate={{ height: ["8px", `${16 + i * 4}px`, "8px"] }}
+        transition={{ duration: 0.7, repeat: Infinity, delay: i * 0.1, ease: "easeInOut" }}
+      />
+    ))}
+  </div>
+);
+
+// ── Help sticker ──────────────────────────────────────────────────────────────
+const StoryHelpSticker = () => (
+  <motion.div className="absolute top-16 left-1/2 -translate-x-1/2 z-30 px-5 py-2 rounded-full select-none"
+    style={{ background: "linear-gradient(135deg,#f97316,#ef4444)" }}
+    animate={{ scale: [1, 1.08, 1], rotate: [-2, 2, -2] }}
+    transition={{ duration: 1.1, repeat: Infinity }}
+  >
+    <span className="text-white font-black text-base tracking-widest drop-shadow">🆘 MADAD</span>
+  </motion.div>
+);
+
+// ── Progress segments ─────────────────────────────────────────────────────────
+const StoryProgressBar = ({ total, current, elapsed, duration }: { total: number; current: number; elapsed: number; duration: number }) => (
+  <div className="flex gap-1 px-3 pt-2 z-40 relative">
+    {Array.from({ length: total }).map((_, i) => (
+      <div key={i} className="h-0.5 flex-1 rounded-full bg-white/30 overflow-hidden">
+        {i < current ? (
+          <div className="h-full w-full bg-white" />
+        ) : i === current ? (
+          <motion.div className="h-full bg-white origin-left" style={{ scaleX: Math.min(elapsed / duration, 1) }} />
+        ) : null}
+      </div>
+    ))}
+  </div>
+);
+
+// ── Gradient helper ───────────────────────────────────────────────────────────
+const _SGRADS = ["#6366f1","#ec4899","#f59e0b","#10b981","#3b82f6","#8b5cf6","#ef4444","#06b6d4"];
+const _sgradFor = (id: string) => { let h = 0; for (let i = 0; i < id.length; i++) h = ((h << 5) + h) ^ id.charCodeAt(i); return _SGRADS[Math.abs(h) % _SGRADS.length]; };
+
+// ── Story Circle (group-aware) ────────────────────────────────────────────────
 const StoryCircle = ({
   story,
   onClick,
@@ -463,13 +552,16 @@ const StoryCircle = ({
   story: Story;
   onClick: () => void;
 }) => (
-  <button
-    onClick={onClick}
-    className="flex flex-col items-center gap-1.5 shrink-0"
-  >
+  <button onClick={onClick} className="flex flex-col items-center gap-1.5 shrink-0">
     <div className="w-14 h-14 rounded-full p-0.5 bg-gradient-to-br from-rose-400 via-pink-500 to-red-400">
       <div className="w-full h-full rounded-full overflow-hidden border-2 border-white/10">
-        <img src={story.image_url} className="w-full h-full object-cover" />
+        {story.media_type === "voice" ? (
+          <div className="w-full h-full flex items-center justify-center" style={{ background: _sgradFor(story.user_id) }}>
+            <Mic size={18} className="text-white/80" />
+          </div>
+        ) : (
+          <img src={story.image_url} className="w-full h-full object-cover" />
+        )}
       </div>
     </div>
     <span className="text-[9px] font-black text-white/60 max-w-[52px] truncate">
@@ -477,6 +569,22 @@ const StoryCircle = ({
     </span>
   </button>
 );
+
+// ── Story view count (shown to story owner only) ──────────────────────────────
+const StoryViewCount = ({ storyId }: { storyId: string }) => {
+  const [count, setCount] = React.useState<number | null>(null);
+  React.useEffect(() => {
+    supabase.from("story_views").select("id", { count: "exact", head: true }).eq("story_id", storyId)
+      .then(({ count: c }) => setCount(c ?? 0));
+  }, [storyId]);
+  if (count === null) return null;
+  return (
+    <div className="absolute bottom-4 right-4 z-20 flex items-center gap-1 bg-black/40 backdrop-blur-sm rounded-full px-3 py-1.5 border border-white/15">
+      <Eye size={13} className="text-white/80" />
+      <span className="text-white text-[11px] font-bold">{count}</span>
+    </div>
+  );
+};
 
 // ── Main Component ─────────────────────────────────────────────────────────────
 const ChatSystem: React.FC<ChatSystemProps> = ({
@@ -587,17 +695,31 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
 
   // ── Stories ───────────────────────────────────────────────────────────────
   const [stories, setStories] = useState<Story[]>([]);
+  const [storyGroups, setStoryGroups] = useState<StoryGroup[]>([]);
   const [loadingStories, setLoadingStories] = useState(false);
   const [showStoryEditor, setShowStoryEditor] = useState(false);
   const [storyFile, setStoryFile] = useState<File | null>(null);
+  const [storyFiles, setStoryFiles] = useState<File[]>([]);
+  const [storyPreviews, setStoryPreviews] = useState<string[]>([]);
   const [storyPreviewUrl, setStoryPreviewUrl] = useState("");
   const [storyCaption, setStoryCaption] = useState("");
   const [storyEmoji, setStoryEmoji] = useState("");
+  const [storyMood, setStoryMood] = useState("");
+  const [storyIsHelp, setStoryIsHelp] = useState(false);
+  const [storyUploadProgress, setStoryUploadProgress] = useState(0);
   const [uploadingStory, setUploadingStory] = useState(false);
   const [viewingStory, setViewingStory] = useState<Story | null>(null);
+  const [viewerGroupIdx, setViewerGroupIdx] = useState(0);
+  const [viewerStoryIdx, setViewerStoryIdx] = useState(0);
+  const [storyViewerOpen, setStoryViewerOpen] = useState(false);
   const [editingStory, setEditingStory] = useState<Story | null>(null);
   const [deletingStory, setDeletingStory] = useState(false);
   const storyInputRef = useRef<HTMLInputElement>(null);
+  const storyAudioRef = useRef<HTMLAudioElement | null>(null);
+  const storyTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [storyElapsed, setStoryElapsed] = useState(0);
+  const [storyPaused, setStoryPaused] = useState(false);
+  const storyViewedRef = useRef<Set<string>>(new Set());
 
   // ── Advanced features state ────────────────────────────────────────────────
   const [panicMode, setPanicMode] = useState(false);
@@ -811,79 +933,85 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       const { data } = await supabase
         .from("stories")
         .select(
-          "id, user_id, image_url, caption, emoji, created_at, profiles(id, full_name, username, avatar_url)",
+          "id, user_id, image_url, caption, emoji, mood, media_type, is_help_request, music_url, created_at, profiles(id, full_name, username, avatar_url)",
         )
         .gte("created_at", cutoff)
-        .order("created_at", { ascending: false })
-        .limit(10);
+        .order("created_at", { ascending: true })
+        .limit(100);
       if (data) {
-        setStories(data.map((s: any) => ({ ...s, profile: s.profiles })));
+        const mapped: Story[] = data.map((s: any) => ({ ...s, profile: Array.isArray(s.profiles) ? s.profiles[0] : s.profiles }));
+        setStories(mapped);
+        // Build groups keyed by user_id
+        const map = new Map<string, StoryGroup>();
+        for (const s of mapped) {
+          if (!map.has(s.user_id)) {
+            map.set(s.user_id, { user_id: s.user_id, profile: s.profile as Profile, stories: [] });
+          }
+          map.get(s.user_id)!.stories.push(s);
+        }
+        setStoryGroups(Array.from(map.values()));
       }
     } catch (_) {
       setStories([]);
+      setStoryGroups([]);
     } finally {
       setLoadingStories(false);
     }
   }, []);
 
-  // ── Upload story ──────────────────────────────────────────────────────────
+  // ── Upload stories (batch multi-file) ────────────────────────────────────
   const uploadStory = async () => {
-    if (!storyFile) return;
+    const filesToUpload = storyFiles.length > 0 ? storyFiles : storyFile ? [storyFile] : [];
+    if (filesToUpload.length === 0) return;
     setUploadingStory(true);
-    try {
-      const ext = storyFile.name.split(".").pop();
-      const fileName = `stories/${userId}-${Date.now()}.${ext}`;
-      const { error: upErr } = await supabase.storage
-        .from("avatars")
-        .upload(fileName, storyFile, { upsert: true });
-      if (upErr) throw upErr;
-      const { data: urlData } = supabase.storage
-        .from("avatars")
-        .getPublicUrl(fileName);
-      const { error: insErr } = await supabase
-        .from("stories")
-        .insert({
+    setStoryUploadProgress(0);
+    let done = 0;
+    for (const file of filesToUpload) {
+      try {
+        const ext = file.name.split(".").pop() || "jpg";
+        const fileName = `stories/${userId}-${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+        const { error: upErr } = await supabase.storage
+          .from("avatars")
+          .upload(fileName, file, { upsert: true });
+        if (upErr) throw upErr;
+        const { data: urlData } = supabase.storage.from("avatars").getPublicUrl(fileName);
+        await supabase.from("stories").insert({
           user_id: userId,
           image_url: urlData.publicUrl,
-          caption: storyCaption,
-          emoji: storyEmoji,
+          caption: storyCaption || null,
+          emoji: storyEmoji || null,
+          mood: storyMood || null,
+          is_help_request: storyIsHelp || null,
+          media_type: file.type.startsWith("audio/") ? "voice" : "image",
         });
-      if (insErr) throw insErr;
-      toast.success("Story posted! 🌹");
-      setShowStoryEditor(false);
-      setStoryFile(null);
-      setStoryPreviewUrl("");
-      setStoryCaption("");
-      setStoryEmoji("");
-      fetchStories();
-    } catch (e: any) {
-      const msg = e?.message || "";
-      if (
-        msg.includes("does not exist") ||
-        msg.includes("relation") ||
-        msg.includes("stories")
-      ) {
-        toast.error("Stories table missing. Run the stories SQL setup first.");
-      } else if (
-        msg.includes("storage") ||
-        msg.includes("bucket") ||
-        msg.includes("not found")
-      ) {
-        toast.error(
-          "Storage bucket error. Check Supabase storage permissions.",
-        );
-      } else if (
-        msg.includes("row-level") ||
-        msg.includes("policy") ||
-        msg.includes("permission")
-      ) {
-        toast.error("Permission denied. Check Supabase RLS policies.");
-      } else {
-        toast.error(`Story failed: ${msg || "Unknown error"}`);
+      } catch (e: any) {
+        const msg = e?.message || "";
+        if (msg.includes("does not exist") || msg.includes("relation")) {
+          toast.error("Stories table missing. Run the stories SQL setup first.");
+        } else if (msg.includes("storage") || msg.includes("bucket")) {
+          toast.error("Storage bucket error. Check Supabase storage permissions.");
+        } else if (msg.includes("row-level") || msg.includes("policy")) {
+          toast.error("Permission denied. Check Supabase RLS policies.");
+        } else {
+          console.warn("[uploadStory]", msg);
+        }
       }
-    } finally {
-      setUploadingStory(false);
+      done++;
+      setStoryUploadProgress(Math.round((done / filesToUpload.length) * 100));
     }
+    toast.success(filesToUpload.length > 1 ? `${filesToUpload.length} stories posted! 🌟` : "Story posted! 🌹");
+    setShowStoryEditor(false);
+    setStoryFile(null);
+    setStoryFiles([]);
+    setStoryPreviews([]);
+    setStoryPreviewUrl("");
+    setStoryCaption("");
+    setStoryEmoji("");
+    setStoryMood("");
+    setStoryIsHelp(false);
+    setStoryUploadProgress(0);
+    fetchStories();
+    setUploadingStory(false);
   };
 
   // ── Delete story ───────────────────────────────────────────────────────────
@@ -954,6 +1082,62 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     fetchMyProfile,
     fetchStories,
   ]);
+
+  // ── Story viewer: 15s countdown timer ────────────────────────────────────
+  useEffect(() => {
+    if (!storyViewerOpen || storyPaused || storyGroups.length === 0) return;
+    storyTimerRef.current = setInterval(() => {
+      setStoryElapsed(e => {
+        if (e + 0.1 >= 15) {
+          // advance to next story
+          const group = storyGroups[viewerGroupIdx];
+          const totalInGroup = group?.stories.length ?? 0;
+          if (viewerStoryIdx + 1 < totalInGroup) {
+            setViewerStoryIdx(i => i + 1);
+          } else if (viewerGroupIdx + 1 < storyGroups.length) {
+            setViewerGroupIdx(g => g + 1);
+            setViewerStoryIdx(0);
+          } else {
+            setStoryViewerOpen(false);
+            setViewingStory(null);
+          }
+          return 0;
+        }
+        return e + 0.1;
+      });
+    }, 100);
+    return () => { if (storyTimerRef.current) clearInterval(storyTimerRef.current); };
+  }, [storyViewerOpen, storyPaused, viewerGroupIdx, viewerStoryIdx, storyGroups]);
+
+  // ── Story viewer: reset elapsed on story change ───────────────────────────
+  useEffect(() => {
+    setStoryElapsed(0);
+  }, [viewerGroupIdx, viewerStoryIdx]);
+
+  // ── Story viewer: music autoplay ──────────────────────────────────────────
+  useEffect(() => {
+    if (!storyViewerOpen) { storyAudioRef.current?.pause(); return; }
+    const group = storyGroups[viewerGroupIdx];
+    const story = group?.stories[viewerStoryIdx];
+    storyAudioRef.current?.pause();
+    if (story?.music_url) {
+      storyAudioRef.current = new Audio(story.music_url);
+      storyAudioRef.current.volume = 0.4;
+      storyAudioRef.current.loop = true;
+      storyAudioRef.current.play().catch(() => {});
+    }
+    return () => { storyAudioRef.current?.pause(); };
+  }, [storyViewerOpen, viewerGroupIdx, viewerStoryIdx, storyGroups]);
+
+  // ── Story viewer: view tracking ───────────────────────────────────────────
+  useEffect(() => {
+    if (!storyViewerOpen) return;
+    const group = storyGroups[viewerGroupIdx];
+    const story = group?.stories[viewerStoryIdx];
+    if (!story || storyViewedRef.current.has(story.id)) return;
+    storyViewedRef.current.add(story.id);
+    supabase.from("story_views").insert({ story_id: story.id, viewer_id: userId }).then(() => {});
+  }, [storyViewerOpen, viewerGroupIdx, viewerStoryIdx, storyGroups, userId]);
 
   // ── Presence: track who's actually online ─────────────────────────────────
   useEffect(() => {
@@ -1917,56 +2101,63 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
             style={{ background: "rgba(255,255,255,0.05)" }}
           >
             {myProfile?.avatar_url ? (
-              <img
-                src={myProfile.avatar_url}
-                className="w-full h-full rounded-full object-cover"
-              />
+              <img src={myProfile.avatar_url} className="w-full h-full rounded-full object-cover" />
             ) : (
               <Plus size={20} className={T.text3} />
             )}
-            <span
-              className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full flex items-center justify-center text-white font-black text-[10px]"
-              style={{ background: "linear-gradient(135deg,#f43f5e,#ef4444)" }}
-            >
+            <span className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full flex items-center justify-center text-white font-black text-[10px]"
+              style={{ background: "linear-gradient(135deg,#f43f5e,#ef4444)" }}>
               +
             </span>
           </div>
           <span className={`text-[9px] font-black ${T.text3}`}>Your Story</span>
         </button>
 
-        {/* Friend stories */}
+        {/* Friend stories — grouped */}
         {loadingStories ? (
           <div className="flex items-center justify-center w-14 h-14">
             <Loader2 size={16} className={`animate-spin ${T.text3}`} />
           </div>
-        ) : stories.length === 0 ? (
-          <div
-            className={`flex items-center gap-2 text-xs font-bold ${T.text3} italic px-2`}
-          >
-            No stories available. Start the fire! 🔥
+        ) : storyGroups.length === 0 ? (
+          <div className={`flex items-center gap-2 text-xs font-bold ${T.text3} italic px-2`}>
+            No stories yet. Start the fire! 🔥
           </div>
         ) : (
-          stories
-            .slice(0, 5)
-            .map((story) => (
-              <StoryCircle
-                key={story.id}
-                story={story}
-                onClick={() => setViewingStory(story)}
-              />
-            ))
+          storyGroups.slice(0, 6).map((group, gi) => (
+            <StoryCircle
+              key={group.user_id}
+              story={group.stories[0]}
+              onClick={() => {
+                setViewerGroupIdx(gi);
+                setViewerStoryIdx(0);
+                setStoryElapsed(0);
+                storyViewedRef.current.clear();
+                setStoryViewerOpen(true);
+              }}
+            />
+          ))
         )}
       </div>
       <input
         ref={storyInputRef}
         type="file"
-        accept="image/*"
+        accept="image/*,audio/*"
+        multiple
         className="hidden"
         onChange={(e) => {
-          const file = e.target.files?.[0];
-          if (!file) return;
-          setStoryFile(file);
-          setStoryPreviewUrl(URL.createObjectURL(file));
+          const files = Array.from(e.target.files || []).slice(0, 10);
+          if (files.length === 0) return;
+          if (files.length === 1) {
+            setStoryFile(files[0]);
+            setStoryFiles([files[0]]);
+            setStoryPreviews([URL.createObjectURL(files[0])]);
+            setStoryPreviewUrl(URL.createObjectURL(files[0]));
+          } else {
+            setStoryFiles(files);
+            setStoryPreviews(files.map(f => URL.createObjectURL(f)));
+            setStoryFile(files[0]);
+            setStoryPreviewUrl(URL.createObjectURL(files[0]));
+          }
           setShowStoryEditor(true);
           e.target.value = "";
         }}
@@ -2065,139 +2256,224 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
             />
           )}
 
-          {/* ── Story viewer overlay ──────────────────────────────────────── */}
+          {/* ── Full Instagram-style Story viewer ─────────────────────────── */}
           <AnimatePresence>
-            {viewingStory && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="fixed inset-0 z-[300] bg-black/90 flex items-center justify-center"
-                onClick={() => setViewingStory(null)}
-              >
-                <div className="relative w-full max-w-sm mx-4">
-                  <img
-                    src={viewingStory.image_url}
-                    className="w-full rounded-3xl object-contain max-h-[80vh]"
-                  />
-                  {viewingStory.caption && (
-                    <div className="absolute bottom-4 left-0 right-0 px-6 text-center">
-                      <p className="text-white font-black text-lg text-shadow">
-                        {viewingStory.emoji} {viewingStory.caption}
-                      </p>
-                    </div>
-                  )}
-                  <div className="absolute top-4 left-4 flex items-center gap-2">
-                    <Avatar
-                      url={viewingStory.profile?.avatar_url}
-                      name={viewingStory.profile?.full_name}
-                      size="sm"
-                    />
-                    <span className="text-white font-black text-sm">
-                      {viewingStory.profile?.full_name}
-                    </span>
-                  </div>
-                  <button
-                    onClick={() => setViewingStory(null)}
-                    className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white"
-                  >
-                    <X size={16} />
-                  </button>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {/* ── Story editor modal ────────────────────────────────────────── */}
-          <AnimatePresence>
-            {showStoryEditor && storyPreviewUrl && (
-              <>
+            {storyViewerOpen && storyGroups.length > 0 && (() => {
+              const group = storyGroups[viewerGroupIdx];
+              const story = group?.stories[viewerStoryIdx];
+              if (!group || !story) return null;
+              const totalInGroup = group.stories.length;
+              const isVoice = story.media_type === "voice";
+              const moodFilter = STORY_MOOD_FILTER[story.mood ?? ""] ?? "";
+              const isSad = story.mood === "sad";
+              const isParty = story.mood === "party";
+              const pName = group.profile?.full_name || "User";
+              const aUrl = group.profile?.avatar_url;
+              return (
                 <motion.div
+                  key="sv"
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
+                  className="fixed inset-0 z-[400] bg-black flex flex-col touch-none"
+                  onPointerDown={() => setStoryPaused(true)}
+                  onPointerUp={() => setStoryPaused(false)}
+                  onPointerLeave={() => setStoryPaused(false)}
+                >
+                  {/* Progress bar */}
+                  <StoryProgressBar total={totalInGroup} current={viewerStoryIdx} elapsed={storyElapsed} duration={15} />
+                  {/* Header */}
+                  <div className="flex items-center gap-2.5 px-3 py-2 z-20">
+                    {aUrl ? (
+                      <img src={aUrl} className="w-9 h-9 rounded-full object-cover border-2 border-white/60" />
+                    ) : (
+                      <div className="w-9 h-9 rounded-full border-2 border-white/60 flex items-center justify-center text-white font-black text-sm shrink-0"
+                        style={{ background: _sgradFor(group.user_id) }}>
+                        {pName[0]}
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-white font-bold text-[13px] leading-none truncate">{pName}</p>
+                      <p className="text-white/60 text-[10px] mt-0.5">{viewerStoryIdx + 1}/{totalInGroup} · {Math.max(0, Math.ceil(15 - storyElapsed))}s</p>
+                    </div>
+                    {story.music_url && <Music size={14} className="text-white/60" />}
+                    <button onClick={() => { setStoryViewerOpen(false); setViewingStory(null); }}
+                      className="w-9 h-9 rounded-full bg-black/40 flex items-center justify-center border border-white/20">
+                      <X size={18} className="text-white" />
+                    </button>
+                  </div>
+                  {/* Story content */}
+                  <div className="flex-1 relative overflow-hidden">
+                    <AnimatePresence mode="wait">
+                      <motion.div key={story.id}
+                        initial={{ opacity: 0, scale: 1.04 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.96 }}
+                        transition={{ duration: 0.22 }}
+                        className="absolute inset-0"
+                      >
+                        {isVoice ? (
+                          <div className="w-full h-full flex flex-col items-center justify-center gap-6"
+                            style={{ background: `linear-gradient(160deg,${_sgradFor(group.user_id)},#0f172a)` }}>
+                            <motion.div className="w-28 h-28 rounded-full border-4 border-white/40 overflow-hidden shadow-2xl"
+                              animate={{ scale: [1,1.07,1], boxShadow: ["0 0 0 0 rgba(255,255,255,0.2)","0 0 0 18px rgba(255,255,255,0)","0 0 0 0 rgba(255,255,255,0)"] }}
+                              transition={{ duration: 1.4, repeat: Infinity }}>
+                              {aUrl ? <img src={aUrl} className="w-full h-full object-cover" /> :
+                                <div className="w-full h-full flex items-center justify-center text-white font-black text-4xl" style={{ background: _sgradFor(group.user_id) }}>{pName[0]}</div>}
+                            </motion.div>
+                            <StoryAudioWave />
+                            {story.caption && <p className="text-white/80 text-sm font-medium px-6 text-center">{story.caption}</p>}
+                            <div className="flex items-center gap-1.5"><Mic size={14} className="text-white/50" /><span className="text-white/50 text-[11px]">Voice Story</span></div>
+                          </div>
+                        ) : (
+                          <div className="w-full h-full relative">
+                            <img src={story.image_url} className="w-full h-full object-cover" style={{ filter: moodFilter }} draggable={false} />
+                            {isSad && <StoryRainOverlay />}
+                            {isParty && <StoryNeonOverlay />}
+                          </div>
+                        )}
+                        {story.is_help_request && <StoryHelpSticker />}
+                        {(story.caption || story.emoji) && (
+                          <div className="absolute bottom-16 left-4 right-4 z-20">
+                            <div className="bg-black/40 backdrop-blur-md rounded-2xl px-4 py-3 inline-block max-w-full">
+                              {story.emoji && <span className="text-2xl mr-2">{story.emoji}</span>}
+                              {story.caption && <span className="text-white text-sm font-medium leading-snug">{story.caption}</span>}
+                            </div>
+                          </div>
+                        )}
+                        {/* View count for owner */}
+                        {story.user_id === userId && (
+                          <StoryViewCount storyId={story.id} />
+                        )}
+                      </motion.div>
+                    </AnimatePresence>
+                    {/* Tap zones */}
+                    <button className="absolute left-0 top-0 w-1/3 h-full z-30"
+                      onClick={e => { e.stopPropagation();
+                        setStoryElapsed(0);
+                        if (viewerStoryIdx > 0) setViewerStoryIdx(i => i - 1);
+                        else if (viewerGroupIdx > 0) { setViewerGroupIdx(g => g - 1); setViewerStoryIdx(storyGroups[viewerGroupIdx - 1].stories.length - 1); }
+                      }}
+                      onPointerDown={e => e.stopPropagation()} onPointerUp={e => e.stopPropagation()} />
+                    <button className="absolute right-0 top-0 w-1/3 h-full z-30"
+                      onClick={e => { e.stopPropagation();
+                        setStoryElapsed(0);
+                        if (viewerStoryIdx + 1 < totalInGroup) setViewerStoryIdx(i => i + 1);
+                        else if (viewerGroupIdx + 1 < storyGroups.length) { setViewerGroupIdx(g => g + 1); setViewerStoryIdx(0); }
+                        else { setStoryViewerOpen(false); setViewingStory(null); }
+                      }}
+                      onPointerDown={e => e.stopPropagation()} onPointerUp={e => e.stopPropagation()} />
+                    {(viewerStoryIdx > 0 || viewerGroupIdx > 0) && (
+                      <div className="absolute left-2 top-1/2 -translate-y-1/2 z-30 pointer-events-none"><ChevronLeft size={26} className="text-white/50" /></div>
+                    )}
+                    {(viewerStoryIdx + 1 < totalInGroup || viewerGroupIdx + 1 < storyGroups.length) && (
+                      <div className="absolute right-2 top-1/2 -translate-y-1/2 z-30 pointer-events-none"><ChevronRight size={26} className="text-white/50" /></div>
+                    )}
+                  </div>
+                </motion.div>
+              );
+            })()}
+          </AnimatePresence>
+
+          {/* ── Story editor modal (multi-file, mood, madad) ─────────────── */}
+          <AnimatePresence>
+            {showStoryEditor && (storyPreviewUrl || storyPreviews.length > 0) && (
+              <>
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                   className="fixed inset-0 z-[280] bg-black/70 backdrop-blur-sm"
                   onClick={() => setShowStoryEditor(false)}
                 />
-                <motion.div
-                  initial={{ y: "100%", opacity: 0 }}
-                  animate={{ y: 0, opacity: 1 }}
-                  exit={{ y: "100%", opacity: 0 }}
+                <motion.div initial={{ y: "100%", opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: "100%", opacity: 0 }}
                   transition={{ type: "spring", stiffness: 300, damping: 28 }}
-                  className="fixed bottom-0 left-0 right-0 z-[290] rounded-t-3xl overflow-hidden"
-                  style={{
-                    background: "rgba(15,5,30,0.97)",
-                    backdropFilter: "blur(20px)",
-                    border: "1px solid rgba(255,255,255,0.1)",
-                  }}
+                  className="fixed bottom-0 left-0 right-0 z-[290] rounded-t-3xl overflow-hidden max-h-[90vh] overflow-y-auto"
+                  style={{ background: "rgba(15,5,30,0.97)", backdropFilter: "blur(20px)", border: "1px solid rgba(255,255,255,0.1)" }}
                 >
                   <div className="p-5">
                     <div className="flex items-center justify-between mb-4">
                       <p className="text-white font-black text-base">
-                        Create Story ✨
+                        {storyFiles.length > 1 ? `Post ${storyFiles.length} Stories ✨` : "Create Story ✨"}
                       </p>
-                      <button
-                        onClick={() => setShowStoryEditor(false)}
-                        className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white/60"
-                      >
+                      <button onClick={() => setShowStoryEditor(false)} className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white/60">
                         <X size={14} />
                       </button>
                     </div>
-                    {/* Preview */}
-                    <div className="relative w-full h-52 rounded-2xl overflow-hidden mb-4">
-                      <img
-                        src={storyPreviewUrl}
-                        className="w-full h-full object-cover"
-                      />
-                      {(storyCaption || storyEmoji) && (
-                        <div className="absolute bottom-3 left-0 right-0 text-center px-4">
-                          <span className="text-white font-black text-base bg-black/40 px-3 py-1 rounded-full backdrop-blur-sm">
-                            {storyEmoji} {storyCaption}
-                          </span>
-                        </div>
-                      )}
-                    </div>
+                    {/* Multi-file preview thumbnails */}
+                    {storyPreviews.length > 1 ? (
+                      <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar mb-4">
+                        {storyPreviews.map((url, i) => (
+                          <div key={i} className="flex-shrink-0 w-20 h-28 rounded-xl overflow-hidden bg-white/10 relative">
+                            {storyFiles[i]?.type.startsWith("audio/") ? (
+                              <div className="w-full h-full flex items-center justify-center" style={{ background: "linear-gradient(135deg,#6366f1,#ec4899)" }}>
+                                <Mic size={20} className="text-white" />
+                              </div>
+                            ) : (
+                              <img src={url} className="w-full h-full object-cover" />
+                            )}
+                            <div className="absolute bottom-1 right-1 bg-black/50 rounded-full px-1.5 py-0.5">
+                              <span className="text-white text-[9px] font-bold">{i + 1}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="relative w-full h-52 rounded-2xl overflow-hidden mb-4">
+                        <img src={storyPreviewUrl} className="w-full h-full object-cover" style={{ filter: STORY_MOOD_FILTER[storyMood] || "" }} />
+                        {storyMood === "sad" && <StoryRainOverlay />}
+                        {storyMood === "party" && <StoryNeonOverlay />}
+                        {storyIsHelp && <StoryHelpSticker />}
+                        {(storyCaption || storyEmoji) && (
+                          <div className="absolute bottom-3 left-0 right-0 text-center px-4">
+                            <span className="text-white font-black text-base bg-black/40 px-3 py-1 rounded-full backdrop-blur-sm">{storyEmoji} {storyCaption}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
                     {/* Caption */}
-                    <input
-                      value={storyCaption}
-                      onChange={(e) => setStoryCaption(e.target.value)}
-                      placeholder="Add a caption..."
+                    <input value={storyCaption} onChange={(e) => setStoryCaption(e.target.value)} placeholder="Add a caption..."
                       className="w-full rounded-2xl px-4 py-3 text-base font-bold text-white outline-none border border-white/10 mb-3"
                       style={{ background: "rgba(255,255,255,0.08)" }}
                     />
                     {/* Emoji picker */}
-                    <div className="flex gap-2 mb-4 flex-wrap">
-                      {["🌹", "❤️", "🔥", "✨", "😍", "💫", "🎉", "💕"].map(
-                        (em) => (
-                          <button
-                            key={em}
-                            onClick={() =>
-                              setStoryEmoji(storyEmoji === em ? "" : em)
-                            }
-                            className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl transition-all ${storyEmoji === em ? "bg-white/25 scale-110" : "bg-white/8 hover:bg-white/15"}`}
-                          >
-                            {em}
-                          </button>
-                        ),
-                      )}
+                    <div className="flex gap-2 mb-3 flex-wrap">
+                      {["🌹","❤️","🔥","✨","😍","💫","🎉","💕"].map(em => (
+                        <button key={em} onClick={() => setStoryEmoji(storyEmoji === em ? "" : em)}
+                          className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl transition-all ${storyEmoji === em ? "bg-white/25 scale-110" : "bg-white/8 hover:bg-white/15"}`}>
+                          {em}
+                        </button>
+                      ))}
                     </div>
+                    {/* Mood selector */}
+                    <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-1.5">Mood Filter</p>
+                    <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2 mb-3">
+                      {[{k:"",l:"None"},{k:"happy",l:"😊 Happy"},{k:"sad",l:"😢 Sad"},{k:"love",l:"❤️ Love"},{k:"angry",l:"😡 Angry"},{k:"party",l:"🎉 Party"},{k:"chill",l:"😌 Chill"}].map(m => (
+                        <button key={m.k} onClick={() => setStoryMood(m.k)}
+                          className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-bold border transition-all ${storyMood === m.k ? "bg-white/20 text-white border-white/40" : "bg-white/5 text-white/50 border-white/10"}`}>
+                          {m.l}
+                        </button>
+                      ))}
+                    </div>
+                    {/* Madad toggle */}
+                    <button onClick={() => setStoryIsHelp(v => !v)}
+                      className={`w-full py-2.5 rounded-2xl text-sm font-black border-2 mb-4 transition-all ${storyIsHelp ? "bg-orange-500/20 text-orange-300 border-orange-500/50" : "bg-white/5 text-white/40 border-white/10"}`}>
+                      🆘 {storyIsHelp ? "Madad Request ON" : "Mark as Madad Request"}
+                    </button>
+                    {/* Upload progress */}
+                    {uploadingStory && (
+                      <div className="mb-3">
+                        <div className="flex justify-between mb-1">
+                          <span className="text-xs text-white/60 font-bold">Uploading…</span>
+                          <span className="text-xs text-white/40">{storyUploadProgress}%</span>
+                        </div>
+                        <div className="w-full h-1.5 rounded-full bg-white/10 overflow-hidden">
+                          <motion.div className="h-full rounded-full" style={{ background: "linear-gradient(90deg,#f43f5e,#ef4444)", width: `${storyUploadProgress}%` }} transition={{ duration: 0.3 }} />
+                        </div>
+                      </div>
+                    )}
                     {/* Post button */}
-                    <button
-                      onClick={uploadStory}
-                      disabled={uploadingStory}
+                    <button onClick={uploadStory} disabled={uploadingStory}
                       className="w-full py-3.5 rounded-2xl text-white font-black text-base flex items-center justify-center gap-2 disabled:opacity-60 transition-all"
-                      style={{
-                        background: "linear-gradient(135deg, #f43f5e, #ef4444)",
-                      }}
-                    >
-                      {uploadingStory ? (
-                        <>
-                          <Loader2 size={16} className="animate-spin" />{" "}
-                          Posting...
-                        </>
-                      ) : (
-                        "Post Story 🌹"
-                      )}
+                      style={{ background: "linear-gradient(135deg,#f43f5e,#ef4444)" }}>
+                      {uploadingStory ? <><Loader2 size={16} className="animate-spin" /> Posting {storyFiles.length > 1 ? `${storyFiles.length} Stories` : ""}...</> : `Post ${storyFiles.length > 1 ? storyFiles.length + " Stories" : "Story"} 🌹`}
                     </button>
                   </div>
                 </motion.div>
@@ -3108,71 +3384,79 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                   <input
                     ref={storyInputRef}
                     type="file"
-                    accept="image/*"
+                    accept="image/*,audio/*"
+                    multiple
                     className="hidden"
                     onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (!file) return;
-                      setStoryFile(file);
-                      setStoryPreviewUrl(URL.createObjectURL(file));
+                      const files = Array.from(e.target.files || []).slice(0, 10);
+                      if (files.length === 0) return;
+                      setStoryFiles(files);
+                      setStoryPreviews(files.map(f => URL.createObjectURL(f)));
+                      setStoryFile(files[0]);
+                      setStoryPreviewUrl(URL.createObjectURL(files[0]));
                       setShowStoryEditor(true);
                       e.target.value = "";
                     }}
                   />
-                  <p
-                    className={`text-[10px] font-black uppercase tracking-widest mb-3 ${T.text3}`}
-                  >
+                  <p className={`text-[10px] font-black uppercase tracking-widest mb-3 ${T.text3}`}>
                     Recent Stories
                   </p>
                   {loadingStories ? (
                     <div className="flex items-center justify-center py-10">
-                      <Loader2
-                        size={20}
-                        className={`animate-spin ${T.text3}`}
-                      />
+                      <Loader2 size={20} className={`animate-spin ${T.text3}`} />
                     </div>
-                  ) : stories.length === 0 ? (
+                  ) : storyGroups.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
                       <p className="text-5xl">🔥</p>
-                      <p className={`text-base font-black ${T.text3}`}>
-                        No stories available. Start the fire! 🔥
-                      </p>
-                      <p className={`text-xs ${T.text3}`}>
-                        Be the first to post a story today
-                      </p>
+                      <p className={`text-base font-black ${T.text3}`}>No stories available. Start the fire! 🔥</p>
+                      <p className={`text-xs ${T.text3}`}>Be the first to post a story today</p>
                     </div>
                   ) : (
                     <div className="grid grid-cols-2 gap-3">
-                      {stories.map((story) => (
-                        <button
-                          key={story.id}
-                          onClick={() => setViewingStory(story)}
-                          className={`relative h-48 rounded-2xl overflow-hidden border ${T.divider} cursor-pointer hover:scale-105 transition-transform`}
-                        >
-                          <img
-                            src={story.image_url}
-                            className="w-full h-full object-cover"
-                          />
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-                          <div className="absolute top-3 left-3">
-                            <Avatar
-                              url={story.profile?.avatar_url}
-                              name={story.profile?.full_name}
-                              size="sm"
-                            />
-                          </div>
-                          <div className="absolute bottom-3 left-3 right-3">
-                            {story.caption && (
-                              <p className="text-white text-xs font-black truncate">
-                                {story.emoji} {story.caption}
-                              </p>
+                      {storyGroups.map((group, gi) => {
+                        const story = group.stories[0];
+                        const pName = group.profile?.full_name || "User";
+                        const aUrl = group.profile?.avatar_url;
+                        return (
+                          <motion.button key={group.user_id}
+                            onClick={() => { setViewerGroupIdx(gi); setViewerStoryIdx(0); setStoryElapsed(0); storyViewedRef.current.clear(); setStoryViewerOpen(true); }}
+                            className={`relative h-48 rounded-2xl overflow-hidden border ${T.divider} cursor-pointer`}
+                            whileTap={{ scale: 0.97 }}>
+                            {story.media_type === "voice" ? (
+                              <div className="w-full h-full flex flex-col items-center justify-center gap-2" style={{ background: `linear-gradient(160deg,${_sgradFor(group.user_id)},#0f172a)` }}>
+                                <Mic size={24} className="text-white/80" />
+                                <span className="text-white/50 text-xs">Voice Story</span>
+                              </div>
+                            ) : (
+                              <img src={story.image_url} className="w-full h-full object-cover"
+                                style={{ filter: STORY_MOOD_FILTER[story.mood ?? ""] ?? "" }} />
                             )}
-                            <p className="text-white/60 text-[10px]">
-                              {story.profile?.full_name?.split(" ")[0]}
-                            </p>
-                          </div>
-                        </button>
-                      ))}
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                            {group.stories.length > 1 && (
+                              <div className="absolute top-2 right-2 bg-black/60 rounded-full px-2 py-0.5">
+                                <span className="text-white text-[10px] font-black">{group.stories.length}</span>
+                              </div>
+                            )}
+                            {story.is_help_request && (
+                              <div className="absolute top-2 left-2 bg-orange-500 rounded-full px-1.5 py-0.5">
+                                <span className="text-white text-[10px] font-black">🆘</span>
+                              </div>
+                            )}
+                            <div className="absolute top-2 left-2">
+                              {aUrl ? (
+                                <img src={aUrl} className="w-8 h-8 rounded-full object-cover border border-white/60" />
+                              ) : (
+                                <div className="w-8 h-8 rounded-full border border-white/60 flex items-center justify-center text-white font-black text-sm"
+                                  style={{ background: _sgradFor(group.user_id) }}>{pName[0]}</div>
+                              )}
+                            </div>
+                            <div className="absolute bottom-2 left-2 right-2">
+                              {story.caption && <p className="text-white text-xs font-black truncate">{story.emoji} {story.caption}</p>}
+                              <p className="text-white/60 text-[10px]">{pName.split(" ")[0]}</p>
+                            </div>
+                          </motion.button>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
