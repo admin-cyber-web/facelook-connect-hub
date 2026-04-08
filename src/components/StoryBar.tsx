@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, X, ChevronLeft, ChevronRight, Eye, Loader2, Music, Mic } from "lucide-react";
+import { Plus, X, ChevronLeft, ChevronRight, Eye, Loader2, Music, Mic, Download, Share2 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface Story {
@@ -30,12 +30,16 @@ interface StoryGroup {
 
 // ── Mood CSS filter map ────────────────────────────────────────────────────────
 const MOOD_FILTER: Record<string, string> = {
-  sad:     "grayscale(80%) brightness(0.75)",
-  happy:   "saturate(1.4) brightness(1.05)",
-  angry:   "saturate(1.8) hue-rotate(330deg) brightness(0.9)",
-  party:   "saturate(2) contrast(1.15) brightness(1.1)",
-  love:    "sepia(0.4) saturate(1.6) brightness(1.05)",
-  chill:   "saturate(0.8) brightness(0.95) hue-rotate(200deg)",
+  sad:            "grayscale(80%) brightness(0.75)",
+  happy:          "saturate(1.4) brightness(1.05)",
+  angry:          "saturate(1.8) hue-rotate(330deg) brightness(0.9)",
+  party:          "saturate(2) contrast(1.15) brightness(1.1)",
+  love:           "sepia(0.4) saturate(1.6) brightness(1.05)",
+  chill:          "saturate(0.8) brightness(0.95) hue-rotate(200deg)",
+  "vibrant-gold": "sepia(0.35) saturate(2.2) brightness(1.12) contrast(1.08)",
+  cyberpunk:      "saturate(2.6) hue-rotate(255deg) contrast(1.25) brightness(0.88)",
+  noir:           "grayscale(100%) contrast(1.45) brightness(0.88)",
+  grid:           "",
 };
 
 // ── Gradient for anonymous avatars ────────────────────────────────────────────
@@ -323,8 +327,24 @@ const StoryViewer = ({
                     <span className="text-white/50 text-[11px]">Voice Story</span>
                   </div>
                 </div>
+              ) : story.media_type === "video" ? (
+                story.mood === "grid" ? (
+                  <div className="w-full h-full grid grid-cols-2 grid-rows-2">
+                    {[0,1,2,3].map(j => (
+                      <video key={j} src={story.image_url} className="w-full h-full object-cover" autoPlay muted={!!story.music_url} playsInline loop />
+                    ))}
+                  </div>
+                ) : (
+                  <video src={story.image_url} className="w-full h-full object-cover" autoPlay muted={!!story.music_url} playsInline loop style={{ filter: moodFilter }} />
+                )
+              ) : story.mood === "grid" ? (
+                <div className="w-full h-full grid grid-cols-2 grid-rows-2">
+                  {[0,1,2,3].map(j => (
+                    <img key={j} src={story.image_url} className="w-full h-full object-cover" style={{ transform: j % 2 === 1 ? "scaleX(-1)" : undefined }} draggable={false} />
+                  ))}
+                </div>
               ) : (
-                /* Image/video story */
+                /* Image story */
                 <div className="w-full h-full relative">
                   <img
                     src={story.image_url}
@@ -351,6 +371,24 @@ const StoryViewer = ({
                   </div>
                 </div>
               )}
+
+              {/* Share & Download */}
+              <div className="absolute bottom-4 left-4 z-20 flex gap-2">
+                <button
+                  onPointerDown={e => e.stopPropagation()} onPointerUp={e => e.stopPropagation()}
+                  onClick={e => { e.stopPropagation(); const url = story.image_url; if (navigator.share) { navigator.share({ title: "Facelook Story", url }).catch(() => {}); } else { navigator.clipboard.writeText(url); toast.success("Link copied!"); } }}
+                  className="w-9 h-9 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center border border-white/20"
+                >
+                  <Share2 size={15} className="text-white" />
+                </button>
+                <button
+                  onPointerDown={e => e.stopPropagation()} onPointerUp={e => e.stopPropagation()}
+                  onClick={e => { e.stopPropagation(); const a = document.createElement("a"); a.href = story.image_url; a.download = `facelook-story`; a.target = "_blank"; document.body.appendChild(a); a.click(); document.body.removeChild(a); }}
+                  className="w-9 h-9 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center border border-white/20"
+                >
+                  <Download size={15} className="text-white" />
+                </button>
+              </div>
 
               {/* View count — only for story owner */}
               {currentUserId === story.user_id && (
@@ -429,18 +467,24 @@ const StoryUploader = ({
   const inputRef = useRef<HTMLInputElement>(null);
 
   const MOODS = [
-    { key: "", label: "None" },
+    { key: "", label: "✨ None" },
     { key: "happy", label: "😊 Happy" },
     { key: "sad", label: "😢 Sad" },
     { key: "love", label: "❤️ Love" },
     { key: "angry", label: "😡 Angry" },
     { key: "party", label: "🎉 Party" },
     { key: "chill", label: "😌 Chill" },
+    { key: "vibrant-gold", label: "🌟 Gold" },
+    { key: "cyberpunk", label: "⚡ Cyber" },
+    { key: "noir", label: "🎞 Noir" },
+    { key: "grid", label: "▦ Grid" },
   ];
 
   const handleFiles = (selected: FileList | null) => {
     if (!selected || selected.length === 0) return;
     const arr = Array.from(selected).slice(0, 10);
+    const oversized = arr.find(f => f.type.startsWith("video/") && f.size > 30 * 1024 * 1024);
+    if (oversized) { toast.error("Please shorten your file under 30MB"); return; }
     setFiles(arr);
     const urls = arr.map(f => URL.createObjectURL(f));
     setPreviews(urls);
@@ -471,7 +515,7 @@ const StoryUploader = ({
           caption: caption.trim() || null,
           mood: mood || null,
           is_help_request: isHelp || null,
-          media_type: file.type.startsWith("audio/") ? "voice" : "image",
+          media_type: file.type.startsWith("audio/") ? "voice" : file.type.startsWith("video/") ? "video" : "image",
         });
       } catch (e: any) {
         console.warn("[StoryUploader] upload error:", e?.message);
@@ -513,7 +557,7 @@ const StoryUploader = ({
           <input
             ref={inputRef}
             type="file"
-            accept="image/*,audio/*"
+            accept="image/*,video/*,audio/*"
             multiple
             className="hidden"
             onChange={e => handleFiles(e.target.files)}
@@ -534,6 +578,13 @@ const StoryUploader = ({
                   {files[i]?.type.startsWith("audio/") ? (
                     <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-500 to-indigo-600">
                       <Mic size={24} className="text-white" />
+                    </div>
+                  ) : files[i]?.type.startsWith("video/") ? (
+                    <div className="w-full h-full relative bg-black">
+                      <video src={url} className="w-full h-full object-cover" muted playsInline />
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                        <span className="text-white text-lg">🎬</span>
+                      </div>
                     </div>
                   ) : (
                     <img src={url} className="w-full h-full object-cover" />

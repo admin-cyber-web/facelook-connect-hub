@@ -38,6 +38,9 @@ import {
   Smile,
   Mic,
   Pencil,
+  Download,
+  Share2,
+  VideoIcon,
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { toast } from "sonner";
@@ -469,12 +472,16 @@ const EmojiBlast = ({
 
 // ── Story mood filter map ─────────────────────────────────────────────────────
 const STORY_MOOD_FILTER: Record<string, string> = {
-  sad:   "grayscale(80%) brightness(0.75)",
-  happy: "saturate(1.4) brightness(1.05)",
-  angry: "saturate(1.8) hue-rotate(330deg) brightness(0.9)",
-  party: "saturate(2) contrast(1.15) brightness(1.1)",
-  love:  "sepia(0.4) saturate(1.6) brightness(1.05)",
-  chill: "saturate(0.8) brightness(0.95) hue-rotate(200deg)",
+  sad:           "grayscale(80%) brightness(0.75)",
+  happy:         "saturate(1.4) brightness(1.05)",
+  angry:         "saturate(1.8) hue-rotate(330deg) brightness(0.9)",
+  party:         "saturate(2) contrast(1.15) brightness(1.1)",
+  love:          "sepia(0.4) saturate(1.6) brightness(1.05)",
+  chill:         "saturate(0.8) brightness(0.95) hue-rotate(200deg)",
+  "vibrant-gold":"sepia(0.35) saturate(2.2) brightness(1.12) contrast(1.08)",
+  cyberpunk:     "saturate(2.6) hue-rotate(255deg) contrast(1.25) brightness(0.88)",
+  noir:          "grayscale(100%) contrast(1.45) brightness(0.88)",
+  grid:          "",
 };
 
 // ── Rain overlay ──────────────────────────────────────────────────────────────
@@ -724,6 +731,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   const [selectedMusic, setSelectedMusic] = useState<File | null>(null);
   const [selectedMusicName, setSelectedMusicName] = useState<string>("");
   const musicInputRef = useRef<HTMLInputElement>(null);
+  const [muteStoryVideo, setMuteStoryVideo] = useState(false);
   const [viewerEditing, setViewerEditing] = useState(false);
   const [viewerEditCaption, setViewerEditCaption] = useState("");
   const [viewerEditMood, setViewerEditMood] = useState("");
@@ -1006,7 +1014,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
           emoji: storyEmoji || null,
           mood: storyMood || null,
           is_help_request: storyIsHelp || null,
-          media_type: file.type.startsWith("audio/") ? "voice" : "image",
+          media_type: file.type.startsWith("audio/") ? "voice" : file.type.startsWith("video/") ? "video" : "image",
           music_url: musicPublicUrl || null,
         });
       } catch (e: any) {
@@ -1037,6 +1045,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     setStoryUploadProgress(0);
     setSelectedMusic(null);
     setSelectedMusicName("");
+    setMuteStoryVideo(false);
     fetchStories();
     setUploadingStory(false);
   };
@@ -2216,12 +2225,15 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       <input
         ref={storyInputRef}
         type="file"
-        accept="image/*,audio/*"
+        accept="image/*,video/*,audio/*"
         multiple
         className="hidden"
         onChange={(e) => {
-          const files = Array.from(e.target.files || []).slice(0, 10);
-          if (files.length === 0) return;
+          const allFiles = Array.from(e.target.files || []).slice(0, 10);
+          if (allFiles.length === 0) return;
+          const oversized = allFiles.find(f => f.type.startsWith("video/") && f.size > 30 * 1024 * 1024);
+          if (oversized) { toast.error("Please shorten your file under 30MB"); e.target.value = ""; return; }
+          const files = allFiles;
           if (files.length === 1) {
             setStoryFile(files[0]);
             setStoryFiles([files[0]]);
@@ -2389,9 +2401,12 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                         </button>
                       </>
                     )}
-                    <button onClick={() => { setStoryViewerOpen(false); setViewingStory(null); setViewerEditing(false); }}
-                      className="w-9 h-9 rounded-full bg-black/40 flex items-center justify-center border border-white/20">
-                      <X size={18} className="text-white" />
+                    <button
+                      onPointerDown={e => e.stopPropagation()}
+                      onPointerUp={e => e.stopPropagation()}
+                      onClick={() => { setStoryViewerOpen(false); setViewingStory(null); setViewerEditing(false); }}
+                      className="w-10 h-10 rounded-full bg-black/60 backdrop-blur-sm flex items-center justify-center border border-white/30">
+                      <X size={20} className="text-white" />
                     </button>
                   </div>
                   {/* Inline edit panel — only shown to owner */}
@@ -2454,6 +2469,22 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                             {story.caption && <p className="text-white/80 text-sm font-medium px-6 text-center">{story.caption}</p>}
                             <div className="flex items-center gap-1.5"><Mic size={14} className="text-white/50" /><span className="text-white/50 text-[11px]">Voice Story</span></div>
                           </div>
+                        ) : story.media_type === "video" ? (
+                          story.mood === "grid" ? (
+                            <div className="w-full h-full grid grid-cols-2 grid-rows-2">
+                              {[0,1,2,3].map(j => (
+                                <video key={j} src={story.image_url} className="w-full h-full object-cover" autoPlay muted={!!story.music_url} playsInline loop />
+                              ))}
+                            </div>
+                          ) : (
+                            <video src={story.image_url} className="w-full h-full object-cover" autoPlay muted={!!story.music_url} playsInline loop style={{ filter: moodFilter }} />
+                          )
+                        ) : story.mood === "grid" ? (
+                          <div className="w-full h-full grid grid-cols-2 grid-rows-2">
+                            {[0,1,2,3].map(j => (
+                              <img key={j} src={story.image_url} className="w-full h-full object-cover" style={{ transform: j % 2 === 1 ? "scaleX(-1)" : undefined }} draggable={false} />
+                            ))}
+                          </div>
                         ) : (
                           <div className="w-full h-full relative">
                             <img src={story.image_url} className="w-full h-full object-cover" style={{ filter: moodFilter }} draggable={false} />
@@ -2470,6 +2501,23 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                             </div>
                           </div>
                         )}
+                        {/* Share & Download */}
+                        <div className="absolute bottom-4 left-4 z-20 flex gap-2">
+                          <button
+                            onPointerDown={e => e.stopPropagation()} onPointerUp={e => e.stopPropagation()}
+                            onClick={e => { e.stopPropagation(); const url = story.image_url; if (navigator.share) { navigator.share({ title: "Facelook Story", url }).catch(() => {}); } else { navigator.clipboard.writeText(url); toast.success("Link copied!"); } }}
+                            className="w-9 h-9 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center border border-white/20"
+                          >
+                            <Share2 size={15} className="text-white" />
+                          </button>
+                          <button
+                            onPointerDown={e => e.stopPropagation()} onPointerUp={e => e.stopPropagation()}
+                            onClick={e => { e.stopPropagation(); const a = document.createElement("a"); a.href = story.image_url; a.download = `facelook-story`; a.target = "_blank"; document.body.appendChild(a); a.click(); document.body.removeChild(a); }}
+                            className="w-9 h-9 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center border border-white/20"
+                          >
+                            <Download size={15} className="text-white" />
+                          </button>
+                        </div>
                         {/* View count for owner */}
                         {story.user_id === userId && (
                           <StoryViewCount storyId={story.id} />
@@ -2535,6 +2583,13 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                               <div className="w-full h-full flex items-center justify-center" style={{ background: "linear-gradient(135deg,#6366f1,#ec4899)" }}>
                                 <Mic size={20} className="text-white" />
                               </div>
+                            ) : storyFiles[i]?.type.startsWith("video/") ? (
+                              <div className="w-full h-full relative">
+                                <video src={url} className="w-full h-full object-cover" muted playsInline />
+                                <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                                  <VideoIcon size={18} className="text-white" />
+                                </div>
+                              </div>
                             ) : (
                               <img src={url} className="w-full h-full object-cover" />
                             )}
@@ -2546,7 +2601,21 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                       </div>
                     ) : (
                       <div className="relative w-full h-52 rounded-2xl overflow-hidden mb-4">
-                        <img src={storyPreviewUrl} className="w-full h-full object-cover" style={{ filter: STORY_MOOD_FILTER[storyMood] || "" }} />
+                        {storyMood === "grid" ? (
+                          <div className="w-full h-full grid grid-cols-2 grid-rows-2">
+                            {[0,1,2,3].map(j => (
+                              storyFile?.type.startsWith("video/") ? (
+                                <video key={j} src={storyPreviewUrl} className="w-full h-full object-cover" muted playsInline loop autoPlay />
+                              ) : (
+                                <img key={j} src={storyPreviewUrl} className="w-full h-full object-cover" style={{ transform: j % 2 === 1 ? "scaleX(-1)" : undefined }} />
+                              )
+                            ))}
+                          </div>
+                        ) : storyFile?.type.startsWith("video/") ? (
+                          <video src={storyPreviewUrl} className="w-full h-full object-cover" style={{ filter: STORY_MOOD_FILTER[storyMood] || "" }} muted playsInline loop autoPlay />
+                        ) : (
+                          <img src={storyPreviewUrl} className="w-full h-full object-cover" style={{ filter: STORY_MOOD_FILTER[storyMood] || "" }} />
+                        )}
                         {storyMood === "sad" && <StoryRainOverlay />}
                         {storyMood === "party" && <StoryNeonOverlay />}
                         {storyIsHelp && <StoryHelpSticker />}
@@ -2571,10 +2640,32 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                         </button>
                       ))}
                     </div>
-                    {/* Mood selector */}
-                    <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-1.5">Mood Filter</p>
+                    {/* Mute video toggle — only shown when a video file is selected */}
+                    {storyFiles.some(f => f.type.startsWith("video/")) && (
+                      <button
+                        type="button"
+                        onClick={() => setMuteStoryVideo(v => !v)}
+                        className={`w-full py-2.5 rounded-2xl text-sm font-black border-2 mb-3 transition-all flex items-center justify-center gap-2 ${muteStoryVideo ? "bg-yellow-500/20 text-yellow-300 border-yellow-500/50" : "bg-white/5 text-white/50 border-white/10"}`}
+                      >
+                        {muteStoryVideo ? "🔇 Video Muted (Music Plays Over)" : "🔊 Mute Video (Play Music Over It)"}
+                      </button>
+                    )}
+                    {/* Mood / Filter selector */}
+                    <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-1.5">Filter</p>
                     <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2 mb-3">
-                      {[{k:"",l:"None"},{k:"happy",l:"😊 Happy"},{k:"sad",l:"😢 Sad"},{k:"love",l:"❤️ Love"},{k:"angry",l:"😡 Angry"},{k:"party",l:"🎉 Party"},{k:"chill",l:"😌 Chill"}].map(m => (
+                      {[
+                        {k:"",l:"✨ None"},
+                        {k:"happy",l:"😊 Happy"},
+                        {k:"sad",l:"😢 Sad"},
+                        {k:"love",l:"❤️ Love"},
+                        {k:"angry",l:"😡 Angry"},
+                        {k:"party",l:"🎉 Party"},
+                        {k:"chill",l:"😌 Chill"},
+                        {k:"vibrant-gold",l:"🌟 Gold"},
+                        {k:"cyberpunk",l:"⚡ Cyber"},
+                        {k:"noir",l:"🎞 Noir"},
+                        {k:"grid",l:"▦ Grid"},
+                      ].map(m => (
                         <button key={m.k} onClick={() => setStoryMood(m.k)}
                           className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-bold border transition-all ${storyMood === m.k ? "bg-white/20 text-white border-white/40" : "bg-white/5 text-white/50 border-white/10"}`}>
                           {m.l}
@@ -3548,12 +3639,15 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                   <input
                     ref={storyInputRef}
                     type="file"
-                    accept="image/*,audio/*"
+                    accept="image/*,video/*,audio/*"
                     multiple
                     className="hidden"
                     onChange={(e) => {
-                      const files = Array.from(e.target.files || []).slice(0, 10);
-                      if (files.length === 0) return;
+                      const allFiles = Array.from(e.target.files || []).slice(0, 10);
+                      if (allFiles.length === 0) return;
+                      const oversized = allFiles.find(f => f.type.startsWith("video/") && f.size > 30 * 1024 * 1024);
+                      if (oversized) { toast.error("Please shorten your file under 30MB"); e.target.value = ""; return; }
+                      const files = allFiles;
                       setStoryFiles(files);
                       setStoryPreviews(files.map(f => URL.createObjectURL(f)));
                       setStoryFile(files[0]);
