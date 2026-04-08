@@ -720,6 +720,9 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   const [storyElapsed, setStoryElapsed] = useState(0);
   const [storyPaused, setStoryPaused] = useState(false);
   const storyViewedRef = useRef<Set<string>>(new Set());
+  const [selectedMusic, setSelectedMusic] = useState<File | null>(null);
+  const [selectedMusicName, setSelectedMusicName] = useState<string>("");
+  const musicInputRef = useRef<HTMLInputElement>(null);
 
   // ── Advanced features state ────────────────────────────────────────────────
   const [panicMode, setPanicMode] = useState(false);
@@ -965,6 +968,23 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     if (filesToUpload.length === 0) return;
     setUploadingStory(true);
     setStoryUploadProgress(0);
+
+    // ── Upload background music first (if selected) ──────────────────────────
+    let musicPublicUrl: string | null = null;
+    if (selectedMusic) {
+      try {
+        const mExt = selectedMusic.name.split(".").pop() || "mp3";
+        const mName = `stories/music-${userId}-${Date.now()}.${mExt}`;
+        const { error: mErr } = await supabase.storage
+          .from("avatars")
+          .upload(mName, selectedMusic, { upsert: true });
+        if (!mErr) {
+          const { data: mUrl } = supabase.storage.from("avatars").getPublicUrl(mName);
+          musicPublicUrl = mUrl.publicUrl;
+        }
+      } catch (_) {}
+    }
+
     let done = 0;
     for (const file of filesToUpload) {
       try {
@@ -983,6 +1003,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
           mood: storyMood || null,
           is_help_request: storyIsHelp || null,
           media_type: file.type.startsWith("audio/") ? "voice" : "image",
+          music_url: musicPublicUrl || null,
         });
       } catch (e: any) {
         const msg = e?.message || "";
@@ -1010,6 +1031,8 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     setStoryMood("");
     setStoryIsHelp(false);
     setStoryUploadProgress(0);
+    setSelectedMusic(null);
+    setSelectedMusicName("");
     fetchStories();
     setUploadingStory(false);
   };
@@ -2280,6 +2303,17 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                   onPointerUp={() => setStoryPaused(false)}
                   onPointerLeave={() => setStoryPaused(false)}
                 >
+                  {/* Background music audio tag — auto-plays with story */}
+                  {story.music_url && (
+                    <audio
+                      key={story.music_url}
+                      src={story.music_url}
+                      autoPlay
+                      loop
+                      style={{ display: "none" }}
+                      ref={(el) => { if (el) { storyAudioRef.current = el; el.volume = 0.4; el.play().catch(() => {}); } }}
+                    />
+                  )}
                   {/* Progress bar */}
                   <StoryProgressBar total={totalInGroup} current={viewerStoryIdx} elapsed={storyElapsed} duration={15} />
                   {/* Header */}
@@ -2452,6 +2486,41 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                         </button>
                       ))}
                     </div>
+                    {/* Background music upload */}
+                    <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-1.5">Background Music</p>
+                    <input
+                      ref={musicInputRef}
+                      type="file"
+                      accept="audio/*"
+                      id="music-upload"
+                      className="hidden"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (!f) return;
+                        setSelectedMusic(f);
+                        setSelectedMusicName(f.name);
+                        e.target.value = "";
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => musicInputRef.current?.click()}
+                      className={`w-full py-2.5 rounded-2xl text-sm font-black border-2 mb-3 transition-all flex items-center justify-center gap-2 ${selectedMusic ? "bg-purple-500/20 text-purple-300 border-purple-500/50" : "bg-white/5 text-white/50 border-white/10"}`}
+                    >
+                      <Music size={15} />
+                      {selectedMusic
+                        ? `🎵 ${selectedMusicName.slice(0, 28)}${selectedMusicName.length > 28 ? "…" : ""}`
+                        : "🎵 Add Background Music"}
+                    </button>
+                    {selectedMusic && (
+                      <button
+                        type="button"
+                        onClick={() => { setSelectedMusic(null); setSelectedMusicName(""); }}
+                        className="w-full py-1.5 rounded-xl text-xs text-red-400/70 mb-3"
+                      >
+                        ✕ Remove music
+                      </button>
+                    )}
                     {/* Madad toggle */}
                     <button onClick={() => setStoryIsHelp(v => !v)}
                       className={`w-full py-2.5 rounded-2xl text-sm font-black border-2 mb-4 transition-all ${storyIsHelp ? "bg-orange-500/20 text-orange-300 border-orange-500/50" : "bg-white/5 text-white/40 border-white/10"}`}>
