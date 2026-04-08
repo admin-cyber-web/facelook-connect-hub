@@ -31,6 +31,13 @@ import {
   Handshake,
   Share2,
   Trash2,
+  HelpCircle,
+  Utensils,
+  Pill,
+  Shirt,
+  GraduationCap,
+  Radio,
+  UserRound,
 } from "lucide-react";
 
 // DHAYAN DEIN: Sirf ye ek supabase import rehna chahiye
@@ -1617,49 +1624,113 @@ const Index = ({ session }: { session: Session }) => {
             {activeFeature === "Fame" && (
               <div className="w-full overflow-y-auto bg-[#f0f2f5] min-h-screen">
 
-                {/* ── Feature Cards: Fun Call (Red) + Frame (Blue) ────────── */}
-                <div className="px-3 pt-3 pb-1 grid grid-cols-2 gap-3">
-                  <motion.button whileTap={{ scale: 0.96 }} onClick={() => setIsVideoCallOpen(true)}
-                    className="flex flex-col items-start gap-2 p-4 rounded-2xl text-white shadow-md text-left overflow-hidden relative"
-                    style={{
-                      backgroundImage: "url('https://images.unsplash.com/photo-1609921212029-bb5a28e60960?w=600&q=80')",
-                      backgroundSize: "cover",
-                      backgroundPosition: "center",
-                    }}
+                {/* ── Feature Cards: Fun Call + Frame (Section B style) ────── */}
+                <div className="px-3 pt-3 pb-1 grid grid-cols-2 gap-2.5">
+
+                  {/* ── Fun Video Call Card ──────────────────────────────────── */}
+                  <motion.button
+                    whileTap={{ scale: 0.97 }}
+                    onClick={() => setIsVideoCallOpen(true)}
+                    className="flex flex-col items-start text-left bg-white rounded-2xl overflow-hidden"
+                    style={{ border: "1.5px solid #e5e7eb", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}
                   >
-                    <div className="absolute inset-0 rounded-2xl" style={{ background: "linear-gradient(135deg,rgba(239,68,68,0.78) 0%,rgba(185,28,28,0.82) 100%)" }} />
-                    <div className="relative z-10 w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center">
-                      <Video size={18} className="text-white" />
+                    {/* Header row */}
+                    <div className="flex items-center gap-1.5 px-3 pt-3 pb-1.5 w-full border-b border-gray-100">
+                      <div className="w-6 h-6 rounded-lg bg-violet-100 flex items-center justify-center shrink-0">
+                        <Video size={13} className="text-violet-600" />
+                      </div>
+                      <span className="text-[11px] font-black text-gray-800 leading-none">Fun Video Call</span>
                     </div>
-                    <div className="relative z-10">
-                      <p className="text-[12px] font-black leading-tight text-white">Fun Video Call</p>
-                      <p className="text-[9px] text-white font-semibold mt-0.5 opacity-90">Stranger se baat karo</p>
+
+                    {/* Emoji row */}
+                    <div className="flex items-center justify-center gap-1 py-2 w-full">
+                      <motion.span
+                        className="text-[22px] leading-none"
+                        animate={{ y: [0, -4, 0] }}
+                        transition={{ duration: 1.6, repeat: Infinity, delay: 0 }}
+                      >😊</motion.span>
+                      <motion.span
+                        className="text-[18px] leading-none"
+                        animate={{ y: [0, -5, 0] }}
+                        transition={{ duration: 1.4, repeat: Infinity, delay: 0.3 }}
+                      >🎉</motion.span>
+                      <motion.span
+                        className="text-[20px] leading-none"
+                        animate={{ y: [0, -4, 0] }}
+                        transition={{ duration: 1.8, repeat: Infinity, delay: 0.6 }}
+                      >✨</motion.span>
                     </div>
-                    <div className="relative z-10 flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-green-300 animate-pulse" />
-                      <span className="text-[9px] font-black text-green-200 uppercase">Live</span>
+
+                    {/* Buttons */}
+                    <div className="flex flex-col gap-1.5 px-2.5 pb-3 w-full">
+                      <div
+                        className="flex items-center justify-center gap-1.5 py-1.5 rounded-full"
+                        style={{ background: "linear-gradient(90deg,#7c3aed,#6366f1)", boxShadow: "0 2px 8px rgba(99,102,241,0.35)" }}
+                      >
+                        <UserRound size={11} className="text-white" />
+                        <span className="text-[10px] font-black text-white tracking-wide">Stranger Call</span>
+                      </div>
+                      <div
+                        className="flex items-center justify-center gap-1.5 py-1.5 rounded-full"
+                        style={{ background: "linear-gradient(90deg,#ef4444,#f97316)", boxShadow: "0 2px 8px rgba(239,68,68,0.30)" }}
+                      >
+                        <Radio size={11} className="text-white" />
+                        <span className="text-[10px] font-black text-white tracking-wide">Live</span>
+                      </div>
                     </div>
                   </motion.button>
 
-                  <motion.button whileTap={{ scale: 0.96 }} onClick={() => setIsFrameMode(true)}
-                    className="flex flex-col items-start gap-2 p-4 rounded-2xl text-white shadow-md text-left overflow-hidden relative"
-                    style={{
-                      backgroundImage: "url('https://images.unsplash.com/photo-1516534775068-ba3e7458af70?w=600&q=80')",
-                      backgroundSize: "cover",
-                      backgroundPosition: "center",
-                    }}
+                  {/* ── Facelook Frame Card ──────────────────────────────────── */}
+                  <motion.button
+                    whileTap={{ scale: 0.97 }}
+                    onClick={() => setIsFrameMode(true)}
+                    className="flex flex-col items-start text-left bg-white rounded-2xl overflow-hidden"
+                    style={{ border: "1.5px solid #e5e7eb", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}
                   >
-                    <div className="absolute inset-0 rounded-2xl" style={{ background: "linear-gradient(135deg,rgba(37,99,235,0.80) 0%,rgba(29,78,216,0.85) 100%)" }} />
-                    <div className="relative z-10 w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center">
-                      <Star size={18} className="text-white fill-white" />
+                    {/* Header row */}
+                    <div className="flex items-center gap-1.5 px-3 pt-3 pb-1.5 w-full border-b border-gray-100">
+                      <div className="w-6 h-6 rounded-lg bg-blue-100 flex items-center justify-center shrink-0">
+                        <HelpCircle size={13} className="text-blue-600" />
+                      </div>
+                      <span className="text-[11px] font-black text-gray-800 leading-none">Facelook Frame</span>
                     </div>
-                    <div className="relative z-10">
-                      <p className="text-[12px] font-black leading-tight text-white">Facelook Frame</p>
-                      <p className="text-[9px] text-white font-semibold mt-0.5 opacity-90">Zarooratmand ki madad</p>
+
+                    {/* Category icons — 4-grid */}
+                    <div className="grid grid-cols-4 gap-0 px-2 pt-2 pb-1 w-full">
+                      {[
+                        { icon: <Utensils size={12} className="text-blue-500" />, label: "Food" },
+                        { icon: <Pill size={12} className="text-blue-500" />, label: "Med" },
+                        { icon: <Shirt size={12} className="text-blue-500" />, label: "Clothes" },
+                        { icon: <GraduationCap size={12} className="text-blue-500" />, label: "School" },
+                      ].map(({ icon, label }) => (
+                        <div key={label} className="flex flex-col items-center gap-0.5">
+                          <div className="w-6 h-6 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center">
+                            {icon}
+                          </div>
+                          <span className="text-[7px] font-bold text-blue-400 leading-none">{label}</span>
+                        </div>
+                      ))}
                     </div>
-                    <div className="relative z-10 flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-amber-300 animate-pulse" />
-                      <span className="text-[9px] font-black text-amber-200 uppercase">Help Now</span>
+
+                    {/* Progress bar */}
+                    <div className="px-2.5 pt-1 pb-0.5 w-full">
+                      <div className="flex items-center gap-1">
+                        <div className="flex-1 h-1.5 rounded-full bg-gray-100 overflow-hidden">
+                          <div className="h-full rounded-full bg-blue-500" style={{ width: "50%" }} />
+                        </div>
+                        <HelpCircle size={9} className="text-blue-400 shrink-0" />
+                      </div>
+                      <p className="text-[8px] text-gray-400 font-bold mt-0.5">₹250 / ₹500</p>
+                    </div>
+
+                    {/* FREE badge */}
+                    <div className="px-2.5 pb-3 w-full">
+                      <div className="flex items-center gap-1.5">
+                        <div className="px-2 py-0.5 rounded" style={{ background: "#fef9c3" }}>
+                          <span className="text-[9px] font-black text-yellow-700 tracking-widest">FREE</span>
+                        </div>
+                        <span className="text-[8px] text-gray-400 font-semibold">₹250 / ₹500</span>
+                      </div>
                     </div>
                   </motion.button>
                 </div>
