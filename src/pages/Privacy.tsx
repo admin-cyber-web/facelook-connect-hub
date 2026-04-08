@@ -5,7 +5,7 @@ import { ArrowLeft, Shield } from "lucide-react";
 const sections = [
   {
     title: "Welcome to Facelook!",
-    body: "We value your privacy. This policy explains how Facelook Connect Hub collects, uses, and protects your information.",
+    body: "We value your privacy. This policy explains how Facelook collects, uses, and protects your information.",
   },
   {
     title: "Data Collection",
@@ -55,7 +55,7 @@ const Privacy = () => {
           <div className="w-16 h-16 mx-auto rounded-[1.4rem] bg-gradient-to-br from-blue-500 via-blue-600 to-purple-700 flex items-center justify-center shadow-xl shadow-blue-500/30 border border-white/10">
             <span className="text-3xl font-black text-white">F</span>
           </div>
-          <h2 className="text-2xl font-black tracking-tight">Facelook Connect Hub</h2>
+          <h2 className="text-2xl font-black tracking-tight">Facelook</h2>
           <p className="text-sm text-white/40 font-medium">Privacy Policy · Last updated 2025</p>
         </motion.div>
 
@@ -92,7 +92,7 @@ const Privacy = () => {
             </span>
           </div>
           <p className="text-[10px] text-white/25 font-medium">
-            © 2025 Facelook Connect Hub. All rights reserved.
+            © 2025 Facelook. All rights reserved.
           </p>
         </motion.div>
       </div>

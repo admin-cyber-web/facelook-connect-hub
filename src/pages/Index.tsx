@@ -1501,7 +1501,7 @@ const Index = ({ session }: { session: Session }) => {
         <SettingRow
           icon={<Globe size={18} />}
           title={t("Privacy Policy", "गोपनीयता नीति")}
-          desc={t("Facelook Connect Hub", "फेसलुक कनेक्ट हब")}
+          desc={t("Facelook", "फेसलुक")}
           color="text-blue-300"
           onClick={() => window.open("/privacy", "_blank")}
         />
