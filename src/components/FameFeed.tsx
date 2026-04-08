@@ -950,9 +950,14 @@ const FameFeed = ({
 
     const alreadySame = likedIds.has(post.id) && userReactions[post.id] === reactionType;
     if (alreadySame) {
-      // Toggle off — unlike
+      // Toggle off — unlike (optimistic)
       setLikedIds(p => { const n = new Set(p); n.delete(post.id); return n; });
       setUserReactions(p => { const n = { ...p }; delete n[post.id]; return n; });
+      setPosts(prev => prev.map(p => p.id !== post.id ? p : {
+        ...p,
+        likes_count: Math.max((p.likes_count || 1) - 1, 0),
+        likes: (p.likes || []).filter((l: any) => l.user_id !== currentUserId),
+      }));
       await supabase.from("likes").delete().eq("post_id", post.id).eq("user_id", currentUserId);
       await supabase.from("posts").update({ likes_count: Math.max((post.likes_count || 1) - 1, 0) }).eq("id", post.id);
       fetchPosts();
@@ -962,6 +967,16 @@ const FameFeed = ({
     const wasLiked = likedIds.has(post.id);
     setLikedIds(p => new Set([...p, post.id]));
     setUserReactions(p => ({ ...p, [post.id]: reactionType }));
+    // Optimistic update — add/replace current user in the likes array so "Liked by" text is instant
+    setPosts(prev => prev.map(p => {
+      if (p.id !== post.id) return p;
+      const others = (p.likes || []).filter((l: any) => l.user_id !== currentUserId);
+      return {
+        ...p,
+        likes_count: wasLiked ? p.likes_count : (p.likes_count || 0) + 1,
+        likes: [...others, { user_id: currentUserId, reaction_type: reactionType, profiles: { full_name: userProfile?.full_name || "You" } }],
+      };
+    }));
 
     // Upsert so changing reaction type works cleanly
     await supabase.from("likes").upsert(
@@ -1142,6 +1157,41 @@ const FameFeed = ({
 
         {post.content && <PostCaption content={post.content} />}
         <PostMedia post={post} />
+
+        {/* ── Liked by line ──────────────────────────────────────────── */}
+        {(() => {
+          const likes: any[] = post.likes || [];
+          const iLiked = likedIds.has(post.id);
+          const otherLikes = likes.filter((l: any) => l.user_id !== currentUserId);
+          const total = iLiked ? otherLikes.length + 1 : otherLikes.length;
+          if (total === 0) return null;
+
+          const NameBtn = ({ l }: { l: any }) => (
+            <button
+              onClick={e => { e.stopPropagation(); if (l.user_id) openProfile(l.user_id); }}
+              className="font-semibold text-gray-800 hover:underline"
+            >
+              {l.profiles?.full_name || "Someone"}
+            </button>
+          );
+
+          let node: React.ReactNode;
+          if (iLiked && otherLikes.length === 0) {
+            node = <>Liked by <span className="font-semibold text-gray-800">You</span></>;
+          } else if (iLiked) {
+            node = <><span className="font-semibold text-gray-800">You</span> and {otherLikes.length} {otherLikes.length === 1 ? "other" : "others"}</>;
+          } else if (otherLikes.length === 1) {
+            node = <>Liked by <NameBtn l={otherLikes[0]} /></>;
+          } else if (otherLikes.length === 2) {
+            node = <>Liked by <NameBtn l={otherLikes[0]} /> and <NameBtn l={otherLikes[1]} /></>;
+          } else {
+            node = <>Liked by <NameBtn l={otherLikes[0]} /> and {otherLikes.length - 1} others</>;
+          }
+
+          return (
+            <p className="px-4 pb-1 text-sm text-gray-500 leading-snug">{node}</p>
+          );
+        })()}
 
         {/* ── Action bar ─────────────────────────────────────────────── */}
         <div className="flex items-center gap-4 px-4 py-2.5">
