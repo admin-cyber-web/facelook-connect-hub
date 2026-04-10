@@ -80,6 +80,18 @@ Full-screen messenger with 6 modules:
   );
   ```
 
+## Reaction System with Sound Effects (new)
+- **Files**: `src/components/ReactionBar.tsx`, `src/hooks/useSoundEffects.ts`, `supabase_reactions_setup.sql`
+- **Chat Reactions**: Long-press (600ms) on any chat message opens a floating emoji bar (❤️ 👍 😂 🔥 😮). Reaction bubbles shown below the bubble with a counter. Powered by `message_reactions` Supabase table.
+- **Comment Reactions**: "😊 React" button on every comment opens the emoji bar. Reaction bubbles shown below comment text. Powered by `comment_reactions` Supabase table.
+- **Sound Effects**: Web Audio API (no external deps, zero delay)
+  - Pop/click sound on any emoji reaction (chat or comment)
+  - Swoosh/sent sound when posting a comment
+  - Pop sound also fires for existing post reactions (FameFeed likes)
+- **Visual Polish**: Framer Motion spring animations on bar open/close, emoji scale-on-hover (1.5×), reaction bubble bounce-in
+- **Data Persistence**: Supabase realtime subscriptions keep reactions live; run `supabase_reactions_setup.sql` to create the tables
+- **Supabase tables needed**: `message_reactions (id, message_id, user_id, emoji, created_at)` and `comment_reactions (id, comment_id, user_id, emoji, created_at)` — both with UNIQUE on (entity_id, user_id)
+
 ## Migration Notes (Lovable → Replit)
 - Removed `lovable-tagger` plugin from `vite.config.ts` (Lovable-specific, not needed on Replit)
 - Updated Vite server host to `0.0.0.0` for Replit's proxied preview

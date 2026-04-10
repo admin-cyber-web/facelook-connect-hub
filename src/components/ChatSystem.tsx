@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import { ReactionBar, ReactionBubbles } from "./ReactionBar";
+import { useSoundEffects } from "../hooks/useSoundEffects";
 import { useProfileViewer } from "../context/ProfileViewerContext";
 import { motion, AnimatePresence } from "framer-motion";
 import AdminDashboard, { isAdminEmail } from "./AdminDashboard";
@@ -89,6 +91,7 @@ interface Message {
   created_at: string;
   seen_at?: string;
   reply_to_id?: string;
+  reactions?: Record<string, string[]>;
 }
 interface Story {
   id: string;
@@ -746,6 +749,8 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   const [isOtherTyping, setIsOtherTyping] = useState(false);
   const [showChatMenu, setShowChatMenu] = useState(false);
   const [deletingForMe, setDeletingForMe] = useState<string | null>(null);
+  const [msgReactionBarId, setMsgReactionBarId] = useState<string | null>(null);
+  const [msgReactions, setMsgReactions] = useState<Record<string, Record<string, string[]>>>({});
 
   // ── Voice Mode state ───────────────────────────────────────────────────────
   const [voiceMode, setVoiceMode] = useState(false);
@@ -771,8 +776,10 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   const voiceTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const voiceActiveRef = useRef(false);
   const pendingFileRef = useRef<File | null>(null);
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const T = THEME_CFG[theme];
+  const { playPop, playSwoosh } = useSoundEffects();
 
   // ── Persist ───────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -1430,7 +1437,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
         .eq("sender_id", selectedUser.id)
         .is("seen_at", null);
     };
-    load();
+    load().then(() => fetchMsgReactions(userId, selectedUser.id));
 
     // Chat realtime: INSERT + UPDATE (for seen_at ticks)
     const ch = supabase
@@ -1486,6 +1493,33 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
           if (deletedId) {
             setMessages((prev) => prev.filter((m) => m.id !== deletedId));
           }
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "message_reactions" },
+        (p) => {
+          const row = (p.new ?? p.old) as { message_id: string; user_id: string; emoji: string } | null;
+          if (!row) return;
+          setMsgReactions(prev => {
+            const msgId = row.message_id;
+            const cur = { ...(prev[msgId] ?? {}) };
+            if (p.eventType === "DELETE") {
+              const old = p.old as { message_id: string; user_id: string; emoji: string };
+              if (cur[old.emoji]) {
+                cur[old.emoji] = cur[old.emoji].filter(u => u !== old.user_id);
+                if (cur[old.emoji].length === 0) delete cur[old.emoji];
+              }
+            } else {
+              Object.keys(cur).forEach(e => {
+                cur[e] = cur[e].filter(u => u !== row.user_id);
+                if (cur[e].length === 0) delete cur[e];
+              });
+              if (!cur[row.emoji]) cur[row.emoji] = [];
+              if (!cur[row.emoji].includes(row.user_id)) cur[row.emoji].push(row.user_id);
+            }
+            return { ...prev, [msgId]: cur };
+          });
         },
       )
       .subscribe();
@@ -1711,6 +1745,65 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       );
     } else {
       toast.success("Message deleted for everyone 🗑️");
+    }
+  };
+
+  // ── Message Reactions ─────────────────────────────────────────────────────
+  const fetchMsgReactions = useCallback(async (uid: string, otherId: string) => {
+    try {
+      const { data } = await supabase
+        .from("message_reactions")
+        .select("message_id, user_id, emoji")
+        .or(
+          `message_id.in.(${
+            (await supabase
+              .from("messages")
+              .select("id")
+              .or(`and(sender_id.eq.${uid},receiver_id.eq.${otherId}),and(sender_id.eq.${otherId},receiver_id.eq.${uid})`)
+              .then(r => (r.data || []).map((m: any) => m.id).join(","))
+            )
+          })`
+        );
+      if (!data) return;
+      const map: Record<string, Record<string, string[]>> = {};
+      for (const row of data) {
+        if (!map[row.message_id]) map[row.message_id] = {};
+        if (!map[row.message_id][row.emoji]) map[row.message_id][row.emoji] = [];
+        map[row.message_id][row.emoji].push(row.user_id);
+      }
+      setMsgReactions(map);
+    } catch (_) {}
+  }, []);
+
+  const handleMsgReact = async (msgId: string, emoji: string) => {
+    playPop();
+    setMsgReactionBarId(null);
+    const prev = msgReactions[msgId] ?? {};
+    const currentUsers = prev[emoji] ?? [];
+    const alreadyReacted = currentUsers.includes(userId);
+
+    const updated: Record<string, string[]> = { ...prev };
+    if (alreadyReacted) {
+      updated[emoji] = currentUsers.filter(u => u !== userId);
+      if (updated[emoji].length === 0) delete updated[emoji];
+    } else {
+      Object.keys(updated).forEach(e => {
+        updated[e] = updated[e].filter(u => u !== userId);
+        if (updated[e].length === 0) delete updated[e];
+      });
+      updated[emoji] = [...(updated[emoji] ?? []), userId];
+    }
+
+    setMsgReactions(r => ({ ...r, [msgId]: updated }));
+
+    if (alreadyReacted) {
+      await supabase.from("message_reactions").delete()
+        .eq("message_id", msgId).eq("user_id", userId);
+    } else {
+      await supabase.from("message_reactions").upsert(
+        { message_id: msgId, user_id: userId, emoji },
+        { onConflict: "message_id,user_id" }
+      );
     }
   };
 
@@ -3295,6 +3388,14 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                               setMsgMenuId(null);
                             }
                           }}
+                          onPointerDown={() => {
+                            longPressTimerRef.current = setTimeout(() => {
+                              setMsgReactionBarId(msg.id);
+                              setMsgMenuId(null);
+                            }, 600);
+                          }}
+                          onPointerUp={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
+                          onPointerLeave={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
                           className={`flex ${isMine ? "justify-end" : "justify-start"} group relative select-none`}
                           style={{ cursor: "default" }}
                         >
@@ -3408,6 +3509,32 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                 </motion.div>
                               )}
                             </AnimatePresence>
+                            {/* Reaction Bar — shown on long-press */}
+                            <AnimatePresence>
+                              {msgReactionBarId === msg.id && (
+                                <>
+                                  <div className="fixed inset-0 z-40" onClick={() => setMsgReactionBarId(null)} />
+                                  <div
+                                    className={`absolute ${isMine ? "right-0" : "left-0"} bottom-full mb-2 z-50`}
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <ReactionBar
+                                      onReact={(emoji) => handleMsgReact(msg.id, emoji)}
+                                      onClose={() => setMsgReactionBarId(null)}
+                                      align={isMine ? "right" : "left"}
+                                    />
+                                  </div>
+                                </>
+                              )}
+                            </AnimatePresence>
+                            {/* Reaction Bubbles */}
+                            {msgReactions[msg.id] && Object.keys(msgReactions[msg.id]).length > 0 && (
+                              <ReactionBubbles
+                                reactions={msgReactions[msg.id]}
+                                currentUserId={userId}
+                                align={isMine ? "right" : "left"}
+                              />
+                            )}
                           </div>
                         </motion.div>
                       );

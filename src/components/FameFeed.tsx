@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { toast } from "sonner";
+import { ReactionBar, ReactionBubbles } from "./ReactionBar";
+import { useSoundEffects } from "../hooks/useSoundEffects";
 import { useProfileViewer } from "../context/ProfileViewerContext";
 import { StoryBar } from "./StoryBar";
 import {
@@ -601,6 +603,7 @@ const FameFeed = ({
   onNavigateToCircles, onNavigateToPages, onNavigateToFlicks,
 }: FameFeedProps) => {
   const { openProfile } = useProfileViewer();
+  const { playPop, playSwoosh } = useSoundEffects();
   const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeComment, setActiveComment] = useState<string | null>(null);
@@ -635,6 +638,8 @@ const FameFeed = ({
   const [flicksLoaded, setFlicksLoaded] = useState(false);
   const [flickModal, setFlickModal] = useState<any | null>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
+  const [commentReactionBarId, setCommentReactionBarId] = useState<string | null>(null);
+  const [commentReactions, setCommentReactions] = useState<Record<string, Record<string, string[]>>>({});
   // Unique channel ID per mount — prevents "cannot add callbacks after subscribe()" error
   const channelId = useRef(`fame-rt-${Date.now()}`);
 
@@ -951,6 +956,7 @@ const FameFeed = ({
 
   const handleReact = async (post: any, reactionType: string) => {
     if (!currentUserId) return;
+    playPop();
     setReactionBarPostId(null);
 
     const alreadySame = likedIds.has(post.id) && userReactions[post.id] === reactionType;
@@ -1034,10 +1040,43 @@ const FameFeed = ({
     await supabase.from("posts").update({ views_count: (posts.find(p => p.id === postId)?.views_count || 0) + 1 }).eq("id", postId);
   }, [viewedPostIds, currentUserId, posts]);
 
+  const handleCommentReact = async (commentId: string, emoji: string) => {
+    if (!currentUserId) return;
+    playPop();
+    setCommentReactionBarId(null);
+    const prev = commentReactions[commentId] ?? {};
+    const currentUsers = prev[emoji] ?? [];
+    const alreadyReacted = currentUsers.includes(currentUserId);
+
+    const updated: Record<string, string[]> = { ...prev };
+    if (alreadyReacted) {
+      updated[emoji] = currentUsers.filter(u => u !== currentUserId);
+      if (updated[emoji].length === 0) delete updated[emoji];
+    } else {
+      Object.keys(updated).forEach(e => {
+        updated[e] = updated[e].filter(u => u !== currentUserId);
+        if (updated[e].length === 0) delete updated[e];
+      });
+      updated[emoji] = [...(updated[emoji] ?? []), currentUserId];
+    }
+    setCommentReactions(r => ({ ...r, [commentId]: updated }));
+
+    if (alreadyReacted) {
+      await supabase.from("comment_reactions").delete()
+        .eq("comment_id", commentId).eq("user_id", currentUserId);
+    } else {
+      await supabase.from("comment_reactions").upsert(
+        { comment_id: commentId, user_id: currentUserId, emoji },
+        { onConflict: "comment_id,user_id" }
+      );
+    }
+  };
+
   const handleAddComment = async (postId: string, parentId?: string | null) => {
     const isReply = !!parentId;
     const text = (isReply ? replyText : commentText).trim();
     if (!text) return;
+    playSwoosh();
 
     const { data: { user } } = await supabase.auth.getUser();
 
@@ -1367,12 +1406,41 @@ const FameFeed = ({
                           <div className="flex-1 min-w-0">
                             <span className="text-[10px] font-black text-blue-600 uppercase tracking-tight">{c.author}</span>
                             <p className="text-xs text-gray-700 mt-0.5 leading-snug">{c.content}</p>
-                            <button
-                              onClick={() => setReplyingTo({ postId: post.id, commentId: c.id, author: c.author })}
-                              className="text-[10px] text-blue-400 font-bold mt-1 hover:text-blue-600"
-                            >
-                              Reply
-                            </button>
+                            <div className="flex items-center gap-3 mt-1 relative">
+                              <button
+                                onClick={() => setReplyingTo({ postId: post.id, commentId: c.id, author: c.author })}
+                                className="text-[10px] text-blue-400 font-bold hover:text-blue-600"
+                              >
+                                Reply
+                              </button>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setCommentReactionBarId(commentReactionBarId === c.id ? null : c.id); }}
+                                className="text-[10px] text-gray-400 font-bold hover:text-pink-500 flex items-center gap-0.5"
+                              >
+                                😊 React
+                              </button>
+                              <AnimatePresence>
+                                {commentReactionBarId === c.id && (
+                                  <>
+                                    <div className="fixed inset-0 z-40" onClick={() => setCommentReactionBarId(null)} />
+                                    <div className="absolute left-0 bottom-full mb-1 z-50">
+                                      <ReactionBar
+                                        onReact={(emoji) => handleCommentReact(c.id, emoji)}
+                                        onClose={() => setCommentReactionBarId(null)}
+                                      />
+                                    </div>
+                                  </>
+                                )}
+                              </AnimatePresence>
+                            </div>
+                            {commentReactions[c.id] && Object.keys(commentReactions[c.id]).length > 0 && (
+                              <div className="mt-1">
+                                <ReactionBubbles
+                                  reactions={commentReactions[c.id]}
+                                  currentUserId={currentUserId}
+                                />
+                              </div>
+                            )}
                           </div>
                         </div>
 
