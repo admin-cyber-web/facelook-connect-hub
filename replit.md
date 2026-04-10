@@ -80,6 +80,24 @@ Full-screen messenger with 6 modules:
   );
   ```
 
+## Flicks (Reels) Upgrade — Viral Engagement Engine
+- **File**: `src/components/FlicksFeed.tsx` (complete rewrite)
+- **Functional buttons**:
+  - ❤️ **Like** — upserts to `likes` table + updates `likes_count`, toggleable, plays Pop sound, spring scale animation on tap
+  - 💬 **Comments** — opens a slide-up drawer with real comment list from DB + input to post new ones (plays Swoosh on send)
+  - 📤 **Share** — `navigator.share()` + increments `shares_count` in DB, plays Swoosh
+- **Luck-Based Viral Logic** (`getLuckFactor`, `getBonusEngagement`):
+  - Each post gets a deterministic luck score (1-10) derived from its UUID — stable across sessions
+  - 0-1hr old: shows 100% real DB counts only
+  - 1hr+: adds seeded bonus engagement based on luck:
+    - Luck 1-4: +50-100 likes, 200-500 views
+    - Luck 5-8: +100-500 likes, 600-2K views
+    - Luck 9-10: **VIRAL** 🔥 — 500-5K likes, 1K-10K views, orange "Viral" badge shown
+- **Human-Pattern Live Ticker**: when the card is active, a background timer fires at irregular intervals (800-3000ms) and adds irregular increments [0,0,2,0,0,5,1,0,3...] to simulate real viewer activity
+- **K-formatting**: `formatCount` — 1200 → "1.2K", 12000 → "12K", 1.5M → "1.5M"
+- **Verified badges**: Posts with luck ≥ 6 show a blue `BadgeCheck` icon (Lucide) next to the author name; others show a simpler blue ✓ circle
+- **Comment Drawer**: slide-up sheet (65vh) with comment list, avatar initials, real-time insert to Supabase on send
+
 ## Reaction System with Sound Effects (new)
 - **Files**: `src/components/ReactionBar.tsx`, `src/hooks/useSoundEffects.ts`, `supabase_reactions_setup.sql`
 - **Chat Reactions**: Long-press (600ms) on any chat message opens a floating emoji bar (❤️ 👍 😂 🔥 😮). Reaction bubbles shown below the bubble with a counter. Powered by `message_reactions` Supabase table.
