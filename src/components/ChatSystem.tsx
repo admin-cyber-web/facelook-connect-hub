@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useProfileViewer } from "../context/ProfileViewerContext";
 import { motion, AnimatePresence } from "framer-motion";
+import AdminDashboard, { isAdminEmail } from "./AdminDashboard";
 import {
   Search,
   X,
@@ -111,6 +112,7 @@ interface ChatSystemProps {
   isOpen: boolean;
   onClose: () => void;
   userId: string;
+  userEmail?: string;
   onLogout?: () => void;
   onUnreadCountChange?: (count: number) => void;
 }
@@ -599,9 +601,11 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   isOpen,
   onClose,
   userId,
+  userEmail = "",
   onLogout,
   onUnreadCountChange,
 }) => {
+  const isAdmin = isAdminEmail(userEmail);
   const { openProfile } = useProfileViewer();
 
   useEffect(() => {
@@ -735,6 +739,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   const [viewerEditing, setViewerEditing] = useState(false);
   const [viewerEditCaption, setViewerEditCaption] = useState("");
   const [viewerEditMood, setViewerEditMood] = useState("");
+  const [showAdminDashboard, setShowAdminDashboard] = useState(false);
 
   // ── Advanced features state ────────────────────────────────────────────────
   const [panicMode, setPanicMode] = useState(false);
@@ -3921,6 +3926,13 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                         action: () => setMenuPanel("requests"),
                         badge: pendingCount,
                       },
+                      ...(isAdmin ? [{
+                        icon: <Shield size={18} className="text-amber-400" />,
+                        label: "Admin Dashboard",
+                        desc: "Moderate users & content",
+                        action: () => setShowAdminDashboard(true),
+                        badge: 0,
+                      }] : []),
                     ].map((item) => (
                       <button
                         key={item.label}
@@ -4324,6 +4336,17 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
               </div>
             </div>
           )}
+        {/* ── Admin Dashboard overlay ───────────────────────────────────── */}
+        <AnimatePresence>
+          {showAdminDashboard && isAdmin && (
+            <AdminDashboard
+              onClose={() => setShowAdminDashboard(false)}
+              currentUserId={userId}
+              currentUserEmail={userEmail}
+            />
+          )}
+        </AnimatePresence>
+
         </motion.div>
       )}
     </AnimatePresence>

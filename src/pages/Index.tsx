@@ -1057,6 +1057,8 @@ const Index = ({ session }: { session: Session }) => {
   const [profileLocked, setProfileLocked] = useState(false);
   const [profileHidden, setProfileHidden] = useState(false);
   const [resetSent, setResetSent] = useState(false);
+  const [accountStatus, setAccountStatus] = useState<string>("active");
+  const [suspensionReason, setSuspensionReason] = useState<string>("");
 
   // ── Reel posts (real videos/posts for Flicks strip) ──────────────────────
   const [reelPosts, setReelPosts] = useState<any[]>([]);
@@ -1210,6 +1212,8 @@ const Index = ({ session }: { session: Session }) => {
       });
       setProfileLocked(data.profile_locked || false);
       setProfileHidden(data.profile_hidden || false);
+      setAccountStatus(data.account_status || "active");
+      setSuspensionReason(data.suspension_reason || "");
 
       // Silently patch missing avatar/name into DB
       if (!data.avatar_url || !data.full_name) {
@@ -1528,6 +1532,36 @@ const Index = ({ session }: { session: Session }) => {
   );
 
   // ── Render ─────────────────────────────────────────────────────────────────
+  // ── Banned / Suspended screen ─────────────────────────────────────────────
+  if (accountStatus === "suspended") {
+    return (
+      <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center px-6 text-center"
+        style={{ background: "linear-gradient(160deg,#0a0018,#1a0008)" }}>
+        <div className="text-7xl mb-6">🚫</div>
+        <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4"
+          style={{ background: "linear-gradient(135deg,#ef4444,#7f1d1d)" }}>
+          <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          </svg>
+        </div>
+        <h1 className="text-2xl font-black text-white mb-2">Account Suspended</h1>
+        <p className="text-white/60 text-sm font-semibold mb-6">Aapka account suspend kar diya gaya hai.</p>
+        {suspensionReason && (
+          <div className="bg-red-500/10 border border-red-500/30 rounded-2xl px-5 py-4 max-w-xs w-full mb-6">
+            <p className="text-red-300 text-xs font-black uppercase tracking-widest mb-1">Reason</p>
+            <p className="text-white/80 text-sm font-medium leading-relaxed">{suspensionReason}</p>
+          </div>
+        )}
+        <p className="text-white/30 text-xs max-w-xs">
+          If you believe this is a mistake, please contact the admin at tiwarijhumki@gmail.com
+        </p>
+        <button onClick={() => supabase.auth.signOut()} className="mt-8 px-6 py-3 rounded-2xl text-white/70 text-sm font-bold border border-white/15 bg-white/5">
+          Sign Out
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div
       className="min-h-screen w-full bg-[#020617] bg-cover bg-center bg-fixed transition-all duration-700 relative overflow-x-hidden"
@@ -2121,6 +2155,7 @@ const Index = ({ session }: { session: Session }) => {
         isOpen={isChatOpen}
         onClose={() => setIsChatOpen(false)}
         userId={userId}
+        userEmail={userEmail}
         onLogout={handleLogout}
         onUnreadCountChange={setChatBadgeCount}
       />
