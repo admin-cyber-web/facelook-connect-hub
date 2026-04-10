@@ -1665,7 +1665,6 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       setMessages((prev) =>
         prev.map((m) => (m.id === tempId ? (data as Message) : m)),
       );
-      toast.success("📤 Message sent!");
       fetchContacts();
     } else if (error) {
       setMessages((prev) => prev.filter((m) => m.id !== tempId));
@@ -1811,7 +1810,6 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
         );
         fetchContacts();
         if (soundEnabled) playSound("send");
-        toast.success("📎 File sent!");
       }
     } catch (err: any) {
       console.error("Unexpected media upload error:", err);
