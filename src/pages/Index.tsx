@@ -38,6 +38,8 @@ import {
   GraduationCap,
   Radio,
   UserRound,
+  LifeBuoy,
+  Copy,
 } from "lucide-react";
 
 // DHAYAN DEIN: Sirf ye ek supabase import rehna chahiye
@@ -830,10 +832,190 @@ function FrameModePage({ onBack, userProfile, userEmail }: { onBack: () => void;
   );
 }
 
+// ── Privacy Policy sub-view ────────────────────────────────────────────────
+const PrivacyPolicyView = ({ setSettingsView, lang }: { setSettingsView: (v: any) => void; lang: "en" | "hi" }) => {
+  const t = (en: string, hi: string) => (lang === "hi" ? hi : en);
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-3 px-4 pt-4">
+        <button
+          onClick={() => setSettingsView("main")}
+          className="p-2 bg-white/5 rounded-xl border border-white/10 text-white/60 hover:text-white"
+        >
+          <ChevronLeft size={16} />
+        </button>
+        <div className="flex items-center gap-2">
+          <Shield size={18} className="text-emerald-400" />
+          <p className="text-sm font-black text-white">{t("Privacy Policy", "गोपनीयता नीति")}</p>
+        </div>
+      </div>
+
+      <div className="rounded-[2.5rem] bg-white/5 border border-white/10 p-6 space-y-5 mx-0">
+        {[
+          {
+            icon: "🗂️",
+            title: t("Data Collection", "डेटा संग्रह"),
+            body: t(
+              "We collect only minimal data — your email and username — to provide and personalise our services. We never sell your data to third parties.",
+              "हम केवल न्यूनतम डेटा (ईमेल और यूज़रनेम) संग्रह करते हैं। आपका डेटा कभी किसी तीसरे पक्ष को नहीं बेचा जाता।"
+            ),
+          },
+          {
+            icon: "🎛️",
+            title: t("User Control", "उपयोगकर्ता नियंत्रण"),
+            body: t(
+              "You are in full control of your account. You can delete your posts, data, or your entire account at any time from within the app.",
+              "आप कभी भी अपनी पोस्ट, डेटा या पूरा खाता ऐप के अंदर से हटा सकते हैं। आपका नियंत्रण है।"
+            ),
+          },
+          {
+            icon: "🔐",
+            title: t("Safety & Encryption", "सुरक्षा और एन्क्रिप्शन"),
+            body: t(
+              "All your chats, posts, and personal information are protected using industry-standard encryption. Your privacy is our top priority.",
+              "आपके सभी चैट, पोस्ट और व्यक्तिगत जानकारी उद्योग-मानक एन्क्रिप्शन से सुरक्षित हैं। आपकी गोपनीयता हमारी प्राथमिकता है।"
+            ),
+          },
+        ].map((item) => (
+          <div key={item.title} className="flex gap-4">
+            <div className="w-10 h-10 rounded-2xl bg-emerald-500/15 flex items-center justify-center text-xl shrink-0">
+              {item.icon}
+            </div>
+            <div>
+              <p className="text-sm font-black text-white mb-1">{item.title}</p>
+              <p className="text-xs text-white/55 leading-relaxed">{item.body}</p>
+            </div>
+          </div>
+        ))}
+
+        <p className="text-[10px] text-white/25 text-center pt-2">
+          {t("Effective from 2024 · Facelook App", "2024 से प्रभावी · फेसलुक ऐप")}
+        </p>
+      </div>
+    </div>
+  );
+};
+
+// ── Help & Support sub-view ────────────────────────────────────────────────
+const FAQS = [
+  {
+    q: "How do I change my password?",
+    a: "Go to Settings → Reset Password. A reset link will be sent to your registered email.",
+  },
+  {
+    q: "How do I report a post?",
+    a: "Tap and hold on any post or use the ⋯ menu, then tap 'Report'. Our team reviews reports within 24 hours.",
+  },
+  {
+    q: "Why is my account suspended?",
+    a: "Accounts are suspended for violating community guidelines. Contact support@carefacelook.in for an appeal.",
+  },
+  {
+    q: "How do I delete my account?",
+    a: "Go to Settings → Personal Info → scroll to the bottom → tap 'Delete Account'. This action is permanent.",
+  },
+];
+
+const HelpSupportView = ({ setSettingsView, lang }: { setSettingsView: (v: any) => void; lang: "en" | "hi" }) => {
+  const t = (en: string, hi: string) => (lang === "hi" ? hi : en);
+  const [copied, setCopied] = useState(false);
+  const [openFaq, setOpenFaq] = useState<number | null>(null);
+  const SUPPORT_EMAIL = "support@carefacelook.in";
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(SUPPORT_EMAIL).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-3 px-4 pt-4">
+        <button
+          onClick={() => setSettingsView("main")}
+          className="p-2 bg-white/5 rounded-xl border border-white/10 text-white/60 hover:text-white"
+        >
+          <ChevronLeft size={16} />
+        </button>
+        <div className="flex items-center gap-2">
+          <LifeBuoy size={18} className="text-sky-400" />
+          <p className="text-sm font-black text-white">{t("Help & Support", "सहायता केंद्र")}</p>
+        </div>
+      </div>
+
+      {/* Hero banner */}
+      <div className="mx-0 rounded-[2.5rem] bg-gradient-to-br from-sky-900/50 to-blue-950/50 border border-sky-500/20 p-6 text-center space-y-1">
+        <LifeBuoy size={36} className="text-sky-400 mx-auto mb-3" />
+        <p className="text-base font-black text-white">{t("We're here for you 24/7", "हम 24/7 यहाँ हैं")}</p>
+        <p className="text-xs text-white/50 leading-relaxed">
+          {t("Facing issues? Our team is ready to help around the clock.", "कोई समस्या? हमारी टीम हमेशा मदद के लिए तैयार है।")}
+        </p>
+      </div>
+
+      {/* Contact card */}
+      <div className="mx-0 rounded-[2.5rem] bg-white/5 border border-white/10 p-5 space-y-3">
+        <p className="text-[10px] font-black text-white/30 uppercase tracking-widest">{t("Contact Us", "संपर्क करें")}</p>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-xs text-white/40 mb-0.5">{t("Email Support", "ईमेल सहायता")}</p>
+            <p className="text-sm font-black text-sky-300 tracking-wide">{SUPPORT_EMAIL}</p>
+          </div>
+          <motion.button
+            whileTap={{ scale: 0.92 }}
+            onClick={handleCopy}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black border transition-all ${
+              copied
+                ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-300"
+                : "bg-sky-500/15 border-sky-500/30 text-sky-300 hover:bg-sky-500/25"
+            }`}
+          >
+            {copied ? <CheckCircle size={14} /> : <Copy size={14} />}
+            {copied ? t("Copied!", "कॉपी हो गया!") : t("Copy Email", "कॉपी करें")}
+          </motion.button>
+        </div>
+      </div>
+
+      {/* FAQ */}
+      <div className="mx-0 rounded-[2.5rem] bg-white/5 border border-white/10 p-5 space-y-2">
+        <p className="text-[10px] font-black text-white/30 uppercase tracking-widest mb-3">
+          {t("Frequently Asked Questions", "अक्सर पूछे जाने वाले सवाल")}
+        </p>
+        {FAQS.map((faq, i) => (
+          <div key={i} className="border-b border-white/8 last:border-0">
+            <button
+              className="w-full flex items-center justify-between py-3 text-left gap-3"
+              onClick={() => setOpenFaq(openFaq === i ? null : i)}
+            >
+              <span className="text-xs font-bold text-white/80 leading-snug">{faq.q}</span>
+              <ChevronRight
+                size={14}
+                className={`text-white/30 shrink-0 transition-transform duration-200 ${openFaq === i ? "rotate-90" : ""}`}
+              />
+            </button>
+            <AnimatePresence>
+              {openFaq === i && (
+                <motion.p
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="text-xs text-white/45 leading-relaxed pb-3 overflow-hidden"
+                >
+                  {faq.a}
+                </motion.p>
+              )}
+            </AnimatePresence>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 // ── Personal Info sub-view (outside Index to prevent focus loss) ──────────────
 interface PersonalInfoViewProps {
   lang: "en" | "hi";
-  setSettingsView: (v: "main" | "personal" | "blocklist") => void;
+  setSettingsView: (v: "main" | "personal" | "blocklist" | "privacy" | "help") => void;
   personalForm: { full_name: string; bio: string; school: string; mobile: string; location: string };
   setPersonalForm: React.Dispatch<React.SetStateAction<{ full_name: string; bio: string; school: string; mobile: string; location: string }>>;
   isSavingPersonal: boolean;
@@ -1038,7 +1220,7 @@ const Index = ({ session }: { session: Session }) => {
 
   // Settings sub-views
   const [settingsView, setSettingsView] = useState<
-    "main" | "personal" | "blocklist"
+    "main" | "personal" | "blocklist" | "privacy" | "help"
   >("main");
   const [isSavingPersonal, setIsSavingPersonal] = useState(false);
   const [personalSaved, setPersonalSaved] = useState(false);
@@ -1508,14 +1690,21 @@ const Index = ({ session }: { session: Session }) => {
         />
       </GlassCard>
 
-      {/* Privacy Policy */}
+      {/* Privacy Policy & Help */}
       <GlassCard className="rounded-[2.5rem] p-2 border border-white/10">
         <SettingRow
-          icon={<Globe size={18} />}
+          icon={<Shield size={18} />}
           title={t("Privacy Policy", "गोपनीयता नीति")}
-          desc={t("Facelook", "फेसलुक")}
-          color="text-blue-300"
-          onClick={() => window.open("/privacy", "_blank")}
+          desc={t("How we protect your data", "डेटा सुरक्षा नीति")}
+          color="text-emerald-400"
+          onClick={() => setSettingsView("privacy")}
+        />
+        <SettingRow
+          icon={<LifeBuoy size={18} />}
+          title={t("Help & Support", "सहायता केंद्र")}
+          desc={t("FAQs, contact our team 24/7", "24/7 सहायता उपलब्ध")}
+          color="text-sky-400"
+          onClick={() => setSettingsView("help")}
         />
       </GlassCard>
 
@@ -2142,6 +2331,26 @@ const Index = ({ session }: { session: Session }) => {
                     exit={{ opacity: 0, x: -20 }}
                   >
                     <BlockListView />
+                  </motion.div>
+                )}
+                {settingsView === "privacy" && (
+                  <motion.div
+                    key="privacy"
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                  >
+                    <PrivacyPolicyView setSettingsView={setSettingsView} lang={lang} />
+                  </motion.div>
+                )}
+                {settingsView === "help" && (
+                  <motion.div
+                    key="help"
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                  >
+                    <HelpSupportView setSettingsView={setSettingsView} lang={lang} />
                   </motion.div>
                 )}
               </AnimatePresence>
