@@ -66,6 +66,57 @@ const GlassCard = ({ children, className = "", noPadding = false }: any) => (
   </div>
 );
 
+// ── Rose Petals background ─────────────────────────────────────────────────────
+const GLOBAL_PETAL_DATA = Array.from({ length: 10 }, (_, i) => ({
+  id: i,
+  left: `${5 + ((i * 11) % 90)}%`,
+  delay: `${(i * 0.9) % 10}s`,
+  duration: `${9 + ((i * 1.3) % 8)}s`,
+  size: 7 + ((i * 3) % 9),
+  color: i % 3 === 0 ? "#f43f5e" : i % 3 === 1 ? "#fb7185" : "#fda4af",
+}));
+
+const GlobalRosePetals = () => (
+  <>
+    <style>{`
+      @keyframes gp-fall {
+        0%   { transform: translateY(-30px) rotate(0deg) scale(1);   opacity: 0.7; }
+        80%  { opacity: 0.45; }
+        100% { transform: translateY(105vh) rotate(540deg) scale(0.4); opacity: 0; }
+      }
+      @keyframes gp-sway {
+        0%,100% { margin-left: 0px; }
+        40%      { margin-left: 16px; }
+        70%      { margin-left: -10px; }
+      }
+    `}</style>
+    <div
+      style={{
+        position: "fixed", inset: 0, zIndex: 0,
+        pointerEvents: "none", overflow: "hidden",
+      }}
+    >
+      {GLOBAL_PETAL_DATA.map((p) => (
+        <div
+          key={p.id}
+          style={{
+            position: "absolute",
+            top: -20,
+            left: p.left,
+            width: p.size,
+            height: p.size * 1.35,
+            background: p.color,
+            borderRadius: "50% 10% 50% 10%",
+            opacity: 0.65,
+            filter: "blur(0.4px)",
+            animation: `gp-fall ${p.duration} ${p.delay} linear infinite, gp-sway ${parseFloat(p.duration) * 0.55}s ${p.delay} ease-in-out infinite`,
+          }}
+        />
+      ))}
+    </div>
+  </>
+);
+
 const SettingRow = ({ icon, title, desc, color, onClick, right }: any) => (
   <div
     onClick={onClick}
@@ -1189,8 +1240,8 @@ const Index = ({ session }: { session: Session }) => {
   const [isPostOpen, setIsPostOpen] = useState(false);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [showNav, setShowNav] = useState(true);
-  const [bgImage, setBgImage] = useState(
-    localStorage.getItem("facelook-bg") || "",
+  const [darkMode, setDarkMode] = useState(
+    localStorage.getItem("facelook-dark") !== "false",
   );
   const lastScrollY = useRef(0);
 
@@ -1435,9 +1486,9 @@ const Index = ({ session }: { session: Session }) => {
   };
 
   // ── Handlers ─────────────────────────────────────────────────────────────
-  const handleThemeChange = (url: string) => {
-    setBgImage(url);
-    localStorage.setItem("facelook-bg", url);
+  const toggleDarkMode = (dark: boolean) => {
+    setDarkMode(dark);
+    localStorage.setItem("facelook-dark", String(dark));
   };
 
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1561,26 +1612,20 @@ const Index = ({ session }: { session: Session }) => {
         <h2 className="text-xs font-black text-white/40 uppercase tracking-widest mb-4 flex items-center gap-2">
           <Palette size={14} /> {t("Appearance", "रूप")}
         </h2>
-        <div className="grid grid-cols-5 gap-2">
-          {[
-            "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe",
-            "https://images.unsplash.com/photo-1475275083424-b4ff81625b60",
-            "https://images.unsplash.com/photo-1531306728370-e2ebd9d7bb99",
-            "https://images.unsplash.com/photo-1506744038136-46273834b3fb",
-          ].map((url, i) => (
-            <button
-              key={i}
-              onClick={() => handleThemeChange(url)}
-              className={`h-14 rounded-2xl overflow-hidden border-2 transition-all ${bgImage === url ? "border-blue-500 scale-90" : "border-transparent opacity-60 hover:opacity-100"}`}
-            >
-              <img src={url} className="w-full h-full object-cover" />
-            </button>
-          ))}
+        <div className="flex gap-3">
           <button
-            onClick={() => handleThemeChange("")}
-            className={`h-14 rounded-2xl bg-slate-800 text-[9px] text-white font-black uppercase border-2 transition-all ${!bgImage ? "border-blue-500" : "border-transparent"}`}
+            onClick={() => toggleDarkMode(true)}
+            className={`flex-1 h-14 rounded-2xl flex flex-col items-center justify-center gap-1 border-2 transition-all ${darkMode ? "border-blue-500 bg-slate-800" : "border-transparent bg-white/5 opacity-60 hover:opacity-100"}`}
           >
-            {t("None", "कोई नहीं")}
+            <span className="text-lg">🌙</span>
+            <span className="text-[10px] font-black text-white uppercase">{t("Dark", "डार्क")}</span>
+          </button>
+          <button
+            onClick={() => toggleDarkMode(false)}
+            className={`flex-1 h-14 rounded-2xl flex flex-col items-center justify-center gap-1 border-2 transition-all ${!darkMode ? "border-blue-500 bg-slate-100/20" : "border-transparent bg-white/5 opacity-60 hover:opacity-100"}`}
+          >
+            <span className="text-lg">☀️</span>
+            <span className="text-[10px] font-black text-white uppercase">{t("Light", "लाइट")}</span>
           </button>
         </div>
       </GlassCard>
@@ -1754,13 +1799,10 @@ const Index = ({ session }: { session: Session }) => {
 
   return (
     <div
-      className="min-h-screen w-full bg-[#020617] bg-cover bg-center bg-fixed transition-all duration-700 relative overflow-x-hidden"
-      style={{ backgroundImage: bgImage ? `url('${bgImage}')` : "none" }}
+      className={`min-h-screen w-full transition-colors duration-500 relative overflow-x-hidden ${darkMode ? "bg-[#020617]" : "bg-slate-100"}`}
     >
-      {/* Overlay */}
-      <div
-        className={`fixed inset-0 ${bgImage ? "bg-slate-900/50 backdrop-blur-[2px]" : "bg-transparent"} pointer-events-none`}
-      />
+      {/* Falling rose petals — fixed background layer, never blocks clicks */}
+      <GlobalRosePetals />
 
       {/* ── Frame Mode overlay (slides in from right, covers everything) ──── */}
       <AnimatePresence>
