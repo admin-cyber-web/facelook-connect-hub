@@ -506,19 +506,43 @@ export default function FlicksApp({ onBack }: { onBack?: () => void }) {
 
   useEffect(() => {
     (async () => {
-      const { data } = await supabase
-        .from("posts")
-        .select("id, author, author_id, content, media_url, type, likes_count, created_at, metadata")
-        .order("created_at", { ascending: false })
-        .limit(50);
-      if (data) {
-        setFlicks(data.filter((p: any) =>
-          p.media_url?.toLowerCase().match(/\.(mp4|webm|ogg|mov|m4v)/) ||
-          p.media_url?.includes("youtube.com") ||
-          p.media_url?.includes("youtu.be")
-        ));
+      try {
+        // Primary query — author_id is the reliable FK column
+        const { data, error } = await supabase
+          .from("posts")
+          .select("id, author_id, content, media_url, type, likes_count, created_at, metadata")
+          .order("created_at", { ascending: false })
+          .limit(50);
+
+        if (error) {
+          console.error("[FlicksFeed] Primary fetch failed:", error.message, "| code:", error.code, "| details:", error.details);
+          // Fallback: bare minimum columns guaranteed to exist
+          const { data: d2, error: e2 } = await supabase
+            .from("posts")
+            .select("id, author_id, content, media_url, type, created_at")
+            .order("created_at", { ascending: false })
+            .limit(50);
+          if (e2) {
+            console.error("[FlicksFeed] Fallback fetch also failed:", e2.message, "| code:", e2.code);
+          } else if (d2) {
+            setFlicks(d2.filter((p: any) =>
+              p.media_url?.toLowerCase().match(/\.(mp4|webm|ogg|mov|m4v)/) ||
+              p.media_url?.includes("youtube.com") ||
+              p.media_url?.includes("youtu.be")
+            ));
+          }
+        } else if (data) {
+          setFlicks(data.filter((p: any) =>
+            p.media_url?.toLowerCase().match(/\.(mp4|webm|ogg|mov|m4v)/) ||
+            p.media_url?.includes("youtube.com") ||
+            p.media_url?.includes("youtu.be")
+          ));
+        }
+      } catch (err) {
+        console.error("[FlicksFeed] Unexpected error:", err);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     })();
   }, []);
 
