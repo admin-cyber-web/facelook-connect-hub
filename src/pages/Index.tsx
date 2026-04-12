@@ -89,6 +89,30 @@ const GlobalRosePetals = () => (
         40%      { margin-left: 16px; }
         70%      { margin-left: -10px; }
       }
+
+      /* ── Light mode text overrides ─────────────────────────────────────── */
+      .light-mode { color: #1e293b; }
+      .light-mode .text-white        { color: #1e293b !important; }
+      .light-mode .text-white\\/90   { color: #1e293b !important; }
+      .light-mode .text-white\\/80   { color: #334155 !important; }
+      .light-mode .text-white\\/70   { color: #475569 !important; }
+      .light-mode .text-white\\/60   { color: #64748b !important; }
+      .light-mode .text-white\\/50   { color: #64748b !important; }
+      .light-mode .text-white\\/40   { color: #94a3b8 !important; }
+      .light-mode .text-white\\/30   { color: #94a3b8 !important; }
+      .light-mode .text-white\\/20   { color: #cbd5e1 !important; }
+      .light-mode .bg-white\\/10     { background-color: rgba(255,255,255,0.85) !important; }
+      .light-mode .bg-white\\/5      { background-color: rgba(255,255,255,0.7) !important; }
+      .light-mode .border-white\\/10 { border-color: rgba(0,0,0,0.1) !important; }
+      .light-mode .border-white\\/20 { border-color: rgba(0,0,0,0.15) !important; }
+      .light-mode .bg-slate-900\\/80 { background-color: rgba(255,255,255,0.9) !important; }
+      .light-mode .bg-slate-900      { background-color: #f1f5f9 !important; }
+      .light-mode .bg-slate-800      { background-color: #e2e8f0 !important; }
+      .light-mode .bg-\\[\\#020617\\]  { background-color: #f1f5f9 !important; }
+      .light-mode input,
+      .light-mode textarea           { color: #1e293b !important; }
+      .light-mode input::placeholder,
+      .light-mode textarea::placeholder { color: #94a3b8 !important; }
     `}</style>
     <div
       style={{
@@ -1799,7 +1823,7 @@ const Index = ({ session }: { session: Session }) => {
 
   return (
     <div
-      className={`min-h-screen w-full transition-colors duration-500 relative overflow-x-hidden ${darkMode ? "bg-[#020617]" : "bg-slate-100"}`}
+      className={`min-h-screen w-full transition-colors duration-500 relative overflow-x-hidden ${darkMode ? "bg-[#020617]" : "bg-slate-100 light-mode"}`}
     >
       {/* Falling rose petals — fixed background layer, never blocks clicks */}
       <GlobalRosePetals />
