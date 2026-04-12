@@ -492,13 +492,18 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
 
   const fetchPosts = async () => {
     setLoading(true);
-    const { data } = await supabase.from("hook_page_posts").select("*").eq("page_id", page.id).order("created_at", { ascending: false });
+    const { data } = await supabase
+      .from("hook_page_posts")
+      .select("id, page_id, author_id, content, media_url, type, likes_count, created_at")
+      .eq("page_id", page.id)
+      .order("created_at", { ascending: false })
+      .limit(30);
     setPosts(data || []);
     setLoading(false);
   };
 
   const refreshPage = async () => {
-    const { data } = await supabase.from("hook_pages").select("*").eq("id", page.id).single();
+    const { data } = await supabase.from("hook_pages").select("id, name, cover_url, avatar_url, description, category, owner_id, followers_count, post_count, hook_count, created_at").eq("id", page.id).single();
     if (data) { setLivePage(data as HookPage); onPageUpdated(data as HookPage); }
   };
 

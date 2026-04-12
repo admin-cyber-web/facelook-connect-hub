@@ -116,10 +116,19 @@ const FlickMedia = ({ post, videoRef, isMuted, isActive }: any) => {
 const CommentDrawer = ({
   post, currentUserId, onClose,
 }: { post: any; currentUserId: string | null; onClose: () => void }) => {
-  const [comments, setComments] = useState<any[]>(post.comments || []);
+  const [comments, setComments] = useState<any[]>([]);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const { playSwoosh } = useSoundEffects();
+
+  useEffect(() => {
+    supabase
+      .from("comments")
+      .select("id, content, author, author_id, created_at")
+      .eq("post_id", post.id)
+      .order("created_at")
+      .then(({ data }) => setComments(data || []));
+  }, [post.id]);
 
   const send = async () => {
     if (!text.trim() || !currentUserId) return;
@@ -499,8 +508,9 @@ export default function FlicksApp({ onBack }: { onBack?: () => void }) {
     (async () => {
       const { data } = await supabase
         .from("posts")
-        .select("*, comments:comments(*)")
-        .order("created_at", { ascending: false });
+        .select("id, author, author_id, content, media_url, type, likes_count, created_at, metadata")
+        .order("created_at", { ascending: false })
+        .limit(50);
       if (data) {
         setFlicks(data.filter((p: any) =>
           p.media_url?.toLowerCase().match(/\.(mp4|webm|ogg|mov|m4v)/) ||

@@ -1422,11 +1422,12 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       setLoadingMessages(true);
       const { data } = await supabase
         .from("messages")
-        .select("*")
+        .select("id, sender_id, receiver_id, content, media_url, media_type, created_at, seen_at, reply_to_id, reply_preview")
         .or(
           `and(sender_id.eq.${userId},receiver_id.eq.${selectedUser.id}),and(sender_id.eq.${selectedUser.id},receiver_id.eq.${userId})`,
         )
-        .order("created_at", { ascending: true });
+        .order("created_at", { ascending: true })
+        .limit(100);
       setMessages((data as Message[]) || []);
       setLoadingMessages(false);
       // Mark all received messages as seen

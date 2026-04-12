@@ -643,6 +643,16 @@ const FameFeed = ({
   // Unique channel ID per mount — prevents "cannot add callbacks after subscribe()" error
   const channelId = useRef(`fame-rt-${Date.now()}`);
 
+  // ── Pagination ───────────────────────────────────────────────────────────
+  const PAGE_SIZE = 10;
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const pageRef = useRef(0);
+
+  // ── On-demand comment cache ──────────────────────────────────────────────
+  const [commentsMap, setCommentsMap] = useState<Record<string, any[]>>({});
+  const loadedCommentsRef = useRef<Set<string>>(new Set());
+
   // ── DB se current user ki liked post IDs fetch karo ─────────────────────
   const fetchLikedPostIds = async (uid: string) => {
     const { data, error } = await supabase
@@ -660,11 +670,16 @@ const FameFeed = ({
   // ── Profile suggestions fetch — always show, never filter sent-request users
   const fetchPeopleSuggestions = async (uid: string) => {
     try {
-      const { data: profiles, error } = await supabase
+      let res = await supabase
         .from("profiles")
         .select("id, full_name, avatar_url, fame_points")
         .neq("id", uid)
         .limit(20);
+      // Fallback if fame_points column doesn't exist
+      if (res.error?.code === "42703") {
+        res = await supabase.from("profiles").select("id, full_name, avatar_url").neq("id", uid).limit(20) as any;
+      }
+      const { data: profiles, error } = res;
       if (error) { console.warn("[FameFeed] fetchPeopleSuggestions error:", error.message); return; }
       // Sort newest-first by id (UUIDs are roughly time-ordered in Supabase)
       setPeopleSuggestions((profiles || []).reverse());
@@ -818,12 +833,41 @@ const FameFeed = ({
     toast.success("Welcome to the Circle! ⭕");
   };
 
-  const fetchPosts = async () => {
-    const { data } = await supabase.from("posts")
-      .select(`*, comments:comments(*), likes:likes(reaction_type, user_id, profiles(full_name))`)
-      .order("created_at", { ascending: false });
-    setPosts(data ?? []);
+  const loadComments = useCallback(async (postId: string) => {
+    if (loadedCommentsRef.current.has(postId)) return;
+    loadedCommentsRef.current.add(postId);
+    setCommentsMap(prev => ({ ...prev, [postId]: [] }));
+    const { data } = await supabase
+      .from("comments")
+      .select("id, content, author, author_id, parent_id, created_at")
+      .eq("post_id", postId)
+      .order("created_at");
+    setCommentsMap(prev => ({ ...prev, [postId]: data ?? [] }));
+  }, []);
+
+  const fetchPosts = async (reset = false) => {
+    if (!reset && (loadingMore || !hasMore)) return;
+    if (reset) {
+      pageRef.current = 0;
+      setHasMore(true);
+    }
+    const from = pageRef.current * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
+    const { data } = await supabase
+      .from("posts")
+      .select("id, author, author_id, content, media_url, type, likes_count, created_at, metadata, cover_url, views_count, shares_count")
+      .order("created_at", { ascending: false })
+      .range(from, to);
+    const rows = data ?? [];
+    if (reset) {
+      setPosts(rows);
+    } else {
+      setPosts(prev => [...prev, ...rows]);
+    }
+    pageRef.current += 1;
+    setHasMore(rows.length === PAGE_SIZE);
     setLoading(false);
+    setLoadingMore(false);
   };
 
   const fetchFlicks = async () => {
@@ -870,13 +914,18 @@ const FameFeed = ({
   };
 
   useEffect(() => {
-    fetchPosts();
+    fetchPosts(true);
     fetchFlicks();
     const sub = supabase
       .channel(channelId.current)
-      .on("postgres_changes", { event: "*", schema: "public", table: "posts" }, () => {
-        fetchPosts();
-        fetchFlicks();
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "posts" }, (payload) => {
+        setPosts(prev => [payload.new as any, ...prev]);
+      })
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "posts" }, (payload) => {
+        setPosts(prev => prev.map(p => p.id === (payload.new as any).id ? { ...p, ...(payload.new as any) } : p));
+      })
+      .on("postgres_changes", { event: "DELETE", schema: "public", table: "posts" }, (payload) => {
+        setPosts(prev => prev.filter(p => p.id !== (payload.old as any).id));
       })
       .subscribe();
     return () => { supabase.removeChannel(sub); };
@@ -967,25 +1016,21 @@ const FameFeed = ({
       setPosts(prev => prev.map(p => p.id !== post.id ? p : {
         ...p,
         likes_count: Math.max((p.likes_count || 1) - 1, 0),
-        likes: (p.likes || []).filter((l: any) => l.user_id !== currentUserId),
       }));
       await supabase.from("likes").delete().eq("post_id", post.id).eq("user_id", currentUserId);
       await supabase.from("posts").update({ likes_count: Math.max((post.likes_count || 1) - 1, 0) }).eq("id", post.id);
-      fetchPosts();
       return;
     }
 
     const wasLiked = likedIds.has(post.id);
     setLikedIds(p => new Set([...p, post.id]));
     setUserReactions(p => ({ ...p, [post.id]: reactionType }));
-    // Optimistic update — add/replace current user in the likes array so "Liked by" text is instant
+    // Optimistic update — update likes_count instantly
     setPosts(prev => prev.map(p => {
       if (p.id !== post.id) return p;
-      const others = (p.likes || []).filter((l: any) => l.user_id !== currentUserId);
       return {
         ...p,
         likes_count: wasLiked ? p.likes_count : (p.likes_count || 0) + 1,
-        likes: [...others, { user_id: currentUserId, reaction_type: reactionType, profiles: { full_name: userProfile?.full_name || "You" } }],
       };
     }));
 
@@ -1008,7 +1053,6 @@ const FameFeed = ({
         });
       }
     }
-    fetchPosts();
   };
 
   const handleShare = async (post: any) => {
@@ -1080,13 +1124,14 @@ const FameFeed = ({
 
     const { data: { user } } = await supabase.auth.getUser();
 
-    const { error: commentErr } = await supabase.from("comments").insert([{
+    const { data: newComment, error: commentErr } = await supabase.from("comments").insert([{
       post_id: postId,
       content: text,
       author: user?.user_metadata?.full_name || "Vibe User",
       author_id: user?.id ?? null,
       parent_id: parentId ?? null,
-    }]);
+    }]).select("id, content, author, author_id, parent_id, created_at").single();
+
     if (commentErr) {
       console.error("[FameFeed][comment] insert error:", commentErr);
       toast.error("Comment post nahi ho saka.");
@@ -1095,6 +1140,14 @@ const FameFeed = ({
 
     if (isReply) { setReplyText(""); setReplyingTo(null); }
     else setCommentText("");
+
+    // Update commentsMap locally — no need to refetch all posts
+    if (newComment) {
+      setCommentsMap(prev => ({
+        ...prev,
+        [postId]: [...(prev[postId] || []), newComment],
+      }));
+    }
 
     // Notification (only for top-level comments, not replies)
     if (!isReply) {
@@ -1110,8 +1163,6 @@ const FameFeed = ({
         });
       }
     }
-
-    fetchPosts();
   };
 
   const handleDelete = async (postId: string) => {
@@ -1217,34 +1268,17 @@ const FameFeed = ({
 
         {/* ── Liked by line ──────────────────────────────────────────── */}
         {(() => {
-          const likes: any[] = post.likes || [];
+          const count = post.likes_count || 0;
+          if (count === 0) return null;
           const iLiked = likedIds.has(post.id);
-          const otherLikes = likes.filter((l: any) => l.user_id !== currentUserId);
-          const total = iLiked ? otherLikes.length + 1 : otherLikes.length;
-          if (total === 0) return null;
-
-          const NameBtn = ({ l }: { l: any }) => (
-            <button
-              onClick={e => { e.stopPropagation(); if (l.user_id) openProfile(l.user_id); }}
-              className="font-semibold text-gray-800 hover:underline"
-            >
-              {l.profiles?.full_name || "Someone"}
-            </button>
-          );
-
           let node: React.ReactNode;
-          if (iLiked && otherLikes.length === 0) {
+          if (iLiked && count === 1) {
             node = <>Liked by <span className="font-semibold text-gray-800">You</span></>;
           } else if (iLiked) {
-            node = <><span className="font-semibold text-gray-800">You</span> and {otherLikes.length} {otherLikes.length === 1 ? "other" : "others"}</>;
-          } else if (otherLikes.length === 1) {
-            node = <>Liked by <NameBtn l={otherLikes[0]} /></>;
-          } else if (otherLikes.length === 2) {
-            node = <>Liked by <NameBtn l={otherLikes[0]} /> and <NameBtn l={otherLikes[1]} /></>;
+            node = <>Liked by <span className="font-semibold text-gray-800">You</span> and {count - 1} {count - 1 === 1 ? "other" : "others"}</>;
           } else {
-            node = <>Liked by <NameBtn l={otherLikes[0]} /> and {otherLikes.length - 1} others</>;
+            node = <>{count} {count === 1 ? "like" : "likes"}</>;
           }
-
           return (
             <p className="px-4 pb-1 text-sm text-gray-500 leading-snug">{node}</p>
           );
@@ -1309,12 +1343,18 @@ const FameFeed = ({
 
           {/* Comment button */}
           <button
-            onClick={() => { setActiveComment(activeComment === post.id ? null : post.id); setReplyingTo(null); setReplyText(""); }}
+            onClick={() => {
+              const opening = activeComment !== post.id;
+              setActiveComment(opening ? post.id : null);
+              setReplyingTo(null);
+              setReplyText("");
+              if (opening) loadComments(post.id);
+            }}
             className="flex items-center gap-1.5 group"
           >
             <MessageCircle size={22} className="text-gray-400 group-hover:text-blue-500 transition-colors" />
             <span className="text-xs font-bold text-gray-500">
-              {post.comments?.length || 0}
+              {(commentsMap[post.id] || []).length || 0}
             </span>
           </button>
 
@@ -1392,10 +1432,13 @@ const FameFeed = ({
 
               {/* Threaded comment list */}
               <div className="px-4 py-2 space-y-3 max-h-64 overflow-y-auto">
-                {post.comments
-                  ?.filter((c: any) => !c.parent_id)
+                {(commentsMap[post.id] === undefined) && (
+                  <p className="text-gray-400 text-xs text-center py-4">Loading comments…</p>
+                )}
+                {(commentsMap[post.id] || [])
+                  .filter((c: any) => !c.parent_id)
                   .map((c: any) => {
-                    const replies = (post.comments || []).filter((r: any) => r.parent_id === c.id);
+                    const replies = (commentsMap[post.id] || []).filter((r: any) => r.parent_id === c.id);
                     return (
                       <div key={c.id}>
                         {/* Top-level comment */}
@@ -1696,6 +1739,20 @@ const FameFeed = ({
       {!loading && visiblePosts.length === 0 && (
         <div className="flex flex-col items-center py-20 text-gray-300 bg-white">
           <p className="font-black uppercase tracking-widest text-xs">No posts yet</p>
+        </div>
+      )}
+
+      {/* ── Load More ─────────────────────────────────────────────────── */}
+      {!loading && hasMore && visiblePosts.length > 0 && (
+        <div className="flex justify-center py-6 bg-gray-50">
+          <button
+            onClick={() => { setLoadingMore(true); fetchPosts(); }}
+            disabled={loadingMore}
+            className="flex items-center gap-2 px-6 py-2.5 bg-blue-600 text-white font-bold text-sm rounded-full shadow active:scale-95 transition-transform disabled:opacity-60"
+          >
+            {loadingMore ? <Loader2 size={16} className="animate-spin" /> : null}
+            {loadingMore ? "Loading…" : "Load More Posts"}
+          </button>
         </div>
       )}
 

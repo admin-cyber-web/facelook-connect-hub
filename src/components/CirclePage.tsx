@@ -155,8 +155,9 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
   const fetchGroups = async () => {
     const { data } = await supabase
       .from("groups")
-      .select("*")
-      .order("created_at", { ascending: false });
+      .select("id, name, description, cover_url, privacy, member_count, created_by, admin_id, created_at, rules, post_approval")
+      .order("created_at", { ascending: false })
+      .limit(50);
     if (data) setGroups(data as Group[]);
     setLoading(false);
   };
@@ -273,9 +274,10 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
     // Fetch posts
     const { data: posts } = await supabase
       .from("group_posts")
-      .select("*")
+      .select("id, group_id, author_id, author, content, media_url, type, created_at")
       .eq("group_id", group.id)
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false })
+      .limit(30);
     setGroupPosts((posts as GroupPost[]) ?? []);
 
     // Fetch members
@@ -428,9 +430,10 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
       setPostMedia(null);
       const { data: posts } = await supabase
         .from("group_posts")
-        .select("*")
+        .select("id, group_id, author_id, author, content, media_url, type, created_at")
         .eq("group_id", selectedGroup.id)
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .limit(30);
       setGroupPosts((posts as GroupPost[]) ?? []);
     } finally {
       setPosting(false);

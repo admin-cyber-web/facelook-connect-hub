@@ -507,12 +507,14 @@ export default function MovieGame({ userId, userProfile }: Props) {
         host_score: hostFinal, guest_score: guestFinal,
       }).eq("id", s.id);
 
-      // Award winner
-      const { data: wProf } = await supabase
-        .from("profiles").select("fame_points").eq("id", winnerId).single();
-      await supabase.from("profiles")
-        .update({ fame_points: (wProf?.fame_points ?? 0) + 18 })
-        .eq("id", winnerId);
+      // Award winner (gracefully skip if fame_points column doesn't exist)
+      try {
+        const { data: wProf } = await supabase
+          .from("profiles").select("fame_points").eq("id", winnerId).single();
+        await supabase.from("profiles")
+          .update({ fame_points: (wProf?.fame_points ?? 0) + 18 })
+          .eq("id", winnerId);
+      } catch (_) {}
 
       try {
         await supabase.from("admin_earnings").insert({

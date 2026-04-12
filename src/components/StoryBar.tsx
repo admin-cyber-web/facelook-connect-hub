@@ -751,7 +751,7 @@ export const StoryBar = ({ userProfile }: { userProfile?: any }) => {
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const { data, error } = await supabase
       .from("stories")
-      .select("*, profile:profiles(full_name, avatar_url)")
+      .select("id, user_id, created_at, media_url, type, text, metadata, profile:profiles(full_name, avatar_url)")
       .gte("created_at", since)
       .order("created_at", { ascending: true });
 

@@ -128,12 +128,13 @@ const SearchModal = ({ onClose, userId }: { onClose: () => void; userId?: string
     setTimeout(() => inputRef.current?.focus(), 80);
     (async () => {
       const queries: Promise<any>[] = [
-        supabase.from("profiles").select("id,full_name,avatar_url,fame_points").order("fame_points", { ascending: false }).limit(8),
+        supabase.from("profiles").select("id,full_name,avatar_url,fame_points").order("fame_points", { ascending: false }).limit(8)
+          .then(r => r.error?.code === "42703" ? supabase.from("profiles").select("id,full_name,avatar_url").limit(8) : r),
         supabase.from("groups").select("id,name,cover_url,member_count").order("member_count", { ascending: false }).limit(8),
       ];
       if (userId) queries.push(supabase.from("friend_requests").select("receiver_id").eq("sender_id", userId));
       const [{ data: p }, { data: c }, reqRes] = await Promise.all(queries);
-      setSugPeople((p || []).filter((x: any) => x.id !== userId));
+      setSugPeople(((p || []) as any[]).filter((x: any) => x.id !== userId).map((x: any) => ({ ...x, fame_points: x.fame_points ?? 0 })));
       setSugCircles(c || []);
       if (reqRes?.data) setSentRequests(new Set(reqRes.data.map((r: any) => r.receiver_id)));
     })();

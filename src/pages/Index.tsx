@@ -191,7 +191,7 @@ function FrameModePage({ onBack, userProfile, userEmail }: { onBack: () => void;
     try {
       const { data } = await supabase
         .from("frame_requests")
-        .select("*")
+        .select("id, request_code, user_id, user_name, user_avatar, needy_name, needy_photo_url, address, category, mobile, description, collected_amount, target_amount, delivery_charge, support_count, status, is_priority, created_at")
         .order("created_at", { ascending: false })
         .limit(50);
       if (data) setRequests(data);
@@ -1320,8 +1320,9 @@ const Index = ({ session }: { session: Session }) => {
     if (!userId) return;
     supabase
       .from("frame_requests")
-      .select("*")
+      .select("id, request_code, user_id, user_name, user_avatar, needy_name, needy_photo_url, address, category, mobile, description, collected_amount, target_amount, delivery_charge, support_count, status, is_priority, created_at")
       .order("created_at", { ascending: false })
+      .limit(30)
       .then(({ data }) => { if (data) setMyFrameRequests(data as FrameRequest[]); });
 
     const myCh = supabase
