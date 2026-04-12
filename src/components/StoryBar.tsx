@@ -750,45 +750,16 @@ export const StoryBar = ({ userProfile }: { userProfile?: any }) => {
   const fetchStories = useCallback(async () => {
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
-    // Step 1: Fetch stories without the FK join to avoid relationship errors
-    // Try both column name variants (media_url vs image_url, text vs caption)
-    let rawData: any[] | null = null;
-
-    const { data: d1, error: e1 } = await supabase
+    // Fetch stories with confirmed column names: image_url, media_type, caption
+    const { data: rawData, error: fetchError } = await supabase
       .from("stories")
-      .select("id, user_id, created_at, media_url, type, text, metadata")
+      .select("id, user_id, created_at, image_url, media_type, caption")
       .gte("created_at", since)
       .order("created_at", { ascending: true });
 
-    if (e1) {
-      console.error("[StoryBar] Primary fetch failed:", e1.message, "| code:", e1.code, "| details:", e1.details);
-      // Fallback: try alternate column names
-      const { data: d2, error: e2 } = await supabase
-        .from("stories")
-        .select("id, user_id, created_at, image_url, type, caption, metadata")
-        .gte("created_at", since)
-        .order("created_at", { ascending: true });
-
-      if (e2) {
-        console.error("[StoryBar] Fallback fetch also failed:", e2.message, "| code:", e2.code);
-        // Last resort: fetch only guaranteed columns
-        const { data: d3, error: e3 } = await supabase
-          .from("stories")
-          .select("id, user_id, created_at")
-          .gte("created_at", since)
-          .order("created_at", { ascending: true });
-        if (e3) { console.error("[StoryBar] Minimal fetch failed:", e3.message); return; }
-        rawData = (d3 || []).map((s: any) => ({ ...s, media_url: null, type: "image", text: "" }));
-      } else {
-        // Normalize alternate column names
-        rawData = (d2 || []).map((s: any) => ({
-          ...s,
-          media_url: s.image_url ?? s.media_url ?? null,
-          text: s.caption ?? s.text ?? "",
-        }));
-      }
-    } else {
-      rawData = d1 || [];
+    if (fetchError) {
+      console.error("[StoryBar] fetch failed:", fetchError.message, "| code:", fetchError.code, "| details:", fetchError.details);
+      return;
     }
 
     // Step 2: Fetch profiles for all unique user_ids separately (avoids FK join errors)
