@@ -124,7 +124,7 @@ const CommentDrawer = ({
   useEffect(() => {
     supabase
       .from("comments")
-      .select("id, content, author, author_id, created_at")
+      .select("id, content, author_id, created_at")
       .eq("post_id", post.id)
       .order("created_at")
       .then(({ data }) => setComments(data || []));
@@ -137,7 +137,6 @@ const CommentDrawer = ({
     const { data } = await supabase.from("comments").insert([{
       post_id: post.id,
       content: text.trim(),
-      author: "You",
       author_id: currentUserId,
     }]).select().single();
     if (data) setComments(prev => [...prev, data]);
@@ -174,10 +173,10 @@ const CommentDrawer = ({
         {comments.map((c: any, i: number) => (
           <div key={c.id || i} className="flex gap-3">
             <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-xs font-black text-white shrink-0">
-              {(c.author || "U")[0].toUpperCase()}
+              {(c.author_id || "U")[0].toUpperCase()}
             </div>
             <div>
-              <p className="text-white/80 text-[11px] font-black mb-0.5">{c.author || "User"}</p>
+              <p className="text-white/80 text-[11px] font-black mb-0.5">User</p>
               <p className="text-white/70 text-sm leading-snug">{c.content}</p>
             </div>
           </div>

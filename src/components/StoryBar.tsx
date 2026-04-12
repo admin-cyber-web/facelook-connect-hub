@@ -209,10 +209,10 @@ const StoryViewer = ({
     if (!story || !currentUserId) return;
     if (viewedRef.current.has(story.id)) return;
     viewedRef.current.add(story.id);
-    supabase.from("story_views").insert({
+    supabase.from("story_views").upsert({
       story_id: story.id,
       viewer_id: currentUserId,
-    }).then(() => {});
+    }, { onConflict: "story_id,viewer_id", ignoreDuplicates: true }).then(() => {});
   }, [story, currentUserId]);
 
   // Music autoplay
