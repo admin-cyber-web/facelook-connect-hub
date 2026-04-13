@@ -552,8 +552,16 @@ export default function FlicksApp({ onBack }: { onBack?: () => void }) {
   };
 
   const handleDelete = async (postId: string) => {
-    await supabase.from("posts").delete().eq("id", postId);
-    setFlicks(prev => prev.filter(p => p.id !== postId));
+    const { error } = await supabase
+      .from("posts")
+      .delete()
+      .eq("id", postId)
+      .eq("author_id", currentUserId);
+    if (!error) {
+      setFlicks(prev => prev.filter(p => p.id !== postId));
+    } else {
+      console.error("[FlicksFeed] Delete failed:", error.message, "| code:", error.code);
+    }
   };
 
   const handleHide = (postId: string) => setHiddenIds(prev => new Set([...prev, postId]));

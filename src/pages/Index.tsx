@@ -1538,11 +1538,13 @@ const Index = ({ session }: { session: Session }) => {
 
   const handleSavePersonalInfo = async () => {
     setIsSavingPersonal(true);
-    const { error } = await supabase.from("profiles").upsert({
-      id: userId,
-      ...personalForm,
-      updated_at: new Date().toISOString(),
-    });
+    const { error } = await supabase
+      .from("profiles")
+      .update({
+        ...personalForm,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", userId);
     if (!error) {
       setProfile((prev) => ({ ...prev, ...personalForm }));
       setPersonalSaved(true);
@@ -1551,6 +1553,8 @@ const Index = ({ session }: { session: Session }) => {
         setPersonalSaved(false);
         setSettingsView("main");
       }, 1200);
+    } else {
+      console.error("[Profile] Save failed:", error.message, "| code:", error.code);
     }
     setIsSavingPersonal(false);
   };

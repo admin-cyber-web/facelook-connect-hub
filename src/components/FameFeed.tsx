@@ -1167,8 +1167,16 @@ const FameFeed = ({
 
   const handleDelete = async (postId: string) => {
     setOpenMenuId(null);
-    await supabase.from("posts").delete().eq("id", postId);
-    setPosts(p => p.filter(x => x.id !== postId));
+    const { error } = await supabase
+      .from("posts")
+      .delete()
+      .eq("id", postId)
+      .eq("author_id", currentUserId);
+    if (!error) {
+      setPosts(p => p.filter(x => x.id !== postId));
+    } else {
+      console.error("[FameFeed] Delete failed:", error.message, "| code:", error.code);
+    }
   };
 
   const handleHide = (postId: string) => { setOpenMenuId(null); setHiddenIds(p => new Set([...p, postId])); };
