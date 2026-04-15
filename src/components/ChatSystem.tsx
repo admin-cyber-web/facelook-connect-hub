@@ -1540,13 +1540,14 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       });
 
     // ── Manual-fetch fallback ────────────────────────────────────────────────
-    // Every 10 s, if realtime hasn't fired, silently re-fetch to keep UI in sync
+    // Every 5 s, if realtime hasn't fired, silently re-fetch to keep UI in sync.
+    // Only the minimum columns are selected to save bandwidth.
     const fallbackInterval = setInterval(async () => {
-      if (Date.now() - lastRtReceived >= 10_000) {
-        console.log("[ChatSystem] 🔄 Manual-fetch fallback triggered (no realtime event in 10 s)");
+      if (Date.now() - lastRtReceived >= 5_000) {
+        console.log("[ChatSystem] 🔄 Manual-fetch fallback triggered (no realtime event in 5 s)");
         const { data } = await supabase
           .from("messages")
-          .select("id, sender_id, receiver_id, content, media_url, media_type, created_at, seen_at, reply_to_id, reply_preview")
+          .select("id, sender_id, receiver_id, content, created_at, seen_at, reply_to_id, reply_preview")
           .or(
             `and(sender_id.eq.${userId},receiver_id.eq.${selectedUser.id}),and(sender_id.eq.${selectedUser.id},receiver_id.eq.${userId})`,
           )
@@ -1561,7 +1562,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
           });
         }
       }
-    }, 10_000);
+    }, 5_000);
 
     // Typing presence channel
     const typingKey = [userId, selectedUser.id].sort().join("-");
@@ -1742,19 +1743,33 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       fetchContacts();
     } else if (error) {
       setMessages((prev) => prev.filter((m) => m.id !== tempId));
-      console.error("Supabase Error:", error);
+      console.error("[ChatSystem] sendMessage error:", error);
 
-      const reason =
-        error.code === "PGRST301" || error.code?.startsWith("42")
-          ? "Database Permission Error"
-          : error.message?.toLowerCase().includes("network")
-            ? "Network Issue"
-            : error.message || "Unknown Error";
+      // Detect read-only / quota-exceeded conditions
+      const errMsg = (error.message || "").toLowerCase();
+      const errCode = (error.code || "").toLowerCase();
+      const isQuota =
+        errMsg.includes("read-only") ||
+        errMsg.includes("quota") ||
+        errMsg.includes("readonly") ||
+        errMsg.includes("storage full") ||
+        errMsg.includes("disk") ||
+        errCode === "25006" ||   // read_only_sql_transaction (PostgreSQL)
+        errCode === "53100" ||   // disk_full
+        error.status === 503 ||
+        error.status === 507;
 
-      toast.error(`Message failed: ${reason}`);
-      alert(
-        `Message send failed!\nReason: ${reason}\n\nDetails: ${error.message}`,
-      );
+      if (isQuota) {
+        toast.error("Server busy / Quota full — please try again in a few minutes.", { duration: 6000 });
+      } else {
+        const reason =
+          error.code === "PGRST301" || error.code?.startsWith("42")
+            ? "Database Permission Error"
+            : errMsg.includes("network")
+              ? "Network Issue"
+              : error.message || "Unknown Error";
+        toast.error(`Message failed: ${reason}`);
+      }
     }
 
     setIsSending(false);
