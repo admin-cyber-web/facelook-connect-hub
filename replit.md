@@ -1,7 +1,7 @@
-# Facelook - Social App
+# Flicks - Social App
 
 ## Project Overview
-A social media and entertainment platform called "Facelook" built with React 18, Vite, TypeScript, Tailwind CSS, and Supabase. Features: Fame Feed, Flicks (TikTok-style reels), Chat Messenger Ecosystem, Movie Game (KBC Quiz), Snapy Studio, and Facelook Frame (charity wall).
+A social media and entertainment platform called "Flicks" built with React 18, Vite, TypeScript, Tailwind CSS, and Supabase. Features: Fame Feed, Flicks (TikTok-style reels), Chat Messenger Ecosystem, Movie Game (KBC Quiz), Snapy Studio, and Flicks Frame (charity wall).
 
 ## Messenger Ecosystem (ChatSystem.tsx) — v2
 Full-screen messenger with 6 modules:

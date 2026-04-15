@@ -20,7 +20,7 @@ import AgoraRTC from "agora-rtc-sdk-ng";
 const APP_ID = "fc434988dc0545b49355a6ace8aaadd6";
 const TOKEN =
   "007eJxTYJjIdUjct3rFtRcMzWuVEyIPl1a877GUt5t4RmxKilIV9zsFhrRkE2MTSwuLlGQDUxPTJBNLY1PTRLPE5FSLxMTElBSzM9ePZzYEMjJMyzNiZmSAQBCflyENqCgnPz9btyg1MYeBAQBAhSKt";
-const CHANNEL = "facelook-real";
+const CHANNEL = "flicks-real";
 
 const ConnectionPanel = () => {
   const [inCall, setInCall] = useState(false);

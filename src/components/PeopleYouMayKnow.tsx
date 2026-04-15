@@ -83,7 +83,7 @@ export default function PeopleYouMayKnow({ currentUserId }: Props) {
             </div>
 
             <p className="text-[12px] font-bold text-gray-900 text-center px-2 mt-2 leading-tight line-clamp-1 w-full truncate">
-              {person.full_name || person.username || "Facelook User"}
+              {person.full_name || person.username || "Flicks User"}
             </p>
 
             <button

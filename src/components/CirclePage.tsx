@@ -248,7 +248,7 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
   // ── Share Circle ─────────────────────────────────────────────────────────────
   const shareCircle = (group: Group) => {
     const link = `${window.location.origin}?circle=${group.id}`;
-    const text = `Join "${group.name}" on Facelook! 🔥`;
+    const text = `Join "${group.name}" on Flicks! 🔥`;
     if (navigator.share) {
       navigator.share({ title: group.name, text, url: link }).catch(() => {});
     } else {
@@ -259,7 +259,7 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
 
   const shareOnWhatsApp = (group: Group) => {
     const link = `${window.location.origin}?circle=${group.id}`;
-    const text = encodeURIComponent(`Join "${group.name}" on Facelook! 🔥 ${link}`);
+    const text = encodeURIComponent(`Join "${group.name}" on Flicks! 🔥 ${link}`);
     window.open(`https://wa.me/?text=${text}`, "_blank");
   };
 

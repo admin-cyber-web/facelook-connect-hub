@@ -381,7 +381,7 @@ function FrameModePage({ onBack, userProfile, userEmail }: { onBack: () => void;
   const handleShare = async () => {
     try {
       if (navigator.share) {
-        await navigator.share({ title: "Facelook Frame", text: "Zarooratmand ki madad karein!", url: window.location.origin });
+        await navigator.share({ title: "Flicks Frame", text: "Zarooratmand ki madad karein!", url: window.location.origin });
       } else {
         await navigator.clipboard.writeText(window.location.origin);
         alert("Link copy ho gaya! Share karein apne doston ke saath 🤝");
@@ -390,11 +390,11 @@ function FrameModePage({ onBack, userProfile, userEmail }: { onBack: () => void;
   };
 
   const handleShareRequest = async (req: FrameRequest) => {
-    const shareText = `🙏 *Madad Karen!* — Facelook Frame\n\n👤 Zarooratmand: *${req.needy_name}*\n📦 Zaroorat: *${req.category}*\n🎯 Target Amount: *₹${req.target_amount}*\n📍 Address: ${req.address}\n\nAd dekh kar help karein ya share karein:\n🔗 ${window.location.origin}\n\n🆔 Request Code: *#${req.request_code}*\n\n— Facelook Frame Team 🤝`;
+    const shareText = `🙏 *Madad Karen!* — Flicks Frame\n\n👤 Zarooratmand: *${req.needy_name}*\n📦 Zaroorat: *${req.category}*\n🎯 Target Amount: *₹${req.target_amount}*\n📍 Address: ${req.address}\n\nAd dekh kar help karein ya share karein:\n🔗 ${window.location.origin}\n\n🆔 Request Code: *#${req.request_code}*\n\n— Flicks Frame Team 🤝`;
     try {
       if (navigator.share) {
         await navigator.share({
-          title: `Help ${req.needy_name} — Facelook Frame`,
+          title: `Help ${req.needy_name} — Flicks Frame`,
           text: shareText,
           url: window.location.origin,
         });
@@ -436,7 +436,7 @@ function FrameModePage({ onBack, userProfile, userEmail }: { onBack: () => void;
           <ArrowLeft size={18} />
         </button>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-black text-amber-900 leading-none">FACELOOK FRAME</p>
+          <p className="text-sm font-black text-amber-900 leading-none">FLICKS FRAME</p>
           <p className="text-[10px] text-amber-600 font-semibold leading-tight mt-0.5">एक छोटा सा प्रयास, किसी की बड़ी मदद</p>
         </div>
         <motion.button
@@ -480,7 +480,7 @@ function FrameModePage({ onBack, userProfile, userEmail }: { onBack: () => void;
                   )}
                   <div>
                     <p className="font-bold text-sm text-gray-900">{userProfile?.full_name || "Anonymous"}</p>
-                    <p className="text-[10px] text-gray-500">Verified Facelook User</p>
+                    <p className="text-[10px] text-gray-500">Verified Flicks User</p>
                   </div>
                 </div>
               </div>
@@ -572,7 +572,7 @@ function FrameModePage({ onBack, userProfile, userEmail }: { onBack: () => void;
                 <p className="text-lg font-black text-amber-900 mb-2">Request Submit Ho Gayi!</p>
                 <p className="text-sm text-gray-600 leading-relaxed mb-4">
                   हमें भरोसा है कि आपकी यह कोशिश किसी की ज़िंदगी बदल देगी।<br/>
-                  <span className="text-amber-700 font-bold">Facelook Frame Team</span> jald hi verify karegi.
+                  <span className="text-amber-700 font-bold">Flicks Frame Team</span> jald hi verify karegi.
                 </p>
                 <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl py-3 px-4 mb-4">
                   <p className="text-[10px] text-amber-600 font-black uppercase tracking-widest">Aapka Request Code</p>
@@ -779,7 +779,7 @@ function FrameModePage({ onBack, userProfile, userEmail }: { onBack: () => void;
                 ) : (
                   <div className="bg-blue-50 border-b border-blue-100 px-4 py-1.5 flex items-center gap-1.5">
                     <Shield size={10} className="text-blue-500 shrink-0" />
-                    <p className="text-[10px] font-black text-blue-600 tracking-wide">Under Facelook Verification</p>
+                    <p className="text-[10px] font-black text-blue-600 tracking-wide">Under Flicks Verification</p>
                   </div>
                 )}
 
@@ -964,7 +964,7 @@ const PrivacyPolicyView = ({ setSettingsView, lang }: { setSettingsView: (v: any
         ))}
 
         <p className="text-[10px] text-white/25 text-center pt-2">
-          {t("Effective from 2024 · Facelook App", "2024 से प्रभावी · फेसलुक ऐप")}
+          {t("Effective from 2024 · Flicks App", "2024 से प्रभावी · फेसलुक ऐप")}
         </p>
       </div>
     </div>
@@ -983,7 +983,7 @@ const FAQS = [
   },
   {
     q: "Why is my account suspended?",
-    a: "Accounts are suspended for violating community guidelines. Contact support@carefacelook.in for an appeal.",
+    a: "Accounts are suspended for violating community guidelines. Contact support@careflicks.in for an appeal.",
   },
   {
     q: "How do I delete my account?",
@@ -995,7 +995,7 @@ const HelpSupportView = ({ setSettingsView, lang }: { setSettingsView: (v: any) 
   const t = (en: string, hi: string) => (lang === "hi" ? hi : en);
   const [copied, setCopied] = useState(false);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
-  const SUPPORT_EMAIL = "support@carefacelook.in";
+  const SUPPORT_EMAIL = "support@careflicks.in";
 
   const handleCopy = () => {
     navigator.clipboard.writeText(SUPPORT_EMAIL).then(() => {
@@ -1140,7 +1140,7 @@ const PersonalInfoView = React.memo(({
       onAvatarUpdated(publicUrl);
 
       // Broadcast live update to Header and other listeners
-      window.dispatchEvent(new CustomEvent("facelook-avatar-updated", { detail: { url: publicUrl } }));
+      window.dispatchEvent(new CustomEvent("flicks-avatar-updated", { detail: { url: publicUrl } }));
     } catch (err: any) {
       console.error("[DP Upload] error:", err);
       alert("Photo upload nahi ho saki. Dobara try karo.");
@@ -1265,7 +1265,7 @@ const Index = ({ session }: { session: Session }) => {
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [showNav, setShowNav] = useState(true);
   const [darkMode, setDarkMode] = useState(
-    localStorage.getItem("facelook-dark") !== "false",
+    localStorage.getItem("flicks-dark") !== "false",
   );
   const lastScrollY = useRef(0);
 
@@ -1309,7 +1309,7 @@ const Index = ({ session }: { session: Session }) => {
 
   // Settings toggles
   const [lang, setLang] = useState<"en" | "hi">(
-    (localStorage.getItem("facelook-lang") as "en" | "hi") || "en",
+    (localStorage.getItem("flicks-lang") as "en" | "hi") || "en",
   );
   const [profileLocked, setProfileLocked] = useState(false);
   const [profileHidden, setProfileHidden] = useState(false);
@@ -1512,7 +1512,7 @@ const Index = ({ session }: { session: Session }) => {
   // ── Handlers ─────────────────────────────────────────────────────────────
   const toggleDarkMode = (dark: boolean) => {
     setDarkMode(dark);
-    localStorage.setItem("facelook-dark", String(dark));
+    localStorage.setItem("flicks-dark", String(dark));
   };
 
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1548,7 +1548,7 @@ const Index = ({ session }: { session: Session }) => {
     if (!error) {
       setProfile((prev) => ({ ...prev, ...personalForm }));
       setPersonalSaved(true);
-      window.dispatchEvent(new CustomEvent("facelook-profile-updated"));
+      window.dispatchEvent(new CustomEvent("flicks-profile-updated"));
       setTimeout(() => {
         setPersonalSaved(false);
         setSettingsView("main");
@@ -1570,7 +1570,7 @@ const Index = ({ session }: { session: Session }) => {
   const toggleLang = () => {
     const next = lang === "en" ? "hi" : "en";
     setLang(next);
-    localStorage.setItem("facelook-lang", next);
+    localStorage.setItem("flicks-lang", next);
   };
 
   const handleToggleProfileLock = async () => {
@@ -1848,7 +1848,7 @@ const Index = ({ session }: { session: Session }) => {
         )}
       </AnimatePresence>
 
-      {/* ── Agora Video Call bottom-sheet (FACELOOK FUN CALL) ───────────────── */}
+      {/* ── Agora Video Call bottom-sheet (FLICKS FUN CALL) ───────────────── */}
       <AnimatePresence>
         {isVideoCallOpen && (
           <>
@@ -1876,7 +1876,7 @@ const Index = ({ session }: { session: Session }) => {
               </div>
               <div className="px-4 pb-2 flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-black text-white">FACELOOK FUN CALL</p>
+                  <p className="text-sm font-black text-white">FLICKS FUN CALL</p>
                   <p className="text-[10px] text-violet-400">Stranger se live video call karo</p>
                 </div>
                 <button
@@ -1978,7 +1978,7 @@ const Index = ({ session }: { session: Session }) => {
                     </div>
                   </motion.button>
 
-                  {/* ── Facelook Frame Card ──────────────────────────────────── */}
+                  {/* ── Flicks Frame Card ──────────────────────────────────── */}
                   <motion.button
                     whileTap={{ scale: 0.97 }}
                     onClick={() => setIsFrameMode(true)}
@@ -1990,7 +1990,7 @@ const Index = ({ session }: { session: Session }) => {
                       <div className="w-6 h-6 rounded-lg bg-blue-100 flex items-center justify-center shrink-0">
                         <HelpCircle size={13} className="text-blue-600" />
                       </div>
-                      <span className="text-[11px] font-black text-gray-800 leading-none">Facelook Frame</span>
+                      <span className="text-[11px] font-black text-gray-800 leading-none">Flicks Frame</span>
                     </div>
 
                     {/* Category icons — 4-grid */}

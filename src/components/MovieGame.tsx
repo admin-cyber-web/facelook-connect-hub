@@ -603,7 +603,7 @@ export default function MovieGame({ userId, userProfile }: Props) {
           >
             <div className="w-16 h-16 rounded-full border-4 border-violet-400 border-t-transparent animate-spin" />
             <p className="text-violet-300 font-semibold text-lg">Looking for opponent…</p>
-            <p className="text-white/30 text-xs">Share Facelook with a friend to play together!</p>
+            <p className="text-white/30 text-xs">Share Flicks with a friend to play together!</p>
           </motion.div>
         )}
 

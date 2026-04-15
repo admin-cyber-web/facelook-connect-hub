@@ -2602,14 +2602,14 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                         <div className="absolute bottom-4 left-4 z-20 flex gap-2">
                           <button
                             onPointerDown={e => e.stopPropagation()} onPointerUp={e => e.stopPropagation()}
-                            onClick={e => { e.stopPropagation(); const url = story.image_url; if (navigator.share) { navigator.share({ title: "Facelook Story", url }).catch(() => {}); } else { navigator.clipboard.writeText(url); toast.success("Link copied!"); } }}
+                            onClick={e => { e.stopPropagation(); const url = story.image_url; if (navigator.share) { navigator.share({ title: "Flicks Story", url }).catch(() => {}); } else { navigator.clipboard.writeText(url); toast.success("Link copied!"); } }}
                             className="w-9 h-9 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center border border-white/20"
                           >
                             <Share2 size={15} className="text-white" />
                           </button>
                           <button
                             onPointerDown={e => e.stopPropagation()} onPointerUp={e => e.stopPropagation()}
-                            onClick={e => { e.stopPropagation(); const a = document.createElement("a"); a.href = story.image_url; a.download = `facelook-story`; a.target = "_blank"; document.body.appendChild(a); a.click(); document.body.removeChild(a); }}
+                            onClick={e => { e.stopPropagation(); const a = document.createElement("a"); a.href = story.image_url; a.download = `flicks-story`; a.target = "_blank"; document.body.appendChild(a); a.click(); document.body.removeChild(a); }}
                             className="w-9 h-9 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center border border-white/20"
                           >
                             <Download size={15} className="text-white" />

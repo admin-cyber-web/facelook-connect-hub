@@ -589,11 +589,11 @@ export default function FlicksApp({ onBack }: { onBack?: () => void }) {
             <div className="w-8 h-8 rounded-full border-4 border-dashed border-zinc-600 animate-spin" />
           </div>
           <div className="w-full h-8 bg-zinc-900 rounded flex items-center justify-center">
-            <span className="text-[8px] text-zinc-500 font-black tracking-[0.3em] uppercase italic">Facelook Flicks</span>
+            <span className="text-[8px] text-zinc-500 font-black tracking-[0.3em] uppercase italic">Flicks Flicks</span>
           </div>
         </motion.div>
         <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-8 text-white font-black italic text-xl tracking-tighter">
-          POWERED BY <span className="text-blue-500">FACELOOK</span>
+          POWERED BY <span className="text-blue-500">FLICKS</span>
         </motion.p>
       </div>
     );

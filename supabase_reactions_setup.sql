@@ -1,5 +1,5 @@
 -- ═══════════════════════════════════════════════════════════
--- Facelook: Message & Comment Reactions Setup
+-- Flicks: Message & Comment Reactions Setup
 -- Run this in Supabase SQL Editor
 -- ═══════════════════════════════════════════════════════════
 

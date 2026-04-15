@@ -1,4 +1,4 @@
-package com.facelook.hub;
+package com.flicks.hub;
 
 import com.getcapacitor.BridgeActivity;
 

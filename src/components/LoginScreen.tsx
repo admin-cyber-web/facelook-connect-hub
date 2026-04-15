@@ -70,7 +70,7 @@ const LoginScreen = () => {
             transition={{ delay: 0.2 }}
             className="text-4xl font-black tracking-tight bg-gradient-to-r from-white via-blue-200 to-purple-300 bg-clip-text text-transparent"
           >
-            Facelook
+            Flicks
           </motion.h1>
           <motion.p
             initial={{ opacity: 0, y: 8 }}
@@ -122,7 +122,7 @@ const LoginScreen = () => {
           transition={{ delay: 0.65 }}
           className="text-[11px] text-white/30 text-center leading-relaxed font-medium"
         >
-          By continuing, you agree to Facelook's{" "}
+          By continuing, you agree to Flicks's{" "}
           <a href="/privacy" className="text-blue-400 underline underline-offset-2 hover:text-blue-300 transition-colors">
             Privacy Policy
           </a>
@@ -146,7 +146,7 @@ const LoginScreen = () => {
           </span>
         </div>
         <span className="text-[10px] text-white/25 font-medium">
-          © 2025 Facelook · All rights reserved
+          © 2025 Flicks · All rights reserved
         </span>
       </motion.div>
     </div>

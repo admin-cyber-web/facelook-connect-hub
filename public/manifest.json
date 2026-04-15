@@ -1,6 +1,6 @@
 {
-  "name": "Facelook",
-  "short_name": "Facelook",
+  "name": "Flicks",
+  "short_name": "Flicks",
   "description": "Connect with friends and join trending circles.",
   "start_url": "/",
   "display": "standalone",

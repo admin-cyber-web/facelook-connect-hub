@@ -1,5 +1,5 @@
 -- ═══════════════════════════════════════════════════════════
--- Facelook Admin & Moderation Setup
+-- Flicks Admin & Moderation Setup
 -- Run this in Supabase SQL Editor
 -- ═══════════════════════════════════════════════════════════
 

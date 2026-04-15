@@ -1,10 +1,10 @@
 apply plugin: 'com.android.application'
 
 android {
-    namespace "com.facelook.hub"
+    namespace "com.flicks.hub"
     compileSdk rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.facelook.hub"
+        applicationId "com.flicks.hub"
         minSdk rootProject.ext.minSdkVersion
         targetSdk rootProject.ext.targetSdkVersion
         versionCode 1

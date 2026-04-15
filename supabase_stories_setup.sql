@@ -1,5 +1,5 @@
 -- ═══════════════════════════════════════════════════════════════════
---  Facelook — Stories & Story Views schema (v2)
+--  Flicks — Stories & Story Views schema (v2)
 --  Run this in Supabase SQL Editor → New Query
 -- ═══════════════════════════════════════════════════════════════════
 

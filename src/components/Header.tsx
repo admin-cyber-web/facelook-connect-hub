@@ -43,12 +43,12 @@ const NOTIF_META: Record<string, { icon: React.ReactNode; color: string; label: 
 
 // ── Scramble config ────────────────────────────────────────────────────────────
 const CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz#@!%&$";
-const WORD = ["F", "a", "c", "e", "l", "o", "o", "k"] as const;
+const WORD = ["F", "l", "i", "c", "k", "s"] as const;
 const SCRAMBLE_STEPS = 10;
 const STEP_MS       = 50;
 const STAGGER_MS    = 75;
 
-const FacelookLogo = () => {
+const FlicksLogo = () => {
   const [letters, setLetters] = useState<string[]>(() =>
     WORD.map(() => CHARS[Math.floor(Math.random() * CHARS.length)])
   );
@@ -600,11 +600,11 @@ const Header = ({
       if (url) setUserData(prev => ({ ...prev, avatar_url: url }));
     };
     const profileHandler = () => { fetchProfile(); };
-    window.addEventListener("facelook-avatar-updated", avatarHandler);
-    window.addEventListener("facelook-profile-updated", profileHandler);
+    window.addEventListener("flicks-avatar-updated", avatarHandler);
+    window.addEventListener("flicks-profile-updated", profileHandler);
     return () => {
-      window.removeEventListener("facelook-avatar-updated", avatarHandler);
-      window.removeEventListener("facelook-profile-updated", profileHandler);
+      window.removeEventListener("flicks-avatar-updated", avatarHandler);
+      window.removeEventListener("flicks-profile-updated", profileHandler);
     };
   }, [fetchProfile]);
 
@@ -629,7 +629,7 @@ const Header = ({
             className="w-7 h-7 rounded-lg bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center shadow-lg shadow-blue-500/30 flex-shrink-0">
             <span className="text-white font-black text-[12px] italic">F</span>
           </motion.div>
-          <FacelookLogo />
+          <FlicksLogo />
           <TirangaFlag />
         </div>
         <div className="flex-1" />
