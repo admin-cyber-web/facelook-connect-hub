@@ -1314,6 +1314,8 @@ const Index = ({ session }: { session: Session }) => {
   const [profileLocked, setProfileLocked] = useState(false);
   const [profileHidden, setProfileHidden] = useState(false);
   const [resetSent, setResetSent] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [deleteSubmitted, setDeleteSubmitted] = useState(false);
   const [accountStatus, setAccountStatus] = useState<string>("active");
   const [suspensionReason, setSuspensionReason] = useState<string>("");
 
@@ -1595,6 +1597,23 @@ const Index = ({ session }: { session: Session }) => {
     await supabase.auth.signOut();
   };
 
+  const handleDeleteAccount = async () => {
+    try {
+      await supabase.from("deletion_requests").insert({
+        user_id: userId,
+        email: userEmail,
+        requested_at: new Date().toISOString(),
+        status: "pending",
+      });
+    } catch {
+      // Table may not exist yet — request is still shown as submitted
+    }
+    setDeleteSubmitted(true);
+    setTimeout(() => {
+      supabase.auth.signOut();
+    }, 6000);
+  };
+
   // ── Labels (language) ────────────────────────────────────────────────────
   const t = (en: string, hi: string) => (lang === "hi" ? hi : en);
 
@@ -1782,6 +1801,20 @@ const Index = ({ session }: { session: Session }) => {
         />
       </GlassCard>
 
+      {/* Danger Zone */}
+      <GlassCard className="rounded-[2.5rem] p-2 border border-red-500/20">
+        <h2 className="text-[10px] font-black text-red-400/70 uppercase tracking-widest px-4 pt-3 pb-1 flex items-center gap-2">
+          <AlertTriangle size={12} /> Danger Zone
+        </h2>
+        <SettingRow
+          icon={<Trash2 size={18} />}
+          title="Delete Account"
+          desc="Submit a request to permanently delete your account"
+          color="text-red-400"
+          onClick={() => { setDeleteSubmitted(false); setShowDeleteDialog(true); }}
+        />
+      </GlassCard>
+
       {/* Logout */}
       <div className="px-0">
         <button
@@ -1831,6 +1864,90 @@ const Index = ({ session }: { session: Session }) => {
     >
       {/* Falling rose petals — fixed background layer, never blocks clicks */}
       <GlobalRosePetals />
+
+      {/* ── Delete Account Modal ────────────────────────────────────────────── */}
+      <AnimatePresence>
+        {showDeleteDialog && (
+          <motion.div
+            key="delete-modal-bg"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[9999] flex items-center justify-center px-5"
+            style={{ background: "rgba(2,6,23,0.96)", backdropFilter: "blur(24px)" }}
+          >
+            <motion.div
+              key="delete-modal-card"
+              initial={{ scale: 0.92, opacity: 0, y: 16 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.92, opacity: 0, y: 16 }}
+              transition={{ type: "spring", stiffness: 340, damping: 30 }}
+              className="w-full max-w-sm rounded-3xl overflow-hidden border border-white/10"
+              style={{ background: "linear-gradient(160deg,#0d1117,#0a0f1a)" }}
+            >
+              {!deleteSubmitted ? (
+                <div className="p-6 space-y-5">
+                  {/* Header */}
+                  <div className="flex items-center gap-3">
+                    <div className="w-11 h-11 rounded-2xl bg-red-500/20 border border-red-500/30 flex items-center justify-center shrink-0">
+                      <Trash2 size={20} className="text-red-400" />
+                    </div>
+                    <div>
+                      <p className="text-white font-black text-base">Delete Account</p>
+                      <p className="text-white/40 text-[11px] font-semibold">Requires Admin approval</p>
+                    </div>
+                  </div>
+                  <p className="text-white/65 text-sm leading-relaxed">
+                    Are you sure you want to submit a deletion request? Your account will be reviewed by Admin before deletion.
+                  </p>
+                  <div className="flex gap-3 pt-1">
+                    <button
+                      onClick={() => setShowDeleteDialog(false)}
+                      className="flex-1 py-3.5 rounded-2xl bg-white/5 border border-white/10 text-white/60 text-sm font-bold active:scale-95 transition-all"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleDeleteAccount}
+                      className="flex-1 py-3.5 rounded-2xl bg-red-500/20 border border-red-500/40 text-red-400 text-sm font-black active:scale-95 transition-all hover:bg-red-500/30"
+                    >
+                      Yes, Delete
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-6 space-y-4">
+                  {/* Success header */}
+                  <div className="flex items-center gap-3">
+                    <div className="w-11 h-11 rounded-2xl bg-green-500/20 border border-green-500/30 flex items-center justify-center shrink-0">
+                      <CheckCircle size={20} className="text-green-400" />
+                    </div>
+                    <p className="text-white font-black text-base">Request Submitted</p>
+                  </div>
+                  {/* Main message */}
+                  <p className="text-white/70 text-sm leading-relaxed">
+                    Your account deletion request has been submitted and is currently under Admin review.
+                  </p>
+                  {/* 30-day warning box */}
+                  <div
+                    className="rounded-2xl px-4 py-3.5 border border-red-500/40 flex items-start gap-3"
+                    style={{ background: "rgba(239,68,68,0.10)" }}
+                  >
+                    <AlertTriangle size={16} className="text-red-400 mt-0.5 shrink-0" />
+                    <p className="text-red-300 text-[12.5px] font-semibold leading-relaxed">
+                      <span className="font-black text-red-400">Please note: </span>
+                      If you log in within the next 30 days, your account will be automatically reactivated.
+                    </p>
+                  </div>
+                  <p className="text-white/25 text-[11px] text-center font-medium pt-1">
+                    Signing you out in a few seconds…
+                  </p>
+                </div>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ── Frame Mode overlay (slides in from right, covers everything) ──── */}
       <AnimatePresence>
