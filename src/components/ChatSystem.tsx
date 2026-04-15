@@ -1440,9 +1440,12 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     };
     load().then(() => fetchMsgReactions(userId, selectedUser.id));
 
-    // Chat realtime: INSERT + UPDATE (for seen_at ticks)
+    // ── Chat Realtime via custom-all-channel ─────────────────────────────────
+    // Track when realtime last delivered a message (for the manual-fetch fallback)
+    let lastRtReceived = Date.now();
+
     const ch = supabase
-      .channel(`chat-${userId}-${selectedUser.id}`)
+      .channel("custom-all-channel")
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "messages" },
@@ -1451,22 +1454,23 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
           const relevant =
             (msg.sender_id === userId && msg.receiver_id === selectedUser.id) ||
             (msg.sender_id === selectedUser.id && msg.receiver_id === userId);
-          if (relevant) {
-            setMessages((prev) =>
-              prev.find((m) => m.id === msg.id) ? prev : [...prev, msg],
-            );
-            fetchContacts();
-            // Auto-mark as seen if we're in the conversation and it's for us
-            if (
-              msg.receiver_id === userId &&
-              msg.sender_id === selectedUser.id
-            ) {
-              supabase
-                .from("messages")
-                .update({ seen_at: new Date().toISOString() })
-                .eq("id", msg.id)
-                .then(() => {});
-            }
+          if (!relevant) return;
+
+          lastRtReceived = Date.now();
+
+          // Safely append — skip if already in list (optimistic duplicate guard)
+          setMessages((prev) =>
+            prev.find((m) => m.id === msg.id) ? prev : [...prev, msg],
+          );
+          fetchContacts();
+
+          // Auto-mark as seen when the message is addressed to us
+          if (msg.receiver_id === userId && msg.sender_id === selectedUser.id) {
+            supabase
+              .from("messages")
+              .update({ seen_at: new Date().toISOString() })
+              .eq("id", msg.id)
+              .then(() => {});
           }
         },
       )
@@ -1478,6 +1482,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
           const relevant =
             msg.sender_id === userId || msg.receiver_id === userId;
           if (relevant) {
+            lastRtReceived = Date.now();
             setMessages((prev) =>
               prev.map((m) =>
                 m.id === msg.id ? { ...m, seen_at: msg.seen_at } : m,
@@ -1523,7 +1528,40 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
           });
         },
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log(`[ChatSystem] Realtime channel status → ${status}`);
+        if (status === "SUBSCRIBED") {
+          console.log("[ChatSystem] ✅ Realtime SUBSCRIBED — listening for messages");
+        } else if (status === "CLOSED") {
+          console.warn("[ChatSystem] ⚠️ Realtime channel CLOSED");
+        } else if (status === "CHANNEL_ERROR") {
+          console.error("[ChatSystem] ❌ Realtime channel ERROR — will rely on manual-fetch fallback");
+        }
+      });
+
+    // ── Manual-fetch fallback ────────────────────────────────────────────────
+    // Every 10 s, if realtime hasn't fired, silently re-fetch to keep UI in sync
+    const fallbackInterval = setInterval(async () => {
+      if (Date.now() - lastRtReceived >= 10_000) {
+        console.log("[ChatSystem] 🔄 Manual-fetch fallback triggered (no realtime event in 10 s)");
+        const { data } = await supabase
+          .from("messages")
+          .select("id, sender_id, receiver_id, content, media_url, media_type, created_at, seen_at, reply_to_id, reply_preview")
+          .or(
+            `and(sender_id.eq.${userId},receiver_id.eq.${selectedUser.id}),and(sender_id.eq.${selectedUser.id},receiver_id.eq.${userId})`,
+          )
+          .order("created_at", { ascending: true })
+          .limit(100);
+        if (data) {
+          setMessages((prev) => {
+            // Merge: keep everything already in state, add any rows that are missing
+            const existingIds = new Set(prev.map((m) => m.id));
+            const newOnes = (data as Message[]).filter((m) => !existingIds.has(m.id));
+            return newOnes.length > 0 ? [...prev, ...newOnes] : prev;
+          });
+        }
+      }
+    }, 10_000);
 
     // Typing presence channel
     const typingKey = [userId, selectedUser.id].sort().join("-");
@@ -1542,6 +1580,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     typingChannelRef.current = typingCh;
 
     return () => {
+      clearInterval(fallbackInterval);
       supabase.removeChannel(ch);
       supabase.removeChannel(typingCh);
       typingChannelRef.current = null;
