@@ -1587,30 +1587,10 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
         });
       }
 
-      // ② Reactions — re-sync the whole reaction map for this conversation
-      const msgIds = (freshMsgs || []).map((m: any) => m.id);
-      if (msgIds.length > 0) {
-        const { data: reactionRows } = await supabase
-          .from("message_reactions")
-          .select("message_id, user_id, emoji")
-          .in("message_id", msgIds);
-
-        if (reactionRows) {
-          const map: Record<string, Record<string, string[]>> = {};
-          for (const row of reactionRows as { message_id: string; user_id: string; emoji: string }[]) {
-            if (!map[row.message_id]) map[row.message_id] = {};
-            if (!map[row.message_id][row.emoji]) map[row.message_id][row.emoji] = [];
-            if (!map[row.message_id][row.emoji].includes(row.user_id))
-              map[row.message_id][row.emoji].push(row.user_id);
-          }
-          setMsgReactions((prev) => {
-            // Only update if something actually changed
-            const prevStr = JSON.stringify(prev);
-            const newStr  = JSON.stringify({ ...prev, ...map });
-            return prevStr === newStr ? prev : { ...prev, ...map };
-          });
-        }
-      }
+      // ② Reactions — full re-sync using the proven fetchMsgReactions path
+      // This does a complete replace of setMsgReactions, not a partial merge,
+      // so additions AND removals are always reflected correctly.
+      await fetchMsgReactions(userId, selectedUser.id);
     }, 3_000);
 
     // Typing presence channel
@@ -1636,7 +1616,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       typingChannelRef.current = null;
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     };
-  }, [selectedUser, userId, fetchContacts]);
+  }, [selectedUser, userId, fetchContacts, fetchMsgReactions]);
 
   // ── Friend actions ────────────────────────────────────────────────────────
   const sendFriendRequest = async (targetId: string) => {
@@ -1909,6 +1889,9 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
         { onConflict: "message_id,user_id" }
       );
     }
+
+    // Re-sync from DB so sender's state is ground-truth after the write
+    if (selectedUser) await fetchMsgReactions(userId, selectedUser.id);
   };
 
   // ── Media upload ──────────────────────────────────────────────────────────
