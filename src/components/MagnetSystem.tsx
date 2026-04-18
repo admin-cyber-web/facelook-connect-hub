@@ -6,7 +6,7 @@ import {
   Users, GitBranch, VolumeX, Skull, Check, Loader2,
   Radio, Search,
 } from "lucide-react";
-import toast from "react-hot-toast";
+import { toast } from "sonner";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 

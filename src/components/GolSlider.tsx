@@ -165,7 +165,6 @@ const GolSlider = ({ onFeatureChange, activeFeature, hidden }: GolSliderProps) =
           background: BG_DARK,
           backdropFilter: "blur(20px)",
           WebkitBackdropFilter: "blur(20px)",
-          borderTop: `1px solid ${CYAN_DIM}`,
           width: "100%",
           height: 34,
           display: "flex",

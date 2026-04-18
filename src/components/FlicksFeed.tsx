@@ -9,7 +9,7 @@ import {
   Flag, X, Send, BadgeCheck, Loader2, Flame, Pencil,
 } from "lucide-react";
 import { MagnetButton, CreatorVoice, useMagnet } from "./MagnetSystem";
-import toast from "react-hot-toast";
+import { toast } from "sonner";
 
 // ── Utilities ──────────────────────────────────────────────────────────────────
 
