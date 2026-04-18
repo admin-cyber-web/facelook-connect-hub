@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { toast } from "sonner";
 import { ReactionBar, ReactionBubbles } from "./ReactionBar";
+import { MagnetButton } from "./MagnetSystem";
 import { useSoundEffects } from "../hooks/useSoundEffects";
 import { useProfileViewer } from "../context/ProfileViewerContext";
 import { StoryBar } from "./StoryBar";
@@ -1383,6 +1384,16 @@ const FameFeed = ({
               <span className="text-xs font-bold text-gray-400">{post.likes_count}</span>
             </button>
           )}
+
+          {/* 🧲 Magnet — viral chain button */}
+          <MagnetButton
+            postId={post.id}
+            postType="post"
+            postOwnerId={post.user_id || post.author_id || ""}
+            currentUserId={currentUserId}
+            dark={false}
+            onBridgeChat={() => {}}
+          />
 
           {/* Share */}
           <button onClick={() => handleShare(post)} className="flex items-center gap-1.5 group ml-auto">
