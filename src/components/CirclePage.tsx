@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import {
   Plus, Users, Lock, Globe, ChevronLeft, Settings, Send,
   Heart, Camera, Shield, X, Check, ImageIcon, Loader2, Trash2,
-  Share2, MessageCircle, FileText, Bell,
+  Share2, MessageCircle, FileText, Bell, MoreVertical, Pencil,
 } from "lucide-react";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -150,6 +150,20 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
 
   const coverInputRef = useRef<HTMLInputElement>(null);
   const mediaInputRef = useRef<HTMLInputElement>(null);
+
+  // Edit / Delete state
+  const [postMenuId, setPostMenuId]             = useState<string | null>(null);
+  const [editingPost, setEditingPost]           = useState<{ id: string; content: string } | null>(null);
+  const [editPostText, setEditPostText]         = useState("");
+  const [editPostSaving, setEditPostSaving]     = useState(false);
+  const [confirmDeletePost, setConfirmDeletePost] = useState<string | null>(null);
+  const [showEditGroup, setShowEditGroup]       = useState(false);
+  const [editGroupForm, setEditGroupForm]       = useState({ name: "", description: "" });
+  const [editGroupCoverFile, setEditGroupCoverFile] = useState<File | null>(null);
+  const [editGroupCoverPrev, setEditGroupCoverPrev] = useState<string | null>(null);
+  const [editGroupSaving, setEditGroupSaving]   = useState(false);
+  const [confirmDeleteGroup, setConfirmDeleteGroup] = useState(false);
+  const [deletingGroup, setDeletingGroup]       = useState(false);
 
   // ── Fetch all groups ─────────────────────────────────────────────────────────
   const fetchGroups = async () => {
@@ -458,6 +472,70 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
     setShowSettings(false);
   };
 
+  // ── Edit Group Post ────────────────────────────────────────────────────────────
+  const saveEditPost = async () => {
+    if (!editingPost || !editPostText.trim()) return;
+    setEditPostSaving(true);
+    await supabase.from("group_posts").update({ content: editPostText.trim() }).eq("id", editingPost.id);
+    setGroupPosts(prev => prev.map(p => p.id === editingPost.id ? { ...p, content: editPostText.trim() } : p));
+    setEditPostSaving(false);
+    setEditingPost(null);
+  };
+
+  const deleteGroupPost = async (postId: string) => {
+    await supabase.from("group_posts").delete().eq("id", postId);
+    setGroupPosts(prev => prev.filter(p => p.id !== postId));
+    setConfirmDeletePost(null);
+  };
+
+  // ── Edit Group (Profile) ───────────────────────────────────────────────────────
+  const openEditGroup = (group: Group) => {
+    setEditGroupForm({ name: group.name, description: group.description || "" });
+    setEditGroupCoverFile(null);
+    setEditGroupCoverPrev(group.cover_url || null);
+    setShowEditGroup(true);
+  };
+
+  const saveEditGroup = async () => {
+    if (!selectedGroup || !editGroupForm.name.trim()) return;
+    setEditGroupSaving(true);
+    let cover_url = selectedGroup.cover_url;
+    if (editGroupCoverFile) {
+      const ext = editGroupCoverFile.name.split(".").pop();
+      const path = `group-covers/${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage.from("avatars").upload(path, editGroupCoverFile, { upsert: true });
+      if (!upErr) {
+        const { data: pub } = supabase.storage.from("avatars").getPublicUrl(path);
+        cover_url = pub.publicUrl;
+      }
+    }
+    const updates = { name: editGroupForm.name.trim(), description: editGroupForm.description.trim() || null, cover_url };
+    await supabase.from("groups").update(updates).eq("id", selectedGroup.id);
+    const updated = { ...selectedGroup, ...updates };
+    setSelectedGroup(updated);
+    setGroups(prev => prev.map(g => g.id === selectedGroup.id ? updated : g));
+    toast.success("Circle updated!");
+    setEditGroupSaving(false);
+    setShowEditGroup(false);
+  };
+
+  // ── Delete Group ──────────────────────────────────────────────────────────────
+  const deleteGroup = async () => {
+    if (!selectedGroup) return;
+    setDeletingGroup(true);
+    await supabase.from("group_posts").delete().eq("group_id", selectedGroup.id);
+    await supabase.from("group_messages").delete().eq("group_id", selectedGroup.id);
+    await supabase.from("group_members").delete().eq("group_id", selectedGroup.id);
+    await supabase.from("groups").delete().eq("id", selectedGroup.id);
+    setGroups(prev => prev.filter(g => g.id !== selectedGroup.id));
+    setMyGroupIds(prev => { const s = new Set(prev); s.delete(selectedGroup.id); return s; });
+    setDeletingGroup(false);
+    setConfirmDeleteGroup(false);
+    setView("dashboard");
+    setSelectedGroup(null);
+    toast.success("Circle deleted.");
+  };
+
   const myGroups = groups.filter(g => myGroupIds.has(g.id));
   const suggestedGroups = groups.filter(g => !myGroupIds.has(g.id));
 
@@ -490,14 +568,30 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
             <ChevronLeft size={20} className="text-white" />
           </button>
 
-          {/* Admin settings */}
+          {/* Admin settings + edit/delete */}
           {isAdmin && (
-            <button
-              onClick={() => setShowSettings(true)}
-              className="absolute top-4 right-4 w-9 h-9 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center border border-white/20"
-            >
-              <Settings size={18} className="text-white" />
-            </button>
+            <div className="absolute top-4 right-4 flex items-center gap-2">
+              <button
+                onClick={() => openEditGroup(selectedGroup)}
+                className="w-9 h-9 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center border border-white/20"
+              >
+                <Pencil size={16} className="text-white" />
+              </button>
+              <button
+                onClick={() => setShowSettings(true)}
+                className="w-9 h-9 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center border border-white/20"
+              >
+                <Settings size={18} className="text-white" />
+              </button>
+              {selectedGroup.created_by === currentUserId && (
+                <button
+                  onClick={() => setConfirmDeleteGroup(true)}
+                  className="w-9 h-9 rounded-full bg-red-500/60 backdrop-blur-md flex items-center justify-center border border-red-300/30"
+                >
+                  <Trash2 size={16} className="text-white" />
+                </button>
+              )}
+            </div>
           )}
 
           {/* Title */}
@@ -641,35 +735,65 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
                   {isMember && <p className="text-[11px] text-gray-400 mt-1">Be the first to post!</p>}
                 </div>
               ) : (
-                groupPosts.map(post => (
-                  <div key={post.id} className="bg-white border-b border-gray-100">
-                    <div className="flex items-center gap-3 px-4 py-3">
-                      <div className="w-9 h-9 rounded-full bg-blue-600 flex items-center justify-center text-white font-black text-sm shrink-0 overflow-hidden border border-gray-100">
-                        {post.author_avatar ? (
-                          <img src={post.author_avatar} className="w-full h-full object-cover" alt="" />
-                        ) : (
-                          (post.author_name || "M")[0].toUpperCase()
+                groupPosts.map(post => {
+                  const canEdit = post.author_id === currentUserId || isAdmin;
+                  return (
+                    <div key={post.id} className="bg-white border-b border-gray-100">
+                      <div className="flex items-center gap-3 px-4 py-3">
+                        <div className="w-9 h-9 rounded-full bg-blue-600 flex items-center justify-center text-white font-black text-sm shrink-0 overflow-hidden border border-gray-100">
+                          {post.author_avatar ? (
+                            <img src={post.author_avatar} className="w-full h-full object-cover" alt="" />
+                          ) : (
+                            (post.author_name || "M")[0].toUpperCase()
+                          )}
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-gray-900 font-bold text-sm leading-none">{post.author_name}</p>
+                          <p className="text-[10px] text-gray-400 mt-0.5">{new Date(post.created_at).toLocaleDateString()}</p>
+                        </div>
+                        {canEdit && (
+                          <div className="relative">
+                            <button onClick={() => setPostMenuId(postMenuId === post.id ? null : post.id)}
+                              className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400">
+                              <MoreVertical size={16} />
+                            </button>
+                            <AnimatePresence>
+                              {postMenuId === post.id && (
+                                <motion.div initial={{ opacity: 0, scale: 0.9, y: -4 }} animate={{ opacity: 1, scale: 1, y: 0 }}
+                                  exit={{ opacity: 0, scale: 0.9, y: -4 }} transition={{ duration: 0.12 }}
+                                  className="absolute right-0 top-8 z-50 w-32 bg-white border border-gray-100 rounded-2xl shadow-xl overflow-hidden"
+                                  onClick={e => e.stopPropagation()}>
+                                  {post.author_id === currentUserId && (
+                                    <button onClick={() => { setEditingPost({ id: post.id, content: post.content }); setEditPostText(post.content); setPostMenuId(null); }}
+                                      className="w-full flex items-center gap-2 px-4 py-3 text-blue-600 hover:bg-blue-50 text-[12px] font-semibold border-b border-gray-50">
+                                      <Pencil size={13} /> Edit
+                                    </button>
+                                  )}
+                                  <button onClick={() => { setConfirmDeletePost(post.id); setPostMenuId(null); }}
+                                    className="w-full flex items-center gap-2 px-4 py-3 text-red-500 hover:bg-red-50 text-[12px] font-semibold">
+                                    <Trash2 size={13} /> Delete
+                                  </button>
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
+                          </div>
                         )}
                       </div>
-                      <div>
-                        <p className="text-gray-900 font-bold text-sm leading-none">{post.author_name}</p>
-                        <p className="text-[10px] text-gray-400 mt-0.5">{new Date(post.created_at).toLocaleDateString()}</p>
+                      {post.content && <p className="px-4 pb-2 text-[13px] text-gray-800 leading-snug">{post.content}</p>}
+                      {post.media_url && (
+                        <div className="w-full bg-gray-100">
+                          <img src={post.media_url} className="w-full object-cover" style={{ maxHeight: "60vh" }} loading="lazy" alt="" />
+                        </div>
+                      )}
+                      <div className="flex items-center gap-4 px-4 py-2.5">
+                        <button onClick={() => handleLikePost(post)} className="flex items-center gap-1.5">
+                          <Heart size={20} className={likedPostIds.has(post.id) ? "fill-red-500 text-red-500" : "text-gray-400"} />
+                          <span className="text-xs font-bold text-gray-500">{post.likes_count || 0}</span>
+                        </button>
                       </div>
                     </div>
-                    {post.content && <p className="px-4 pb-2 text-[13px] text-gray-800 leading-snug">{post.content}</p>}
-                    {post.media_url && (
-                      <div className="w-full bg-gray-100">
-                        <img src={post.media_url} className="w-full object-cover" style={{ maxHeight: "60vh" }} loading="lazy" alt="" />
-                      </div>
-                    )}
-                    <div className="flex items-center gap-4 px-4 py-2.5">
-                      <button onClick={() => handleLikePost(post)} className="flex items-center gap-1.5">
-                        <Heart size={20} className={likedPostIds.has(post.id) ? "fill-red-500 text-red-500" : "text-gray-400"} />
-                        <span className="text-xs font-bold text-gray-500">{post.likes_count || 0}</span>
-                      </button>
-                    </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
 
@@ -868,6 +992,136 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
             </div>
           </div>
         )}
+
+        {/* Close post menu on outside tap */}
+        {postMenuId && <div className="fixed inset-0 z-40" onClick={() => setPostMenuId(null)} />}
+
+        {/* Edit Post Modal */}
+        <AnimatePresence>
+          {editingPost && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[300] flex items-end justify-center bg-black/50 backdrop-blur-sm"
+              onClick={() => setEditingPost(null)}>
+              <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
+                transition={{ type: "spring", damping: 28, stiffness: 300 }}
+                className="w-full max-w-lg bg-white rounded-t-3xl p-5 pb-10"
+                onClick={e => e.stopPropagation()}>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-black text-gray-800 text-base flex items-center gap-2"><Pencil size={16} className="text-blue-600" /> Post Edit Karo</h3>
+                  <button onClick={() => setEditingPost(null)} className="p-1.5 rounded-full bg-gray-100"><X size={18} className="text-gray-500" /></button>
+                </div>
+                <textarea value={editPostText} onChange={e => setEditPostText(e.target.value)} rows={4}
+                  className="w-full border border-gray-200 rounded-2xl px-4 py-3 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-blue-400/30 resize-none mb-4" />
+                <div className="flex gap-2">
+                  <button onClick={() => setEditingPost(null)} className="flex-1 py-3 rounded-2xl bg-gray-100 text-gray-600 font-black text-sm">Cancel</button>
+                  <button onClick={saveEditPost} disabled={editPostSaving || !editPostText.trim()}
+                    className="flex-1 py-3 rounded-2xl bg-blue-600 text-white font-black text-sm flex items-center justify-center gap-2 disabled:opacity-40">
+                    {editPostSaving ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+                    {editPostSaving ? "Saving…" : "Save"}
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Confirm Delete Post */}
+        <AnimatePresence>
+          {confirmDeletePost && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[300] flex items-center justify-center px-6 bg-black/50 backdrop-blur-sm"
+              onClick={() => setConfirmDeletePost(null)}>
+              <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
+                className="bg-white rounded-3xl p-6 w-full max-w-xs shadow-2xl"
+                onClick={e => e.stopPropagation()}>
+                <div className="w-12 h-12 rounded-2xl bg-red-100 flex items-center justify-center mx-auto mb-4">
+                  <Trash2 size={22} className="text-red-500" />
+                </div>
+                <p className="text-gray-900 font-black text-center text-base mb-1">Post Delete Karo?</p>
+                <p className="text-gray-400 text-center text-[12px] mb-5">Yeh post hamesha ke liye delete ho jayegi.</p>
+                <div className="flex gap-2">
+                  <button onClick={() => setConfirmDeletePost(null)} className="flex-1 py-3 rounded-2xl bg-gray-100 text-gray-600 font-black text-sm">Cancel</button>
+                  <button onClick={() => deleteGroupPost(confirmDeletePost)} className="flex-1 py-3 rounded-2xl bg-red-500 text-white font-black text-sm">Delete</button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Edit Group Modal */}
+        <AnimatePresence>
+          {showEditGroup && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[300] flex items-end justify-center bg-black/50 backdrop-blur-sm"
+              onClick={() => setShowEditGroup(false)}>
+              <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
+                transition={{ type: "spring", damping: 28, stiffness: 300 }}
+                className="w-full max-w-lg bg-white rounded-t-3xl p-6 pb-10"
+                onClick={e => e.stopPropagation()}>
+                <div className="flex items-center justify-between mb-5">
+                  <h3 className="text-gray-900 font-black text-lg flex items-center gap-2"><Pencil size={18} className="text-blue-600" /> Circle Edit Karo</h3>
+                  <button onClick={() => setShowEditGroup(false)} className="p-1.5 rounded-full bg-gray-100"><X size={18} className="text-gray-500" /></button>
+                </div>
+
+                {/* Cover picker */}
+                <div className="mb-4">
+                  <p className="text-[11px] font-black text-gray-500 uppercase tracking-wide mb-1.5">Cover Photo</p>
+                  <div className="relative w-full aspect-[3/1] rounded-2xl overflow-hidden bg-gray-100 border-2 border-dashed border-gray-200 cursor-pointer"
+                    onClick={() => coverInputRef.current?.click()}
+                    style={{ background: editGroupCoverPrev ? undefined : (selectedGroup ? gradFor(selectedGroup.id) : "#e5e7eb") }}>
+                    {editGroupCoverPrev
+                      ? <img src={editGroupCoverPrev} className="w-full h-full object-cover" alt="" />
+                      : <div className="absolute inset-0 flex items-center justify-center text-white/60 text-sm font-black">Change Cover</div>}
+                    <div className="absolute bottom-2 right-2 bg-black/50 rounded-full p-1.5"><Camera size={14} className="text-white" /></div>
+                  </div>
+                  <input ref={coverInputRef} type="file" accept="image/*" className="hidden"
+                    onChange={e => { const f = e.target.files?.[0]; if (f) { setEditGroupCoverFile(f); setEditGroupCoverPrev(URL.createObjectURL(f)); } e.target.value = ""; }} />
+                </div>
+
+                <label className="block text-[11px] font-black text-gray-500 uppercase tracking-wide mb-1.5">Circle Name *</label>
+                <input value={editGroupForm.name} onChange={e => setEditGroupForm(p => ({ ...p, name: e.target.value }))}
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-800 outline-none mb-4 focus:ring-2 focus:ring-blue-400/30" />
+
+                <label className="block text-[11px] font-black text-gray-500 uppercase tracking-wide mb-1.5">Description</label>
+                <textarea value={editGroupForm.description} onChange={e => setEditGroupForm(p => ({ ...p, description: e.target.value }))}
+                  placeholder="Circle ke baare mein batao…" rows={3}
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-800 outline-none resize-none mb-5 focus:ring-2 focus:ring-blue-400/30" />
+
+                <button onClick={saveEditGroup} disabled={editGroupSaving || !editGroupForm.name.trim()}
+                  className="w-full py-4 rounded-2xl bg-blue-600 text-white font-black text-sm disabled:opacity-40 active:scale-[0.98] transition-transform flex items-center justify-center gap-2">
+                  {editGroupSaving ? <><Loader2 size={16} className="animate-spin" /> Saving…</> : <><Check size={16} /> Save Changes</>}
+                </button>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Confirm Delete Circle */}
+        <AnimatePresence>
+          {confirmDeleteGroup && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[300] flex items-center justify-center px-6 bg-black/50 backdrop-blur-sm"
+              onClick={() => setConfirmDeleteGroup(false)}>
+              <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
+                className="bg-white rounded-3xl p-6 w-full max-w-xs shadow-2xl"
+                onClick={e => e.stopPropagation()}>
+                <div className="w-12 h-12 rounded-2xl bg-red-100 flex items-center justify-center mx-auto mb-4">
+                  <Trash2 size={22} className="text-red-500" />
+                </div>
+                <p className="text-gray-900 font-black text-center text-base mb-1">Circle Delete Karo?</p>
+                <p className="text-gray-400 text-center text-[12px] mb-5">Yeh circle, iske posts, aur saare messages hamesha ke liye delete ho jayenge.</p>
+                <div className="flex gap-2">
+                  <button onClick={() => setConfirmDeleteGroup(false)} className="flex-1 py-3 rounded-2xl bg-gray-100 text-gray-600 font-black text-sm">Cancel</button>
+                  <button onClick={deleteGroup} disabled={deletingGroup}
+                    className="flex-1 py-3 rounded-2xl bg-red-500 text-white font-black text-sm flex items-center justify-center gap-2 disabled:opacity-40">
+                    {deletingGroup ? <Loader2 size={16} className="animate-spin" /> : null}
+                    {deletingGroup ? "Deleting…" : "Delete"}
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Admin Settings Modal */}
         <AnimatePresence>

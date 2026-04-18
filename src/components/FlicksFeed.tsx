@@ -6,7 +6,7 @@ import { useSoundEffects } from "../hooks/useSoundEffects";
 import {
   Heart, MessageCircle, Share2, Music, VolumeX,
   Plus, Check, Eye, MoreVertical, Trash2, EyeOff,
-  Flag, X, Send, BadgeCheck, Loader2, Flame,
+  Flag, X, Send, BadgeCheck, Loader2, Flame, Pencil,
 } from "lucide-react";
 
 // ── Utilities ──────────────────────────────────────────────────────────────────
@@ -205,7 +205,7 @@ const CommentDrawer = ({
 
 // ── FlickCard ──────────────────────────────────────────────────────────────────
 const FlickCard = memo(({
-  post, isActive, currentUserId, onDelete, onHide, onReport,
+  post, isActive, currentUserId, onDelete, onHide, onReport, onEdit,
 }: {
   post: any;
   isActive: boolean;
@@ -213,12 +213,16 @@ const FlickCard = memo(({
   onDelete: (id: string) => void;
   onHide: (id: string) => void;
   onReport: (id: string) => void;
+  onEdit: (id: string, newContent: string) => void;
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isMuted, setIsMuted] = useState(false);
   const [likedByMe, setLikedByMe] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [showComments, setShowComments] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editText, setEditText] = useState(post.content || "");
+  const [editSaving, setEditSaving] = useState(false);
   const { openProfile } = useProfileViewer();
   const { playPop, playSwoosh } = useSoundEffects();
 
@@ -366,10 +370,16 @@ const FlickCard = memo(({
               onClick={(e) => e.stopPropagation()}
             >
               {post.author_id === currentUserId && (
-                <button onClick={() => { setMenuOpen(false); onDelete(post.id); }}
-                  className="w-full flex items-center gap-3 px-4 py-3.5 text-red-400 hover:bg-red-500/10 transition-colors text-sm font-semibold border-b border-white/5">
-                  <Trash2 size={16} /> Delete
-                </button>
+                <>
+                  <button onClick={() => { setMenuOpen(false); setEditText(post.content || ""); setShowEditModal(true); }}
+                    className="w-full flex items-center gap-3 px-4 py-3.5 text-blue-400 hover:bg-blue-500/10 transition-colors text-sm font-semibold border-b border-white/5">
+                    <Pencil size={16} /> Edit
+                  </button>
+                  <button onClick={() => { setMenuOpen(false); onDelete(post.id); }}
+                    className="w-full flex items-center gap-3 px-4 py-3.5 text-red-400 hover:bg-red-500/10 transition-colors text-sm font-semibold border-b border-white/5">
+                    <Trash2 size={16} /> Delete
+                  </button>
+                </>
               )}
               <button onClick={() => { setMenuOpen(false); onHide(post.id); }}
                 className="w-full flex items-center gap-3 px-4 py-3.5 text-white/80 hover:bg-white/5 transition-colors text-sm font-semibold border-b border-white/5">
@@ -484,6 +494,53 @@ const FlickCard = memo(({
           </>
         )}
       </AnimatePresence>
+
+      {/* Edit Post Modal */}
+      <AnimatePresence>
+        {showEditModal && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[300] flex items-end justify-center"
+            style={{ background: "rgba(0,0,0,0.7)" }}
+            onClick={e => { if (e.target === e.currentTarget) setShowEditModal(false); }}>
+            <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 28, stiffness: 300 }}
+              className="w-full max-w-lg bg-zinc-900 rounded-t-3xl p-5 border-t border-white/10"
+              onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-white font-black text-base flex items-center gap-2"><Pencil size={16} className="text-blue-400" /> Post Edit Karo</h3>
+                <button onClick={() => setShowEditModal(false)} className="p-1.5 rounded-full bg-white/10 text-white/60"><X size={18} /></button>
+              </div>
+              <textarea
+                value={editText}
+                onChange={e => setEditText(e.target.value)}
+                rows={4}
+                className="w-full bg-white/10 text-white placeholder:text-white/30 text-sm px-4 py-3 rounded-2xl outline-none border border-white/10 focus:border-blue-500/60 resize-none mb-4"
+                placeholder="Post content…"
+              />
+              <div className="flex gap-2">
+                <button onClick={() => setShowEditModal(false)}
+                  className="flex-1 py-3 rounded-2xl bg-white/10 text-white/70 font-black text-sm">
+                  Cancel
+                </button>
+                <button
+                  onClick={async () => {
+                    if (!editText.trim()) return;
+                    setEditSaving(true);
+                    await supabase.from("posts").update({ content: editText.trim() }).eq("id", post.id);
+                    onEdit(post.id, editText.trim());
+                    setEditSaving(false);
+                    setShowEditModal(false);
+                  }}
+                  disabled={editSaving || !editText.trim()}
+                  className="flex-1 py-3 rounded-2xl bg-blue-600 text-white font-black text-sm flex items-center justify-center gap-2 disabled:opacity-40">
+                  {editSaving ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+                  {editSaving ? "Saving…" : "Save"}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 });
@@ -562,6 +619,10 @@ export default function FlicksApp({ onBack }: { onBack?: () => void }) {
     } else {
       console.error("[FlicksFeed] Delete failed:", error.message, "| code:", error.code);
     }
+  };
+
+  const handleEdit = (postId: string, newContent: string) => {
+    setFlicks(prev => prev.map(p => p.id === postId ? { ...p, content: newContent } : p));
   };
 
   const handleHide = (postId: string) => setHiddenIds(prev => new Set([...prev, postId]));
@@ -646,6 +707,7 @@ export default function FlicksApp({ onBack }: { onBack?: () => void }) {
                   isActive={i === currentIndex}
                   currentUserId={currentUserId}
                   onDelete={handleDelete}
+                  onEdit={handleEdit}
                   onHide={handleHide}
                   onReport={(id) => setReportModal({ postId: id, reason: "" })}
                 />

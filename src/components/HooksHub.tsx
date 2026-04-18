@@ -6,7 +6,7 @@ import {
   DollarSign, Send, CheckSquare, Square, Loader2, Star,
   ChevronRight, Zap, Share2, Copy, MessageCircle, Upload,
   PlayCircle, Image as ImgIcon, Video as VideoIcon, Check,
-  AlertTriangle,
+  AlertTriangle, MoreVertical, Pencil, Trash2,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -116,6 +116,87 @@ const PageBannerCard = ({
     </div>
   </motion.div>
 );
+
+// ── Edit Page Modal ────────────────────────────────────────────────────────────
+const EditPageModal = ({ page, userId, onClose, onSaved }:
+  { page: HookPage; userId: string; onClose: () => void; onSaved: (p: HookPage) => void }) => {
+  const [form, setForm]         = useState({ name: page.name, description: page.description || "", category: page.category || "General" });
+  const [coverFile, setCoverFile]   = useState<File | null>(null);
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [coverPrev, setCoverPrev]   = useState(page.cover_url || "");
+  const [avatarPrev, setAvatarPrev] = useState(page.avatar_url || "");
+  const [saving, setSaving]   = useState(false);
+  const [err, setErr]         = useState("");
+
+  const save = async () => {
+    if (!form.name.trim()) { setErr("Page ka naam zaroori hai"); return; }
+    setSaving(true);
+    const [cover_url, avatar_url] = await Promise.all([
+      coverFile  ? uploadFile(coverFile,  "hook-covers")  : Promise.resolve(page.cover_url  || ""),
+      avatarFile ? uploadFile(avatarFile, "hook-avatars") : Promise.resolve(page.avatar_url || ""),
+    ]);
+    const { data, error } = await supabase.from("hook_pages")
+      .update({ name: form.name.trim(), description: form.description.trim(), category: form.category, cover_url: cover_url || "", avatar_url: avatar_url || "" })
+      .eq("id", page.id).eq("owner_id", userId)
+      .select().single();
+    setSaving(false);
+    if (error) { setErr("Update failed: " + error.message); return; }
+    onSaved(data as HookPage);
+    onClose();
+  };
+
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[500] flex items-end justify-center overflow-y-auto"
+      style={{ background: "rgba(0,0,0,0.55)", backdropFilter: "blur(6px)" }}
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
+        transition={{ type: "spring", damping: 26, stiffness: 260 }}
+        className="w-full max-w-lg bg-white rounded-t-3xl overflow-hidden shadow-2xl">
+        <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-gray-100">
+          <h2 className="font-black text-gray-800 text-[16px] flex items-center gap-2"><Pencil size={16} className="text-blue-600" /> Page Edit Karo</h2>
+          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full text-gray-400"><X size={20} /></button>
+        </div>
+        <div className="p-5 space-y-4 overflow-y-auto" style={{ maxHeight: "76vh" }}>
+          <ImagePicker label="Cover Image" preview={coverPrev} aspectClass="aspect-[3/1]"
+            onChange={f => { setCoverFile(f); setCoverPrev(URL.createObjectURL(f)); }} />
+          <div className="flex items-end gap-4">
+            <div className="w-20 shrink-0">
+              <ImagePicker label="Avatar" preview={avatarPrev} rounded aspectClass="aspect-square"
+                onChange={f => { setAvatarFile(f); setAvatarPrev(URL.createObjectURL(f)); }} />
+            </div>
+            <div className="flex-1 space-y-3">
+              <div>
+                <p className="text-[11px] font-black text-gray-500 uppercase tracking-wide mb-1">Page Name *</p>
+                <input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-[14px] font-semibold text-gray-800 outline-none focus:border-blue-500" />
+              </div>
+              <div>
+                <p className="text-[11px] font-black text-gray-500 uppercase tracking-wide mb-1">Category</p>
+                <select value={form.category} onChange={e => setForm(p => ({ ...p, category: e.target.value }))}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-[13px] font-semibold text-gray-800 outline-none focus:border-blue-500 bg-white">
+                  {CATEGORIES.map(c => <option key={c}>{c}</option>)}
+                </select>
+              </div>
+            </div>
+          </div>
+          <div>
+            <p className="text-[11px] font-black text-gray-500 uppercase tracking-wide mb-1">Description</p>
+            <textarea value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))}
+              rows={3} className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-[13px] text-gray-800 outline-none focus:border-blue-500 resize-none" />
+          </div>
+          {err && <p className="text-red-500 text-[12px] font-bold">{err}</p>}
+          <motion.button whileTap={{ scale: 0.97 }} onClick={save} disabled={saving}
+            className="w-full py-3.5 rounded-2xl font-black text-[14px] text-white flex items-center justify-center gap-2"
+            style={{ background: "linear-gradient(135deg,#2563eb,#1d4ed8)" }}>
+            {saving ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />}
+            {saving ? "Save ho raha hai..." : "Changes Save Karo"}
+          </motion.button>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+};
 
 // ── Hook Modal (Invite Friends) ────────────────────────────────────────────────
 const HookModal = ({ pageId, pageName, userId, onClose }:
@@ -490,6 +571,16 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
   const [followError, setFollowError] = useState<string | null>(null);
   const [followLoading, setFollowLoading] = useState(false);
 
+  // Edit / Delete state
+  const [showEditPage, setShowEditPage]       = useState(false);
+  const [postMenuId, setPostMenuId]           = useState<string | null>(null);
+  const [editingPost, setEditingPost]         = useState<{ id: string; content: string } | null>(null);
+  const [editPostText, setEditPostText]       = useState("");
+  const [editPostSaving, setEditPostSaving]   = useState(false);
+  const [confirmDeletePost, setConfirmDeletePost] = useState<string | null>(null);
+  const [showDeletePageConfirm, setShowDeletePageConfirm] = useState(false);
+  const [deletingPage, setDeletingPage]       = useState(false);
+
   const fetchPosts = async () => {
     setLoading(true);
     const { data } = await supabase
@@ -602,6 +693,31 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
     setLivePage(prev => ({ ...prev, like_count: (prev.like_count || 0) + 1 }));
   };
 
+  const saveEditPost = async () => {
+    if (!editingPost || !editPostText.trim()) return;
+    setEditPostSaving(true);
+    await supabase.from("hook_page_posts").update({ content: editPostText.trim() }).eq("id", editingPost.id);
+    setPosts(prev => prev.map(p => p.id === editingPost.id ? { ...p, content: editPostText.trim() } : p));
+    setEditPostSaving(false);
+    setEditingPost(null);
+  };
+
+  const deletePost = async (postId: string) => {
+    await supabase.from("hook_page_posts").delete().eq("id", postId);
+    setPosts(prev => prev.filter(p => p.id !== postId));
+    setConfirmDeletePost(null);
+    const { data: cur } = await supabase.from("hook_pages").select("post_count").eq("id", page.id).single();
+    await supabase.from("hook_pages").update({ post_count: Math.max((cur?.post_count || 1) - 1, 0) }).eq("id", page.id);
+  };
+
+  const deletePage = async () => {
+    setDeletingPage(true);
+    await supabase.from("hook_page_posts").delete().eq("page_id", page.id);
+    await supabase.from("hook_pages").delete().eq("id", page.id).eq("owner_id", userId);
+    setDeletingPage(false);
+    onBack();
+  };
+
   const isOwner = page.owner_id === userId;
 
   return (
@@ -650,16 +766,16 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
                 </motion.button>
               )}
               {isOwner && (
-                <motion.button whileTap={{ scale: 0.93 }}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-black border-2 transition-all"
-                  style={{
-                    background: livePage.is_monetized ? "linear-gradient(135deg,#f59e0b,#d97706)" : "white",
-                    borderColor: livePage.is_monetized ? "#f59e0b" : "#e5e7eb",
-                    color: livePage.is_monetized ? "white" : "#f59e0b",
-                  }}>
-                  <DollarSign size={13} />
-                  {livePage.is_monetized ? "Monetized" : "Monetize"}
-                </motion.button>
+                <>
+                  <motion.button whileTap={{ scale: 0.93 }} onClick={() => setShowEditPage(true)}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-black border-2 border-blue-200 bg-blue-50 text-blue-600 transition-all">
+                    <Pencil size={13} /> Edit
+                  </motion.button>
+                  <motion.button whileTap={{ scale: 0.93 }} onClick={() => setShowDeletePageConfirm(true)}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-black border-2 border-red-200 bg-red-50 text-red-500 transition-all">
+                    <Trash2 size={13} />
+                  </motion.button>
+                </>
               )}
               <motion.button whileTap={{ scale: 0.93 }} onClick={() => setShareModal(true)}
                 className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[12px] font-black bg-gray-100 text-gray-700 border border-gray-200">
@@ -713,39 +829,150 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
             <p className="text-[12px] font-black uppercase tracking-widest">Abhi koi post nahi</p>
           </div>
         )}
-        {posts.map(post => (
-          <motion.div key={post.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-            className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-            <div className="p-4">
-              {post.content && <p className="text-[14px] text-gray-700 font-medium leading-relaxed mb-3">{post.content}</p>}
-              {post.media_url && post.media_type === "image" && (
-                <img src={post.media_url} className="w-full rounded-xl object-cover max-h-72" alt="" />
-              )}
-              {post.media_url && post.media_type === "video" && (
-                <video src={post.media_url} className="w-full rounded-xl max-h-72" controls />
-              )}
-            </div>
-            <div className="flex items-center gap-2 px-4 pb-3 pt-2 border-t border-gray-50">
-              <motion.button whileTap={{ scale: 0.88 }} onClick={() => likePost(post.id, post.likes_count)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-50 text-red-500 text-[12px] font-black">
-                <Heart size={14} fill="currentColor" /> {post.likes_count}
-              </motion.button>
-              <div className="flex-1" />
-              <motion.button whileTap={{ scale: 0.92 }} onClick={() => setHookModal(true)}
-                className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-white text-[12px] font-black"
-                style={{ background: "linear-gradient(135deg,#2563eb,#7c3aed)" }}>
-                <Anchor size={13} /> Hook
-              </motion.button>
-            </div>
-          </motion.div>
-        ))}
+        {posts.map(post => {
+          const canEditPost = post.author_id === userId || isOwner;
+          return (
+            <motion.div key={post.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+              className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+              <div className="p-4">
+                {/* Post header with three-dots */}
+                {canEditPost && (
+                  <div className="flex justify-end mb-2 relative">
+                    <button onClick={() => setPostMenuId(postMenuId === post.id ? null : post.id)}
+                      className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400">
+                      <MoreVertical size={16} />
+                    </button>
+                    <AnimatePresence>
+                      {postMenuId === post.id && (
+                        <motion.div initial={{ opacity: 0, scale: 0.9, y: -4 }} animate={{ opacity: 1, scale: 1, y: 0 }}
+                          exit={{ opacity: 0, scale: 0.9, y: -4 }} transition={{ duration: 0.12 }}
+                          className="absolute right-0 top-8 z-50 w-36 bg-white border border-gray-100 rounded-2xl shadow-xl overflow-hidden"
+                          onClick={e => e.stopPropagation()}>
+                          <button onClick={() => { setEditingPost({ id: post.id, content: post.content }); setEditPostText(post.content); setPostMenuId(null); }}
+                            className="w-full flex items-center gap-2.5 px-4 py-3 text-blue-600 hover:bg-blue-50 text-[13px] font-semibold border-b border-gray-50">
+                            <Pencil size={14} /> Edit
+                          </button>
+                          <button onClick={() => { setConfirmDeletePost(post.id); setPostMenuId(null); }}
+                            className="w-full flex items-center gap-2.5 px-4 py-3 text-red-500 hover:bg-red-50 text-[13px] font-semibold">
+                            <Trash2 size={14} /> Delete
+                          </button>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                )}
+                {post.content && <p className="text-[14px] text-gray-700 font-medium leading-relaxed mb-3">{post.content}</p>}
+                {post.media_url && post.media_type === "image" && (
+                  <img src={post.media_url} className="w-full rounded-xl object-cover max-h-72" alt="" />
+                )}
+                {post.media_url && post.media_type === "video" && (
+                  <video src={post.media_url} className="w-full rounded-xl max-h-72" controls />
+                )}
+              </div>
+              <div className="flex items-center gap-2 px-4 pb-3 pt-2 border-t border-gray-50">
+                <motion.button whileTap={{ scale: 0.88 }} onClick={() => likePost(post.id, post.likes_count)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-50 text-red-500 text-[12px] font-black">
+                  <Heart size={14} fill="currentColor" /> {post.likes_count}
+                </motion.button>
+                <div className="flex-1" />
+                <motion.button whileTap={{ scale: 0.92 }} onClick={() => setHookModal(true)}
+                  className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-white text-[12px] font-black"
+                  style={{ background: "linear-gradient(135deg,#2563eb,#7c3aed)" }}>
+                  <Anchor size={13} /> Hook
+                </motion.button>
+              </div>
+            </motion.div>
+          );
+        })}
       </div>
 
       <AnimatePresence>
         {hookModal  && <HookModal pageId={page.id} pageName={livePage.name} userId={userId} onClose={() => { setHookModal(false); refreshPage(); }} />}
         {shareModal && <ShareModal page={livePage} onClose={() => setShareModal(false)} />}
         {addPost    && <AddPostModal pageId={page.id} userId={userId} onClose={() => setAddPost(false)} onPosted={() => { fetchPosts(); refreshPage(); }} />}
+        {showEditPage && <EditPageModal page={livePage} userId={userId} onClose={() => setShowEditPage(false)} onSaved={p => { setLivePage(p); onPageUpdated(p); }} />}
+
+        {/* Edit Post Modal */}
+        {editingPost && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[500] flex items-end justify-center"
+            style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(6px)" }}
+            onClick={e => { if (e.target === e.currentTarget) setEditingPost(null); }}>
+            <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 28, stiffness: 280 }}
+              className="w-full max-w-lg bg-white rounded-t-3xl p-5"
+              onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-black text-gray-800 text-[16px] flex items-center gap-2"><Pencil size={16} className="text-blue-600" /> Post Edit Karo</h3>
+                <button onClick={() => setEditingPost(null)} className="p-1.5 rounded-full bg-gray-100"><X size={18} className="text-gray-500" /></button>
+              </div>
+              <textarea value={editPostText} onChange={e => setEditPostText(e.target.value)} rows={4}
+                className="w-full border border-gray-200 rounded-2xl px-4 py-3 text-[14px] text-gray-800 outline-none focus:border-blue-500 resize-none mb-4" />
+              <div className="flex gap-2">
+                <button onClick={() => setEditingPost(null)} className="flex-1 py-3 rounded-2xl bg-gray-100 text-gray-600 font-black text-sm">Cancel</button>
+                <button onClick={saveEditPost} disabled={editPostSaving || !editPostText.trim()}
+                  className="flex-1 py-3 rounded-2xl bg-blue-600 text-white font-black text-sm flex items-center justify-center gap-2 disabled:opacity-40">
+                  {editPostSaving ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+                  {editPostSaving ? "Saving…" : "Save"}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+
+        {/* Confirm Delete Post */}
+        {confirmDeletePost && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[500] flex items-center justify-center px-6"
+            style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(6px)" }}
+            onClick={() => setConfirmDeletePost(null)}>
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white rounded-3xl p-6 w-full max-w-xs shadow-2xl"
+              onClick={e => e.stopPropagation()}>
+              <div className="w-12 h-12 rounded-2xl bg-red-100 flex items-center justify-center mx-auto mb-4">
+                <Trash2 size={22} className="text-red-500" />
+              </div>
+              <p className="text-gray-900 font-black text-center text-[16px] mb-1">Post Delete Karo?</p>
+              <p className="text-gray-400 text-center text-[12px] mb-5">Yeh post hamesha ke liye delete ho jayegi.</p>
+              <div className="flex gap-2">
+                <button onClick={() => setConfirmDeletePost(null)} className="flex-1 py-3 rounded-2xl bg-gray-100 text-gray-600 font-black text-sm">Cancel</button>
+                <button onClick={() => deletePost(confirmDeletePost)} className="flex-1 py-3 rounded-2xl bg-red-500 text-white font-black text-sm">Delete</button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+
+        {/* Confirm Delete Page */}
+        {showDeletePageConfirm && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[500] flex items-center justify-center px-6"
+            style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(6px)" }}
+            onClick={() => setShowDeletePageConfirm(false)}>
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white rounded-3xl p-6 w-full max-w-xs shadow-2xl"
+              onClick={e => e.stopPropagation()}>
+              <div className="w-12 h-12 rounded-2xl bg-red-100 flex items-center justify-center mx-auto mb-4">
+                <Trash2 size={22} className="text-red-500" />
+              </div>
+              <p className="text-gray-900 font-black text-center text-[16px] mb-1">Page Delete Karo?</p>
+              <p className="text-gray-400 text-center text-[12px] mb-5">Yeh page aur iske saare posts hamesha ke liye delete ho jayenge.</p>
+              <div className="flex gap-2">
+                <button onClick={() => setShowDeletePageConfirm(false)} className="flex-1 py-3 rounded-2xl bg-gray-100 text-gray-600 font-black text-sm">Cancel</button>
+                <button onClick={deletePage} disabled={deletingPage}
+                  className="flex-1 py-3 rounded-2xl bg-red-500 text-white font-black text-sm flex items-center justify-center gap-2 disabled:opacity-40">
+                  {deletingPage ? <Loader2 size={16} className="animate-spin" /> : null}
+                  {deletingPage ? "Deleting…" : "Delete"}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
       </AnimatePresence>
+
+      {/* Close post menu on outside click */}
+      {postMenuId && (
+        <div className="fixed inset-0 z-40" onClick={() => setPostMenuId(null)} />
+      )}
     </div>
   );
 };
