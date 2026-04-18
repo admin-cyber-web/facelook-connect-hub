@@ -1420,22 +1420,37 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
 
     const load = async () => {
       setLoadingMessages(true);
-      const { data } = await supabase
+
+      const myId     = userId;
+      const partnerId = selectedUser.id;
+
+      console.log(`[ChatSystem] fetchMessages → me:${myId}  partner:${partnerId}`);
+
+      const { data, error } = await supabase
         .from("messages")
-        .select("id, sender_id, receiver_id, content, media_url, media_type, created_at, seen_at, reply_to_id, reply_preview")
+        .select(
+          "id, sender_id, receiver_id, content, media_url, media_type, created_at, seen_at, reply_to_id, reply_preview",
+        )
         .or(
-          `and(sender_id.eq.${userId},receiver_id.eq.${selectedUser.id}),and(sender_id.eq.${selectedUser.id},receiver_id.eq.${userId})`,
+          `and(sender_id.eq.${myId},receiver_id.eq.${partnerId}),and(sender_id.eq.${partnerId},receiver_id.eq.${myId})`,
         )
         .order("created_at", { ascending: true })
         .limit(100);
+
+      if (error) {
+        console.error("[ChatSystem] fetchMessages ERROR:", error);
+      }
+      console.log(`[ChatSystem] Fetched Messages (${(data || []).length} rows):`, data);
+
       setMessages((data as Message[]) || []);
       setLoadingMessages(false);
+
       // Mark all received messages as seen
       await supabase
         .from("messages")
         .update({ seen_at: new Date().toISOString() })
-        .eq("receiver_id", userId)
-        .eq("sender_id", selectedUser.id)
+        .eq("receiver_id", myId)
+        .eq("sender_id", partnerId)
         .is("seen_at", null);
     };
     load().then(() => fetchMsgReactions(userId, selectedUser.id));
@@ -1454,6 +1469,9 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
           const relevant =
             (msg.sender_id === userId && msg.receiver_id === selectedUser.id) ||
             (msg.sender_id === selectedUser.id && msg.receiver_id === userId);
+
+          console.log(`[ChatSystem] Realtime INSERT received — relevant:${relevant}`, msg);
+
           if (!relevant) return;
 
           lastRtReceived = Date.now();
