@@ -11,7 +11,6 @@ packages = ["psmisc", "inshellisense"]
 deploymentTarget = "autoscale"
 build = ["npm", "run", "build"]
 run = ["npm", "run", "preview"]
-publicDir = "dist"
 
 [workflows]
 runButton = "Project"
