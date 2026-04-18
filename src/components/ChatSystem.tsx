@@ -1501,10 +1501,9 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
             msg.sender_id === userId || msg.receiver_id === userId;
           if (relevant) {
             lastRtReceived = Date.now();
+            // Merge ALL updated fields (content, seen_at, any future fields)
             setMessages((prev) =>
-              prev.map((m) =>
-                m.id === msg.id ? { ...m, seen_at: msg.seen_at } : m,
-              ),
+              prev.map((m) => (m.id === msg.id ? { ...m, ...msg } : m)),
             );
           }
         },
@@ -1557,30 +1556,62 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
         }
       });
 
-    // ── Manual-fetch fallback ────────────────────────────────────────────────
-    // Every 5 s, if realtime hasn't fired, silently re-fetch to keep UI in sync.
-    // Only the minimum columns are selected to save bandwidth.
+    // ── Comprehensive fallback — runs every 3 s regardless of realtime status ──
+    // Syncs: new messages, deleted messages, and reactions.
+    // This is the primary sync mechanism when Realtime WebSocket is blocked.
     const fallbackInterval = setInterval(async () => {
-      if (Date.now() - lastRtReceived >= 5_000) {
-        console.log("[ChatSystem] 🔄 Manual-fetch fallback triggered (no realtime event in 5 s)");
-        const { data } = await supabase
-          .from("messages")
-          .select("id, sender_id, receiver_id, content, created_at, seen_at, reply_to_id, reply_preview")
-          .or(
-            `and(sender_id.eq.${userId},receiver_id.eq.${selectedUser.id}),and(sender_id.eq.${selectedUser.id},receiver_id.eq.${userId})`,
-          )
-          .order("created_at", { ascending: true })
-          .limit(100);
-        if (data) {
-          setMessages((prev) => {
-            // Merge: keep everything already in state, add any rows that are missing
-            const existingIds = new Set(prev.map((m) => m.id));
-            const newOnes = (data as Message[]).filter((m) => !existingIds.has(m.id));
-            return newOnes.length > 0 ? [...prev, ...newOnes] : prev;
+      const myId      = userId;
+      const partnerId = selectedUser.id;
+      const orFilter  = `and(sender_id.eq.${myId},receiver_id.eq.${partnerId}),and(sender_id.eq.${partnerId},receiver_id.eq.${myId})`;
+
+      // ① Messages — detect inserts AND deletes
+      const { data: freshMsgs } = await supabase
+        .from("messages")
+        .select("id, sender_id, receiver_id, content, media_url, media_type, created_at, seen_at, reply_to_id, reply_preview")
+        .or(orFilter)
+        .order("created_at", { ascending: true })
+        .limit(100);
+
+      if (freshMsgs) {
+        const freshIds = new Set((freshMsgs as Message[]).map((m) => m.id));
+        setMessages((prev) => {
+          const prevIds = new Set(prev.map((m) => m.id));
+          // Add messages that arrived while offline
+          const toAdd = (freshMsgs as Message[]).filter((m) => !prevIds.has(m.id));
+          // Remove messages that were deleted on the DB side
+          const surviving = prev.filter((m) => m.id.startsWith("temp-") || freshIds.has(m.id));
+          if (toAdd.length === 0 && surviving.length === prev.length) return prev;
+          return [...surviving, ...toAdd].sort((a, b) =>
+            a.created_at.localeCompare(b.created_at),
+          );
+        });
+      }
+
+      // ② Reactions — re-sync the whole reaction map for this conversation
+      const msgIds = (freshMsgs || []).map((m: any) => m.id);
+      if (msgIds.length > 0) {
+        const { data: reactionRows } = await supabase
+          .from("message_reactions")
+          .select("message_id, user_id, emoji")
+          .in("message_id", msgIds);
+
+        if (reactionRows) {
+          const map: Record<string, Record<string, string[]>> = {};
+          for (const row of reactionRows as { message_id: string; user_id: string; emoji: string }[]) {
+            if (!map[row.message_id]) map[row.message_id] = {};
+            if (!map[row.message_id][row.emoji]) map[row.message_id][row.emoji] = [];
+            if (!map[row.message_id][row.emoji].includes(row.user_id))
+              map[row.message_id][row.emoji].push(row.user_id);
+          }
+          setMsgReactions((prev) => {
+            // Only update if something actually changed
+            const prevStr = JSON.stringify(prev);
+            const newStr  = JSON.stringify({ ...prev, ...map });
+            return prevStr === newStr ? prev : { ...prev, ...map };
           });
         }
       }
-    }, 5_000);
+    }, 3_000);
 
     // Typing presence channel
     const typingKey = [userId, selectedUser.id].sort().join("-");
