@@ -8,6 +8,8 @@ import {
   Plus, Check, Eye, MoreVertical, Trash2, EyeOff,
   Flag, X, Send, BadgeCheck, Loader2, Flame, Pencil,
 } from "lucide-react";
+import { MagnetButton, CreatorVoice, useMagnet } from "./MagnetSystem";
+import toast from "react-hot-toast";
 
 // ── Utilities ──────────────────────────────────────────────────────────────────
 
@@ -203,9 +205,15 @@ const CommentDrawer = ({
   );
 };
 
+// ── CreatorVoiceOnCard — fetches voice for one post, renders <CreatorVoice> ───
+function CreatorVoiceOnCard({ postId, postType, currentUserId }: { postId: string; postType: string; currentUserId: string | null }) {
+  const { voice } = useMagnet(postId, postType, currentUserId);
+  return <CreatorVoice voice={voice} />;
+}
+
 // ── FlickCard ──────────────────────────────────────────────────────────────────
 const FlickCard = memo(({
-  post, isActive, currentUserId, onDelete, onHide, onReport, onEdit,
+  post, isActive, currentUserId, onDelete, onHide, onReport, onEdit, onBridgeChat,
 }: {
   post: any;
   isActive: boolean;
@@ -214,6 +222,7 @@ const FlickCard = memo(({
   onHide: (id: string) => void;
   onReport: (id: string) => void;
   onEdit: (id: string, newContent: string) => void;
+  onBridgeChat?: (userId: string, userName: string) => void;
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isMuted, setIsMuted] = useState(false);
@@ -327,6 +336,13 @@ const FlickCard = memo(({
 
       {/* Gradient overlay */}
       <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/75 pointer-events-none z-20" />
+
+      {/* Creator's Voice — sticky at the very top (only loaded when this card is visible) */}
+      {isActive && (
+        <div className="absolute top-0 left-0 right-0 z-50 pointer-events-none">
+          <CreatorVoiceOnCard postId={post.id} postType="flick" currentUserId={currentUserId} />
+        </div>
+      )}
 
       {/* Mute indicator */}
       <AnimatePresence>
@@ -447,6 +463,16 @@ const FlickCard = memo(({
           <span className="text-[11px] font-bold mt-1">{formatCount(baseShares)}</span>
         </button>
 
+        {/* MAGNET */}
+        <MagnetButton
+          postId={post.id}
+          postType="flick"
+          postOwnerId={post.author_id || ""}
+          currentUserId={currentUserId}
+          onBridgeChat={onBridgeChat}
+          dark
+        />
+
         {/* Spinning disc */}
         <motion.div
           animate={{ rotate: 360 }}
@@ -546,7 +572,7 @@ const FlickCard = memo(({
 });
 
 // ── Main App ───────────────────────────────────────────────────────────────────
-export default function FlicksApp({ onBack }: { onBack?: () => void }) {
+export default function FlicksApp({ onBack, onBridgeChat }: { onBack?: () => void; onBridgeChat?: (userId: string, userName: string) => void }) {
   const [flicks, setFlicks] = useState<any[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -710,6 +736,7 @@ export default function FlicksApp({ onBack }: { onBack?: () => void }) {
                   onEdit={handleEdit}
                   onHide={handleHide}
                   onReport={(id) => setReportModal({ postId: id, reason: "" })}
+                  onBridgeChat={onBridgeChat ?? ((uid, name) => { toast(`🧲 Bridge: opening chat with ${name}…`); })}
                 />
               </motion.div>
             ))}

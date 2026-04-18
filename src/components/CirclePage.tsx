@@ -3,6 +3,7 @@ import { supabase } from "../lib/supabaseClient";
 import { useProfileViewer } from "../context/ProfileViewerContext";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
+import { MagnetButton } from "./MagnetSystem";
 import {
   Plus, Users, Lock, Globe, ChevronLeft, Settings, Send,
   Heart, Camera, Shield, X, Check, ImageIcon, Loader2, Trash2,
@@ -790,6 +791,13 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
                           <Heart size={20} className={likedPostIds.has(post.id) ? "fill-red-500 text-red-500" : "text-gray-400"} />
                           <span className="text-xs font-bold text-gray-500">{post.likes_count || 0}</span>
                         </button>
+                        <MagnetButton
+                          postId={post.id}
+                          postType="circle"
+                          postOwnerId={selectedGroup?.created_by || selectedGroup?.admin_id || ""}
+                          currentUserId={currentUserId}
+                          dark={false}
+                        />
                       </div>
                     </div>
                   );

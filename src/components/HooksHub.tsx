@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/lib/supabaseClient";
+import { MagnetButton } from "./MagnetSystem";
 import {
   Anchor, Plus, ArrowLeft, X, Users, Heart, FileText,
   DollarSign, Send, CheckSquare, Square, Loader2, Star,
@@ -874,6 +875,13 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-50 text-red-500 text-[12px] font-black">
                   <Heart size={14} fill="currentColor" /> {post.likes_count}
                 </motion.button>
+                <MagnetButton
+                  postId={post.id}
+                  postType="hook"
+                  postOwnerId={page.owner_id}
+                  currentUserId={userId}
+                  dark={false}
+                />
                 <div className="flex-1" />
                 <motion.button whileTap={{ scale: 0.92 }} onClick={() => setHookModal(true)}
                   className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-white text-[12px] font-black"

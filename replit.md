@@ -1,7 +1,17 @@
 # Flicks - Social App
 
 ## Project Overview
-A social media and entertainment platform called "Flicks" built with React 18, Vite, TypeScript, Tailwind CSS, and Supabase. Features: Fame Feed, Flicks (TikTok-style reels), Chat Messenger Ecosystem, Movie Game (KBC Quiz), Snapy Studio, and Flicks Frame (charity wall).
+A social media and entertainment platform called "Flicks" built with React 18, Vite, TypeScript, Tailwind CSS, and Supabase. Features: Fame Feed, Flicks (TikTok-style reels), Chat Messenger Ecosystem, Movie Game (KBC Quiz), Snapy Studio, Flicks Frame (charity wall), and MAGNET viral chain system.
+
+## MAGNET System (MagnetSystem.tsx)
+Viral chain-reaction feature with infinite depth. Integrated on Flick posts, Hook page posts, and Circle posts.
+- **Chain**: Users magnet their friends into a post; each friend can magnet their own friends (recursive tree)
+- **Reach counter**: Live realtime count via Supabase postgres_changes channel  
+- **Creator's Voice**: Owner sets a sticky status/warning message broadcast instantly to all viewers via Supabase broadcast channel
+- **Trace view**: Visualizes the chain tree by depth level (owner also gets Kill/Mute controls per branch)
+- **Magnet Bridge**: Owner can open a direct chat with the last person in the chain
+- **DB tables**: `magnet_chains` (recursive `parent_magnet_id` FK), `post_magnet_voice` — SQL in `supabase_magnet_tables.sql`
+- **Key exports**: `MagnetButton`, `CreatorVoice`, `useMagnet` hook
 
 ## Messenger Ecosystem (ChatSystem.tsx) — v2
 Full-screen messenger with 6 modules:
