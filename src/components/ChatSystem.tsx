@@ -611,6 +611,64 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   const isAdmin = isAdminEmail(userEmail);
   const { openProfile } = useProfileViewer();
 
+  // ── Message Reactions ─────────────────────────────────────────────────────
+  const fetchMsgReactions = useCallback(async (uid: string, otherId: string) => {
+    try {
+      const { data: msgData } = await supabase
+        .from("messages")
+        .select("id")
+        .or(`and(sender_id.eq.${uid},receiver_id.eq.${otherId}),and(sender_id.eq.${otherId},receiver_id.eq.${uid})`);
+      const msgIds = (msgData || []).map((m: any) => m.id).join(",");
+      if (!msgIds) return;
+      const { data } = await supabase
+        .from("message_reactions")
+        .select("message_id, user_id, emoji")
+        .or(`message_id.in.(${msgIds})`);
+      if (!data) return;
+      const map: Record<string, Record<string, string[]>> = {};
+      for (const row of data) {
+        if (!map[row.message_id]) map[row.message_id] = {};
+        if (!map[row.message_id][row.emoji]) map[row.message_id][row.emoji] = [];
+        map[row.message_id][row.emoji].push(row.user_id);
+      }
+      setMsgReactions(map);
+    } catch (_) {}
+  }, []);
+
+  const handleMsgReact = async (msgId: string, emoji: string) => {
+    playPop();
+    setMsgReactionBarId(null);
+    const prev = msgReactions[msgId] ?? {};
+    const currentUsers = prev[emoji] ?? [];
+    const alreadyReacted = currentUsers.includes(userId);
+
+    const updated: Record<string, string[]> = { ...prev };
+    if (alreadyReacted) {
+      updated[emoji] = currentUsers.filter(u => u !== userId);
+      if (updated[emoji].length === 0) delete updated[emoji];
+    } else {
+      Object.keys(updated).forEach(e => {
+        updated[e] = updated[e].filter(u => u !== userId);
+        if (updated[e].length === 0) delete updated[e];
+      });
+      updated[emoji] = [...(updated[emoji] ?? []), userId];
+    }
+
+    setMsgReactions(r => ({ ...r, [msgId]: updated }));
+
+    if (alreadyReacted) {
+      await supabase.from("message_reactions").delete()
+        .eq("message_id", msgId).eq("user_id", userId);
+    } else {
+      await supabase.from("message_reactions").upsert(
+        { message_id: msgId, user_id: userId, emoji },
+        { onConflict: "message_id,user_id" }
+      );
+    }
+
+    if (selectedUser) await fetchMsgReactions(userId, selectedUser.id);
+  };
+
   useEffect(() => {
     injectStyles();
   }, []);
@@ -1830,68 +1888,6 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     } else {
       toast.success("Message deleted for everyone 🗑️");
     }
-  };
-
-  // ── Message Reactions ─────────────────────────────────────────────────────
-  const fetchMsgReactions = useCallback(async (uid: string, otherId: string) => {
-    try {
-      const { data } = await supabase
-        .from("message_reactions")
-        .select("message_id, user_id, emoji")
-        .or(
-          `message_id.in.(${
-            (await supabase
-              .from("messages")
-              .select("id")
-              .or(`and(sender_id.eq.${uid},receiver_id.eq.${otherId}),and(sender_id.eq.${otherId},receiver_id.eq.${uid})`)
-              .then(r => (r.data || []).map((m: any) => m.id).join(","))
-            )
-          })`
-        );
-      if (!data) return;
-      const map: Record<string, Record<string, string[]>> = {};
-      for (const row of data) {
-        if (!map[row.message_id]) map[row.message_id] = {};
-        if (!map[row.message_id][row.emoji]) map[row.message_id][row.emoji] = [];
-        map[row.message_id][row.emoji].push(row.user_id);
-      }
-      setMsgReactions(map);
-    } catch (_) {}
-  }, []);
-
-  const handleMsgReact = async (msgId: string, emoji: string) => {
-    playPop();
-    setMsgReactionBarId(null);
-    const prev = msgReactions[msgId] ?? {};
-    const currentUsers = prev[emoji] ?? [];
-    const alreadyReacted = currentUsers.includes(userId);
-
-    const updated: Record<string, string[]> = { ...prev };
-    if (alreadyReacted) {
-      updated[emoji] = currentUsers.filter(u => u !== userId);
-      if (updated[emoji].length === 0) delete updated[emoji];
-    } else {
-      Object.keys(updated).forEach(e => {
-        updated[e] = updated[e].filter(u => u !== userId);
-        if (updated[e].length === 0) delete updated[e];
-      });
-      updated[emoji] = [...(updated[emoji] ?? []), userId];
-    }
-
-    setMsgReactions(r => ({ ...r, [msgId]: updated }));
-
-    if (alreadyReacted) {
-      await supabase.from("message_reactions").delete()
-        .eq("message_id", msgId).eq("user_id", userId);
-    } else {
-      await supabase.from("message_reactions").upsert(
-        { message_id: msgId, user_id: userId, emoji },
-        { onConflict: "message_id,user_id" }
-      );
-    }
-
-    // Re-sync from DB so sender's state is ground-truth after the write
-    if (selectedUser) await fetchMsgReactions(userId, selectedUser.id);
   };
 
   // ── Media upload ──────────────────────────────────────────────────────────
