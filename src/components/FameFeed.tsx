@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { toast } from "sonner";
 import { ReactionBar, ReactionBubbles } from "./ReactionBar";
-import { MagnetButton } from "./MagnetSystem";
+import { MagnetButton, PostVoiceStrip } from "./MagnetSystem";
 import { useSoundEffects } from "../hooks/useSoundEffects";
 import { useProfileViewer } from "../context/ProfileViewerContext";
 import { StoryBar } from "./StoryBar";
@@ -1275,6 +1275,13 @@ const FameFeed = ({
         {post.content && <PostCaption content={post.content} />}
         <PostMedia post={post} />
 
+        {/* ── Magnet Voice Display (warning overlay / normal pill) ───── */}
+        <PostVoiceStrip
+          postId={post.id}
+          postType="post"
+          postOwnerId={post.user_id || post.author_id || ""}
+        />
+
         {/* ── Liked by line ──────────────────────────────────────────── */}
         {(() => {
           const count = post.likes_count || 0;
@@ -1392,6 +1399,7 @@ const FameFeed = ({
             postOwnerId={post.user_id || post.author_id || ""}
             currentUserId={currentUserId}
             dark={false}
+            myName={userProfile?.full_name || "Someone"}
             onBridgeChat={() => {}}
           />
 

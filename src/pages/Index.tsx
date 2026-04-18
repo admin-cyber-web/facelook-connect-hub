@@ -57,6 +57,7 @@ import MovieGame from "@/components/MovieGame";
 import ConnectionPanel from "@/components/ConnectionPanel";
 import CirclePage from "@/components/CirclePage";
 import HooksHub from "@/components/HooksHub";
+import MagnetDashboard from "@/components/MagnetDashboard";
 // ── Reusable styled blocks ───────────────────────────────────────────────────
 const GlassCard = ({ children, className = "", noPadding = false }: any) => (
   <div
@@ -1273,6 +1274,9 @@ const Index = ({ session }: { session: Session }) => {
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [chatBadgeCount, setChatBadgeCount] = useState(0);
 
+  // Magnet Dashboard
+  const [showMagnetDashboard, setShowMagnetDashboard] = useState(false);
+
   // Frame Mode
   const [isFrameMode, setIsFrameMode] = useState(false);
   const [onlineUsers, setOnlineUsers] = useState<{ id: string; full_name: string; avatar_url: string }[]>([]);
@@ -1949,6 +1953,27 @@ const Index = ({ session }: { session: Session }) => {
         )}
       </AnimatePresence>
 
+      {/* ── Magnet Dashboard overlay ───────────────────────────────────────── */}
+      <AnimatePresence>
+        {showMagnetDashboard && userId && (
+          <motion.div
+            key="magnetdash"
+            initial={{ x: "100%" }}
+            animate={{ x: 0 }}
+            exit={{ x: "100%" }}
+            transition={{ type: "spring", stiffness: 320, damping: 32 }}
+            className="fixed inset-0 z-[9999] overflow-hidden overflow-y-auto bg-[#f0f2f5]"
+          >
+            <MagnetDashboard
+              userId={userId}
+              viewerUserId={userId}
+              userName={profile?.full_name}
+              onBack={() => setShowMagnetDashboard(false)}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* ── Frame Mode overlay (slides in from right, covers everything) ──── */}
       <AnimatePresence>
         {isFrameMode && (
@@ -2146,6 +2171,32 @@ const Index = ({ session }: { session: Session }) => {
                         </div>
                         <span className="text-[8px] text-gray-400 font-semibold">₹250 / ₹500</span>
                       </div>
+                    </div>
+                  </motion.button>
+                </div>
+
+                {/* ── Magnet Dashboard full-width card ──────────────────── */}
+                <div className="px-3 pb-1">
+                  <motion.button
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => setShowMagnetDashboard(true)}
+                    className="w-full flex items-center gap-3 bg-white rounded-2xl px-4 py-3 overflow-hidden"
+                    style={{ border: "1.5px solid #e5e7eb", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}
+                  >
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+                      style={{ background: "linear-gradient(135deg,#7c3aed,#db2777)" }}>
+                      <span className="text-xl">🧲</span>
+                    </div>
+                    <div className="flex-1 text-left">
+                      <p className="text-[13px] font-black text-gray-800 leading-none">Magnet Dashboard</p>
+                      <p className="text-[10px] text-gray-400 mt-0.5">See your sent & received magnets · Viral chain stats</p>
+                    </div>
+                    <div className="flex flex-col items-end gap-1 shrink-0">
+                      <div className="px-2 py-0.5 rounded-full text-[9px] font-black text-white"
+                        style={{ background: "linear-gradient(90deg,#7c3aed,#db2777)" }}>
+                        Viral Engine
+                      </div>
+                      <p className="text-[9px] text-gray-400 font-semibold">Public · Anyone can view</p>
                     </div>
                   </motion.button>
                 </div>
