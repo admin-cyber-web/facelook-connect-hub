@@ -30,8 +30,13 @@ const formatCount = (n: any): string => {
   return String(num);
 };
 
-// -- Comment Drawer --
-const CommentDrawer = ({ post, currentUserId, onClose }: any) => {
+// -- Comment Drawer (Updated for Profiles & Real-time Update) --
+const CommentDrawer = ({
+  post,
+  currentUserId,
+  onClose,
+  onCommentAdded,
+}: any) => {
   const [comments, setComments] = useState<any[]>([]);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
@@ -40,9 +45,15 @@ const CommentDrawer = ({ post, currentUserId, onClose }: any) => {
   useEffect(() => {
     if (!post?._raw_id) return;
     const fetchComments = async () => {
+      // Profiles join kiya taaki Name aur DP mile
       const { data, error } = await supabase
         .from("comments")
-        .select("*")
+        .select(
+          `
+          *,
+          profiles:author_id (username, avatar_url)
+        `,
+        )
         .eq("post_id", post._raw_id)
         .order("created_at", { ascending: true });
       if (!error) setComments(data || []);
@@ -65,11 +76,11 @@ const CommentDrawer = ({ post, currentUserId, onClose }: any) => {
           {
             post_id: post._raw_id,
             content: text.trim(),
-            author_id: currentUserId, // UUID column
-            author: "User", // Text column (from your screenshot)
+            author_id: currentUserId,
+            author: "User",
           },
         ])
-        .select()
+        .select(`*, profiles:author_id (username, avatar_url)`)
         .single();
 
       if (error) throw error;
@@ -77,10 +88,10 @@ const CommentDrawer = ({ post, currentUserId, onClose }: any) => {
         setComments((prev) => [...prev, data]);
         setText("");
         toast.success("Commented!");
+        if (onCommentAdded) onCommentAdded(); // Count update karne ke liye
       }
     } catch (err: any) {
-      console.error("Comment Error:", err);
-      toast.error(err.message || "Comment send nahi hua");
+      toast.error("Comment send nahi hua");
     } finally {
       setSending(false);
     }
@@ -113,12 +124,23 @@ const CommentDrawer = ({ post, currentUserId, onClose }: any) => {
         )}
         {comments.map((c, i) => (
           <div key={c.id || i} className="flex gap-3 items-start">
-            <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-cyan-500 to-blue-500 flex-shrink-0 flex items-center justify-center text-white font-black">
-              {c.author?.[0] || "U"}
+            {/* DP/Avatar Logic */}
+            <div className="w-9 h-9 rounded-full overflow-hidden bg-zinc-800 flex-shrink-0">
+              {c.profiles?.avatar_url ? (
+                <img
+                  src={c.profiles.avatar_url}
+                  className="w-full h-full object-cover"
+                  alt="dp"
+                />
+              ) : (
+                <div className="w-full h-full bg-gradient-to-tr from-cyan-500 to-blue-500 flex items-center justify-center text-white font-black">
+                  {c.profiles?.username?.[0] || "U"}
+                </div>
+              )}
             </div>
             <div className="flex flex-col">
               <span className="text-white/40 text-[10px] font-bold uppercase">
-                {c.author || "User"}
+                {c.profiles?.username || "User"}
               </span>
               <p className="text-white/90 text-sm leading-relaxed">
                 {c.content}
@@ -159,6 +181,9 @@ const FlickCard = memo(
     const [likedByMe, setLikedByMe] = useState(false);
     const [showComments, setShowComments] = useState(false);
     const [liveLikes, setLiveLikes] = useState(Number(post?.likes_count || 0));
+    const [liveCommentsCount, setLiveCommentsCount] = useState(
+      Number(post?.comments_count || 0),
+    );
     const sounds = useSoundEffects();
     const { openProfile } = useProfileViewer();
 
@@ -177,14 +202,12 @@ const FlickCard = memo(
     const handleLike = async (e: React.MouseEvent) => {
       e.stopPropagation();
       if (!currentUserId) return toast.error("Please login to like");
-
       sounds?.playPop?.();
       const isLiking = !likedByMe;
       setLikedByMe(isLiking);
       setLiveLikes((prev) => (isLiking ? prev + 1 : prev - 1));
 
       const tableName = post._source === "flicks" ? "flicks" : "posts";
-
       try {
         if (isLiking) {
           await supabase
@@ -210,7 +233,7 @@ const FlickCard = memo(
             .eq("id", post._raw_id);
         }
       } catch (err) {
-        console.error("Like error", err);
+        console.error(err);
       }
     };
 
@@ -286,7 +309,7 @@ const FlickCard = memo(
           >
             <MessageCircle size={36} />
             <span className="text-[11px] font-black mt-1">
-              {formatCount(post.comments_count || 0)}
+              {formatCount(liveCommentsCount)}
             </span>
           </button>
 
@@ -331,6 +354,7 @@ const FlickCard = memo(
                 post={post}
                 currentUserId={currentUserId}
                 onClose={() => setShowComments(false)}
+                onCommentAdded={() => setLiveCommentsCount((prev) => prev + 1)}
               />
             </>
           )}
@@ -355,11 +379,13 @@ export default function FlicksApp({ onBack, onBridgeChat }: any) {
 
     const fetchData = async () => {
       try {
+        // Yahan 'comments(count)' se real-time initial count fetch ho raha hai
         const { data, error } = await supabase
           .from("posts")
-          .select("*")
+          .select("*, comments(count)")
           .eq("type", "video")
           .order("created_at", { ascending: false });
+
         if (error) throw error;
 
         const normalized = (data || []).map((p) => ({
@@ -372,7 +398,7 @@ export default function FlicksApp({ onBack, onBridgeChat }: any) {
           media_url: p.video_url || p.media_url,
           likes_count: p.likes_count || 0,
           views_count: p.views_count || 0,
-          comments_count: 0,
+          comments_count: p.comments?.[0]?.count || 0,
         }));
         setFlicks(normalized);
       } catch (err) {
