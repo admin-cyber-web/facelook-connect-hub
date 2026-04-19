@@ -179,11 +179,13 @@ const FlickCard = memo(
 
       try {
         if (isLiking) {
-          await supabase.from("likes").upsert({
-            post_id: post._raw_id,
-            user_id: currentUserId,
-            reaction_type: "like",
-          });
+          await supabase
+            .from("likes")
+            .upsert({
+              post_id: post._raw_id,
+              user_id: currentUserId,
+              reaction_type: "like",
+            });
           await supabase
             .from(tableName)
             .update({ likes_count: (post.likes_count || 0) + 1 })
