@@ -8,56 +8,133 @@ const supabaseKey =
   import.meta.env.VITE_SUPABASE_ANON_KEY ||
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InloY3ZicWVrbGFod3Z0eXRxdGlsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ3ODc1MTIsImV4cCI6MjA5MDM2MzUxMn0.tihpQ1M8TzGxYseuov9iFm7Icb-WHNFahFnUX2lfhto";
 
-// ── Safe storage adapter ────────────────────────────────────────────────────
-// In production / Android: localStorage is available → full session persistence
-// across refreshes.
-// In sandboxed iframes (Replit preview): localStorage is blocked → we fall
-// back to an in-memory map so the app doesn't crash (session lasts for the
-// tab, but not across hard refreshes in that iframe only).
 const memStore = new Map<string, string>();
+const sessionMemStore = new Map<string, string>();
 
-function localStorageAvailable(): boolean {
+function storageAvailable(storage: Storage | undefined, key: string): boolean {
   try {
-    const k = "__flicks_ls_probe__";
-    window.localStorage.setItem(k, "1");
-    window.localStorage.removeItem(k);
+    if (!storage) return false;
+    storage.setItem(key, "1");
+    storage.removeItem(key);
     return true;
   } catch {
     return false;
   }
 }
 
-const useLs = localStorageAvailable();
+function getStorage(type: "localStorage" | "sessionStorage"): Storage | undefined {
+  try {
+    return window[type];
+  } catch {
+    return undefined;
+  }
+}
 
-const safeStorage = {
-  getItem(key: string): string | null {
-    if (useLs) {
-      try { return window.localStorage.getItem(key); } catch { /* fall */ }
+function createSafeStorage(
+  browserStorage: Storage | undefined,
+  fallbackStore: Map<string, string>,
+): Storage {
+  return {
+    get length() {
+      return browserStorage?.length ?? fallbackStore.size;
+    },
+    clear() {
+      if (browserStorage) {
+        try {
+          browserStorage.clear();
+          return;
+        } catch {
+          void 0;
+        }
+      }
+      fallbackStore.clear();
+    },
+    getItem(key: string): string | null {
+      if (browserStorage) {
+        try {
+          return browserStorage.getItem(key);
+        } catch {
+          void 0;
+        }
+      }
+      return fallbackStore.get(key) ?? null;
+    },
+    key(index: number): string | null {
+      if (browserStorage) {
+        try {
+          return browserStorage.key(index);
+        } catch {
+          void 0;
+        }
+      }
+      return Array.from(fallbackStore.keys())[index] ?? null;
+    },
+    removeItem(key: string): void {
+      if (browserStorage) {
+        try {
+          browserStorage.removeItem(key);
+          return;
+        } catch {
+          void 0;
+        }
+      }
+      fallbackStore.delete(key);
+    },
+    setItem(key: string, value: string): void {
+      if (browserStorage) {
+        try {
+          browserStorage.setItem(key, value);
+          return;
+        } catch {
+          void 0;
+        }
+      }
+      fallbackStore.set(key, value);
+    },
+  };
+}
+
+const localStorageRef = getStorage("localStorage");
+const sessionStorageRef = getStorage("sessionStorage");
+const safeStorage = createSafeStorage(
+  storageAvailable(localStorageRef, "__flicks_ls_probe__") ? localStorageRef : undefined,
+  memStore,
+);
+const safeSessionStorage = createSafeStorage(
+  storageAvailable(sessionStorageRef, "__flicks_ss_probe__") ? sessionStorageRef : undefined,
+  sessionMemStore,
+);
+
+try {
+  if (!storageAvailable(sessionStorageRef, "__flicks_ss_probe__")) {
+    Object.defineProperty(window, "sessionStorage", {
+      configurable: true,
+      value: safeSessionStorage,
+    });
+  }
+} catch {
+  try {
+    Object.defineProperty(window, "sessionStorage", {
+      configurable: true,
+      value: safeSessionStorage,
+    });
+  } catch {
+    if (!("sessionStorage" in globalThis)) {
+      Object.defineProperty(globalThis, "sessionStorage", {
+        configurable: true,
+        value: safeSessionStorage,
+      });
     }
-    return memStore.get(key) ?? null;
-  },
-  setItem(key: string, value: string): void {
-    if (useLs) {
-      try { window.localStorage.setItem(key, value); return; } catch { /* fall */ }
-    }
-    memStore.set(key, value);
-  },
-  removeItem(key: string): void {
-    if (useLs) {
-      try { window.localStorage.removeItem(key); return; } catch { /* fall */ }
-    }
-    memStore.delete(key);
-  },
-};
+  }
+}
 
 export const supabase = createClient(supabaseUrl, supabaseKey, {
   auth: {
     storage: safeStorage,
+    lock: async (_name, _acquireTimeout, fn) => fn(),
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: true,
-    // ⚠️  Do NOT set storageKey here — keep Supabase's default
-    // (sb-yhcvbqeklahwvtytqtil-auth-token) so existing sessions are found.
   },
   realtime: {
     params: {

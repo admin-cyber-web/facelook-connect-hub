@@ -35,16 +35,22 @@ const App = () => {
   const [isAdminOpen, setIsAdminOpen] = useState(false);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data, error }) => {
-      console.log(
-        "[Auth] getSession →",
-        data.session
-          ? `✅ session found  user=${data.session.user.email}  expires=${new Date((data.session.expires_at ?? 0) * 1000).toLocaleTimeString()}`
-          : `❌ no session`,
-        error ? `| error: ${error.message}` : "",
-      );
-      setSession(data.session);
-    });
+    supabase.auth
+      .getSession()
+      .then(({ data, error }) => {
+        console.log(
+          "[Auth] getSession →",
+          data.session
+            ? `✅ session found  user=${data.session.user.email}  expires=${new Date((data.session.expires_at ?? 0) * 1000).toLocaleTimeString()}`
+            : `❌ no session`,
+          error ? `| error: ${error.message}` : "",
+        );
+        setSession(data.session);
+      })
+      .catch((error) => {
+        console.warn("[Auth] getSession failed", error);
+        setSession(null);
+      });
 
     const { data: listener } = supabase.auth.onAuthStateChange((event, s) => {
       console.log(`[Auth] onAuthStateChange → event=${event}  user=${s?.user?.email ?? "none"}`);
@@ -88,7 +94,7 @@ const App = () => {
 
 
         <ProfileViewerProvider currentUserId={session?.user?.id ?? ""}>
-          <BrowserRouter>
+          <BrowserRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
             <Suspense fallback={<PageLoader />}>
               {!session ? (
                 <LoginScreen />
