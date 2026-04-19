@@ -30,7 +30,7 @@ const formatCount = (n: any): string => {
   return String(num);
 };
 
-// -- Comment Drawer (Full Functionality) --
+// -- Comment Drawer --
 const CommentDrawer = ({ post, currentUserId, onClose }: any) => {
   const [comments, setComments] = useState<any[]>([]);
   const [text, setText] = useState("");
@@ -40,18 +40,21 @@ const CommentDrawer = ({ post, currentUserId, onClose }: any) => {
   useEffect(() => {
     if (!post?._raw_id) return;
     const fetchComments = async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("comments")
         .select("*")
         .eq("post_id", post._raw_id)
         .order("created_at", { ascending: true });
-      setComments(data || []);
+      if (!error) setComments(data || []);
     };
     fetchComments();
   }, [post]);
 
   const handleSend = async () => {
-    if (!text.trim() || !currentUserId) return;
+    if (!text.trim() || !currentUserId) {
+      toast.error("Please login to comment");
+      return;
+    }
     setSending(true);
     sounds?.playSwoosh?.();
 
@@ -62,17 +65,22 @@ const CommentDrawer = ({ post, currentUserId, onClose }: any) => {
           {
             post_id: post._raw_id,
             content: text.trim(),
-            author_id: currentUserId,
+            author_id: currentUserId, // UUID column
+            author: "User", // Text column (from your screenshot)
           },
         ])
         .select()
         .single();
 
       if (error) throw error;
-      if (data) setComments((prev) => [...prev, data]);
-      setText("");
-    } catch (err) {
-      toast.error("Comment send nahi hua");
+      if (data) {
+        setComments((prev) => [...prev, data]);
+        setText("");
+        toast.success("Commented!");
+      }
+    } catch (err: any) {
+      console.error("Comment Error:", err);
+      toast.error(err.message || "Comment send nahi hua");
     } finally {
       setSending(false);
     }
@@ -106,11 +114,11 @@ const CommentDrawer = ({ post, currentUserId, onClose }: any) => {
         {comments.map((c, i) => (
           <div key={c.id || i} className="flex gap-3 items-start">
             <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-cyan-500 to-blue-500 flex-shrink-0 flex items-center justify-center text-white font-black">
-              {c.author_id ? "U" : "?"}
+              {c.author?.[0] || "U"}
             </div>
             <div className="flex flex-col">
               <span className="text-white/40 text-[10px] font-bold uppercase">
-                User
+                {c.author || "User"}
               </span>
               <p className="text-white/90 text-sm leading-relaxed">
                 {c.content}
@@ -188,7 +196,7 @@ const FlickCard = memo(
             });
           await supabase
             .from(tableName)
-            .update({ likes_count: (post.likes_count || 0) + 1 })
+            .update({ likes_count: liveLikes + 1 })
             .eq("id", post._raw_id);
         } else {
           await supabase
@@ -198,7 +206,7 @@ const FlickCard = memo(
             .eq("user_id", currentUserId);
           await supabase
             .from(tableName)
-            .update({ likes_count: Math.max((post.likes_count || 1) - 1, 0) })
+            .update({ likes_count: Math.max(liveLikes - 1, 0) })
             .eq("id", post._raw_id);
         }
       } catch (err) {
@@ -211,7 +219,7 @@ const FlickCard = memo(
       try {
         if (navigator.share) {
           await navigator.share({
-            title: "Check out this Flick!",
+            title: "Flick",
             text: post.content,
             url: window.location.href,
           });
@@ -220,7 +228,7 @@ const FlickCard = memo(
           toast.success("Link copied!");
         }
       } catch (err) {
-        console.log("Share failed", err);
+        console.log(err);
       }
     };
 
@@ -236,14 +244,13 @@ const FlickCard = memo(
           muted={isMuted}
           playsInline
         />
-
         <div
           className="absolute inset-0 z-10"
           onClick={() => setIsMuted(!isMuted)}
         />
         <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/70 pointer-events-none z-20" />
 
-        {/* Right Side Actions */}
+        {/* Actions */}
         <div className="absolute right-4 bottom-28 flex flex-col items-center gap-7 z-40">
           <div className="relative mb-2">
             <div
@@ -261,16 +268,12 @@ const FlickCard = memo(
 
           <button
             onClick={handleLike}
-            className="flex flex-col items-center text-white drop-shadow-md"
+            className="flex flex-col items-center text-white"
           >
             <Heart
               size={36}
               fill={likedByMe ? "#ff2d55" : "none"}
-              className={
-                likedByMe
-                  ? "text-[#ff2d55] scale-110 transition-transform"
-                  : "text-white"
-              }
+              className={likedByMe ? "text-[#ff2d55] scale-110" : "text-white"}
             />
             <span className="text-[11px] font-black mt-1">
               {formatCount(liveLikes)}
@@ -279,9 +282,9 @@ const FlickCard = memo(
 
           <button
             onClick={() => setShowComments(true)}
-            className="flex flex-col items-center text-white drop-shadow-md"
+            className="flex flex-col items-center text-white"
           >
-            <MessageCircle size={36} className="text-white" />
+            <MessageCircle size={36} />
             <span className="text-[11px] font-black mt-1">
               {formatCount(post.comments_count || 0)}
             </span>
@@ -289,15 +292,15 @@ const FlickCard = memo(
 
           <button
             onClick={handleShare}
-            className="flex flex-col items-center text-white drop-shadow-md"
+            className="flex flex-col items-center text-white"
           >
-            <Share2 size={34} className="text-white" />
+            <Share2 size={34} />
             <span className="text-[11px] font-black mt-1">Share</span>
           </button>
 
           <div className="mt-2">
             <MagnetButton
-              postId={post.id}
+              postId={post._raw_id}
               postType="flick"
               postOwnerId={post.author_id}
               currentUserId={currentUserId}
@@ -307,15 +310,12 @@ const FlickCard = memo(
           </div>
         </div>
 
-        {/* Bottom Content */}
         <div className="absolute bottom-12 left-4 right-20 text-white z-40 pointer-events-none">
           <div className="flex items-center gap-2 mb-2">
-            <h3 className="font-black text-lg drop-shadow-lg">
-              @{post.author || "vibe_user"}
-            </h3>
+            <h3 className="font-black text-lg">@{post.author || "user"}</h3>
             <BadgeCheck size={18} className="text-cyan-400" />
           </div>
-          <p className="text-sm opacity-90 line-clamp-2 leading-snug drop-shadow-md">
+          <p className="text-sm opacity-90 line-clamp-2 leading-snug">
             {post.content}
           </p>
         </div>
@@ -355,26 +355,25 @@ export default function FlicksApp({ onBack, onBridgeChat }: any) {
 
     const fetchData = async () => {
       try {
-        const { data } = await supabase
+        const { data, error } = await supabase
           .from("posts")
           .select("*")
           .eq("type", "video")
-          .order("created_at", { ascending: false })
-          .limit(30);
+          .order("created_at", { ascending: false });
+        if (error) throw error;
 
         const normalized = (data || []).map((p) => ({
           id: `post_${p.id}`,
           _raw_id: p.id,
           _source: "posts",
           author_id: p.author_id || p.user_id,
-          author: p.username || "User",
+          author: p.username || p.author || "User",
           content: p.caption || p.content || "",
           media_url: p.video_url || p.media_url,
           likes_count: p.likes_count || 0,
           views_count: p.views_count || 0,
-          comments_count: 0, // Fetch real count if needed via subquery
+          comments_count: 0,
         }));
-
         setFlicks(normalized);
       } catch (err) {
         console.error(err);
@@ -382,7 +381,6 @@ export default function FlicksApp({ onBack, onBridgeChat }: any) {
         setLoading(false);
       }
     };
-
     fetchData();
   }, []);
 
@@ -418,7 +416,7 @@ export default function FlicksApp({ onBack, onBridgeChat }: any) {
       >
         {flicks.length === 0 ? (
           <div className="h-full flex items-center justify-center text-white/20 font-bold">
-            KHUDA HAFIZ! NO VIDEOS.
+            NO VIDEOS FOUND.
           </div>
         ) : (
           flicks.map((f, i) => (
