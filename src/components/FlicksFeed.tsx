@@ -28,7 +28,7 @@ import { toast } from "sonner";
 
 // -- Utilities --
 const formatCount = (n: number): string => {
-  if (!n) return "0";
+  if (!n || isNaN(n)) return "0";
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1).replace(".0", "") + "M";
   if (n >= 1_000)
     return (n / 1_000).toFixed(n >= 10_000 ? 0 : 1).replace(".0", "") + "K";
@@ -53,7 +53,7 @@ const seededRnd = (postId: string, salt: number) => {
 const getBonusEngagement = (
   post: any,
 ): { likes: number; views: number; shares: number } => {
-  if (!post?.created_at) return { likes: 0, views: 0, shares: 0 };
+  if (!post?.created_at || !post?.id) return { likes: 0, views: 0, shares: 0 };
   const ageHrs = (Date.now() - new Date(post.created_at).getTime()) / 3_600_000;
   if (ageHrs < 1) return { likes: 0, views: 0, shares: 0 };
 
@@ -127,6 +127,7 @@ const FlickMedia = ({ post, videoRef, isMuted, isActive }: any) => {
       loop
       muted={isMuted}
       playsInline
+      style={{ display: isActive ? "block" : "block" }}
       preload="metadata"
       onError={() => setVideoFailed(true)}
     />
@@ -149,23 +150,31 @@ const CommentDrawer = ({
   const { playSwoosh } = useSoundEffects();
 
   useEffect(() => {
-    if (!post?.id) return;
+    if (!post?._raw_id && !post?.id) return;
+    const targetId =
+      post._raw_id ||
+      post.id.replace("flick_", "").replace("posts_", "").replace("fvid_", "");
+
     supabase
       .from("comments")
       .select("id, content, author_id, created_at")
-      .eq("post_id", post.id)
+      .eq("post_id", targetId)
       .order("created_at")
       .then(({ data }) => setComments(data || []));
-  }, [post?.id]);
+  }, [post]);
 
   const send = async () => {
-    if (!text.trim() || !currentUserId || !post?.id) return;
+    if (!text.trim() || !currentUserId || !post) return;
+    const targetId =
+      post._raw_id ||
+      post.id.replace("flick_", "").replace("posts_", "").replace("fvid_", "");
+
     setSending(true);
     playSwoosh();
     const { data } = await supabase
       .from("comments")
       .insert([
-        { post_id: post.id, content: text.trim(), author_id: currentUserId },
+        { post_id: targetId, content: text.trim(), author_id: currentUserId },
       ])
       .select()
       .single();
@@ -274,16 +283,13 @@ const FlickCard = memo(
     const [likedByMe, setLikedByMe] = useState(false);
     const [menuOpen, setMenuOpen] = useState(false);
     const [showComments, setShowComments] = useState(false);
-    const [showEditModal, setShowEditModal] = useState(false);
-    const [editText, setEditText] = useState(post?.content || "");
-    const [editSaving, setEditSaving] = useState(false);
     const { openProfile } = useProfileViewer();
-    const { playPop, playSwoosh } = useSoundEffects();
+    const { playPop } = useSoundEffects();
 
     const bonus = getBonusEngagement(post);
-    const baseLikes = (post?.likes_count || 0) + bonus.likes;
-    const baseViews = (post?.views_count || 0) + bonus.views;
-    const baseShares = (post?.shares_count || 0) + bonus.shares;
+    const baseLikes = Number(post?.likes_count || 0) + bonus.likes;
+    const baseViews = Number(post?.views_count || 0) + bonus.views;
+    const baseShares = Number(post?.shares_count || 0) + bonus.shares;
 
     const [liveLikes, setLiveLikes] = useState(baseLikes);
     const [liveViews, setLiveViews] = useState(baseViews);
@@ -315,6 +321,7 @@ const FlickCard = memo(
       setLiveLikes(baseLikes);
       setLiveViews(baseViews);
     }, [baseLikes, baseViews]);
+
     useEffect(() => {
       if (isActive) scheduleTick();
       return () => {
@@ -345,38 +352,43 @@ const FlickCard = memo(
       const newVal = !likedByMe;
       setLikedByMe(newVal);
       setLiveLikes((prev) => prev + (newVal ? 1 : -1));
+
+      const targetId =
+        post._raw_id || post.id.replace("flick_", "").replace("posts_", "");
+      const tableName = post._source === "flicks" ? "flicks" : "posts";
+
       try {
         if (newVal) {
+          await supabase.from("likes").upsert(
+            {
+              post_id: targetId,
+              user_id: currentUserId,
+              reaction_type: "like",
+            },
+            { onConflict: "post_id,user_id" },
+          );
           await supabase
-            .from("likes")
-            .upsert(
-              {
-                post_id: post.id,
-                user_id: currentUserId,
-                reaction_type: "like",
-              },
-              { onConflict: "post_id,user_id" },
-            );
-          await supabase
-            .from("posts")
+            .from(tableName)
             .update({ likes_count: (post.likes_count || 0) + 1 })
-            .eq("id", post.id);
+            .eq("id", targetId);
         } else {
           await supabase
             .from("likes")
             .delete()
-            .eq("post_id", post.id)
+            .eq("post_id", targetId)
             .eq("user_id", currentUserId);
           await supabase
-            .from("posts")
+            .from(tableName)
             .update({ likes_count: Math.max((post.likes_count || 1) - 1, 0) })
-            .eq("id", post.id);
+            .eq("id", targetId);
         }
       } catch (_) {}
     };
 
     const luck = getLuckFactor(post?.id || "0");
     const verified = isVerified(post?.id || "0");
+
+    if (!post) return null;
 
     return (
       <div className="relative w-full h-[100dvh] bg-black snap-start flex items-center justify-center overflow-hidden shrink-0">
@@ -386,12 +398,14 @@ const FlickCard = memo(
           isMuted={isMuted}
           isActive={isActive}
         />
-        {!menuOpen && !showComments && (
+
+        {!showComments && (
           <div
             className="absolute inset-0 z-10"
             onClick={() => setIsMuted(!isMuted)}
           />
         )}
+
         <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/75 pointer-events-none z-20" />
 
         {isActive && post?.id && (
@@ -404,7 +418,7 @@ const FlickCard = memo(
           </div>
         )}
 
-        {luck >= 9 && (
+        {isViral && (
           <motion.div
             initial={{ opacity: 0, scale: 0 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -423,7 +437,7 @@ const FlickCard = memo(
               className="w-12 h-12 rounded-full border-2 border-white bg-zinc-800 flex items-center justify-center font-bold text-lg overflow-hidden cursor-pointer"
               onClick={() => post?.author_id && openProfile(post.author_id)}
             >
-              {(post?.author || post?.username || "V")[0].toUpperCase()}
+              {(post?.author || "V")[0].toUpperCase()}
             </div>
             <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-[#ff2d55] rounded-full p-0.5 border-2 border-black">
               <Plus size={14} />
@@ -447,7 +461,7 @@ const FlickCard = memo(
           >
             <MessageCircle size={32} className="text-white" />
             <span className="text-[11px] font-bold mt-1">
-              {post?.comments?.length || 0}
+              {formatCount(post?.comments?.length || 0)}
             </span>
           </button>
 
@@ -457,6 +471,7 @@ const FlickCard = memo(
               {formatCount(liveViews)}
             </span>
           </div>
+
           <button
             onClick={() => navigator.share({ url: window.location.href })}
             className="flex flex-col items-center"
@@ -483,7 +498,7 @@ const FlickCard = memo(
               className="font-black text-base drop-shadow-lg pointer-events-auto"
               onClick={() => post?.author_id && openProfile(post.author_id)}
             >
-              @{post?.author || post?.username || "vibe_user"}
+              @{post?.author || "vibe_user"}
             </h3>
             {verified ? (
               <BadgeCheck size={18} className="text-blue-400" />
@@ -494,7 +509,7 @@ const FlickCard = memo(
             )}
           </div>
           <p className="text-sm opacity-90 mb-4 line-clamp-2 leading-snug">
-            {post?.content || post?.caption}
+            {post?.content}
           </p>
         </div>
 
@@ -541,51 +556,65 @@ export default function FlicksApp({
 
   useEffect(() => {
     (async () => {
-      const isVideoPost = (p: any): boolean =>
-        p.type === "video" ||
-        /\.(mp4|webm|ogg|mov|m4v)/i.test(
-          (p.media_url || p.video_url || "").split("?")[0],
-        ) ||
-        (p.media_url || "").includes("youtube.com") ||
-        (p.media_url || "").includes("rapidcdn.app");
+      const isVideoPost = (p: any): boolean => {
+        const url = p.media_url || p.video_url || "";
+        return (
+          p.type === "video" ||
+          /\.(mp4|webm|ogg|mov|m4v)/i.test(url.split("?")[0]) ||
+          url.includes("youtube.com") ||
+          url.includes("youtu.be") ||
+          url.includes("rapidcdn.app")
+        );
+      };
 
-      const normalizeFlickRow = (row: any) => ({
-        _source: "flicks",
-        id: `flick_${row.id}`,
-        _raw_id: row.id,
-        author_id: row.author_id || row.user_id || null,
-        author: row.username || row.author || "User",
-        content: row.caption || row.content || "",
-        media_url: row.video_url || row.media_url || "",
-        type: "video",
-        likes_count: row.likes_count ?? 0,
-        created_at: row.created_at || new Date().toISOString(),
-      });
+      const normalize = (row: any, source: string) => {
+        if (!row) return null;
+        return {
+          _source: source,
+          id: `${source}_${row.id}`,
+          _raw_id: row.id,
+          author_id: row.author_id || row.user_id || null,
+          author: row.username || row.author || "User",
+          content: row.caption || row.content || "",
+          media_url: row.video_url || row.media_url || "",
+          type: "video",
+          likes_count: row.likes_count ?? 0,
+          views_count: row.views_count ?? 0,
+          shares_count: row.shares_count ?? 0,
+          created_at: row.created_at || new Date().toISOString(),
+          comments: [],
+        };
+      };
 
       try {
-        const [postsResult, flicksResult] = await Promise.all([
+        const [postsRes, flicksRes, fVidRes] = await Promise.all([
           supabase
             .from("posts")
             .select("*")
             .or("type.eq.video,media_url.ilike.%.mp4%")
-            .order("created_at", { ascending: false })
-            .limit(50),
-          supabase
-            .from("flicks")
-            .select("*")
-            .order("created_at", { ascending: false })
-            .limit(50),
+            .limit(40),
+          supabase.from("flicks").select("*").limit(40),
+          supabase.from("flicks_videos").select("*").limit(40),
         ]);
 
-        const fromPosts = (postsResult.data || [])
+        const dataFromPosts = (postsRes.data || [])
           .filter(isVideoPost)
-          .map((p) => ({ ...p, _source: "posts" }));
-        const fromFlicks = (flicksResult.data || []).map(normalizeFlickRow);
-
-        const merged = [...fromPosts, ...fromFlicks].sort(
-          (a, b) =>
-            new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+          .map((p) => normalize(p, "posts"));
+        const dataFromFlicks = (flicksRes.data || []).map((p) =>
+          normalize(p, "flicks"),
         );
+        const dataFromFVids = (fVidRes.data || []).map((p) =>
+          normalize(p, "fvid"),
+        );
+
+        const merged = [...dataFromPosts, ...dataFromFlicks, ...dataFromFVids]
+          .filter((item) => item && item.media_url)
+          .sort(
+            (a, b) =>
+              new Date(b!.created_at).getTime() -
+              new Date(a!.created_at).getTime(),
+          );
+
         setFlicks(merged);
       } catch (err) {
         console.error("Fetch Error:", err);
@@ -608,7 +637,7 @@ export default function FlicksApp({
   if (loading)
     return (
       <div className="h-screen w-full bg-black flex items-center justify-center">
-        <Loader2 className="animate-spin text-blue-500" size={40} />
+        <Loader2 className="animate-spin text-cyan-500" size={40} />
       </div>
     );
 
@@ -635,7 +664,7 @@ export default function FlicksApp({
         ) : (
           visibleFlicks.map((flick, index) => (
             <FlickCard
-              key={`${flick._source}-${flick.id}-${index}`}
+              key={flick.id}
               post={flick}
               isActive={index === currentIndex}
               currentUserId={currentUserId}
