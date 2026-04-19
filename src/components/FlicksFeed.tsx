@@ -589,36 +589,47 @@ export default function FlicksApp({ onBack, onBridgeChat }: { onBack?: () => voi
   useEffect(() => {
     (async () => {
       try {
-        // Primary query — author_id is the reliable FK column
+        // ── Detect if a post row is a video ──────────────────────────────────
+        const isVideoPost = (p: any): boolean =>
+          p.type === "video" ||
+          p.metadata?.is_youtube === true ||
+          /\.(mp4|webm|ogg|mov|m4v)/i.test((p.media_url || "").split("?")[0]) ||
+          (p.media_url || "").includes("youtube.com") ||
+          (p.media_url || "").includes("youtu.be") ||
+          (p.media_url || "").includes("rapidcdn.app");
+
+        // ── Primary query: server-side pre-filter for video posts only ───────
         const { data, error } = await supabase
           .from("posts")
-          .select("id, author_id, content, media_url, type, likes_count, created_at, metadata")
+          .select("id, author_id, author, content, media_url, type, likes_count, views_count, shares_count, created_at, metadata")
+          .or(
+            "type.eq.video," +
+            "media_url.ilike.%.mp4%," +
+            "media_url.ilike.%.webm%," +
+            "media_url.ilike.%.mov%," +
+            "media_url.ilike.%.m4v%," +
+            "media_url.ilike.%youtube.com%," +
+            "media_url.ilike.%youtu.be%," +
+            "media_url.ilike.%rapidcdn%"
+          )
           .order("created_at", { ascending: false })
-          .limit(50);
+          .limit(100);
 
         if (error) {
-          console.error("[FlicksFeed] Primary fetch failed:", error.message, "| code:", error.code, "| details:", error.details);
-          // Fallback: bare minimum columns guaranteed to exist
+          console.error("[FlicksFeed] Primary fetch failed:", error.message, "| code:", error.code);
+          // Fallback: fetch all posts, client-side filter
           const { data: d2, error: e2 } = await supabase
             .from("posts")
-            .select("id, author_id, content, media_url, type, created_at")
+            .select("id, author_id, author, content, media_url, type, views_count, shares_count, likes_count, created_at, metadata")
             .order("created_at", { ascending: false })
-            .limit(50);
+            .limit(200);
           if (e2) {
-            console.error("[FlicksFeed] Fallback fetch also failed:", e2.message, "| code:", e2.code);
+            console.error("[FlicksFeed] Fallback fetch also failed:", e2.message);
           } else if (d2) {
-            setFlicks(d2.filter((p: any) =>
-              p.media_url?.toLowerCase().match(/\.(mp4|webm|ogg|mov|m4v)/) ||
-              p.media_url?.includes("youtube.com") ||
-              p.media_url?.includes("youtu.be")
-            ));
+            setFlicks(d2.filter(isVideoPost));
           }
         } else if (data) {
-          setFlicks(data.filter((p: any) =>
-            p.media_url?.toLowerCase().match(/\.(mp4|webm|ogg|mov|m4v)/) ||
-            p.media_url?.includes("youtube.com") ||
-            p.media_url?.includes("youtu.be")
-          ));
+          setFlicks(data.filter(isVideoPost));
         }
       } catch (err) {
         console.error("[FlicksFeed] Unexpected error:", err);
