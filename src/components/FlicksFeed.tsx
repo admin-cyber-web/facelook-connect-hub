@@ -588,49 +588,65 @@ export default function FlicksApp({ onBack, onBridgeChat }: { onBack?: () => voi
 
   useEffect(() => {
     (async () => {
-      try {
-        // ── Detect if a post row is a video ──────────────────────────────────
-        const isVideoPost = (p: any): boolean =>
-          p.type === "video" ||
-          p.metadata?.is_youtube === true ||
-          /\.(mp4|webm|ogg|mov|m4v)/i.test((p.media_url || "").split("?")[0]) ||
-          (p.media_url || "").includes("youtube.com") ||
-          (p.media_url || "").includes("youtu.be") ||
-          (p.media_url || "").includes("rapidcdn.app");
+      // Helper — is this post row a video?
+      const isVideoPost = (p: any): boolean =>
+        p.type === "video" ||
+        p.metadata?.is_youtube === true ||
+        /\.(mp4|webm|ogg|mov|m4v)/i.test((p.media_url || "").split("?")[0]) ||
+        (p.media_url || "").includes("youtube.com") ||
+        (p.media_url || "").includes("youtu.be") ||
+        (p.media_url || "").includes("rapidcdn.app");
 
-        // ── Primary query: server-side pre-filter for video posts only ───────
+      // Safe base columns — always exist in the posts table
+      const SAFE_COLS = "id, author_id, author, content, media_url, type, likes_count, created_at, metadata";
+
+      // Video-filter OR string for server-side pre-filter
+      const VIDEO_OR =
+        "type.eq.video," +
+        "media_url.ilike.%.mp4%," +
+        "media_url.ilike.%.webm%," +
+        "media_url.ilike.%.mov%," +
+        "media_url.ilike.%.m4v%," +
+        "media_url.ilike.%youtube.com%," +
+        "media_url.ilike.%youtu.be%," +
+        "media_url.ilike.%rapidcdn%";
+
+      try {
+        // ── Tier 1: server-side video filter + safe columns ──────────────────
         const { data, error } = await supabase
           .from("posts")
-          .select("id, author_id, author, content, media_url, type, likes_count, views_count, shares_count, created_at, metadata")
-          .or(
-            "type.eq.video," +
-            "media_url.ilike.%.mp4%," +
-            "media_url.ilike.%.webm%," +
-            "media_url.ilike.%.mov%," +
-            "media_url.ilike.%.m4v%," +
-            "media_url.ilike.%youtube.com%," +
-            "media_url.ilike.%youtu.be%," +
-            "media_url.ilike.%rapidcdn%"
-          )
+          .select(SAFE_COLS)
+          .or(VIDEO_OR)
           .order("created_at", { ascending: false })
           .limit(100);
 
-        if (error) {
-          console.error("[FlicksFeed] Primary fetch failed:", error.message, "| code:", error.code);
-          // Fallback: fetch all posts, client-side filter
-          const { data: d2, error: e2 } = await supabase
-            .from("posts")
-            .select("id, author_id, author, content, media_url, type, views_count, shares_count, likes_count, created_at, metadata")
-            .order("created_at", { ascending: false })
-            .limit(200);
-          if (e2) {
-            console.error("[FlicksFeed] Fallback fetch also failed:", e2.message);
-          } else if (d2) {
-            setFlicks(d2.filter(isVideoPost));
-          }
-        } else if (data) {
+        if (!error && data) {
           setFlicks(data.filter(isVideoPost));
+          return;
         }
+        console.warn("[FlicksFeed] Tier 1 failed:", error?.message);
+
+        // ── Tier 2: no OR filter, fetch all + client-side filter ─────────────
+        const { data: d2, error: e2 } = await supabase
+          .from("posts")
+          .select(SAFE_COLS)
+          .order("created_at", { ascending: false })
+          .limit(200);
+
+        if (!e2 && d2) {
+          setFlicks(d2.filter(isVideoPost));
+          return;
+        }
+        console.warn("[FlicksFeed] Tier 2 failed:", e2?.message);
+
+        // ── Tier 3: absolute minimum columns ────────────────────────────────
+        const { data: d3 } = await supabase
+          .from("posts")
+          .select("id, author_id, media_url, type, created_at")
+          .order("created_at", { ascending: false })
+          .limit(200);
+
+        if (d3) setFlicks(d3.filter(isVideoPost));
       } catch (err) {
         console.error("[FlicksFeed] Unexpected error:", err);
       } finally {
@@ -673,6 +689,25 @@ export default function FlicksApp({ onBack, onBridgeChat }: { onBack?: () => voi
   };
 
   const visibleFlicks = flicks.filter(p => !hiddenIds.has(p.id));
+
+  // Empty state — loaded but zero video posts found
+  if (!loading && visibleFlicks.length === 0) {
+    return (
+      <div className="h-screen w-full bg-[#0a0a0a] flex flex-col items-center justify-center gap-4">
+        {onBack && (
+          <button onClick={onBack} className="fixed top-10 left-4 z-50 w-9 h-9 rounded-full bg-white/10 flex items-center justify-center">
+            <X size={18} className="text-white" />
+          </button>
+        )}
+        <div className="text-6xl">🎬</div>
+        <p className="text-white font-black text-xl tracking-tight">Abhi koi Flick nahi</p>
+        <p className="text-white/40 text-sm text-center px-8 leading-relaxed">
+          Koi video post karo ya naya post upload karo.<br />Yeh section sirf video posts dikhata hai.
+        </p>
+        <p className="text-white/20 text-xs">posts table mein type='video' ya .mp4 URL chahiye</p>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
