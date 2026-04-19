@@ -8,6 +8,7 @@ import {
   Plus, Users, Lock, Globe, ChevronLeft, Settings, Send,
   Heart, Camera, Shield, X, Check, ImageIcon, Loader2, Trash2,
   Share2, MessageCircle, FileText, Bell, MoreVertical, Pencil,
+  UserPlus, UserMinus, Crown, ShieldCheck, Ban, Eye,
 } from "lucide-react";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -26,7 +27,8 @@ interface Group {
 
 interface GroupPost {
   id: string;
-  group_id: string;
+  circle_id?: string;
+  group_id?: string;
   author_id: string;
   author_name: string;
   author_avatar?: string | null;
@@ -34,6 +36,29 @@ interface GroupPost {
   media_url?: string | null;
   created_at: string;
   likes_count: number;
+  comments_count?: number;
+  shares_count?: number;
+  status?: "pending" | "approved" | "rejected";
+  comments_muted?: boolean;
+}
+
+interface CircleComment {
+  id: string;
+  post_id: string;
+  author_id: string;
+  author_name: string;
+  author_avatar?: string | null;
+  content: string;
+  created_at: string;
+}
+
+interface CircleInvite {
+  id: string;
+  circle_id: string;
+  inviter_id: string;
+  invitee_id: string;
+  status: "pending" | "accepted" | "rejected";
+  circles?: Group;
 }
 
 interface GroupMessage {
@@ -106,7 +131,8 @@ interface Props {
   currentUserId: string | null;
 }
 
-type GroupTab = "posts" | "chat" | "members";
+type GroupTab = "posts" | "review" | "chat" | "members";
+type MemberRole = "admin" | "moderator" | "member";
 
 export default function CirclePage({ userProfile, currentUserId }: Props) {
   const { openProfile } = useProfileViewer();
@@ -117,10 +143,13 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
   const [selectedGroup, setSelectedGroup] = useState<Group | null>(null);
   const [groupTab, setGroupTab] = useState<GroupTab>("posts");
   const [groupPosts, setGroupPosts] = useState<GroupPost[]>([]);
+  const [pendingPosts, setPendingPosts] = useState<GroupPost[]>([]);
   const [groupMembers, setGroupMembers] = useState<any[]>([]);
   const [newMemberCount, setNewMemberCount] = useState(0);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [currentRole, setCurrentRole] = useState<MemberRole | null>(null);
   const [loading, setLoading] = useState(true);
+  const [myInvites, setMyInvites] = useState<CircleInvite[]>([]);
 
   // Create group form
   const [showCreate, setShowCreate] = useState(false);
@@ -139,6 +168,14 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
   const [postMedia, setPostMedia] = useState<File | null>(null);
   const [posting, setPosting] = useState(false);
   const [likedPostIds, setLikedPostIds] = useState<Set<string>>(new Set());
+  const [commentPostId, setCommentPostId] = useState<string | null>(null);
+  const [postComments, setPostComments] = useState<CircleComment[]>([]);
+  const [commentText, setCommentText] = useState("");
+  const [commenting, setCommenting] = useState(false);
+  const [commentLoading, setCommentLoading] = useState(false);
+  const [inviteSearch, setInviteSearch] = useState("");
+  const [inviteResults, setInviteResults] = useState<any[]>([]);
+  const [inviteLoading, setInviteLoading] = useState(false);
 
   // Chat
   const [chatMessages, setChatMessages] = useState<GroupMessage[]>([]);
@@ -148,6 +185,8 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
   const chatEndRef = useRef<HTMLDivElement>(null);
   const chatSubRef = useRef<any>(null);
   const memberSubRef = useRef<any>(null);
+  const postSubRef = useRef<any>(null);
+  const commentSubRef = useRef<any>(null);
 
   const coverInputRef = useRef<HTMLInputElement>(null);
   const mediaInputRef = useRef<HTMLInputElement>(null);
@@ -166,13 +205,77 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
   const [confirmDeleteGroup, setConfirmDeleteGroup] = useState(false);
   const [deletingGroup, setDeletingGroup]       = useState(false);
 
+  const canModerate = currentRole === "admin" || currentRole === "moderator";
+  const canAdmin = currentRole === "admin";
+
+  const canManageMember = (member: any) => {
+    if (!currentUserId || member.user_id === currentUserId) return false;
+    if (currentRole === "admin") return member.role !== "admin";
+    if (currentRole === "moderator") return member.role !== "admin";
+    return false;
+  };
+
+  const fetchCirclePosts = useCallback(async (circleId: string, reviewer = canModerate) => {
+    let query = supabase
+      .from("circle_posts")
+      .select("id, circle_id, author_id, author_name, author_avatar, content, media_url, created_at, likes_count, comments_count, shares_count, status, comments_muted")
+      .eq("circle_id", circleId)
+      .order("created_at", { ascending: false })
+      .limit(50);
+
+    query = reviewer ? query.in("status", ["approved", "pending"]) : query.eq("status", "approved");
+    const { data, error } = await query;
+    if (error) {
+      toast.error("Circle posts are unavailable. Please run the circle_posts setup SQL.");
+      setGroupPosts([]);
+      setPendingPosts([]);
+      return;
+    }
+    const rows = ((data as GroupPost[]) ?? []).map(post => ({
+      ...post,
+      status: post.status ?? "approved",
+      likes_count: post.likes_count ?? 0,
+      comments_count: post.comments_count ?? 0,
+      shares_count: post.shares_count ?? 0,
+    }));
+    if (currentUserId && rows.length > 0) {
+      const { data: likedRows } = await supabase
+        .from("circle_post_likes")
+        .select("post_id")
+        .eq("user_id", currentUserId)
+        .in("post_id", rows.map(post => post.id));
+      setLikedPostIds(new Set((likedRows ?? []).map((row: any) => row.post_id)));
+    } else {
+      setLikedPostIds(new Set());
+    }
+    setGroupPosts(reviewer ? rows : rows.filter(post => post.status === "approved"));
+    setPendingPosts(rows.filter(post => post.status === "pending"));
+  }, [canModerate, currentUserId]);
+
+  const fetchMyInvites = useCallback(async () => {
+    if (!currentUserId) return;
+    const { data } = await supabase
+      .from("circle_invites")
+      .select("id, circle_id, inviter_id, invitee_id, status, circles(id, name, description, privacy, cover_url, rules, post_approval, created_by, admin_id, member_count)")
+      .eq("invitee_id", currentUserId)
+      .eq("status", "pending")
+      .order("created_at", { ascending: false })
+      .limit(10);
+    setMyInvites((data as CircleInvite[]) ?? []);
+  }, [currentUserId]);
+
   // ── Fetch all groups ─────────────────────────────────────────────────────────
   const fetchGroups = async () => {
-    const { data } = await supabase
-      .from("groups")
+    const { data, error } = await supabase
+      .from("circles")
       .select("id, name, description, cover_url, privacy, member_count, created_by, admin_id, created_at, rules, post_approval")
       .order("created_at", { ascending: false })
       .limit(50);
+    if (error) {
+      toast.error("Circles table not available.");
+      setLoading(false);
+      return;
+    }
     if (data) setGroups(data as Group[]);
     setLoading(false);
   };
@@ -180,15 +283,16 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
   const fetchMyMemberships = async () => {
     if (!currentUserId) return;
     const { data } = await supabase
-      .from("group_members")
-      .select("group_id")
+      .from("circle_members")
+      .select("circle_id")
       .eq("user_id", currentUserId);
-    if (data) setMyGroupIds(new Set(data.map((r: any) => r.group_id)));
+    if (data) setMyGroupIds(new Set(data.map((r: any) => r.circle_id)));
   };
 
   useEffect(() => {
     fetchGroups();
     fetchMyMemberships();
+    fetchMyInvites();
   }, [currentUserId]);
 
   // ── Cleanup realtime subscriptions on unmount ────────────────────────────────
@@ -196,6 +300,8 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
     return () => {
       if (chatSubRef.current) supabase.removeChannel(chatSubRef.current);
       if (memberSubRef.current) supabase.removeChannel(memberSubRef.current);
+      if (postSubRef.current) supabase.removeChannel(postSubRef.current);
+      if (commentSubRef.current) supabase.removeChannel(commentSubRef.current);
     };
   }, []);
 
@@ -217,7 +323,7 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
       }
 
       const { data: newGroup, error } = await supabase
-        .from("groups")
+        .from("circles")
         .insert([{
           name: form.name.trim(),
           description: form.description.trim() || null,
@@ -232,7 +338,7 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
       if (error) { toast.error(`Failed to create Circle: ${error.message}`); return; }
 
       if (newGroup) {
-        await supabase.from("group_members").insert([{ group_id: newGroup.id, user_id: currentUserId, role: "admin" }]);
+        await supabase.from("circle_members").insert([{ circle_id: newGroup.id, user_id: currentUserId, role: "admin" }]);
         const createdGroup: Group = { ...newGroup, member_count: 1 };
         setGroups(prev => [createdGroup, ...prev]);
         setMyGroupIds(prev => new Set([...prev, newGroup.id]));
@@ -254,8 +360,8 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
     if (!currentUserId) return;
     setJustJoinedIds(prev => new Set([...prev, groupId]));
     setMyGroupIds(prev => new Set([...prev, groupId]));
-    await supabase.from("group_members").insert([{ group_id: groupId, user_id: currentUserId, role: "member" }]);
-    await supabase.from("groups").update({ member_count: (groups.find(g => g.id === groupId)?.member_count ?? 0) + 1 }).eq("id", groupId);
+    await supabase.from("circle_members").insert([{ circle_id: groupId, user_id: currentUserId, role: "member" }]);
+    await supabase.from("circles").update({ member_count: (groups.find(g => g.id === groupId)?.member_count ?? 0) + 1 }).eq("id", groupId);
     fetchGroups();
     toast.success("Joined! Welcome to the Circle 🎉");
   };
@@ -286,51 +392,69 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
     setChatLoaded(false);
     setNewMemberCount(0);
 
-    // Fetch posts
-    const { data: posts } = await supabase
-      .from("group_posts")
-      .select("id, group_id, author_id, author, content, media_url, type, created_at")
-      .eq("group_id", group.id)
-      .order("created_at", { ascending: false })
-      .limit(30);
-    setGroupPosts((posts as GroupPost[]) ?? []);
-
     // Fetch members
     const { data: members } = await supabase
-      .from("group_members")
+      .from("circle_members")
       .select("*, profiles(full_name, avatar_url)")
-      .eq("group_id", group.id)
+      .eq("circle_id", group.id)
       .limit(50);
     setGroupMembers(members ?? []);
 
-    const adminRow = (members ?? []).find((m: any) => m.user_id === currentUserId && m.role === "admin");
-    setIsAdmin(!!adminRow);
+    const myRow = (members ?? []).find((m: any) => m.user_id === currentUserId);
+    const role = (myRow?.role as MemberRole | undefined) ?? null;
+    setCurrentRole(role);
+    setIsAdmin(role === "admin");
     setSettingsForm({ rules: group.rules ?? "", post_approval: group.post_approval ?? false });
+    await fetchCirclePosts(group.id, role === "admin" || role === "moderator");
+
+    if (postSubRef.current) supabase.removeChannel(postSubRef.current);
+    const postCh = supabase
+      .channel(`circle-posts-${group.id}`)
+      .on("postgres_changes", {
+        event: "*",
+        schema: "public",
+        table: "circle_posts",
+        filter: `circle_id=eq.${group.id}`,
+      }, () => {
+        fetchCirclePosts(group.id, role === "admin" || role === "moderator");
+      })
+      .on("postgres_changes", {
+        event: "*",
+        schema: "public",
+        table: "circle_post_likes",
+      }, () => {
+        fetchCirclePosts(group.id, role === "admin" || role === "moderator");
+      })
+      .subscribe();
+    postSubRef.current = postCh;
 
     // Real-time member subscription (for owner new-member notifications)
     if (memberSubRef.current) supabase.removeChannel(memberSubRef.current);
     const memberCh = supabase
       .channel(`members-${group.id}`)
       .on("postgres_changes", {
-        event: "INSERT",
+        event: "*",
         schema: "public",
-        table: "group_members",
-        filter: `group_id=eq.${group.id}`,
+        table: "circle_members",
+        filter: `circle_id=eq.${group.id}`,
       }, (payload) => {
         const newRow = payload.new as any;
         // Refresh members list
         supabase
-          .from("group_members")
+          .from("circle_members")
           .select("*, profiles(full_name, avatar_url)")
-          .eq("group_id", group.id)
+          .eq("circle_id", group.id)
           .limit(50)
           .then(({ data }) => {
             if (data) setGroupMembers(data);
           });
-        // Update group member count in state
-        setSelectedGroup(prev => prev ? { ...prev, member_count: (prev.member_count ?? 0) + 1 } : prev);
-        // New member indicator for admin
-        if (newRow.user_id !== currentUserId) {
+        if (payload.eventType === "INSERT") {
+          setSelectedGroup(prev => prev ? { ...prev, member_count: (prev.member_count ?? 0) + 1 } : prev);
+        }
+        if (payload.eventType === "DELETE") {
+          setSelectedGroup(prev => prev ? { ...prev, member_count: Math.max((prev.member_count ?? 1) - 1, 0) } : prev);
+        }
+        if (payload.eventType === "INSERT" && newRow.user_id !== currentUserId) {
           setNewMemberCount(c => c + 1);
         }
       })
@@ -432,24 +556,27 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
           media_url = pub.publicUrl;
         }
       }
-      await supabase.from("group_posts").insert([{
-        group_id: selectedGroup.id,
+      const postStatus = canModerate || !selectedGroup.post_approval ? "approved" : "pending";
+      const { error } = await supabase.from("circle_posts").insert([{
+        circle_id: selectedGroup.id,
         author_id: currentUserId,
         author_name: userProfile?.full_name || "Member",
         author_avatar: userProfile?.avatar_url || null,
         content: postText.trim(),
         media_url,
         likes_count: 0,
+        comments_count: 0,
+        shares_count: 0,
+        status: postStatus,
       }]);
+      if (error) {
+        toast.error(`Post not submitted: ${error.message}`);
+        return;
+      }
       setPostText("");
       setPostMedia(null);
-      const { data: posts } = await supabase
-        .from("group_posts")
-        .select("id, group_id, author_id, author, content, media_url, type, created_at")
-        .eq("group_id", selectedGroup.id)
-        .order("created_at", { ascending: false })
-        .limit(30);
-      setGroupPosts((posts as GroupPost[]) ?? []);
+      await fetchCirclePosts(selectedGroup.id);
+      toast.success(postStatus === "pending" ? "Post sent for review." : "Post published.");
     } finally {
       setPosting(false);
     }
@@ -457,17 +584,206 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
 
   // ── Like Post ─────────────────────────────────────────────────────────────────
   const handleLikePost = async (post: GroupPost) => {
-    if (likedPostIds.has(post.id)) return;
-    setLikedPostIds(p => new Set([...p, post.id]));
-    await supabase.from("group_posts").update({ likes_count: (post.likes_count || 0) + 1 }).eq("id", post.id);
-    setGroupPosts(prev => prev.map(p => p.id === post.id ? { ...p, likes_count: p.likes_count + 1 } : p));
+    if (!currentUserId) return;
+    const liked = likedPostIds.has(post.id);
+    setLikedPostIds(prev => {
+      const next = new Set(prev);
+      liked ? next.delete(post.id) : next.add(post.id);
+      return next;
+    });
+    setGroupPosts(prev => prev.map(p => p.id === post.id ? { ...p, likes_count: Math.max((p.likes_count || 0) + (liked ? -1 : 1), 0) } : p));
+
+    if (liked) {
+      await supabase.from("circle_post_likes").delete().eq("post_id", post.id).eq("user_id", currentUserId);
+      await supabase.from("circle_posts").update({ likes_count: Math.max((post.likes_count || 1) - 1, 0) }).eq("id", post.id);
+    } else {
+      await supabase.from("circle_post_likes").upsert({ post_id: post.id, user_id: currentUserId }, { onConflict: "post_id,user_id" });
+      await supabase.from("circle_posts").update({ likes_count: (post.likes_count || 0) + 1 }).eq("id", post.id);
+    }
+  };
+
+  const reviewPost = async (postId: string, status: "approved" | "rejected") => {
+    if (!selectedGroup || !canModerate) return;
+    const { error } = await supabase.from("circle_posts").update({ status }).eq("id", postId);
+    if (error) {
+      toast.error(`Review failed: ${error.message}`);
+      return;
+    }
+    await fetchCirclePosts(selectedGroup.id);
+    toast.success(status === "approved" ? "Post approved." : "Post rejected.");
+  };
+
+  const toggleCommentsMuted = async (post: GroupPost) => {
+    if (!canModerate) return;
+    const next = !post.comments_muted;
+    await supabase.from("circle_posts").update({ comments_muted: next }).eq("id", post.id);
+    setGroupPosts(prev => prev.map(p => p.id === post.id ? { ...p, comments_muted: next } : p));
+    setPendingPosts(prev => prev.map(p => p.id === post.id ? { ...p, comments_muted: next } : p));
+    toast.success(next ? "Comments muted for this post." : "Comments unmuted.");
+  };
+
+  const openComments = async (post: GroupPost) => {
+    setCommentPostId(post.id);
+    setCommentLoading(true);
+    const { data } = await supabase
+      .from("circle_post_comments")
+      .select("*")
+      .eq("post_id", post.id)
+      .order("created_at", { ascending: true })
+      .limit(100);
+    setPostComments((data as CircleComment[]) ?? []);
+    setCommentLoading(false);
+
+    if (commentSubRef.current) supabase.removeChannel(commentSubRef.current);
+    const ch = supabase
+      .channel(`circle-comments-${post.id}`)
+      .on("postgres_changes", {
+        event: "INSERT",
+        schema: "public",
+        table: "circle_post_comments",
+        filter: `post_id=eq.${post.id}`,
+      }, (payload) => {
+        const row = payload.new as CircleComment;
+        setPostComments(prev => prev.some(c => c.id === row.id) ? prev : [...prev, row]);
+      })
+      .subscribe();
+    commentSubRef.current = ch;
+  };
+
+  const sendComment = async () => {
+    const post = groupPosts.find(p => p.id === commentPostId);
+    if (!commentText.trim() || !currentUserId || !commentPostId || !post || post.comments_muted) return;
+    setCommenting(true);
+    const content = commentText.trim();
+    const { data, error } = await supabase.from("circle_post_comments").insert({
+      post_id: commentPostId,
+      author_id: currentUserId,
+      author_name: userProfile?.full_name || "Member",
+      author_avatar: userProfile?.avatar_url || null,
+      content,
+    }).select().single();
+    if (!error) {
+      setCommentText("");
+      if (data) {
+        setPostComments(prev => prev.some(c => c.id === data.id) ? prev : [...prev, data as CircleComment]);
+      }
+      const nextCount = (post.comments_count || 0) + 1;
+      await supabase.from("circle_posts").update({ comments_count: nextCount }).eq("id", commentPostId);
+      setGroupPosts(prev => prev.map(p => p.id === commentPostId ? { ...p, comments_count: nextCount } : p));
+    } else {
+      toast.error(`Comment failed: ${error.message}`);
+    }
+    setCommenting(false);
+  };
+
+  const sharePost = async (post: GroupPost) => {
+    const url = `${window.location.origin}?circle=${selectedGroup?.id}&post=${post.id}`;
+    const text = post.content || `Post from ${selectedGroup?.name || "Circle"}`;
+    if (navigator.share) {
+      await navigator.share({ title: selectedGroup?.name || "Circle post", text, url }).catch(() => {});
+    } else {
+      await navigator.clipboard.writeText(url).catch(() => {});
+      toast.success("Post link copied.");
+    }
+    const nextCount = (post.shares_count || 0) + 1;
+    await supabase.from("circle_posts").update({ shares_count: nextCount }).eq("id", post.id);
+    setGroupPosts(prev => prev.map(p => p.id === post.id ? { ...p, shares_count: nextCount } : p));
+  };
+
+  const refreshMembers = async (circleId = selectedGroup?.id) => {
+    if (!circleId) return;
+    const { data } = await supabase
+      .from("circle_members")
+      .select("*, profiles(full_name, avatar_url)")
+      .eq("circle_id", circleId)
+      .limit(100);
+    if (data) {
+      setGroupMembers(data);
+      const myRow = data.find((m: any) => m.user_id === currentUserId);
+      const role = (myRow?.role as MemberRole | undefined) ?? null;
+      setCurrentRole(role);
+      setIsAdmin(role === "admin");
+    }
+  };
+
+  const updateMemberRole = async (member: any, role: MemberRole) => {
+    if (!canAdmin || member.role === "admin") return;
+    await supabase.from("circle_members").update({ role }).eq("id", member.id);
+    await refreshMembers();
+    toast.success(role === "moderator" ? "Member promoted to Moderator." : "Role updated.");
+  };
+
+  const removeMember = async (member: any) => {
+    if (!selectedGroup || !canManageMember(member)) return;
+    await supabase.from("circle_members").delete().eq("id", member.id);
+    await supabase.from("circles").update({ member_count: Math.max((selectedGroup.member_count ?? groupMembers.length) - 1, 0) }).eq("id", selectedGroup.id);
+    await refreshMembers();
+    setSelectedGroup(prev => prev ? { ...prev, member_count: Math.max((prev.member_count ?? groupMembers.length) - 1, 0) } : prev);
+    toast.success("Member removed.");
+  };
+
+  const searchInvitees = async () => {
+    if (!inviteSearch.trim() || !selectedGroup || !canAdmin) return;
+    setInviteLoading(true);
+    const memberIds = new Set(groupMembers.map((m: any) => m.user_id));
+    const { data } = await supabase
+      .from("profiles")
+      .select("id, full_name, avatar_url")
+      .ilike("full_name", `%${inviteSearch.trim()}%`)
+      .limit(10);
+    setInviteResults((data ?? []).filter((p: any) => p.id !== currentUserId && !memberIds.has(p.id)));
+    setInviteLoading(false);
+  };
+
+  const sendInvite = async (profile: any) => {
+    if (!selectedGroup || !currentUserId || !canAdmin) return;
+    const { error } = await supabase.from("circle_invites").upsert({
+      circle_id: selectedGroup.id,
+      inviter_id: currentUserId,
+      invitee_id: profile.id,
+      status: "pending",
+    }, { onConflict: "circle_id,invitee_id" });
+    if (error) {
+      toast.error(`Invite failed: ${error.message}`);
+      return;
+    }
+    await supabase.from("notifications").insert({
+      notifier_id: profile.id,
+      actor_id: currentUserId,
+      type: "circle_invite",
+      entity_id: selectedGroup.id,
+      entity_type: "circle",
+      content: `${userProfile?.full_name || "Someone"} invited you to join ${selectedGroup.name}`,
+      is_read: false,
+    }).then(() => {});
+    toast.success(`Invite sent to ${profile.full_name || "member"}.`);
+  };
+
+  const respondToInvite = async (invite: CircleInvite, status: "accepted" | "rejected") => {
+    if (!currentUserId) return;
+    await supabase.from("circle_invites").update({ status }).eq("id", invite.id);
+    if (status === "accepted") {
+      await supabase.from("circle_members").upsert({
+        circle_id: invite.circle_id,
+        user_id: currentUserId,
+        role: "member",
+      }, { onConflict: "circle_id,user_id" });
+      const circle = groups.find(g => g.id === invite.circle_id);
+      await supabase.from("circles").update({ member_count: ((circle?.member_count ?? 0) + 1) }).eq("id", invite.circle_id);
+      setMyGroupIds(prev => new Set([...prev, invite.circle_id]));
+      await fetchGroups();
+      toast.success("Circle invite accepted.");
+    } else {
+      toast.success("Circle invite rejected.");
+    }
+    await fetchMyInvites();
   };
 
   // ── Save Settings ─────────────────────────────────────────────────────────────
   const saveSettings = async () => {
     if (!selectedGroup) return;
     setSavingSettings(true);
-    await supabase.from("groups").update({ rules: settingsForm.rules, post_approval: settingsForm.post_approval }).eq("id", selectedGroup.id);
+    await supabase.from("circles").update({ rules: settingsForm.rules, post_approval: settingsForm.post_approval }).eq("id", selectedGroup.id);
     setSelectedGroup(prev => prev ? { ...prev, rules: settingsForm.rules, post_approval: settingsForm.post_approval } : prev);
     setSavingSettings(false);
     setShowSettings(false);
@@ -477,15 +793,17 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
   const saveEditPost = async () => {
     if (!editingPost || !editPostText.trim()) return;
     setEditPostSaving(true);
-    await supabase.from("group_posts").update({ content: editPostText.trim() }).eq("id", editingPost.id);
+    await supabase.from("circle_posts").update({ content: editPostText.trim() }).eq("id", editingPost.id);
     setGroupPosts(prev => prev.map(p => p.id === editingPost.id ? { ...p, content: editPostText.trim() } : p));
     setEditPostSaving(false);
     setEditingPost(null);
   };
 
   const deleteGroupPost = async (postId: string) => {
-    await supabase.from("group_posts").delete().eq("id", postId);
+    if (!canModerate && !groupPosts.some(post => post.id === postId && post.author_id === currentUserId)) return;
+    await supabase.from("circle_posts").delete().eq("id", postId);
     setGroupPosts(prev => prev.filter(p => p.id !== postId));
+    setPendingPosts(prev => prev.filter(p => p.id !== postId));
     setConfirmDeletePost(null);
   };
 
@@ -511,7 +829,7 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
       }
     }
     const updates = { name: editGroupForm.name.trim(), description: editGroupForm.description.trim() || null, cover_url };
-    await supabase.from("groups").update(updates).eq("id", selectedGroup.id);
+    await supabase.from("circles").update(updates).eq("id", selectedGroup.id);
     const updated = { ...selectedGroup, ...updates };
     setSelectedGroup(updated);
     setGroups(prev => prev.map(g => g.id === selectedGroup.id ? updated : g));
@@ -524,10 +842,10 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
   const deleteGroup = async () => {
     if (!selectedGroup) return;
     setDeletingGroup(true);
-    await supabase.from("group_posts").delete().eq("group_id", selectedGroup.id);
+    await supabase.from("circle_posts").delete().eq("circle_id", selectedGroup.id);
     await supabase.from("group_messages").delete().eq("group_id", selectedGroup.id);
-    await supabase.from("group_members").delete().eq("group_id", selectedGroup.id);
-    await supabase.from("groups").delete().eq("id", selectedGroup.id);
+    await supabase.from("circle_members").delete().eq("circle_id", selectedGroup.id);
+    await supabase.from("circles").delete().eq("id", selectedGroup.id);
     setGroups(prev => prev.filter(g => g.id !== selectedGroup.id));
     setMyGroupIds(prev => { const s = new Set(prev); s.delete(selectedGroup.id); return s; });
     setDeletingGroup(false);
@@ -570,7 +888,7 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
           </button>
 
           {/* Admin settings + edit/delete */}
-          {isAdmin && (
+          {canModerate && (
             <div className="absolute top-4 right-4 flex items-center gap-2">
               <button
                 onClick={() => openEditGroup(selectedGroup)}
@@ -599,7 +917,8 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
           <div className="absolute bottom-3 left-4 right-4">
             <div className="flex items-center gap-2 mb-0.5">
               <h2 className="text-white font-black text-lg drop-shadow-lg">{selectedGroup.name}</h2>
-              {isAdmin && <span className="bg-yellow-500 text-black text-[9px] font-black px-2 py-0.5 rounded-full">ADMIN</span>}
+              {currentRole === "admin" && <span className="bg-yellow-500 text-black text-[9px] font-black px-2 py-0.5 rounded-full">ADMIN</span>}
+              {currentRole === "moderator" && <span className="bg-blue-500 text-white text-[9px] font-black px-2 py-0.5 rounded-full">MOD</span>}
             </div>
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-1">
@@ -632,10 +951,11 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
         {/* Tab Bar */}
         <div className="bg-white border-b border-gray-100 flex sticky top-0 z-20">
           {([
-            { id: "posts", icon: FileText, label: "Posts" },
-            { id: "chat", icon: MessageCircle, label: "Chat" },
-            { id: "members", icon: Users, label: `Members${newMemberCount > 0 && isAdmin ? ` +${newMemberCount}` : ""}` },
-          ] as const).map(tab => (
+            { id: "posts" as const, icon: FileText, label: "Posts", show: true },
+            { id: "review" as const, icon: Eye, label: `Review${pendingPosts.length > 0 ? ` ${pendingPosts.length}` : ""}`, show: canModerate },
+            { id: "chat" as const, icon: MessageCircle, label: "Chat", show: true },
+            { id: "members" as const, icon: Users, label: `${canModerate ? "Admin" : "Members"}${newMemberCount > 0 && canModerate ? ` +${newMemberCount}` : ""}`, show: true },
+          ]).filter(tab => tab.show).map(tab => (
             <button
               key={tab.id}
               onClick={() => {
@@ -650,7 +970,7 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
             >
               <tab.icon size={14} />
               {tab.label}
-              {tab.id === "members" && newMemberCount > 0 && isAdmin && (
+              {tab.id === "members" && newMemberCount > 0 && canModerate && (
                 <span className="absolute top-1.5 right-4 w-4 h-4 bg-red-500 rounded-full text-white text-[8px] font-black flex items-center justify-center">
                   {newMemberCount}
                 </span>
@@ -719,7 +1039,7 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
                         className="flex items-center gap-1.5 bg-blue-600 text-white px-4 py-1.5 rounded-xl text-sm font-bold disabled:opacity-40 active:scale-95 transition-transform"
                       >
                         {posting ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
-                        Post
+                        {selectedGroup.post_approval && !canModerate ? "Submit" : "Post"}
                       </button>
                     </div>
                   </div>
@@ -737,7 +1057,7 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
                 </div>
               ) : (
                 groupPosts.map(post => {
-                  const canEdit = post.author_id === currentUserId || isAdmin;
+                  const canEdit = post.author_id === currentUserId || canModerate;
                   return (
                     <div key={post.id} className="bg-white border-b border-gray-100">
                       <div className="flex items-center gap-3 px-4 py-3">
@@ -749,7 +1069,12 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
                           )}
                         </div>
                         <div className="flex-1">
-                          <p className="text-gray-900 font-bold text-sm leading-none">{post.author_name}</p>
+                          <div className="flex items-center gap-1.5">
+                            <p className="text-gray-900 font-bold text-sm leading-none">{post.author_name}</p>
+                            {post.status === "pending" && (
+                              <span className="text-[8px] font-black text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full">PENDING</span>
+                            )}
+                          </div>
                           <p className="text-[10px] text-gray-400 mt-0.5">{new Date(post.created_at).toLocaleDateString()}</p>
                         </div>
                         {canEdit && (
@@ -774,6 +1099,12 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
                                     className="w-full flex items-center gap-2 px-4 py-3 text-red-500 hover:bg-red-50 text-[12px] font-semibold">
                                     <Trash2 size={13} /> Delete
                                   </button>
+                                  {canModerate && (
+                                    <button onClick={() => { toggleCommentsMuted(post); setPostMenuId(null); }}
+                                      className="w-full flex items-center gap-2 px-4 py-3 text-amber-600 hover:bg-amber-50 text-[12px] font-semibold border-t border-gray-50">
+                                      <Ban size={13} /> {post.comments_muted ? "Unmute" : "Mute"}
+                                    </button>
+                                  )}
                                 </motion.div>
                               )}
                             </AnimatePresence>
@@ -790,6 +1121,14 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
                         <button onClick={() => handleLikePost(post)} className="flex items-center gap-1.5">
                           <Heart size={20} className={likedPostIds.has(post.id) ? "fill-red-500 text-red-500" : "text-gray-400"} />
                           <span className="text-xs font-bold text-gray-500">{post.likes_count || 0}</span>
+                        </button>
+                        <button onClick={() => openComments(post)} className="flex items-center gap-1.5">
+                          <MessageCircle size={20} className={post.comments_muted ? "text-amber-500" : "text-gray-400"} />
+                          <span className="text-xs font-bold text-gray-500">{post.comments_count || 0}</span>
+                        </button>
+                        <button onClick={() => sharePost(post)} className="flex items-center gap-1.5">
+                          <Share2 size={19} className="text-gray-400" />
+                          <span className="text-xs font-bold text-gray-500">{post.shares_count || 0}</span>
                         </button>
                         <MagnetButton
                           postId={post.id}
@@ -816,6 +1155,48 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
                   <Users size={16} />
                   Join this Circle
                 </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── REVIEW TAB ─────────────────────────────────────────────────────── */}
+        {groupTab === "review" && canModerate && (
+          <div className="flex-1 overflow-y-auto bg-gray-50">
+            <div className="bg-white border-b border-gray-100 px-4 py-3">
+              <p className="text-[13px] font-black text-gray-900">Pending Post Review</p>
+              <p className="text-[10px] text-gray-400 mt-0.5">Approve posts to make them visible to all members.</p>
+            </div>
+            {pendingPosts.length === 0 ? (
+              <div className="flex flex-col items-center py-16 text-gray-300">
+                <ShieldCheck size={34} className="mb-3 opacity-40" />
+                <p className="text-xs font-black uppercase tracking-widest">Nothing to review</p>
+              </div>
+            ) : (
+              <div className="space-y-3 p-3">
+                {pendingPosts.map(post => (
+                  <div key={post.id} className="bg-white rounded-2xl border border-amber-100 overflow-hidden shadow-sm">
+                    <div className="flex items-center gap-3 px-4 py-3">
+                      <div className="w-9 h-9 rounded-full bg-blue-600 flex items-center justify-center text-white font-black text-sm shrink-0 overflow-hidden">
+                        {post.author_avatar ? <img src={post.author_avatar} className="w-full h-full object-cover" alt="" /> : (post.author_name || "M")[0].toUpperCase()}
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-gray-900 font-bold text-sm">{post.author_name}</p>
+                        <p className="text-[10px] text-amber-600 font-bold">Waiting for approval</p>
+                      </div>
+                    </div>
+                    {post.content && <p className="px-4 pb-3 text-[13px] text-gray-800 leading-snug">{post.content}</p>}
+                    {post.media_url && <img src={post.media_url} className="w-full object-cover max-h-80" alt="" />}
+                    <div className="flex gap-2 p-3 border-t border-gray-50">
+                      <button onClick={() => reviewPost(post.id, "rejected")} className="flex-1 py-2.5 rounded-xl bg-red-50 text-red-600 font-black text-[12px] flex items-center justify-center gap-1.5">
+                        <X size={14} /> Reject
+                      </button>
+                      <button onClick={() => reviewPost(post.id, "approved")} className="flex-1 py-2.5 rounded-xl bg-green-600 text-white font-black text-[12px] flex items-center justify-center gap-1.5">
+                        <Check size={14} /> Approve
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>
@@ -923,7 +1304,7 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
                 </p>
                 <p className="text-[10px] text-gray-400 mt-0.5">Real-time · Updates live</p>
               </div>
-              {newMemberCount > 0 && isAdmin && (
+              {newMemberCount > 0 && canModerate && (
                 <div className="flex items-center gap-1.5 bg-green-50 border border-green-200 rounded-xl px-3 py-1.5">
                   <Bell size={12} className="text-green-600" />
                   <span className="text-[11px] font-black text-green-700">+{newMemberCount} New</span>
@@ -937,7 +1318,7 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
                 <div key={m.id} className="bg-white flex items-center gap-3 px-4 py-3">
                   <div
                     className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-black text-sm overflow-hidden shrink-0 cursor-pointer"
-                    style={{ boxShadow: m.role === "admin" ? "0 0 0 2px #f59e0b" : "0 0 0 1px #e5e7eb" }}
+                    style={{ boxShadow: m.role === "admin" ? "0 0 0 2px #f59e0b" : m.role === "moderator" ? "0 0 0 2px #3b82f6" : "0 0 0 1px #e5e7eb" }}
                     onClick={() => m.user_id && openProfile(m.user_id)}
                   >
                     {m.profiles?.avatar_url ? (
@@ -953,19 +1334,41 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
                         <span className="text-[10px] text-gray-400 font-medium ml-1">(you)</span>
                       )}
                     </p>
-                    {m.role === "admin" && (
-                      <span className="text-[9px] font-black text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full">
-                        Admin
-                      </span>
-                    )}
+                    <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full border ${
+                      m.role === "admin"
+                        ? "text-amber-700 bg-amber-50 border-amber-200"
+                        : m.role === "moderator"
+                          ? "text-blue-700 bg-blue-50 border-blue-200"
+                          : "text-gray-500 bg-gray-50 border-gray-200"
+                    }`}>
+                      {m.role === "admin" ? "Admin" : m.role === "moderator" ? "Moderator" : "Member"}
+                    </span>
                   </div>
                   {m.user_id !== currentUserId && (
-                    <button
-                      onClick={() => m.user_id && openProfile(m.user_id)}
-                      className="text-[10px] font-black text-blue-600 border border-blue-200 px-3 py-1.5 rounded-xl bg-blue-50 active:scale-95 transition-transform"
-                    >
-                      View
-                    </button>
+                    <div className="flex items-center gap-1.5">
+                      {canAdmin && m.role !== "admin" && (
+                        <button
+                          onClick={() => updateMemberRole(m, m.role === "moderator" ? "member" : "moderator")}
+                          className="text-[10px] font-black text-blue-600 border border-blue-200 px-2 py-1.5 rounded-xl bg-blue-50 active:scale-95 transition-transform"
+                        >
+                          {m.role === "moderator" ? "Member" : "Mod"}
+                        </button>
+                      )}
+                      {canManageMember(m) && (
+                        <button
+                          onClick={() => removeMember(m)}
+                          className="text-[10px] font-black text-red-600 border border-red-200 px-2 py-1.5 rounded-xl bg-red-50 active:scale-95 transition-transform"
+                        >
+                          Kick
+                        </button>
+                      )}
+                      <button
+                        onClick={() => m.user_id && openProfile(m.user_id)}
+                        className="text-[10px] font-black text-blue-600 border border-blue-200 px-3 py-1.5 rounded-xl bg-blue-50 active:scale-95 transition-transform"
+                      >
+                        View
+                      </button>
+                    </div>
                   )}
                 </div>
               ))}
@@ -976,6 +1379,44 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
                 </div>
               )}
             </div>
+
+            {canAdmin && (
+              <div className="p-4 pb-0">
+                <div className="bg-white border border-gray-100 rounded-2xl p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <UserPlus size={15} className="text-blue-600" />
+                    <p className="text-[12px] font-black text-gray-900">Invite friends</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      value={inviteSearch}
+                      onChange={e => setInviteSearch(e.target.value)}
+                      onKeyDown={e => e.key === "Enter" && searchInvitees()}
+                      placeholder="Search profile name…"
+                      className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-[12px] outline-none focus:ring-2 focus:ring-blue-400/30"
+                    />
+                    <button onClick={searchInvitees} disabled={inviteLoading || !inviteSearch.trim()} className="px-3 rounded-xl bg-blue-600 text-white text-[11px] font-black disabled:opacity-40">
+                      {inviteLoading ? <Loader2 size={13} className="animate-spin" /> : "Search"}
+                    </button>
+                  </div>
+                  {inviteResults.length > 0 && (
+                    <div className="mt-3 divide-y divide-gray-100">
+                      {inviteResults.map(person => (
+                        <div key={person.id} className="flex items-center gap-2 py-2">
+                          <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-black overflow-hidden">
+                            {person.avatar_url ? <img src={person.avatar_url} className="w-full h-full object-cover" alt="" /> : (person.full_name || "U")[0]}
+                          </div>
+                          <p className="flex-1 text-[12px] font-bold text-gray-800 truncate">{person.full_name || "Member"}</p>
+                          <button onClick={() => sendInvite(person)} className="text-[10px] font-black bg-green-50 text-green-700 border border-green-200 px-3 py-1.5 rounded-xl">
+                            Invite
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Share to invite */}
             <div className="p-4">
@@ -1003,6 +1444,63 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
 
         {/* Close post menu on outside tap */}
         {postMenuId && <div className="fixed inset-0 z-40" onClick={() => setPostMenuId(null)} />}
+
+        {/* Comment Drawer */}
+        <AnimatePresence>
+          {commentPostId && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[300] flex items-end justify-center bg-black/50 backdrop-blur-sm"
+              onClick={() => { setCommentPostId(null); setPostComments([]); if (commentSubRef.current) { supabase.removeChannel(commentSubRef.current); commentSubRef.current = null; } }}>
+              <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
+                transition={{ type: "spring", damping: 28, stiffness: 300 }}
+                className="w-full max-w-lg bg-white rounded-t-3xl max-h-[75vh] flex flex-col"
+                onClick={e => e.stopPropagation()}>
+                <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+                  <h3 className="font-black text-gray-900 text-base flex items-center gap-2"><MessageCircle size={17} className="text-blue-600" /> Comments</h3>
+                  <button onClick={() => setCommentPostId(null)} className="p-1.5 rounded-full bg-gray-100"><X size={18} className="text-gray-500" /></button>
+                </div>
+                <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+                  {commentLoading ? (
+                    <div className="flex justify-center py-8"><Loader2 size={22} className="animate-spin text-blue-500" /></div>
+                  ) : postComments.length === 0 ? (
+                    <div className="text-center py-10 text-gray-300">
+                      <MessageCircle size={30} className="mx-auto mb-2 opacity-50" />
+                      <p className="text-xs font-black uppercase tracking-widest">No comments yet</p>
+                    </div>
+                  ) : postComments.map(comment => (
+                    <div key={comment.id} className="flex gap-2.5">
+                      <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-black text-xs overflow-hidden shrink-0">
+                        {comment.author_avatar ? <img src={comment.author_avatar} className="w-full h-full object-cover" alt="" /> : (comment.author_name || "M")[0]}
+                      </div>
+                      <div className="bg-gray-100 rounded-2xl px-3 py-2 flex-1">
+                        <p className="text-[11px] font-black text-gray-900">{comment.author_name}</p>
+                        <p className="text-[13px] text-gray-700 leading-snug">{comment.content}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {groupPosts.find(p => p.id === commentPostId)?.comments_muted ? (
+                  <div className="px-4 py-4 border-t border-gray-100 text-center text-[12px] font-black text-amber-700 bg-amber-50">
+                    Comments are muted for this post.
+                  </div>
+                ) : (
+                  <div className="px-3 py-3 border-t border-gray-100 flex items-center gap-2">
+                    <input
+                      value={commentText}
+                      onChange={e => setCommentText(e.target.value)}
+                      onKeyDown={e => e.key === "Enter" && !e.shiftKey && (e.preventDefault(), sendComment())}
+                      placeholder="Write a comment…"
+                      className="flex-1 bg-gray-100 border border-gray-200 rounded-2xl px-4 py-2.5 text-sm outline-none"
+                    />
+                    <button onClick={sendComment} disabled={!commentText.trim() || commenting} className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center disabled:opacity-40">
+                      {commenting ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
+                    </button>
+                  </div>
+                )}
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Edit Post Modal */}
         <AnimatePresence>
@@ -1208,6 +1706,32 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
         </div>
       ) : (
         <>
+          {/* Pending Invites */}
+          {myInvites.length > 0 && (
+            <div className="bg-blue-50 border-b border-blue-100 px-4 py-3">
+              <p className="text-[12px] font-black text-blue-900 mb-2">Circle Invites</p>
+              <div className="space-y-2">
+                {myInvites.map(invite => (
+                  <div key={invite.id} className="bg-white border border-blue-100 rounded-2xl p-3 flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full overflow-hidden bg-blue-600 shrink-0" style={{ background: invite.circles?.cover_url ? undefined : gradFor(invite.circle_id) }}>
+                      {invite.circles?.cover_url && <img src={invite.circles.cover_url} className="w-full h-full object-cover" alt="" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[13px] font-black text-gray-900 truncate">{invite.circles?.name || "Circle"}</p>
+                      <p className="text-[10px] text-gray-500">You were invited to join</p>
+                    </div>
+                    <button onClick={() => respondToInvite(invite, "rejected")} className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
+                      <X size={14} className="text-gray-500" />
+                    </button>
+                    <button onClick={() => respondToInvite(invite, "accepted")} className="w-8 h-8 rounded-full bg-green-600 flex items-center justify-center">
+                      <Check size={14} className="text-white" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* My Circles */}
           {myGroups.length > 0 && (
             <div className="bg-white border-b border-gray-100 py-3">

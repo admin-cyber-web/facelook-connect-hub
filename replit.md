@@ -120,6 +120,15 @@ Full-screen messenger with 6 modules:
 - **Data Persistence**: Supabase realtime subscriptions keep reactions live; run `supabase_reactions_setup.sql` to create the tables
 - **Supabase tables needed**: `message_reactions (id, message_id, user_id, emoji, created_at)` and `comment_reactions (id, comment_id, user_id, emoji, created_at)` — both with UNIQUE on (entity_id, user_id)
 
+## Circle Moderation & Social Posts
+- **File**: `src/components/CirclePage.tsx`
+- **Tables**: `circles`, `circle_members`, `circle_posts`, `circle_post_likes`, `circle_post_comments`, `circle_invites`; setup SQL in `supabase_circle_features.sql`
+- **Post approval**: member posts are inserted into `circle_posts` with `status='pending'` when approval is enabled; Admin/Moderator users see pending posts and can approve/reject them in the Review tab
+- **Roles**: `circle_members.role` supports `admin`, `moderator`, and `member`; Admin can promote/demote moderators and remove non-admin members; Moderator can remove non-admin members and moderate posts, but cannot promote others
+- **Admin dashboard**: Members tab becomes Admin view for Admin/Moderator users with member list, role controls, kick controls, and admin friend invite search
+- **Social actions**: Circle posts support real-time likes, comments, shares, muted comments, delete moderation, and sharing counters
+- **Invites**: Admin can invite profiles via `circle_invites`; invitees see accept/reject cards in the Circles dashboard and member count updates on acceptance
+
 ## Migration Notes (Lovable → Replit)
 - Removed `lovable-tagger` plugin from `vite.config.ts` (Lovable-specific, not needed on Replit)
 - Updated Vite server host to `0.0.0.0` for Replit's proxied preview
