@@ -588,7 +588,7 @@ export default function FlicksApp({ onBack, onBridgeChat }: { onBack?: () => voi
 
   useEffect(() => {
     (async () => {
-      // Helper — is this post row a video?
+      // ── Helpers ──────────────────────────────────────────────────────────
       const isVideoPost = (p: any): boolean =>
         p.type === "video" ||
         p.metadata?.is_youtube === true ||
@@ -597,10 +597,23 @@ export default function FlicksApp({ onBack, onBridgeChat }: { onBack?: () => voi
         (p.media_url || "").includes("youtu.be") ||
         (p.media_url || "").includes("rapidcdn.app");
 
+      // Normalize a row from `flicks` table → common post shape
+      const normalizeFlickRow = (row: any) => ({
+        _source: "flicks" as const,
+        id: `flick_${row.id}`,
+        _raw_id: row.id,
+        author_id: row.author_id || row.user_id || null,
+        author: row.author || row.username || "user",
+        content: row.content || row.caption || row.description || "",
+        media_url: row.video_url || row.media_url || "",
+        type: "video",
+        likes_count: row.likes_count ?? row.likes ?? 0,
+        created_at: row.created_at || new Date(0).toISOString(),
+        metadata: row.metadata || {},
+      });
+
       // Safe base columns — always exist in the posts table
       const SAFE_COLS = "id, author_id, author, content, media_url, type, likes_count, created_at, metadata";
-
-      // Video-filter OR string for server-side pre-filter
       const VIDEO_OR =
         "type.eq.video," +
         "media_url.ilike.%.mp4%," +
@@ -612,41 +625,67 @@ export default function FlicksApp({ onBack, onBridgeChat }: { onBack?: () => voi
         "media_url.ilike.%rapidcdn%";
 
       try {
-        // ── Tier 1: server-side video filter + safe columns ──────────────────
-        const { data, error } = await supabase
-          .from("posts")
-          .select(SAFE_COLS)
-          .or(VIDEO_OR)
-          .order("created_at", { ascending: false })
-          .limit(100);
+        // ── Run both table fetches in parallel ────────────────────────────────
+        const [postsResult, flicksResult] = await Promise.all([
+          // Posts table — 3-tier fallback
+          (async () => {
+            const { data, error } = await supabase
+              .from("posts")
+              .select(SAFE_COLS)
+              .or(VIDEO_OR)
+              .order("created_at", { ascending: false })
+              .limit(100);
+            if (!error && data) return data;
 
-        if (!error && data) {
-          setFlicks(data.filter(isVideoPost));
-          return;
-        }
-        console.warn("[FlicksFeed] Tier 1 failed:", error?.message);
+            console.warn("[FlicksFeed] posts Tier1 failed:", error?.message);
+            const { data: d2, error: e2 } = await supabase
+              .from("posts")
+              .select(SAFE_COLS)
+              .order("created_at", { ascending: false })
+              .limit(200);
+            if (!e2 && d2) return d2;
 
-        // ── Tier 2: no OR filter, fetch all + client-side filter ─────────────
-        const { data: d2, error: e2 } = await supabase
-          .from("posts")
-          .select(SAFE_COLS)
-          .order("created_at", { ascending: false })
-          .limit(200);
+            console.warn("[FlicksFeed] posts Tier2 failed:", e2?.message);
+            const { data: d3 } = await supabase
+              .from("posts")
+              .select("id, author_id, media_url, type, created_at")
+              .order("created_at", { ascending: false })
+              .limit(200);
+            return d3 || [];
+          })(),
 
-        if (!e2 && d2) {
-          setFlicks(d2.filter(isVideoPost));
-          return;
-        }
-        console.warn("[FlicksFeed] Tier 2 failed:", e2?.message);
+          // Flicks table — separate video table
+          (async () => {
+            const { data, error } = await supabase
+              .from("flicks")
+              .select("*")
+              .order("created_at", { ascending: false })
+              .limit(100);
+            if (error) {
+              console.warn("[FlicksFeed] flicks table fetch failed:", error.message);
+              return [];
+            }
+            return (data || []).map(normalizeFlickRow);
+          })(),
+        ]);
 
-        // ── Tier 3: absolute minimum columns ────────────────────────────────
-        const { data: d3 } = await supabase
-          .from("posts")
-          .select("id, author_id, media_url, type, created_at")
-          .order("created_at", { ascending: false })
-          .limit(200);
+        // ── Merge: posts (filter to video) + flicks rows ─────────────────────
+        const fromPosts = (postsResult as any[]).filter(isVideoPost).map(p => ({ ...p, _source: "posts" as const }));
+        const fromFlicks = flicksResult as any[];
 
-        if (d3) setFlicks(d3.filter(isVideoPost));
+        // Deduplicate by original DB id (prefix `flick_` on flicks rows)
+        const seen = new Set<string>();
+        const merged = [...fromPosts, ...fromFlicks]
+          .filter(p => {
+            if (seen.has(p.id)) return false;
+            seen.add(p.id);
+            return true;
+          })
+          .sort((a, b) =>
+            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+          );
+
+        setFlicks(merged);
       } catch (err) {
         console.error("[FlicksFeed] Unexpected error:", err);
       } finally {
@@ -662,11 +701,14 @@ export default function FlicksApp({ onBack, onBridgeChat }: { onBack?: () => voi
   };
 
   const handleDelete = async (postId: string) => {
-    const { error } = await supabase
-      .from("posts")
-      .delete()
-      .eq("id", postId)
-      .eq("author_id", currentUserId);
+    const post = flicks.find(p => p.id === postId);
+    const isFromFlicksTable = post?._source === "flicks";
+    const realId = post?._raw_id ?? postId;
+
+    const { error } = isFromFlicksTable
+      ? await supabase.from("flicks").delete().eq("id", realId)
+      : await supabase.from("posts").delete().eq("id", postId).eq("author_id", currentUserId);
+
     if (!error) {
       setFlicks(prev => prev.filter(p => p.id !== postId));
     } else {
