@@ -1406,6 +1406,8 @@ const Header = ({
   const [hasNewNotif, setHasNewNotif] = useState(false);
   const [newNotifPreview, setNewNotifPreview] = useState<any | null>(null);
   const newNotifTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // ── Post thumbnail cache (entity_id → post media) ──────────────────────────
+  const [postPreviewMap, setPostPreviewMap] = useState<Record<string, { media_url?: string; image_url?: string; cover_url?: string; type?: string }>>({});
   const [showSearch, setShowSearch] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [userData, setUserData] = useState({
@@ -1457,6 +1459,12 @@ const Header = ({
     if (data) setUserData((prev) => ({ ...prev, ...data }));
   }, [userId]);
 
+  // Post-type notifications whose entity_id refers to a row in the `posts` table
+  const POST_MEDIA_TYPES = new Set([
+    "like", "like_flick", "comment", "reply", "mention", "post_mention",
+    "post_pin", "new_post", "share", "hook_share",
+  ]);
+
   const fetchNotifications = useCallback(async () => {
     if (!userId) return;
     const { data, error } = await supabase
@@ -1464,8 +1472,9 @@ const Header = ({
       .select("*")
       .eq("notifier_id", userId)
       .order("created_at", { ascending: false })
-      .limit(30);
+      .limit(40);
     if (data && data.length > 0) {
+      // 1. Batch-fetch actor profiles
       const actorIds = [
         ...new Set(data.filter((n) => n.actor_id).map((n) => n.actor_id)),
       ];
@@ -1480,8 +1489,29 @@ const Header = ({
       setNotifications(
         data.map((n) => ({ ...n, actor: profileMap[n.actor_id] || null })),
       );
+
+      // 2. Batch-fetch post media for post-type notifications (thumbnails)
+      const postEntityIds = [
+        ...new Set(
+          data
+            .filter((n) => POST_MEDIA_TYPES.has(n.type) && n.entity_id)
+            .map((n) => n.entity_id as string),
+        ),
+      ];
+      if (postEntityIds.length > 0) {
+        const { data: postPreviews } = await supabase
+          .from("posts")
+          .select("id, media_url, image_url, cover_url, type")
+          .in("id", postEntityIds);
+        setPostPreviewMap(
+          Object.fromEntries((postPreviews || []).map((p: any) => [p.id, p])),
+        );
+      } else {
+        setPostPreviewMap({});
+      }
     } else {
       setNotifications([]);
+      setPostPreviewMap({});
     }
   }, [userId]);
 
@@ -2200,9 +2230,9 @@ const Header = ({
               style={{ maxWidth: "min(100vw, 384px)" }}
             >
               {/* Header Section */}
-              <div className="px-5 py-4 flex items-center justify-between border-b border-white/10 bg-white/5 shrink-0">
+              <div className="px-4 py-3 flex items-center justify-between border-b border-white/10 bg-white/5 shrink-0">
                 <div className="flex items-center gap-2">
-                  <Bell size={16} className="text-white/70" />
+                  <Bell size={15} className="text-white/70" />
                   <h2 className="font-black text-white tracking-wide text-[13px]">
                     Notifications
                   </h2>
@@ -2212,12 +2242,22 @@ const Header = ({
                     </span>
                   )}
                 </div>
-                <button
-                  onClick={() => setShowNotif(false)}
-                  className="p-1.5 hover:bg-white/10 rounded-full text-white/40 hover:text-white transition-all"
-                >
-                  <X size={18} />
-                </button>
+                <div className="flex items-center gap-2">
+                  {unreadCount > 0 && (
+                    <button
+                      onClick={markAllRead}
+                      className="text-[10px] font-black text-blue-400 hover:text-blue-300 active:scale-95 transition-all px-2 py-1 rounded-lg hover:bg-blue-400/10"
+                    >
+                      Mark all read
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setShowNotif(false)}
+                    className="p-1.5 hover:bg-white/10 rounded-full text-white/40 hover:text-white transition-all"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
               </div>
 
               {/* Content Section */}
@@ -2296,23 +2336,38 @@ const Header = ({
                           const actorAvatar = n._group ? n._group[0]?.actor?.avatar_url : n.actor?.avatar_url;
                           const groupExtra = n._group && n._group.length > 1 ? n._group.length - 1 : 0;
 
+                          // Post thumbnail for like/comment/reply/share notifications
+                          const postThumb = (() => {
+                            if (richShare) return null; // share already has its own preview
+                            const pm = postPreviewMap[n.entity_id];
+                            if (!pm) return null;
+                            return pm.media_url || pm.image_url || pm.cover_url || null;
+                          })();
+
                           return (
                             <motion.div
                               key={n.id}
                               initial={{ opacity: 0, y: 8 }}
                               animate={{ opacity: 1, y: 0 }}
                               onClick={() => handleNotifClick(n)}
-                              className={`flex items-start gap-3 p-3.5 rounded-2xl cursor-pointer active:scale-[0.98] transition-transform ${isUnread ? "bg-blue-600/10 border border-blue-500/20" : "bg-white/[0.04] border border-white/5"}`}
+                              className={`flex items-start gap-3 p-3 rounded-2xl cursor-pointer active:scale-[0.98] transition-transform ${isUnread ? "bg-blue-600/10 border border-blue-500/20" : "bg-white/[0.04] border border-white/5"}`}
                             >
-                              {/* Actor avatar / icon */}
-                              <div
-                                className={`w-10 h-10 rounded-full shrink-0 overflow-hidden flex items-center justify-center border border-white/10 ${actorAvatar ? "" : meta.color}`}
-                                style={{ background: actorAvatar ? undefined : undefined }}
-                              >
-                                {actorAvatar ? (
-                                  <img src={actorAvatar} className="w-full h-full object-cover" decoding="async" alt="" />
-                                ) : (
-                                  <div className={`w-full h-full flex items-center justify-center rounded-full ${meta.color}`}>
+                              {/* Actor avatar / type icon */}
+                              <div className="relative shrink-0">
+                                <div
+                                  className={`w-10 h-10 rounded-full overflow-hidden flex items-center justify-center border border-white/10 ${actorAvatar ? "" : meta.color}`}
+                                >
+                                  {actorAvatar ? (
+                                    <img src={actorAvatar} className="w-full h-full object-cover" decoding="async" alt="" />
+                                  ) : (
+                                    <div className={`w-full h-full flex items-center justify-center rounded-full ${meta.color}`}>
+                                      {meta.icon}
+                                    </div>
+                                  )}
+                                </div>
+                                {/* Type badge chip on avatar */}
+                                {actorAvatar && (
+                                  <div className={`absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full flex items-center justify-center border border-[#0f172a] text-[8px] ${meta.color}`}>
                                     {meta.icon}
                                   </div>
                                 )}
@@ -2333,29 +2388,57 @@ const Header = ({
                                 )}
                                 {/* Rich share preview */}
                                 {richShare && (
-                                  <div className="mt-2 flex gap-2.5 bg-white/[0.06] border border-white/10 rounded-xl p-2 overflow-hidden">
+                                  <div className="mt-1.5 flex gap-2 bg-white/[0.06] border border-white/10 rounded-xl p-2 overflow-hidden">
                                     {richShare.thumbnail_url && (
                                       <img
                                         src={richShare.thumbnail_url}
                                         alt=""
-                                        className="w-12 h-12 object-cover shrink-0 rounded-lg"
+                                        className="w-10 h-10 object-cover shrink-0 rounded-lg"
                                         onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
                                         decoding="async"
                                       />
                                     )}
                                     <div className="flex-1 min-w-0 py-0.5">
                                       <p className="text-[11px] font-bold text-white/90 truncate">{richShare.share_title}</p>
-                                      <p className="text-[10px] text-white/50 line-clamp-2">{richShare.share_description}</p>
+                                      <p className="text-[10px] text-white/50 line-clamp-1">{richShare.share_description}</p>
                                     </div>
                                   </div>
                                 )}
-                                {/* Timestamp */}
-                                <p className="text-[10px] text-white/30 mt-1">{timeAgo(n.created_at)}</p>
+                                {/* Timestamp + tap-to-view hint */}
+                                <div className="flex items-center gap-1.5 mt-1">
+                                  <p className="text-[10px] text-white/30">{timeAgo(n.created_at)}</p>
+                                  {postThumb && (
+                                    <span className="text-[9px] text-blue-400/60 font-semibold">· Tap to view post</span>
+                                  )}
+                                </div>
                               </div>
 
+                              {/* Post thumbnail — right side */}
+                              {postThumb && (
+                                <div className="shrink-0 w-12 h-12 rounded-xl overflow-hidden border border-white/15 bg-white/5 relative">
+                                  <img
+                                    src={postThumb}
+                                    alt=""
+                                    className="w-full h-full object-cover"
+                                    decoding="async"
+                                    onError={(e) => { (e.target as HTMLImageElement).parentElement!.style.display = "none"; }}
+                                  />
+                                  {/* Video indicator */}
+                                  {(postPreviewMap[n.entity_id]?.type === "video" ||
+                                    /\.(mp4|webm|mov)/i.test(postThumb)) && (
+                                    <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                                      <div className="w-4 h-4 rounded-full bg-white/80 flex items-center justify-center">
+                                        <div className="w-0 h-0 border-t-[4px] border-b-[4px] border-l-[6px] border-transparent border-l-black ml-0.5" />
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+
+                              {/* Unread dot */}
                               {isUnread && (
                                 <div className="shrink-0 mt-1.5">
-                                  <div className="w-2.5 h-2.5 rounded-full bg-blue-500" />
+                                  <div className="w-2 h-2 rounded-full bg-blue-500" />
                                 </div>
                               )}
                             </motion.div>
