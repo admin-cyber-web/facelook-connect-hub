@@ -1464,7 +1464,7 @@ const Index = ({ session, initialAdminOpen }: { session: Session; initialAdminOp
       document.body.style.top = "";
       window.scrollTo(0, scrollY);
     };
-  }, [isChatOpen, isPostOpen, isAdminPanelOpen, isVideoCallOpen, showMagnetDashboard, activeFeature]);
+  }, [isChatOpen, isPostOpen, isAdminPanelOpen, isVideoCallOpen, showMagnetDashboard]);
 
   // Profile
   const [profile, setProfile] = useState(() => {
@@ -2565,7 +2565,7 @@ const Index = ({ session, initialAdminOpen }: { session: Session; initialAdminOp
           onHomeClick={() => setActiveFeature("Fame")}
           onSettingsClick={() => { setActiveFeature("Settings"); setSettingsView("main"); }}
           onNavigateToFeature={(feature) => setActiveFeature(feature)}
-          onChatClick={() => setIsChatOpen(true)}
+          onChatClick={(e) => { e?.stopPropagation(); e?.preventDefault(); setIsChatOpen(true); }}
           chatBadge={chatBadgeCount}
           userId={userId}
         />
@@ -3475,7 +3475,7 @@ const Index = ({ session, initialAdminOpen }: { session: Session; initialAdminOp
           y: activeFeature !== "Flicks" && !isChatOpen ? 0 : 150,
           opacity: isChatOpen ? 0 : 1,
         }}
-        onClick={() => setIsChatOpen(true)}
+        onClick={(e) => { e.stopPropagation(); e.preventDefault(); setIsChatOpen(true); }}
         className="fixed bottom-32 right-6 w-16 h-16 bg-blue-600 rounded-full shadow-2xl flex items-center justify-center z-[80] border-2 border-white/20 active:scale-90"
       >
         <MessageSquare size={28} fill="currentColor" />
