@@ -5,6 +5,7 @@ import { useProfileViewer } from "../context/ProfileViewerContext";
 import { motion, AnimatePresence } from "framer-motion";
 import AdminDashboard from "./AdminDashboard";
 import { isAdminEmail } from "../lib/adminConfig";
+import { resolveMediaUrl } from "../lib/mediaUrl";
 import AdsterraAd from "./AdsterraAd";
 import {
   Search,
