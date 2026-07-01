@@ -1,0 +1,25 @@
+# AGENT DIRECTIVE: IMPLEMENT AUTO-SEO META GENERATION & CODE INTEGRATION
+
+The `posts` table has been successfully updated with the new columns: `meta_title`, `meta_description`, and `seo_keywords`. You must now integrate the frontend logic to automatically generate and save this metadata upon post creation using the Gemini SDK.
+
+## 1. UPDATE GEMINI CLIENT (src/lib/geminiClient.ts)
+- Add a new exported asynchronous function named `generatePostSEO(postContent: string)`.
+- Use the Gemini model (preferably gemini-1.5-flash or gemini-2.5-flash) to analyze the post content.
+- Instruct the AI to return a strict JSON object with this structure:
+  {
+    "meta_title": "SEO Optimized Title (max 60 chars)",
+    "meta_description": "High CTR snippet (max 160 chars)",
+    "seo_keywords": "comma, separated, trending, search, terms"
+  }
+- Implement clean string parsing to strip any markdown ticks (```json ... 
+```) before executing JSON.parse().
+- Provide a robust fallback mechanism inside the catch block so if the AI call fails or times out, the post is still created with safe fallback metadata.
+
+## 2. UPDATE POST CREATION (src/components/CreatePost.tsx)
+- Inside the post submission handler, before inserting the data into Supabase, trigger the generatePostSEO function with the current text content.
+- Update the Supabase .insert() query to include the generated fields: meta_title, meta_description, and seo_keywords alongside the standard content and user_id fields.
+- Ensure the user interface displays a clean loading state (e.g., "Optimizing SEO & Posting...") during this process to enhance user experience.
+
+## 3. BANDWIDTH CONSERVATION & ANTI-LEAK AUDIT
+- Under no circumstances should these metadata attributes trigger automatic recurring AI fetching logic on the feed.
+- Once saved to the database, they must be treated as static rows. When rendering inside feeds (e.g., FameFeed or FlicksFeed), read them directly as simple text from the initial database payload without secondary network calls.

@@ -1,0 +1,4 @@
+- [Mobile Performance Deep Clean](perf-deep-clean.md) — audit + fixes for CPU/GPU heating: channels, animations, console spam, DOM virtualization, media decoding
+- [Notifications DB column naming](notif-columns.md) — `notifier_id` is the recipient, `actor_id` is the sender; never use `user_id` in the notifications table.
+- [Magnet channel collision](magnet-channel-collision.md) — MagnetModal send-only channel must use `-send` suffix to avoid Supabase topic collision with useMagnet listener channel.
+- [MagnetButton callback stability](magnet-callback-ref.md) — onMagnetLoad must be wrapped in useRef inside MagnetButton to prevent infinite update cascade from inline lambda reference churn.

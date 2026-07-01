@@ -1,0 +1,552 @@
+
+Never break any existing feature.
+
+The new feature should look like it was originally built with FlicksIndia.
+
+================================================
+
+FEATURE NAME
+
+🎤 Antakshari Arena
+
+================================================
+
+BOTTOM NAVIGATION
+
+Keep all existing Bottom Navigation items.
+
+Add ONE new menu
+
+🎤 Antakshari
+
+between Feed and Chat.
+
+================================================
+
+HEADER
+
+Show
+
+← Back
+
+FlicksIndia Logo
+
+Notification
+
+Profile
+
+================================================
+
+HOME PAGE
+
+Beautiful Hero Banner
+
+🎤 Antakshari Arena
+
+Sing • Play • Connect • Win
+
+Cards
+
+* Create Room
+* Random Match
+* Friends Playing
+* My Rooms
+* Leaderboard
+* Daily Rewards
+* Tournament (Coming Soon)
+
+================================================
+
+ROOM TYPES
+
+Private Room
+
+Public Room
+
+Random Match
+
+Friends Room
+
+Team Battle
+
+Audience Mode
+
+================================================
+
+CREATE ROOM
+
+Room Name
+
+Theme
+
+Players
+
+2
+
+4
+
+6
+
+8
+
+Public / Private
+
+Generate Room Code
+
+Invite Friends
+
+Share Link
+
+================================================
+
+RANDOM MATCH
+
+Find random players.
+
+Beautiful searching animation.
+
+Auto Match.
+
+================================================
+
+ROOM LOBBY
+
+Room Code
+
+Invite Friends
+
+Share Button
+
+Theme
+
+Players List
+
+Each Player Card
+
+Avatar
+
+Username
+
+Verified Badge
+
+Level
+
+Country
+
+Online Status
+
+Follow Button
+
+Friend Request Button
+
+Message Button
+
+View Profile Button
+
+Host Badge
+
+Ready Status
+
+================================================
+
+GAMEPLAY
+
+Live Voice using WebRTC
+
+One microphone active at a time.
+
+Everyone listens.
+
+Top
+
+Round
+
+Timer
+
+Current Player
+
+Center
+
+Animated Microphone
+
+Live Voice Wave
+
+Current Word
+
+❤️ DIL
+
+Bottom
+
+Mute
+
+Speaker
+
+Leave Room
+
+================================================
+
+GAME RULE
+
+NO AI
+
+NO speech recognition
+
+NO automatic song detection
+
+Community Voting System
+
+Player sings.
+
+After singing,
+
+player manually selects ONE keyword from the song.
+
+Example
+
+Song
+
+Dil Deewana
+
+Select Word
+
+Dil
+
+System displays
+
+❤️ NEXT SONG MUST CONTAIN
+
+DIL
+
+================================================
+
+VOTING
+
+Every other player votes
+
+✅ Right
+
+❌ Wrong
+
+⏭️ Skip
+
+Majority decides.
+
+Host decides if tied.
+
+================================================
+
+FAIR PLAY
+
+Every user has Fair Play Score.
+
+Correct Votes
+
++ Score
+
+Wrong Votes
+
+- Score
+
+Low Fair Play users lose voting priority.
+
+================================================
+
+POINTS
+
+Correct Song
+
++10
+
+Fast Turn
+
++2
+
+Winner Bonus
+
++50
+
+Skip
+
+-2
+
+================================================
+
+PLAYER PROFILE
+
+Tap any player.
+
+Open beautiful popup.
+
+Avatar
+
+Cover Photo
+
+Username
+
+Verified Badge
+
+Level
+
+XP
+
+Coins
+
+Followers
+
+Following
+
+Matches
+
+Wins
+
+Win Rate
+
+Country
+
+Bio
+
+Buttons
+
+❤️ Follow
+
+🤝 Send Friend Request
+
+💬 Message
+
+👤 View Full Profile
+
+================================================
+
+SOCIAL FEATURES
+
+When a random player joins the room,
+
+everyone can
+
+Follow
+
+Send Friend Request
+
+View Profile
+
+Message after match
+
+Invite again
+
+Add to Favourite Players
+
+================================================
+
+MATCH COMPLETED
+
+Beautiful Result Screen
+
+Winner
+
+Runner Up
+
+Points
+
+Coins
+
+Performance
+
+Buttons
+
+Play Again
+
+Send Friend Request
+
+Follow Player
+
+Open Chat
+
+Share Result
+
+================================================
+
+FRIENDS PLAYING
+
+Display online friends.
+
+Show
+
+Join Room
+
+Invite
+
+Message
+
+================================================
+
+LEADERBOARD
+
+Weekly
+
+Monthly
+
+Global
+
+Top Players
+
+Beautiful Trophy Cards
+
+================================================
+
+AUDIENCE MODE
+
+Join without playing.
+
+Listen live.
+
+Emoji Reactions
+
+❤️😂🔥👏🎉
+
+Live Chat
+
+Gift Players
+
+Follow Players
+
+Friend Request
+
+================================================
+
+MATCH HISTORY
+
+Every user profile should display
+
+Last Matches
+
+Win History
+
+Favourite Songs
+
+Favourite Theme
+
+================================================
+
+ACHIEVEMENTS
+
+First Win
+
+100 Songs
+
+100 Matches
+
+100 Friends
+
+Top Singer
+
+Weekly Champion
+
+Legend
+
+================================================
+
+NOTIFICATIONS
+
+Friend Request
+
+Friend Accepted
+
+Someone Followed You
+
+Room Invite
+
+Your Turn
+
+Match Started
+
+Winner
+
+================================================
+
+SUPABASE TABLES
+
+profiles
+
+friends
+
+followers
+
+friend_requests
+
+rooms
+
+room_members
+
+matches
+
+rounds
+
+votes
+
+leaderboard
+
+notifications
+
+coin_wallet
+
+coin_transactions
+
+gifts
+
+achievements
+
+================================================
+
+REALTIME
+
+Use Supabase Realtime.
+
+Realtime Room
+
+Realtime Chat
+
+Realtime Voice Status
+
+Realtime Voting
+
+Realtime Leaderboard
+
+================================================
+
+UI STYLE
+
+Dark Premium Theme
+
+Glassmorphism
+
+Rounded Cards
+
+Gradient Buttons
+
+Animated Microphone
+
+Spotify + Discord + Instagram + Ludo King inspired
+
+Smooth Animations
+
+Mobile First
+
+Responsive
+
+Production Ready
+
+================================================
+
+IMPORTANT
+
+Code must be modular.
+
+Reuse existing components.
+
+Never duplicate code.
+
+Keep performance optimized.
+
+Everything must naturally become a part of FlicksIndia.
+
+This feature should encourage users to make new friends, follow each other, return daily, and increase engagement inside the app.

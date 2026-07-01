@@ -1,0 +1,25 @@
+PRIME DIRECTIVE: Fix the database insertion and fetch handling for the 'circles' table immediately. No more silent failures, no more NULL fields, and zero placeholders. Follow these absolute requirements across CirclePage.tsx and HooksHub.tsx:
+
+1. FORCE COVER IMAGE TO DATABASE (.insert into 'circles'):
+   - Look at the circle creation form handler in CirclePage.tsx. 
+   - Ensure that the file selected by the user is uploaded to the Supabase Storage bucket FIRST. 
+   - You must await the public URL generation fully. If the upload fails or returns null, block the transaction and alert the user immediately.
+   - In the insert query for the 'circles' table (strictly plural 'circles'), explicitly map the captured public URL string to the 'cover_url' column. Double-check that no middleware or local object formatting is stripping 'cover_url' out before the query executes.
+
+2. RENDER THE ORIGINAL USER DP AUTOMATICALLY (Circles & Hooks):
+   - Since the 'circles' table creation form does not collect a separate group avatar, we will completely automate the avatar display.
+   - Wherever a circle avatar/DP slot or a hooks post avatar slot is present, it MUST fetch and display the original profile picture of the creator/user who owns it.
+   - Perform a relational join with the 'profiles' table on 'admin_id' or 'created_by' (e.g., supabase.from('circles').select('*, profiles(avatar_url, full_name)')), or pull directly from the active user session context ('user_metadata.avatar_url').
+   - If 'profiles.avatar_url' exists, render it instantly inside the circle avatar wrapper. No fake icons, no letters if the user has a real DP set on their profile.
+
+3. RE-VERIFY FRONTEND COMPONENT RENDER LOGIC:
+   - Make sure that the CSS container for the banner uses the exact property binding without any conflicting shorthand rules:
+     style={{
+       backgroundImage: group.cover_url ? `url('${group.cover_url}')` : "none",
+       backgroundColor: group.cover_url ? "transparent" : "#f3f4f6",
+       backgroundSize: "cover",
+       backgroundPosition: "center",
+     }}
+   - Ensure there are no early return states or conditional checks (like {!group.cover_url && ...}) hidden inside the mapping that would suppress the image container from rendering on the screen.
+
+Execute a complete repository build check, ensure that the table name 'circles' is targeted with absolute accuracy, and make sure database writes and frontend reads are synchronized perfectly.

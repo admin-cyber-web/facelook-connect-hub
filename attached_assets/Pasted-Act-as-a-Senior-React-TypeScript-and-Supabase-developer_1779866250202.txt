@@ -1,0 +1,41 @@
+Act as a Senior React, TypeScript, and Supabase developer. We need to build a comprehensive "Flicks Studio & Verified Creator System" inside our app. The interface must use a vibrant RED accent (#EF4444) mixed with a premium dark layout, integrated as a dedicated "Studio" tab in the Bottom Navigation Bar.
+
+Please implement the frontend UI components, conditional states, and Supabase live database connection completely based on these specifications:
+
+### 1. THE CREATOR PROFILE SYSTEM (DATABASE SCHEMA & LOGIC):
+- The `public.profiles` table must track these statuses: 
+  - `is_official_creator` (boolean, default: false)
+  - `total_posts_count` (int8, default: 0)
+  - `total_likes_received` (int8, default: 0)
+  - `followers_count` (int8, default: 0)
+- Separation of Concerns: 
+  - If a user is a NORMAL USER (`is_official_creator` is false), their Studio view must ONLY show an onboarding layout: "Join as an Official Flicks Creator".
+  - If they ARE a Creator (`is_official_creator` is true), show their live tracking dashboard (Posts, Likes, Followers counters).
+
+### 2. STUDIO VIEW - STATE 1: THE JOIN CREATOR GATEWAY (For Normal Users)
+- When a normal user clicks the Red "Studio" tab, render a clean onboarding page.
+- Heading: "🚀 Join the Flicks Creator Economy"
+- Action Button: "APPLY NOW / ACTIVATE CREATOR ACCOUNT"
+- Clicking this button must open a quick application form inside a modal (Full Name, Address, Location). On submission, update `is_official_creator` to TRUE in Supabase, instantly activating their tracking metrics from 0.
+
+### 3. STUDIO VIEW - STATE 2: THE REALTIME DASHBOARD (For Verified Creators Only)
+- If `is_official_creator` is TRUE, display the full-scale metrics tracking dashboard:
+- Animated Dynamic Title: Toggles every 2.5 seconds between "🚀 Flicks Studio" and "💰 Your Money Maker Tools" with an amber/gold glow text effect.
+- Passport Photo Box: Render a vertical frame (w-28, h-32) holding the passport photo with the text: "⚠️ Warning: Ensure all profile details are 100% original. Notify Flicks Support if updates are required."
+- Red-to-Dark Progress Bars (The Big 3 Goals):
+  1. System Posts: `total_posts_count` / 1,000 target. (Show: "🔥 X more posts required.")
+  2. Received Likes: `total_likes_received` / 5,000 target. (Show: "💪 X more organic likes required.")
+  3. Community Followers: `followers_count` / 2,000 target. (Show: "🤝 X more permanent followers required.")
+- Locked Wallet Counter: Static "🪙 00.00" balance with a Red/Amber "Locked" tag badge.
+- Gated Payout Button: "LINK BANK ACCOUNT & KYC FORM". If targets aren't met, clicking it alerts in English: "Error: You have not fulfilled the required stats (Followers, Likes, or Posts) to access this verification segment. You are currently not eligible for Flicks Monetization." If eligible, open the full banking details form.
+- Explicit Legal Card: Include the policy text at the bottom outlining the ₹1,000 minimum payout limit and anti-fraud warning.
+
+### 4. GLOBAL FEED INTEGRATION (How Creators appear on the App):
+- Modify the global Feed/Post component to conditionally check `is_official_creator` of the post author:
+- If author `is_official_creator` is TRUE:
+  1. Add a stylish, highly visible `Creator ⚡` text logo/badge right next to their username in the post header (styled with a sleek crimson red/gold color scheme).
+  2. Render an automatic, neat **"+ Follow"** button directly in the post layout next to their name so users can instantly follow them without visiting their profile.
+- If author `is_official_creator` is FALSE: Do not show the creator badge or the inline follow button; show the post normally.
+
+### 5. SUPABASE BACKEND LINK:
+- Fetch user profiles natively using `auth.uid()`. Provide clean conditional spinners, default fallbacks (`|| 0`), and live state re-fetching so the instant a user submits the "Join Creator" form, the page swaps seamlessly to the dynamic dashboard.

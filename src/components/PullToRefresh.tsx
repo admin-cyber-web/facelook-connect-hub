@@ -1,0 +1,104 @@
+import { useEffect, useRef, useState, ReactNode } from "react";
+import { RefreshCw } from "lucide-react";
+
+interface Props {
+  onRefresh: () => Promise<void> | void;
+  children: ReactNode;
+  disabled?: boolean;
+  threshold?: number;
+}
+
+export default function PullToRefresh({
+  onRefresh,
+  children,
+  disabled = false,
+  threshold = 70,
+}: Props) {
+  const [pullY, setPullY] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
+  const startY = useRef<number | null>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (disabled) return;
+    const el = wrapperRef.current;
+    if (!el) return;
+
+    const onTouchStart = (e: TouchEvent) => {
+      // Only arm pull when we're at the very top of the page.
+      if (window.scrollY > 4) { startY.current = null; return; }
+      startY.current = e.touches[0].clientY;
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      if (startY.current == null || refreshing) return;
+      const dy = e.touches[0].clientY - startY.current;
+      if (dy <= 0) { setPullY(0); return; }
+      // Resistance curve: feels rubbery, capped at 1.6x threshold.
+      const damped = Math.min(dy * 0.5, threshold * 1.6);
+      setPullY(damped);
+    };
+
+    const onTouchEnd = async () => {
+      if (startY.current == null) return;
+      startY.current = null;
+      if (pullY >= threshold && !refreshing) {
+        setRefreshing(true);
+        setPullY(threshold);
+        try { await onRefresh(); } finally {
+          setRefreshing(false);
+          setPullY(0);
+        }
+      } else {
+        setPullY(0);
+      }
+    };
+
+    el.addEventListener("touchstart", onTouchStart, { passive: true });
+    el.addEventListener("touchmove",  onTouchMove,  { passive: true });
+    el.addEventListener("touchend",   onTouchEnd);
+    return () => {
+      el.removeEventListener("touchstart", onTouchStart);
+      el.removeEventListener("touchmove",  onTouchMove);
+      el.removeEventListener("touchend",   onTouchEnd);
+    };
+  }, [pullY, refreshing, threshold, disabled, onRefresh]);
+
+  const progress = Math.min(pullY / threshold, 1);
+
+  return (
+    <div ref={wrapperRef} className="relative">
+      {/* Indicator */}
+      <div
+        className="absolute left-1/2 -translate-x-1/2 z-50 flex items-center justify-center"
+        style={{
+          top: 8,
+          transform: `translate(-50%, ${pullY - 40}px)`,
+          opacity: progress,
+          transition: refreshing || pullY === 0 ? "transform 200ms ease, opacity 200ms ease" : "none",
+        }}
+      >
+        <div className="w-9 h-9 rounded-full bg-white shadow-lg border border-gray-100 flex items-center justify-center">
+          <RefreshCw
+            size={16}
+            className="text-blue-600"
+            style={{
+              transform: `rotate(${progress * 360}deg)`,
+              animation: refreshing ? "spin 0.8s linear infinite" : undefined,
+            }}
+          />
+        </div>
+      </div>
+
+      {/* Content shifts down while pulling, snaps back on release */}
+      <div
+        style={{
+          transform: `translateY(${pullY}px)`,
+          transition: refreshing || pullY === 0 ? "transform 200ms ease" : "none",
+        }}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}

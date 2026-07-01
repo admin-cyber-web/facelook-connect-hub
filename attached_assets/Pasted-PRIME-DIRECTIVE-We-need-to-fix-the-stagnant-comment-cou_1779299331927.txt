@@ -1,0 +1,28 @@
+PRIME DIRECTIVE: We need to fix the stagnant comment counter on the main screen, implement threaded semantic replies ("A replied to B"), enable a comprehensive in-app notification pipeline for interactions (likes, shares, comments, replies), and create a dynamic news-ticker style auto-scroll for comment previews inside src/components/FameFeed.tsx.
+
+Please execute the following engineering updates immediately:
+
+1. FIX COMMENT COUNT SHOWING 0 ON MAIN FEED (FameFeed.tsx):
+   - Currently, the comment count stays 0 on the main feed until the user explicitly clicks open the comments section. 
+   - Fix this by ensuring that the initial data query for posts/reels performs an accurate aggregation or includes the count of relations from the 'comments' table natively. 
+   - Ensure the `comments_count` property on the post state is derived reactively or mapped correctly so that it displays the true count (e.g., 5, 10, etc.) instantly on page load without requiring a click.
+
+2. IMPLEMENT THREADED REPLY TYPOGRAPHY ("Monu replied to Deepa"):
+   - In the replies rendering block, detect if a comment has a `parent_id` or is a reply to another user.
+   - Modify the layout so it clearly states the semantic relationship. Instead of just showing the replier's name, format it beautifully as: **[Replier Name]** replied to **[Original Commenter Name]** (e.g., "Monu replied to Deepa").
+   - Ensure you pass or fetch the targeted user's name accurately within the nested reply mapping layer.
+
+3. BUILD COMPREHENSIVE IN-APP NOTIFICATION ENGINE (English):
+   - Implement or trigger an insert row function into the `notifications` table whenever a social action succeeds:
+     - LIKE Action: Insert a notification record -> "Monu liked your post."
+     - COMMENT Action: Insert a notification record -> "Monu commented on your post."
+     - REPLY Action: Insert a notification record -> "Monu replied to your comment."
+     - SHARE Action: Insert a notification record -> "Monu shared your post."
+   - Ensure all generated notifications are written in clean, standard English and instantly deliver to the notification panel of the targeted resource owner.
+
+4. NEWS-TICKER STYLE SCROLLING FOR MULTIPLE COMMENTS:
+   - Inside the post card preview area where the latest comment is displayed, check if a post has multiple comments (e.g., more than 1 or up to 10).
+   - If there are multiple comments, display the last 4 comments inside a vertical marquee or a smooth CSS-animated news-ticker style loop that automatically scrolls through those 4 comments sequentially.
+   - Keep the scrolling elegant, smooth, and lightweight so it doesn't cause any performance lag or layout shifts.
+
+Run a comprehensive build check and verify that the database triggers/mutations compile flawlessly with zero console errors.
