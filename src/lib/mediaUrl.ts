@@ -1,68 +1,51 @@
-import { supabase } from "./supabaseClient";
+const SUPABASE_STORAGE =
+  "https://rxwvvhvretostbiknuek.supabase.co/storage/v1/object/public";
 
-const BUCKET_PREFIXES: Record<string, string> = {
-  posts:       "posts",
-  flicks:      "flicks",
-  avatars:     "avatars",
-  circles:     "circles",
-  hooks:       "hooks",
-  "chat-images": "chat-images",
-  stories:     "stories",
-};
+const PLACEHOLDER = "/placeholder-avatar.png";
 
 /**
- * Resolves a media reference to a usable public URL.
+ * Resolves a Supabase storage path to a public URL.
  *
- * - If `raw` is already a full http(s) URL → returned unchanged.
- * - If `raw` starts with a known bucket name prefix (e.g. "posts/file.mp4")
- *   → the bucket is inferred automatically and getPublicUrl is called.
- * - If `forceBucket` is supplied it overrides the auto-detection.
- * - Returns null / empty-string inputs as empty string (never null).
+ * Rules (in order):
+ *  1. Falsy / blank  → PLACEHOLDER
+ *  2. Already http(s) → returned as-is
+ *  3. data: URI       → returned as-is
+ *  4. Path already includes bucket prefix (e.g. "avatars/file.jpg")
+ *     → strip prefix so we don't double-up
+ *  5. Everything else → prepend storage base + bucket
  */
 export function resolveMediaUrl(
-  raw: string | null | undefined,
-  forceBucket?: string,
+  path: string | null | undefined,
+  bucket: string,
 ): string {
-  if (!raw) return "";
-  if (raw.startsWith("http://") || raw.startsWith("https://")) return raw;
+  if (!path || !path.trim()) return PLACEHOLDER;
+  if (path.startsWith("http://") || path.startsWith("https://")) return path;
+  if (path.startsWith("data:")) return path;
 
-  const bucket =
-    forceBucket ??
-    Object.keys(BUCKET_PREFIXES).find((b) => raw.startsWith(b + "/"));
+  const filePath = path.startsWith(bucket + "/")
+    ? path.slice(bucket.length + 1)
+    : path;
 
-  if (!bucket) return raw;
+  if (!filePath) return PLACEHOLDER;
 
-  const path = raw.startsWith(bucket + "/") ? raw.slice(bucket.length + 1) : raw;
-  return supabase.storage.from(bucket).getPublicUrl(path).data.publicUrl;
+  return `${SUPABASE_STORAGE}/${bucket}/${filePath}`;
 }
 
-/**
- * Returns true if the URL / path looks like a video.
- */
 export function isVideoUrl(url: string | null | undefined): boolean {
   if (!url) return false;
   return /\.(mp4|webm|ogg|mov|m4v|mkv)(\?|$)/i.test(url);
 }
 
-/**
- * Returns true if the URL / path looks like an audio file.
- */
 export function isAudioUrl(url: string | null | undefined): boolean {
   if (!url) return false;
   return /\.(mp3|aac|wav|flac|ogg|m4a)(\?|$)/i.test(url);
 }
 
-/**
- * Returns true if the URL is a YouTube link.
- */
 export function isYouTubeUrl(url: string | null | undefined): boolean {
   if (!url) return false;
   return url.includes("youtube.com") || url.includes("youtu.be");
 }
 
-/**
- * Converts a YouTube watch URL to an embed URL.
- */
 export function getYouTubeEmbedUrl(url: string): string {
   const match = url.match(/(?:v=|youtu\.be\/)([A-Za-z0-9_-]{11})/);
   return match ? `https://www.youtube.com/embed/${match[1]}?autoplay=0` : url;
