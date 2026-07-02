@@ -6,6 +6,7 @@ import {
   X, Upload, CheckCircle2, TrendingUp, Users, Vote, Loader2,
   CornerDownRight, Edit3, BarChart, Link2,
 } from "lucide-react";
+import { DebateButton } from "./DebateArena";
 import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
   BarChart as ReBarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -492,6 +493,14 @@ const SurveyCard: React.FC<{ survey: Survey; userId: string; onUpdate: () => voi
           <MessageCircle size={18} className={showComments ? "text-indigo-400" : "text-white/40 group-hover:text-indigo-400"} />
           <span className={`text-[12px] font-bold ${showComments ? "text-indigo-400" : "text-white/40"}`}>{survey.comments_count || 0}</span>
         </motion.button>
+
+        {/* Debate Duel Button */}
+        <DebateButton
+          surveyId={survey.id}
+          surveyQuestion={survey.question}
+          surveyOwnerId={survey.user_id}
+          currentUserId={userId}
+        />
 
         <motion.button whileTap={{ scale: 0.85 }} onClick={handleShare}
           className="flex items-center gap-1.5 group ml-auto px-3 py-1.5 rounded-full transition-all"
