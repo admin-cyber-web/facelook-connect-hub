@@ -4,6 +4,7 @@
   "framework": "vite",
   "installCommand": "npm install --legacy-peer-deps",
   "rewrites": [
+    { "source": "/survey/:survey_id", "destination": "/api/survey?survey_id=:survey_id" },
     { "source": "/api/(.*)", "destination": "/api/$1" },
     { "source": "/(.*)", "destination": "/index.html" }
   ],

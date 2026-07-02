@@ -187,7 +187,7 @@ const CommentItem: React.FC<{
 
 // ── Share Drawer ───────────────────────────────────────────────────────────────
 const ShareDrawer: React.FC<{ survey: Survey; total: number; onClose: () => void }> = ({ survey, total, onClose }) => {
-  const deepLink = `${window.location.origin}?survey=${survey.id}`;
+  const deepLink = `${window.location.origin}/survey/${survey.id}`;
   const shareText = `📊 ${survey.question}\n${total} votes on FlicksIndia! Vote now 👇`;
 
   const platforms = [
@@ -393,7 +393,7 @@ const SurveyCard: React.FC<{ survey: Survey; userId: string; onUpdate: () => voi
   };
 
   const handleShare = async () => {
-    const deepLink = `${window.location.origin}?survey=${survey.id}`;
+    const deepLink = `${window.location.origin}/survey/${survey.id}`;
     const text = `📊 ${survey.question}\n${total} votes on FlicksIndia! Vote now 👇`;
     if (navigator.share) {
       try {
@@ -802,7 +802,7 @@ const SurveyFeed: React.FC<{ userId: string; highlightedSurveyId?: string | null
         <meta property="og:image" content={ogImage} />
         <meta property="og:image:width" content="1200" />
         <meta property="og:image:height" content="630" />
-        <meta property="og:url" content={`${window.location.origin}?survey=${ogSurvey.id}`} />
+        <meta property="og:url" content={`${window.location.origin}/survey/${ogSurvey.id}`} />
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content={ogSurvey.question} />
         <meta name="twitter:description" content={ogDesc} />
