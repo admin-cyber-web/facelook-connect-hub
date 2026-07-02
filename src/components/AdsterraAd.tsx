@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 
-/*
+/*  
   Safe Ad Container — Native Banner / Social Bar
   — Loads only the provided Adsterra container-based ad script.
   This script renders ads INSIDE the div below. It does NOT open

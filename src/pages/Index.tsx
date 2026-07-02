@@ -1407,7 +1407,21 @@ const Index = ({ session, initialAdminOpen }: { session: Session; initialAdminOp
 
   // Core UI
   const [activeFeature, setActiveFeature] = useState("Fame");
+  const [highlightedSurveyId, setHighlightedSurveyId] = useState<string | null>(null);
   const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(!!initialAdminOpen && isAppAdmin);
+
+  // Deep-link handler: ?survey=<id> → open Surveys tab + highlight that card
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const surveyId = params.get("survey");
+    if (surveyId) {
+      setActiveFeature("Task");
+      setHighlightedSurveyId(surveyId);
+      // Clean up the URL without a hard reload
+      const clean = window.location.pathname + window.location.hash;
+      window.history.replaceState({}, "", clean);
+    }
+  }, []);
   const [isUploading, setIsUploading] = useState(false);
   const [isPostOpen, setIsPostOpen] = useState(false);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
@@ -3334,7 +3348,7 @@ const Index = ({ session, initialAdminOpen }: { session: Session; initialAdminOp
             {activeFeature === "Task" && (
               <ErrorBoundary>
               <Suspense fallback={<SectionLoader />}>
-                <SurveyFeed userId={userId} />
+                <SurveyFeed userId={userId} highlightedSurveyId={highlightedSurveyId} />
               </Suspense>
               </ErrorBoundary>
             )}
