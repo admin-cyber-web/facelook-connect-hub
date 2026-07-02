@@ -64,7 +64,7 @@ const FlicksFeed     = lazy(() => import("@/components/FlicksFeed"));
 const ChatSystem     = lazy(() => import("@/components/ChatSystem"));
 const CirclePage     = lazy(() => import("@/components/CirclePage"));
 const HooksHub       = lazy(() => import("@/components/HooksHub"));
-const TaskBoard      = lazy(() => import("@/components/TaskBoard"));
+const SurveyFeed     = lazy(() => import("@/components/SurveyFeed"));
 const SnapyStudio    = lazy(() => import("@/components/SnapyStudio"));
 const QuotesMaker    = lazy(() => import("@/components/QuotesMaker"));
 const AdminDashboard = lazy(() => import("@/components/AdminDashboard"));
@@ -2622,7 +2622,7 @@ const Index = ({ session, initialAdminOpen }: { session: Session; initialAdminOp
                       { label: "Circles",      emoji: "🔵", feature: "Circle"       },
                       { label: "Hook Pages",   emoji: "⚡", feature: "Hooks"        },
                       { label: "Flicks",       emoji: "🎬", feature: "Flicks"       },
-                      { label: "Task Board",   emoji: "✅", feature: "Task"         },
+                      { label: "Surveys",      emoji: "📊", feature: "Task"         },
                       { label: "Quotes Maker", emoji: "💬", feature: "QuotesMaker"  },
                     ] as const).map(({ label, emoji, feature }) => (
                       <button
@@ -3330,11 +3330,11 @@ const Index = ({ session, initialAdminOpen }: { session: Session; initialAdminOp
               </ErrorBoundary>
             )}
 
-            {/* 5. TASK (Personal Task Board) ───────────────────────────────── */}
+            {/* 5. TASK (Survey Feed) ──────────────────────────────────────── */}
             {activeFeature === "Task" && (
               <ErrorBoundary>
               <Suspense fallback={<SectionLoader />}>
-                <TaskBoard userId={userId} />
+                <SurveyFeed userId={userId} />
               </Suspense>
               </ErrorBoundary>
             )}
