@@ -480,25 +480,40 @@ export const DebateButton: React.FC<{
   // ── Actions ─────────────────────────────────────────────────────────────────
   const handleChallenge = async () => {
     if (challenging || isSelf) return;
+
+    // ── Auth guard ──────────────────────────────────────────────────────────
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      toast.error("Please log in to start a debate");
+      return;
+    }
+
     setChallenging(true);
     setLoading(true);
 
     // Get my profile
     const { data: myProfile } = await supabase
-      .from("profiles").select("full_name").eq("id", currentUserId).single();
+      .from("profiles").select("full_name").eq("id", user.id).single();
 
     const { data: newDebate, error } = await supabase
       .from("debate_challenges")
       .insert({
         survey_id: surveyId,
-        challenger_id: currentUserId,
+        challenger_id: user.id,      // always use verified auth uid
         responder_id: surveyOwnerId,
       })
       .select("*, challenger:profiles!challenger_id(full_name,avatar_url), responder:profiles!responder_id(full_name,avatar_url)")
       .single();
 
     if (error) {
-      toast.error("Failed to send challenge");
+      console.error("[DebateArena] insert error:", error.code, error.message);
+      if (error.code === "42501") {
+        toast.error("Login required to debate");
+      } else if (error.code === "23505") {
+        toast.error("You already have a debate on this survey");
+      } else {
+        toast.error("Could not send challenge — try again");
+      }
     } else {
       setDebate(newDebate as DebateChallenge);
       // Notify responder
@@ -553,15 +568,13 @@ export const DebateButton: React.FC<{
     if (liked) {
       await supabase.from("debate_message_likes").delete()
         .eq("message_id", msgId).eq("user_id", currentUserId);
-      await supabase.from("debate_messages").update({ likes_count: supabase.rpc })
-        .eq("id", msgId);
     } else {
       await supabase.from("debate_message_likes").insert({ message_id: msgId, user_id: currentUserId });
     }
-    // Recount
+    // Recount and sync to messages table
     const { count } = await supabase.from("debate_message_likes")
       .select("*", { count: "exact", head: true }).eq("message_id", msgId);
-    await supabase.from("debate_messages").update({ likes_count: count || 0 }).eq("id", msgId);
+    await supabase.from("debate_messages").update({ likes_count: count ?? 0 }).eq("id", msgId);
     setMessages(prev => prev.map(m => m.id === msgId
       ? { ...m, likes_count: count || 0, user_liked: !liked }
       : m
@@ -609,13 +622,13 @@ export const DebateButton: React.FC<{
   })();
 
   const btnConfig: Record<string, { color: string; bg: string; border: string; label: string; pulse: boolean }> = {
-    idle:     { color: "#a78bfa", bg: "rgba(167,139,250,0.1)", border: "rgba(167,139,250,0.2)", label: "Duel",     pulse: false },
-    own:      { color: "#475569", bg: "rgba(71,85,105,0.08)",  border: "rgba(71,85,105,0.15)",  label: "Duel",     pulse: false },
-    sent:     { color: "#f97316", bg: "rgba(249,115,22,0.1)",  border: "rgba(249,115,22,0.3)",  label: "Pending",  pulse: true  },
-    received: { color: "#ef4444", bg: "rgba(239,68,68,0.12)",  border: "rgba(239,68,68,0.4)",   label: "Accept!",  pulse: true  },
-    active:   { color: "#10b981", bg: "rgba(16,185,129,0.1)",  border: "rgba(16,185,129,0.35)", label: "Arena",    pulse: true  },
-    finished: { color: "#fbbf24", bg: "rgba(251,191,36,0.1)",  border: "rgba(251,191,36,0.3)",  label: "Results",  pulse: false },
-    rejected: { color: "#64748b", bg: "rgba(100,116,139,0.08)","border": "rgba(100,116,139,0.15)", label: "Duel",  pulse: false },
+    idle:     { color: "#ec4899", bg: "rgba(236,72,153,0.15)", border: "rgba(236,72,153,0.4)",  label: "Debate",  pulse: true  },
+    own:      { color: "#94a3b8", bg: "rgba(148,163,184,0.08)",border: "rgba(148,163,184,0.15)",label: "Debate",  pulse: false },
+    sent:     { color: "#f97316", bg: "rgba(249,115,22,0.1)",  border: "rgba(249,115,22,0.3)",  label: "Pending", pulse: true  },
+    received: { color: "#ef4444", bg: "rgba(239,68,68,0.15)",  border: "rgba(239,68,68,0.45)",  label: "Accept!", pulse: true  },
+    active:   { color: "#10b981", bg: "rgba(16,185,129,0.1)",  border: "rgba(16,185,129,0.35)", label: "Arena",   pulse: true  },
+    finished: { color: "#fbbf24", bg: "rgba(251,191,36,0.1)",  border: "rgba(251,191,36,0.3)",  label: "Results", pulse: false },
+    rejected: { color: "#ec4899", bg: "rgba(236,72,153,0.1)",  border: "rgba(236,72,153,0.25)", label: "Debate",  pulse: false },
   };
 
   const cfg = btnConfig[btnState] || btnConfig.idle;
@@ -641,7 +654,13 @@ export const DebateButton: React.FC<{
         )}
         {loading
           ? <Loader2 size={13} className="animate-spin" style={{ color: cfg.color }} />
-          : <Mic size={13} style={{ color: cfg.color }} />
+          : (
+            <motion.div
+              animate={cfg.pulse ? { scale: [1, 1.25, 1] } : { scale: 1 }}
+              transition={{ repeat: cfg.pulse ? Infinity : 0, duration: 1.4, ease: "easeInOut" }}>
+              <Mic size={13} style={{ color: cfg.color }} />
+            </motion.div>
+          )
         }
         <span className="text-[11px] font-black" style={{ color: cfg.color }}>{cfg.label}</span>
       </motion.button>
@@ -676,7 +695,7 @@ export const DebateButton: React.FC<{
                 <motion.button whileTap={{ scale: 0.95 }} onClick={handleAccept} disabled={accepting}
                   className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-[12px] font-black text-emerald-400">
                   {accepting ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle2 size={13} />}
-                  Accept Duel!
+                  Accept Debate!
                 </motion.button>
               </div>
             </motion.div>
