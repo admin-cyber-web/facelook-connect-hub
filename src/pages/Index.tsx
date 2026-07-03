@@ -3587,23 +3587,6 @@ const Index = ({ session, initialAdminOpen }: { session: Session; initialAdminOp
       </Suspense>
       </ErrorBoundary>
 
-      {/* Chat FAB ──────────────────────────────────────────────────────────── */}
-      <motion.button
-        animate={{
-          y: activeFeature !== "Flicks" && !isChatOpen ? 0 : 150,
-          opacity: isChatOpen ? 0 : 1,
-        }}
-        onClick={(e) => { e.stopPropagation(); e.preventDefault(); setIsChatOpen(true); }}
-        className="fixed bottom-32 right-6 w-16 h-16 bg-blue-600 rounded-full shadow-2xl flex items-center justify-center z-[80] border-2 border-white/20 active:scale-90"
-      >
-        <MessageSquare size={28} fill="currentColor" />
-        {chatBadgeCount > 0 && (
-          <span className="absolute -top-1 -right-1 min-w-[24px] h-6 px-1 bg-red-500 rounded-full border-2 border-white text-[10px] font-black flex items-center justify-center animate-bounce">
-            {chatBadgeCount > 99 ? "99+" : chatBadgeCount}
-          </span>
-        )}
-      </motion.button>
-
       {/* Side DVD-Tray Nav ──────────────────────────────────────────────── */}
       <GolSlider
         activeFeature={activeFeature}
