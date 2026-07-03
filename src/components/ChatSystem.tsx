@@ -1367,38 +1367,67 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     setLoadingStories(true);
     try {
       const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-      const { data } = await supabase
+      // Step 1: fetch stories by primary key `id` (NOT story_id — that column
+      // only exists on child tables like story_likes/story_views/story_comments).
+      const { data: rawStories, error: storiesErr } = await supabase
         .from("stories")
         .select(
-          "id, user_id, image_url, caption, emoji, mood, media_type, is_help_request, music_url, created_at, profiles(id, full_name, username, avatar_url)",
+          "id, user_id, image_url, caption, emoji, mood, media_type, is_help_request, music_url, created_at",
         )
         .gte("created_at", cutoff)
         .order("created_at", { ascending: true })
         .limit(100);
-      if (data) {
-        const blocked = blockedUserIdsRef.current;
-        const mapped: Story[] = data
-          .map((s: any) => ({
-            ...s,
-            profile: Array.isArray(s.profiles) ? s.profiles[0] : s.profiles,
-          }))
-          .filter((s: Story) => !blocked.has(s.user_id));
-        setStories(mapped);
-        // Build groups keyed by user_id
-        const map = new Map<string, StoryGroup>();
-        for (const s of mapped) {
-          if (!map.has(s.user_id)) {
-            map.set(s.user_id, {
-              user_id: s.user_id,
-              profile: s.profile as Profile,
-              stories: [],
-            });
-          }
-          map.get(s.user_id)!.stories.push(s);
-        }
-        setStoryGroups(Array.from(map.values()));
+
+      if (storiesErr) {
+        console.error("[ChatSystem] stories fetch failed:", storiesErr.message);
+        setStories([]);
+        setStoryGroups([]);
+        return;
       }
-    } catch (_) {
+
+      const blocked = blockedUserIdsRef.current;
+      const filtered = (rawStories || []).filter((s: any) => !blocked.has(s.user_id));
+
+      // Step 2: fetch profiles separately (join on profiles.id = stories.user_id)
+      // instead of relying on an embedded PostgREST relationship, so this keeps
+      // working even if no FK constraint is registered between the two tables.
+      const userIds = [...new Set(filtered.map((s: any) => s.user_id).filter(Boolean))];
+      let profileMap: Record<string, Profile> = {};
+      if (userIds.length > 0) {
+        const { data: profiles, error: profilesErr } = await supabase
+          .from("profiles")
+          .select("id, full_name, username, avatar_url")
+          .in("id", userIds);
+        if (profilesErr) {
+          console.error("[ChatSystem] profiles fetch failed:", profilesErr.message);
+        } else {
+          (profiles || []).forEach((p: any) => {
+            profileMap[p.id] = { ...p, avatar_url: p.avatar_url || "" };
+          });
+        }
+      }
+
+      const mapped: Story[] = filtered.map((s: any) => ({
+        ...s,
+        profile: profileMap[s.user_id] || { full_name: "User", avatar_url: "" },
+      }));
+      setStories(mapped);
+
+      // Build groups keyed by user_id
+      const map = new Map<string, StoryGroup>();
+      for (const s of mapped) {
+        if (!map.has(s.user_id)) {
+          map.set(s.user_id, {
+            user_id: s.user_id,
+            profile: s.profile as Profile,
+            stories: [],
+          });
+        }
+        map.get(s.user_id)!.stories.push(s);
+      }
+      setStoryGroups(Array.from(map.values()));
+    } catch (e: any) {
+      console.error("[ChatSystem] fetchStories error:", e?.message || e);
       setStories([]);
       setStoryGroups([]);
     } finally {
@@ -3336,20 +3365,12 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                     />
                     {/* Header */}
                     <div className="flex items-center gap-2.5 px-3 py-2 z-20">
-                      {aUrl ? (
-                        <img
-                          src={aUrl}
-                          className="w-9 h-9 rounded-full object-cover border-2 border-white/60"
-                          decoding="async"
-                        />
-                      ) : (
-                        <div
-                          className="w-9 h-9 rounded-full border-2 border-white/60 flex items-center justify-center text-white font-black text-sm shrink-0"
-                          style={{ background: _sgradFor(group.user_id) }}
-                        >
-                          {pName[0]}
-                        </div>
-                      )}
+                      <img
+                        src={resolveMediaUrl(aUrl, "avatars")}
+                        className="w-9 h-9 rounded-full object-cover border-2 border-white/60 shrink-0"
+                        decoding="async"
+                      />
+
                       <div className="flex-1 min-w-0">
                         <p className="text-white font-bold text-[13px] leading-none truncate">
                           {pName}
@@ -5173,22 +5194,11 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                               </div>
                             )}
                             <div className="absolute top-2 left-2">
-                              {aUrl ? (
-                                <img
-                                  src={aUrl}
-                                  className="w-8 h-8 rounded-full object-cover border border-white/60"
-                                  decoding="async"
-                                />
-                              ) : (
-                                <div
-                                  className="w-8 h-8 rounded-full border border-white/60 flex items-center justify-center text-white font-black text-sm"
-                                  style={{
-                                    background: _sgradFor(group.user_id),
-                                  }}
-                                >
-                                  {pName[0]}
-                                </div>
-                              )}
+                              <img
+                                src={resolveMediaUrl(aUrl, "avatars")}
+                                className="w-8 h-8 rounded-full object-cover border border-white/60"
+                                decoding="async"
+                              />
                             </div>
                             <div className="absolute bottom-2 left-2 right-2">
                               {story.caption && (
