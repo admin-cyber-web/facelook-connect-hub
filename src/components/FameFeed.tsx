@@ -525,6 +525,89 @@ const FLICK_GRADS = [
   "#84cc16",
 ];
 
+// ── Latest Surveys Widget ──────────────────────────────────────────────────────
+const LatestSurveysWidget = ({
+  currentUserId,
+  onNavigateToSurveys,
+}: {
+  currentUserId: string;
+  onNavigateToSurveys?: () => void;
+}) => {
+  const [surveys, setSurveys] = useState<any[]>([]);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("surveys")
+        .select("id, question, image_url, user_id, created_at")
+        .order("created_at", { ascending: false })
+        .limit(3);
+      if (!cancelled) { setSurveys(data || []); setLoaded(true); }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  if (!loaded || surveys.length === 0) return null;
+
+  return (
+    <div className="pt-3 pb-1 border-b border-white/5" style={{ background: "#0F172A" }}>
+      <div className="flex items-center justify-between px-4 mb-2">
+        <p className="text-[13px] font-black text-white/70 tracking-wide">🗳️ Latest Surveys</p>
+        {onNavigateToSurveys && (
+          <button onClick={onNavigateToSurveys}
+            className="text-[11px] font-bold text-indigo-400/70 hover:text-indigo-400">
+            See all →
+          </button>
+        )}
+      </div>
+      <div className="space-y-2 px-4">
+        {surveys.map((survey) => (
+          <motion.div key={survey.id}
+            initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
+            className="flex items-center gap-3 p-2.5 rounded-2xl overflow-hidden"
+            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}>
+            {/* Thumbnail */}
+            <div className="w-14 h-14 rounded-xl shrink-0 overflow-hidden bg-gradient-to-br from-indigo-900 to-purple-900 flex items-center justify-center">
+              {survey.image_url
+                ? <img src={survey.image_url} alt="" className="w-full h-full object-cover" loading="lazy" />
+                : <span className="text-2xl">🗳️</span>
+              }
+            </div>
+            {/* Question */}
+            <div className="flex-1 min-w-0">
+              <p className="text-white text-[12px] font-bold leading-snug line-clamp-2">{survey.question}</p>
+            </div>
+            {/* Buttons */}
+            <div className="flex flex-col gap-1.5 shrink-0">
+              <motion.button
+                whileTap={{ scale: 0.9 }}
+                onClick={onNavigateToSurveys}
+                className="px-2.5 py-1 rounded-lg text-[10px] font-black text-white"
+                style={{ background: "linear-gradient(135deg,#6366f1,#8b5cf6)" }}>
+                Vote
+              </motion.button>
+              <motion.button
+                whileTap={{ scale: 0.9 }}
+                onClick={onNavigateToSurveys}
+                className="relative px-2.5 py-1 rounded-lg text-[10px] font-black overflow-hidden"
+                style={{ background: "rgba(236,72,153,0.15)", border: "1px solid rgba(236,72,153,0.4)", color: "#ec4899" }}>
+                <motion.span
+                  className="absolute inset-0 rounded-lg pointer-events-none"
+                  animate={{ boxShadow: ["0 0 0px rgba(236,72,153,0)", "0 0 8px rgba(236,72,153,0.6)", "0 0 0px rgba(236,72,153,0)"] }}
+                  transition={{ repeat: Infinity, duration: 1.8, ease: "easeInOut" }}
+                />
+                ⚔️ Debate
+              </motion.button>
+            </div>
+          </motion.div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 // Pure display component — data is fetched once at FameFeed level, no per-instance channels
 const TrendingFlicksRow = ({
   flicks,
@@ -1600,6 +1683,7 @@ interface FameFeedProps {
   onNavigateToCircles?: () => void;
   onNavigateToPages?: () => void;
   onNavigateToFlicks?: () => void;
+  onNavigateToSurveys?: () => void;
   isAdmin?: boolean;
 }
 
@@ -1799,6 +1883,7 @@ const FameFeed = ({
   onNavigateToCircles,
   onNavigateToPages,
   onNavigateToFlicks,
+  onNavigateToSurveys,
   isAdmin: isAdminProp = false,
 }: FameFeedProps) => {
   const { openProfile } = useProfileViewer();
@@ -5018,9 +5103,10 @@ const FameFeed = ({
 
     // Strict loop: circles → +4 → hook-card → +4 → reels-row → +4 → (circles again)
     const LOOP_WIDGETS = [
-      { gap: 4, type: "hook-card" }, // 4 posts after circles  → Hook Pages Discover
-      { gap: 4, type: "reels-row" }, // 4 posts after hooks    → Trending Flicks
-      { gap: 4, type: "circles-row" }, // 4 posts after flicks   → Circles (repeat)
+      { gap: 4, type: "hook-card" },    // Hook Pages Discover
+      { gap: 4, type: "survey-row" },   // Latest Surveys
+      { gap: 4, type: "reels-row" },    // Trending Flicks
+      { gap: 4, type: "circles-row" },  // Circles (repeat)
     ];
 
     const widgetAtPost = new Map<number, string>();
@@ -5392,6 +5478,19 @@ const FameFeed = ({
                   );
                 })}
               </div>
+            </div>
+          );
+        }
+
+        // ── Latest Surveys ──────────────────────────────────────────
+        if (block.type === "survey-row") {
+          return (
+            <div key={block.key}>
+              <LatestSurveysWidget
+                currentUserId={currentUserId || ""}
+                onNavigateToSurveys={onNavigateToSurveys}
+              />
+              <FeedDivider />
             </div>
           );
         }

@@ -3157,6 +3157,7 @@ const Index = ({ session, initialAdminOpen }: { session: Session; initialAdminOp
                       onNavigateToCircles={() => setActiveFeature("Circle")}
                       onNavigateToPages={() => setActiveFeature("Hooks")}
                       onNavigateToFlicks={() => setActiveFeature("Flicks")}
+                      onNavigateToSurveys={() => setActiveFeature("Task")}
                       isAdmin={isAppAdmin}
                     />
                   </PullToRefresh>
