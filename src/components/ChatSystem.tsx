@@ -55,7 +55,7 @@ import { toast } from "sonner";
 const CHAT_BUCKET = "chat-images";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
-type Theme = "whatsapp" | "water" | "nature" | "velvet";
+type Theme = "whatsapp" | "water" | "nature" | "velvet" | "glass" | "colorful";
 type BottomTab = "chat" | "story" | "alert" | "menu";
 type MenuPanel = "main" | "settings" | "archive" | "requests";
 
@@ -243,6 +243,52 @@ const THEME_CFG = {
     msgMenuBg: "bg-rose-900 border-rose-700",
     pill: "bg-rose-500/20 text-rose-300 border border-rose-500/30",
     storyRing: "border-rose-400",
+  },
+  // ── NEW: Dark Mode Glassmorphism (default) ──────────────────────────────
+  glass: {
+    wrap: "bg-[#07111f]",
+    sidebar: "bg-[#0a1628] border-[#1a3a6b]/60",
+    chat: "bg-gradient-to-b from-[#0a1628] to-[#060d18]",
+    topbar: "bg-[#0a1628]/92 backdrop-blur-2xl border-[#1a3a6b]/55",
+    input: "bg-[#0a1628]/88 backdrop-blur-2xl border-[#1a3a6b]/45",
+    nav: "bg-[#060d18] border-[#1a3a6b]/55",
+    bubbleSent: "bg-gradient-to-br from-[#0057ff] to-[#0038cc] text-white shadow-[0_4px_20px_rgba(0,87,255,0.45)] border border-blue-500/20",
+    bubbleRecv: "bg-white/[0.08] backdrop-blur-xl border border-white/[0.10] text-white",
+    text1: "text-white",
+    text2: "text-blue-300",
+    text3: "text-white/40",
+    accent: "bg-[#0057ff]",
+    accentText: "text-[#4d94ff]",
+    icon: "🔮",
+    label: "Glass Dark",
+    divider: "border-[#1a3a6b]/50",
+    searchBg: "bg-white/[0.06] border-white/[0.10] text-white placeholder:text-white/25",
+    msgMenuBg: "bg-[#0a1628] border-[#1a3a6b]/60 shadow-2xl",
+    pill: "bg-blue-500/15 text-blue-300 border border-blue-500/25",
+    storyRing: "border-[#0057ff]",
+  },
+  // ── NEW: Vibrant Colorful ───────────────────────────────────────────────
+  colorful: {
+    wrap: "bg-gradient-to-b from-pink-50 via-orange-50 to-rose-50",
+    sidebar: "bg-white border-pink-200",
+    chat: "bg-gradient-to-br from-pink-50 via-orange-50 to-amber-50",
+    topbar: "bg-gradient-to-r from-pink-100/95 to-orange-100/95 backdrop-blur-2xl border-pink-300/50",
+    input: "bg-white/92 backdrop-blur-xl border-pink-200",
+    nav: "bg-white border-pink-200",
+    bubbleSent: "bg-gradient-to-br from-[#f7549f] to-[#ff8c42] text-white shadow-[4px_4px_14px_rgba(247,84,159,0.32)]",
+    bubbleRecv: "bg-white text-[#2d1b4e] border border-pink-100 shadow-[0_2px_12px_rgba(247,84,159,0.10)]",
+    text1: "text-[#2d1b4e]",
+    text2: "text-pink-500",
+    text3: "text-pink-400",
+    accent: "bg-[#f7549f]",
+    accentText: "text-[#f7549f]",
+    icon: "🌈",
+    label: "Colorful",
+    divider: "border-pink-200",
+    searchBg: "bg-pink-50 border-pink-200 text-[#2d1b4e] placeholder:text-pink-300",
+    msgMenuBg: "bg-white border-pink-200 shadow-xl",
+    pill: "bg-pink-100 text-pink-600 border border-pink-200",
+    storyRing: "border-pink-500",
   },
 };
 
@@ -706,6 +752,40 @@ const StoryViewCount = ({ storyId }: { storyId: string }) => {
   );
 };
 
+// ── Emoji keyboard categories (module-level for perf) ─────────────────────────
+const EMOJI_TAB_CATEGORIES: Record<string, string[]> = {
+  "😀": ["😀","😁","😂","🤣","😃","😄","😅","😆","😉","😊","😇","🥰","😍","🤩","😘","😗","😚","😙","🥲","😋","😛","😜","🤪","😝","🤑","🤗","🤭","🤫","🤔","🤐","🤨","😐","😑","😶","😏","😒","🙄","😬","🤥","😌","😔","😪","🤤","😴","😷","🤒","🤕","🤢","🤮","🤧","🥵","🥶","🥴","😵","🤯","🤠","🥳","🥸","😎","🤓","🧐","😕","😟","🙁","☹️","😮","😯","😲","😳","🥺","😦","😧","😨","😰","😥","😢","😭","😱","😖","😣","😞","😓","😩","😫","🥱","😤","😡","😠","🤬","💀","👿"],
+  "👍": ["👋","🤚","🖐","✋","🖖","👌","🤌","🤏","✌️","🤞","🤟","🤘","🤙","👈","👉","👆","🖕","👇","☝️","👍","👎","✊","👊","🤛","🤜","👏","🙌","🫶","👐","🤲","🤝","🙏","✍️","💅","🤳","💪","🦾","🧠","👀","👅","👄","💋","🫦","💏","💑","👫","👬","👭","🚶","🧍","🧎","🧑","👦","👧","🧒","👶","🧓","👴","👵","🧕","💂","🕵️","👩‍⚕️","👨‍🍳","👩‍🎤","👨‍🚀","🧙","🧜","🧚","🦸","🦹"],
+  "❤️": ["❤️","🧡","💛","💚","💙","💜","🖤","🤍","🤎","❤️‍🔥","❤️‍🩹","💔","💕","💞","💓","💗","💖","💘","💝","💟","☮️","✝️","☯️","💌","💋","🌹","🌷","💐","🌸","🌺","🌻","🌼","🎀","🎁","🎊","🎉","✨","💫","⭐","🌟","🌈","🥂","💃","🕺","🎶","🎵","🎀","🎊","🥰","😘","💏","💑","🤗","🤩"],
+  "🎉": ["🔥","💯","✅","❌","❓","❗","💢","💥","💦","💨","🎮","🕹","🎯","🎲","🎭","🎨","🎬","🎤","🎧","🎵","🎶","🎸","🥁","🎹","🎺","🎻","🪗","🎷","🏆","🥇","🥈","🥉","🏅","🎖","🚀","🛸","⚡","🌊","🌋","🌌","🍕","🍔","🍣","🎂","🍰","🧁","🍭","🍪","🍩","🍫","☕","🧋","🥂","🎪","🤹","🎠","🎡","🎢","🎰","🔮","🎱","💊","⚔️","🛡","🪄","🧨","🎇","🎆","🎑","🧧","🎐","🎏","🪅","🃏","🀄"],
+  "🐶": ["🐶","🐱","🐭","🐹","🐰","🦊","🐻","🐼","🐨","🐯","🦁","🐮","🐷","🐸","🐵","🙈","🙉","🙊","🐔","🐧","🐦","🦅","🦆","🦉","🦋","🐝","🐛","🐌","🐞","🐜","🐢","🐍","🦎","🐙","🦑","🐡","🐠","🐟","🐬","🐳","🦈","🐅","🦝","🦦","🦥","🐿","🦔","🌵","🎄","🌲","🌳","🌴","🍃","🍂","🍁","🍄","🌸","🌺","🌻","🌹","🌷","💐","🌱","🌊","🔥","⚡","🌈","☁️","❄️","🌪","🌀","🌙","☀️","🌤","⛅","🌧","⛈","🌩","🌨"],
+};
+
+const STICKER_PACK = [
+  { emoji: "👋", label: "Wave",   bg: "linear-gradient(135deg,#FFD700,#FF8C00)" },
+  { emoji: "❤️", label: "Love",   bg: "linear-gradient(135deg,#FF4081,#FF80AB)" },
+  { emoji: "😂", label: "LOL",    bg: "linear-gradient(135deg,#FFC107,#FF9800)" },
+  { emoji: "🔥", label: "Fire",   bg: "linear-gradient(135deg,#FF5722,#F44336)" },
+  { emoji: "💯", label: "100%",   bg: "linear-gradient(135deg,#E91E63,#9C27B0)" },
+  { emoji: "👏", label: "Clap",   bg: "linear-gradient(135deg,#9C27B0,#673AB7)" },
+  { emoji: "🎉", label: "Party",  bg: "linear-gradient(135deg,#2196F3,#00BCD4)" },
+  { emoji: "😭", label: "Cry",    bg: "linear-gradient(135deg,#03A9F4,#2196F3)" },
+  { emoji: "🤣", label: "Dead",   bg: "linear-gradient(135deg,#FF9800,#FFC107)" },
+  { emoji: "💀", label: "RIP",    bg: "linear-gradient(135deg,#607D8B,#455A64)" },
+  { emoji: "🥺", label: "Plz",    bg: "linear-gradient(135deg,#9C27B0,#E91E63)" },
+  { emoji: "😍", label: "Wow",    bg: "linear-gradient(135deg,#E91E63,#FF4081)" },
+  { emoji: "🚀", label: "Go!",    bg: "linear-gradient(135deg,#3F51B5,#9C27B0)" },
+  { emoji: "🌟", label: "Star",   bg: "linear-gradient(135deg,#FF9800,#FFC107)" },
+  { emoji: "🎮", label: "Game",   bg: "linear-gradient(135deg,#673AB7,#3F51B5)" },
+  { emoji: "🤝", label: "Deal",   bg: "linear-gradient(135deg,#4CAF50,#00BCD4)" },
+  { emoji: "😎", label: "Cool",   bg: "linear-gradient(135deg,#00BCD4,#3F51B5)" },
+  { emoji: "🫶", label: "Luv",    bg: "linear-gradient(135deg,#FF4081,#E91E63)" },
+  { emoji: "🎵", label: "Music",  bg: "linear-gradient(135deg,#9C27B0,#E91E63)" },
+  { emoji: "💪", label: "Strong", bg: "linear-gradient(135deg,#FF5722,#FF9800)" },
+  { emoji: "🧿", label: "Evil",   bg: "linear-gradient(135deg,#1565C0,#0288D1)" },
+  { emoji: "🌈", label: "Vibe",   bg: "linear-gradient(135deg,#FF5722,#FF9800,#FFC107,#4CAF50,#2196F3,#9C27B0)" },
+];
+
 // ── Main Component ─────────────────────────────────────────────────────────────
 const ChatSystem: React.FC<ChatSystemProps> = ({
   isOpen,
@@ -831,9 +911,8 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   // ── Persisted state ───────────────────────────────────────────────────────
   const [theme, setTheme] = useState<Theme>(() => {
     const s = localStorage.getItem("cx_theme") as Theme;
-    return s === "whatsapp" || s === "water" || s === "nature" || s === "velvet"
-      ? s
-      : "whatsapp";
+    const valid: Theme[] = ["whatsapp", "water", "nature", "velvet", "glass", "colorful"];
+    return valid.includes(s) ? s : "glass";
   });
   const [activeStatus, setActiveStatus] = useState(
     () => localStorage.getItem("cx_active_status") !== "false",
@@ -915,6 +994,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   } | null>(null);
   const [showEmojiGrid, setShowEmojiGrid] = useState(false);
   const [showInputEmoji, setShowInputEmoji] = useState(false);
+  const [emojiTab, setEmojiTab] = useState("😀");
   const smokeIdRef = useRef(0);
   const blastIdRef = useRef(0);
 
@@ -2787,37 +2867,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     return <span className="text-[10px] text-white/40 ml-1">Delivered</span>;
   };
 
-  // ── Emoji list for input picker ────────────────────────────────────────────
-  const INPUT_EMOJIS = [
-    "❤️",
-    "🔥",
-    "😂",
-    "😍",
-    "🥰",
-    "😭",
-    "🤣",
-    "💀",
-    "✨",
-    "🎉",
-    "😊",
-    "🥺",
-    "😤",
-    "💯",
-    "🖕",
-    "🌹",
-    "💕",
-    "🤯",
-    "😏",
-    "🫶",
-    "💪",
-    "🙏",
-    "😈",
-    "🤩",
-    "👀",
-    "🫠",
-    "💔",
-    "🥹",
-  ];
+  // (emoji categories defined at module level — EMOJI_TAB_CATEGORIES, STICKER_PACK)
 
   const visibleContacts = contacts.filter((c) => !archivedChats.has(c.id));
   const archivedContactsList = contacts.filter((c) => archivedChats.has(c.id));
@@ -4563,7 +4613,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                 </div>
                               ) : (
                                 <>
-                                  <p className="text-lg font-bold leading-snug break-words">
+                                  <p className="text-[15px] font-normal leading-[1.45] break-words">
                                     {msg.content}
                                   </p>
                                   {msg.is_edited && (
@@ -4629,7 +4679,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                     )}
                   </AnimatePresence>
 
-                  {/* Emoji grid (input picker) */}
+                  {/* ── Emoji / Sticker Keyboard ────────────────────────── */}
                   <AnimatePresence>
                     {showInputEmoji && (
                       <motion.div
@@ -4638,17 +4688,74 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                         exit={{ height: 0, opacity: 0 }}
                         className={`border-b ${T.divider} overflow-hidden`}
                       >
-                        <div className="p-3 grid grid-cols-7 gap-1.5">
-                          {INPUT_EMOJIS.map((em) => (
+                        {/* Tab bar */}
+                        <div className={`flex gap-0.5 px-2 pt-2 pb-0 border-b ${T.divider}`}>
+                          {Object.keys(EMOJI_TAB_CATEGORIES).map((tab) => (
                             <button
-                              key={em}
-                              onClick={() => setNewMessage((prev) => prev + em)}
-                              className="w-9 h-9 rounded-xl text-xl flex items-center justify-center hover:bg-white/10 active:scale-90 transition-all"
+                              key={tab}
+                              onClick={() => setEmojiTab(tab)}
+                              className={`flex-1 py-2 text-lg rounded-t-xl transition-all ${
+                                emojiTab === tab
+                                  ? "bg-white/15 border-b-2 border-blue-400 opacity-100"
+                                  : "opacity-35 hover:opacity-60"
+                              }`}
                             >
-                              {em}
+                              {tab}
                             </button>
                           ))}
+                          {/* Stickers tab */}
+                          <button
+                            onClick={() => setEmojiTab("stickers")}
+                            className={`flex-1 py-2 text-lg rounded-t-xl transition-all ${
+                              emojiTab === "stickers"
+                                ? "bg-white/15 border-b-2 border-pink-400 opacity-100"
+                                : "opacity-35 hover:opacity-60"
+                            }`}
+                          >
+                            🎭
+                          </button>
                         </div>
+
+                        {/* Content */}
+                        {emojiTab === "stickers" ? (
+                          /* Sticker grid */
+                          <div
+                            className="p-2.5 grid grid-cols-4 gap-2 overflow-y-auto [&::-webkit-scrollbar]:hidden"
+                            style={{ maxHeight: 196, scrollbarWidth: "none" }}
+                          >
+                            {STICKER_PACK.map((s, i) => (
+                              <motion.button
+                                key={i}
+                                whileTap={{ scale: 0.82 }}
+                                onClick={() => {
+                                  sendMessage(s.emoji);
+                                  setShowInputEmoji(false);
+                                }}
+                                className="flex flex-col items-center justify-center rounded-2xl p-2 gap-0.5 shadow-md"
+                                style={{ background: s.bg, aspectRatio: "1" }}
+                              >
+                                <span className="text-3xl leading-none select-none">{s.emoji}</span>
+                                <span className="text-[8px] font-black text-white/90 uppercase tracking-wide">{s.label}</span>
+                              </motion.button>
+                            ))}
+                          </div>
+                        ) : (
+                          /* Emoji grid */
+                          <div
+                            className="p-2 grid grid-cols-8 gap-0.5 overflow-y-auto [&::-webkit-scrollbar]:hidden"
+                            style={{ maxHeight: 196, scrollbarWidth: "none" }}
+                          >
+                            {(EMOJI_TAB_CATEGORIES[emojiTab] ?? []).map((em, i) => (
+                              <button
+                                key={`${em}-${i}`}
+                                onClick={() => setNewMessage((prev) => prev + em)}
+                                className="w-10 h-10 text-2xl flex items-center justify-center hover:bg-white/10 active:scale-90 transition-all rounded-xl"
+                              >
+                                {em}
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </motion.div>
                     )}
                   </AnimatePresence>
@@ -5250,19 +5357,24 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                       >
                         Chat Theme
                       </p>
-                      <div className="flex gap-3">
+                      <div className="grid grid-cols-3 gap-2">
                         {(
-                          ["whatsapp", "water", "nature", "velvet"] as Theme[]
+                          ["glass", "colorful", "whatsapp", "water", "nature", "velvet"] as Theme[]
                         ).map((t) => (
                           <button
                             key={t}
                             onClick={() => setTheme(t)}
-                            className={`flex-1 py-3 rounded-2xl border-2 transition-all font-black text-xs ${theme === t ? `border-blue-500 bg-blue-500/10 ${T.text1}` : `border-transparent bg-white/5 ${T.text3}`}`}
+                            className={`flex flex-col items-center py-3 px-1 rounded-2xl border-2 transition-all font-black text-xs ${
+                              theme === t
+                                ? `border-blue-500 bg-blue-500/10 ${T.text1}`
+                                : `border-transparent bg-white/5 ${T.text3}`
+                            }`}
                           >
-                            <div className="text-xl mb-1">
-                              {THEME_CFG[t].icon}
-                            </div>
-                            {THEME_CFG[t].label}
+                            <div className="text-2xl mb-1">{THEME_CFG[t].icon}</div>
+                            <span>{THEME_CFG[t].label}</span>
+                            {t === "glass" && (
+                              <span className="text-[8px] text-blue-400 font-black mt-0.5 uppercase tracking-wider">Default</span>
+                            )}
                           </button>
                         ))}
                       </div>
