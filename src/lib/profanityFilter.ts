@@ -1,27 +1,54 @@
 // ═══════════════════════════════════════════════════════════════════════════
-//  FLICKS INDIA — MULTILINGUAL PROFANITY FILTER ENGINE
+//  FLICKS INDIA — MULTILINGUAL PROFANITY FILTER ENGINE  (v2 — smart edition)
+//
+//  Key principles:
+//  • Whole-word matching only — never censor inside legitimate words
+//  • Explicit whitelist — news/Hindi words are NEVER censored
+//  • Leet-speak detection applies only to known leet variants, not to
+//    space-stripped arbitrary text (which caused cross-word false positives)
+//  • Ambiguous short words removed from block-lists
 // ═══════════════════════════════════════════════════════════════════════════
 
-// ── Leet-speak / obfuscation normalization map ─────────────────────────────
-const LEET_MAP: Record<string, string> = {
-  "@": "a", "4": "a", "^": "a",
-  "8": "b",
-  "<": "c", "(": "c",
-  "3": "e",
-  "6": "g", "9": "g",
-  "1": "i", "!": "i", "|": "i",
-  "0": "o",
-  "$": "s", "5": "s",
-  "7": "t", "+": "t",
-  "v": "u", "\\/": "u",
-  "%": "x",
-  "2": "z",
-};
+// ── Explicit Whitelist — NEVER censor these ───────────────────────────────
+// Add any word here that was being falsely flagged.
+const WHITELIST = new Set([
+  // News / journalism
+  "news", "badi", "khabar", "breaking", "update", "report", "headline",
+  "latest", "saamne", "rahi", "aayi", "aaya", "aa", "raha", "hai",
+  "india", "desh", "rajya", "sarkar", "netaji",
+  // Common Hindi / Hinglish words often mistaken
+  "saala", "sala", "saali", "sali",   // brother/sister-in-law
+  "baal", "baalon",                    // hair
+  "kutta", "kutte", "kutiya",          // dog (common noun)
+  "kutti",                             // puppy / small dog
+  "moot",                              // English legal term
+  "dalal",                             // broker / agent
+  "dalla",                             // agent
+  "bur",                               // too short, multi-meaning
+  "tatti",                             // common slang but too ambiguous
+  "arse",                              // British English mild
+  "damn", "damm",                      // mild
+  "anal",  "penis", "vagina",          // medical terms
+  "cum",                               // conflicts with "come"
+  "boobs", "boobies",                  // too ambiguous for social context
+  "cock",                              // rooster; too many false positives
+  "dick",                              // common proper noun / name
+  "ass",                               // donkey; too many false positives
+  // Urdu / Hindi verbs / nouns commonly hit
+  "chodo", "chhodo",                   // "leave it / let go" — imperative
+  "maar", "maarke",                    // "beat/hit" — common usage
+  "pissa", "pisab", "pesab",           // urine — medical
+]);
 
-function normalizeLeet(text: string): string {
-  return text
+// ── Helper: check if a word is whitelisted ────────────────────────────────
+function isWhitelisted(word: string): boolean {
+  return WHITELIST.has(word.toLowerCase().trim());
+}
+
+// ── Leet-speak normalization (used ONLY on isolated tokens, not full text) ──
+function normalizeLeetToken(token: string): string {
+  return token
     .toLowerCase()
-    .replace(/[\s\.\-_]+/g, "")
     .replace(/@/g, "a")
     .replace(/4/g, "a")
     .replace(/3/g, "e")
@@ -31,8 +58,8 @@ function normalizeLeet(text: string): string {
     .replace(/7/g, "t")
     .replace(/\$/g, "s")
     .replace(/\+/g, "t")
-    .replace(/\!/g, "i")
-    .replace(/\%/g, "x")
+    .replace(/!/g, "i")
+    .replace(/%/g, "x")
     .replace(/8/g, "b")
     .replace(/6/g, "g")
     .replace(/9/g, "g")
@@ -42,106 +69,92 @@ function normalizeLeet(text: string): string {
     .replace(/\^/g, "a");
 }
 
-// ── Word lists ────────────────────────────────────────────────────────────
+// ── Word lists — only include words where there's NO common legitimate use ──
+
 const ENGLISH_PROFANITY = [
   "fuck", "fucking", "fucker", "fucked", "fuk", "fck", "fuking",
   "shit", "shitting", "shitted", "sh1t", "sht",
   "bitch", "b1tch", "bich", "beetch",
-  "asshole", "ashole", "a$$hole", "a hole",
+  "asshole", "ashole",
   "bastard", "bstrd",
-  "damn", "damm",
   "cunt", "cnt",
-  "dick", "d1ck", "dik", "dickhead",
+  "dik", "dikhead", "dickhead",
   "pussy", "pussies", "pusy",
-  "cock", "c0ck", "kok",
+  "c0ck", "kok",
   "slut", "slutt",
   "whore", "hore",
   "retard", "rtard",
   "nigger", "nigga", "n1gga", "n1gger",
   "chink", "ch1nk",
-  "raghead", "rag head",
+  "raghead",
   "beaner",
   "wetback",
   "tranny", "trannies",
-  "dyke", "dike",
+  "dyke",
   "fag", "faggot", "fagot",
   "motherfucker", "mothafucka", "mthrfckr",
-  "cum", "cumming", "jizz", "sperm",
+  "jizz", "sperm",
   "tits", "titty", "titties",
-  "boobs", "boobies", "b00bs",
-  "penis", "peenis", "vagina", "vag1na",
-  "anus", "anal", "arse",
   "bollocks", "wanker", "twat",
 ];
 
 const HINDI_HINGLISH_PROFANITY = [
-  // Core expletives
-  "madarchod", "madarchhod", "madharchhod", "madharchod", "madar", "madrchod",
+  // Core expletives only — no ambiguous short words
+  "madarchod", "madarchhod", "madharchhod", "madharchod", "madrchod",
   "bahanchod", "bahanchhod", "behenchod", "behenchhod", "bhenchod", "bhenchhod",
-  "betichod", "betichhod", "beti chod", "beti chhod",
-  "chut", "choot", "chutiya", "chutiyapa", "chutiy",
-  "bhosda", "bhosdi", "bhosda wala", "bhosdi wala", "bhosdike", "bhosdi ke",
-  "gand", "gandu", "gandoo", "gandoo", "gand mar", "gand mara",
-  "lund", "land", "lund khajao", "lund chus",
+  "betichod", "betichhod",
+  "chutiya", "chutiyapa", "chutiy",
+  "bhosda", "bhosdi", "bhosdike",
+  "gandu", "gandoo",
+  "lund", "lund khajao", "lund chus",
   "loda", "laude", "lauda",
-  "bur", "boor", "bhoor",
   "chuchi", "chuchiya", "choochi",
   "randi", "r@ndi", "randiya", "randva",
-  "kutiya", "kutti", "kutte", "kutta",
   "harami", "haramzada", "haramkhor",
-  "suar", "suar ke",
-  "gaand", "gaandu", "gaand mara",
-  "teri maa", "teri maa ka", "maa ka", "maa ki", "maa ka bhosda",
-  "teri bahan", "teri bahin", "bahan ka", "behen ka",
+  "suar",
+  "gaand", "gaandu",
+  "teri maa ki", "maa ka bhosda",
+  "teri bahan", "teri bahin",
   "bhadwa", "bhadwe", "bhadva", "bhadve",
   "chakka", "chhakka",
   "hijda", "hijde", "hijra",
   "kamina", "kamine",
   "jhand", "jhaant", "jhaat",
-  "tatte", "tatty", "tatti",
-  "pissa", "pisab", "pesab",
-  "saala", "saali", "sala", "sali",
-  "chod", "chhod", "chodu",
-  "nalayak", "nalayak ke",
-  "jhant", "jhant ke",
-  "moot", "mootna", "moot di",
-  "phuddi", "phuddi wala",
+  "tatte",
+  "phuddi",
   "teri gaand", "teri gand",
-  "fuddi", "fuddu",
+  "fuddi",
   "chinal", "chhinal",
-  "nachaniya", "nachaniya",
   "lanja", "lanje",
-  "dalla", "dalal",
+  "chod", "chhod", "chodu",
+  "nalayak",
+  "jhant",
+  "mootna",
+  "fuddu",
 ];
 
 const BENGALI_PROFANITY = [
-  "boka", "bokachoda", "bokachoda", "bokachoda",
-  "magir", "magi", "magir put",
-  "shala", "shali",
-  "choda", "chudi", "chude",
-  "gud", "gud mara",
-  "boro bokachoda",
+  "bokachoda",
+  "magir put",
+  "chuda", "chudi", "chude",
   "khanki", "khankir put",
-  "baal", "baal choda",
-  "pacha", "pachar bata",
-  "voda", "voda mara",
-  "chodon", "chodon khor",
+  "baal choda",
+  "voda mara",
+  "chodon khor",
 ];
 
 const GUJARATI_PROFANITY = [
-  "bhosdo", "bhosdi",
+  "bhosdo",
   "chodo", "chodi",
-  "gando", "gandi", "gandno",
   "lodo", "lodi",
   "bhosdi no",
   "bhen no",
-  "ma no",
   "chutiya no",
   "randi no",
   "harami no",
 ];
 
-// Combine all
+// Combine all blocked words
 const ALL_WORDS = [
   ...ENGLISH_PROFANITY,
   ...HINDI_HINGLISH_PROFANITY,
@@ -149,89 +162,96 @@ const ALL_WORDS = [
   ...GUJARATI_PROFANITY,
 ];
 
-// Build regex patterns
-// We try exact word boundary first, then allow common obfuscation gaps
-function buildRegex(word: string): RegExp {
+// ── Whole-word regex builder ───────────────────────────────────────────────
+// Uses \b word boundaries. For multi-word phrases, spaces become \s+.
+// This is used for containsProfanity (fast check).
+function buildWordBoundaryRegex(word: string): RegExp {
   try {
-    const escapedWord = word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const flexiblePattern = escapedWord.split("").map(char => `${char}[\\s._-]*`).join("");
-    return new RegExp(`\\b(${flexiblePattern})\\b`, "gi");
-  } catch (e) {
+    const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    // For phrases (with spaces), replace space with flexible whitespace
+    const pattern = escaped.replace(/\s+/g, "\\s+");
+    return new RegExp(`\\b${pattern}\\b`, "gi");
+  } catch {
     return new RegExp(`\\b${word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "gi");
   }
 }
 
-const COMPILED_PATTERNS: RegExp[] = ALL_WORDS.map(buildRegex);
+// ── Mask-safe regex builder ────────────────────────────────────────────────
+// Same as above but also handles light obfuscation (dots, dashes, underscores
+// between letters). Still uses \b so it never matches INSIDE a longer word.
+function buildMaskRegex(word: string): RegExp | null {
+  try {
+    const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    // Allow optional separators between chars to catch "f.u.c.k" etc.
+    const flexed = escaped.split("").map(c => {
+      if (c === " ") return "\\s+";
+      return `${c}[.\\-_]?`;
+    }).join("");
+    return new RegExp(`\\b${flexed}\\b`, "gi");
+  } catch {
+    return null;
+  }
+}
+
+// Pre-compile patterns for fast detection
+const DETECTION_PATTERNS: Array<[string, RegExp]> = ALL_WORDS.map(w => [w, buildWordBoundaryRegex(w)]);
 
 // ── Core API ──────────────────────────────────────────────────────────────
 
 /**
  * Check if text contains any profanity.
+ * Uses whole-word matching on original text + leet-normalized individual tokens.
+ * Never concatenates words across spaces (prevents cross-word false positives).
  */
 export function containsProfanity(text: string): boolean {
   if (!text) return false;
-  const normalized = normalizeLeet(text);
-  for (const re of COMPILED_PATTERNS) {
+
+  // Step 1: check original text with word-boundary regex
+  for (const [word, re] of DETECTION_PATTERNS) {
+    if (isWhitelisted(word)) continue;
     re.lastIndex = 0;
     if (re.test(text)) return true;
-    re.lastIndex = 0;
-    if (re.test(normalized)) return true;
   }
+
+  // Step 2: check each individual token after leet normalization
+  // (e.g. "fvck" → "fuck", "sh1t" → "shit")
+  // We normalize token-by-token, NOT the concatenated string.
+  const tokens = text.split(/\s+/);
+  for (const token of tokens) {
+    const normalized = normalizeLeetToken(token);
+    if (normalized === token.toLowerCase()) continue; // no leet, already checked above
+    if (isWhitelisted(normalized)) continue;
+    for (const [word, re] of DETECTION_PATTERNS) {
+      if (isWhitelisted(word)) continue;
+      re.lastIndex = 0;
+      if (re.test(normalized)) return true;
+    }
+  }
+
   return false;
 }
 
 /**
- * Mask every detected profane word with 🤬 repeated to match length.
- * Falls back to [Offensive Content 🚫] if the match is very long.
+ * Mask every detected profane word with 🤬 repeated to match word length.
+ * Respects word boundaries and the whitelist — never touches safe words.
  */
 export function maskProfanity(text: string): string {
   if (!text) return text;
   let result = text;
-  const normalized = normalizeLeet(text);
 
-  // ── Helper: safe regex builder (never throws) ──
-  function escapeCharForRegex(c: string): string {
-    if (c === " ") return "[\\s._-]*";
-    return c.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  }
-
-  function buildSafeRegex(word: string): RegExp | null {
-    try {
-      const spaced = word.replace(/\s+/g, "[\\s._-]*");
-      const loosePat = spaced
-        .split("")
-        .map((c) => {
-          if (/[aà-åāăąä]/.test(c)) return "[a@à-åāăąä]";
-          if (/[eè-ëēĕėęě]/.test(c)) return "[e3è-ëēĕėęě]";
-          if (/[iì-ïīĭįı]/.test(c)) return "[i1!ì-ïīĭįı]";
-          if (/[oò-öōŏő]/.test(c)) return "[o0ò-öōŏő]";
-          if (/[sśŝşš]/.test(c)) return "[s$5śŝşš]";
-          if (/[tţťŧ]/.test(c)) return "[t7+ţťŧ]";
-          if (/[uù-üũūŭůűų]/.test(c)) return "[uvù-üũūŭůűų]";
-          if (/[b]/.test(c)) return "[b8]";
-          if (/[g]/.test(c)) return "[g69]";
-          if (/[c]/.test(c)) return "[c<(]";
-          return escapeCharForRegex(c);
-        })
-        .join("[\\W_]*");
-      return new RegExp(loosePat, "gi");
-    } catch (err) {
-      console.error(`[ProfanityFilter] buildSafeRegex failed for "${word}":`, err);
-      return null;
-    }
-  }
-
-  // Track matches on original text via loose pattern
   for (const word of ALL_WORDS) {
-    const re = buildSafeRegex(word);
+    if (isWhitelisted(word)) continue;
+    const re = buildMaskRegex(word);
     if (!re) continue;
     result = result.replace(re, (match) => {
-      if (match.length <= 20) {
-        return "🤬".repeat(Math.max(1, match.length));
-      }
-      return "[Offensive Content 🚫]";
+      // Double-check: don't censor if the matched surface form is whitelisted
+      if (isWhitelisted(match)) return match;
+      return match.length <= 20
+        ? "🤬".repeat(Math.max(1, match.length))
+        : "[Offensive Content 🚫]";
     });
   }
+
   return result;
 }
 
