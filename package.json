@@ -10,8 +10,6 @@
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test": "vitest run",
-    "test:watch": "vitest",
     "news": "node scripts/autoPost.mjs",
     "sitemap": "node scripts/generateSitemap.mjs"
   },
@@ -101,12 +99,10 @@
     "eslint-plugin-react-refresh": "^0.4.26",
     "globals": "^15.15.0",
     "jsdom": "^20.0.3",
-    "lovable-tagger": "^1.1.13",
     "postcss": "^8.5.10",
     "tailwindcss": "^3.4.19",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.58.2",
-    "vite": "^5.4.21",
-    "vitest": "^3.2.4"
+    "vite": "^5.4.21"
   }
 }
