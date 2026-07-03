@@ -1109,6 +1109,9 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     count: number;
     timer: ReturnType<typeof setTimeout> | null;
   }>({ count: 0, timer: null });
+  const panicArmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [panicArming, setPanicArming] = useState(false);
+  const [panicConfirmArmed, setPanicConfirmArmed] = useState(false);
   const recognitionRef = useRef<any>(null);
   const voiceTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const voiceActiveRef = useRef(false);
@@ -3139,6 +3142,9 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                     />
                   ))}
                 </div>
+                <p className="mt-8 text-xs font-black uppercase tracking-widest text-gray-300">
+                  Tap your photo 3× to unlock
+                </p>
               </motion.div>
             )}
           </AnimatePresence>
@@ -4362,11 +4368,31 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                     <Search size={16} />
                   </button>
                   {/* Punch/boxing emoji blast removed per design overhaul */}
-                  {/* Panic toggle */}
+                  {/* Panic toggle — press & hold to arm, prevents accidental single-tap lockout */}
                   <button
-                    onClick={() => setPanicMode((p) => !p)}
-                    title="Panic Mode"
-                    className={`w-9 h-9 rounded-xl border flex items-center justify-center text-base transition-all hover:bg-white/20 ${panicMode ? "bg-red-500/30 border-red-400/40 animate-pulse" : `bg-white/5 ${T.divider}`}`}
+                    onClick={() => {
+                      // Single tap only ever turns panic mode OFF; turning it ON requires a hold.
+                      if (panicMode) setPanicMode(false);
+                    }}
+                    onPointerDown={() => {
+                      if (panicMode) return;
+                      setPanicArming(true);
+                      panicArmTimerRef.current = setTimeout(() => {
+                        setPanicArming(false);
+                        setPanicMode(true);
+                        try { navigator.vibrate?.(30); } catch {}
+                      }, 600);
+                    }}
+                    onPointerUp={() => {
+                      if (panicArmTimerRef.current) clearTimeout(panicArmTimerRef.current);
+                      setPanicArming(false);
+                    }}
+                    onPointerLeave={() => {
+                      if (panicArmTimerRef.current) clearTimeout(panicArmTimerRef.current);
+                      setPanicArming(false);
+                    }}
+                    title="Hold to activate Panic Mode"
+                    className={`w-9 h-9 rounded-xl border flex items-center justify-center text-base transition-all hover:bg-white/20 select-none ${panicMode ? "bg-red-500/30 border-red-400/40 animate-pulse" : panicArming ? "bg-red-500/40 border-red-400/60 scale-90" : `bg-white/5 ${T.divider}`}`}
                   >
                     🔴
                   </button>
@@ -4418,12 +4444,18 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                           </button>
                           <button
                             onClick={() => {
+                              if (!panicConfirmArmed) {
+                                setPanicConfirmArmed(true);
+                                setTimeout(() => setPanicConfirmArmed(false), 2500);
+                                return;
+                              }
+                              setPanicConfirmArmed(false);
                               setPanicMode(true);
                               setShowChatMenu(false);
                             }}
-                            className="flex items-center gap-2 w-full px-4 py-3 text-sm font-bold text-red-400 hover:bg-red-500/10"
+                            className={`flex items-center gap-2 w-full px-4 py-3 text-sm font-bold hover:bg-red-500/10 ${panicConfirmArmed ? "text-red-300 bg-red-500/10" : "text-red-400"}`}
                           >
-                            🖕 Panic Mode
+                            🖕 {panicConfirmArmed ? "Tap again to confirm" : "Panic Mode"}
                           </button>
                         </motion.div>
                       )}
