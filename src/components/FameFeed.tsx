@@ -17,6 +17,7 @@ import { sharePost } from "../lib/sharePost";
 import { RichCaption } from "./RichCaption";
 import AutoPlayMutedVideo from "./AutoPlayMutedVideo";
 import { maskProfanity, sanitizeText } from "../lib/profanityFilter";
+import { resolveMediaUrl } from "../lib/mediaUrl";
 import {
   Send,
   Heart,
@@ -526,6 +527,36 @@ const FLICK_GRADS = [
 ];
 
 // ── Latest Surveys Widget ──────────────────────────────────────────────────────
+// ── Survey image with built-in fallback & URL sanitisation ────────────────────
+const SurveyThumb = ({ rawUrl, question }: { rawUrl: string | null; question: string }) => {
+  const [errored, setErrored] = useState(false);
+  // Trim the URL and resolve via the shared helper (handles Supabase paths + absolute URLs)
+  const resolved = rawUrl?.trim() ? resolveMediaUrl(rawUrl.trim(), "posts") : null;
+  const showImg  = resolved && !errored && resolved !== "/placeholder-avatar.png";
+
+  return (
+    /* Fixed-height container — layout NEVER shifts while loading */
+    <div className="w-full aspect-video rounded-lg overflow-hidden bg-gradient-to-br from-indigo-950 via-purple-950 to-slate-900 relative">
+      {showImg ? (
+        <img
+          src={resolved}
+          alt={question}
+          loading="lazy"
+          decoding="async"
+          className="w-full h-full object-cover rounded-lg"
+          onError={() => setErrored(true)}
+        />
+      ) : (
+        /* Fallback — pretty gradient tile with emoji */
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 select-none">
+          <span className="text-4xl">🗳️</span>
+          <span className="text-white/30 text-[10px] font-bold uppercase tracking-widest">Survey</span>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const LatestSurveysWidget = ({
   currentUserId,
   onNavigateToSurveys,
@@ -534,7 +565,7 @@ const LatestSurveysWidget = ({
   onNavigateToSurveys?: () => void;
 }) => {
   const [surveys, setSurveys] = useState<any[]>([]);
-  const [loaded, setLoaded] = useState(false);
+  const [loaded, setLoaded]   = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -552,54 +583,63 @@ const LatestSurveysWidget = ({
   if (!loaded || surveys.length === 0) return null;
 
   return (
-    <div className="pt-3 pb-1 border-b border-white/5" style={{ background: "#0F172A" }}>
-      <div className="flex items-center justify-between px-4 mb-2">
+    <div className="pt-3 pb-2 border-b border-white/5" style={{ background: "#0F172A" }}>
+      {/* Section header */}
+      <div className="flex items-center justify-between px-4 mb-3">
         <p className="text-[13px] font-black text-white/70 tracking-wide">🗳️ Latest Surveys</p>
         {onNavigateToSurveys && (
-          <button onClick={onNavigateToSurveys}
-            className="text-[11px] font-bold text-indigo-400/70 hover:text-indigo-400">
+          <button
+            onClick={onNavigateToSurveys}
+            className="text-[11px] font-bold text-indigo-400/70 hover:text-indigo-400 transition-colors">
             See all →
           </button>
         )}
       </div>
-      <div className="space-y-2 px-4">
-        {surveys.map((survey) => (
-          <motion.div key={survey.id}
-            initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
-            className="flex items-center gap-3 p-2.5 rounded-2xl overflow-hidden"
-            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}>
-            {/* Thumbnail */}
-            <div className="w-14 h-14 rounded-xl shrink-0 overflow-hidden bg-gradient-to-br from-indigo-900 to-purple-900 flex items-center justify-center">
-              {survey.image_url
-                ? <img src={survey.image_url} alt="" className="w-full h-full object-cover" loading="lazy" />
-                : <span className="text-2xl">🗳️</span>
-              }
-            </div>
-            {/* Question */}
-            <div className="flex-1 min-w-0">
-              <p className="text-white text-[12px] font-bold leading-snug line-clamp-2">{survey.question}</p>
-            </div>
-            {/* Buttons */}
-            <div className="flex flex-col gap-1.5 shrink-0">
-              <motion.button
-                whileTap={{ scale: 0.9 }}
-                onClick={onNavigateToSurveys}
-                className="px-2.5 py-1 rounded-lg text-[10px] font-black text-white"
-                style={{ background: "linear-gradient(135deg,#6366f1,#8b5cf6)" }}>
-                Vote
-              </motion.button>
-              <motion.button
-                whileTap={{ scale: 0.9 }}
-                onClick={onNavigateToSurveys}
-                className="relative px-2.5 py-1 rounded-lg text-[10px] font-black overflow-hidden"
-                style={{ background: "rgba(236,72,153,0.15)", border: "1px solid rgba(236,72,153,0.4)", color: "#ec4899" }}>
-                <motion.span
-                  className="absolute inset-0 rounded-lg pointer-events-none"
-                  animate={{ boxShadow: ["0 0 0px rgba(236,72,153,0)", "0 0 8px rgba(236,72,153,0.6)", "0 0 0px rgba(236,72,153,0)"] }}
-                  transition={{ repeat: Infinity, duration: 1.8, ease: "easeInOut" }}
-                />
-                ⚔️ Debate
-              </motion.button>
+
+      {/* Cards — horizontal scroll on mobile, single column on md+ */}
+      <div className="flex gap-3 overflow-x-auto px-4 pb-2 no-scrollbar sm:flex-col sm:overflow-x-visible sm:gap-2">
+        {surveys.map((survey, idx) => (
+          <motion.div
+            key={survey.id}
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: idx * 0.07 }}
+            onClick={onNavigateToSurveys}
+            className="flex-shrink-0 w-56 sm:w-full rounded-2xl overflow-hidden cursor-pointer active:scale-[0.98] transition-transform"
+            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+
+            {/* ── Image banner (full-width, fixed aspect-ratio, object-cover) ── */}
+            <SurveyThumb rawUrl={survey.image_url} question={survey.question} />
+
+            {/* ── Card body ── */}
+            <div className="px-3 py-2.5">
+              <p className="text-white text-[12px] font-bold leading-snug line-clamp-2 mb-2.5">
+                {survey.question}
+              </p>
+              <div className="flex items-center gap-2">
+                {/* Vote button */}
+                <motion.button
+                  whileTap={{ scale: 0.9 }}
+                  onClick={e => { e.stopPropagation(); onNavigateToSurveys?.(); }}
+                  className="flex-1 py-1.5 rounded-lg text-[11px] font-black text-white"
+                  style={{ background: "linear-gradient(135deg,#6366f1,#8b5cf6)" }}>
+                  Vote
+                </motion.button>
+
+                {/* Debate button with glow pulse */}
+                <motion.button
+                  whileTap={{ scale: 0.9 }}
+                  onClick={e => { e.stopPropagation(); onNavigateToSurveys?.(); }}
+                  className="relative flex-1 py-1.5 rounded-lg text-[11px] font-black overflow-hidden"
+                  style={{ background: "rgba(236,72,153,0.15)", border: "1px solid rgba(236,72,153,0.4)", color: "#ec4899" }}>
+                  <motion.span
+                    className="absolute inset-0 rounded-lg pointer-events-none"
+                    animate={{ boxShadow: ["0 0 0px rgba(236,72,153,0)", "0 0 10px rgba(236,72,153,0.6)", "0 0 0px rgba(236,72,153,0)"] }}
+                    transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
+                  />
+                  ⚔️ Debate
+                </motion.button>
+              </div>
             </div>
           </motion.div>
         ))}
