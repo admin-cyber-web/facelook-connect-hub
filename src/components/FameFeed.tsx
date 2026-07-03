@@ -531,7 +531,8 @@ const FLICK_GRADS = [
 const SurveyThumb = ({ rawUrl, question }: { rawUrl: string | null; question: string }) => {
   const [errored, setErrored] = useState(false);
   // Trim the URL and resolve via the shared helper (handles Supabase paths + absolute URLs)
-  const resolved = rawUrl?.trim() ? resolveMediaUrl(rawUrl.trim(), "posts") : null;
+  // surveys bucket: https://rxwvvhvretostbiknuek.supabase.co/storage/v1/object/public/surveys/<filename>
+  const resolved = rawUrl?.trim() ? resolveMediaUrl(rawUrl.trim(), "surveys") : null;
   const showImg  = resolved && !errored && resolved !== "/placeholder-avatar.png";
 
   return (
