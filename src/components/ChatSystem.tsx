@@ -497,6 +497,85 @@ const MediaBubble = React.memo(
 );
 
 MediaBubble.displayName = "MediaBubble";
+
+// ── Smart Keyword Sticker System ────────────────────────────────────────────
+type StickerKey =
+  | "good_morning"
+  | "good_night"
+  | "good_evening"
+  | "i_love_u"
+  | "i_hate_u"
+  | "miss_u"
+  | "love"
+  | "kiss"
+  | "call_kro"
+  | "yaad_nhi_karte";
+
+const STICKER_DEFS: Record<
+  StickerKey,
+  { emoji: string; label: string; gradient: string }
+> = {
+  good_morning: { emoji: "☀️", label: "Good Morning!", gradient: "from-amber-300 via-orange-400 to-pink-400" },
+  good_night: { emoji: "🌙", label: "Good Night!", gradient: "from-indigo-600 via-purple-600 to-blue-900" },
+  good_evening: { emoji: "🌆", label: "Good Evening!", gradient: "from-orange-400 via-pink-500 to-purple-600" },
+  i_love_u: { emoji: "❤️", label: "I Love U", gradient: "from-rose-400 via-red-500 to-pink-600" },
+  i_hate_u: { emoji: "💢", label: "I Hate U", gradient: "from-slate-600 via-zinc-700 to-neutral-900" },
+  miss_u: { emoji: "🥺", label: "Miss U", gradient: "from-violet-400 via-fuchsia-500 to-purple-600" },
+  love: { emoji: "💖", label: "Love", gradient: "from-pink-400 via-rose-500 to-red-500" },
+  kiss: { emoji: "😘", label: "Kiss", gradient: "from-pink-300 via-rose-400 to-red-400" },
+  call_kro: { emoji: "📞", label: "Call Kro!", gradient: "from-emerald-400 via-teal-500 to-cyan-600" },
+  yaad_nhi_karte: { emoji: "😢", label: "Tum Yaad Nhi Karte", gradient: "from-blue-400 via-indigo-500 to-slate-600" },
+};
+
+// Ordered most-specific → least-specific so "i love u" wins over generic "love".
+const STICKER_MATCHERS: { key: StickerKey; test: RegExp }[] = [
+  { key: "good_morning", test: /good\s*morning/i },
+  { key: "good_night", test: /good\s*night/i },
+  { key: "good_evening", test: /good\s*evening/i },
+  { key: "i_love_u", test: /\bi\s*love\s*(u|you)\b/i },
+  { key: "i_hate_u", test: /\bi\s*hate\s*(u|you)\b/i },
+  { key: "yaad_nhi_karte", test: /tum\s*yaad\s*nh[ie]?\s*karte/i },
+  { key: "call_kro", test: /\bcall\s*kro\b/i },
+  { key: "miss_u", test: /\bmiss\s*(u|you)\b/i },
+  { key: "kiss", test: /\bkiss\b/i },
+  { key: "love", test: /^love$/i },
+];
+
+function detectSticker(content?: string): StickerKey | null {
+  if (!content) return null;
+  const normalized = content.trim().toLowerCase().replace(/\s+/g, " ");
+  if (!normalized) return null;
+  for (const { key, test } of STICKER_MATCHERS) {
+    if (test.test(normalized)) return key;
+  }
+  return null;
+}
+
+const StickerBubble = React.memo(({ stickerKey }: { stickerKey: StickerKey }) => {
+  const def = STICKER_DEFS[stickerKey];
+  return (
+    <motion.div
+      initial={{ scale: 0.3, opacity: 0, rotate: -8 }}
+      animate={{ scale: 1, opacity: 1, rotate: 0 }}
+      transition={{ type: "spring", stiffness: 260, damping: 16 }}
+      className={`relative flex flex-col items-center justify-center gap-1 px-6 py-4 rounded-3xl bg-gradient-to-br ${def.gradient} shadow-lg overflow-hidden min-w-[140px]`}
+    >
+      <motion.span
+        className="text-4xl drop-shadow-md"
+        animate={{ scale: [1, 1.15, 1] }}
+        transition={{ duration: 1.4, repeat: Infinity, ease: "easeInOut" }}
+      >
+        {def.emoji}
+      </motion.span>
+      <span className="text-white font-black text-[13px] tracking-wide drop-shadow-sm text-center">
+        {def.label}
+      </span>
+      <div className="absolute inset-0 bg-white/10 mix-blend-overlay pointer-events-none" />
+    </motion.div>
+  );
+});
+StickerBubble.displayName = "StickerBubble";
+
 // ── Smoke Particle ────────────────────────────────────────────────────────────
 const SmokeParticle = ({
   x,
@@ -4617,10 +4696,26 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                       </p>
                     </div>
                   ) : (
-                    filteredMessages.map((msg) => {
+                    (() => {
+                      let lastMineIdx = -1;
+                      let lastTheirIdx = -1;
+                      filteredMessages.forEach((m, i) => {
+                        if (String(m.sender_id || "").trim() === String(userId || "").trim()) {
+                          lastMineIdx = i;
+                        } else {
+                          lastTheirIdx = i;
+                        }
+                      });
+                      return filteredMessages.map((msg, msgIdx) => {
                       const isMine =
                         String(msg.sender_id || "").trim() ===
                         String(userId || "").trim();
+                      const isLastForSender = isMine
+                        ? msgIdx === lastMineIdx
+                        : msgIdx === lastTheirIdx;
+                      const stickerKey = detectSticker(
+                        !msg.media_url ? msg.content : undefined,
+                      );
                       const quotedMsg = msg.reply_to_id
                         ? messages.find((m) => m.id === msg.reply_to_id)
                         : null;
@@ -4684,19 +4779,27 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                             </svg>
                           </div>
 
-                          {/* ── Avatar outside bubble — received LEFT ── */}
+                          {/* ── Avatar outside bubble — received LEFT (only on their latest message) ── */}
                           {!isMine && (
-                            <div className="w-7 h-7 rounded-full shrink-0 overflow-hidden self-end ring-1 ring-black/10">
-                              {selectedUser?.avatar_url ? (
-                                <img
-                                  src={selectedUser.avatar_url}
-                                  className="w-full h-full object-cover"
-                                  decoding="async"
-                                />
-                              ) : (
-                                <div className={`w-full h-full flex items-center justify-center text-[11px] font-black ${T.accent} text-white`}>
-                                  {(selectedUser?.full_name || "?")[0]}
-                                </div>
+                            <div className="w-7 h-7 shrink-0 self-end">
+                              {isLastForSender && (
+                                <motion.div
+                                  layoutId="chat-avatar-theirs"
+                                  transition={{ type: "spring", stiffness: 500, damping: 35 }}
+                                  className="w-7 h-7 rounded-full overflow-hidden ring-1 ring-black/10"
+                                >
+                                  {selectedUser?.avatar_url ? (
+                                    <img
+                                      src={selectedUser.avatar_url}
+                                      className="w-full h-full object-cover"
+                                      decoding="async"
+                                    />
+                                  ) : (
+                                    <div className={`w-full h-full flex items-center justify-center text-[11px] font-black ${T.accent} text-white`}>
+                                      {(selectedUser?.full_name || "?")[0]}
+                                    </div>
+                                  )}
+                                </motion.div>
                               )}
                             </div>
                           )}
@@ -4796,17 +4899,23 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                               )}
                           </div>
 
-                          {/* ── Avatar outside bubble — sent RIGHT ── */}
+                          {/* ── Avatar outside bubble — sent RIGHT (only on my latest message) ── */}
                           {isMine && (
-                            <div className="w-7 h-7 rounded-full shrink-0 overflow-hidden self-end ring-1 ring-black/10">
-                              {myProfile?.avatar_url ? (
-                                <img
-                                  src={myProfile.avatar_url}
-                                  className="w-full h-full object-cover"
-                                  decoding="async"
-                                />
-                              ) : (
-                                <div className={`w-full h-full flex items-center justify-center text-[11px] font-black ${T.accent} text-white`}
+                            <div className="w-7 h-7 shrink-0 self-end">
+                              {isLastForSender && (
+                                <motion.div
+                                  layoutId="chat-avatar-mine"
+                                  transition={{ type: "spring", stiffness: 500, damping: 35 }}
+                                  className="w-7 h-7 rounded-full overflow-hidden ring-1 ring-black/10"
+                                >
+                                  {myProfile?.avatar_url ? (
+                                    <img
+                                      src={myProfile.avatar_url}
+                                      className="w-full h-full object-cover"
+                                      decoding="async"
+                                    />
+                                  ) : (
+                                    <div className={`w-full h-full flex items-center justify-center text-[11px] font-black ${T.accent} text-white`}
                                 >
                                   {(myProfile?.full_name || "Y")[0]}
                                 </div>
