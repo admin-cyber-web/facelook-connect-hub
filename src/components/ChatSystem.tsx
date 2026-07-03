@@ -55,7 +55,7 @@ import { toast } from "sonner";
 const CHAT_BUCKET = "chat-images";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
-type Theme = "whatsapp" | "water" | "nature" | "velvet" | "glass" | "colorful";
+type Theme = "whatsapp" | "water" | "nature" | "velvet" | "glass" | "colorful" | "outline";
 type BottomTab = "chat" | "story" | "alert" | "menu";
 type MenuPanel = "main" | "settings" | "archive" | "requests";
 
@@ -289,6 +289,29 @@ const THEME_CFG = {
     msgMenuBg: "bg-white border-pink-200 shadow-xl",
     pill: "bg-pink-100 text-pink-600 border border-pink-200",
     storyRing: "border-pink-500",
+  },
+  // ── NEW: Minimalist Outline (default) ───────────────────────────────────
+  outline: {
+    wrap: "bg-white",
+    sidebar: "bg-white border-black/[0.10]",
+    chat: "bg-[#f7f7f7]",
+    topbar: "bg-white border-black/[0.12]",
+    input: "bg-white border-black/[0.12]",
+    nav: "bg-white border-black/[0.10]",
+    bubbleSent: "bg-[#00C9A7] text-white",
+    bubbleRecv: "bg-white text-black border-2 border-black/80",
+    text1: "text-black",
+    text2: "text-black/70",
+    text3: "text-black/40",
+    accent: "bg-black",
+    accentText: "text-[#00C9A7]",
+    icon: "✏️",
+    label: "Outline",
+    divider: "border-black/[0.10]",
+    searchBg: "bg-white border-2 border-black/70 text-black placeholder:text-black/35",
+    msgMenuBg: "bg-white border-2 border-black/80",
+    pill: "bg-white text-black border-2 border-black/70",
+    storyRing: "border-black",
   },
 };
 
@@ -701,37 +724,38 @@ const _sgradFor = (id: string) => {
 const StoryCircle = ({
   story,
   onClick,
+  ringClass,
 }: {
   story: Story;
   onClick: () => void;
-}) => (
-  <button
-    onClick={onClick}
-    className="flex flex-col items-center gap-1.5 shrink-0"
-  >
-    <div className="w-14 h-14 rounded-full p-0.5 bg-gradient-to-br from-rose-400 via-pink-500 to-red-400">
-      <div className="w-full h-full rounded-full overflow-hidden border-2 border-white/10">
-        {story.media_type === "voice" ? (
-          <div
-            className="w-full h-full flex items-center justify-center"
-            style={{ background: _sgradFor(story.user_id) }}
-          >
-            <Mic size={18} className="text-white/80" />
-          </div>
-        ) : (
-          <img
-            src={resolveMediaUrl(story.image_url, "stories")}
-            className="w-full h-full object-cover"
-            decoding="async"
-          />
-        )}
-      </div>
+  ringClass?: string;
+}) => {
+  const mediaInner = story.media_type === "voice" ? (
+    <div className="w-full h-full flex items-center justify-center" style={{ background: _sgradFor(story.user_id) }}>
+      <Mic size={18} className="text-white/80" />
     </div>
-    <span className="text-[9px] font-black text-white/60 max-w-[52px] truncate">
-      {story.profile?.full_name?.split(" ")[0] || "Story"}
-    </span>
-  </button>
-);
+  ) : (
+    <img src={resolveMediaUrl(story.image_url, "stories")} className="w-full h-full object-cover" decoding="async" />
+  );
+  return (
+    <button onClick={onClick} className="flex flex-col items-center gap-1.5 shrink-0">
+      {ringClass ? (
+        <div className={`w-14 h-14 rounded-full overflow-hidden border-[3px] ${ringClass}`}>
+          {mediaInner}
+        </div>
+      ) : (
+        <div className="w-14 h-14 rounded-full p-0.5 bg-gradient-to-br from-rose-400 via-pink-500 to-red-400">
+          <div className="w-full h-full rounded-full overflow-hidden border-2 border-white/10">
+            {mediaInner}
+          </div>
+        </div>
+      )}
+      <span className={`text-[9px] font-black max-w-[52px] truncate ${ringClass ? "text-black/60" : "text-white/60"}`}>
+        {story.profile?.full_name?.split(" ")[0] || "Story"}
+      </span>
+    </button>
+  );
+};
 
 // ── Story view count (shown to story owner only) ──────────────────────────────
 const StoryViewCount = ({ storyId }: { storyId: string }) => {
@@ -911,8 +935,8 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   // ── Persisted state ───────────────────────────────────────────────────────
   const [theme, setTheme] = useState<Theme>(() => {
     const s = localStorage.getItem("cx_theme") as Theme;
-    const valid: Theme[] = ["whatsapp", "water", "nature", "velvet", "glass", "colorful"];
-    return valid.includes(s) ? s : "glass";
+    const valid: Theme[] = ["whatsapp", "water", "nature", "velvet", "glass", "colorful", "outline"];
+    return valid.includes(s) ? s : "outline";
   });
   const [activeStatus, setActiveStatus] = useState(
     () => localStorage.getItem("cx_active_status") !== "false",
@@ -2981,6 +3005,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
             <StoryCircle
               key={group.user_id}
               story={group.stories[0]}
+              ringClass={theme === "outline" ? "border-black" : undefined}
               onClick={() => {
                 setViewerGroupIdx(gi);
                 setViewerStoryIdx(0);
@@ -4108,7 +4133,11 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                             <motion.div
                               initial={{ opacity: 0, x: -8 }}
                               animate={{ opacity: 1, x: 0 }}
-                              className="flex items-center gap-3 px-4 py-3.5 hover:bg-white/5 transition-colors cursor-pointer relative"
+                              className={`flex items-center gap-3 px-4 py-3.5 transition-colors cursor-pointer relative ${
+                                theme === "outline"
+                                  ? "mx-3 mb-1.5 rounded-2xl border-2 border-black/[0.12] bg-white hover:bg-gray-50"
+                                  : "hover:bg-white/5"
+                              }`}
                               onClick={() => handleSelectContact(c)}
                             >
                               <Avatar
@@ -4818,7 +4847,11 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                     )}
                   </AnimatePresence>
 
-                  <div className="flex items-end gap-2 px-4 pt-3 pb-[max(12px,env(safe-area-inset-bottom))]">
+                  <div className={`flex items-end gap-2 ${
+                    theme === "outline"
+                      ? "mx-3 mb-[max(12px,env(safe-area-inset-bottom))] mt-2 border-2 border-black rounded-3xl px-3 py-2 bg-white"
+                      : "px-4 pt-3 pb-[max(12px,env(safe-area-inset-bottom))]"
+                  }`}>
                     {/* Emoji button — left of textarea */}
                     <button
                       onClick={() => setShowInputEmoji((p) => !p)}
@@ -5357,6 +5390,22 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                       >
                         Chat Theme
                       </p>
+                      {/* Outline — Default theme */}
+                      <button
+                        onClick={() => setTheme("outline")}
+                        className={`w-full py-3.5 rounded-2xl border-2 transition-all font-black text-sm flex items-center gap-3 px-4 mb-3 ${
+                          theme === "outline"
+                            ? `border-blue-500 bg-blue-500/10 ${T.text1}`
+                            : `border-transparent bg-white/5 ${T.text3}`
+                        }`}
+                      >
+                        <span className="text-2xl">✏️</span>
+                        <div className="text-left">
+                          <div>Minimalist Outline</div>
+                          <div className="text-[9px] text-blue-400 font-black uppercase tracking-wider mt-0.5">Default</div>
+                        </div>
+                      </button>
+                      <p className={`text-[9px] font-black uppercase tracking-widest mb-2 ${T.text3}`}>Extra Themes</p>
                       <div className="grid grid-cols-3 gap-2">
                         {(
                           ["glass", "colorful", "whatsapp", "water", "nature", "velvet"] as Theme[]
@@ -5372,9 +5421,6 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                           >
                             <div className="text-2xl mb-1">{THEME_CFG[t].icon}</div>
                             <span>{THEME_CFG[t].label}</span>
-                            {t === "glass" && (
-                              <span className="text-[8px] text-blue-400 font-black mt-0.5 uppercase tracking-wider">Default</span>
-                            )}
                           </button>
                         ))}
                       </div>
