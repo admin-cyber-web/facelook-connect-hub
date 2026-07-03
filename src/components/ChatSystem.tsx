@@ -51,6 +51,17 @@ import {
 import { supabase } from "@/lib/supabaseClient";
 import { toast } from "sonner";
 
+// Stories are uploaded to the "stories" bucket with the object key itself
+// prefixed as "stories/<file>" (see uploadStory below), so resolveMediaUrl's
+// generic "strip bucket-name prefix" logic incorrectly removes that segment
+// and 404s. Mirror StoryBar.tsx's working getPublicUrl call, which treats the
+// stored path as-is and never double-appends/strips the "stories/" folder.
+function resolveStoryImageUrl(path: string | null | undefined): string {
+  if (!path || !path.trim()) return "";
+  if (path.startsWith("http://") || path.startsWith("https://")) return path;
+  return supabase.storage.from("stories").getPublicUrl(path).data.publicUrl;
+}
+
 // ── Storage bucket (must match the bucket created in Supabase dashboard) ───────
 const CHAT_BUCKET = "chat-images";
 
@@ -736,7 +747,7 @@ const StoryCircle = ({
     </div>
   ) : (
     <img
-      src={resolveMediaUrl(story.image_url, "stories")}
+      src={resolveStoryImageUrl(story.image_url)}
       className="w-full h-full object-cover"
       decoding="async"
       loading="lazy"
@@ -3568,7 +3579,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                 {[0, 1, 2, 3].map((j) => (
                                   <video
                                     key={j}
-                                    src={resolveMediaUrl(story.image_url, "stories")}
+                                    src={resolveStoryImageUrl(story.image_url)}
                                     className="w-full h-full object-cover"
                                     autoPlay
                                     muted={!!story.music_url}
@@ -3579,7 +3590,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                               </div>
                             ) : (
                               <video
-                                src={resolveMediaUrl(story.image_url, "stories")}
+                                src={resolveStoryImageUrl(story.image_url)}
                                 className="w-full h-full object-cover"
                                 autoPlay
                                 muted={!!story.music_url}
@@ -3593,7 +3604,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                               {[0, 1, 2, 3].map((j) => (
                                 <img
                                   key={j}
-                                  src={resolveMediaUrl(story.image_url, "stories")}
+                                  src={resolveStoryImageUrl(story.image_url)}
                                   className="w-full h-full object-cover"
                                   style={{
                                     transform:
@@ -3610,7 +3621,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                           ) : (
                             <div className="w-full h-full relative">
                               <img
-                                src={resolveMediaUrl(story.image_url, "stories")}
+                                src={resolveStoryImageUrl(story.image_url)}
                                 className="w-full h-full object-cover"
                                 style={{ filter: moodFilter }}
                                 draggable={false}
@@ -3647,7 +3658,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                               onPointerUp={(e) => e.stopPropagation()}
                               onClick={(e) => {
                                 e.stopPropagation();
-                                const url = resolveMediaUrl(story.image_url, "stories");
+                                const url = resolveStoryImageUrl(story.image_url);
                                 if (navigator.share) {
                                   navigator
                                     .share({ title: "Flicks Story", url })
@@ -3667,7 +3678,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                               onClick={(e) => {
                                 e.stopPropagation();
                                 const a = document.createElement("a");
-                                a.href = resolveMediaUrl(story.image_url, "stories");
+                                a.href = resolveStoryImageUrl(story.image_url);
                                 a.download = `flicks-story`;
                                 a.target = "_blank";
                                 document.body.appendChild(a);
@@ -5185,7 +5196,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                               </div>
                             ) : (
                               <img
-                                src={resolveMediaUrl(story.image_url, "stories")}
+                                src={resolveStoryImageUrl(story.image_url)}
                                 className="w-full h-full object-cover"
                                 style={{
                                   filter:
