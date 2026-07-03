@@ -48,6 +48,7 @@ import {
 import { supabase } from "@/lib/supabaseClient";
 import { memGet, memSet, memClear } from "@/lib/memCache";
 import { Helmet } from "react-helmet-async";
+import { toast } from "sonner";
 
 import Header from "@/components/Header";
 import GolSlider from "@/components/GolSlider";
@@ -3594,9 +3595,14 @@ const Index = ({ session, initialAdminOpen }: { session: Session; initialAdminOp
         isAdmin={isAppAdmin}
         onFeatureChange={(f) => {
           if (f === "Admin") {
-            // Hard guard — even though the slot only renders for admins,
-            // double-check email before opening the dashboard.
             if (isAppAdmin) setIsAdminPanelOpen(true);
+            return;
+          }
+          if (f === "Antakshari") {
+            toast.info("🎤 Coming Soon: Antakshari — August 2026", {
+              description: "Sing-along battles with your friends are on the way!",
+              duration: 4000,
+            });
             return;
           }
           if (f === "Circle") { setActiveFeature("Circle"); return; }

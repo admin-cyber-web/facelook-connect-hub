@@ -2179,7 +2179,8 @@ const Header = ({
               animate={{ x: 0 }}
               exit={{ x: "100%" }}
               transition={{ type: "spring", damping: 28, stiffness: 220 }}
-              className="fixed top-0 right-0 h-full w-full max-w-sm bg-slate-900/90 backdrop-blur-3xl shadow-2xl z-[110] border-l border-white/10 flex flex-col overflow-hidden"
+              className="fixed top-0 right-0 h-full w-full max-w-sm bg-slate-900/90 backdrop-blur-3xl shadow-2xl z-[110] border-l border-white/10 flex flex-col overflow-hidden overflow-x-hidden"
+              style={{ maxWidth: "min(100vw, 384px)" }}
             >
               {/* Header Section */}
               <div className="px-5 py-4 flex items-center justify-between border-b border-white/10 bg-white/5 shrink-0">
@@ -2375,8 +2376,9 @@ const Header = ({
               animate={{ x: 0 }}
               exit={{ x: "100%" }}
               transition={{ type: "spring", damping: 26, stiffness: 210 }}
-              className="fixed top-0 right-0 h-full w-full max-w-sm z-[120] flex flex-col overflow-hidden"
+              className="fixed top-0 right-0 h-full w-full max-w-sm z-[120] flex flex-col overflow-hidden overflow-x-hidden"
               style={{
+                maxWidth: "min(100vw, 384px)",
                 background:
                   "linear-gradient(160deg, #0f0c29 0%, #141428 50%, #0a0a1a 100%)",
                 borderLeft: "1px solid rgba(255,255,255,0.08)",

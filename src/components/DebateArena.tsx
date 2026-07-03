@@ -499,33 +499,49 @@ export const DebateButton: React.FC<{
       .from("debate_challenges")
       .insert({
         survey_id: surveyId,
-        challenger_id: user.id,      // always use verified auth uid
+        challenger_id: user.id,
         responder_id: surveyOwnerId,
+        status: "pending",
+        // 48-hour window for the owner to accept / reject
+        expires_at: new Date(Date.now() + 48 * 3600 * 1000).toISOString(),
       })
       .select("*, challenger:profiles!challenger_id(full_name,avatar_url), responder:profiles!responder_id(full_name,avatar_url)")
       .single();
 
     if (error) {
-      console.error("[DebateArena] insert error:", error.code, error.message);
+      // Log every field so we can see exactly what went wrong in console
+      console.error("[DebateArena] insert error →", {
+        code: error.code,
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+      });
+
       if (error.code === "42501") {
-        toast.error("Login required to debate");
+        // RLS blocked the insert — instruct user to run the SQL fix
+        toast.error("⚠️ RLS blocked: run supabase_debate_rls.sql in Supabase Dashboard → SQL Editor", { duration: 8000 });
       } else if (error.code === "23505") {
-        toast.error("You already have a debate on this survey");
+        toast.error("You already have an active debate on this survey");
+      } else if (error.code === "23502") {
+        toast.error(`DB error (missing required field): ${error.message}`);
       } else {
-        toast.error("Could not send challenge — try again");
+        toast.error(`Challenge failed (${error.code || "unknown"}): ${error.message}`);
       }
     } else {
       setDebate(newDebate as DebateChallenge);
-      // Notify responder
-      await supabase.from("notifications").insert({
-        user_id: surveyOwnerId,
-        actor_id: currentUserId,
+
+      // Notify the survey owner — fire-and-forget with full error logging
+      supabase.from("notifications").insert({
+        notifier_id: surveyOwnerId,
+        actor_id: user.id,
         type: "debate_challenge",
         reference_id: newDebate.id,
         message: `${myProfile?.full_name || "Someone"} challenged you to a debate!`,
-      }).throwOnError().catch(() => {/* notifications table may vary */});
+      }).then(({ error: ne }) => {
+        if (ne) console.warn("[DebateArena] notification insert failed:", ne.code, ne.message);
+      });
 
-      toast.success("⚔️ Challenge sent! Waiting for response…");
+      toast.success("⚔️ Challenge sent! Owner will see Accept/Reject popup.");
     }
 
     setChallenging(false);
