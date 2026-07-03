@@ -1408,6 +1408,7 @@ const Index = ({ session, initialAdminOpen }: { session: Session; initialAdminOp
   // Core UI
   const [activeFeature, setActiveFeature] = useState("Fame");
   const [highlightedSurveyId, setHighlightedSurveyId] = useState<string | null>(null);
+  const [trendingSurveys, setTrendingSurveys] = useState<any[]>([]);
   const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(!!initialAdminOpen && isAppAdmin);
 
   // Deep-link handler: ?survey=<id> → open Surveys tab + highlight that card
@@ -1422,6 +1423,38 @@ const Index = ({ session, initialAdminOpen }: { session: Session; initialAdminOp
       window.history.replaceState({}, "", clean);
     }
   }, []);
+
+  // Trending Surveys fetch — top 3 by total votes
+  useEffect(() => {
+    if (!userId) return;
+    const cKey = "trendingSurveys_v1";
+    const hit = memGet<any[]>(cKey);
+    if (hit) { setTrendingSurveys(hit); return; }
+    (async () => {
+      const { data: votes } = await supabase
+        .from("votes")
+        .select("survey_id")
+        .limit(5000);
+      if (!votes?.length) return;
+      const countMap: Record<string, number> = {};
+      votes.forEach((v: any) => { countMap[v.survey_id] = (countMap[v.survey_id] || 0) + 1; });
+      const top3ids = Object.entries(countMap)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 3)
+        .map(([id]) => id);
+      if (!top3ids.length) return;
+      const { data: surveys } = await supabase
+        .from("surveys")
+        .select("id, question, image_url, user_id, profiles(full_name, avatar_url)")
+        .in("id", top3ids);
+      if (!surveys?.length) return;
+      const enriched = surveys
+        .map((s: any) => ({ ...s, total_votes: countMap[s.id] || 0 }))
+        .sort((a: any, b: any) => b.total_votes - a.total_votes);
+      setTrendingSurveys(enriched);
+      memSet(cKey, enriched);
+    })();
+  }, [userId]);
   const [isUploading, setIsUploading] = useState(false);
   const [isPostOpen, setIsPostOpen] = useState(false);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
@@ -3035,6 +3068,77 @@ const Index = ({ session, initialAdminOpen }: { session: Session; initialAdminOp
                   </div>
                 </div>
                 </div>{/* end lg:hidden flicks strip */}
+
+                {/* ── Trending Surveys strip ────────────────────────────────── */}
+                {trendingSurveys.length > 0 && (
+                  <div className="px-4 pb-1 pt-3 lg:hidden">
+                    <div className="flex items-center justify-between mb-2.5">
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-lg flex items-center justify-center"
+                          style={{ background: "linear-gradient(135deg,#6366f1,#8b5cf6)" }}>
+                          <span className="text-[11px]">📊</span>
+                        </div>
+                        <span className="text-gray-800 font-black text-[13px]">Trending Surveys</span>
+                      </div>
+                      <button onClick={() => setActiveFeature("Task")}
+                        className="text-indigo-600 font-black text-[11px] flex items-center gap-0.5">
+                        See all <ChevronRight size={12} />
+                      </button>
+                    </div>
+                    <div className="flex flex-col gap-2.5">
+                      {trendingSurveys.map((s, idx) => {
+                        const RANK_COLORS = ["#f59e0b","#6b7280","#b45309"];
+                        const RANK_BG = ["#fef3c7","#f3f4f6","#fef3c7"];
+                        return (
+                          <motion.div key={s.id}
+                            initial={{ opacity: 0, x: -12 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: idx * 0.06 }}
+                            whileTap={{ scale: 0.98 }}
+                            onClick={() => {
+                              setHighlightedSurveyId(s.id);
+                              setActiveFeature("Task");
+                            }}
+                            className="flex items-center gap-3 bg-white rounded-2xl p-3 border border-gray-100 shadow-sm cursor-pointer"
+                          >
+                            {/* Rank badge */}
+                            <div className="flex-shrink-0 w-7 h-7 rounded-xl flex items-center justify-center font-black text-[13px]"
+                              style={{ background: RANK_BG[idx], color: RANK_COLORS[idx] }}>
+                              {idx + 1}
+                            </div>
+
+                            {/* Survey thumbnail */}
+                            {s.image_url ? (
+                              <div className="flex-shrink-0 w-10 h-10 rounded-xl overflow-hidden border border-gray-100">
+                                <img src={s.image_url} loading="lazy" decoding="async"
+                                  className="w-full h-full object-cover" alt="" />
+                              </div>
+                            ) : (
+                              <div className="flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center text-[18px]"
+                                style={{ background: `linear-gradient(135deg,${["#6366f1","#8b5cf6","#ec4899"][idx]},${["#8b5cf6","#ec4899","#f59e0b"][idx]})` }}>
+                                📊
+                              </div>
+                            )}
+
+                            {/* Text */}
+                            <div className="flex-1 min-w-0">
+                              <p className="text-gray-900 font-bold text-[12px] leading-snug line-clamp-2">{s.question}</p>
+                              <p className="text-indigo-500 font-black text-[10px] mt-0.5">
+                                {s.total_votes} {s.total_votes === 1 ? "vote" : "votes"} · {(s.profiles as any)?.full_name || "FlicksIndia"}
+                              </p>
+                            </div>
+
+                            {/* CTA */}
+                            <div className="flex-shrink-0 px-3 py-1.5 rounded-full font-black text-[10px] text-white"
+                              style={{ background: "linear-gradient(135deg,#6366f1,#8b5cf6)" }}>
+                              Vote
+                            </div>
+                          </motion.div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
                 {/* ── What's on your mind + News Feed ─────────────────────── */}
                 <div className="mt-2">
