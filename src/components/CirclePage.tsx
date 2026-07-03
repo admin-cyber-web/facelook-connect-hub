@@ -967,10 +967,10 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
     return `${date} · ${hr > 12 ? hr - 12 : hr || 12}:${m} ${hr >= 12 ? "PM" : "AM"}`;
   };
 
-  // ── Share Circle ─────────────────────────────────────────────────────────────
+  // ── Share Circle (single unified native share, original media, English) ─────
   const shareCircle = async (group: Group) => {
     const link = `${window.location.origin}?circle=${group.id}`;
-    const text = `Join "${group.name}" on Flicks! 🔥\n\n${link}`;
+    const text = `Check out this Circle on Flicks: "${group.name}"`;
     const mediaUrl = (group as any).cover_url || (group as any).avatar_url || "";
     try {
       const { universalShare } = await import("../lib/universalShare");
@@ -981,17 +981,11 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
         mediaUrl: mediaUrl || undefined,
         type: "circle",
       });
-      if (result === "copied") toast.success("Invite link copied! Share it anywhere 🔗");
+      if (result === "copied") toast.success("Link copied to clipboard");
     } catch {
       navigator.clipboard.writeText(link).catch(() => {});
-      toast.success("Invite link copied! Share it anywhere 🔗");
+      toast.success("Link copied to clipboard");
     }
-  };
-
-  const shareOnWhatsApp = (group: Group) => {
-    const link = `${window.location.origin}?circle=${group.id}`;
-    const text = encodeURIComponent(`Join "${group.name}" on Flicks! 🔥 ${link}`);
-    window.open(`https://wa.me/?text=${text}`, "_blank");
   };
 
   // ── Robust member fetch: tries FK join, falls back to separate profiles query ─
@@ -1584,7 +1578,9 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
   const sharePost = async (post: GroupPost) => {
     const url = `${window.location.origin}?circle=${selectedGroup?.id}&post=${post.id}`;
     const circleName = selectedGroup?.name || "Circle";
-    const text = post.content || `Post from ${circleName}`;
+    const text = post.content
+      ? `${post.content}\n\nCheck out this Circle post on Flicks`
+      : `Check out this post from "${circleName}" on Flicks`;
     const { universalShare } = await import("../lib/universalShare");
     const outcome = await universalShare({
       title: circleName,
@@ -1593,7 +1589,7 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
       mediaUrl: post.media_url || (selectedGroup as any)?.cover_url,
       type: "circle",
     });
-    if (outcome === "copied") toast.success("Post link copied.");
+    if (outcome === "copied") toast.success("Link copied to clipboard");
     const nextCount = (post.shares_count || 0) + 1;
     await supabase.from("circle_posts").update({ shares_count: nextCount }).eq("id", post.id);
     setGroupPosts(prev => prev.map(p => p.id === post.id ? { ...p, shares_count: nextCount } : p));
@@ -1902,18 +1898,11 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
               {/* Share button */}
               <div className="flex items-center gap-1.5 ml-auto">
                 <button
-                  onClick={() => shareOnWhatsApp(selectedGroup)}
-                  className="flex items-center gap-1 bg-green-500/90 text-white text-[10px] font-black px-2.5 py-1 rounded-full active:scale-95 transition-transform"
-                >
-                  <Share2 size={10} />
-                  WhatsApp
-                </button>
-                <button
                   onClick={() => shareCircle(selectedGroup)}
                   className="flex items-center gap-1 bg-white/20 backdrop-blur-sm text-white text-[10px] font-black px-2.5 py-1 rounded-full border border-white/30 active:scale-95 transition-transform"
                 >
                   <Share2 size={10} />
-                  Copy Link
+                  Share
                 </button>
               </div>
             </div>
@@ -2730,16 +2719,10 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
                 <p className="text-[11px] text-blue-600 mb-3">Share this Circle so others can join</p>
                 <div className="flex gap-2">
                   <button
-                    onClick={() => shareOnWhatsApp(selectedGroup)}
-                    className="flex-1 flex items-center justify-center gap-1.5 bg-green-500 text-white py-2.5 rounded-xl text-[12px] font-black active:scale-95 transition-transform"
-                  >
-                    <Share2 size={13} /> WhatsApp
-                  </button>
-                  <button
                     onClick={() => shareCircle(selectedGroup)}
                     className="flex-1 flex items-center justify-center gap-1.5 bg-blue-600 text-white py-2.5 rounded-xl text-[12px] font-black active:scale-95 transition-transform"
                   >
-                    <Share2 size={13} /> Copy Link
+                    <Share2 size={13} /> Share
                   </button>
                 </div>
               </div>
@@ -3024,16 +3007,10 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
               <p className="text-[11px] text-blue-600 mb-3">Share so more people can join and participate</p>
               <div className="flex gap-2">
                 <button
-                  onClick={() => shareOnWhatsApp(selectedGroup)}
-                  className="flex-1 flex items-center justify-center gap-1.5 bg-green-500 text-white py-2.5 rounded-xl text-[12px] font-black active:scale-95 transition-transform"
-                >
-                  <Share2 size={13} /> WhatsApp
-                </button>
-                <button
                   onClick={() => shareCircle(selectedGroup)}
                   className="flex-1 flex items-center justify-center gap-1.5 bg-blue-600 text-white py-2.5 rounded-xl text-[12px] font-black active:scale-95 transition-transform"
                 >
-                  <Share2 size={13} /> Copy Link
+                  <Share2 size={13} /> Share
                 </button>
               </div>
             </div>

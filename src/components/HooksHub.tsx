@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { toast } from "sonner";
 import { supabase } from "@/lib/supabaseClient";
 import { smartTime } from "@/lib/timeAgo";
 import { memGet, memSet } from "@/lib/memCache";
@@ -7,7 +8,7 @@ import { MagnetButton } from "./MagnetSystem";
 import {
   Anchor, Plus, ArrowLeft, X, Users, Heart, FileText,
   DollarSign, Send, CheckSquare, Square, Loader2, Star,
-  ChevronRight, Zap, Share2, Copy, MessageCircle, Upload,
+  ChevronRight, Zap, Share2, Upload,
   PlayCircle, Image as ImgIcon, Video as VideoIcon, Check,
   AlertTriangle, MoreVertical, Pencil, Trash2,
 } from "lucide-react";
@@ -299,123 +300,35 @@ const HookModal = ({ pageId, pageName, userId, onClose }:
   );
 };
 
-// ── Share Modal ────────────────────────────────────────────────────────────────
-const ShareModal = ({ page, post, onClose }: { page: HookPage; post?: PagePost; onClose: () => void }) => {
-  const [copied, setCopied] = useState(false);
-  const [sharing, setSharing] = useState(false);
-  const isPostShare = !!post;
-  const pageUrl = isPostShare
-    ? `${window.location.origin}/?hook=${page.id}&post=${post.id}`
-    : `${window.location.origin}/?page=${page.id}`;
+// ── Unified Share (single native share intent, original media, English only) ───
+const shareHookPage = async (page: HookPage) => {
+  const pageUrl = `${window.location.origin}/?page=${page.id}`;
+  const media = page.cover_url || page.avatar_url || "";
+  const { universalShare } = await import("../lib/universalShare");
+  const outcome = await universalShare({
+    title: page.name,
+    text: `Check out this Hook on Flicks: "${page.name}"`,
+    url: pageUrl,
+    mediaUrl: media || undefined,
+    type: "hook",
+  });
+  if (outcome === "copied") toast.success("Link copied to clipboard");
+};
 
-  const resolvedMedia = isPostShare
-    ? (post.media_url || page.cover_url || page.avatar_url || "")
-    : (page.cover_url || page.avatar_url || "");
-
-  const shareTitle = isPostShare
-    ? `${page.name} — Hook post`
-    : page.name;
-
-  const shareText = isPostShare
-    ? `${post.content || page.name} — dekho yeh post!\n\n${pageUrl}`
-    : `${page.name}\n${page.description || ""}\n\n${pageUrl}`;
-
-  const copy = async () => {
-    await navigator.clipboard.writeText(pageUrl).catch(() => {});
-    setCopied(true); setTimeout(() => setCopied(false), 2000);
-  };
-
-  const shareWA = () => {
-    const waText = encodeURIComponent(shareText);
-    window.open(`https://wa.me/?text=${waText}`, "_blank");
-  };
-
-  const handleNativeShare = async () => {
-    setSharing(true);
-    try {
-      const { universalShare } = await import("../lib/universalShare");
-      await universalShare({
-        title: shareTitle,
-        text: shareText,
-        url: pageUrl,
-        mediaUrl: resolvedMedia || undefined,
-        type: isPostShare ? "post" : "hook",
-      });
-    } finally {
-      setSharing(false);
-    }
-  };
-
-  return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[500] flex items-end justify-center"
-      style={{ background: "rgba(0,0,0,0.55)", backdropFilter: "blur(6px)" }}
-      onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
-      <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
-        transition={{ type: "spring", damping: 26, stiffness: 260 }}
-        className="w-full max-w-lg bg-white rounded-t-3xl shadow-2xl">
-        <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-gray-100">
-          <h2 className="font-black text-gray-800 text-[16px] flex items-center gap-2">
-            <Share2 size={18} className="text-blue-600" />
-            {isPostShare ? "Post Share Karo" : "Page Share Karo"}
-          </h2>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full"><X size={20} /></button>
-        </div>
-
-        {/* Banner / post media preview */}
-        {resolvedMedia ? (
-          <div className="mx-5 mt-4 rounded-2xl overflow-hidden border border-gray-100 shadow-sm" style={{ maxHeight: 140 }}>
-            {isPostShare && post?.media_type === "video" ? (
-              <video src={resolvedMedia} className="w-full object-cover" style={{ maxHeight: 140 }} muted playsInline preload="metadata" />
-            ) : (
-              <img src={resolvedMedia} alt="" className="w-full object-cover" style={{ maxHeight: 140 }} />
-            )}
-          </div>
-        ) : null}
-
-        <div className="p-5 space-y-3">
-          {/* Link copy */}
-          <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-xl border border-gray-200">
-            <p className="flex-1 text-[12px] text-gray-500 font-medium truncate">{pageUrl}</p>
-            <motion.button whileTap={{ scale: 0.9 }} onClick={copy}
-              className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] font-black transition-colors ${copied ? "bg-green-500 text-white" : "bg-blue-600 text-white"}`}>
-              {copied ? <><Check size={12} /> Copied!</> : <><Copy size={12} /> Copy</>}
-            </motion.button>
-          </div>
-          {/* WhatsApp */}
-          <motion.button whileTap={{ scale: 0.97 }} onClick={shareWA}
-            className="w-full flex items-center gap-3 p-4 rounded-2xl bg-green-50 border border-green-100 text-left">
-            <div className="w-10 h-10 rounded-xl bg-green-500 flex items-center justify-center shrink-0">
-              <MessageCircle size={20} className="text-white" />
-            </div>
-            <div>
-              <p className="font-black text-gray-800 text-[13px]">WhatsApp par Share Karo</p>
-              <p className="text-[10px] text-gray-400 font-medium">
-                {resolvedMedia ? "Image + link bhejega" : "Link bhejega"}
-              </p>
-            </div>
-          </motion.button>
-          {/* Native share — with actual image/video file */}
-          <motion.button whileTap={{ scale: 0.97 }} onClick={handleNativeShare} disabled={sharing}
-            className="w-full flex items-center gap-3 p-4 rounded-2xl bg-blue-50 border border-blue-100 text-left disabled:opacity-60">
-            <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center shrink-0">
-              {sharing
-                ? <Loader2 size={18} className="text-white animate-spin" />
-                : <Share2 size={20} className="text-white" />}
-            </div>
-            <div>
-              <p className="font-black text-gray-800 text-[13px]">
-                {resolvedMedia ? "Image/Video ke saath Share" : "More Options"}
-              </p>
-              <p className="text-[10px] text-gray-400 font-medium">
-                {resolvedMedia ? "WhatsApp, Instagram, Twitter..." : "Aur jagah share karo"}
-              </p>
-            </div>
-          </motion.button>
-        </div>
-      </motion.div>
-    </motion.div>
-  );
+const shareHookPost = async (page: HookPage, post: PagePost) => {
+  const pageUrl = `${window.location.origin}/?hook=${page.id}&post=${post.id}`;
+  const media = post.media_url || page.cover_url || page.avatar_url || "";
+  const { universalShare } = await import("../lib/universalShare");
+  const outcome = await universalShare({
+    title: `${page.name} — Hook post`,
+    text: post.content
+      ? `${post.content}\n\nCheck out this Hook on Flicks`
+      : `Check out this Hook post on Flicks`,
+    url: pageUrl,
+    mediaUrl: media || undefined,
+    type: "post",
+  });
+  if (outcome === "copied") toast.success("Link copied to clipboard");
 };
 
 // ── Rich Media Post Modal ──────────────────────────────────────────────────────
@@ -650,8 +563,6 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
   const [posts, setPosts]         = useState<PagePost[]>([]);
   const [loading, setLoading]     = useState(true);
   const [hookModal, setHookModal] = useState(false);
-  const [shareModal, setShareModal] = useState(false);
-  const [sharePostModal, setSharePostModal] = useState<PagePost | null>(null);
   const [addPost, setAddPost]     = useState(false);
   const [livePage, setLivePage]   = useState<HookPage>(page);
   const [memberCount, setMemberCount] = useState(initialMemberCount);
@@ -869,7 +780,7 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
                   </motion.button>
                 </>
               )}
-              <motion.button whileTap={{ scale: 0.93 }} onClick={() => setShareModal(true)}
+              <motion.button whileTap={{ scale: 0.93 }} onClick={() => shareHookPage(livePage)}
                 className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[12px] font-black bg-gray-100 text-gray-700 border border-gray-200">
                 <Share2 size={14} /> Share
               </motion.button>
@@ -976,7 +887,7 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
                   currentUserId={userId}
                   dark={false}
                 />
-                <motion.button whileTap={{ scale: 0.88 }} onClick={() => setSharePostModal(post)}
+                <motion.button whileTap={{ scale: 0.88 }} onClick={() => shareHookPost(livePage, post)}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 text-blue-600 text-[12px] font-black">
                   <Share2 size={13} /> Share
                 </motion.button>
@@ -994,8 +905,6 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
 
       <AnimatePresence>
         {hookModal  && <HookModal pageId={page.id} pageName={livePage.name} userId={userId} onClose={() => { setHookModal(false); refreshPage(); }} />}
-        {shareModal && <ShareModal page={livePage} onClose={() => setShareModal(false)} />}
-        {sharePostModal && <ShareModal page={livePage} post={sharePostModal} onClose={() => setSharePostModal(null)} />}
         {addPost    && <AddPostModal pageId={page.id} userId={userId} onClose={() => setAddPost(false)} onPosted={() => { fetchPosts(); refreshPage(); }} />}
         {showEditPage && <EditPageModal page={livePage} userId={userId} onClose={() => setShowEditPage(false)} onSaved={p => { setLivePage(p); onPageUpdated(p); }} />}
 
