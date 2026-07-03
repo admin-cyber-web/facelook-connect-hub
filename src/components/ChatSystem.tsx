@@ -2882,13 +2882,28 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     const isTemp = msg.id.startsWith("temp-");
     if (isTemp)
       return (
-        <span className="text-[10px] text-white/30 ml-1 italic">Sending…</span>
+        <svg width="12" height="10" viewBox="0 0 12 10" fill="none" className="opacity-30 shrink-0">
+          <path d="M1 5l3 3 4-6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
       );
     if (msg.seen_at)
       return (
-        <span className="text-[10px] text-blue-400 ml-1 font-black">Seen</span>
+        <div className="w-[15px] h-[15px] rounded-full overflow-hidden shrink-0 ring-[1.5px] ring-blue-400">
+          {selectedUser?.avatar_url ? (
+            <img src={selectedUser.avatar_url} className="w-full h-full object-cover" decoding="async" />
+          ) : (
+            <div className={`w-full h-full flex items-center justify-center text-[6px] font-black ${T.accent} text-white`}>
+              {(selectedUser?.full_name || "?")[0]}
+            </div>
+          )}
+        </div>
       );
-    return <span className="text-[10px] text-white/40 ml-1">Delivered</span>;
+    return (
+      <svg width="17" height="10" viewBox="0 0 17 10" fill="none" className="opacity-40 shrink-0">
+        <path d="M1 5l3 3 4-6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+        <path d="M6 5l3 3 4-6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+      </svg>
+    );
   };
 
   // (emoji categories defined at module level — EMOJI_TAB_CATEGORIES, STICKER_PACK)
@@ -4622,32 +4637,6 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                             <div
                               className={`px-3.5 py-2 rounded-2xl ${isMine ? `${T.bubbleSent} rounded-tr-sm` : `${T.bubbleRecv} rounded-tl-sm`}`}
                             >
-                              {/* ── Header row: [Avatar] [Status ticks] ── */}
-                              <div className={`flex items-center gap-1 mb-1 ${isMine ? "justify-end" : "justify-start"}`}>
-                                {/* Mini sender avatar */}
-                                <div className="w-[18px] h-[18px] rounded-full overflow-hidden shrink-0 ring-1 ring-white/25">
-                                  {isMine ? (
-                                    myProfile?.avatar_url ? (
-                                      <img src={myProfile.avatar_url} className="w-full h-full object-cover" decoding="async" />
-                                    ) : (
-                                      <div className="w-full h-full bg-white/30 flex items-center justify-center text-[7px] font-black text-white">
-                                        {(myProfile?.full_name || "Y")[0]}
-                                      </div>
-                                    )
-                                  ) : (
-                                    selectedUser?.avatar_url ? (
-                                      <img src={selectedUser.avatar_url} className="w-full h-full object-cover" decoding="async" />
-                                    ) : (
-                                      <div className="w-full h-full bg-black/20 flex items-center justify-center text-[7px] font-black">
-                                        {(selectedUser?.full_name || "?")[0]}
-                                      </div>
-                                    )
-                                  )}
-                                </div>
-                                {/* Status ticks — only for sent messages */}
-                                {isMine && <MessageStatus msg={msg} />}
-                              </div>
-
                               {/* ── Message content ── */}
                               {msg.media_url && msg.media_type ? (
                                 <MediaBubble
@@ -4701,12 +4690,13 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                               )}
                             </div>
 
-                            {/* ── Timestamp OUTSIDE the bubble ── */}
-                            <p
-                              className={`text-[10px] mt-0.5 font-medium ${isMine ? "text-right" : "text-left"} ${T.text3}`}
-                            >
-                              {formatTime(msg.created_at)}
-                            </p>
+                            {/* ── Timestamp + Seen indicator OUTSIDE the bubble ── */}
+                            <div className={`flex items-center gap-1 mt-0.5 ${isMine ? "justify-end" : "justify-start"}`}>
+                              <p className={`text-[10px] font-medium ${T.text3}`}>
+                                {formatTime(msg.created_at)}
+                              </p>
+                              {isMine && <MessageStatus msg={msg} />}
+                            </div>
 
                             {/* Reaction Bubbles */}
                             {msgReactions[msg.id] &&
