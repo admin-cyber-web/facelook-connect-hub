@@ -4,7 +4,7 @@ import {
   BarChart2, PieChart as PieChartIcon, Plus, Trash2, Image as ImageIcon,
   Send, Heart, MessageCircle, Share2, ChevronDown, ChevronUp,
   X, Upload, CheckCircle2, TrendingUp, Users, Vote, Loader2,
-  CornerDownRight, Edit3, BarChart, Link2,
+  CornerDownRight, Edit3, BarChart, Link2, MoreVertical, Pencil,
 } from "lucide-react";
 import { DebateButton } from "./DebateArena";
 import {
@@ -187,8 +187,10 @@ const CommentItem: React.FC<{
 };
 
 // ── Share Drawer ───────────────────────────────────────────────────────────────
+const FLICKS_BASE = "https://flicksindia.online";
+
 const ShareDrawer: React.FC<{ survey: Survey; total: number; onClose: () => void }> = ({ survey, total, onClose }) => {
-  const deepLink = `${window.location.origin}/survey/${survey.id}`;
+  const deepLink = `${FLICKS_BASE}/survey/${survey.id}`;
   const shareText = `📊 ${survey.question}\n${total} votes on FlicksIndia! Vote now 👇`;
 
   const platforms = [
@@ -322,7 +324,13 @@ const SurveyCard: React.FC<{ survey: Survey; userId: string; onUpdate: () => voi
   const [replyTo, setReplyTo] = useState<{ id: string; name: string } | null>(null);
   const [posting, setPosting] = useState(false);
   const [showShareDrawer, setShowShareDrawer] = useState(false);
+  const [showOwnerMenu, setShowOwnerMenu] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editQuestion, setEditQuestion] = useState(survey.question);
+  const [editSaving, setEditSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
+  const isOwner = survey.user_id === userId;
 
   useEffect(() => {
     if (highlighted && cardRef.current) {
@@ -333,6 +341,44 @@ const SurveyCard: React.FC<{ survey: Survey; userId: string; onUpdate: () => voi
   const userVote = survey.user_vote || null;
   const hasVoted = !!userVote;
   const total = survey.total_votes || 0;
+
+  const handleDelete = async () => {
+    if (deleting || !isOwner) return;
+    if (!window.confirm("Delete this survey permanently?")) return;
+    setDeleting(true);
+    try {
+      await supabase.from("votes").delete().eq("survey_id", survey.id);
+      await supabase.from("survey_comments").delete().eq("survey_id", survey.id);
+      await supabase.from("survey_likes").delete().eq("survey_id", survey.id);
+      await supabase.from("survey_options").delete().eq("survey_id", survey.id);
+      const { error } = await supabase.from("surveys").delete().eq("id", survey.id).eq("user_id", userId);
+      if (error) throw error;
+      toast.success("Survey deleted");
+      onUpdate();
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to delete");
+    }
+    setDeleting(false);
+    setShowOwnerMenu(false);
+  };
+
+  const handleEditSave = async () => {
+    if (!editQuestion.trim() || editSaving) return;
+    setEditSaving(true);
+    const { error } = await supabase
+      .from("surveys")
+      .update({ question: editQuestion.trim() })
+      .eq("id", survey.id)
+      .eq("user_id", userId);
+    if (error) {
+      toast.error("Failed to update");
+    } else {
+      toast.success("Survey updated!");
+      onUpdate();
+      setShowEditModal(false);
+    }
+    setEditSaving(false);
+  };
 
   const handleVote = async (optionId: string) => {
     if (voting || hasVoted) return;
@@ -394,11 +440,11 @@ const SurveyCard: React.FC<{ survey: Survey; userId: string; onUpdate: () => voi
   };
 
   const handleShare = async () => {
-    const deepLink = `${window.location.origin}/survey/${survey.id}`;
+    const deepLink = `${FLICKS_BASE}/survey/${survey.id}`;
     const text = `📊 ${survey.question}\n${total} votes on FlicksIndia! Vote now 👇`;
     if (navigator.share) {
       try {
-        await navigator.share({ title: survey.question, text, url: deepLink });
+        await navigator.share({ title: `Survey: ${survey.question}`, text, url: deepLink });
         return;
       } catch { /* fallthrough to drawer */ }
     }
@@ -422,9 +468,44 @@ const SurveyCard: React.FC<{ survey: Survey; userId: string; onUpdate: () => voi
           <p className="text-white font-bold text-[13px] truncate">{survey.profiles?.full_name || "Anonymous"}</p>
           <p className="text-white/40 text-[11px]">{timeAgo(survey.created_at)}</p>
         </div>
-        <div className="flex items-center gap-1.5 bg-indigo-500/20 border border-indigo-500/30 px-2.5 py-1 rounded-full">
-          <Vote size={11} className="text-indigo-400" />
-          <span className="text-indigo-300 text-[11px] font-bold">Survey</span>
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 bg-indigo-500/20 border border-indigo-500/30 px-2.5 py-1 rounded-full">
+            <Vote size={11} className="text-indigo-400" />
+            <span className="text-indigo-300 text-[11px] font-bold">Survey</span>
+          </div>
+          {isOwner && (
+            <div className="relative">
+              <motion.button whileTap={{ scale: 0.85 }}
+                onClick={() => setShowOwnerMenu(v => !v)}
+                className="w-8 h-8 rounded-full flex items-center justify-center"
+                style={{ background: "rgba(255,255,255,0.07)" }}>
+                <MoreVertical size={15} className="text-white/50" />
+              </motion.button>
+              <AnimatePresence>
+                {showOwnerMenu && (
+                  <motion.div initial={{ opacity: 0, scale: 0.9, y: -4 }} animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.9, y: -4 }} transition={{ duration: 0.15 }}
+                    className="absolute right-0 top-9 z-50 rounded-2xl overflow-hidden min-w-[150px]"
+                    style={{ background: "linear-gradient(145deg,#1e1e32,#14142a)", border: "1px solid rgba(255,255,255,0.1)", boxShadow: "0 8px 32px rgba(0,0,0,0.5)" }}>
+                    <button onClick={() => { setShowOwnerMenu(false); setEditQuestion(survey.question); setShowEditModal(true); }}
+                      className="w-full flex items-center gap-2.5 px-4 py-3 text-left hover:bg-white/5 transition-colors">
+                      <Pencil size={14} className="text-indigo-400" />
+                      <span className="text-white/80 text-[13px] font-semibold">Edit Question</span>
+                    </button>
+                    <div className="h-px bg-white/6 mx-3" />
+                    <button onClick={handleDelete} disabled={deleting}
+                      className="w-full flex items-center gap-2.5 px-4 py-3 text-left hover:bg-red-500/10 transition-colors disabled:opacity-50">
+                      {deleting ? <Loader2 size={14} className="text-red-400 animate-spin" /> : <Trash2 size={14} className="text-red-400" />}
+                      <span className="text-red-400 text-[13px] font-semibold">Delete Survey</span>
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+              {showOwnerMenu && (
+                <div className="fixed inset-0 z-40" onClick={() => setShowOwnerMenu(false)} />
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -557,6 +638,52 @@ const SurveyCard: React.FC<{ survey: Survey; userId: string; onUpdate: () => voi
     <AnimatePresence>
       {showShareDrawer && (
         <ShareDrawer survey={survey} total={total} onClose={() => setShowShareDrawer(false)} />
+      )}
+    </AnimatePresence>
+
+    {/* Edit Modal */}
+    <AnimatePresence>
+      {showEditModal && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          className="fixed inset-0 z-[400] flex items-end justify-center"
+          style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(8px)" }}
+          onClick={e => e.target === e.currentTarget && setShowEditModal(false)}>
+          <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
+            transition={{ type: "spring", stiffness: 320, damping: 32 }}
+            className="w-full max-w-lg rounded-t-3xl overflow-hidden"
+            style={{ background: "linear-gradient(180deg,#1a1a2e,#0f0f1e)", border: "1px solid rgba(255,255,255,0.1)" }}>
+            <div className="flex items-center justify-between px-5 py-4"
+              style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
+                  <Pencil size={14} className="text-white" />
+                </div>
+                <span className="text-white font-black text-[15px]">Edit Survey</span>
+              </div>
+              <button onClick={() => setShowEditModal(false)} className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center">
+                <X size={16} className="text-white/70" />
+              </button>
+            </div>
+            <div className="px-5 py-5 space-y-4">
+              <div>
+                <label className="text-white/60 text-[11px] font-bold uppercase tracking-wider mb-2 block">Question</label>
+                <textarea value={editQuestion} onChange={e => setEditQuestion(e.target.value)} rows={3}
+                  className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-white text-[14px] placeholder-white/25 outline-none focus:border-indigo-500/50 resize-none" />
+              </div>
+              <div className="flex gap-3 pb-2">
+                <button onClick={() => setShowEditModal(false)}
+                  className="flex-1 py-3 rounded-2xl text-white/50 font-bold text-[13px] bg-white/5 border border-white/10">
+                  Cancel
+                </button>
+                <motion.button whileTap={{ scale: 0.97 }} onClick={handleEditSave} disabled={editSaving || !editQuestion.trim()}
+                  className="flex-1 py-3 rounded-2xl font-black text-[13px] text-white flex items-center justify-center gap-2 disabled:opacity-60"
+                  style={{ background: "linear-gradient(135deg,#6366f1,#8b5cf6)" }}>
+                  {editSaving ? <Loader2 size={15} className="animate-spin" /> : <><Pencil size={14} /> Save Changes</>}
+                </motion.button>
+              </div>
+            </div>
+          </motion.div>
+        </motion.div>
       )}
     </AnimatePresence>
     </>

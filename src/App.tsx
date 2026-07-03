@@ -15,13 +15,14 @@ import { DataCacheProvider } from "./context/DataCacheContext";
 import { OnlineUsersProvider } from "./context/OnlineUsersContext";
 import { HelmetProvider, Helmet } from "react-helmet-async";
 
-const Index    = lazy(() => import("./pages/Index"));
-const Privacy  = lazy(() => import("./pages/Privacy"));
-const Terms    = lazy(() => import("./pages/Terms"));
-const DataInfo = lazy(() => import("./pages/DataInfo"));
-const NotFound = lazy(() => import("./pages/NotFound"));
-const LoginScreen = lazy(() => import("./components/LoginScreen"));
-const PostDetail  = lazy(() => import("./pages/PostDetail"));
+const Index        = lazy(() => import("./pages/Index"));
+const Privacy      = lazy(() => import("./pages/Privacy"));
+const Terms        = lazy(() => import("./pages/Terms"));
+const DataInfo     = lazy(() => import("./pages/DataInfo"));
+const NotFound     = lazy(() => import("./pages/NotFound"));
+const LoginScreen  = lazy(() => import("./components/LoginScreen"));
+const PostDetail   = lazy(() => import("./pages/PostDetail"));
+const SurveyDetail = lazy(() => import("./pages/SurveyDetail"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -126,18 +127,20 @@ const App = () => {
                   <Suspense fallback={<PageLoader />}>
                     {!session ? (
                       <Routes>
-                        <Route path="/privacy"   element={<Privacy />} />
-                        <Route path="/terms"     element={<Terms />} />
-                        <Route path="/data-info" element={<DataInfo />} />
-                        <Route path="*"          element={<LoginScreen />} />
+                        <Route path="/privacy"     element={<Privacy />} />
+                        <Route path="/terms"       element={<Terms />} />
+                        <Route path="/data-info"   element={<DataInfo />} />
+                        <Route path="/survey/:id"  element={<SurveyDetail />} />
+                        <Route path="*"            element={<LoginScreen />} />
                       </Routes>
                     ) : (
                       <Routes>
-                        <Route path="/"          element={<Index session={session} />} />
-                        <Route path="/privacy"   element={<Privacy />} />
-                        <Route path="/terms"     element={<Terms />} />
-                        <Route path="/data-info" element={<DataInfo />} />
-                        <Route path="/post/:id"  element={<PostDetail />} />
+                        <Route path="/"            element={<Index session={session} />} />
+                        <Route path="/privacy"     element={<Privacy />} />
+                        <Route path="/terms"       element={<Terms />} />
+                        <Route path="/data-info"   element={<DataInfo />} />
+                        <Route path="/post/:id"    element={<PostDetail />} />
+                        <Route path="/survey/:id"  element={<SurveyDetail />} />
                         <Route
                           path="/admin"
                           element={
