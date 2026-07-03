@@ -6,7 +6,7 @@ import {
   X, Upload, CheckCircle2, TrendingUp, Users, Vote, Loader2,
   CornerDownRight, Edit3, BarChart, Link2, MoreVertical, Pencil,
 } from "lucide-react";
-import { DebateButton } from "./DebateArena";
+import { DebateButton, DebateArchiveBanner } from "./DebateArena";
 import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
   BarChart as ReBarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -595,6 +595,9 @@ const SurveyCard: React.FC<{ survey: Survey; userId: string; onUpdate: () => voi
           <span className="text-white/25 text-[11px]">{total} votes</span>
         </div>
       </div>
+
+      {/* Past Debate Archive Banner */}
+      <DebateArchiveBanner surveyId={survey.id} />
 
       {/* Comments */}
       <AnimatePresence>

@@ -1939,10 +1939,10 @@ const Header = ({
     <>
       {/* ── GLASS HEADER ─────────────────────────────────────────────────── */}
       <header
-        className="w-full h-14 backdrop-blur-2xl border-b border-white/10 sticky top-0 z-[100] px-3 sm:px-5 flex items-center gap-3 transition-all relative overflow-hidden"
+        className="w-full h-14 backdrop-blur-2xl border-b border-white/10 sticky top-0 z-[100] px-2 sm:px-5 flex items-center gap-1.5 sm:gap-3 transition-all relative"
         style={{ background: "rgba(10,10,20,0.95)" }}
       >
-        <div className="flex items-center gap-2 flex-shrink-0">
+        <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0 min-w-0">
           <motion.div
             animate={{ rotate: [0, -8, 8, -4, 4, 0] }}
             transition={{
@@ -1959,11 +1959,11 @@ const Header = ({
           <TirangaFlag />
         </div>
         <div className="flex-1" />
-        <div className="flex items-center gap-2 flex-shrink-0">
+        <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
           <motion.button
             whileTap={{ scale: 0.88 }}
             onClick={onHomeClick}
-            className="p-2 rounded-xl transition-all active:scale-90 flex-shrink-0 border border-lime-400/25 hover:bg-lime-400/10"
+            className="p-1.5 sm:p-2 rounded-xl transition-all active:scale-90 flex-shrink-0 border border-lime-400/25 hover:bg-lime-400/10"
             style={{ background: "rgba(163,230,53,0.08)" }}
           >
             <Home size={17} className="text-lime-400" />

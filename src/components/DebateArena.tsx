@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Mic, X, Send, Crown, Clock, Swords, Heart, Eye,
   Shield, Flame, CheckCircle2, XCircle, Loader2, Trophy, Timer,
+  ThumbsUp, ThumbsDown, Star,
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { resolveMediaUrl } from "@/lib/mediaUrl";
@@ -36,6 +37,11 @@ interface DebateMessage {
   user_liked?: boolean;
   profiles?: Profile;
 }
+
+// ── Vote types ────────────────────────────────────────────────────────────────
+type VoteType = "accepted" | "rejected";
+interface VoteEntry { accepted: number; rejected: number; myVote: VoteType | null; }
+type VoteMap = Record<string, VoteEntry>;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function useCountdown(expiresAt: string | null) {
@@ -100,12 +106,14 @@ const DebateRoom: React.FC<{
   messages: DebateMessage[];
   currentUserId: string;
   surveyQuestion: string;
+  votes: VoteMap;
   onClose: () => void;
   onSend: (content: string) => Promise<void>;
   onLike: (msgId: string, liked: boolean) => Promise<void>;
+  onVote: (msgId: string, voteType: VoteType) => Promise<void>;
   onEnd: () => Promise<void>;
   onMakePublic: () => Promise<void>;
-}> = ({ debate, messages, currentUserId, surveyQuestion, onClose, onSend, onLike, onEnd, onMakePublic }) => {
+}> = ({ debate, messages, currentUserId, surveyQuestion, votes, onClose, onSend, onLike, onVote, onEnd, onMakePublic }) => {
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [ending, setEnding] = useState(false);
@@ -260,15 +268,30 @@ const DebateRoom: React.FC<{
           </div>
         </div>
 
-        {/* Score bar (after finish) */}
-        {debate.status === "finished" && (myLikes + oppLikes) > 0 && (
-          <div className="mt-3 rounded-full overflow-hidden h-2 flex" style={{ background: "rgba(255,255,255,0.07)" }}>
-            <motion.div initial={{ width: 0 }} animate={{ width: `${Math.round(myLikes/(myLikes+oppLikes)*100)}%` }}
-              transition={{ duration: 1, ease: "easeOut" }}
-              style={{ background: CHALL_COLOR }} />
-            <div style={{ flex: 1, background: RESP_COLOR }} />
-          </div>
-        )}
+        {/* Vote score bar (after finish) */}
+        {debate.status === "finished" && (() => {
+          const challAcc = messages
+            .filter(m => m.user_id === debate.challenger_id)
+            .reduce((sum, m) => sum + (votes[m.id]?.accepted ?? 0), 0);
+          const respAcc  = messages
+            .filter(m => m.user_id === debate.responder_id)
+            .reduce((sum, m) => sum + (votes[m.id]?.accepted ?? 0), 0);
+          const total = challAcc + respAcc;
+          return total > 0 ? (
+            <div className="mt-3 space-y-1">
+              <div className="rounded-full overflow-hidden h-2 flex" style={{ background: "rgba(255,255,255,0.07)" }}>
+                <motion.div initial={{ width: 0 }} animate={{ width: `${Math.round(challAcc/total*100)}%` }}
+                  transition={{ duration: 1, ease: "easeOut" }}
+                  style={{ background: CHALL_COLOR }} />
+                <div style={{ flex: 1, background: RESP_COLOR }} />
+              </div>
+              <div className="flex justify-between text-[9px] font-bold opacity-50">
+                <span style={{ color: CHALL_COLOR }}>✅ {challAcc} accepted</span>
+                <span style={{ color: RESP_COLOR }}>✅ {respAcc} accepted</span>
+              </div>
+            </div>
+          ) : null;
+        })()}
       </div>
 
       {/* ── Messages ── */}
@@ -309,6 +332,7 @@ const DebateRoom: React.FC<{
                   }}>
                   {msg.content}
                 </div>
+                {/* Like + time row */}
                 <div className={`flex items-center gap-2 mt-1 ${alignRight ? "flex-row-reverse" : "flex-row"}`}>
                   <motion.button whileTap={{ scale: 0.8 }}
                     onClick={() => onLike(msg.id, !!msg.user_liked)}
@@ -321,6 +345,36 @@ const DebateRoom: React.FC<{
                   <span className="text-[9px] text-white/20">
                     {new Date(msg.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                   </span>
+                </div>
+
+                {/* ✅ / ❌ Verdict vote row */}
+                <div className={`flex items-center gap-1.5 mt-1.5 ${alignRight ? "flex-row-reverse" : "flex-row"}`}>
+                  {(["accepted", "rejected"] as VoteType[]).map(vt => {
+                    const entry = votes[msg.id];
+                    const count = entry?.[vt] ?? 0;
+                    const isMyVote = entry?.myVote === vt;
+                    const isAcc = vt === "accepted";
+                    return (
+                      <motion.button key={vt} whileTap={{ scale: 0.85 }}
+                        onClick={() => onVote(msg.id, vt)}
+                        className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold transition-all"
+                        style={{
+                          background: isMyVote
+                            ? (isAcc ? "rgba(16,185,129,0.2)" : "rgba(239,68,68,0.2)")
+                            : "rgba(255,255,255,0.05)",
+                          border: `1px solid ${isMyVote
+                            ? (isAcc ? "rgba(16,185,129,0.5)" : "rgba(239,68,68,0.5)")
+                            : "rgba(255,255,255,0.08)"}`,
+                          color: isMyVote ? (isAcc ? "#10b981" : "#ef4444") : "rgba(255,255,255,0.3)",
+                        }}>
+                        {isAcc
+                          ? <ThumbsUp size={9} className={isMyVote ? "fill-emerald-400" : ""} />
+                          : <ThumbsDown size={9} className={isMyVote ? "fill-red-400" : ""} />}
+                        <span>{isAcc ? "Accepted" : "Rejected"}</span>
+                        {count > 0 && <span className="ml-0.5 opacity-70">{count}</span>}
+                      </motion.button>
+                    );
+                  })}
                 </div>
               </div>
             </motion.div>
@@ -361,8 +415,8 @@ const DebateRoom: React.FC<{
 
       {/* ── Input Bar or Finished Controls ── */}
       {debate.status === "active" ? (
-        <div className="shrink-0 px-4 pt-3 pb-6 space-y-2"
-          style={{ borderTop: "1px solid rgba(255,255,255,0.07)", paddingBottom: "max(24px, env(safe-area-inset-bottom, 24px))" }}>
+        <div className="shrink-0 px-4 pt-3 space-y-2"
+          style={{ borderTop: "1px solid rgba(255,255,255,0.07)", paddingBottom: "max(20px, env(safe-area-inset-bottom, 20px))" }}>
           <div className="flex gap-2">
             <input
               value={text}
@@ -442,6 +496,143 @@ const DebateRoom: React.FC<{
   );
 };
 
+// ── Debate Result Modal ───────────────────────────────────────────────────────
+const DebateResultModal: React.FC<{
+  debate: DebateChallenge;
+  messages: DebateMessage[];
+  votes: VoteMap;
+  currentUserId: string;
+  onClose: () => void;
+  onMakePublic: () => Promise<void>;
+}> = ({ debate, messages, votes, currentUserId, onClose, onMakePublic }) => {
+  const challAcc = messages
+    .filter(m => m.user_id === debate.challenger_id)
+    .reduce((sum, m) => sum + (votes[m.id]?.accepted ?? 0), 0);
+  const challRej = messages
+    .filter(m => m.user_id === debate.challenger_id)
+    .reduce((sum, m) => sum + (votes[m.id]?.rejected ?? 0), 0);
+  const respAcc = messages
+    .filter(m => m.user_id === debate.responder_id)
+    .reduce((sum, m) => sum + (votes[m.id]?.accepted ?? 0), 0);
+  const respRej = messages
+    .filter(m => m.user_id === debate.responder_id)
+    .reduce((sum, m) => sum + (votes[m.id]?.rejected ?? 0), 0);
+
+  const winnerId = debate.winner_id;
+  const iAmWinner = winnerId === currentUserId;
+  const winnerName = winnerId === debate.challenger_id
+    ? debate.challenger?.full_name
+    : winnerId === debate.responder_id
+      ? debate.responder?.full_name
+      : null;
+
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[700] flex items-end sm:items-center justify-center px-4"
+      style={{ background: "rgba(0,0,0,0.9)", backdropFilter: "blur(20px)" }}
+      onClick={onClose}>
+      <motion.div initial={{ y: 60, scale: 0.95 }} animate={{ y: 0, scale: 1 }}
+        transition={{ type: "spring", damping: 22, stiffness: 200 }}
+        className="w-full max-w-sm rounded-3xl overflow-hidden mb-4"
+        style={{ background: "linear-gradient(180deg,#0f0a1e,#0a0a14)", border: "1.5px solid rgba(251,191,36,0.4)" }}
+        onClick={e => e.stopPropagation()}>
+
+        {/* Header */}
+        <div className="px-5 pt-6 pb-4 text-center"
+          style={{ background: "linear-gradient(180deg,rgba(251,191,36,0.08),transparent)" }}>
+          <div className="w-16 h-16 rounded-2xl mx-auto mb-3 flex items-center justify-center"
+            style={{ background: "linear-gradient(135deg,#f59e0b,#d97706)", boxShadow: "0 0 30px rgba(251,191,36,0.4)" }}>
+            <Trophy size={28} className="text-white" />
+          </div>
+          {winnerName ? (
+            <>
+              <p className="text-yellow-400 text-[11px] font-bold uppercase tracking-widest mb-1">🏆 Winner</p>
+              <h2 className="text-white font-black text-[22px] leading-tight">{winnerName}</h2>
+              <p className="text-white/40 text-[12px] mt-1">
+                {iAmWinner ? "You dominated the arena! +1 Debater Level" : "Better luck next debate!"}
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="text-white/50 text-[12px] uppercase tracking-widest mb-1">Result</p>
+              <h2 className="text-white font-black text-[22px]">It's a Draw!</h2>
+              <p className="text-white/40 text-[12px] mt-1">Both argued equally well.</p>
+            </>
+          )}
+        </div>
+
+        {/* Vote Stats */}
+        <div className="px-5 pb-4 space-y-2">
+          <p className="text-white/30 text-[10px] uppercase tracking-widest font-bold text-center mb-3">
+            ⚖️ Fact-Check Verdict
+          </p>
+
+          {/* Challenger row */}
+          <div className="flex items-center gap-3 px-3 py-2.5 rounded-2xl"
+            style={{ background: "rgba(99,102,241,0.08)", border: "1px solid rgba(99,102,241,0.2)" }}>
+            <DA url={debate.challenger?.avatar_url} name={debate.challenger?.full_name} size={32} ring="#6366f1" />
+            <div className="flex-1 min-w-0">
+              <p className="text-white font-bold text-[12px] truncate">{debate.challenger?.full_name || "Challenger"}</p>
+              <p className="text-white/40 text-[10px]">Challenger</p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="flex items-center gap-0.5 text-emerald-400 text-[11px] font-black">
+                <ThumbsUp size={10} /> {challAcc}
+              </span>
+              <span className="flex items-center gap-0.5 text-red-400 text-[11px] font-black">
+                <ThumbsDown size={10} /> {challRej}
+              </span>
+              {winnerId === debate.challenger_id && <Crown size={14} className="text-yellow-400" />}
+            </div>
+          </div>
+
+          {/* Responder row */}
+          <div className="flex items-center gap-3 px-3 py-2.5 rounded-2xl"
+            style={{ background: "rgba(236,72,153,0.08)", border: "1px solid rgba(236,72,153,0.2)" }}>
+            <DA url={debate.responder?.avatar_url} name={debate.responder?.full_name} size={32} ring="#ec4899" />
+            <div className="flex-1 min-w-0">
+              <p className="text-white font-bold text-[12px] truncate">{debate.responder?.full_name || "Responder"}</p>
+              <p className="text-white/40 text-[10px]">Responder</p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="flex items-center gap-0.5 text-emerald-400 text-[11px] font-black">
+                <ThumbsUp size={10} /> {respAcc}
+              </span>
+              <span className="flex items-center gap-0.5 text-red-400 text-[11px] font-black">
+                <ThumbsDown size={10} /> {respRej}
+              </span>
+              {winnerId === debate.responder_id && <Crown size={14} className="text-yellow-400" />}
+            </div>
+          </div>
+
+          {/* Make public */}
+          {!debate.is_public && (
+            <motion.button whileTap={{ scale: 0.97 }}
+              onClick={async () => { await onMakePublic(); }}
+              className="w-full mt-2 flex items-center justify-center gap-2 py-3 rounded-2xl text-[12px] font-black text-white"
+              style={{ background: "linear-gradient(135deg,rgba(99,102,241,0.25),rgba(139,92,246,0.25))", border: "1px solid rgba(99,102,241,0.4)" }}>
+              <Eye size={14} className="text-indigo-400" />
+              Make Public — Let Everyone Read
+            </motion.button>
+          )}
+          {debate.is_public && (
+            <div className="flex items-center justify-center gap-1.5 py-2">
+              <Eye size={11} className="text-emerald-400" />
+              <span className="text-emerald-400 text-[11px] font-bold">Debate is now public</span>
+            </div>
+          )}
+
+          <motion.button whileTap={{ scale: 0.97 }} onClick={onClose}
+            className="w-full py-3 rounded-2xl text-[12px] font-bold text-white/50"
+            style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}>
+            Close
+          </motion.button>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+};
+
 // ── Queue Wait Modal ──────────────────────────────────────────────────────────
 const QueueWaitModal: React.FC<{ onClose: () => void; estimatedFreeAt: Date | null }> = ({ onClose, estimatedFreeAt }) => {
   const [left, setLeft] = useState(0);
@@ -503,7 +694,9 @@ export const DebateButton: React.FC<{
 
   const [debate, setDebate]       = useState<DebateChallenge | null>(null);
   const [messages, setMessages]   = useState<DebateMessage[]>([]);
+  const [votes, setVotes]         = useState<VoteMap>({});
   const [showArena, setShowArena] = useState(false);
+  const [showResult, setShowResult] = useState(false);
   const [loading, setLoading]     = useState(false);
   const [challenging, setChallenging] = useState(false);
   const [accepting, setAccepting]     = useState(false);
@@ -559,6 +752,25 @@ export const DebateButton: React.FC<{
     setMessages(data.map(m => ({ ...m, user_liked: likedSet.has(m.id) })));
   }, [currentUserId]);
 
+  // ── Fetch & sync message votes ───────────────────────────────────────────────
+  const fetchVotes = useCallback(async (msgIds: string[]) => {
+    if (!msgIds.length) return;
+    const { data: allVotes } = await supabase
+      .from("debate_message_votes")
+      .select("message_id, vote_type, user_id")
+      .in("message_id", msgIds);
+    if (!allVotes) return;
+
+    const map: VoteMap = {};
+    for (const v of allVotes) {
+      if (!map[v.message_id]) map[v.message_id] = { accepted: 0, rejected: 0, myVote: null };
+      if (v.vote_type === "accepted") map[v.message_id].accepted++;
+      else map[v.message_id].rejected++;
+      if (v.user_id === currentUserId) map[v.message_id].myVote = v.vote_type as VoteType;
+    }
+    setVotes(map);
+  }, [currentUserId]);
+
   // ── Check if owner is busy (queue system) ───────────────────────────────────
   const checkOwnerBusy = useCallback(async (): Promise<{ busy: boolean; freeAt: Date | null }> => {
     const { data } = await supabase
@@ -585,6 +797,11 @@ export const DebateButton: React.FC<{
       fetchMessages(debate.id);
     }
   }, [debate?.id, debate?.status, fetchMessages]);
+
+  // Re-fetch votes whenever messages change
+  useEffect(() => {
+    if (messages.length) fetchVotes(messages.map(m => m.id));
+  }, [messages, fetchVotes]);
 
   // Play jingle when arena becomes active and is opened
   useEffect(() => {
@@ -756,12 +973,57 @@ export const DebateButton: React.FC<{
       ? { ...m, likes_count: count || 0, user_liked: !liked } : m));
   };
 
+  const handleVote = async (msgId: string, voteType: VoteType) => {
+    const current = votes[msgId]?.myVote;
+    if (current === voteType) {
+      // Toggle off — delete vote
+      await supabase.from("debate_message_votes")
+        .delete().eq("message_id", msgId).eq("user_id", currentUserId);
+      setVotes(prev => ({
+        ...prev,
+        [msgId]: {
+          ...prev[msgId],
+          [voteType]: Math.max(0, (prev[msgId]?.[voteType] ?? 1) - 1),
+          myVote: null,
+        },
+      }));
+    } else {
+      // Upsert new vote (replace if switching)
+      await supabase.from("debate_message_votes")
+        .upsert({ message_id: msgId, user_id: currentUserId, vote_type: voteType },
+          { onConflict: "message_id,user_id" });
+      setVotes(prev => {
+        const old = prev[msgId] ?? { accepted: 0, rejected: 0, myVote: null };
+        const prev_vote = old.myVote;
+        return {
+          ...prev,
+          [msgId]: {
+            accepted: old.accepted
+              + (voteType === "accepted" ? 1 : 0)
+              - (prev_vote === "accepted" ? 1 : 0),
+            rejected: old.rejected
+              + (voteType === "rejected" ? 1 : 0)
+              - (prev_vote === "rejected" ? 1 : 0),
+            myVote: voteType,
+          },
+        };
+      });
+    }
+  };
+
   const handleEnd = async () => {
     if (!debate) return;
-    const oppId    = debate.challenger_id === currentUserId ? debate.responder_id : debate.challenger_id;
-    const myTotal  = messages.filter(m => m.user_id === currentUserId).reduce((a, m) => a + m.likes_count, 0);
-    const oppTotal = messages.filter(m => m.user_id === oppId).reduce((a, m) => a + m.likes_count, 0);
-    const winnerId = myTotal > oppTotal ? currentUserId : oppTotal > myTotal ? oppId : null;
+    const challAcc = messages
+      .filter(m => m.user_id === debate.challenger_id)
+      .reduce((sum, m) => sum + (votes[m.id]?.accepted ?? 0), 0);
+    const respAcc  = messages
+      .filter(m => m.user_id === debate.responder_id)
+      .reduce((sum, m) => sum + (votes[m.id]?.accepted ?? 0), 0);
+    const winnerId = challAcc > respAcc
+      ? debate.challenger_id
+      : respAcc > challAcc
+        ? debate.responder_id
+        : null;
 
     await supabase.from("debate_challenges").update({
       status: "finished", finished_at: new Date().toISOString(), winner_id: winnerId,
@@ -774,6 +1036,7 @@ export const DebateButton: React.FC<{
       }
     }
     await fetchDebate();
+    setShowResult(true);
     toast.success(winnerId === currentUserId ? "🏆 You won the debate! +1 Debater Level" : "Debate ended.");
   };
 
@@ -893,9 +1156,11 @@ export const DebateButton: React.FC<{
               messages={messages}
               currentUserId={currentUserId}
               surveyQuestion={surveyQuestion}
+              votes={votes}
               onClose={() => setShowArena(false)}
               onSend={handleSend}
               onLike={handleLike}
+              onVote={handleVote}
               onEnd={handleEnd}
               onMakePublic={handleMakePublic}
             />
@@ -936,6 +1201,118 @@ export const DebateButton: React.FC<{
           ) : null
         )}
       </AnimatePresence>
+
+      {/* ── Debate Result Modal ── */}
+      <AnimatePresence>
+        {showResult && debate && (
+          <DebateResultModal
+            debate={debate}
+            messages={messages}
+            votes={votes}
+            currentUserId={currentUserId}
+            onClose={() => setShowResult(false)}
+            onMakePublic={handleMakePublic}
+          />
+        )}
+      </AnimatePresence>
     </>
+  );
+};
+
+// ── Public Archive Banner ──────────────────────────────────────────────────────
+// Drop this onto any survey post to show a past-debate result banner.
+export const DebateArchiveBanner: React.FC<{
+  surveyId: string;
+  onViewDebate?: (debateId: string) => void;
+}> = ({ surveyId, onViewDebate }) => {
+  const [archivedDebate, setArchivedDebate] = useState<DebateChallenge | null>(null);
+  const [expanded, setExpanded] = useState(false);
+
+  useEffect(() => {
+    supabase
+      .from("debate_challenges")
+      .select(`
+        *,
+        challenger:profiles!challenger_id(full_name, avatar_url),
+        responder:profiles!responder_id(full_name, avatar_url)
+      `)
+      .eq("survey_id", surveyId)
+      .eq("status", "finished")
+      .eq("is_public", true)
+      .order("finished_at", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+      .then(({ data }) => { if (data) setArchivedDebate(data as DebateChallenge); });
+  }, [surveyId]);
+
+  if (!archivedDebate) return null;
+
+  const winnerName = archivedDebate.winner_id === archivedDebate.challenger_id
+    ? archivedDebate.challenger?.full_name
+    : archivedDebate.winner_id === archivedDebate.responder_id
+      ? archivedDebate.responder?.full_name
+      : null;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -4 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="mx-3 mt-2 rounded-2xl overflow-hidden cursor-pointer"
+      style={{
+        background: "linear-gradient(135deg,rgba(251,191,36,0.06),rgba(99,102,241,0.06))",
+        border: "1px solid rgba(251,191,36,0.25)",
+      }}
+      onClick={() => {
+        if (onViewDebate) onViewDebate(archivedDebate.id);
+        else setExpanded(v => !v);
+      }}>
+      <div className="flex items-center gap-2.5 px-3 py-2.5">
+        <div className="w-7 h-7 rounded-xl bg-gradient-to-br from-yellow-500 to-orange-500 flex items-center justify-center shrink-0">
+          <Trophy size={13} className="text-white" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-white/80 text-[11px] font-black leading-tight truncate">
+            ⚔️ Debate Concluded:&nbsp;
+            <span className="text-indigo-300">{archivedDebate.challenger?.full_name}</span>
+            &nbsp;vs&nbsp;
+            <span className="text-pink-300">{archivedDebate.responder?.full_name}</span>
+          </p>
+          <p className="text-yellow-400 text-[10px] font-bold mt-0.5">
+            {winnerName ? `🏆 Winner: ${winnerName}` : "It was a draw!"}&nbsp;
+            <span className="text-white/30 font-normal">· Tap to view archive</span>
+          </p>
+        </div>
+        <Star size={13} className="text-yellow-400 shrink-0" />
+      </div>
+
+      <AnimatePresence>
+        {expanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="overflow-hidden">
+            <div className="px-3 pb-3 flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                <DA url={archivedDebate.challenger?.avatar_url}
+                  name={archivedDebate.challenger?.full_name} size={28} ring="#6366f1" />
+                <p className="text-indigo-300 text-[10px] font-bold">Challenger</p>
+              </div>
+              <div className="flex-1 text-center text-white/20 text-[9px] font-bold uppercase">vs</div>
+              <div className="flex items-center gap-2">
+                <p className="text-pink-300 text-[10px] font-bold">Responder</p>
+                <DA url={archivedDebate.responder?.avatar_url}
+                  name={archivedDebate.responder?.full_name} size={28} ring="#ec4899" />
+              </div>
+            </div>
+            <div className="px-3 pb-3">
+              <p className="text-white/30 text-[9px] text-center">
+                Finished {new Date(archivedDebate.finished_at || "").toLocaleDateString()} · Inspire others — start a new debate!
+              </p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
   );
 };
