@@ -230,7 +230,9 @@ const DebateRoom: React.FC<{
           </div>
         )}
 
-        {messages.map(msg => {
+        {[...messages]
+          .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+          .map(msg => {
           const mine = isMine(msg.user_id);
           const color = mine ? myColor : oppColor;
           return (
@@ -467,37 +469,42 @@ export const DebateButton: React.FC<{
 
   useEffect(() => {
     if (!debate?.id || debate.status !== "active") return;
-    const debateId = debate.id;
+    const debateId   = debate.id;
+    const challenger = debate.challenger;
+    const responder  = debate.responder;
+    const challengerId = debate.challenger_id;
+
     const ch = supabase
       .channel(`debate-msgs-${debateId}`)
       .on("postgres_changes", {
         event: "INSERT", schema: "public", table: "debate_messages",
         filter: `debate_id=eq.${debateId}`,
-      }, async (payload) => {
+      }, (payload) => {
         const raw = payload.new as DebateMessage;
-        // Fetch with profiles join so we get avatar / name
-        const { data: msg } = await supabase
-          .from("debate_messages")
-          .select("*, profiles(full_name, avatar_url)")
-          .eq("id", raw.id)
-          .single();
-        if (!msg) return;
-        // Check if the current user already liked this message
-        const { data: liked } = await supabase
-          .from("debate_message_likes")
-          .select("message_id")
-          .eq("message_id", msg.id)
-          .eq("user_id", currentUserId)
-          .maybeSingle();
+        console.log("[DebateArena] realtime INSERT →", raw.id, raw.user_id, raw.content);
+
+        // Resolve profile from the debate object (already loaded) — no extra fetch needed
+        const profile: Profile | undefined =
+          raw.user_id === challengerId ? challenger : responder;
+
         setMessages(prev => {
-          // Dedup — if optimistic insert already added it, skip
-          if (prev.some(m => m.id === msg.id)) return prev;
-          return [...prev, { ...msg, user_liked: !!liked }];
+          // Dedup — skip if already present (e.g. from a previous fetchMessages call)
+          if (prev.some(m => m.id === raw.id)) {
+            console.log("[DebateArena] dedup skip:", raw.id);
+            return prev;
+          }
+          const next = [...prev, { ...raw, user_liked: false, profiles: profile }];
+          console.log("[DebateArena] messages state updated → total:", next.length);
+          return next;
         });
       })
-      .subscribe();
+      .subscribe((status) => {
+        console.log("[DebateArena] subscription status:", status);
+      });
+
     return () => { supabase.removeChannel(ch); };
-  }, [debate?.id, debate?.status, currentUserId]);
+  }, [debate?.id, debate?.status, debate?.challenger_id,
+      debate?.challenger, debate?.responder]);
 
   // ── Actions ─────────────────────────────────────────────────────────────────
   const handleChallenge = async () => {
