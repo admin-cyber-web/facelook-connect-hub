@@ -4562,7 +4562,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                             if (longPressTimerRef.current)
                               clearTimeout(longPressTimerRef.current);
                           }}
-                          className={`flex ${isMine ? "justify-end" : "justify-start"} group relative select-none`}
+                          className={`flex ${isMine ? "justify-end" : "justify-start"} items-end gap-1.5 group relative select-none`}
                           style={{ cursor: "default" }}
                         >
                           {/* Swipe hint icon */}
@@ -4581,7 +4581,25 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                               <polyline points="9 18 15 12 9 6" />
                             </svg>
                           </div>
-                          <div className="relative max-w-[78%]">
+
+                          {/* ── Avatar outside bubble — received LEFT ── */}
+                          {!isMine && (
+                            <div className="w-7 h-7 rounded-full shrink-0 overflow-hidden self-end ring-1 ring-black/10">
+                              {selectedUser?.avatar_url ? (
+                                <img
+                                  src={selectedUser.avatar_url}
+                                  className="w-full h-full object-cover"
+                                  decoding="async"
+                                />
+                              ) : (
+                                <div className={`w-full h-full flex items-center justify-center text-[11px] font-black ${T.accent} text-white`}>
+                                  {(selectedUser?.full_name || "?")[0]}
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          <div className="flex flex-col max-w-[75%]">
                             {/* Quote block for replied message */}
                             {quotedMsg && (
                               <div
@@ -4599,9 +4617,38 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                 </p>
                               </div>
                             )}
+
+                            {/* ── Bubble ── */}
                             <div
-                              className={`px-4 py-2.5 rounded-2xl ${isMine ? `${T.bubbleSent} rounded-tr-sm` : `${T.bubbleRecv} rounded-tl-sm`}`}
+                              className={`px-3.5 py-2 rounded-2xl ${isMine ? `${T.bubbleSent} rounded-tr-sm` : `${T.bubbleRecv} rounded-tl-sm`}`}
                             >
+                              {/* ── Header row: [Avatar] [Status ticks] ── */}
+                              <div className={`flex items-center gap-1 mb-1 ${isMine ? "justify-end" : "justify-start"}`}>
+                                {/* Mini sender avatar */}
+                                <div className="w-[18px] h-[18px] rounded-full overflow-hidden shrink-0 ring-1 ring-white/25">
+                                  {isMine ? (
+                                    myProfile?.avatar_url ? (
+                                      <img src={myProfile.avatar_url} className="w-full h-full object-cover" decoding="async" />
+                                    ) : (
+                                      <div className="w-full h-full bg-white/30 flex items-center justify-center text-[7px] font-black text-white">
+                                        {(myProfile?.full_name || "Y")[0]}
+                                      </div>
+                                    )
+                                  ) : (
+                                    selectedUser?.avatar_url ? (
+                                      <img src={selectedUser.avatar_url} className="w-full h-full object-cover" decoding="async" />
+                                    ) : (
+                                      <div className="w-full h-full bg-black/20 flex items-center justify-center text-[7px] font-black">
+                                        {(selectedUser?.full_name || "?")[0]}
+                                      </div>
+                                    )
+                                  )}
+                                </div>
+                                {/* Status ticks — only for sent messages */}
+                                {isMine && <MessageStatus msg={msg} />}
+                              </div>
+
+                              {/* ── Message content ── */}
                               {msg.media_url && msg.media_type ? (
                                 <MediaBubble
                                   url={msg.media_url}
@@ -4652,13 +4699,15 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                   )}
                                 </>
                               )}
-                              <p
-                                className={`text-[10px] mt-0.5 font-medium ${isMine ? "text-white/50" : T.text3} text-right flex items-center justify-end gap-1`}
-                              >
-                                {formatTime(msg.created_at)}
-                                <MessageStatus msg={msg} />
-                              </p>
                             </div>
+
+                            {/* ── Timestamp OUTSIDE the bubble ── */}
+                            <p
+                              className={`text-[10px] mt-0.5 font-medium ${isMine ? "text-right" : "text-left"} ${T.text3}`}
+                            >
+                              {formatTime(msg.created_at)}
+                            </p>
+
                             {/* Reaction Bubbles */}
                             {msgReactions[msg.id] &&
                               Object.keys(msgReactions[msg.id]).length > 0 && (
@@ -4669,6 +4718,24 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                 />
                               )}
                           </div>
+
+                          {/* ── Avatar outside bubble — sent RIGHT ── */}
+                          {isMine && (
+                            <div className="w-7 h-7 rounded-full shrink-0 overflow-hidden self-end ring-1 ring-black/10">
+                              {myProfile?.avatar_url ? (
+                                <img
+                                  src={myProfile.avatar_url}
+                                  className="w-full h-full object-cover"
+                                  decoding="async"
+                                />
+                              ) : (
+                                <div className={`w-full h-full flex items-center justify-center text-[11px] font-black ${T.accent} text-white`}
+                                >
+                                  {(myProfile?.full_name || "Y")[0]}
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </motion.div>
                       );
                     })
