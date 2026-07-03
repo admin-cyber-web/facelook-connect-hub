@@ -1721,19 +1721,12 @@ const Header = ({
       setActionLoading(null);
       return;
     }
-    await supabase
-      .from("notifications")
-      .insert({
-        notifier_id: senderId,
-        actor_id: userId,
-        type: "friend_accepted",
-        entity_id: reqId,
-        content: "accepted your friend request",
-        is_read: false,
-      });
+    // Supabase trigger `notify_friend_accepted` fires automatically — no manual insert to avoid duplicates
     toast.success("Friend request accept ho gayi!");
     setFriendRequests((prev) => prev.filter((r) => r.id !== reqId));
     setActionLoading(null);
+    // Refresh both parties' chat contact lists immediately
+    window.dispatchEvent(new CustomEvent("flicks:contacts-refresh"));
   };
 
   const rejectRequest = async (reqId: string) => {
@@ -1781,8 +1774,6 @@ const Header = ({
   };
 
   const handleNotifClick = (n: any) => {
-    console.log("Notification Data:", n);
-
     // Mark as read (handle grouped notifications)
     if (n._group && Array.isArray(n._group)) {
       const unreadInGroup = n._group.filter((g: any) => !g.is_read);
@@ -1794,22 +1785,48 @@ const Header = ({
     }
 
     // Story notifications → open story viewer
-    const storyTypes = ["story_like", "story_comment"];
-    const storyId = n.entity_id;
-    if (storyId && storyTypes.includes(n.type)) {
+    if (["story_like", "story_comment"].includes(n.type) && n.entity_id) {
       setShowNotif(false);
-      console.log("Navigating to story:", storyId);
-      window.dispatchEvent(
-        new CustomEvent("flicks:open-story", { detail: { storyId } }),
-      );
+      window.dispatchEvent(new CustomEvent("flicks:open-story", { detail: { storyId: n.entity_id } }));
       return;
     }
 
+    // Follow / Friend accepted → open DM with that person
+    if (["follow", "friend_accepted"].includes(n.type) && n.actor_id) {
+      setShowNotif(false);
+      window.dispatchEvent(new CustomEvent("flicks:open-chat", {
+        detail: {
+          userId: n.actor_id,
+          full_name: n.actor?.full_name || "User",
+          avatar_url: n.actor?.avatar_url || "",
+        },
+      }));
+      return;
+    }
+
+    // Circle notifications → switch to Circle feature and select the circle
+    if (["circle_join", "circle_invite", "circle_share"].includes(n.type) && n.entity_id) {
+      setShowNotif(false);
+      window.dispatchEvent(new CustomEvent("flicks:open-circle", {
+        detail: { circleId: n.entity_id },
+      }));
+      return;
+    }
+
+    // Hook / page notifications → switch to Hooks feature
+    if (["hook_post_like", "hook_post_comment", "hook_share"].includes(n.type) && n.entity_id) {
+      setShowNotif(false);
+      window.dispatchEvent(new CustomEvent("flicks:open-hook", {
+        detail: { hookId: n.entity_id },
+      }));
+      return;
+    }
+
+    // Post engagement → scroll to element in feed
     const postTypes = [
       "like", "comment", "mention", "new_post",
       "magnet_link", "magnet_accepted", "magnet",
-      "share", "circle_share", "hook_share",
-      "reply", "post_mention", "post_pin",
+      "share", "reply", "post_mention", "post_pin",
     ];
     if (n.entity_id && postTypes.includes(n.type)) {
       setShowNotif(false);

@@ -1849,6 +1849,13 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     };
   }, [isOpen, userId, fetchFriendships, fetchPendingRequests, fetchContacts]);
 
+  // ── Global event: friend accepted anywhere → refresh contacts immediately ──
+  useEffect(() => {
+    const handler = () => { fetchContacts(); };
+    window.addEventListener("flicks:contacts-refresh", handler);
+    return () => window.removeEventListener("flicks:contacts-refresh", handler);
+  }, [fetchContacts]);
+
   // ── Realtime: new messages → alert ────────────────────────────────────────
   useEffect(() => {
     if (!isOpen) return;

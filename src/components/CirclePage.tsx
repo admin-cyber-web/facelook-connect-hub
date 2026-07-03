@@ -968,13 +968,22 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
   };
 
   // ── Share Circle ─────────────────────────────────────────────────────────────
-  const shareCircle = (group: Group) => {
+  const shareCircle = async (group: Group) => {
     const link = `${window.location.origin}?circle=${group.id}`;
-    const text = `Join "${group.name}" on Flicks! 🔥`;
-    if (navigator.share) {
-      navigator.share({ title: group.name, text, url: link }).catch(() => {});
-    } else {
-      navigator.clipboard.writeText(link);
+    const text = `Join "${group.name}" on Flicks! 🔥\n\n${link}`;
+    const mediaUrl = (group as any).cover_url || (group as any).avatar_url || "";
+    try {
+      const { universalShare } = await import("../lib/universalShare");
+      const result = await universalShare({
+        title: group.name,
+        text,
+        url: link,
+        mediaUrl: mediaUrl || undefined,
+        type: "circle",
+      });
+      if (result === "copied") toast.success("Invite link copied! Share it anywhere 🔗");
+    } catch {
+      navigator.clipboard.writeText(link).catch(() => {});
       toast.success("Invite link copied! Share it anywhere 🔗");
     }
   };
