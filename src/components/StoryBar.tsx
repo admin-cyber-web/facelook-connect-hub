@@ -267,7 +267,7 @@ const StoryCommentSheet = ({
             comments.map((c: any) => (
               <div key={c.id} className="flex items-start gap-2.5">
                 {c.profiles?.avatar_url ? (
-                  <img src={c.profiles.avatar_url} className="w-8 h-8 rounded-full object-cover shrink-0 mt-0.5" loading="lazy"  decoding="async"/>
+                  <img src={c.profiles.avatar_url} className="w-8 h-8 rounded-full object-cover shrink-0 mt-0.5" loading="lazy" crossOrigin="anonymous" referrerPolicy="no-referrer" decoding="async"/>
                 ) : (
                   <div className="w-8 h-8 rounded-full bg-white/15 flex items-center justify-center shrink-0 mt-0.5">
                     <span className="text-white font-bold text-sm">{(c.profiles?.full_name || "U")[0]}</span>
@@ -574,7 +574,7 @@ const StoryViewer = ({
         {/* Header */}
         <div className="flex items-center gap-2.5 px-3 py-2 pr-16 z-20">
           {avatarUrl ? (
-            <img src={avatarUrl} className="w-9 h-9 rounded-full object-cover border-2 border-white/60" loading="lazy"  decoding="async"/>
+            <img src={avatarUrl} className="w-9 h-9 rounded-full object-cover border-2 border-white/60" loading="lazy" crossOrigin="anonymous" referrerPolicy="no-referrer" decoding="async"/>
           ) : (
             <div className="w-9 h-9 rounded-full border-2 border-white/60 flex items-center justify-center text-white font-black text-sm shrink-0"
               style={{ background: gradFor(group.user_id) }}>
@@ -613,7 +613,7 @@ const StoryViewer = ({
                     transition={{ duration: 6, repeat: Infinity, ease: "linear" }}>
                     <div className="absolute inset-0 rounded-full" style={{ background: `conic-gradient(from 0deg, transparent 0%, rgba(255,255,255,0.08) 50%, transparent 100%)` }} />
                     {avatarUrl ? (
-                      <img src={avatarUrl} className="w-full h-full object-cover" loading="lazy" decoding="async" />
+                      <img src={avatarUrl} className="w-full h-full object-cover" loading="lazy" crossOrigin="anonymous" referrerPolicy="no-referrer" decoding="async" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-white font-black text-5xl" style={{ background: gradFor(group.user_id) }}>
                         {profileName[0]}
@@ -641,7 +641,7 @@ const StoryViewer = ({
                 )
               ) : story.mood === "grid" ? (
                 <div className="w-full h-full grid grid-cols-2 grid-rows-2">
-                  {[0,1,2,3].map(j => <img key={j} src={storyPublicUrl} className="w-full h-full object-cover" style={{ transform: j % 2 === 1 ? "scaleX(-1)" : undefined }} draggable={false} loading="lazy"  decoding="async"/>)}
+                  {[0,1,2,3].map(j => <img key={j} src={storyPublicUrl} className="w-full h-full object-cover" style={{ transform: j % 2 === 1 ? "scaleX(-1)" : undefined }} draggable={false} loading="lazy" crossOrigin="anonymous" referrerPolicy="no-referrer" decoding="async"/>)}
                 </div>
               ) : (
                 <div className="w-full h-full relative flex items-center justify-center bg-black">
@@ -650,6 +650,9 @@ const StoryViewer = ({
                     className="w-full h-full"
                     style={{ objectFit: "contain", objectPosition: "center", filter: moodFilter, maxWidth: "100%", display: "block" }}
                     draggable={false}
+                    loading="lazy"
+                    crossOrigin="anonymous"
+                    referrerPolicy="no-referrer"
                    decoding="async"/>
                   {isSad && <RainOverlay />}
                   {isParty && <NeonOverlay />}
@@ -996,7 +999,7 @@ const ViewerListSheet = ({
             viewers.map(v => (
               <div key={v.id} className="flex items-center gap-3 px-3 py-2.5 hover:bg-[#c4e8d4] rounded-xl">
                 {v.profile.avatar_url ? (
-                  <img src={v.profile.avatar_url} className="w-11 h-11 rounded-full object-cover" loading="lazy"  decoding="async"/>
+                  <img src={v.profile.avatar_url} className="w-11 h-11 rounded-full object-cover" loading="lazy" crossOrigin="anonymous" referrerPolicy="no-referrer" decoding="async"/>
                 ) : (
                   <div
                     className="w-11 h-11 rounded-full flex items-center justify-center text-white font-black"
@@ -1353,7 +1356,7 @@ const StoryBubble = ({
               <Plus size={24} className="text-white" />
             </div>
           ) : avatarUrl ? (
-            <img src={avatarUrl} className="w-full h-full rounded-full object-cover" loading="lazy"  decoding="async"/>
+            <img src={avatarUrl} className="w-full h-full rounded-full object-cover" loading="lazy" crossOrigin="anonymous" referrerPolicy="no-referrer" decoding="async"/>
           ) : (
             <div
               className="w-full h-full rounded-full flex items-center justify-center text-white font-black text-lg"

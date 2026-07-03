@@ -735,7 +735,14 @@ const StoryCircle = ({
       <Mic size={18} className="text-white/80" />
     </div>
   ) : (
-    <img src={resolveMediaUrl(story.image_url, "stories")} className="w-full h-full object-cover" decoding="async" />
+    <img
+      src={resolveMediaUrl(story.image_url, "stories")}
+      className="w-full h-full object-cover"
+      decoding="async"
+      loading="lazy"
+      crossOrigin="anonymous"
+      referrerPolicy="no-referrer"
+    />
   );
   return (
     <button onClick={onClick} className="flex flex-col items-center gap-1.5 shrink-0">
@@ -3369,6 +3376,9 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                         src={resolveMediaUrl(aUrl, "avatars")}
                         className="w-9 h-9 rounded-full object-cover border-2 border-white/60 shrink-0"
                         decoding="async"
+                        loading="lazy"
+                        crossOrigin="anonymous"
+                        referrerPolicy="no-referrer"
                       />
 
                       <div className="flex-1 min-w-0">
@@ -3591,6 +3601,9 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                   }}
                                   draggable={false}
                                   decoding="async"
+                                  loading="lazy"
+                                  crossOrigin="anonymous"
+                                  referrerPolicy="no-referrer"
                                 />
                               ))}
                             </div>
@@ -3602,6 +3615,9 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                 style={{ filter: moodFilter }}
                                 draggable={false}
                                 decoding="async"
+                                loading="lazy"
+                                crossOrigin="anonymous"
+                                referrerPolicy="no-referrer"
                               />
                               {isSad && <StoryRainOverlay />}
                               {isParty && <StoryNeonOverlay />}
@@ -5176,6 +5192,9 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                     STORY_MOOD_FILTER[story.mood ?? ""] ?? "",
                                 }}
                                 decoding="async"
+                                loading="lazy"
+                                crossOrigin="anonymous"
+                                referrerPolicy="no-referrer"
                               />
                             )}
                             <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
@@ -5198,6 +5217,9 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                 src={resolveMediaUrl(aUrl, "avatars")}
                                 className="w-8 h-8 rounded-full object-cover border border-white/60"
                                 decoding="async"
+                                loading="lazy"
+                                crossOrigin="anonymous"
+                                referrerPolicy="no-referrer"
                               />
                             </div>
                             <div className="absolute bottom-2 left-2 right-2">
