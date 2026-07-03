@@ -132,7 +132,7 @@ const DebateRoom: React.FC<{
             <Swords size={14} className="text-white" />
           </div>
           <div>
-            <p className="text-white font-black text-[13px] leading-none">Debate Duel</p>
+            <p className="text-white font-black text-[13px] leading-none">Live Debate</p>
             <p className="text-white/30 text-[10px] truncate max-w-[160px]">{surveyQuestion}</p>
           </div>
         </div>
@@ -183,7 +183,7 @@ const DebateRoom: React.FC<{
               VS
             </div>
             {debate.status === "active" && (
-              <span className="text-[9px] font-bold text-white/30 uppercase tracking-wider">Live Duel</span>
+              <span className="text-[9px] font-bold text-white/30 uppercase tracking-wider">Live Debate</span>
             )}
             {debate.status === "finished" && (
               <span className="text-[9px] font-bold text-emerald-400 uppercase tracking-wider">Finished</span>
@@ -467,15 +467,37 @@ export const DebateButton: React.FC<{
 
   useEffect(() => {
     if (!debate?.id || debate.status !== "active") return;
+    const debateId = debate.id;
     const ch = supabase
-      .channel(`debate-msgs-${debate.id}`)
+      .channel(`debate-msgs-${debateId}`)
       .on("postgres_changes", {
         event: "INSERT", schema: "public", table: "debate_messages",
-        filter: `debate_id=eq.${debate.id}`,
-      }, () => fetchMessages(debate.id))
+        filter: `debate_id=eq.${debateId}`,
+      }, async (payload) => {
+        const raw = payload.new as DebateMessage;
+        // Fetch with profiles join so we get avatar / name
+        const { data: msg } = await supabase
+          .from("debate_messages")
+          .select("*, profiles(full_name, avatar_url)")
+          .eq("id", raw.id)
+          .single();
+        if (!msg) return;
+        // Check if the current user already liked this message
+        const { data: liked } = await supabase
+          .from("debate_message_likes")
+          .select("message_id")
+          .eq("message_id", msg.id)
+          .eq("user_id", currentUserId)
+          .maybeSingle();
+        setMessages(prev => {
+          // Dedup — if optimistic insert already added it, skip
+          if (prev.some(m => m.id === msg.id)) return prev;
+          return [...prev, { ...msg, user_liked: !!liked }];
+        });
+      })
       .subscribe();
     return () => { supabase.removeChannel(ch); };
-  }, [debate?.id, debate?.status, fetchMessages]);
+  }, [debate?.id, debate?.status, currentUserId]);
 
   // ── Actions ─────────────────────────────────────────────────────────────────
   const handleChallenge = async () => {
@@ -572,12 +594,16 @@ export const DebateButton: React.FC<{
 
   const handleSend = async (content: string) => {
     if (!debate) return;
-    const { data: msg } = await supabase
+    // Just insert — the realtime subscription (debate-msgs-*) will receive the
+    // INSERT event, fetch with profiles join, dedup, and append to state for
+    // BOTH participants without causing duplicates.
+    const { error } = await supabase
       .from("debate_messages")
-      .insert({ debate_id: debate.id, user_id: currentUserId, content })
-      .select("*, profiles(full_name, avatar_url)")
-      .single();
-    if (msg) setMessages(prev => [...prev, { ...msg, user_liked: false }]);
+      .insert({ debate_id: debate.id, user_id: currentUserId, content });
+    if (error) {
+      console.error("[DebateArena] send error →", error.code, error.message);
+      toast.error("Failed to send message. Check RLS or Realtime settings.");
+    }
   };
 
   const handleLike = async (msgId: string, liked: boolean) => {
