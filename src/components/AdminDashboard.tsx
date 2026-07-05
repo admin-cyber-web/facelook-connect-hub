@@ -59,6 +59,7 @@ interface ReportRow {
   reason: string;
   created_at: string;
   postContent: string;
+  postMediaUrl: string | null;
   postAuthor: string;
   postAuthorId: string | null;
   reporterName: string;
@@ -120,6 +121,7 @@ const AdminDashboard: React.FC<Props> = ({
     postId: string;
     reportId: string;
     preview: string;
+    mode: "delete" | "clean";
   } | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [welcomingId, setWelcomingId] = useState<string | null>(null);
@@ -228,7 +230,7 @@ const AdminDashboard: React.FC<Props> = ({
       supabase
         .from("reports")
         .select(
-          "id, post_id, target_id, reporter_id, reason, created_at, posts(id, content, author_id)",
+          "id, post_id, target_id, reporter_id, reason, created_at, posts(id, content, media_url, author_id)",
         )
         .order("created_at", { ascending: false }),
       supabase.from("profiles").select("*", { count: "exact", head: true }),
@@ -247,7 +249,7 @@ const AdminDashboard: React.FC<Props> = ({
     if (missingPostIds.length > 0) {
       const { data: fetchedPosts } = await supabase
         .from("posts")
-        .select("id, content, author_id")
+        .select("id, content, media_url, author_id")
         .in("id", missingPostIds);
       const postMap = new Map((fetchedPosts || []).map((p: any) => [p.id, p]));
       for (const r of reportRows) {
@@ -298,6 +300,7 @@ const AdminDashboard: React.FC<Props> = ({
         reason: r.reason,
         created_at: r.created_at,
         postContent: r.posts?.content ?? "",
+        postMediaUrl: r.posts?.media_url ?? null,
         postAuthor: author?.full_name ?? "Unknown",
         postAuthorId: r.posts?.author_id ?? null,
         reporterName: reporter?.full_name ?? "Unknown",
@@ -489,33 +492,48 @@ const AdminDashboard: React.FC<Props> = ({
 
   const dismissSafe = async (r: ReportRow) => {
     setDismissingId(r.id);
-    await supabase.from("reports").delete().eq("id", r.id);
-    const notifs = [];
-    if (r.reporterId) {
-      notifs.push({
-        notifier_id: r.reporterId,
-        actor_id: currentUserId,
-        type: "report_resolved_safe",
-        entity_id: r.post_id,
-        content: "Review complete. Content follows community guidelines.",
-        is_read: false,
-      });
+    try {
+      const { error: reportErr } = await supabase
+        .from("reports")
+        .delete()
+        .eq("id", r.id);
+      if (reportErr) throw reportErr;
+
+      const notifs = [];
+      if (r.reporterId) {
+        notifs.push({
+          notifier_id: r.reporterId,
+          actor_id: currentUserId,
+          type: "report_resolved_safe",
+          entity_id: r.post_id,
+          content: "Review complete. Content follows community guidelines.",
+          is_read: false,
+        });
+      }
+      if (r.postAuthorId) {
+        notifs.push({
+          notifier_id: r.postAuthorId,
+          actor_id: currentUserId,
+          type: "report_resolved_safe",
+          entity_id: r.post_id,
+          content:
+            "Your post is safe and doing great! It follows our community guidelines.",
+          is_read: false,
+        });
+      }
+      if (notifs.length > 0) {
+        const { error: notifErr } = await supabase
+          .from("notifications")
+          .insert(notifs);
+        if (notifErr) throw notifErr;
+      }
+      setReports((prev) => prev.filter((x) => x.id !== r.id));
+      toast.success("Report dismissed as safe ✓ — both parties notified");
+    } catch (e: any) {
+      toast.error(e?.message || "Could not dismiss report. Please try again.");
+    } finally {
+      setDismissingId(null);
     }
-    if (r.postAuthorId) {
-      notifs.push({
-        notifier_id: r.postAuthorId,
-        actor_id: currentUserId,
-        type: "report_resolved_safe",
-        entity_id: r.post_id,
-        content:
-          "Your post is safe and doing great! It follows our community guidelines.",
-        is_read: false,
-      });
-    }
-    if (notifs.length > 0) await supabase.from("notifications").insert(notifs);
-    setReports((prev) => prev.filter((x) => x.id !== r.id));
-    toast.success("Report dismissed as safe ✓ — both parties notified");
-    setDismissingId(null);
   };
 
   const confirmDeletePost = async () => {
@@ -526,40 +544,116 @@ const AdminDashboard: React.FC<Props> = ({
       return;
     }
     setDeleting(true);
-    const report = reports.find((r) => r.id === reportId);
-    const { error } = await supabase.from("posts").delete().eq("id", postId);
-    if (error) {
-      toast.error("Could not delete post");
+    try {
+      const report = reports.find((r) => r.id === reportId);
+      const { error } = await supabase.from("posts").delete().eq("id", postId);
+      if (error) throw error;
+
+      const { error: reportErr } = await supabase
+        .from("reports")
+        .delete()
+        .eq("id", reportId);
+      if (reportErr) throw reportErr;
+
+      const notifs = [];
+      if (report?.reporterId) {
+        notifs.push({
+          notifier_id: report.reporterId,
+          actor_id: currentUserId,
+          type: "report_resolved_removed",
+          entity_id: postId,
+          content: "Your report was actioned. The content was removed.",
+          is_read: false,
+        });
+      }
+      if (report?.postAuthorId) {
+        notifs.push({
+          notifier_id: report.postAuthorId,
+          actor_id: currentUserId,
+          type: "report_post_removed",
+          entity_id: postId,
+          content: "Someone reported your post. After review, it was removed.",
+          is_read: false,
+        });
+      }
+      if (notifs.length > 0) {
+        const { error: notifErr } = await supabase
+          .from("notifications")
+          .insert(notifs);
+        if (notifErr) throw notifErr;
+      }
+      toast.success("Post removed ✓ — reporter & author notified");
+      setReports((prev) => prev.filter((r) => r.id !== reportId));
+      setDeleteTarget(null);
+    } catch (e: any) {
+      toast.error(e?.message || "Could not delete post. Please try again.");
+    } finally {
       setDeleting(false);
+    }
+  };
+
+  const confirmCleanPost = async () => {
+    if (!deleteTarget) return;
+    const { postId, reportId } = deleteTarget;
+    if (!postId) {
+      toast.error("No post linked to this report");
       return;
     }
-    await supabase.from("reports").delete().eq("id", reportId);
-    const notifs = [];
-    if (report?.reporterId) {
-      notifs.push({
-        notifier_id: report.reporterId,
-        actor_id: currentUserId,
-        type: "report_resolved_removed",
-        entity_id: postId,
-        content: "Your report was actioned. The content was removed.",
-        is_read: false,
-      });
+    setDeleting(true);
+    try {
+      const report = reports.find((r) => r.id === reportId);
+      const { error } = await supabase
+        .from("posts")
+        .update({
+          content: "[This post was cleaned by a moderator]",
+          media_url: null,
+        })
+        .eq("id", postId);
+      if (error) throw error;
+
+      const { error: reportErr } = await supabase
+        .from("reports")
+        .delete()
+        .eq("id", reportId);
+      if (reportErr) throw reportErr;
+
+      const notifs = [];
+      if (report?.reporterId) {
+        notifs.push({
+          notifier_id: report.reporterId,
+          actor_id: currentUserId,
+          type: "report_resolved_cleaned",
+          entity_id: postId,
+          content:
+            "Your report was actioned. The content was cleaned by a moderator.",
+          is_read: false,
+        });
+      }
+      if (report?.postAuthorId) {
+        notifs.push({
+          notifier_id: report.postAuthorId,
+          actor_id: currentUserId,
+          type: "report_post_cleaned",
+          entity_id: postId,
+          content:
+            "Someone reported your post. After review, its content was cleaned to follow guidelines.",
+          is_read: false,
+        });
+      }
+      if (notifs.length > 0) {
+        const { error: notifErr } = await supabase
+          .from("notifications")
+          .insert(notifs);
+        if (notifErr) throw notifErr;
+      }
+      toast.success("Post cleaned ✓ — reporter & author notified");
+      setReports((prev) => prev.filter((r) => r.id !== reportId));
+      setDeleteTarget(null);
+    } catch (e: any) {
+      toast.error(e?.message || "Could not clean post. Please try again.");
+    } finally {
+      setDeleting(false);
     }
-    if (report?.postAuthorId) {
-      notifs.push({
-        notifier_id: report.postAuthorId,
-        actor_id: currentUserId,
-        type: "report_post_removed",
-        entity_id: postId,
-        content: "Someone reported your post. After review, it was removed.",
-        is_read: false,
-      });
-    }
-    if (notifs.length > 0) await supabase.from("notifications").insert(notifs);
-    toast.success("Post removed ✓ — reporter & author notified");
-    setReports((prev) => prev.filter((r) => r.id !== reportId));
-    setDeleting(false);
-    setDeleteTarget(null);
   };
 
   const handleApproveNameChange = async (req: NameChangeRow) => {
@@ -1056,6 +1150,23 @@ const AdminDashboard: React.FC<Props> = ({
                             "[Image/Media content without text]"}
                           "
                         </p>
+                        {r.postMediaUrl && (
+                          <div className="mt-1.5 rounded-lg overflow-hidden border border-white/10 max-h-56">
+                            {/\.(mp4|webm|mov)(\?|$)/i.test(r.postMediaUrl) ? (
+                              <video
+                                src={r.postMediaUrl}
+                                controls
+                                className="w-full max-h-56 object-contain bg-black"
+                              />
+                            ) : (
+                              <img
+                                src={r.postMediaUrl}
+                                alt="Reported media"
+                                className="w-full max-h-56 object-contain bg-black"
+                              />
+                            )}
+                          </div>
+                        )}
                       </div>
                     ) : (
                       <div className="p-2.5 rounded-xl bg-yellow-500/10 border border-yellow-500/20 text-yellow-300 text-[11px] flex items-center gap-1.5">
@@ -1087,6 +1198,22 @@ const AdminDashboard: React.FC<Props> = ({
                               postId: r.post_id!,
                               reportId: r.id,
                               preview: r.postContent,
+                              mode: "clean",
+                            })
+                          }
+                          className="flex-1 py-2 rounded-xl text-[11px] font-black border border-amber-500/30 bg-amber-500/10 text-amber-400 flex items-center justify-center gap-1"
+                        >
+                          <AlertTriangle size={12} /> Clean
+                        </button>
+                      )}
+                      {r.post_id && (
+                        <button
+                          onClick={() =>
+                            setDeleteTarget({
+                              postId: r.post_id!,
+                              reportId: r.id,
+                              preview: r.postContent,
+                              mode: "delete",
                             })
                           }
                           className="flex-1 py-2 rounded-xl text-[11px] font-black border border-red-500/30 bg-red-500/10 text-red-400 flex items-center justify-center gap-1"
@@ -1268,12 +1395,17 @@ const AdminDashboard: React.FC<Props> = ({
               className="w-full max-w-sm rounded-2xl border border-white/15 bg-gray-900 p-4 space-y-4"
             >
               <div>
-                <p className="text-white font-black text-sm text-red-400">
-                  Confirm Post Deletion
+                <p
+                  className={`font-black text-sm ${deleteTarget.mode === "clean" ? "text-amber-400" : "text-red-400"}`}
+                >
+                  {deleteTarget.mode === "clean"
+                    ? "Confirm Post Cleaning"
+                    : "Confirm Post Deletion"}
                 </p>
                 <p className="text-[11px] text-white/40">
-                  This will permanently remove the content and notify both user
-                  parties.
+                  {deleteTarget.mode === "clean"
+                    ? "This will remove the flagged text/media but keep the post shell, and notify both user parties."
+                    : "This will permanently remove the content and notify both user parties."}
                 </p>
               </div>
               <div className="p-3 rounded-xl bg-black/30 border border-white/5 text-xs text-white/60 italic">
@@ -1288,12 +1420,18 @@ const AdminDashboard: React.FC<Props> = ({
                   Cancel
                 </button>
                 <button
-                  onClick={confirmDeletePost}
+                  onClick={
+                    deleteTarget.mode === "clean"
+                      ? confirmCleanPost
+                      : confirmDeletePost
+                  }
                   disabled={deleting}
-                  className="flex-1 py-2 rounded-xl text-xs font-black bg-red-600 text-white flex items-center justify-center gap-1"
+                  className={`flex-1 py-2 rounded-xl text-xs font-black text-white flex items-center justify-center gap-1 ${deleteTarget.mode === "clean" ? "bg-amber-600" : "bg-red-600"}`}
                 >
                   {deleting ? (
                     <Loader2 size={12} className="animate-spin" />
+                  ) : deleteTarget.mode === "clean" ? (
+                    "Clean Post"
                   ) : (
                     "Delete Permanently"
                   )}
