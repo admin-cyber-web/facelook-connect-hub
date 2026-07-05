@@ -141,7 +141,7 @@ const SurveyDetail = () => {
             {/* Author */}
             <div className="flex items-center gap-3 px-5 pt-5 pb-3">
               {survey.profiles?.avatar_url
-                ? <img src={resolveMediaUrl(survey.profiles.avatar_url, "avatars")} className="w-9 h-9 rounded-full object-cover" />
+                ? <img src={resolveMediaUrl(survey.profiles.avatar_url, "avatars")} className="w-9 h-9 rounded-full object-cover" crossOrigin="anonymous" />
                 : <div className="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-black text-sm">
                     {(survey.profiles?.full_name || "?")[0].toUpperCase()}
                   </div>
@@ -164,7 +164,7 @@ const SurveyDetail = () => {
             {survey.image_url && (
               <div className="mx-5 mb-4 rounded-2xl overflow-hidden">
                 <img src={resolveMediaUrl(survey.image_url, "surveys")}
-                  className="w-full object-cover max-h-48" loading="lazy" decoding="async" />
+                  className="w-full object-cover max-h-48" loading="lazy" decoding="async" crossOrigin="anonymous" />
               </div>
             )}
 

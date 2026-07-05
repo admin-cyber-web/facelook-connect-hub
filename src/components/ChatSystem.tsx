@@ -340,6 +340,7 @@ const Avatar = ({
           src={url}
           className={`${dim} rounded-full object-cover border-2 border-white/20`}
           decoding="async"
+          crossOrigin="anonymous"
         />
       ) : (
         <div
@@ -367,6 +368,7 @@ const MediaBubble = React.memo(
           className="max-w-[220px] rounded-2xl object-cover cursor-pointer shadow-lg"
           onClick={() => window.open(url, "_blank")}
           decoding="async"
+          crossOrigin="anonymous"
         />
       );
     }
@@ -677,6 +679,7 @@ const StoryCircle = ({
             src={resolveMediaUrl(story.image_url, "stories")}
             className="w-full h-full object-cover"
             decoding="async"
+            crossOrigin="anonymous"
           />
         )}
       </div>
@@ -2901,6 +2904,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                 src={myProfile.avatar_url}
                 className="w-full h-full rounded-full object-cover"
                 decoding="async"
+                crossOrigin="anonymous"
               />
             ) : (
               <Plus size={20} className={T.text3} />
@@ -3021,6 +3025,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                       alt=""
                       className="w-full h-full object-cover"
                       decoding="async"
+                      crossOrigin="anonymous"
                     />
                   ) : (
                     <div className="w-full h-full bg-gray-100 flex items-center justify-center text-2xl">
@@ -3238,6 +3243,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                           src={aUrl}
                           className="w-9 h-9 rounded-full object-cover border-2 border-white/60"
                           decoding="async"
+                          crossOrigin="anonymous"
                         />
                       ) : (
                         <div
@@ -3403,6 +3409,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                     src={aUrl}
                                     className="w-full h-full object-cover"
                                     decoding="async"
+                                    crossOrigin="anonymous"
                                   />
                                 ) : (
                                   <div
@@ -3467,6 +3474,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                   }}
                                   draggable={false}
                                   decoding="async"
+                                  crossOrigin="anonymous"
                                 />
                               ))}
                             </div>
@@ -3477,6 +3485,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                 className="w-full h-full object-cover"
                                 style={{ filter: moodFilter }}
                                 draggable={false}
+                                crossOrigin="anonymous"
                                 decoding="async"
                               />
                               {isSad && <StoryRainOverlay />}
@@ -3676,6 +3685,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                   src={url}
                                   className="w-full h-full object-cover"
                                   decoding="async"
+                                  crossOrigin="anonymous"
                                 />
                               )}
                               <div className="absolute bottom-1 right-1 bg-black/50 rounded-full px-1.5 py-0.5">
@@ -4919,6 +4929,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                     STORY_MOOD_FILTER[story.mood ?? ""] ?? "",
                                 }}
                                 decoding="async"
+                                crossOrigin="anonymous"
                               />
                             )}
                             <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
@@ -4942,6 +4953,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                   src={aUrl}
                                   className="w-8 h-8 rounded-full object-cover border border-white/60"
                                   decoding="async"
+                                  crossOrigin="anonymous"
                                 />
                               ) : (
                                 <div

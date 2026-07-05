@@ -47,7 +47,7 @@ const timeAgo = (d: string) => {
 const Avatar: React.FC<{ url?: string; name?: string; size?: number }> = ({ url, name = "?", size = 36 }) => (
   url
     ? <img src={resolveMediaUrl(url, "avatars")} className="rounded-full object-cover shrink-0"
-        style={{ width: size, height: size }} decoding="async" />
+        style={{ width: size, height: size }} decoding="async" crossOrigin="anonymous" />
     : <div className="rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shrink-0 text-white font-black"
         style={{ width: size, height: size, fontSize: size * 0.4 }}>
         {name[0]?.toUpperCase() || "?"}
@@ -517,7 +517,7 @@ const SurveyCard: React.FC<{ survey: Survey; userId: string; onUpdate: () => voi
       {/* Image */}
       {survey.image_url && (
         <div className="mx-4 mb-3 rounded-2xl overflow-hidden">
-          <img src={resolveMediaUrl(survey.image_url, "surveys")} className="w-full object-cover max-h-52" decoding="async" loading="lazy" />
+          <img src={resolveMediaUrl(survey.image_url, "surveys")} className="w-full object-cover max-h-52" decoding="async" loading="lazy" crossOrigin="anonymous" />
         </div>
       )}
 
