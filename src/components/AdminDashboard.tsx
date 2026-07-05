@@ -587,7 +587,15 @@ const AdminDashboard: React.FC<Props> = ({
       setReports((prev) => prev.filter((r) => r.id !== reportId));
       setDeleteTarget(null);
     } catch (e: any) {
-      toast.error(e?.message || "Could not delete post. Please try again.");
+      const msg = e?.message || e?.details || e?.hint || "Unknown error";
+      console.error(
+        "[AdminDashboard] confirmDeletePost failed:",
+        "\n  message:", e?.message,
+        "\n  code:",    e?.code,
+        "\n  details:", e?.details,
+        "\n  hint:",    e?.hint,
+      );
+      toast.error(`Delete failed: ${msg}`);
     } finally {
       setDeleting(false);
     }

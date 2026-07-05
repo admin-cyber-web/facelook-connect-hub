@@ -3799,10 +3799,15 @@ const FameFeed = ({
       toast.success("🗑️ Post deleted by admin");
     } else {
       setPosts(snapshot);
-      toast.error(
-        "⚠️ Admin delete blocked — run supabase_admin_policies.sql in Supabase SQL editor.",
+      const msg = error.message || error.details || error.hint || "Unknown error";
+      console.error(
+        "[FameFeed] Admin delete failed:",
+        "\n  message:", error.message,
+        "\n  code:",    error.code,
+        "\n  details:", error.details,
+        "\n  hint:",    error.hint,
       );
-      console.error("[FameFeed] Admin delete failed:", error.message);
+      toast.error(`Delete failed: ${msg}`);
     }
   };
 
