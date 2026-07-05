@@ -232,6 +232,7 @@ const AdminDashboard: React.FC<Props> = ({
         .select(
           "id, post_id, target_id, reporter_id, reason, created_at, posts(id, content, media_url, author_id)",
         )
+        .eq("status", "pending")
         .order("created_at", { ascending: false }),
       supabase.from("profiles").select("*", { count: "exact", head: true }),
     ]);
@@ -613,7 +614,10 @@ const AdminDashboard: React.FC<Props> = ({
 
       const { error: reportErr } = await supabase
         .from("reports")
-        .delete()
+        .update({
+          status: "resolved",
+          decision: "Content Cleaned",
+        })
         .eq("id", reportId);
       if (reportErr) throw reportErr;
 

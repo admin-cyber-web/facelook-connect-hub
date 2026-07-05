@@ -7,6 +7,7 @@
 alter table public.reports
   add column if not exists reported_user_id uuid references auth.users(id) on delete cascade,
   add column if not exists status text not null default 'pending',
+  add column if not exists decision text,
   add column if not exists created_at timestamptz not null default now();
 
 create index if not exists idx_reports_reported_user_id on public.reports(reported_user_id);
