@@ -51,22 +51,11 @@ import {
 import { supabase } from "@/lib/supabaseClient";
 import { toast } from "sonner";
 
-// Stories are uploaded to the "stories" bucket with the object key itself
-// prefixed as "stories/<file>" (see uploadStory below), so resolveMediaUrl's
-// generic "strip bucket-name prefix" logic incorrectly removes that segment
-// and 404s. Mirror StoryBar.tsx's working getPublicUrl call, which treats the
-// stored path as-is and never double-appends/strips the "stories/" folder.
-function resolveStoryImageUrl(path: string | null | undefined): string {
-  if (!path || !path.trim()) return "";
-  if (path.startsWith("http://") || path.startsWith("https://")) return path;
-  return supabase.storage.from("stories").getPublicUrl(path).data.publicUrl;
-}
-
 // ── Storage bucket (must match the bucket created in Supabase dashboard) ───────
 const CHAT_BUCKET = "chat-images";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
-type Theme = "whatsapp" | "water" | "nature" | "velvet" | "glass" | "colorful" | "outline";
+type Theme = "whatsapp" | "water" | "nature" | "velvet";
 type BottomTab = "chat" | "story" | "alert" | "menu";
 type MenuPanel = "main" | "settings" | "archive" | "requests";
 
@@ -255,75 +244,6 @@ const THEME_CFG = {
     pill: "bg-rose-500/20 text-rose-300 border border-rose-500/30",
     storyRing: "border-rose-400",
   },
-  // ── NEW: Dark Mode Glassmorphism (default) ──────────────────────────────
-  glass: {
-    wrap: "bg-[#07111f]",
-    sidebar: "bg-[#0a1628] border-[#1a3a6b]/60",
-    chat: "bg-gradient-to-b from-[#0a1628] to-[#060d18]",
-    topbar: "bg-[#0a1628]/92 backdrop-blur-2xl border-[#1a3a6b]/55",
-    input: "bg-[#0a1628]/88 backdrop-blur-2xl border-[#1a3a6b]/45",
-    nav: "bg-[#060d18] border-[#1a3a6b]/55",
-    bubbleSent: "bg-gradient-to-br from-[#0057ff] to-[#0038cc] text-white shadow-[0_4px_20px_rgba(0,87,255,0.45)] border border-blue-500/20",
-    bubbleRecv: "bg-white/[0.08] backdrop-blur-xl border border-white/[0.10] text-white",
-    text1: "text-white",
-    text2: "text-blue-300",
-    text3: "text-white/40",
-    accent: "bg-[#0057ff]",
-    accentText: "text-[#4d94ff]",
-    icon: "🔮",
-    label: "Glass Dark",
-    divider: "border-[#1a3a6b]/50",
-    searchBg: "bg-white/[0.06] border-white/[0.10] text-white placeholder:text-white/25",
-    msgMenuBg: "bg-[#0a1628] border-[#1a3a6b]/60 shadow-2xl",
-    pill: "bg-blue-500/15 text-blue-300 border border-blue-500/25",
-    storyRing: "border-[#0057ff]",
-  },
-  // ── NEW: Vibrant Colorful ───────────────────────────────────────────────
-  colorful: {
-    wrap: "bg-gradient-to-b from-pink-50 via-orange-50 to-rose-50",
-    sidebar: "bg-white border-pink-200",
-    chat: "bg-gradient-to-br from-pink-50 via-orange-50 to-amber-50",
-    topbar: "bg-gradient-to-r from-pink-100/95 to-orange-100/95 backdrop-blur-2xl border-pink-300/50",
-    input: "bg-white/92 backdrop-blur-xl border-pink-200",
-    nav: "bg-white border-pink-200",
-    bubbleSent: "bg-gradient-to-br from-[#f7549f] to-[#ff8c42] text-white shadow-[4px_4px_14px_rgba(247,84,159,0.32)]",
-    bubbleRecv: "bg-white text-[#2d1b4e] border border-pink-100 shadow-[0_2px_12px_rgba(247,84,159,0.10)]",
-    text1: "text-[#2d1b4e]",
-    text2: "text-pink-500",
-    text3: "text-pink-400",
-    accent: "bg-[#f7549f]",
-    accentText: "text-[#f7549f]",
-    icon: "🌈",
-    label: "Colorful",
-    divider: "border-pink-200",
-    searchBg: "bg-pink-50 border-pink-200 text-[#2d1b4e] placeholder:text-pink-300",
-    msgMenuBg: "bg-white border-pink-200 shadow-xl",
-    pill: "bg-pink-100 text-pink-600 border border-pink-200",
-    storyRing: "border-pink-500",
-  },
-  // ── NEW: Minimalist Outline (default) ───────────────────────────────────
-  outline: {
-    wrap: "bg-white",
-    sidebar: "bg-white border-black/[0.10]",
-    chat: "bg-[#f7f7f7]",
-    topbar: "bg-white border-black/[0.12]",
-    input: "bg-white border-black/[0.12]",
-    nav: "bg-white border-black/[0.10]",
-    bubbleSent: "bg-[#00C9A7] text-white",
-    bubbleRecv: "bg-white text-black border-2 border-black/80",
-    text1: "text-black",
-    text2: "text-black/70",
-    text3: "text-black/40",
-    accent: "bg-black",
-    accentText: "text-[#00C9A7]",
-    icon: "✏️",
-    label: "Outline",
-    divider: "border-black/[0.10]",
-    searchBg: "bg-white border-2 border-black/70 text-black placeholder:text-black/35",
-    msgMenuBg: "bg-white border-2 border-black/80",
-    pill: "bg-white text-black border-2 border-black/70",
-    storyRing: "border-black",
-  },
 };
 
 // ── Rose Petals (velvet theme only) ───────────────────────────────────────────
@@ -497,85 +417,6 @@ const MediaBubble = React.memo(
 );
 
 MediaBubble.displayName = "MediaBubble";
-
-// ── Smart Keyword Sticker System ────────────────────────────────────────────
-type StickerKey =
-  | "good_morning"
-  | "good_night"
-  | "good_evening"
-  | "i_love_u"
-  | "i_hate_u"
-  | "miss_u"
-  | "love"
-  | "kiss"
-  | "call_kro"
-  | "yaad_nhi_karte";
-
-const STICKER_DEFS: Record<
-  StickerKey,
-  { emoji: string; label: string; gradient: string }
-> = {
-  good_morning: { emoji: "☀️", label: "Good Morning!", gradient: "from-amber-300 via-orange-400 to-pink-400" },
-  good_night: { emoji: "🌙", label: "Good Night!", gradient: "from-indigo-600 via-purple-600 to-blue-900" },
-  good_evening: { emoji: "🌆", label: "Good Evening!", gradient: "from-orange-400 via-pink-500 to-purple-600" },
-  i_love_u: { emoji: "❤️", label: "I Love U", gradient: "from-rose-400 via-red-500 to-pink-600" },
-  i_hate_u: { emoji: "💢", label: "I Hate U", gradient: "from-slate-600 via-zinc-700 to-neutral-900" },
-  miss_u: { emoji: "🥺", label: "Miss U", gradient: "from-violet-400 via-fuchsia-500 to-purple-600" },
-  love: { emoji: "💖", label: "Love", gradient: "from-pink-400 via-rose-500 to-red-500" },
-  kiss: { emoji: "😘", label: "Kiss", gradient: "from-pink-300 via-rose-400 to-red-400" },
-  call_kro: { emoji: "📞", label: "Call Kro!", gradient: "from-emerald-400 via-teal-500 to-cyan-600" },
-  yaad_nhi_karte: { emoji: "😢", label: "Tum Yaad Nhi Karte", gradient: "from-blue-400 via-indigo-500 to-slate-600" },
-};
-
-// Ordered most-specific → least-specific so "i love u" wins over generic "love".
-const STICKER_MATCHERS: { key: StickerKey; test: RegExp }[] = [
-  { key: "good_morning", test: /good\s*morning/i },
-  { key: "good_night", test: /good\s*night/i },
-  { key: "good_evening", test: /good\s*evening/i },
-  { key: "i_love_u", test: /\bi\s*love\s*(u|you)\b/i },
-  { key: "i_hate_u", test: /\bi\s*hate\s*(u|you)\b/i },
-  { key: "yaad_nhi_karte", test: /tum\s*yaad\s*nh[ie]?\s*karte/i },
-  { key: "call_kro", test: /\bcall\s*kro\b/i },
-  { key: "miss_u", test: /\bmiss\s*(u|you)\b/i },
-  { key: "kiss", test: /\bkiss\b/i },
-  { key: "love", test: /^love$/i },
-];
-
-function detectSticker(content?: string): StickerKey | null {
-  if (!content) return null;
-  const normalized = content.trim().toLowerCase().replace(/\s+/g, " ");
-  if (!normalized) return null;
-  for (const { key, test } of STICKER_MATCHERS) {
-    if (test.test(normalized)) return key;
-  }
-  return null;
-}
-
-const StickerBubble = React.memo(({ stickerKey }: { stickerKey: StickerKey }) => {
-  const def = STICKER_DEFS[stickerKey];
-  return (
-    <motion.div
-      initial={{ scale: 0.3, opacity: 0, rotate: -8 }}
-      animate={{ scale: 1, opacity: 1, rotate: 0 }}
-      transition={{ type: "spring", stiffness: 260, damping: 16 }}
-      className={`relative flex flex-col items-center justify-center gap-1 px-6 py-4 rounded-3xl bg-gradient-to-br ${def.gradient} shadow-lg overflow-hidden min-w-[140px]`}
-    >
-      <motion.span
-        className="text-4xl drop-shadow-md"
-        animate={{ scale: [1, 1.15, 1] }}
-        transition={{ duration: 1.4, repeat: Infinity, ease: "easeInOut" }}
-      >
-        {def.emoji}
-      </motion.span>
-      <span className="text-white font-black text-[13px] tracking-wide drop-shadow-sm text-center">
-        {def.label}
-      </span>
-      <div className="absolute inset-0 bg-white/10 mix-blend-overlay pointer-events-none" />
-    </motion.div>
-  );
-});
-StickerBubble.displayName = "StickerBubble";
-
 // ── Smoke Particle ────────────────────────────────────────────────────────────
 const SmokeParticle = ({
   x,
@@ -814,45 +655,37 @@ const _sgradFor = (id: string) => {
 const StoryCircle = ({
   story,
   onClick,
-  ringClass,
 }: {
   story: Story;
   onClick: () => void;
-  ringClass?: string;
-}) => {
-  const mediaInner = story.media_type === "voice" ? (
-    <div className="w-full h-full flex items-center justify-center" style={{ background: _sgradFor(story.user_id) }}>
-      <Mic size={18} className="text-white/80" />
-    </div>
-  ) : (
-    <img
-      src={resolveStoryImageUrl(story.image_url)}
-      className="w-full h-full object-cover"
-      decoding="async"
-      loading="lazy"
-      crossOrigin="anonymous"
-      referrerPolicy="no-referrer"
-    />
-  );
-  return (
-    <button onClick={onClick} className="flex flex-col items-center gap-1.5 shrink-0">
-      {ringClass ? (
-        <div className={`w-14 h-14 rounded-full overflow-hidden border-[3px] ${ringClass}`}>
-          {mediaInner}
-        </div>
-      ) : (
-        <div className="w-14 h-14 rounded-full p-0.5 bg-gradient-to-br from-rose-400 via-pink-500 to-red-400">
-          <div className="w-full h-full rounded-full overflow-hidden border-2 border-white/10">
-            {mediaInner}
+}) => (
+  <button
+    onClick={onClick}
+    className="flex flex-col items-center gap-1.5 shrink-0"
+  >
+    <div className="w-14 h-14 rounded-full p-0.5 bg-gradient-to-br from-rose-400 via-pink-500 to-red-400">
+      <div className="w-full h-full rounded-full overflow-hidden border-2 border-white/10">
+        {story.media_type === "voice" ? (
+          <div
+            className="w-full h-full flex items-center justify-center"
+            style={{ background: _sgradFor(story.user_id) }}
+          >
+            <Mic size={18} className="text-white/80" />
           </div>
-        </div>
-      )}
-      <span className={`text-[9px] font-black max-w-[52px] truncate ${ringClass ? "text-black/60" : "text-white/60"}`}>
-        {story.profile?.full_name?.split(" ")[0] || "Story"}
-      </span>
-    </button>
-  );
-};
+        ) : (
+          <img
+            src={resolveMediaUrl(story.image_url, "stories")}
+            className="w-full h-full object-cover"
+            decoding="async"
+          />
+        )}
+      </div>
+    </div>
+    <span className="text-[9px] font-black text-white/60 max-w-[52px] truncate">
+      {story.profile?.full_name?.split(" ")[0] || "Story"}
+    </span>
+  </button>
+);
 
 // ── Story view count (shown to story owner only) ──────────────────────────────
 const StoryViewCount = ({ storyId }: { storyId: string }) => {
@@ -872,40 +705,6 @@ const StoryViewCount = ({ storyId }: { storyId: string }) => {
     </div>
   );
 };
-
-// ── Emoji keyboard categories (module-level for perf) ─────────────────────────
-const EMOJI_TAB_CATEGORIES: Record<string, string[]> = {
-  "😀": ["😀","😁","😂","🤣","😃","😄","😅","😆","😉","😊","😇","🥰","😍","🤩","😘","😗","😚","😙","🥲","😋","😛","😜","🤪","😝","🤑","🤗","🤭","🤫","🤔","🤐","🤨","😐","😑","😶","😏","😒","🙄","😬","🤥","😌","😔","😪","🤤","😴","😷","🤒","🤕","🤢","🤮","🤧","🥵","🥶","🥴","😵","🤯","🤠","🥳","🥸","😎","🤓","🧐","😕","😟","🙁","☹️","😮","😯","😲","😳","🥺","😦","😧","😨","😰","😥","😢","😭","😱","😖","😣","😞","😓","😩","😫","🥱","😤","😡","😠","🤬","💀","👿"],
-  "👍": ["👋","🤚","🖐","✋","🖖","👌","🤌","🤏","✌️","🤞","🤟","🤘","🤙","👈","👉","👆","🖕","👇","☝️","👍","👎","✊","👊","🤛","🤜","👏","🙌","🫶","👐","🤲","🤝","🙏","✍️","💅","🤳","💪","🦾","🧠","👀","👅","👄","💋","🫦","💏","💑","👫","👬","👭","🚶","🧍","🧎","🧑","👦","👧","🧒","👶","🧓","👴","👵","🧕","💂","🕵️","👩‍⚕️","👨‍🍳","👩‍🎤","👨‍🚀","🧙","🧜","🧚","🦸","🦹"],
-  "❤️": ["❤️","🧡","💛","💚","💙","💜","🖤","🤍","🤎","❤️‍🔥","❤️‍🩹","💔","💕","💞","💓","💗","💖","💘","💝","💟","☮️","✝️","☯️","💌","💋","🌹","🌷","💐","🌸","🌺","🌻","🌼","🎀","🎁","🎊","🎉","✨","💫","⭐","🌟","🌈","🥂","💃","🕺","🎶","🎵","🎀","🎊","🥰","😘","💏","💑","🤗","🤩"],
-  "🎉": ["🔥","💯","✅","❌","❓","❗","💢","💥","💦","💨","🎮","🕹","🎯","🎲","🎭","🎨","🎬","🎤","🎧","🎵","🎶","🎸","🥁","🎹","🎺","🎻","🪗","🎷","🏆","🥇","🥈","🥉","🏅","🎖","🚀","🛸","⚡","🌊","🌋","🌌","🍕","🍔","🍣","🎂","🍰","🧁","🍭","🍪","🍩","🍫","☕","🧋","🥂","🎪","🤹","🎠","🎡","🎢","🎰","🔮","🎱","💊","⚔️","🛡","🪄","🧨","🎇","🎆","🎑","🧧","🎐","🎏","🪅","🃏","🀄"],
-  "🐶": ["🐶","🐱","🐭","🐹","🐰","🦊","🐻","🐼","🐨","🐯","🦁","🐮","🐷","🐸","🐵","🙈","🙉","🙊","🐔","🐧","🐦","🦅","🦆","🦉","🦋","🐝","🐛","🐌","🐞","🐜","🐢","🐍","🦎","🐙","🦑","🐡","🐠","🐟","🐬","🐳","🦈","🐅","🦝","🦦","🦥","🐿","🦔","🌵","🎄","🌲","🌳","🌴","🍃","🍂","🍁","🍄","🌸","🌺","🌻","🌹","🌷","💐","🌱","🌊","🔥","⚡","🌈","☁️","❄️","🌪","🌀","🌙","☀️","🌤","⛅","🌧","⛈","🌩","🌨"],
-};
-
-const STICKER_PACK = [
-  { emoji: "👋", label: "Wave",   bg: "linear-gradient(135deg,#FFD700,#FF8C00)" },
-  { emoji: "❤️", label: "Love",   bg: "linear-gradient(135deg,#FF4081,#FF80AB)" },
-  { emoji: "😂", label: "LOL",    bg: "linear-gradient(135deg,#FFC107,#FF9800)" },
-  { emoji: "🔥", label: "Fire",   bg: "linear-gradient(135deg,#FF5722,#F44336)" },
-  { emoji: "💯", label: "100%",   bg: "linear-gradient(135deg,#E91E63,#9C27B0)" },
-  { emoji: "👏", label: "Clap",   bg: "linear-gradient(135deg,#9C27B0,#673AB7)" },
-  { emoji: "🎉", label: "Party",  bg: "linear-gradient(135deg,#2196F3,#00BCD4)" },
-  { emoji: "😭", label: "Cry",    bg: "linear-gradient(135deg,#03A9F4,#2196F3)" },
-  { emoji: "🤣", label: "Dead",   bg: "linear-gradient(135deg,#FF9800,#FFC107)" },
-  { emoji: "💀", label: "RIP",    bg: "linear-gradient(135deg,#607D8B,#455A64)" },
-  { emoji: "🥺", label: "Plz",    bg: "linear-gradient(135deg,#9C27B0,#E91E63)" },
-  { emoji: "😍", label: "Wow",    bg: "linear-gradient(135deg,#E91E63,#FF4081)" },
-  { emoji: "🚀", label: "Go!",    bg: "linear-gradient(135deg,#3F51B5,#9C27B0)" },
-  { emoji: "🌟", label: "Star",   bg: "linear-gradient(135deg,#FF9800,#FFC107)" },
-  { emoji: "🎮", label: "Game",   bg: "linear-gradient(135deg,#673AB7,#3F51B5)" },
-  { emoji: "🤝", label: "Deal",   bg: "linear-gradient(135deg,#4CAF50,#00BCD4)" },
-  { emoji: "😎", label: "Cool",   bg: "linear-gradient(135deg,#00BCD4,#3F51B5)" },
-  { emoji: "🫶", label: "Luv",    bg: "linear-gradient(135deg,#FF4081,#E91E63)" },
-  { emoji: "🎵", label: "Music",  bg: "linear-gradient(135deg,#9C27B0,#E91E63)" },
-  { emoji: "💪", label: "Strong", bg: "linear-gradient(135deg,#FF5722,#FF9800)" },
-  { emoji: "🧿", label: "Evil",   bg: "linear-gradient(135deg,#1565C0,#0288D1)" },
-  { emoji: "🌈", label: "Vibe",   bg: "linear-gradient(135deg,#FF5722,#FF9800,#FFC107,#4CAF50,#2196F3,#9C27B0)" },
-];
 
 // ── Main Component ─────────────────────────────────────────────────────────────
 const ChatSystem: React.FC<ChatSystemProps> = ({
@@ -1032,8 +831,9 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   // ── Persisted state ───────────────────────────────────────────────────────
   const [theme, setTheme] = useState<Theme>(() => {
     const s = localStorage.getItem("cx_theme") as Theme;
-    const valid: Theme[] = ["whatsapp", "water", "nature", "velvet", "glass", "colorful", "outline"];
-    return valid.includes(s) ? s : "outline";
+    return s === "whatsapp" || s === "water" || s === "nature" || s === "velvet"
+      ? s
+      : "whatsapp";
   });
   const [activeStatus, setActiveStatus] = useState(
     () => localStorage.getItem("cx_active_status") !== "false",
@@ -1115,7 +915,6 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   } | null>(null);
   const [showEmojiGrid, setShowEmojiGrid] = useState(false);
   const [showInputEmoji, setShowInputEmoji] = useState(false);
-  const [emojiTab, setEmojiTab] = useState("😀");
   const smokeIdRef = useRef(0);
   const blastIdRef = useRef(0);
 
@@ -1206,9 +1005,6 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     count: number;
     timer: ReturnType<typeof setTimeout> | null;
   }>({ count: 0, timer: null });
-  const panicArmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [panicArming, setPanicArming] = useState(false);
-  const [panicConfirmArmed, setPanicConfirmArmed] = useState(false);
   const recognitionRef = useRef<any>(null);
   const voiceTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const voiceActiveRef = useRef(false);
@@ -1464,67 +1260,38 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     setLoadingStories(true);
     try {
       const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-      // Step 1: fetch stories by primary key `id` (NOT story_id — that column
-      // only exists on child tables like story_likes/story_views/story_comments).
-      const { data: rawStories, error: storiesErr } = await supabase
+      const { data } = await supabase
         .from("stories")
         .select(
-          "id, user_id, image_url, caption, emoji, mood, media_type, is_help_request, music_url, created_at",
+          "id, user_id, image_url, caption, emoji, mood, media_type, is_help_request, music_url, created_at, profiles(id, full_name, username, avatar_url)",
         )
         .gte("created_at", cutoff)
         .order("created_at", { ascending: true })
         .limit(100);
-
-      if (storiesErr) {
-        console.error("[ChatSystem] stories fetch failed:", storiesErr.message);
-        setStories([]);
-        setStoryGroups([]);
-        return;
-      }
-
-      const blocked = blockedUserIdsRef.current;
-      const filtered = (rawStories || []).filter((s: any) => !blocked.has(s.user_id));
-
-      // Step 2: fetch profiles separately (join on profiles.id = stories.user_id)
-      // instead of relying on an embedded PostgREST relationship, so this keeps
-      // working even if no FK constraint is registered between the two tables.
-      const userIds = [...new Set(filtered.map((s: any) => s.user_id).filter(Boolean))];
-      let profileMap: Record<string, Profile> = {};
-      if (userIds.length > 0) {
-        const { data: profiles, error: profilesErr } = await supabase
-          .from("profiles")
-          .select("id, full_name, username, avatar_url")
-          .in("id", userIds);
-        if (profilesErr) {
-          console.error("[ChatSystem] profiles fetch failed:", profilesErr.message);
-        } else {
-          (profiles || []).forEach((p: any) => {
-            profileMap[p.id] = { ...p, avatar_url: p.avatar_url || "" };
-          });
+      if (data) {
+        const blocked = blockedUserIdsRef.current;
+        const mapped: Story[] = data
+          .map((s: any) => ({
+            ...s,
+            profile: Array.isArray(s.profiles) ? s.profiles[0] : s.profiles,
+          }))
+          .filter((s: Story) => !blocked.has(s.user_id));
+        setStories(mapped);
+        // Build groups keyed by user_id
+        const map = new Map<string, StoryGroup>();
+        for (const s of mapped) {
+          if (!map.has(s.user_id)) {
+            map.set(s.user_id, {
+              user_id: s.user_id,
+              profile: s.profile as Profile,
+              stories: [],
+            });
+          }
+          map.get(s.user_id)!.stories.push(s);
         }
+        setStoryGroups(Array.from(map.values()));
       }
-
-      const mapped: Story[] = filtered.map((s: any) => ({
-        ...s,
-        profile: profileMap[s.user_id] || { full_name: "User", avatar_url: "" },
-      }));
-      setStories(mapped);
-
-      // Build groups keyed by user_id
-      const map = new Map<string, StoryGroup>();
-      for (const s of mapped) {
-        if (!map.has(s.user_id)) {
-          map.set(s.user_id, {
-            user_id: s.user_id,
-            profile: s.profile as Profile,
-            stories: [],
-          });
-        }
-        map.get(s.user_id)!.stories.push(s);
-      }
-      setStoryGroups(Array.from(map.values()));
-    } catch (e: any) {
-      console.error("[ChatSystem] fetchStories error:", e?.message || e);
+    } catch (_) {
       setStories([]);
       setStoryGroups([]);
     } finally {
@@ -1977,13 +1744,6 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       supabase.removeChannel(ch);
     };
   }, [isOpen, userId, fetchFriendships, fetchPendingRequests, fetchContacts]);
-
-  // ── Global event: friend accepted anywhere → refresh contacts immediately ──
-  useEffect(() => {
-    const handler = () => { fetchContacts(); };
-    window.addEventListener("flicks:contacts-refresh", handler);
-    return () => window.removeEventListener("flicks:contacts-refresh", handler);
-  }, [fetchContacts]);
 
   // ── Realtime: new messages → alert ────────────────────────────────────────
   useEffect(() => {
@@ -3018,31 +2778,46 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     const isTemp = msg.id.startsWith("temp-");
     if (isTemp)
       return (
-        <svg width="12" height="10" viewBox="0 0 12 10" fill="none" className="opacity-30 shrink-0">
-          <path d="M1 5l3 3 4-6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
-        </svg>
+        <span className="text-[10px] text-white/30 ml-1 italic">Sending…</span>
       );
     if (msg.seen_at)
       return (
-        <div className="w-[15px] h-[15px] rounded-full overflow-hidden shrink-0 ring-[1.5px] ring-blue-400">
-          {selectedUser?.avatar_url ? (
-            <img src={selectedUser.avatar_url} className="w-full h-full object-cover" decoding="async" />
-          ) : (
-            <div className={`w-full h-full flex items-center justify-center text-[6px] font-black ${T.accent} text-white`}>
-              {(selectedUser?.full_name || "?")[0]}
-            </div>
-          )}
-        </div>
+        <span className="text-[10px] text-blue-400 ml-1 font-black">Seen</span>
       );
-    return (
-      <svg width="17" height="10" viewBox="0 0 17 10" fill="none" className="opacity-40 shrink-0">
-        <path d="M1 5l3 3 4-6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
-        <path d="M6 5l3 3 4-6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
-      </svg>
-    );
+    return <span className="text-[10px] text-white/40 ml-1">Delivered</span>;
   };
 
-  // (emoji categories defined at module level — EMOJI_TAB_CATEGORIES, STICKER_PACK)
+  // ── Emoji list for input picker ────────────────────────────────────────────
+  const INPUT_EMOJIS = [
+    "❤️",
+    "🔥",
+    "😂",
+    "😍",
+    "🥰",
+    "😭",
+    "🤣",
+    "💀",
+    "✨",
+    "🎉",
+    "😊",
+    "🥺",
+    "😤",
+    "💯",
+    "🖕",
+    "🌹",
+    "💕",
+    "🤯",
+    "😏",
+    "🫶",
+    "💪",
+    "🙏",
+    "😈",
+    "🤩",
+    "👀",
+    "🫠",
+    "💔",
+    "🥹",
+  ];
 
   const visibleContacts = contacts.filter((c) => !archivedChats.has(c.id));
   const archivedContactsList = contacts.filter((c) => archivedChats.has(c.id));
@@ -3156,7 +2931,6 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
             <StoryCircle
               key={group.user_id}
               story={group.stories[0]}
-              ringClass={theme === "outline" ? "border-black" : undefined}
               onClick={() => {
                 setViewerGroupIdx(gi);
                 setViewerStoryIdx(0);
@@ -3268,9 +3042,6 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                     />
                   ))}
                 </div>
-                <p className="mt-8 text-xs font-black uppercase tracking-widest text-gray-300">
-                  Tap your photo 3× to unlock
-                </p>
               </motion.div>
             )}
           </AnimatePresence>
@@ -3462,15 +3233,20 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                     />
                     {/* Header */}
                     <div className="flex items-center gap-2.5 px-3 py-2 z-20">
-                      <img
-                        src={resolveMediaUrl(aUrl, "avatars")}
-                        className="w-9 h-9 rounded-full object-cover border-2 border-white/60 shrink-0"
-                        decoding="async"
-                        loading="lazy"
-                        crossOrigin="anonymous"
-                        referrerPolicy="no-referrer"
-                      />
-
+                      {aUrl ? (
+                        <img
+                          src={aUrl}
+                          className="w-9 h-9 rounded-full object-cover border-2 border-white/60"
+                          decoding="async"
+                        />
+                      ) : (
+                        <div
+                          className="w-9 h-9 rounded-full border-2 border-white/60 flex items-center justify-center text-white font-black text-sm shrink-0"
+                          style={{ background: _sgradFor(group.user_id) }}
+                        >
+                          {pName[0]}
+                        </div>
+                      )}
                       <div className="flex-1 min-w-0">
                         <p className="text-white font-bold text-[13px] leading-none truncate">
                           {pName}
@@ -3658,7 +3434,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                 {[0, 1, 2, 3].map((j) => (
                                   <video
                                     key={j}
-                                    src={resolveStoryImageUrl(story.image_url)}
+                                    src={resolveMediaUrl(story.image_url, "stories")}
                                     className="w-full h-full object-cover"
                                     autoPlay
                                     muted={!!story.music_url}
@@ -3669,7 +3445,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                               </div>
                             ) : (
                               <video
-                                src={resolveStoryImageUrl(story.image_url)}
+                                src={resolveMediaUrl(story.image_url, "stories")}
                                 className="w-full h-full object-cover"
                                 autoPlay
                                 muted={!!story.music_url}
@@ -3683,7 +3459,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                               {[0, 1, 2, 3].map((j) => (
                                 <img
                                   key={j}
-                                  src={resolveStoryImageUrl(story.image_url)}
+                                  src={resolveMediaUrl(story.image_url, "stories")}
                                   className="w-full h-full object-cover"
                                   style={{
                                     transform:
@@ -3691,23 +3467,17 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                   }}
                                   draggable={false}
                                   decoding="async"
-                                  loading="lazy"
-                                  crossOrigin="anonymous"
-                                  referrerPolicy="no-referrer"
                                 />
                               ))}
                             </div>
                           ) : (
                             <div className="w-full h-full relative">
                               <img
-                                src={resolveStoryImageUrl(story.image_url)}
+                                src={resolveMediaUrl(story.image_url, "stories")}
                                 className="w-full h-full object-cover"
                                 style={{ filter: moodFilter }}
                                 draggable={false}
                                 decoding="async"
-                                loading="lazy"
-                                crossOrigin="anonymous"
-                                referrerPolicy="no-referrer"
                               />
                               {isSad && <StoryRainOverlay />}
                               {isParty && <StoryNeonOverlay />}
@@ -3737,7 +3507,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                               onPointerUp={(e) => e.stopPropagation()}
                               onClick={(e) => {
                                 e.stopPropagation();
-                                const url = resolveStoryImageUrl(story.image_url);
+                                const url = resolveMediaUrl(story.image_url, "stories");
                                 if (navigator.share) {
                                   navigator
                                     .share({ title: "Flicks Story", url })
@@ -3757,7 +3527,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                               onClick={(e) => {
                                 e.stopPropagation();
                                 const a = document.createElement("a");
-                                a.href = resolveStoryImageUrl(story.image_url);
+                                a.href = resolveMediaUrl(story.image_url, "stories");
                                 a.download = `flicks-story`;
                                 a.target = "_blank";
                                 document.body.appendChild(a);
@@ -4288,11 +4058,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                             <motion.div
                               initial={{ opacity: 0, x: -8 }}
                               animate={{ opacity: 1, x: 0 }}
-                              className={`flex items-center gap-3 px-4 py-3.5 transition-colors cursor-pointer relative ${
-                                theme === "outline"
-                                  ? "mx-3 mb-1.5 rounded-2xl border-2 border-black/[0.12] bg-white hover:bg-gray-50"
-                                  : "hover:bg-white/5"
-                              }`}
+                              className="flex items-center gap-3 px-4 py-3.5 hover:bg-white/5 transition-colors cursor-pointer relative"
                               onClick={() => handleSelectContact(c)}
                             >
                               <Avatar
@@ -4495,31 +4261,11 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                     <Search size={16} />
                   </button>
                   {/* Punch/boxing emoji blast removed per design overhaul */}
-                  {/* Panic toggle — press & hold to arm, prevents accidental single-tap lockout */}
+                  {/* Panic toggle */}
                   <button
-                    onClick={() => {
-                      // Single tap only ever turns panic mode OFF; turning it ON requires a hold.
-                      if (panicMode) setPanicMode(false);
-                    }}
-                    onPointerDown={() => {
-                      if (panicMode) return;
-                      setPanicArming(true);
-                      panicArmTimerRef.current = setTimeout(() => {
-                        setPanicArming(false);
-                        setPanicMode(true);
-                        try { navigator.vibrate?.(30); } catch {}
-                      }, 600);
-                    }}
-                    onPointerUp={() => {
-                      if (panicArmTimerRef.current) clearTimeout(panicArmTimerRef.current);
-                      setPanicArming(false);
-                    }}
-                    onPointerLeave={() => {
-                      if (panicArmTimerRef.current) clearTimeout(panicArmTimerRef.current);
-                      setPanicArming(false);
-                    }}
-                    title="Hold to activate Panic Mode"
-                    className={`w-9 h-9 rounded-xl border flex items-center justify-center text-base transition-all hover:bg-white/20 select-none ${panicMode ? "bg-red-500/30 border-red-400/40 animate-pulse" : panicArming ? "bg-red-500/40 border-red-400/60 scale-90" : `bg-white/5 ${T.divider}`}`}
+                    onClick={() => setPanicMode((p) => !p)}
+                    title="Panic Mode"
+                    className={`w-9 h-9 rounded-xl border flex items-center justify-center text-base transition-all hover:bg-white/20 ${panicMode ? "bg-red-500/30 border-red-400/40 animate-pulse" : `bg-white/5 ${T.divider}`}`}
                   >
                     🔴
                   </button>
@@ -4571,18 +4317,12 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                           </button>
                           <button
                             onClick={() => {
-                              if (!panicConfirmArmed) {
-                                setPanicConfirmArmed(true);
-                                setTimeout(() => setPanicConfirmArmed(false), 2500);
-                                return;
-                              }
-                              setPanicConfirmArmed(false);
                               setPanicMode(true);
                               setShowChatMenu(false);
                             }}
-                            className={`flex items-center gap-2 w-full px-4 py-3 text-sm font-bold hover:bg-red-500/10 ${panicConfirmArmed ? "text-red-300 bg-red-500/10" : "text-red-400"}`}
+                            className="flex items-center gap-2 w-full px-4 py-3 text-sm font-bold text-red-400 hover:bg-red-500/10"
                           >
-                            🖕 {panicConfirmArmed ? "Tap again to confirm" : "Panic Mode"}
+                            🖕 Panic Mode
                           </button>
                         </motion.div>
                       )}
@@ -4696,26 +4436,10 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                       </p>
                     </div>
                   ) : (
-                    (() => {
-                      let lastMineIdx = -1;
-                      let lastTheirIdx = -1;
-                      filteredMessages.forEach((m, i) => {
-                        if (String(m.sender_id || "").trim() === String(userId || "").trim()) {
-                          lastMineIdx = i;
-                        } else {
-                          lastTheirIdx = i;
-                        }
-                      });
-                      return filteredMessages.map((msg, msgIdx) => {
+                    filteredMessages.map((msg) => {
                       const isMine =
                         String(msg.sender_id || "").trim() ===
                         String(userId || "").trim();
-                      const isLastForSender = isMine
-                        ? msgIdx === lastMineIdx
-                        : msgIdx === lastTheirIdx;
-                      const stickerKey = detectSticker(
-                        !msg.media_url ? msg.content : undefined,
-                      );
                       const quotedMsg = msg.reply_to_id
                         ? messages.find((m) => m.id === msg.reply_to_id)
                         : null;
@@ -4759,7 +4483,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                             if (longPressTimerRef.current)
                               clearTimeout(longPressTimerRef.current);
                           }}
-                          className={`flex ${isMine ? "justify-end" : "justify-start"} items-end gap-1.5 group relative select-none`}
+                          className={`flex ${isMine ? "justify-end" : "justify-start"} group relative select-none`}
                           style={{ cursor: "default" }}
                         >
                           {/* Swipe hint icon */}
@@ -4778,33 +4502,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                               <polyline points="9 18 15 12 9 6" />
                             </svg>
                           </div>
-
-                          {/* ── Avatar outside bubble — received LEFT (only on their latest message) ── */}
-                          {!isMine && (
-                            <div className="w-7 h-7 shrink-0 self-end">
-                              {isLastForSender && (
-                                <motion.div
-                                  layoutId="chat-avatar-theirs"
-                                  transition={{ type: "spring", stiffness: 500, damping: 35 }}
-                                  className="w-7 h-7 rounded-full overflow-hidden ring-1 ring-black/10"
-                                >
-                                  {selectedUser?.avatar_url ? (
-                                    <img
-                                      src={selectedUser.avatar_url}
-                                      className="w-full h-full object-cover"
-                                      decoding="async"
-                                    />
-                                  ) : (
-                                    <div className={`w-full h-full flex items-center justify-center text-[11px] font-black ${T.accent} text-white`}>
-                                      {(selectedUser?.full_name || "?")[0]}
-                                    </div>
-                                  )}
-                                </motion.div>
-                              )}
-                            </div>
-                          )}
-
-                          <div className="flex flex-col max-w-[75%]">
+                          <div className="relative max-w-[78%]">
                             {/* Quote block for replied message */}
                             {quotedMsg && (
                               <div
@@ -4822,12 +4520,9 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                 </p>
                               </div>
                             )}
-
-                            {/* ── Bubble ── */}
                             <div
-                              className={`px-3.5 py-2 rounded-2xl ${isMine ? `${T.bubbleSent} rounded-tr-sm` : `${T.bubbleRecv} rounded-tl-sm`}`}
+                              className={`px-4 py-2.5 rounded-2xl ${isMine ? `${T.bubbleSent} rounded-tr-sm` : `${T.bubbleRecv} rounded-tl-sm`}`}
                             >
-                              {/* ── Message content ── */}
                               {msg.media_url && msg.media_type ? (
                                 <MediaBubble
                                   url={msg.media_url}
@@ -4868,7 +4563,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                 </div>
                               ) : (
                                 <>
-                                  <p className="text-[15px] font-normal leading-[1.45] break-words">
+                                  <p className="text-lg font-bold leading-snug break-words">
                                     {msg.content}
                                   </p>
                                   {msg.is_edited && (
@@ -4878,16 +4573,13 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                   )}
                                 </>
                               )}
-                            </div>
-
-                            {/* ── Timestamp + Seen indicator OUTSIDE the bubble ── */}
-                            <div className={`flex items-center gap-1 mt-0.5 ${isMine ? "justify-end" : "justify-start"}`}>
-                              <p className={`text-[10px] font-medium ${T.text3}`}>
+                              <p
+                                className={`text-[10px] mt-0.5 font-medium ${isMine ? "text-white/50" : T.text3} text-right flex items-center justify-end gap-1`}
+                              >
                                 {formatTime(msg.created_at)}
+                                <MessageStatus msg={msg} />
                               </p>
-                              {isMine && <MessageStatus msg={msg} />}
                             </div>
-
                             {/* Reaction Bubbles */}
                             {msgReactions[msg.id] &&
                               Object.keys(msgReactions[msg.id]).length > 0 && (
@@ -4898,30 +4590,6 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                 />
                               )}
                           </div>
-
-                          {/* ── Avatar outside bubble — sent RIGHT (only on my latest message) ── */}
-                          {isMine && (
-                            <div className="w-7 h-7 shrink-0 self-end">
-                              {isLastForSender && (
-                                <motion.div
-                                  layoutId="chat-avatar-mine"
-                                  transition={{ type: "spring", stiffness: 500, damping: 35 }}
-                                  className="w-7 h-7 rounded-full overflow-hidden ring-1 ring-black/10"
-                                >
-                                  {myProfile?.avatar_url ? (
-                                    <img
-                                      src={myProfile.avatar_url}
-                                      className="w-full h-full object-cover"
-                                      decoding="async"
-                                    />
-                                  ) : (
-                                    <div className={`w-full h-full flex items-center justify-center text-[11px] font-black ${T.accent} text-white`}
-                                >
-                                  {(myProfile?.full_name || "Y")[0]}
-                                </div>
-                              )}
-                            </div>
-                          )}
                         </motion.div>
                       );
                     })
@@ -4961,7 +4629,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                     )}
                   </AnimatePresence>
 
-                  {/* ── Emoji / Sticker Keyboard ────────────────────────── */}
+                  {/* Emoji grid (input picker) */}
                   <AnimatePresence>
                     {showInputEmoji && (
                       <motion.div
@@ -4970,74 +4638,17 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                         exit={{ height: 0, opacity: 0 }}
                         className={`border-b ${T.divider} overflow-hidden`}
                       >
-                        {/* Tab bar */}
-                        <div className={`flex gap-0.5 px-2 pt-2 pb-0 border-b ${T.divider}`}>
-                          {Object.keys(EMOJI_TAB_CATEGORIES).map((tab) => (
+                        <div className="p-3 grid grid-cols-7 gap-1.5">
+                          {INPUT_EMOJIS.map((em) => (
                             <button
-                              key={tab}
-                              onClick={() => setEmojiTab(tab)}
-                              className={`flex-1 py-2 text-lg rounded-t-xl transition-all ${
-                                emojiTab === tab
-                                  ? "bg-white/15 border-b-2 border-blue-400 opacity-100"
-                                  : "opacity-35 hover:opacity-60"
-                              }`}
+                              key={em}
+                              onClick={() => setNewMessage((prev) => prev + em)}
+                              className="w-9 h-9 rounded-xl text-xl flex items-center justify-center hover:bg-white/10 active:scale-90 transition-all"
                             >
-                              {tab}
+                              {em}
                             </button>
                           ))}
-                          {/* Stickers tab */}
-                          <button
-                            onClick={() => setEmojiTab("stickers")}
-                            className={`flex-1 py-2 text-lg rounded-t-xl transition-all ${
-                              emojiTab === "stickers"
-                                ? "bg-white/15 border-b-2 border-pink-400 opacity-100"
-                                : "opacity-35 hover:opacity-60"
-                            }`}
-                          >
-                            🎭
-                          </button>
                         </div>
-
-                        {/* Content */}
-                        {emojiTab === "stickers" ? (
-                          /* Sticker grid */
-                          <div
-                            className="p-2.5 grid grid-cols-4 gap-2 overflow-y-auto [&::-webkit-scrollbar]:hidden"
-                            style={{ maxHeight: 196, scrollbarWidth: "none" }}
-                          >
-                            {STICKER_PACK.map((s, i) => (
-                              <motion.button
-                                key={i}
-                                whileTap={{ scale: 0.82 }}
-                                onClick={() => {
-                                  sendMessage(s.emoji);
-                                  setShowInputEmoji(false);
-                                }}
-                                className="flex flex-col items-center justify-center rounded-2xl p-2 gap-0.5 shadow-md"
-                                style={{ background: s.bg, aspectRatio: "1" }}
-                              >
-                                <span className="text-3xl leading-none select-none">{s.emoji}</span>
-                                <span className="text-[8px] font-black text-white/90 uppercase tracking-wide">{s.label}</span>
-                              </motion.button>
-                            ))}
-                          </div>
-                        ) : (
-                          /* Emoji grid */
-                          <div
-                            className="p-2 grid grid-cols-8 gap-0.5 overflow-y-auto [&::-webkit-scrollbar]:hidden"
-                            style={{ maxHeight: 196, scrollbarWidth: "none" }}
-                          >
-                            {(EMOJI_TAB_CATEGORIES[emojiTab] ?? []).map((em, i) => (
-                              <button
-                                key={`${em}-${i}`}
-                                onClick={() => setNewMessage((prev) => prev + em)}
-                                className="w-10 h-10 text-2xl flex items-center justify-center hover:bg-white/10 active:scale-90 transition-all rounded-xl"
-                              >
-                                {em}
-                              </button>
-                            ))}
-                          </div>
-                        )}
                       </motion.div>
                     )}
                   </AnimatePresence>
@@ -5100,11 +4711,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                     )}
                   </AnimatePresence>
 
-                  <div className={`flex items-end gap-2 ${
-                    theme === "outline"
-                      ? "mx-3 mb-[max(12px,env(safe-area-inset-bottom))] mt-2 border-2 border-black rounded-3xl px-3 py-2 bg-white"
-                      : "px-4 pt-3 pb-[max(12px,env(safe-area-inset-bottom))]"
-                  }`}>
+                  <div className="flex items-end gap-2 px-4 pt-3 pb-[max(12px,env(safe-area-inset-bottom))]">
                     {/* Emoji button — left of textarea */}
                     <button
                       onClick={() => setShowInputEmoji((p) => !p)}
@@ -5305,16 +4912,13 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                               </div>
                             ) : (
                               <img
-                                src={resolveStoryImageUrl(story.image_url)}
+                                src={resolveMediaUrl(story.image_url, "stories")}
                                 className="w-full h-full object-cover"
                                 style={{
                                   filter:
                                     STORY_MOOD_FILTER[story.mood ?? ""] ?? "",
                                 }}
                                 decoding="async"
-                                loading="lazy"
-                                crossOrigin="anonymous"
-                                referrerPolicy="no-referrer"
                               />
                             )}
                             <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
@@ -5333,14 +4937,22 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                               </div>
                             )}
                             <div className="absolute top-2 left-2">
-                              <img
-                                src={resolveMediaUrl(aUrl, "avatars")}
-                                className="w-8 h-8 rounded-full object-cover border border-white/60"
-                                decoding="async"
-                                loading="lazy"
-                                crossOrigin="anonymous"
-                                referrerPolicy="no-referrer"
-                              />
+                              {aUrl ? (
+                                <img
+                                  src={aUrl}
+                                  className="w-8 h-8 rounded-full object-cover border border-white/60"
+                                  decoding="async"
+                                />
+                              ) : (
+                                <div
+                                  className="w-8 h-8 rounded-full border border-white/60 flex items-center justify-center text-white font-black text-sm"
+                                  style={{
+                                    background: _sgradFor(group.user_id),
+                                  }}
+                                >
+                                  {pName[0]}
+                                </div>
+                              )}
                             </div>
                             <div className="absolute bottom-2 left-2 right-2">
                               {story.caption && (
@@ -5638,37 +5250,19 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                       >
                         Chat Theme
                       </p>
-                      {/* Outline — Default theme */}
-                      <button
-                        onClick={() => setTheme("outline")}
-                        className={`w-full py-3.5 rounded-2xl border-2 transition-all font-black text-sm flex items-center gap-3 px-4 mb-3 ${
-                          theme === "outline"
-                            ? `border-blue-500 bg-blue-500/10 ${T.text1}`
-                            : `border-transparent bg-white/5 ${T.text3}`
-                        }`}
-                      >
-                        <span className="text-2xl">✏️</span>
-                        <div className="text-left">
-                          <div>Minimalist Outline</div>
-                          <div className="text-[9px] text-blue-400 font-black uppercase tracking-wider mt-0.5">Default</div>
-                        </div>
-                      </button>
-                      <p className={`text-[9px] font-black uppercase tracking-widest mb-2 ${T.text3}`}>Extra Themes</p>
-                      <div className="grid grid-cols-3 gap-2">
+                      <div className="flex gap-3">
                         {(
-                          ["glass", "colorful", "whatsapp", "water", "nature", "velvet"] as Theme[]
+                          ["whatsapp", "water", "nature", "velvet"] as Theme[]
                         ).map((t) => (
                           <button
                             key={t}
                             onClick={() => setTheme(t)}
-                            className={`flex flex-col items-center py-3 px-1 rounded-2xl border-2 transition-all font-black text-xs ${
-                              theme === t
-                                ? `border-blue-500 bg-blue-500/10 ${T.text1}`
-                                : `border-transparent bg-white/5 ${T.text3}`
-                            }`}
+                            className={`flex-1 py-3 rounded-2xl border-2 transition-all font-black text-xs ${theme === t ? `border-blue-500 bg-blue-500/10 ${T.text1}` : `border-transparent bg-white/5 ${T.text3}`}`}
                           >
-                            <div className="text-2xl mb-1">{THEME_CFG[t].icon}</div>
-                            <span>{THEME_CFG[t].label}</span>
+                            <div className="text-xl mb-1">
+                              {THEME_CFG[t].icon}
+                            </div>
+                            {THEME_CFG[t].label}
                           </button>
                         ))}
                       </div>
