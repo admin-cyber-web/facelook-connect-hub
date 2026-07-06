@@ -737,7 +737,7 @@ export const DebateButton: React.FC<{
   const fetchMessages = useCallback(async (debateId: string) => {
     const { data } = await supabase
       .from("debate_messages")
-      .select("*, profiles(full_name, avatar_url)")
+      .select("*, profiles!user_id(full_name, avatar_url)")
       .eq("debate_id", debateId)
       .order("created_at", { ascending: true });
     if (!data) return;

@@ -573,7 +573,7 @@ const LatestSurveysWidget = ({
     (async () => {
       const { data } = await supabase
         .from("surveys")
-        .select("id, question, image_url, user_id, created_at")
+        .select("id, question, image_url, media_url, user_id, created_at")
         .order("created_at", { ascending: false })
         .limit(3);
       if (!cancelled) { setSurveys(data || []); setLoaded(true); }
@@ -610,7 +610,7 @@ const LatestSurveysWidget = ({
             style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
 
             {/* ── Image banner (full-width, fixed aspect-ratio, object-cover) ── */}
-            <SurveyThumb rawUrl={survey.image_url} question={survey.question} />
+            <SurveyThumb rawUrl={survey.image_url || survey.media_url} question={survey.question} />
 
             {/* ── Card body ── */}
             <div className="px-3 py-2.5">
