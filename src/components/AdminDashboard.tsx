@@ -56,7 +56,11 @@ interface ReportRow {
   id: string;
   post_id: string | null;
   target_id: string | null;
+  reported_user_id: string | null;
   reason: string;
+  type: string | null;
+  decision: string | null;
+  token_number: string | null;
   created_at: string;
   postContent: string;
   postMediaUrl: string | null;
@@ -230,7 +234,7 @@ const AdminDashboard: React.FC<Props> = ({
       supabase
         .from("reports")
         .select(
-          "id, post_id, target_id, reporter_id, reason, created_at, posts!post_id(id, content, media_url, author_id, profiles!author_id(full_name, username))",
+          `id, reporter_id, post_id, target_id, reported_user_id, type, reason, status, created_at, token_number, decision, full_name, username, posts:post_id(id, title, content, user_id, media_url, profiles:user_id(full_name, username))`,
         )
         .eq("status", "pending")
         .order("created_at", { ascending: false }),
@@ -247,13 +251,14 @@ const AdminDashboard: React.FC<Props> = ({
     }
     const reportRows = (reportsRes.data as any[]) || [];
 
+    // Fallback: fetch any posts not returned by the join (e.g. deleted posts)
     const missingPostIds = reportRows
       .filter((r: any) => r.post_id && !r.posts)
       .map((r: any) => r.post_id);
     if (missingPostIds.length > 0) {
       const { data: fetchedPosts } = await supabase
         .from("posts")
-        .select("id, content, media_url, author_id")
+        .select("id, content, media_url, user_id")
         .in("id", missingPostIds);
       const postMap = new Map((fetchedPosts || []).map((p: any) => [p.id, p]));
       for (const r of reportRows) {
@@ -261,21 +266,19 @@ const AdminDashboard: React.FC<Props> = ({
           r.posts = postMap.get(r.post_id);
       }
     }
+
+    // Build a profileMap from the already-loaded userList for quick lookups
+    const profileMap = new Map<string, { full_name: string; username: string }>();
+    for (const u of userList) {
+      profileMap.set(u.id, { full_name: u.full_name || "", username: u.username || "" });
+    }
+    // Collect any IDs not yet in the map and fetch them
     const idsNeeded = new Set<string>();
     for (const r of reportRows) {
       if (r.reporter_id) idsNeeded.add(r.reporter_id);
       if (r.target_id) idsNeeded.add(r.target_id);
-      if (r.posts?.author_id) idsNeeded.add(r.posts.author_id);
-    }
-    const profileMap = new Map<
-      string,
-      { full_name: string; username: string }
-    >();
-    for (const u of userList) {
-      profileMap.set(u.id, {
-        full_name: u.full_name || "Unknown",
-        username: u.username || "",
-      });
+      if (r.reported_user_id) idsNeeded.add(r.reported_user_id);
+      if (r.posts?.user_id) idsNeeded.add(r.posts.user_id);
     }
     const missing = [...idsNeeded].filter((id) => !profileMap.has(id));
     if (missing.length > 0) {
@@ -284,40 +287,52 @@ const AdminDashboard: React.FC<Props> = ({
         .select("id, full_name, username")
         .in("id", missing);
       for (const p of data || []) {
-        profileMap.set(p.id, {
-          full_name: p.full_name || "Unknown",
-          username: p.username || "",
-        });
+        profileMap.set(p.id, { full_name: p.full_name || "", username: p.username || "" });
       }
     }
 
     const rows: ReportRow[] = reportRows.map((r: any) => {
-      const reporter = profileMap.get(r.reporter_id);
       const target = r.target_id ? profileMap.get(r.target_id) : null;
-      const author = r.posts?.author_id
-        ? profileMap.get(r.posts.author_id)
-        : null;
-      // Use the nested profile join first, then profileMap, then username fallback
+      const authorMap = r.posts?.user_id ? profileMap.get(r.posts.user_id) : null;
+      // Nested join returns profiles under r.posts.profiles
       const postAuthorJoined = r.posts?.profiles as { full_name?: string; username?: string } | null;
+
+      // Reporter: authenticated user (reporter_id set) OR anonymous (token_number only)
+      let reporterName: string;
+      if (r.reporter_id) {
+        const rp = profileMap.get(r.reporter_id);
+        reporterName =
+          r.full_name || r.username ||        // flattened root-level fields
+          rp?.full_name || rp?.username ||    // profileMap lookup
+          "User";
+      } else {
+        // Anonymous / guest report — show the token number
+        reporterName = r.token_number ? `Guest (${r.token_number})` : "Anonymous";
+      }
+
       return {
         id: r.id,
         post_id: r.post_id || null,
         target_id: r.target_id || null,
-        reason: r.reason,
+        reported_user_id: r.reported_user_id || null,
+        reason: r.reason || "",
+        type: r.type || null,
+        decision: r.decision || null,
+        token_number: r.token_number || null,
         created_at: r.created_at,
         postContent: r.posts?.content ?? "",
         postMediaUrl: r.posts?.media_url ?? null,
         postAuthor:
           postAuthorJoined?.full_name ||
           postAuthorJoined?.username ||
-          author?.full_name ||
-          author?.username ||
+          authorMap?.full_name ||
+          authorMap?.username ||
           "Unknown",
-        postAuthorId: r.posts?.author_id ?? null,
-        reporterName: r.full_name || r.username || reporter?.full_name || reporter?.username || "User",
+        postAuthorId: r.posts?.user_id ?? null,
+        reporterName,
         reporterId: r.reporter_id || null,
-        targetName: target?.full_name ?? null,
-        targetUsername: target?.username ?? null,
+        targetName: target?.full_name || target?.username || null,
+        targetUsername: target?.username || null,
       };
     });
     setReports(rows);
