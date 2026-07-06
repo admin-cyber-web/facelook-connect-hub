@@ -230,7 +230,7 @@ const AdminDashboard: React.FC<Props> = ({
       supabase
         .from("reports")
         .select(
-          "id, post_id, target_id, reporter_id, reason, created_at, posts(id, content, media_url, author_id)",
+          "id, post_id, target_id, reporter_id, reason, created_at, posts!post_id(id, content, media_url, author_id)",
         )
         .eq("status", "pending")
         .order("created_at", { ascending: false }),
