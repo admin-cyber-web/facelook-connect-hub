@@ -1406,6 +1406,7 @@ const Header = ({
   const [hasNewNotif, setHasNewNotif] = useState(false);
   const [newNotifPreview, setNewNotifPreview] = useState<any | null>(null);
   const newNotifTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const notifAudioRef    = useRef<HTMLAudioElement | null>(null);
   // ── Post thumbnail cache (entity_id → post media) ──────────────────────────
   const [postPreviewMap, setPostPreviewMap] = useState<Record<string, { media_url?: string; image_url?: string; cover_url?: string; type?: string }>>({});
   const [showSearch, setShowSearch] = useState(false);
@@ -1797,9 +1798,14 @@ const Header = ({
 
   const playNotifSound = () => {
     try {
-      const audio = new Audio("/notif.wav");
-      audio.volume = 1.0;
-      audio.play().catch(() => {});
+      // Reuse a single pre-loaded Audio instance so the browser doesn't
+      // block playback due to creating a new element outside a user gesture.
+      if (!notifAudioRef.current) {
+        notifAudioRef.current = new Audio("/notif.wav");
+        notifAudioRef.current.volume = 1.0;
+      }
+      notifAudioRef.current.currentTime = 0;
+      notifAudioRef.current.play().catch(() => {});
     } catch {}
   };
 
