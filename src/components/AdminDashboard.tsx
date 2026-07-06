@@ -230,7 +230,7 @@ const AdminDashboard: React.FC<Props> = ({
       supabase
         .from("reports")
         .select(
-          "id, post_id, target_id, reporter_id, reason, created_at, posts!post_id(id, content, media_url, author_id)",
+          "id, post_id, target_id, reporter_id, reason, created_at, posts!post_id(id, content, media_url, author_id, profiles!author_id(full_name, username))",
         )
         .eq("status", "pending")
         .order("created_at", { ascending: false }),
@@ -297,6 +297,8 @@ const AdminDashboard: React.FC<Props> = ({
       const author = r.posts?.author_id
         ? profileMap.get(r.posts.author_id)
         : null;
+      // Use the nested profile join first, then profileMap, then username fallback
+      const postAuthorJoined = r.posts?.profiles as { full_name?: string; username?: string } | null;
       return {
         id: r.id,
         post_id: r.post_id || null,
@@ -305,7 +307,12 @@ const AdminDashboard: React.FC<Props> = ({
         created_at: r.created_at,
         postContent: r.posts?.content ?? "",
         postMediaUrl: r.posts?.media_url ?? null,
-        postAuthor: author?.full_name ?? "Unknown",
+        postAuthor:
+          postAuthorJoined?.full_name ||
+          postAuthorJoined?.username ||
+          author?.full_name ||
+          author?.username ||
+          "Unknown",
         postAuthorId: r.posts?.author_id ?? null,
         reporterName: r.full_name || r.username || reporter?.full_name || reporter?.username || "User",
         reporterId: r.reporter_id || null,
