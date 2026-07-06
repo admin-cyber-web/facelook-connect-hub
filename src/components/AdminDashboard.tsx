@@ -307,7 +307,7 @@ const AdminDashboard: React.FC<Props> = ({
         postMediaUrl: r.posts?.media_url ?? null,
         postAuthor: author?.full_name ?? "Unknown",
         postAuthorId: r.posts?.author_id ?? null,
-        reporterName: reporter?.full_name || reporter?.username || "User",
+        reporterName: r.full_name || r.username || reporter?.full_name || reporter?.username || "User",
         reporterId: r.reporter_id || null,
         targetName: target?.full_name ?? null,
         targetUsername: target?.username ?? null,
