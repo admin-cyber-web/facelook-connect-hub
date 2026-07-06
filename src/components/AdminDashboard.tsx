@@ -230,7 +230,7 @@ const AdminDashboard: React.FC<Props> = ({
       supabase
         .from("reports")
         .select(
-          "id, post_id, target_id, reporter_id, reason, created_at, posts!post_id(id, content, media_url, author_id), profiles!reporter_id(full_name, username, avatar_url)",
+          "id, post_id, target_id, reporter_id, reason, created_at, posts!post_id(id, content, media_url, author_id)",
         )
         .eq("status", "pending")
         .order("created_at", { ascending: false }),
@@ -242,6 +242,9 @@ const AdminDashboard: React.FC<Props> = ({
     setPostCount(postsRes.count || 0);
     setTotalMemberCount(countRes.count || userList.length);
 
+    if (reportsRes.error) {
+      console.error("Reports fetch error:", reportsRes.error);
+    }
     const reportRows = (reportsRes.data as any[]) || [];
 
     const missingPostIds = reportRows
@@ -294,9 +297,6 @@ const AdminDashboard: React.FC<Props> = ({
       const author = r.posts?.author_id
         ? profileMap.get(r.posts.author_id)
         : null;
-      // Use the directly-joined profile first (profiles!reporter_id join),
-      // fall back to the profileMap lookup, then a safe default.
-      const joinedReporter = r.profiles as { full_name?: string; username?: string; avatar_url?: string } | null;
       return {
         id: r.id,
         post_id: r.post_id || null,
@@ -307,11 +307,7 @@ const AdminDashboard: React.FC<Props> = ({
         postMediaUrl: r.posts?.media_url ?? null,
         postAuthor: author?.full_name ?? "Unknown",
         postAuthorId: r.posts?.author_id ?? null,
-        reporterName:
-          joinedReporter?.full_name ||
-          joinedReporter?.username ||
-          reporter?.full_name ||
-          "User",
+        reporterName: reporter?.full_name || reporter?.username || "User",
         reporterId: r.reporter_id || null,
         targetName: target?.full_name ?? null,
         targetUsername: target?.username ?? null,
