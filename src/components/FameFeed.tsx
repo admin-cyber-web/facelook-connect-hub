@@ -565,18 +565,36 @@ const LatestSurveysWidget = ({
   currentUserId: string;
   onNavigateToSurveys?: () => void;
 }) => {
-  const [surveys, setSurveys] = useState<any[]>([]);
-  const [loaded, setLoaded]   = useState(false);
+  const [surveys, setSurveys]         = useState<any[]>([]);
+  const [loaded, setLoaded]           = useState(false);
+  const [voteCounts, setVoteCounts]   = useState<Record<string, Record<string, number>>>({});
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       const { data } = await supabase
         .from("surveys")
-        .select("id, question, image_url, media_url, user_id, created_at")
+        .select("id, question, image_url, media_url, user_id, created_at, survey_options(id, text)")
         .order("created_at", { ascending: false })
         .limit(3);
-      if (!cancelled) { setSurveys(data || []); setLoaded(true); }
+      if (cancelled) return;
+      setSurveys(data || []);
+      setLoaded(true);
+      if (data && data.length > 0) {
+        const ids = data.map((s: any) => s.id);
+        const { data: votes } = await supabase
+          .from("votes")
+          .select("survey_id, option_id")
+          .in("survey_id", ids);
+        if (!cancelled && votes) {
+          const map: Record<string, Record<string, number>> = {};
+          votes.forEach((v: any) => {
+            if (!map[v.survey_id]) map[v.survey_id] = {};
+            map[v.survey_id][v.option_id] = (map[v.survey_id][v.option_id] || 0) + 1;
+          });
+          setVoteCounts(map);
+        }
+      }
     })();
     return () => { cancelled = true; };
   }, []);
@@ -614,9 +632,42 @@ const LatestSurveysWidget = ({
 
             {/* ── Card body ── */}
             <div className="px-3 py-2.5">
-              <p className="text-white text-[12px] font-bold leading-snug line-clamp-2 mb-2.5">
+              <p className="text-white text-[12px] font-bold leading-snug line-clamp-2 mb-2">
                 {survey.question}
               </p>
+
+              {/* ── Vote progress bars (only if votes exist) ── */}
+              {(() => {
+                const opts: any[] = (survey.survey_options || []).slice(0, 2);
+                const counts = voteCounts[survey.id] || {};
+                const total  = Object.values(counts).reduce((a: number, b: number) => a + b, 0);
+                if (!opts.length || total === 0) return null;
+                return (
+                  <div className="mb-2.5 flex flex-col gap-1">
+                    {opts.map((opt: any) => {
+                      const pct = Math.round(((counts[opt.id] || 0) / total) * 100);
+                      return (
+                        <div key={opt.id} className="flex items-center gap-1.5">
+                          <p className="text-white/55 text-[10px] truncate flex-shrink-0" style={{ width: 52 }}>
+                            {opt.text}
+                          </p>
+                          <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.08)" }}>
+                            <div
+                              className="h-full rounded-full transition-all duration-700"
+                              style={{ width: `${pct}%`, background: "linear-gradient(90deg,#6366f1,#8b5cf6)" }}
+                            />
+                          </div>
+                          <span className="text-white/40 text-[10px] flex-shrink-0" style={{ width: 26, textAlign: "right" }}>
+                            {pct}%
+                          </span>
+                        </div>
+                      );
+                    })}
+                    <p className="text-white/25 text-[9px] mt-0.5">{total.toLocaleString()} votes</p>
+                  </div>
+                );
+              })()}
+
               <div className="flex items-center gap-2">
                 {/* Vote button */}
                 <motion.button
