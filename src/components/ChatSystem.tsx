@@ -54,6 +54,19 @@ import { toast } from "sonner";
 // ── Storage bucket (must match the bucket created in Supabase dashboard) ───────
 const CHAT_BUCKET = "chat-images";
 
+// ── Story media URL resolver ────────────────────────────────────────────────────
+// Stories are uploaded to path "stories/<filename>" WITHIN the "stories" bucket.
+// resolveMediaUrl() strips the "stories/" prefix (thinking it's the bucket name),
+// which breaks the URL. This helper preserves the full path instead.
+const SUPABASE_STORAGE_BASE = "https://rxwvvhvretostbiknuek.supabase.co/storage/v1/object/public";
+const getStoryMediaUrl = (url: string): string => {
+  if (!url || !url.trim()) return "";
+  if (url.startsWith("http://") || url.startsWith("https://")) return url;
+  if (url.startsWith("data:")) return url;
+  const cleanPath = url.startsWith("/") ? url.substring(1) : url;
+  return `${SUPABASE_STORAGE_BASE}/stories/${cleanPath}`;
+};
+
 // ── Types ──────────────────────────────────────────────────────────────────────
 type Theme = "whatsapp" | "water" | "nature" | "velvet";
 type BottomTab = "chat" | "story" | "alert" | "menu";
@@ -676,7 +689,7 @@ const StoryCircle = ({
           </div>
         ) : (
           <img
-            src={resolveMediaUrl(story.image_url, "stories")}
+            src={getStoryMediaUrl(story.image_url)}
             className="w-full h-full object-cover"
             decoding="async"
             crossOrigin="anonymous"
@@ -3441,7 +3454,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                 {[0, 1, 2, 3].map((j) => (
                                   <video
                                     key={j}
-                                    src={resolveMediaUrl(story.image_url, "stories")}
+                                    src={getStoryMediaUrl(story.image_url)}
                                     className="w-full h-full object-cover"
                                     autoPlay
                                     muted={!!story.music_url}
@@ -3452,7 +3465,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                               </div>
                             ) : (
                               <video
-                                src={resolveMediaUrl(story.image_url, "stories")}
+                                src={getStoryMediaUrl(story.image_url)}
                                 className="w-full h-full object-cover"
                                 autoPlay
                                 muted={!!story.music_url}
@@ -3466,7 +3479,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                               {[0, 1, 2, 3].map((j) => (
                                 <img
                                   key={j}
-                                  src={resolveMediaUrl(story.image_url, "stories")}
+                                  src={getStoryMediaUrl(story.image_url)}
                                   className="w-full h-full object-cover"
                                   style={{
                                     transform:
@@ -3481,7 +3494,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                           ) : (
                             <div className="w-full h-full relative">
                               <img
-                                src={resolveMediaUrl(story.image_url, "stories")}
+                                src={getStoryMediaUrl(story.image_url)}
                                 className="w-full h-full object-cover"
                                 style={{ filter: moodFilter }}
                                 draggable={false}
@@ -3516,7 +3529,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                               onPointerUp={(e) => e.stopPropagation()}
                               onClick={(e) => {
                                 e.stopPropagation();
-                                const url = resolveMediaUrl(story.image_url, "stories");
+                                const url = getStoryMediaUrl(story.image_url);
                                 if (navigator.share) {
                                   navigator
                                     .share({ title: "Flicks Story", url })
@@ -3536,7 +3549,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                               onClick={(e) => {
                                 e.stopPropagation();
                                 const a = document.createElement("a");
-                                a.href = resolveMediaUrl(story.image_url, "stories");
+                                a.href = getStoryMediaUrl(story.image_url);
                                 a.download = `flicks-story`;
                                 a.target = "_blank";
                                 document.body.appendChild(a);
@@ -4922,7 +4935,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                               </div>
                             ) : (
                               <img
-                                src={resolveMediaUrl(story.image_url, "stories")}
+                                src={getStoryMediaUrl(story.image_url)}
                                 className="w-full h-full object-cover"
                                 style={{
                                   filter:
