@@ -67,6 +67,26 @@ const getStoryMediaUrl = (url: string): string => {
   return `${SUPABASE_STORAGE_BASE}/stories/${cleanPath}`;
 };
 
+// Fired when a story <img> or <video> fails to load.
+// Hides the broken element and shows a gradient + emoji on the parent container.
+const onStoryMediaError = (e: React.SyntheticEvent<HTMLImageElement | HTMLVideoElement>) => {
+  const el = e.currentTarget;
+  el.style.display = "none";
+  const parent = el.parentElement;
+  if (!parent) return;
+  parent.style.background = "linear-gradient(135deg,#1e1b4b 0%,#312e81 50%,#1e293b 100%)";
+  if (!parent.querySelector(".story-err-fb")) {
+    const fb = document.createElement("div");
+    fb.className = "story-err-fb";
+    fb.style.cssText =
+      "position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;pointer-events:none";
+    fb.innerHTML =
+      '<span style="font-size:2rem">📖</span>' +
+      '<span style="color:rgba(255,255,255,0.35);font-size:10px;font-weight:800;letter-spacing:2px">STORY</span>';
+    parent.appendChild(fb);
+  }
+};
+
 // ── Types ──────────────────────────────────────────────────────────────────────
 type Theme = "whatsapp" | "water" | "nature" | "velvet";
 type BottomTab = "chat" | "story" | "alert" | "menu";
@@ -693,6 +713,7 @@ const StoryCircle = ({
             className="w-full h-full object-cover"
             decoding="async"
             crossOrigin="anonymous"
+            onError={onStoryMediaError}
           />
         )}
       </div>
@@ -3460,6 +3481,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                     muted={!!story.music_url}
                                     playsInline
                                     loop
+                                    onError={onStoryMediaError}
                                   />
                                 ))}
                               </div>
@@ -3472,6 +3494,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                 playsInline
                                 loop
                                 style={{ filter: moodFilter }}
+                                onError={onStoryMediaError}
                               />
                             )
                           ) : story.mood === "grid" ? (
@@ -3488,6 +3511,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                   draggable={false}
                                   decoding="async"
                                   crossOrigin="anonymous"
+                                  onError={onStoryMediaError}
                                 />
                               ))}
                             </div>
@@ -3500,6 +3524,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                 draggable={false}
                                 crossOrigin="anonymous"
                                 decoding="async"
+                                onError={onStoryMediaError}
                               />
                               {isSad && <StoryRainOverlay />}
                               {isParty && <StoryNeonOverlay />}
@@ -4943,6 +4968,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                 }}
                                 decoding="async"
                                 crossOrigin="anonymous"
+                                onError={onStoryMediaError}
                               />
                             )}
                             <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
