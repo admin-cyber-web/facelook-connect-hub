@@ -233,32 +233,9 @@ const AdminDashboard: React.FC<Props> = ({
         supabase.from("posts").select("id", { count: "exact", head: true }),
         supabase
           .from("reports")
-          .select(`
-            id,
-            reporter_id,
-            post_id,
-            target_id,
-            reported_user_id,
-            type,
-            reason,
-            status,
-            created_at,
-            token_number,
-            decision,
-            full_name,
-            username,
-            posts:post_id (
-              id,
-              title,
-              content,
-              user_id,
-              media_url,
-              profiles (
-                full_name,
-                username
-              )
-            )
-          `)
+          .select(
+            `id, reporter_id, post_id, target_id, reported_user_id, type, reason, status, created_at, token_number, decision, posts!reports_post_id_fkey(id, content, media_url, author_id, profiles!posts_author_id_fkey(full_name, username))`
+          )
           .eq("status", "pending")
           .order("created_at", { ascending: false }),
         supabase.from("profiles").select("id", { count: "exact", head: true }),
@@ -268,37 +245,61 @@ const AdminDashboard: React.FC<Props> = ({
         console.error("Reports fetch error:", reportsRes.error);
       }
 
-      // State parsing to suppress "declared but never read" errors
       const userList = (usersRes.data as UserRow[]) || [];
       setUsers(userList);
       setPostCount(postsRes.count || 0);
       setTotalMemberCount(countRes.count || userList.length);
 
-      // Report rows safe array mapping block
       const rawReports = (reportsRes.data as any[]) || [];
-      const mappedReports: ReportRow[] = rawReports.map((r) => {
-        const reporterName = r.reporter_id 
-          ? (r.full_name || r.username || "User") 
-          : `Anonymous Guest (${r.token_number || "No Token"})`;
 
-        const postAuthorName = r.posts?.profiles?.full_name || r.posts?.profiles?.username || "Unknown Author";
+      // Build profileMap from already-loaded userList for reporter name resolution
+      const profileMap = new Map<string, { full_name: string; username: string }>();
+      for (const u of userList) {
+        profileMap.set(u.id, { full_name: u.full_name || "", username: u.username || "" });
+      }
+      // Fetch any reporter profiles not in the top-500 userList
+      const missingReporterIds = rawReports
+        .map((r: any) => r.reporter_id)
+        .filter((id: string | null): id is string => !!id && !profileMap.has(id));
+      if (missingReporterIds.length > 0) {
+        const { data: rpData } = await supabase
+          .from("profiles")
+          .select("id, full_name, username")
+          .in("id", missingReporterIds);
+        for (const p of rpData || []) {
+          profileMap.set(p.id, { full_name: p.full_name || "", username: p.username || "" });
+        }
+      }
+
+      const mappedReports: ReportRow[] = rawReports.map((r: any) => {
+        // Reporter name: authenticated user via profileMap, or anonymous via token_number
+        let reporterName: string;
+        if (r.reporter_id) {
+          const rp = profileMap.get(r.reporter_id);
+          reporterName = rp?.full_name || rp?.username || "User";
+        } else {
+          reporterName = r.token_number ? `Guest (${r.token_number})` : "Anonymous";
+        }
+
+        // Post author from nested profiles!posts_author_id_fkey join
+        const postAuthorJoined = r.posts?.profiles as { full_name?: string; username?: string } | null;
 
         return {
           id: r.id,
-          post_id: r.post_id,
-          target_id: r.target_id,
-          reported_user_id: r.reported_user_id,
-          reason: r.reason,
-          type: r.type,
-          decision: r.decision,
-          token_number: r.token_number,
+          post_id: r.post_id || null,
+          target_id: r.target_id || null,
+          reported_user_id: r.reported_user_id || null,
+          reason: r.reason || "",
+          type: r.type || null,
+          decision: r.decision || null,
+          token_number: r.token_number || null,
           created_at: r.created_at,
-          postContent: r.posts?.content || r.posts?.title || "No Content",
+          postContent: r.posts?.content || "",          // posts.content only — no phantom .title
           postMediaUrl: r.posts?.media_url || null,
-          postAuthor: postAuthorName,
-          postAuthorId: r.posts?.user_id || null,
-          reporterName: reporterName,
-          reporterId: r.reporter_id,
+          postAuthor: postAuthorJoined?.full_name || postAuthorJoined?.username || "Unknown",
+          postAuthorId: r.posts?.author_id || null,    // posts.author_id — not phantom user_id
+          reporterName,
+          reporterId: r.reporter_id || null,
           targetName: null,
           targetUsername: null,
         };
@@ -306,7 +307,7 @@ const AdminDashboard: React.FC<Props> = ({
 
       setReports(mappedReports);
 
-      // Cache syncing
+      // Cache syncing — consistent with refactored mappedReports
       memSet(cKey, { users: userList, reports: mappedReports, postCount: postsRes.count || 0 }, 30 * 1000);
 
       // Pending Studio Name change requests
