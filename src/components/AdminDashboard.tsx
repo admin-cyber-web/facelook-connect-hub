@@ -257,22 +257,23 @@ const AdminDashboard: React.FC<Props> = ({
       for (const u of userList) {
         profileMap.set(u.id, { full_name: u.full_name || "", username: u.username || "" });
       }
-      // Fetch any reporter profiles not in the top-500 userList
-      const missingReporterIds = rawReports
-        .map((r: any) => r.reporter_id)
-        .filter((id: string | null): id is string => !!id && !profileMap.has(id));
-      if (missingReporterIds.length > 0) {
-        const { data: rpData } = await supabase
+      // Collect all profile IDs needed that aren't already in the top-500 userList
+      const missingIds = [...new Set(
+        rawReports.flatMap((r: any) => [r.reporter_id, r.target_id, r.reported_user_id])
+          .filter((id: string | null): id is string => !!id && !profileMap.has(id))
+      )];
+      if (missingIds.length > 0) {
+        const { data: extraProfiles } = await supabase
           .from("profiles")
           .select("id, full_name, username")
-          .in("id", missingReporterIds);
-        for (const p of rpData || []) {
+          .in("id", missingIds);
+        for (const p of extraProfiles || []) {
           profileMap.set(p.id, { full_name: p.full_name || "", username: p.username || "" });
         }
       }
 
       const mappedReports: ReportRow[] = rawReports.map((r: any) => {
-        // Reporter name: authenticated user via profileMap, or anonymous via token_number
+        // Reporter: authenticated user via profileMap, or anonymous via token_number
         let reporterName: string;
         if (r.reporter_id) {
           const rp = profileMap.get(r.reporter_id);
@@ -280,6 +281,10 @@ const AdminDashboard: React.FC<Props> = ({
         } else {
           reporterName = r.token_number ? `Guest (${r.token_number})` : "Anonymous";
         }
+
+        // Reported/target user — resolve from profileMap (prefers reported_user_id, falls back to target_id)
+        const targetId = r.reported_user_id || r.target_id || null;
+        const targetProfile = targetId ? profileMap.get(targetId) : null;
 
         // Post author from nested profiles!posts_author_id_fkey join
         const postAuthorJoined = r.posts?.profiles as { full_name?: string; username?: string } | null;
@@ -294,14 +299,14 @@ const AdminDashboard: React.FC<Props> = ({
           decision: r.decision || null,
           token_number: r.token_number || null,
           created_at: r.created_at,
-          postContent: r.posts?.content || "",          // posts.content only — no phantom .title
+          postContent: r.posts?.content || "",
           postMediaUrl: r.posts?.media_url || null,
           postAuthor: postAuthorJoined?.full_name || postAuthorJoined?.username || "Unknown",
-          postAuthorId: r.posts?.author_id || null,    // posts.author_id — not phantom user_id
+          postAuthorId: r.posts?.author_id || null,
           reporterName,
           reporterId: r.reporter_id || null,
-          targetName: null,
-          targetUsername: null,
+          targetName: targetProfile?.full_name || targetProfile?.username || null,
+          targetUsername: targetProfile?.username || null,
         };
       });
 
