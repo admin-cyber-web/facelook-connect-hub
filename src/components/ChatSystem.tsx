@@ -50,6 +50,8 @@ import {
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { toast } from "sonner";
+import { parseMessage } from "../lib/messageParser";
+import { ChatSticker } from "./ChatSticker";
 
 // ── Storage bucket (must match the bucket created in Supabase dashboard) ───────
 const CHAT_BUCKET = "chat-images";
@@ -4611,14 +4613,30 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                 </div>
                               ) : (
                                 <>
-                                  <p className="text-lg font-bold leading-snug break-words">
-                                    {msg.content}
-                                  </p>
-                                  {msg.is_edited && (
-                                    <p className="text-[10px] opacity-40 italic mt-0.5">
-                                      (edited)
-                                    </p>
-                                  )}
+                                  {(() => {
+                                    const parsed = parseMessage(msg.content || "");
+                                    if (parsed.sticker) {
+                                      return (
+                                        <ChatSticker
+                                          type={parsed.sticker}
+                                          originalText={parsed.originalText}
+                                          isEdited={msg.is_edited}
+                                        />
+                                      );
+                                    }
+                                    return (
+                                      <>
+                                        <p className="text-lg font-bold leading-snug break-words">
+                                          {msg.content}
+                                        </p>
+                                        {msg.is_edited && (
+                                          <p className="text-[10px] opacity-40 italic mt-0.5">
+                                            (edited)
+                                          </p>
+                                        )}
+                                      </>
+                                    );
+                                  })()}
                                 </>
                               )}
                               <p
