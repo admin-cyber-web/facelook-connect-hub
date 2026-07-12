@@ -454,15 +454,21 @@ const AdminDashboard: React.FC<Props> = ({
       );
       // If ban was triggered from a report, resolve that report too
       if (pendingBanReportId) {
-        await supabase
+        const { data: banReportUpdated, error: banReportErr } = await supabase
           .from("reports")
           .update({ status: "resolved", decision: "User Banned" })
-          .eq("id", pendingBanReportId);
-        setReports((prev) => prev.filter((r) => r.id !== pendingBanReportId));
+          .eq("id", pendingBanReportId)
+          .select("id");
+        if (banReportErr) {
+          console.error("[AdminDashboard] ban report resolve error:", banReportErr.message);
+        } else if (!banReportUpdated || banReportUpdated.length === 0) {
+          console.warn("[AdminDashboard] ban report resolve: 0 rows affected — check RLS on reports table");
+        }
         setPendingBanReportId(null);
       }
       setSuspendTarget(null);
       setSuspendReason("");
+      await fetchAll(true);
     }
     setSuspending(false);
   };
@@ -511,11 +517,17 @@ const AdminDashboard: React.FC<Props> = ({
   const dismissSafe = async (r: ReportRow) => {
     setDismissingId(r.id);
     try {
-      const { error: reportErr } = await supabase
+      const { data: updated, error: reportErr } = await supabase
         .from("reports")
         .update({ status: "resolved", decision: "No Violation" })
-        .eq("id", r.id);
+        .eq("id", r.id)
+        .select("id");
       if (reportErr) throw reportErr;
+      if (!updated || updated.length === 0) {
+        throw new Error(
+          "Update blocked by database (0 rows affected). Check RLS policy: reports table must allow admin to update any row."
+        );
+      }
 
       const notifs = [];
       if (r.reporterId) {
@@ -542,9 +554,10 @@ const AdminDashboard: React.FC<Props> = ({
       if (notifs.length > 0) {
         await supabase.from("notifications").insert(notifs);
       }
-      setReports((prev) => prev.filter((x) => x.id !== r.id));
       toast.success("Report marked safe ✓ — both parties notified");
+      await fetchAll(true);
     } catch (e: any) {
+      console.error("[AdminDashboard] dismissSafe failed:", e);
       toast.error(e?.message || "Could not dismiss report. Please try again.");
     } finally {
       setDismissingId(null);
@@ -573,14 +586,24 @@ const AdminDashboard: React.FC<Props> = ({
     setDeleting(true);
     try {
       const report = reports.find((r) => r.id === reportId);
-      const { error } = await supabase.from("posts").delete().eq("id", postId);
-      if (error) throw error;
 
-      const { error: reportErr } = await supabase
-        .from("reports")
+      const { error: postErr } = await supabase
+        .from("posts")
         .delete()
-        .eq("id", reportId);
+        .eq("id", postId);
+      if (postErr) throw postErr;
+
+      const { data: deletedReport, error: reportErr } = await supabase
+        .from("reports")
+        .update({ status: "resolved", decision: "Post Deleted" })
+        .eq("id", reportId)
+        .select("id");
       if (reportErr) throw reportErr;
+      if (!deletedReport || deletedReport.length === 0) {
+        throw new Error(
+          "Report update blocked by database (0 rows affected). Check RLS policy on reports table."
+        );
+      }
 
       const notifs = [];
       if (report?.reporterId) {
@@ -604,23 +627,14 @@ const AdminDashboard: React.FC<Props> = ({
         });
       }
       if (notifs.length > 0) {
-        const { error: notifErr } = await supabase
-          .from("notifications")
-          .insert(notifs);
-        if (notifErr) throw notifErr;
+        await supabase.from("notifications").insert(notifs);
       }
       toast.success("Post removed ✓ — reporter & author notified");
-      setReports((prev) => prev.filter((r) => r.id !== reportId));
       setDeleteTarget(null);
+      await fetchAll(true);
     } catch (e: any) {
       const msg = e?.message || e?.details || e?.hint || "Unknown error";
-      console.error(
-        "[AdminDashboard] confirmDeletePost failed:",
-        "\n  message:", e?.message,
-        "\n  code:",    e?.code,
-        "\n  details:", e?.details,
-        "\n  hint:",    e?.hint,
-      );
+      console.error("[AdminDashboard] confirmDeletePost failed:", msg);
       toast.error(`Delete failed: ${msg}`);
     } finally {
       setDeleting(false);
@@ -637,23 +651,24 @@ const AdminDashboard: React.FC<Props> = ({
     setDeleting(true);
     try {
       const report = reports.find((r) => r.id === reportId);
-      const { error } = await supabase
-        .from("posts")
-        .update({
-          content: "[This post was cleaned by a moderator]",
-          media_url: null,
-        })
-        .eq("id", postId);
-      if (error) throw error;
 
-      const { error: reportErr } = await supabase
+      const { error: postErr } = await supabase
+        .from("posts")
+        .update({ content: "[This post was cleaned by a moderator]", media_url: null })
+        .eq("id", postId);
+      if (postErr) throw postErr;
+
+      const { data: updatedReport, error: reportErr } = await supabase
         .from("reports")
-        .update({
-          status: "resolved",
-          decision: "Content Cleaned",
-        })
-        .eq("id", reportId);
+        .update({ status: "resolved", decision: "Content Cleaned" })
+        .eq("id", reportId)
+        .select("id");
       if (reportErr) throw reportErr;
+      if (!updatedReport || updatedReport.length === 0) {
+        throw new Error(
+          "Report update blocked by database (0 rows affected). Check RLS policy on reports table."
+        );
+      }
 
       const notifs = [];
       if (report?.reporterId) {
@@ -662,8 +677,7 @@ const AdminDashboard: React.FC<Props> = ({
           actor_id: currentUserId,
           type: "report_resolved_cleaned",
           entity_id: postId,
-          content:
-            "Your report was actioned. The content was cleaned by a moderator.",
+          content: "Your report was actioned. The content was cleaned by a moderator.",
           is_read: false,
         });
       }
@@ -679,15 +693,13 @@ const AdminDashboard: React.FC<Props> = ({
         });
       }
       if (notifs.length > 0) {
-        const { error: notifErr } = await supabase
-          .from("notifications")
-          .insert(notifs);
-        if (notifErr) throw notifErr;
+        await supabase.from("notifications").insert(notifs);
       }
       toast.success("Post cleaned ✓ — reporter & author notified");
-      setReports((prev) => prev.filter((r) => r.id !== reportId));
       setDeleteTarget(null);
+      await fetchAll(true);
     } catch (e: any) {
+      console.error("[AdminDashboard] confirmCleanPost failed:", e?.message);
       toast.error(e?.message || "Could not clean post. Please try again.");
     } finally {
       setDeleting(false);

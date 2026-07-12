@@ -28,16 +28,16 @@
     <lastmod>2026-06-04</lastmod>
   </url>
   <url>
-    <loc>https://www.flicksindia.online/post/af05fc91-4e82-44b7-8770-f0026ecd040d</loc>
-    <priority>0.8</priority>
-    <changefreq>weekly</changefreq>
-    <lastmod>2026-07-08</lastmod>
-  </url>
-  <url>
     <loc>https://www.flicksindia.online/post/34118600-a31a-4c28-80a3-2399e78877ee</loc>
     <priority>0.8</priority>
     <changefreq>weekly</changefreq>
     <lastmod>2026-05-30</lastmod>
+  </url>
+  <url>
+    <loc>https://www.flicksindia.online/post/af05fc91-4e82-44b7-8770-f0026ecd040d</loc>
+    <priority>0.8</priority>
+    <changefreq>weekly</changefreq>
+    <lastmod>2026-07-08</lastmod>
   </url>
   <url>
     <loc>https://www.flicksindia.online/post/07ff8e48-f1ad-4bed-8f4d-51ee582a09f0</loc>
@@ -370,12 +370,6 @@
     <lastmod>2026-06-04</lastmod>
   </url>
   <url>
-    <loc>https://www.flicksindia.online/post/1c364245-0832-417e-96eb-98c746085742</loc>
-    <priority>0.8</priority>
-    <changefreq>weekly</changefreq>
-    <lastmod>2026-07-08</lastmod>
-  </url>
-  <url>
     <loc>https://www.flicksindia.online/post/7a6e163d-f512-451d-aad8-023fd00230ea</loc>
     <priority>0.8</priority>
     <changefreq>weekly</changefreq>
@@ -398,6 +392,12 @@
     <priority>0.8</priority>
     <changefreq>weekly</changefreq>
     <lastmod>2026-05-25</lastmod>
+  </url>
+  <url>
+    <loc>https://www.flicksindia.online/post/1c364245-0832-417e-96eb-98c746085742</loc>
+    <priority>0.8</priority>
+    <changefreq>weekly</changefreq>
+    <lastmod>2026-07-08</lastmod>
   </url>
   <url>
     <loc>https://www.flicksindia.online/post/69f09d85-ace1-4e2f-8cd7-c10388d763bc</loc>
