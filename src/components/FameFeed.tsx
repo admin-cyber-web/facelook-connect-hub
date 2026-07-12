@@ -3936,18 +3936,23 @@ const FameFeed = ({
     if (!reportModal?.reason.trim()) return;
     setReportSubmitting(true);
 
-    // 🎯 Sirf target_id, type, reason bhejenge jo 100% database mein hain
+    // Always capture the logged-in user's id so reporter_id is never null
+    const { data: authData } = await supabase.auth.getUser();
+    const reporterId = authData?.user?.id || currentUserId || null;
+
     const reportPayload = {
-      target_id: reportModal.targetId || reportModal.postId, 
-      type: "post",                                          
-      reason: reportModal.reason.trim(),                     
-      status: "pending"                                      
+      reporter_id: reporterId,
+      post_id: reportModal.postId || null,
+      target_id: reportModal.targetId || null,
+      type: "post",
+      reason: reportModal.reason.trim(),
+      status: "pending",
     };
 
     // Database mein insert query
     const { error: reportErr } = await supabase
       .from("reports")
-      .insert([reportPayload]); // .select() bhi hata diya taaki cache check hi na kare
+      .insert([reportPayload]);
 
     if (reportErr) {
       console.warn("[FameFeed] report insert error:", reportErr.message);

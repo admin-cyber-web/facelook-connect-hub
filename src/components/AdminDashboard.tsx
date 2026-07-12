@@ -304,6 +304,7 @@ const AdminDashboard: React.FC<Props> = ({
 
         // Post data from separate fetch
         const postData = r.post_id ? postMap.get(r.post_id) : null;
+        const postDeleted = !!r.post_id && !postData;
         const postAuthorProfile = postData?.author_id ? profileMap.get(postData.author_id) : null;
 
         return {
@@ -316,9 +317,13 @@ const AdminDashboard: React.FC<Props> = ({
           decision: r.decision || null,
           token_number: r.token_number || null,
           created_at: r.created_at,
-          postContent: postData?.content || "",
-          postMediaUrl: postData?.media_url || null,
-          postAuthor: postAuthorProfile?.full_name || postAuthorProfile?.username || "Unknown",
+          postContent: postDeleted
+            ? "[Post Unavailable — already deleted]"
+            : postData?.content || "",
+          postMediaUrl: postDeleted ? null : (postData?.media_url || null),
+          postAuthor: postDeleted
+            ? "Deleted Post"
+            : postAuthorProfile?.full_name || postAuthorProfile?.username || "Unknown",
           postAuthorId: postData?.author_id || null,
           reporterName,
           reporterId: r.reporter_id || null,
