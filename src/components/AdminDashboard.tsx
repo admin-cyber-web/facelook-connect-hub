@@ -121,6 +121,7 @@ const AdminDashboard: React.FC<Props> = ({
   const [suspendTarget, setSuspendTarget] = useState<string | null>(null);
   const [suspendReason, setSuspendReason] = useState("");
   const [suspending, setSuspending] = useState(false);
+  const [pendingBanReportId, setPendingBanReportId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<{
     postId: string;
     reportId: string;
@@ -234,7 +235,7 @@ const AdminDashboard: React.FC<Props> = ({
         supabase
           .from("reports")
           .select(
-            `id, reporter_id, post_id, target_id, reported_user_id, type, reason, status, created_at, token_number, decision, posts!reports_post_id_fkey(id, content, media_url, author_id, profiles!posts_author_id_fkey(full_name, username))`
+            `id, reporter_id, post_id, target_id, reported_user_id, type, reason, status, created_at, token_number, decision`
           )
           .eq("status", "pending")
           .order("created_at", { ascending: false }),
@@ -272,6 +273,21 @@ const AdminDashboard: React.FC<Props> = ({
         }
       }
 
+      // Separately fetch post content for all reports that have a post_id
+      const postIds = [...new Set(
+        rawReports.map((r: any) => r.post_id).filter((id: string | null): id is string => !!id)
+      )];
+      const postMap = new Map<string, { content: string; media_url: string | null; author_id: string | null }>();
+      if (postIds.length > 0) {
+        const { data: postsData } = await supabase
+          .from("posts")
+          .select("id, content, media_url, author_id")
+          .in("id", postIds);
+        for (const p of postsData || []) {
+          postMap.set(p.id, { content: p.content || "", media_url: p.media_url || null, author_id: p.author_id || null });
+        }
+      }
+
       const mappedReports: ReportRow[] = rawReports.map((r: any) => {
         // Reporter: authenticated user via profileMap, or anonymous via token_number
         let reporterName: string;
@@ -286,8 +302,9 @@ const AdminDashboard: React.FC<Props> = ({
         const targetId = r.reported_user_id || r.target_id || null;
         const targetProfile = targetId ? profileMap.get(targetId) : null;
 
-        // Post author from nested profiles!posts_author_id_fkey join
-        const postAuthorJoined = r.posts?.profiles as { full_name?: string; username?: string } | null;
+        // Post data from separate fetch
+        const postData = r.post_id ? postMap.get(r.post_id) : null;
+        const postAuthorProfile = postData?.author_id ? profileMap.get(postData.author_id) : null;
 
         return {
           id: r.id,
@@ -299,10 +316,10 @@ const AdminDashboard: React.FC<Props> = ({
           decision: r.decision || null,
           token_number: r.token_number || null,
           created_at: r.created_at,
-          postContent: r.posts?.content || "",
-          postMediaUrl: r.posts?.media_url || null,
-          postAuthor: postAuthorJoined?.full_name || postAuthorJoined?.username || "Unknown",
-          postAuthorId: r.posts?.author_id || null,
+          postContent: postData?.content || "",
+          postMediaUrl: postData?.media_url || null,
+          postAuthor: postAuthorProfile?.full_name || postAuthorProfile?.username || "Unknown",
+          postAuthorId: postData?.author_id || null,
           reporterName,
           reporterId: r.reporter_id || null,
           targetName: targetProfile?.full_name || targetProfile?.username || null,
@@ -418,7 +435,7 @@ const AdminDashboard: React.FC<Props> = ({
     if (error) {
       toast.error("Could not suspend user");
     } else {
-      toast.success("User suspended ✓");
+      toast.success("User banned ✓");
       setUsers((prev) =>
         prev.map((u) =>
           u.id === suspendTarget
@@ -430,6 +447,15 @@ const AdminDashboard: React.FC<Props> = ({
             : u,
         ),
       );
+      // If ban was triggered from a report, resolve that report too
+      if (pendingBanReportId) {
+        await supabase
+          .from("reports")
+          .update({ status: "resolved", decision: "User Banned" })
+          .eq("id", pendingBanReportId);
+        setReports((prev) => prev.filter((r) => r.id !== pendingBanReportId));
+        setPendingBanReportId(null);
+      }
       setSuspendTarget(null);
       setSuspendReason("");
     }
@@ -482,7 +508,7 @@ const AdminDashboard: React.FC<Props> = ({
     try {
       const { error: reportErr } = await supabase
         .from("reports")
-        .delete()
+        .update({ status: "resolved", decision: "No Violation" })
         .eq("id", r.id);
       if (reportErr) throw reportErr;
 
@@ -509,18 +535,27 @@ const AdminDashboard: React.FC<Props> = ({
         });
       }
       if (notifs.length > 0) {
-        const { error: notifErr } = await supabase
-          .from("notifications")
-          .insert(notifs);
-        if (notifErr) throw notifErr;
+        await supabase.from("notifications").insert(notifs);
       }
       setReports((prev) => prev.filter((x) => x.id !== r.id));
-      toast.success("Report dismissed as safe ✓ — both parties notified");
+      toast.success("Report marked safe ✓ — both parties notified");
     } catch (e: any) {
       toast.error(e?.message || "Could not dismiss report. Please try again.");
     } finally {
       setDismissingId(null);
     }
+  };
+
+  const banFromReport = async (r: ReportRow) => {
+    const userId = r.reported_user_id || r.target_id;
+    if (!userId) {
+      toast.error("No user linked to this report");
+      return;
+    }
+    setSuspendTarget(userId);
+    setSuspendReason(`Reported: ${r.reason}`);
+    // Store reportId so handleSuspend can resolve it after banning
+    setPendingBanReportId(r.id);
   };
 
   const confirmDeletePost = async () => {
@@ -1175,7 +1210,7 @@ const AdminDashboard: React.FC<Props> = ({
                       </div>
                     )}
 
-                    <div className="flex gap-2 pt-1">
+                    <div className="flex gap-2 pt-1 flex-wrap">
                       <button
                         onClick={() => dismissSafe(r)}
                         disabled={dismissingId === r.id}
@@ -1189,6 +1224,14 @@ const AdminDashboard: React.FC<Props> = ({
                           </>
                         )}
                       </button>
+                      {(r.reported_user_id || r.target_id) && (
+                        <button
+                          onClick={() => banFromReport(r)}
+                          className="flex-1 py-2 rounded-xl text-[11px] font-black border border-red-500/30 bg-red-500/10 text-red-400 flex items-center justify-center gap-1"
+                        >
+                          <UserX size={12} /> Ban User
+                        </button>
+                      )}
                       {r.post_id && (
                         <button
                           onClick={() =>
