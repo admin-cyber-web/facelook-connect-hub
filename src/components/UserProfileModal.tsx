@@ -51,6 +51,7 @@ const UserProfileModal = ({ userId, currentUserId, isAdmin: isAdminProp = false,
   const [isBlocked, setIsBlocked]     = useState(false);
   const [actionBusy, setActionBusy]   = useState(false);
   const [reportOpen, setReportOpen]   = useState(false);
+  const [reportAnchor, setReportAnchor] = useState<{ top: number; right: number } | null>(null);
   const [reportReason, setReportReason] = useState("");
   const [reportSubmitting, setReportSubmitting] = useState(false);
   const dragY = useRef(0);
@@ -550,7 +551,17 @@ const UserProfileModal = ({ userId, currentUserId, isAdmin: isAdminProp = false,
                         )}
                       </button>
                       <button
-                        onClick={() => { setReportReason(""); setReportOpen(true); }}
+                        onClick={(e) => {
+                          const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                          const popupH = 420;
+                          const top = (window.innerHeight - rect.bottom) >= popupH
+                            ? rect.bottom + 8
+                            : Math.max(8, rect.top - popupH - 8);
+                          const right = Math.max(8, window.innerWidth - rect.right);
+                          setReportAnchor({ top, right });
+                          setReportReason("");
+                          setReportOpen(true);
+                        }}
                         className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl font-bold text-[12px] bg-rose-50 text-rose-600 border border-rose-200 active:scale-95 transition-all"
                       >
                         <Flag size={13} /> Report
@@ -697,14 +708,21 @@ const UserProfileModal = ({ userId, currentUserId, isAdmin: isAdminProp = false,
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={() => !reportSubmitting && setReportOpen(false)}
-            className="fixed inset-0 z-[1010] bg-black/70 backdrop-blur-sm flex items-center justify-center px-4"
-          >
+            className="fixed inset-0 z-[1010] bg-black/60 backdrop-blur-sm"
+          />
           <motion.div
-            initial={{ scale: 0.9, opacity: 0, y: 16 }}
+            initial={{ scale: 0.9, opacity: 0, y: -8 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
-            exit={{ scale: 0.9, opacity: 0, y: 16 }}
+            exit={{ scale: 0.9, opacity: 0, y: -8 }}
             transition={{ type: "spring", stiffness: 320, damping: 30 }}
-            className="w-full max-w-[420px] z-[1020] rounded-3xl p-5 bg-white shadow-2xl"
+            style={{
+              position: "fixed",
+              top: reportAnchor?.top ?? 120,
+              right: reportAnchor?.right ?? 16,
+              zIndex: 1020,
+              width: 320,
+            }}
+            className="rounded-3xl p-5 bg-white shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-3 mb-3">
@@ -755,7 +773,6 @@ const UserProfileModal = ({ userId, currentUserId, isAdmin: isAdminProp = false,
                 {reportSubmitting ? "Submitting…" : "Submit report"}
               </button>
             </div>
-          </motion.div>
           </motion.div>
         </>
       )}

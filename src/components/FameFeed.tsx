@@ -2073,6 +2073,7 @@ const FameFeed = ({
     postId: string;
     targetId?: string;
     reason: string;
+    anchor: { top: number; right: number };
   } | null>(null);
   const [reportSubmitting, setReportSubmitting] = useState(false);
   const [showHiddenArchive, setShowHiddenArchive] = useState(false);
@@ -4227,12 +4228,19 @@ const FameFeed = ({
                         <EyeOff size={15} /> Hide
                       </button>
                       <button
-                        onClick={() => {
+                        onClick={(e) => {
+                          const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                          const popupH = 360;
+                          const top = (window.innerHeight - rect.bottom) >= popupH
+                            ? rect.bottom + 8
+                            : Math.max(8, rect.top - popupH - 8);
+                          const right = Math.max(8, window.innerWidth - rect.right);
                           setOpenMenuId(null);
                           setReportModal({
                             postId: post.id,
                             targetId: post.author_id,
                             reason: "",
+                            anchor: { top, right },
                           });
                         }}
                         className="w-full flex items-center gap-3 px-4 py-3.5 text-orange-400 hover:bg-white/10 text-sm font-semibold border-b border-white/10"
@@ -5646,20 +5654,29 @@ const FameFeed = ({
       {/* ── Report modal ──────────────────────────────────────────────── */}
       <AnimatePresence>
         {reportModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[999] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4"
-            onClick={() => setReportModal(null)}
-          >
+          <>
             <motion.div
-              initial={{ scale: 0.88, opacity: 0, y: 20 }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[998] bg-black/60 backdrop-blur-sm"
+              onClick={() => setReportModal(null)}
+            />
+            <motion.div
+              initial={{ scale: 0.88, opacity: 0, y: -8 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.88, opacity: 0, y: 20 }}
+              exit={{ scale: 0.88, opacity: 0, y: -8 }}
               transition={{ type: "spring", damping: 26, stiffness: 320 }}
-              className="w-full max-w-md rounded-3xl p-6 shadow-2xl"
-              style={{ background: "rgba(20,5,30,0.98)", border: "1px solid rgba(255,255,255,0.08)" }}
+              style={{
+                position: "fixed",
+                top: reportModal.anchor.top,
+                right: reportModal.anchor.right,
+                zIndex: 999,
+                width: 300,
+                background: "rgba(20,5,30,0.98)",
+                border: "1px solid rgba(255,255,255,0.08)",
+              }}
+              className="rounded-3xl p-5 shadow-2xl"
               onClick={(e) => e.stopPropagation()}
             >
               <div />
@@ -5710,7 +5727,7 @@ const FameFeed = ({
                 {reportSubmitting ? "Submitting…" : "Submit Report"}
               </button>
             </motion.div>
-          </motion.div>
+          </>
         )}
       </AnimatePresence>
 

@@ -196,6 +196,7 @@ const FlickCard = memo(
     );
     const [menuOpen, setMenuOpen] = useState(false);
     const [reportOpen, setReportOpen] = useState(false);
+    const [reportAnchor, setReportAnchor] = useState<{ top: number; right: number } | null>(null);
     const [reportText, setReportText] = useState("");
     const [reporting, setReporting] = useState(false);
     const [editingCaption, setEditingCaption] = useState(false);
@@ -522,7 +523,17 @@ const FlickCard = memo(
                     </button>
                   )}
                   <button
-                    onClick={() => { setMenuOpen(false); setReportOpen(true); }}
+                    onClick={(e) => {
+                      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                      const popupH = 280;
+                      const top = (window.innerHeight - rect.bottom) >= popupH
+                        ? rect.bottom + 8
+                        : Math.max(8, rect.top - popupH - 8);
+                      const right = Math.max(8, window.innerWidth - rect.right);
+                      setMenuOpen(false);
+                      setReportAnchor({ top, right });
+                      setReportOpen(true);
+                    }}
                     className="w-full flex items-center gap-3 px-4 py-3.5 text-orange-400 hover:bg-white/5 text-sm font-bold border-b border-white/5"
                   >
                     <Flag size={15} /> Report Video
@@ -557,13 +568,20 @@ const FlickCard = memo(
             <>
               <motion.div
                 initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                className="fixed inset-0 z-[210] bg-black/70 backdrop-blur-sm flex items-center justify-center px-4"
+                className="fixed inset-0 z-[210] bg-black/60 backdrop-blur-sm"
                 onClick={() => setReportOpen(false)}
-              >
+              />
               <motion.div
-                initial={{ scale: 0.9, opacity: 0, y: 16 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.9, opacity: 0, y: 16 }}
+                initial={{ scale: 0.9, opacity: 0, y: -8 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.9, opacity: 0, y: -8 }}
                 transition={{ type: "spring", damping: 28, stiffness: 300 }}
-                className="w-full max-w-[420px] bg-zinc-900 rounded-3xl p-5 border border-white/10 shadow-2xl"
+                style={{
+                  position: "fixed",
+                  top: reportAnchor?.top ?? 120,
+                  right: reportAnchor?.right ?? 16,
+                  zIndex: 220,
+                  width: 300,
+                }}
+                className="bg-zinc-900 rounded-3xl p-5 border border-white/10 shadow-2xl"
                 onClick={(e) => e.stopPropagation()}
               >
                 <div className="flex items-center justify-between mb-3">
@@ -591,7 +609,6 @@ const FlickCard = memo(
                 >
                   {reporting ? "Submitting…" : "Submit Report"}
                 </button>
-              </motion.div>
               </motion.div>
             </>
           )}
