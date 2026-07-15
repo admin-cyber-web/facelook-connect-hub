@@ -47,6 +47,7 @@ import {
   Download,
   Share2,
   VideoIcon,
+  Shield,
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { toast } from "sonner";
