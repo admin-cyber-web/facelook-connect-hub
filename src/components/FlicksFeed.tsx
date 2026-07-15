@@ -524,14 +524,10 @@ const FlickCard = memo(
                   )}
                   <button
                     onClick={(e) => {
-                      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                      const popupH = 280;
-                      const top = (window.innerHeight - rect.bottom) >= popupH
-                        ? rect.bottom + 8
-                        : Math.max(8, rect.top - popupH - 8);
-                      const right = Math.max(8, window.innerWidth - rect.right);
+                      const popupH = 260;
+                      const top = Math.max(8, Math.min(e.clientY, window.innerHeight - popupH - 16));
                       setMenuOpen(false);
-                      setReportAnchor({ top, right });
+                      setReportAnchor({ top, right: 16 });
                       setReportOpen(true);
                     }}
                     className="w-full flex items-center gap-3 px-4 py-3.5 text-orange-400 hover:bg-white/5 text-sm font-bold border-b border-white/5"
@@ -572,7 +568,9 @@ const FlickCard = memo(
                 onClick={() => setReportOpen(false)}
               />
               <motion.div
-                initial={{ scale: 0.9, opacity: 0, y: -8 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.9, opacity: 0, y: -8 }}
+                initial={{ opacity: 0, scale: 0.95, y: -6 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: -6 }}
                 transition={{ type: "spring", damping: 28, stiffness: 300 }}
                 style={{
                   position: "fixed",
@@ -580,32 +578,37 @@ const FlickCard = memo(
                   right: reportAnchor?.right ?? 16,
                   zIndex: 220,
                   width: 300,
+                  borderRadius: 16,
+                  background: "#ffffff",
+                  boxShadow: "0 10px 25px rgba(0,0,0,0.25)",
                 }}
-                className="bg-zinc-900 rounded-3xl p-5 border border-white/10 shadow-2xl"
+                className="p-5"
                 onClick={(e) => e.stopPropagation()}
               >
                 <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-white font-black text-lg flex items-center gap-2">
-                    <Flag size={18} className="text-orange-400" /> Report this video
-                  </h3>
-                  <button onClick={() => setReportOpen(false)} className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center">
-                    <X size={16} className="text-white" />
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-xl bg-orange-50 flex items-center justify-center">
+                      <Flag size={15} className="text-orange-500" />
+                    </div>
+                    <span className="text-gray-900 font-black text-sm">Report Video</span>
+                  </div>
+                  <button onClick={() => setReportOpen(false)} className="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 hover:bg-gray-200 transition-colors">
+                    <X size={14} />
                   </button>
                 </div>
-                <p className="text-white/50 text-xs mb-3">
-                  Help us keep Flicks India safe. Tell us why this content is inappropriate.
-                </p>
+                <p className="text-gray-500 text-xs mb-3">Help us keep Flicks India safe.</p>
                 <textarea
                   value={reportText}
                   onChange={(e) => setReportText(e.target.value)}
-                  placeholder="Reason (e.g. spam, harassment, nudity, hate speech)…"
-                  rows={4}
-                  className="w-full bg-white/5 border border-white/10 rounded-2xl p-3 text-white text-sm placeholder:text-white/30 outline-none focus:border-orange-400/50 resize-none"
+                  placeholder="Describe the issue (spam, harassment, inappropriate content…)"
+                  rows={3}
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-gray-900 text-sm placeholder:text-gray-400 outline-none focus:border-orange-400 resize-none"
                 />
                 <button
                   onClick={handleReport}
                   disabled={reporting || !reportText.trim()}
-                  className="w-full mt-3 py-3.5 rounded-2xl font-black text-white text-sm bg-gradient-to-r from-orange-500 to-red-500 disabled:opacity-50 active:scale-95 transition-transform"
+                  className="w-full mt-3 py-3 rounded-2xl font-black text-white text-sm disabled:opacity-40"
+                  style={{ background: "linear-gradient(135deg,#f97316,#dc2626)" }}
                 >
                   {reporting ? "Submitting…" : "Submit Report"}
                 </button>

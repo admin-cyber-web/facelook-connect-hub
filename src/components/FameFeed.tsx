@@ -4229,18 +4229,14 @@ const FameFeed = ({
                       </button>
                       <button
                         onClick={(e) => {
-                          const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
                           const popupH = 360;
-                          const top = (window.innerHeight - rect.bottom) >= popupH
-                            ? rect.bottom + 8
-                            : Math.max(8, rect.top - popupH - 8);
-                          const right = Math.max(8, window.innerWidth - rect.right);
+                          const top = Math.max(8, Math.min(e.clientY, window.innerHeight - popupH - 16));
                           setOpenMenuId(null);
                           setReportModal({
                             postId: post.id,
                             targetId: post.author_id,
                             reason: "",
-                            anchor: { top, right },
+                            anchor: { top, right: 16 },
                           });
                         }}
                         className="w-full flex items-center gap-3 px-4 py-3.5 text-orange-400 hover:bg-white/10 text-sm font-semibold border-b border-white/10"
@@ -5663,35 +5659,38 @@ const FameFeed = ({
               onClick={() => setReportModal(null)}
             />
             <motion.div
-              initial={{ scale: 0.88, opacity: 0, y: -8 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.88, opacity: 0, y: -8 }}
-              transition={{ type: "spring", damping: 26, stiffness: 320 }}
+              initial={{ opacity: 0, scale: 0.95, y: -6 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: -6 }}
+              transition={{ type: "spring", damping: 28, stiffness: 340 }}
               style={{
                 position: "fixed",
                 top: reportModal.anchor.top,
                 right: reportModal.anchor.right,
                 zIndex: 999,
                 width: 300,
-                background: "rgba(20,5,30,0.98)",
-                border: "1px solid rgba(255,255,255,0.08)",
+                borderRadius: 16,
+                background: "#ffffff",
+                boxShadow: "0 10px 25px rgba(0,0,0,0.2)",
               }}
-              className="rounded-3xl p-5 shadow-2xl"
+              className="p-5"
               onClick={(e) => e.stopPropagation()}
             >
-              <div />
-              <div className="flex items-center justify-between mb-5">
-                <h3 className="text-white font-black text-lg flex items-center gap-2">
-                  <Flag size={18} className="text-orange-400" /> Report Post
-                </h3>
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-xl bg-orange-50 flex items-center justify-center">
+                    <Flag size={15} className="text-orange-500" />
+                  </div>
+                  <span className="text-gray-900 font-black text-sm">Report Post</span>
+                </div>
                 <button
                   onClick={() => setReportModal(null)}
-                  className="p-1.5 rounded-full bg-white/10 text-white/50"
+                  className="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 hover:bg-gray-200 transition-colors"
                 >
-                  <X size={18} />
+                  <X size={14} />
                 </button>
               </div>
-              <div className="space-y-2 mb-5">
+              <div className="space-y-1.5 mb-4">
                 {[
                   "Spam or misleading",
                   "Inappropriate content",
@@ -5704,16 +5703,11 @@ const FameFeed = ({
                     onClick={() =>
                       setReportModal((p) => (p ? { ...p, reason: r } : p))
                     }
-                    className={`w-full text-left px-4 py-3.5 rounded-xl text-sm font-semibold border transition-all ${
+                    className={`w-full text-left px-3 py-2.5 rounded-xl text-sm font-semibold border transition-all ${
                       reportModal.reason === r
-                        ? "border-orange-500/50 text-orange-300"
-                        : "border-white/10 text-white/60 hover:bg-white/8"
+                        ? "bg-orange-50 border-orange-300 text-orange-700"
+                        : "bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100"
                     }`}
-                    style={
-                      reportModal.reason === r
-                        ? { background: "rgba(249,115,22,0.15)" }
-                        : { background: "rgba(255,255,255,0.05)" }
-                    }
                   >
                     {r}
                   </button>
@@ -5722,7 +5716,8 @@ const FameFeed = ({
               <button
                 onClick={handleReportSubmit}
                 disabled={!reportModal.reason || reportSubmitting}
-                className="w-full py-4 rounded-2xl bg-orange-600 text-white font-black text-sm uppercase tracking-wider disabled:opacity-40"
+                className="w-full py-3 rounded-2xl text-white font-black text-sm disabled:opacity-40"
+                style={{ background: "linear-gradient(135deg,#f97316,#dc2626)" }}
               >
                 {reportSubmitting ? "Submitting…" : "Submit Report"}
               </button>

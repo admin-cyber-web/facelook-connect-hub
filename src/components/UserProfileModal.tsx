@@ -552,13 +552,9 @@ const UserProfileModal = ({ userId, currentUserId, isAdmin: isAdminProp = false,
                       </button>
                       <button
                         onClick={(e) => {
-                          const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                          const popupH = 420;
-                          const top = (window.innerHeight - rect.bottom) >= popupH
-                            ? rect.bottom + 8
-                            : Math.max(8, rect.top - popupH - 8);
-                          const right = Math.max(8, window.innerWidth - rect.right);
-                          setReportAnchor({ top, right });
+                          const popupH = 440;
+                          const top = Math.max(8, Math.min(e.clientY, window.innerHeight - popupH - 16));
+                          setReportAnchor({ top, right: 16 });
                           setReportReason("");
                           setReportOpen(true);
                         }}
@@ -711,38 +707,49 @@ const UserProfileModal = ({ userId, currentUserId, isAdmin: isAdminProp = false,
             className="fixed inset-0 z-[1010] bg-black/60 backdrop-blur-sm"
           />
           <motion.div
-            initial={{ scale: 0.9, opacity: 0, y: -8 }}
-            animate={{ scale: 1, opacity: 1, y: 0 }}
-            exit={{ scale: 0.9, opacity: 0, y: -8 }}
+            initial={{ opacity: 0, scale: 0.95, y: -6 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: -6 }}
             transition={{ type: "spring", stiffness: 320, damping: 30 }}
             style={{
               position: "fixed",
               top: reportAnchor?.top ?? 120,
               right: reportAnchor?.right ?? 16,
               zIndex: 1020,
-              width: 320,
+              width: 310,
+              borderRadius: 16,
+              background: "#ffffff",
+              boxShadow: "0 10px 25px rgba(0,0,0,0.2)",
             }}
-            className="rounded-3xl p-5 bg-white shadow-2xl"
+            className="p-5"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-10 h-10 rounded-xl bg-rose-100 border border-rose-200 flex items-center justify-center">
-                <Flag size={18} className="text-rose-600" />
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-rose-50 flex items-center justify-center">
+                  <Flag size={15} className="text-rose-500" />
+                </div>
+                <div>
+                  <p className="text-gray-900 font-black text-sm leading-none">Report user</p>
+                  <p className="text-gray-400 text-[10px] mt-0.5">Admin will review your report</p>
+                </div>
               </div>
-              <div>
-                <p className="text-gray-900 font-black text-base leading-none">Report user</p>
-                <p className="text-gray-500 text-[11px] mt-1">Tell us what's wrong. The admin team will review it.</p>
-              </div>
+              <button
+                onClick={() => setReportOpen(false)}
+                className="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 hover:bg-gray-200 transition-colors"
+              >
+                <X size={14} />
+              </button>
             </div>
-            <div className="grid grid-cols-2 gap-2 mb-3">
+            <div className="grid grid-cols-2 gap-1.5 mb-3">
               {["Spam or scam", "Harassment or bullying", "Hate speech", "Inappropriate content", "Fake account", "Other"].map(r => (
                 <button
                   key={r}
                   onClick={() => setReportReason(r)}
-                  className={`py-2 px-2 rounded-xl text-[11px] font-bold border ${
+                  className={`py-2 px-2 rounded-xl text-[11px] font-bold border transition-all ${
                     reportReason === r
                       ? "bg-rose-50 border-rose-300 text-rose-700"
-                      : "bg-gray-50 border-gray-200 text-gray-700"
+                      : "bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100"
                   }`}
                 >
                   {r}
@@ -753,24 +760,24 @@ const UserProfileModal = ({ userId, currentUserId, isAdmin: isAdminProp = false,
               value={reportReason}
               onChange={(e) => setReportReason(e.target.value)}
               placeholder="Add details (optional)…"
-              rows={3}
-              className="w-full rounded-2xl px-4 py-3 text-sm text-gray-900 bg-gray-50 border border-gray-200 outline-none font-medium resize-none mb-4"
+              rows={2}
+              className="w-full rounded-xl px-3 py-2.5 text-sm text-gray-900 bg-gray-50 border border-gray-200 outline-none resize-none mb-3 focus:border-rose-300"
             />
-            <div className="flex gap-3">
+            <div className="flex gap-2">
               <button
                 onClick={() => setReportOpen(false)}
                 disabled={reportSubmitting}
-                className="flex-1 py-3 rounded-2xl text-gray-700 bg-gray-100 border border-gray-200 font-bold text-sm disabled:opacity-50"
+                className="flex-1 py-2.5 rounded-xl text-gray-600 bg-gray-100 font-bold text-sm disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
                 onClick={handleSubmitReport}
                 disabled={reportSubmitting || !reportReason.trim()}
-                className="flex-1 py-3 rounded-2xl text-white font-black text-sm disabled:opacity-50"
+                className="flex-1 py-2.5 rounded-xl text-white font-black text-sm disabled:opacity-40"
                 style={{ background: "linear-gradient(135deg,#ef4444,#b91c1c)" }}
               >
-                {reportSubmitting ? "Submitting…" : "Submit report"}
+                {reportSubmitting ? "Submitting…" : "Submit"}
               </button>
             </div>
           </motion.div>
