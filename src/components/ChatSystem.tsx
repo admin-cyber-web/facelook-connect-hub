@@ -48,6 +48,7 @@ import {
   Share2,
   VideoIcon,
   Shield,
+  Phone,
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { toast } from "sonner";
@@ -208,6 +209,7 @@ const THEME_CFG = {
     msgMenuBg: "bg-stone-800 border-stone-700 shadow-2xl",
     pill: "bg-[#25D366]/20 text-[#25D366] border border-[#25D366]/30",
     storyRing: "border-[#25D366]",
+    sendBtnText: "text-white",
   },
   maroon: {
     wrap: "bg-[#050505]",
@@ -232,6 +234,7 @@ const THEME_CFG = {
     msgMenuBg: "bg-[#1a0418] border-[#E3FF00]/20",
     pill: "bg-[#E3FF00]/15 text-[#E3FF00] border border-[#E3FF00]/30",
     storyRing: "border-[#E3FF00]",
+    sendBtnText: "text-[#050505]",
   },
 };
 
@@ -4258,7 +4261,20 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
 
             {/* ════ FULL-SCREEN CHAT ════════════════════════════════════════ */}
             {bottomTab === "chat" && selectedUser && (
-              <div className={`flex flex-col flex-1 overflow-hidden`}>
+              <div className={`flex flex-col flex-1 overflow-hidden relative`}>
+                {/* ── Comic Cinematic Background ──────────────────────────── */}
+                <div className="absolute inset-0 pointer-events-none overflow-hidden" aria-hidden="true">
+                  <div className="absolute inset-0" style={{ backgroundImage:"radial-gradient(circle,rgba(255,255,255,0.04) 1px,transparent 1px)", backgroundSize:"18px 18px" }} />
+                  <div className="absolute" style={{ top:"6%", right:"10%", width:130, height:130, borderRadius:"50%", background:"radial-gradient(circle,rgba(255,255,220,0.10) 0%,transparent 70%)", boxShadow:"0 0 80px 35px rgba(255,255,200,0.04)" }} />
+                  <div className="absolute top-0 left-0 right-0" style={{ height:"35%", background:"linear-gradient(to bottom,rgba(43,11,22,0.55),transparent)" }} />
+                  <div className="absolute bottom-0 left-0 right-0" style={{ height:"30%", background:"linear-gradient(to top,rgba(43,11,22,0.50),transparent)" }} />
+                  <div className="absolute" style={{ bottom:"12%", left:"-6%", width:220, height:220, borderRadius:"50%", background:"radial-gradient(circle,rgba(30,94,255,0.09) 0%,transparent 70%)" }} />
+                  <div className="absolute" style={{ top:"18%", right:"-6%", width:180, height:180, borderRadius:"50%", background:"radial-gradient(circle,rgba(227,255,0,0.06) 0%,transparent 70%)" }} />
+                  <svg className="absolute bottom-0 left-0 w-full" viewBox="0 0 390 70" preserveAspectRatio="xMidYMax meet" fill="white" style={{ opacity:0.07 }}>
+                    <path d="M0,70 L0,48 L12,48 L12,38 L22,38 L22,30 L28,30 L28,38 L38,38 L38,48 L50,48 L50,32 L60,32 L60,22 L66,22 L66,16 L72,16 L72,22 L82,22 L82,32 L92,32 L92,42 L104,42 L104,35 L114,35 L114,28 L120,28 L120,35 L130,35 L130,48 L142,48 L142,36 L152,36 L152,24 L158,24 L158,36 L168,36 L168,48 L180,48 L180,38 L192,38 L192,28 L198,28 L198,18 L204,18 L204,28 L210,28 L210,38 L222,38 L222,48 L234,48 L234,40 L244,40 L244,30 L250,30 L250,20 L256,20 L256,30 L262,30 L262,40 L274,40 L274,50 L286,50 L286,42 L296,42 L296,32 L302,32 L302,42 L312,42 L312,50 L324,50 L324,44 L334,44 L334,36 L340,36 L340,26 L346,26 L346,36 L356,36 L356,44 L368,44 L368,50 L380,50 L380,44 L390,44 L390,70 Z" />
+                  </svg>
+                  <div className="absolute inset-0" style={{ background:"radial-gradient(ellipse at 50% 50%,transparent 42%,rgba(5,5,5,0.45) 100%)" }} />
+                </div>
                 {/* Top Bar */}
                 <div
                   className={`flex items-center gap-3 px-4 py-3 border-b ${T.topbar} ${T.divider} shrink-0`}
@@ -4325,6 +4341,20 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                     className={`w-9 h-9 rounded-xl bg-white/10 border ${T.divider} flex items-center justify-center ${T.text1} hover:bg-white/20`}
                   >
                     <Search size={16} />
+                  </button>
+                  {/* Phone call */}
+                  <button
+                    className={`w-9 h-9 rounded-xl bg-white/10 border ${T.divider} flex items-center justify-center ${T.accentText} hover:bg-white/20 active:scale-90 transition-all`}
+                    onClick={(e) => { e.stopPropagation(); toast.info("🔊 Voice call — coming soon!"); }}
+                  >
+                    <Phone size={16} />
+                  </button>
+                  {/* Video call */}
+                  <button
+                    className={`w-9 h-9 rounded-xl bg-white/10 border ${T.divider} flex items-center justify-center ${T.accentText} hover:bg-white/20 active:scale-90 transition-all`}
+                    onClick={(e) => { e.stopPropagation(); toast.info("📹 Video call — coming soon!"); }}
+                  >
+                    <VideoIcon size={16} />
                   </button>
                   {/* Punch/boxing emoji blast removed per design overhaul */}
                   {/* Panic toggle */}
@@ -4710,7 +4740,9 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                 </div>
 
                 {/* Input */}
-                <div className={`border-t ${T.divider} ${T.input} shrink-0`}>
+                <div className="shrink-0 px-3"
+                  style={{ background: "linear-gradient(to top,rgba(5,5,5,0.92) 0%,rgba(5,5,5,0.70) 100%)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)" }}
+                >
                   {/* Reply preview bar */}
                   <AnimatePresence>
                     {replyTo && (
@@ -4823,7 +4855,10 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                     )}
                   </AnimatePresence>
 
-                  <div className="flex items-end gap-2 px-4 pt-3 pb-[max(12px,env(safe-area-inset-bottom))]">
+                  <div
+                    className="flex items-center gap-2 px-4 h-16 rounded-[32px] border border-white/[0.08] mt-2 mb-[max(12px,env(safe-area-inset-bottom))]"
+                    style={{ background:"rgba(20,20,20,0.88)", backdropFilter:"blur(20px)", WebkitBackdropFilter:"blur(20px)", boxShadow:"0 8px 32px rgba(0,0,0,0.5), 0 0 0 1px rgba(227,255,0,0.05)" }}
+                  >
                     {/* Emoji button — left of textarea */}
                     <button
                       onClick={() => setShowInputEmoji((p) => !p)}
@@ -4875,7 +4910,8 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                         isSending ||
                         isUploadingMedia
                       }
-                      className={`w-11 h-11 rounded-full flex items-center justify-center text-white shrink-0 active:scale-90 disabled:opacity-40 shadow-lg ${T.accent}`}
+                      className={`w-12 h-12 rounded-full flex items-center justify-center ${T.sendBtnText} shrink-0 active:scale-90 disabled:opacity-40 transition-transform ${T.accent}`}
+                      style={{ boxShadow:"0 4px 18px rgba(227,255,0,0.30)" }}
                     >
                       {isSending || isUploadingMedia ? (
                         <Loader2 size={16} className="animate-spin" />
