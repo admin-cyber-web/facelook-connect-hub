@@ -3043,6 +3043,8 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
           exit={{ y: "100%" }}
           transition={{ type: "spring", stiffness: 300, damping: 30 }}
           className={`fixed inset-0 z-[150] flex flex-col ${T.wrap} overflow-hidden`}
+          onClick={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
         >
           {/* ── PANIC MODE OVERLAY ───────────────────────────────────────── */}
           <AnimatePresence>
@@ -5725,7 +5727,9 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                 ].map(({ tab, icon, label, badge }) => (
                   <button
                     key={tab}
-                    onClick={() => {
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
                       setBottomTab(tab);
                       if (tab !== "menu") setMenuPanel("main");
                     }}
