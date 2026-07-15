@@ -3576,7 +3576,7 @@ const Index = ({ session, initialAdminOpen }: { session: Session; initialAdminOp
       </main>
 
       {/* Chat System ───────────────────────────────────────────────────────── */}
-      <ErrorBoundary>
+      <ErrorBoundary onError={() => setIsChatOpen(false)}>
       <Suspense fallback={null}>
       <ChatSystem
         isOpen={isChatOpen}

@@ -305,6 +305,56 @@ const THEME_CFG = {
   },
 };
 
+// ── Message Status (top-level so React identity is stable across re-renders) ──
+const MessageStatus = ({
+  msg,
+  userId,
+  contactAvatarUrl,
+  contactName,
+}: {
+  msg: Message;
+  userId: string;
+  contactAvatarUrl?: string;
+  contactName?: string;
+}) => {
+  if (msg.sender_id !== userId) return null;
+  const isTemp = msg.id.startsWith("temp-");
+  if (isTemp)
+    return <span className="text-[10px] text-white/30 ml-1 italic">Sending…</span>;
+  if (msg.seen_at) {
+    const initials = (contactName || "?")
+      .split(" ")
+      .map((w: string) => w[0])
+      .join("")
+      .slice(0, 2)
+      .toUpperCase();
+    return (
+      <span className="flex items-center gap-1 ml-1 mt-0.5">
+        <span className="relative inline-flex shrink-0">
+          {contactAvatarUrl ? (
+            <img
+              src={contactAvatarUrl}
+              alt={initials}
+              className="w-[14px] h-[14px] rounded-full object-cover ring-1 ring-[#d4ff00]/40"
+            />
+          ) : (
+            <span className="w-[14px] h-[14px] rounded-full bg-[#d4ff00]/20 flex items-center justify-center text-[7px] font-black text-[#d4ff00]">
+              {initials}
+            </span>
+          )}
+          <span className="absolute -bottom-[2px] -right-[2px] w-[7px] h-[7px] rounded-full bg-emerald-500 flex items-center justify-center shadow-sm">
+            <svg width="5" height="5" viewBox="0 0 5 5" fill="none">
+              <path d="M1 2.5L2.2 3.7L4 1.5" stroke="white" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </span>
+        </span>
+        <span className="text-[10px] text-[#d4ff00] font-black tracking-wide">Seen</span>
+      </span>
+    );
+  }
+  return <span className="text-[10px] text-white/40 ml-1">Delivered</span>;
+};
+
 // ── Rose Petals (velvet theme only) ───────────────────────────────────────────
 const PETAL_DATA = Array.from({ length: 14 }, (_, i) => ({
   id: i,
@@ -933,6 +983,12 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
 
   // ── Persisted state ───────────────────────────────────────────────────────
   const [theme, setTheme] = useState<Theme>(() => {
+    // Version migration: v3 = Midnight Maroon becomes new default
+    if (localStorage.getItem("cx_theme_v") !== "3") {
+      localStorage.setItem("cx_theme_v", "3");
+      localStorage.setItem("cx_theme", "maroon");
+      return "maroon";
+    }
     const s = localStorage.getItem("cx_theme") as Theme;
     return s === "whatsapp" || s === "water" || s === "nature" || s === "velvet" || s === "maroon"
       ? s
@@ -2881,48 +2937,8 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     setDeletingForMe(null);
   };
 
-  // ── Status text component (replaces ticks) ────────────────────────────────
-  const MessageStatus = ({ msg }: { msg: Message }) => {
-    if (msg.sender_id !== userId) return null;
-    const isTemp = msg.id.startsWith("temp-");
-    if (isTemp)
-      return (
-        <span className="text-[10px] text-white/30 ml-1 italic">Sending…</span>
-      );
-    if (msg.seen_at) {
-      const avatarUrl = selectedContact?.avatar_url;
-      const initials = (selectedContact?.full_name || "?")
-        .split(" ")
-        .map((w) => w[0])
-        .join("")
-        .slice(0, 2)
-        .toUpperCase();
-      return (
-        <span className="flex items-center gap-1 ml-1 mt-0.5">
-          <span className="relative inline-flex shrink-0">
-            {avatarUrl ? (
-              <img
-                src={avatarUrl}
-                alt={initials}
-                className="w-[14px] h-[14px] rounded-full object-cover ring-1 ring-[#d4ff00]/40"
-              />
-            ) : (
-              <span className="w-[14px] h-[14px] rounded-full bg-[#d4ff00]/20 flex items-center justify-center text-[7px] font-black text-[#d4ff00]">
-                {initials}
-              </span>
-            )}
-            <span className="absolute -bottom-[2px] -right-[2px] w-[7px] h-[7px] rounded-full bg-emerald-500 flex items-center justify-center shadow-sm">
-              <svg width="5" height="5" viewBox="0 0 5 5" fill="none">
-                <path d="M1 2.5L2.2 3.7L4 1.5" stroke="white" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-            </span>
-          </span>
-          <span className="text-[10px] text-[#d4ff00] font-black tracking-wide">Seen</span>
-        </span>
-      );
-    }
-    return <span className="text-[10px] text-white/40 ml-1">Delivered</span>;
-  };
+  // MessageStatus is now a top-level component (see top of file) to keep stable
+  // React identity across theme re-renders. No inline definition needed here.
 
   // ── Emoji list for input picker ────────────────────────────────────────────
   const INPUT_EMOJIS = [
@@ -4741,7 +4757,12 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                 className={`text-[10px] mt-0.5 font-medium ${isMine ? "text-white/50" : T.text3} text-right flex items-center justify-end gap-1`}
                               >
                                 {formatTime(msg.created_at)}
-                                <MessageStatus msg={msg} />
+                                <MessageStatus
+                                  msg={msg}
+                                  userId={userId}
+                                  contactAvatarUrl={selectedContact?.avatar_url}
+                                  contactName={selectedContact?.full_name}
+                                />
                               </p>
                             </div>
                             {/* Reaction Bubbles */}
@@ -5423,8 +5444,9 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                         ).map((t) => (
                           <button
                             key={t}
-                            onClick={() => setTheme(t)}
-                            className={`flex-1 py-3 rounded-2xl border-2 transition-all font-black text-xs ${theme === t ? `border-blue-500 bg-blue-500/10 ${T.text1}` : `border-transparent bg-white/5 ${T.text3}`}`}
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); setTheme(t); }}
+                            className={`flex-1 py-3 rounded-2xl border-2 transition-all font-black text-xs ${theme === t ? `border-[#d4ff00] bg-[#d4ff00]/10 ${T.text1}` : `border-transparent bg-white/5 ${T.text3}`}`}
                           >
                             <div className="text-xl mb-1">
                               {THEME_CFG[t].icon}
