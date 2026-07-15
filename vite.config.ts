@@ -155,16 +155,10 @@ export default defineConfig({
     ],
   },
 
-  optimizeDeps: {
-    exclude: ["onnxruntime-web", "@imgly/background-removal"],
-  },
-
-  assetsInclude: ["**/*.wasm"],
-
   build: {
     chunkSizeWarningLimit: 600,
     rollupOptions: {
-      external: ["onnxruntime-web", "onnxruntime-web/webgpu"],
+      external: ["onnxruntime-web", "onnxruntime-web/webgpu", "@imgly/background-removal"],
       onwarn(warning, warn) {
         if (warning.code === "CIRCULAR_DEPENDENCY") {
           console.error("🔴 CIRCULAR:", warning.message);

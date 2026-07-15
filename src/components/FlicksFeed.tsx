@@ -557,13 +557,13 @@ const FlickCard = memo(
             <>
               <motion.div
                 initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                className="fixed inset-0 z-[210] bg-black/70 backdrop-blur-sm"
+                className="fixed inset-0 z-[210] bg-black/70 backdrop-blur-sm flex items-center justify-center px-4"
                 onClick={() => setReportOpen(false)}
-              />
+              >
               <motion.div
-                initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
-                transition={{ type: "spring", damping: 28, stiffness: 260 }}
-                className="fixed bottom-0 left-0 right-0 max-w-[500px] mx-auto z-[220] bg-zinc-900 rounded-t-3xl p-5 pb-safe border-t border-white/10"
+                initial={{ scale: 0.9, opacity: 0, y: 16 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.9, opacity: 0, y: 16 }}
+                transition={{ type: "spring", damping: 28, stiffness: 300 }}
+                className="w-full max-w-[420px] bg-zinc-900 rounded-3xl p-5 border border-white/10 shadow-2xl"
                 onClick={(e) => e.stopPropagation()}
               >
                 <div className="flex items-center justify-between mb-3">
@@ -591,6 +591,7 @@ const FlickCard = memo(
                 >
                   {reporting ? "Submitting…" : "Submit Report"}
                 </button>
+              </motion.div>
               </motion.div>
             </>
           )}

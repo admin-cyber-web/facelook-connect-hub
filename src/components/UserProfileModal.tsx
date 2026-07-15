@@ -697,14 +697,15 @@ const UserProfileModal = ({ userId, currentUserId, isAdmin: isAdminProp = false,
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={() => !reportSubmitting && setReportOpen(false)}
-            className="fixed inset-0 z-[1010] bg-black/70 backdrop-blur-sm"
-          />
+            className="fixed inset-0 z-[1010] bg-black/70 backdrop-blur-sm flex items-center justify-center px-4"
+          >
           <motion.div
-            initial={{ y: "100%" }}
-            animate={{ y: 0 }}
-            exit={{ y: "100%" }}
+            initial={{ scale: 0.9, opacity: 0, y: 16 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            exit={{ scale: 0.9, opacity: 0, y: 16 }}
             transition={{ type: "spring", stiffness: 320, damping: 30 }}
-            className="fixed bottom-0 left-0 right-0 z-[1020] rounded-t-3xl p-5 bg-white border-t border-gray-200"
+            className="w-full max-w-[420px] z-[1020] rounded-3xl p-5 bg-white shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-3 mb-3">
               <div className="w-10 h-10 rounded-xl bg-rose-100 border border-rose-200 flex items-center justify-center">
@@ -754,6 +755,7 @@ const UserProfileModal = ({ userId, currentUserId, isAdmin: isAdminProp = false,
                 {reportSubmitting ? "Submitting…" : "Submit report"}
               </button>
             </div>
+          </motion.div>
           </motion.div>
         </>
       )}

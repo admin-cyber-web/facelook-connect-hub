@@ -309,11 +309,17 @@ const SnapyStudio: React.FC<SnapyStudioProps> = ({ userId }) => {
     if (!cap || removingBg) return;
     setRemovingBg(true);
     try {
-      const { removeBackground } = await import("@imgly/background-removal");
       const blob = await new Promise<Blob>((res) =>
         cap.toBlob((b) => res(b!), "image/png")
       );
-      const resultBlob = await removeBackground(blob);
+      const cdnUrl =
+        "https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.7.0/dist/browser/index.mjs";
+      const { removeBackground } = await import(/* @vite-ignore */ cdnUrl);
+      const resultBlob = await removeBackground(blob, {
+        publicPath:
+          "https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.7.0/dist/browser/",
+        debug: false,
+      });
       setRemovedBgUrl(URL.createObjectURL(resultBlob));
     } catch (e) {
       console.error("BG removal failed:", e);
