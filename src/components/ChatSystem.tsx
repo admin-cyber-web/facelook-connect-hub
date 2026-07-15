@@ -90,7 +90,7 @@ const onStoryMediaError = (e: React.SyntheticEvent<HTMLImageElement | HTMLVideoE
 };
 
 // ── Types ──────────────────────────────────────────────────────────────────────
-type Theme = "whatsapp" | "water" | "nature" | "velvet";
+type Theme = "whatsapp" | "water" | "nature" | "velvet" | "maroon";
 type BottomTab = "chat" | "story" | "alert" | "menu";
 type MenuPanel = "main" | "settings" | "archive" | "requests";
 
@@ -278,6 +278,30 @@ const THEME_CFG = {
     msgMenuBg: "bg-rose-900 border-rose-700",
     pill: "bg-rose-500/20 text-rose-300 border border-rose-500/30",
     storyRing: "border-rose-400",
+  },
+  maroon: {
+    wrap: "bg-gradient-to-b from-[#0e0008] via-[#1a0410] to-[#0a0014]",
+    sidebar: "bg-[#120010]/95 border-[#d4ff00]/10",
+    chat: "bg-gradient-to-b from-[#16000e]/98 via-[#0e0010]/98 to-[#0a0014]/98",
+    topbar: "bg-[#0e0008]/90 backdrop-blur-2xl border-[#d4ff00]/10",
+    input: "bg-[#1a0418]/90 backdrop-blur-2xl border-[#d4ff00]/20",
+    nav: "bg-[#0e0008]/98 border-[#d4ff00]/10",
+    bubbleSent:
+      "bg-gradient-to-br from-[#d4ff00] to-[#a8cc00] text-black shadow-lg shadow-[#d4ff00]/20 font-semibold",
+    bubbleRecv:
+      "bg-white/[0.07] backdrop-blur-md border border-white/10 text-white",
+    text1: "text-white",
+    text2: "text-[#d4ff00]",
+    text3: "text-white/40",
+    accent: "bg-[#d4ff00]",
+    accentText: "text-[#d4ff00]",
+    icon: "⚡",
+    label: "Midnight",
+    divider: "border-[#d4ff00]/10",
+    searchBg: "bg-white/5 border-[#d4ff00]/15 text-white placeholder:text-white/25",
+    msgMenuBg: "bg-[#1a0418] border-[#d4ff00]/20",
+    pill: "bg-[#d4ff00]/15 text-[#d4ff00] border border-[#d4ff00]/30",
+    storyRing: "border-[#d4ff00]",
   },
 };
 
@@ -910,9 +934,9 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   // ── Persisted state ───────────────────────────────────────────────────────
   const [theme, setTheme] = useState<Theme>(() => {
     const s = localStorage.getItem("cx_theme") as Theme;
-    return s === "whatsapp" || s === "water" || s === "nature" || s === "velvet"
+    return s === "whatsapp" || s === "water" || s === "nature" || s === "velvet" || s === "maroon"
       ? s
-      : "whatsapp";
+      : "maroon";
   });
   const [activeStatus, setActiveStatus] = useState(
     () => localStorage.getItem("cx_active_status") !== "false",
@@ -2865,10 +2889,38 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       return (
         <span className="text-[10px] text-white/30 ml-1 italic">Sending…</span>
       );
-    if (msg.seen_at)
+    if (msg.seen_at) {
+      const avatarUrl = selectedContact?.avatar_url;
+      const initials = (selectedContact?.full_name || "?")
+        .split(" ")
+        .map((w) => w[0])
+        .join("")
+        .slice(0, 2)
+        .toUpperCase();
       return (
-        <span className="text-[10px] text-blue-400 ml-1 font-black">Seen</span>
+        <span className="flex items-center gap-1 ml-1 mt-0.5">
+          <span className="relative inline-flex shrink-0">
+            {avatarUrl ? (
+              <img
+                src={avatarUrl}
+                alt={initials}
+                className="w-[14px] h-[14px] rounded-full object-cover ring-1 ring-[#d4ff00]/40"
+              />
+            ) : (
+              <span className="w-[14px] h-[14px] rounded-full bg-[#d4ff00]/20 flex items-center justify-center text-[7px] font-black text-[#d4ff00]">
+                {initials}
+              </span>
+            )}
+            <span className="absolute -bottom-[2px] -right-[2px] w-[7px] h-[7px] rounded-full bg-emerald-500 flex items-center justify-center shadow-sm">
+              <svg width="5" height="5" viewBox="0 0 5 5" fill="none">
+                <path d="M1 2.5L2.2 3.7L4 1.5" stroke="white" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </span>
+          </span>
+          <span className="text-[10px] text-[#d4ff00] font-black tracking-wide">Seen</span>
+        </span>
       );
+    }
     return <span className="text-[10px] text-white/40 ml-1">Delivered</span>;
   };
 
@@ -5367,7 +5419,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                       </p>
                       <div className="flex gap-3">
                         {(
-                          ["whatsapp", "water", "nature", "velvet"] as Theme[]
+                          ["maroon", "whatsapp", "water", "nature", "velvet"] as Theme[]
                         ).map((t) => (
                           <button
                             key={t}
