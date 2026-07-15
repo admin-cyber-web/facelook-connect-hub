@@ -92,7 +92,7 @@ const onStoryMediaError = (e: React.SyntheticEvent<HTMLImageElement | HTMLVideoE
 };
 
 // ── Types ──────────────────────────────────────────────────────────────────────
-type Theme = "whatsapp" | "maroon";
+type Theme = "whatsapp" | "maroon" | "comic";
 type BottomTab = "chat" | "story" | "alert" | "menu";
 type MenuPanel = "main" | "settings" | "archive" | "requests";
 
@@ -233,6 +233,32 @@ const THEME_CFG = {
     searchBg: "bg-white/5 border-white/10 text-white placeholder:text-white/25",
     msgMenuBg: "bg-[#1a0418] border-[#E3FF00]/20",
     pill: "bg-[#E3FF00]/15 text-[#E3FF00] border border-[#E3FF00]/30",
+    storyRing: "border-[#E3FF00]",
+    sendBtnText: "text-[#050505]",
+  },
+  comic: {
+    wrap: "bg-sky-100",
+    sidebar: "bg-white border-blue-200",
+    chat: "bg-sky-100",
+    topbar: "bg-white/90 backdrop-blur-xl border-black/10",
+    input: "bg-white/95 border-black/8",
+    nav: "bg-white/90 border-black/10",
+    bubbleSent:
+      "bg-gradient-to-b from-[#3399FF] to-[#0066FF] text-white border-2 border-black shadow-[3px_4px_0px_rgba(0,0,0,0.22)]",
+    bubbleRecv:
+      "bg-white text-gray-900 border-2 border-black shadow-[3px_4px_0px_rgba(0,0,0,0.12)]",
+    text1: "text-gray-900",
+    text2: "text-[#0066FF]",
+    text3: "text-gray-500",
+    accent: "bg-[#E3FF00]",
+    accentText: "text-[#0066FF]",
+    icon: "🎨",
+    label: "Comic Pop",
+    divider: "border-black/10",
+    searchBg:
+      "bg-white border-gray-200 text-gray-900 placeholder:text-gray-400",
+    msgMenuBg: "bg-white border-gray-200 shadow-xl",
+    pill: "bg-[#E3FF00]/30 text-[#0066FF] border border-[#0066FF]/30",
     storyRing: "border-[#E3FF00]",
     sendBtnText: "text-[#050505]",
   },
@@ -4262,19 +4288,55 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
             {/* ════ FULL-SCREEN CHAT ════════════════════════════════════════ */}
             {bottomTab === "chat" && selectedUser && (
               <div className={`flex flex-col flex-1 overflow-hidden relative`}>
-                {/* ── Comic Cinematic Background ──────────────────────────── */}
-                <div className="absolute inset-0 pointer-events-none overflow-hidden" aria-hidden="true">
-                  <div className="absolute inset-0" style={{ backgroundImage:"radial-gradient(circle,rgba(255,255,255,0.04) 1px,transparent 1px)", backgroundSize:"18px 18px" }} />
-                  <div className="absolute" style={{ top:"6%", right:"10%", width:130, height:130, borderRadius:"50%", background:"radial-gradient(circle,rgba(255,255,220,0.10) 0%,transparent 70%)", boxShadow:"0 0 80px 35px rgba(255,255,200,0.04)" }} />
-                  <div className="absolute top-0 left-0 right-0" style={{ height:"35%", background:"linear-gradient(to bottom,rgba(43,11,22,0.55),transparent)" }} />
-                  <div className="absolute bottom-0 left-0 right-0" style={{ height:"30%", background:"linear-gradient(to top,rgba(43,11,22,0.50),transparent)" }} />
-                  <div className="absolute" style={{ bottom:"12%", left:"-6%", width:220, height:220, borderRadius:"50%", background:"radial-gradient(circle,rgba(30,94,255,0.09) 0%,transparent 70%)" }} />
-                  <div className="absolute" style={{ top:"18%", right:"-6%", width:180, height:180, borderRadius:"50%", background:"radial-gradient(circle,rgba(227,255,0,0.06) 0%,transparent 70%)" }} />
-                  <svg className="absolute bottom-0 left-0 w-full" viewBox="0 0 390 70" preserveAspectRatio="xMidYMax meet" fill="white" style={{ opacity:0.07 }}>
-                    <path d="M0,70 L0,48 L12,48 L12,38 L22,38 L22,30 L28,30 L28,38 L38,38 L38,48 L50,48 L50,32 L60,32 L60,22 L66,22 L66,16 L72,16 L72,22 L82,22 L82,32 L92,32 L92,42 L104,42 L104,35 L114,35 L114,28 L120,28 L120,35 L130,35 L130,48 L142,48 L142,36 L152,36 L152,24 L158,24 L158,36 L168,36 L168,48 L180,48 L180,38 L192,38 L192,28 L198,28 L198,18 L204,18 L204,28 L210,28 L210,38 L222,38 L222,48 L234,48 L234,40 L244,40 L244,30 L250,30 L250,20 L256,20 L256,30 L262,30 L262,40 L274,40 L274,50 L286,50 L286,42 L296,42 L296,32 L302,32 L302,42 L312,42 L312,50 L324,50 L324,44 L334,44 L334,36 L340,36 L340,26 L346,26 L346,36 L356,36 L356,44 L368,44 L368,50 L380,50 L380,44 L390,44 L390,70 Z" />
-                  </svg>
-                  <div className="absolute inset-0" style={{ background:"radial-gradient(ellipse at 50% 50%,transparent 42%,rgba(5,5,5,0.45) 100%)" }} />
-                </div>
+                {/* ── Theme Background Layers ──────────────────────────────── */}
+                {theme === "maroon" && (
+                  <div className="absolute inset-0 pointer-events-none overflow-hidden" aria-hidden="true">
+                    <div className="absolute inset-0" style={{ backgroundImage:"radial-gradient(circle,rgba(255,255,255,0.04) 1px,transparent 1px)", backgroundSize:"18px 18px" }} />
+                    <div className="absolute" style={{ top:"6%", right:"10%", width:130, height:130, borderRadius:"50%", background:"radial-gradient(circle,rgba(255,255,220,0.10) 0%,transparent 70%)", boxShadow:"0 0 80px 35px rgba(255,255,200,0.04)" }} />
+                    <div className="absolute top-0 left-0 right-0" style={{ height:"35%", background:"linear-gradient(to bottom,rgba(43,11,22,0.55),transparent)" }} />
+                    <div className="absolute bottom-0 left-0 right-0" style={{ height:"30%", background:"linear-gradient(to top,rgba(43,11,22,0.50),transparent)" }} />
+                    <div className="absolute" style={{ bottom:"12%", left:"-6%", width:220, height:220, borderRadius:"50%", background:"radial-gradient(circle,rgba(30,94,255,0.09) 0%,transparent 70%)" }} />
+                    <div className="absolute" style={{ top:"18%", right:"-6%", width:180, height:180, borderRadius:"50%", background:"radial-gradient(circle,rgba(227,255,0,0.06) 0%,transparent 70%)" }} />
+                    <svg className="absolute bottom-0 left-0 w-full" viewBox="0 0 390 70" preserveAspectRatio="xMidYMax meet" fill="white" style={{ opacity:0.07 }}>
+                      <path d="M0,70 L0,48 L12,48 L12,38 L22,38 L22,30 L28,30 L28,38 L38,38 L38,48 L50,48 L50,32 L60,32 L60,22 L66,22 L66,16 L72,16 L72,22 L82,22 L82,32 L92,32 L92,42 L104,42 L104,35 L114,35 L114,28 L120,28 L120,35 L130,35 L130,48 L142,48 L142,36 L152,36 L152,24 L158,24 L158,36 L168,36 L168,48 L180,48 L180,38 L192,38 L192,28 L198,28 L198,18 L204,18 L204,28 L210,28 L210,38 L222,38 L222,48 L234,48 L234,40 L244,40 L244,30 L250,30 L250,20 L256,20 L256,30 L262,30 L262,40 L274,40 L274,50 L286,50 L286,42 L296,42 L296,32 L302,32 L302,42 L312,42 L312,50 L324,50 L324,44 L334,44 L334,36 L340,36 L340,26 L346,26 L346,36 L356,36 L356,44 L368,44 L368,50 L380,50 L380,44 L390,44 L390,70 Z" />
+                    </svg>
+                    <div className="absolute inset-0" style={{ background:"radial-gradient(ellipse at 50% 50%,transparent 42%,rgba(5,5,5,0.45) 100%)" }} />
+                  </div>
+                )}
+                {theme === "comic" && (
+                  <div className="absolute inset-0 pointer-events-none overflow-hidden" aria-hidden="true">
+                    {/* Sun glow — top left */}
+                    <div className="absolute" style={{ top:"-15%", left:"-10%", width:320, height:320, borderRadius:"50%", background:"radial-gradient(circle,rgba(255,230,50,0.30) 0%,rgba(255,200,30,0.10) 45%,transparent 70%)" }} />
+                    {/* Sun rays */}
+                    <div className="absolute" style={{ top:"-22%", left:"-18%", width:430, height:430, borderRadius:"50%", background:"conic-gradient(from 0deg,transparent 0deg,rgba(255,220,30,0.06) 12deg,transparent 24deg,rgba(255,220,30,0.06) 36deg,transparent 48deg,rgba(255,220,30,0.06) 60deg,transparent 72deg,rgba(255,220,30,0.06) 84deg,transparent 96deg,rgba(255,220,30,0.06) 108deg,transparent 120deg,rgba(255,220,30,0.06) 132deg,transparent 144deg,rgba(255,220,30,0.06) 156deg,transparent 168deg,rgba(255,220,30,0.06) 180deg,transparent 192deg,rgba(255,220,30,0.06) 204deg,transparent 216deg,rgba(255,220,30,0.06) 228deg,transparent 240deg,rgba(255,220,30,0.06) 252deg,transparent 264deg,rgba(255,220,30,0.06) 276deg,transparent 288deg,rgba(255,220,30,0.06) 300deg,transparent 312deg,rgba(255,220,30,0.06) 324deg,transparent 336deg,rgba(255,220,30,0.06) 348deg,transparent 360deg)" }} />
+                    {/* Comic clouds */}
+                    <svg className="absolute" style={{ top:"8%", right:"12%", opacity:0.45, width:110 }} viewBox="0 0 110 55" fill="white">
+                      <ellipse cx="55" cy="40" rx="44" ry="18" /><ellipse cx="38" cy="30" rx="24" ry="20" /><ellipse cx="72" cy="29" rx="26" ry="18" /><ellipse cx="55" cy="22" rx="20" ry="16" />
+                    </svg>
+                    <svg className="absolute" style={{ top:"20%", left:"18%", opacity:0.30, width:75 }} viewBox="0 0 75 40" fill="white">
+                      <ellipse cx="37" cy="28" rx="30" ry="14" /><ellipse cx="25" cy="22" rx="17" ry="14" /><ellipse cx="50" cy="21" rx="18" ry="12" />
+                    </svg>
+                    {/* Halftone dots — corners only */}
+                    <div className="absolute top-0 left-0 w-36 h-36" style={{ backgroundImage:"radial-gradient(circle,rgba(0,102,255,0.13) 1.5px,transparent 1.5px)", backgroundSize:"13px 13px" }} />
+                    <div className="absolute top-0 right-0 w-36 h-36" style={{ backgroundImage:"radial-gradient(circle,rgba(0,102,255,0.13) 1.5px,transparent 1.5px)", backgroundSize:"13px 13px" }} />
+                    <div className="absolute bottom-0 left-0 w-36 h-36" style={{ backgroundImage:"radial-gradient(circle,rgba(0,102,255,0.13) 1.5px,transparent 1.5px)", backgroundSize:"13px 13px" }} />
+                    <div className="absolute bottom-0 right-0 w-36 h-36" style={{ backgroundImage:"radial-gradient(circle,rgba(0,102,255,0.13) 1.5px,transparent 1.5px)", backgroundSize:"13px 13px" }} />
+                    {/* City skyline — dark, 15% opacity */}
+                    <svg className="absolute bottom-0 left-0 w-full" viewBox="0 0 390 80" preserveAspectRatio="xMidYMax meet" fill="rgba(25,40,100,0.15)">
+                      <path d="M0,80 L0,55 L12,55 L12,44 L22,44 L22,34 L28,34 L28,44 L38,44 L38,55 L50,55 L50,38 L60,38 L60,26 L66,26 L66,18 L72,18 L72,26 L82,26 L82,38 L92,38 L92,50 L104,50 L104,40 L114,40 L114,30 L120,30 L120,40 L130,40 L130,55 L142,55 L142,42 L152,42 L152,28 L158,28 L158,42 L168,42 L168,55 L180,55 L180,44 L192,44 L192,32 L198,32 L198,20 L204,20 L204,32 L210,32 L210,44 L222,44 L222,55 L234,55 L234,46 L244,46 L244,34 L250,34 L250,22 L256,22 L256,34 L262,34 L262,46 L274,46 L274,58 L286,58 L286,48 L296,48 L296,36 L302,36 L302,48 L312,48 L312,58 L324,58 L324,50 L334,50 L334,40 L340,40 L340,28 L346,28 L346,40 L356,40 L356,50 L368,50 L368,58 L380,58 L380,50 L390,50 L390,80 Z" />
+                    </svg>
+                    {/* Faded BOOM / YEAH comic text */}
+                    <div className="absolute select-none pointer-events-none" style={{ top:"28%", left:"4%", opacity:0.09, fontSize:72, fontWeight:900, color:"#0066FF", fontStyle:"italic", transform:"rotate(-12deg)", letterSpacing:-2 }}>BOOM!</div>
+                    <div className="absolute select-none pointer-events-none" style={{ bottom:"28%", right:"2%", opacity:0.09, fontSize:56, fontWeight:900, color:"#FF3366", fontStyle:"italic", transform:"rotate(9deg)", letterSpacing:-1 }}>YEAH!</div>
+                    {/* Stars / sparkles */}
+                    <div className="absolute select-none pointer-events-none" style={{ top:"14%", right:"28%", fontSize:14, opacity:0.55 }}>✦</div>
+                    <div className="absolute select-none pointer-events-none" style={{ top:"40%", left:"8%", fontSize:10, opacity:0.40 }}>✦</div>
+                    <div className="absolute select-none pointer-events-none" style={{ top:"62%", right:"14%", fontSize:12, opacity:0.40 }}>✦</div>
+                    <div className="absolute select-none pointer-events-none" style={{ bottom:"18%", left:"32%", fontSize:9, opacity:0.35 }}>✦</div>
+                    {/* Vignette */}
+                    <div className="absolute inset-0" style={{ background:"radial-gradient(ellipse at 50% 50%,transparent 50%,rgba(186,230,255,0.25) 100%)" }} />
+                  </div>
+                )}
                 {/* Top Bar */}
                 <div
                   className={`flex items-center gap-3 px-4 py-3 border-b ${T.topbar} ${T.divider} shrink-0`}
@@ -4616,8 +4678,13 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                 </p>
                               </div>
                             )}
+                            {/* Comic bubble wrapper — adds speech tail */}
+                            <div className={theme === "comic" ? "relative overflow-visible" : ""}>
+                            {theme === "comic" && isMine && (
+                              <div className="absolute inset-0 rounded-[20px] pointer-events-none overflow-hidden" style={{ backgroundImage:"radial-gradient(circle,rgba(0,0,0,0.06) 1px,transparent 1px)", backgroundSize:"7px 7px", zIndex:1 }} />
+                            )}
                             <div
-                              className={`px-4 py-2.5 rounded-2xl ${isMine ? `${T.bubbleSent} rounded-tr-sm` : `${T.bubbleRecv} rounded-tl-sm`}`}
+                              className={`px-4 py-2.5 ${theme === "comic" ? "rounded-[20px]" : "rounded-2xl"} ${isMine ? `${T.bubbleSent}${theme !== "comic" ? " rounded-tr-sm" : ""}` : `${T.bubbleRecv}${theme !== "comic" ? " rounded-tl-sm" : ""}`}`}
                             >
                               {msg.media_url && msg.media_type ? (
                                 <MediaBubble
@@ -4686,21 +4753,38 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                 </>
                               )}
                               <p
-                                className={`text-[10px] mt-0.5 font-medium ${isMine ? "text-white/50" : T.text3} text-right flex items-center justify-end gap-1`}
+                                className={`text-[10px] mt-0.5 font-medium ${isMine ? (theme === "comic" ? "text-white/60" : "text-white/50") : T.text3} text-right flex items-center justify-end gap-1`}
                               >
                                 {formatTime(msg.created_at)}
                                 <MessageStatus msg={msg} userId={userId} />
                               </p>
                             </div>
+                            {/* Comic speech bubble tail — sent */}
+                            {theme === "comic" && isMine && (
+                              <svg className="absolute right-4 top-full -mt-[2px] z-20" width="20" height="13" viewBox="0 0 20 13" style={{ filter:"drop-shadow(1px 2px 0px rgba(0,0,0,0.35))" }}>
+                                <polygon points="2,0 20,0 13,13" fill="#0066FF" />
+                                <polyline points="2,0 13,13" fill="none" stroke="black" strokeWidth="1.5" strokeLinejoin="round" />
+                                <line x1="20" y1="0" x2="13" y2="13" stroke="black" strokeWidth="1.5" strokeLinejoin="round" />
+                              </svg>
+                            )}
+                            {/* Comic speech bubble tail — received */}
+                            {theme === "comic" && !isMine && (
+                              <svg className="absolute left-4 top-full -mt-[2px] z-20" width="20" height="13" viewBox="0 0 20 13" style={{ filter:"drop-shadow(-1px 2px 0px rgba(0,0,0,0.25))" }}>
+                                <polygon points="0,0 18,0 7,13" fill="white" />
+                                <polyline points="18,0 7,13" fill="none" stroke="black" strokeWidth="1.5" strokeLinejoin="round" />
+                                <line x1="0" y1="0" x2="7" y2="13" stroke="black" strokeWidth="1.5" strokeLinejoin="round" />
+                              </svg>
+                            )}
+                            </div>{/* end comic bubble wrapper */}
                             {/* ── Seen Indicator — below bubble, per spec ── */}
                             {isMine && msg.seen_at && (
                               <motion.div
                                 initial={{ opacity: 0, scale: 0.7 }}
                                 animate={{ opacity: 1, scale: 1 }}
                                 transition={{ type: "spring", stiffness: 300, damping: 22 }}
-                                className="flex flex-col items-end gap-1 mt-2 mr-1"
+                                className={`flex flex-col items-end gap-1 ${theme === "comic" ? "mt-5" : "mt-2"} mr-1`}
                               >
-                                <span className="text-[11px] text-white/45 font-semibold tracking-wide">Seen by</span>
+                                <span className={`text-[11px] font-semibold tracking-wide ${theme === "comic" ? "text-gray-500" : "text-white/45"}`}>Seen by</span>
                                 <div className="relative">
                                   {selectedUser?.avatar_url ? (
                                     <img
@@ -4719,7 +4803,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                     </svg>
                                   </span>
                                 </div>
-                                <span className="text-[10px] text-white/40">{formatTime(msg.seen_at)}</span>
+                                <span className={`text-[10px] ${theme === "comic" ? "text-gray-400" : "text-white/40"}`}>{formatTime(msg.seen_at)}</span>
                               </motion.div>
                             )}
                             {/* Reaction Bubbles */}
@@ -4741,7 +4825,13 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
 
                 {/* Input */}
                 <div className="shrink-0 px-3"
-                  style={{ background: "linear-gradient(to top,rgba(5,5,5,0.92) 0%,rgba(5,5,5,0.70) 100%)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)" }}
+                  style={{
+                    background: theme === "comic"
+                      ? "linear-gradient(to top,rgba(255,255,255,0.97) 0%,rgba(240,249,255,0.85) 100%)"
+                      : "linear-gradient(to top,rgba(5,5,5,0.92) 0%,rgba(5,5,5,0.70) 100%)",
+                    backdropFilter: "blur(12px)",
+                    WebkitBackdropFilter: "blur(12px)"
+                  }}
                 >
                   {/* Reply preview bar */}
                   <AnimatePresence>
@@ -4857,7 +4947,14 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
 
                   <div
                     className="flex items-center gap-2 px-4 h-16 rounded-[32px] border border-white/[0.08] mt-2 mb-[max(12px,env(safe-area-inset-bottom))]"
-                    style={{ background:"rgba(20,20,20,0.88)", backdropFilter:"blur(20px)", WebkitBackdropFilter:"blur(20px)", boxShadow:"0 8px 32px rgba(0,0,0,0.5), 0 0 0 1px rgba(227,255,0,0.05)" }}
+                    style={{
+                      background: theme === "comic" ? "rgba(255,255,255,0.95)" : "rgba(20,20,20,0.88)",
+                      backdropFilter:"blur(20px)",
+                      WebkitBackdropFilter:"blur(20px)",
+                      boxShadow: theme === "comic"
+                        ? "0 4px 20px rgba(0,0,0,0.10), 0 0 0 1.5px rgba(0,0,0,0.09)"
+                        : "0 8px 32px rgba(0,0,0,0.5), 0 0 0 1px rgba(227,255,0,0.05)"
+                    }}
                   >
                     {/* Emoji button — left of textarea */}
                     <button
@@ -5403,7 +5500,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                       </p>
                       <div className="flex gap-3">
                         {(
-                          ["maroon", "whatsapp"] as Theme[]
+                          ["maroon", "whatsapp", "comic"] as Theme[]
                         ).map((t) => (
                           <button
                             key={t}
