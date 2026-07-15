@@ -553,6 +553,46 @@ const EmojiBlast = ({
   );
 };
 
+// ── Magic Keyword-to-Emoji trigger map ───────────────────────────────────────
+// Edit this array to add/remove triggers. Matching is case-insensitive & substring.
+const KEYWORD_EMOJI_MAP: { keywords: string[]; emoji: string }[] = [
+  // Excitement
+  { keywords: ["wow", "amazing", "awesome", "zabardast", "waah", "wah"], emoji: "🤩" },
+  // Support
+  { keywords: ["i am with you", "i'm with you", "dont worry", "don't worry", "fikar mat", "tension mat"], emoji: "🤗" },
+  // Food
+  { keywords: ["khana", "khaana", "bhookh", "bhukh", "dinner", "lunch", "breakfast", "khana khao", "kha lo"], emoji: "🍕" },
+  // Sleepy
+  { keywords: ["good night", "goodnight", "gn ", "sone ja raha", "sone ja rhi", "sone wala", "so jao", "so ja"], emoji: "😴" },
+  // Agreement
+  { keywords: ["sahi hai", "bilkul", "bilkul sahi", "done", "haan ji", "haan bilkul", "theek hai"], emoji: "✅" },
+  // Wishes
+  { keywords: ["happy mothers day", "mothers day", "happy fathers day", "fathers day", "anniversary", "happy anniversary", "happy birthday", "birthday", "congratulations", "congrats", "badhaai", "mubarak"], emoji: "🎉" },
+  // Emotions — dil ❤️
+  { keywords: ["tum mere dil me ho", "tum mere dil mein ho", "aap mere dil me ho", "aap mere dil mein ho"], emoji: "❤️" },
+  // Emotions — Love you 😍
+  { keywords: ["love you", "luv you", "i love you", "pyaar karta", "pyaar karti", "pyaar hai"], emoji: "😍" },
+  // Emotions — Miss you 🥺
+  { keywords: ["miss you", "missing you", "yaad aa raha", "yaad aa rhi", "bahut yaad", "yaad kiya"], emoji: "🥺" },
+  // Emotions — Best friends 👯
+  { keywords: ["best friends", "bestfriends", "best friend", "bff", "dost forever", "yaar forever"], emoji: "👯" },
+  // Gender-Adaptive: asking a female (aaogi = female conjugation)
+  { keywords: ["kab aaogi", "kab aogi", "kab ayogi"], emoji: "🥰" },
+  // Gender-Adaptive: asking a male (aaoge = male conjugation)
+  { keywords: ["kab aaoge", "kab aoge", "kab ayoge"], emoji: "😊" },
+];
+
+/** Returns the first matching emoji for a message text, or null. Case-insensitive. */
+const getKeywordEmoji = (text: string): string | null => {
+  const lower = text.toLowerCase();
+  for (const { keywords, emoji } of KEYWORD_EMOJI_MAP) {
+    if (keywords.some((kw) => lower.includes(kw.toLowerCase()))) {
+      return emoji;
+    }
+  }
+  return null;
+};
+
 // ── Story mood filter map ─────────────────────────────────────────────────────
 const STORY_MOOD_FILTER: Record<string, string> = {
   sad: "grayscale(80%) brightness(0.75)",
@@ -2340,6 +2380,12 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       reply_to_id: replyRef?.id,
     };
     setMessages((prev) => [...prev, tempMsg]);
+
+    // ── Magic Keyword Emoji Blast ─────────────────────────────────────────
+    const kwEmoji = getKeywordEmoji(text);
+    if (kwEmoji) {
+      setEmojiBlast({ id: ++blastIdRef.current, emoji: kwEmoji });
+    }
 
     const insertPayload: Record<string, unknown> = {
       sender_id: realSenderId,
