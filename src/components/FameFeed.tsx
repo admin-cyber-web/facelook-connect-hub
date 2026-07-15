@@ -4229,8 +4229,11 @@ const FameFeed = ({
                       </button>
                       <button
                         onClick={(e) => {
-                          const popupH = 360;
-                          const top = Math.max(8, Math.min(e.clientY, window.innerHeight - popupH - 16));
+                          const popupH = 340;
+                          const spaceBelow = window.innerHeight - e.clientY;
+                          const top = spaceBelow >= popupH + 16
+                            ? e.clientY + 8
+                            : Math.max(8, e.clientY - popupH - 8);
                           setOpenMenuId(null);
                           setReportModal({
                             postId: post.id,
@@ -5668,12 +5671,8 @@ const FameFeed = ({
                 top: reportModal.anchor.top,
                 right: reportModal.anchor.right,
                 zIndex: 999,
-                width: 300,
-                borderRadius: 16,
-                background: "#ffffff",
-                boxShadow: "0 10px 25px rgba(0,0,0,0.2)",
               }}
-              className="p-5"
+              className="w-72 bg-white rounded-2xl shadow-2xl border border-gray-100 p-4"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between mb-4">

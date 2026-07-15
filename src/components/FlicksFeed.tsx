@@ -524,8 +524,11 @@ const FlickCard = memo(
                   )}
                   <button
                     onClick={(e) => {
-                      const popupH = 260;
-                      const top = Math.max(8, Math.min(e.clientY, window.innerHeight - popupH - 16));
+                      const popupH = 240;
+                      const spaceBelow = window.innerHeight - e.clientY;
+                      const top = spaceBelow >= popupH + 16
+                        ? e.clientY + 8
+                        : Math.max(8, e.clientY - popupH - 8);
                       setMenuOpen(false);
                       setReportAnchor({ top, right: 16 });
                       setReportOpen(true);
@@ -577,12 +580,8 @@ const FlickCard = memo(
                   top: reportAnchor?.top ?? 120,
                   right: reportAnchor?.right ?? 16,
                   zIndex: 220,
-                  width: 300,
-                  borderRadius: 16,
-                  background: "#ffffff",
-                  boxShadow: "0 10px 25px rgba(0,0,0,0.25)",
                 }}
-                className="p-5"
+                className="w-72 bg-white rounded-2xl shadow-2xl border border-gray-100 p-4"
                 onClick={(e) => e.stopPropagation()}
               >
                 <div className="flex items-center justify-between mb-3">
