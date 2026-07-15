@@ -4760,8 +4760,8 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                 <MessageStatus
                                   msg={msg}
                                   userId={userId}
-                                  contactAvatarUrl={selectedContact?.avatar_url}
-                                  contactName={selectedContact?.full_name}
+                                  contactAvatarUrl={selectedUser?.avatar_url}
+                                  contactName={selectedUser?.full_name}
                                 />
                               </p>
                             </div>
