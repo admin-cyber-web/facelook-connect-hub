@@ -90,7 +90,7 @@ const onStoryMediaError = (e: React.SyntheticEvent<HTMLImageElement | HTMLVideoE
 };
 
 // ── Types ──────────────────────────────────────────────────────────────────────
-type Theme = "whatsapp" | "water" | "nature" | "velvet" | "maroon";
+type Theme = "whatsapp" | "maroon";
 type BottomTab = "chat" | "story" | "alert" | "menu";
 type MenuPanel = "main" | "settings" | "archive" | "requests";
 
@@ -208,151 +208,52 @@ const THEME_CFG = {
     pill: "bg-[#25D366]/20 text-[#25D366] border border-[#25D366]/30",
     storyRing: "border-[#25D366]",
   },
-  water: {
-    wrap: "bg-gradient-to-b from-sky-950 via-blue-950 to-slate-950",
-    sidebar: "bg-sky-950/95 border-sky-800/40",
-    chat: "bg-gradient-to-b from-sky-900/98 to-blue-950/98",
-    topbar: "bg-sky-950/90 backdrop-blur-2xl border-sky-800/30",
-    input: "bg-sky-900/80 backdrop-blur-2xl border-sky-700/40",
-    nav: "bg-sky-950/98 border-sky-800/40",
-    bubbleSent:
-      "bg-gradient-to-br from-sky-500 to-blue-600 text-white shadow-lg shadow-blue-900/40",
-    bubbleRecv:
-      "bg-white/10 backdrop-blur-md border border-white/10 text-white",
-    text1: "text-white",
-    text2: "text-sky-300",
-    text3: "text-white/40",
-    accent: "bg-sky-500",
-    accentText: "text-sky-400",
-    icon: "💧",
-    label: "Water",
-    divider: "border-sky-800/40",
-    searchBg: "bg-white/5 border-white/10 text-white placeholder:text-white/25",
-    msgMenuBg: "bg-slate-800 border-slate-700",
-    pill: "bg-sky-500/20 text-sky-300 border border-sky-500/30",
-    storyRing: "border-sky-400",
-  },
-  nature: {
-    wrap: "bg-gradient-to-b from-stone-100 via-green-50 to-emerald-50",
-    sidebar: "bg-stone-50/98 border-stone-200",
-    chat: "bg-gradient-to-b from-green-50 to-emerald-50",
-    topbar: "bg-white/95 backdrop-blur-2xl border-stone-200",
-    input: "bg-white/95 backdrop-blur-2xl border-stone-200",
-    nav: "bg-white/98 border-stone-200",
-    bubbleSent: "bg-emerald-500 text-white shadow-md shadow-emerald-200",
-    bubbleRecv: "bg-white text-stone-800 border border-stone-200 shadow-sm",
-    text1: "text-stone-900",
-    text2: "text-emerald-700",
-    text3: "text-stone-400",
-    accent: "bg-emerald-500",
-    accentText: "text-emerald-600",
-    icon: "🌿",
-    label: "Nature",
-    divider: "border-stone-200",
-    searchBg:
-      "bg-stone-100 border-stone-200 text-stone-900 placeholder:text-stone-400",
-    msgMenuBg: "bg-white border-stone-200 shadow-xl",
-    pill: "bg-emerald-100 text-emerald-700 border border-emerald-200",
-    storyRing: "border-emerald-400",
-  },
-  velvet: {
-    wrap: "bg-gradient-to-b from-rose-950 via-red-950 to-slate-950",
-    sidebar: "bg-rose-950/95 border-rose-800/40",
-    chat: "bg-gradient-to-b from-rose-950/98 to-red-950/98",
-    topbar: "bg-rose-950/90 backdrop-blur-2xl border-rose-800/30",
-    input: "bg-rose-900/80 backdrop-blur-2xl border-rose-700/40",
-    nav: "bg-rose-950/98 border-rose-800/40",
-    bubbleSent:
-      "bg-gradient-to-br from-rose-500 to-red-600 text-white shadow-lg shadow-rose-900/50",
-    bubbleRecv:
-      "bg-white/10 backdrop-blur-md border border-white/10 text-white",
-    text1: "text-white",
-    text2: "text-rose-300",
-    text3: "text-white/40",
-    accent: "bg-rose-500",
-    accentText: "text-rose-400",
-    icon: "🌹",
-    label: "Velvet",
-    divider: "border-rose-800/40",
-    searchBg: "bg-white/5 border-white/10 text-white placeholder:text-white/25",
-    msgMenuBg: "bg-rose-900 border-rose-700",
-    pill: "bg-rose-500/20 text-rose-300 border border-rose-500/30",
-    storyRing: "border-rose-400",
-  },
   maroon: {
-    wrap: "bg-gradient-to-b from-[#0e0008] via-[#1a0410] to-[#0a0014]",
-    sidebar: "bg-[#120010]/95 border-[#d4ff00]/10",
-    chat: "bg-gradient-to-b from-[#16000e]/98 via-[#0e0010]/98 to-[#0a0014]/98",
-    topbar: "bg-[#0e0008]/90 backdrop-blur-2xl border-[#d4ff00]/10",
-    input: "bg-[#1a0418]/90 backdrop-blur-2xl border-[#d4ff00]/20",
-    nav: "bg-[#0e0008]/98 border-[#d4ff00]/10",
+    wrap: "bg-[#050505]",
+    sidebar: "bg-gradient-to-b from-[#2B0B16] to-[#12070C] border-[#E3FF00]/10",
+    chat: "bg-[#050505]",
+    topbar: "bg-gradient-to-r from-[#2B0B16] to-[#12070C] backdrop-blur-2xl border-[#ffffff]/8",
+    input: "bg-[#141414]/82 backdrop-blur-xl border-[#ffffff]/8",
+    nav: "bg-gradient-to-r from-[#2B0B16] to-[#12070C] border-[#E3FF00]/10",
     bubbleSent:
-      "bg-gradient-to-br from-[#d4ff00] to-[#a8cc00] text-black shadow-lg shadow-[#d4ff00]/20 font-semibold",
+      "bg-gradient-to-br from-[#1E5EFF] to-[#006BFF] text-white shadow-lg shadow-[#1E5EFF]/30 border border-[#1E5EFF]/40",
     bubbleRecv:
-      "bg-white/[0.07] backdrop-blur-md border border-white/10 text-white",
+      "bg-white/[0.07] backdrop-blur-md border border-white/8 text-white",
     text1: "text-white",
-    text2: "text-[#d4ff00]",
+    text2: "text-[#E3FF00]",
     text3: "text-white/40",
-    accent: "bg-[#d4ff00]",
-    accentText: "text-[#d4ff00]",
+    accent: "bg-[#E3FF00]",
+    accentText: "text-[#E3FF00]",
     icon: "⚡",
     label: "Midnight",
-    divider: "border-[#d4ff00]/10",
-    searchBg: "bg-white/5 border-[#d4ff00]/15 text-white placeholder:text-white/25",
-    msgMenuBg: "bg-[#1a0418] border-[#d4ff00]/20",
-    pill: "bg-[#d4ff00]/15 text-[#d4ff00] border border-[#d4ff00]/30",
-    storyRing: "border-[#d4ff00]",
+    divider: "border-white/8",
+    searchBg: "bg-white/5 border-white/10 text-white placeholder:text-white/25",
+    msgMenuBg: "bg-[#1a0418] border-[#E3FF00]/20",
+    pill: "bg-[#E3FF00]/15 text-[#E3FF00] border border-[#E3FF00]/30",
+    storyRing: "border-[#E3FF00]",
   },
 };
 
-// ── Message Status (top-level so React identity is stable across re-renders) ──
+// ── Message Status — stable top-level component (only Sending / Delivered ticks)
+// Seen indicator is rendered separately BELOW the bubble as per spec.
 const MessageStatus = ({
   msg,
   userId,
-  contactAvatarUrl,
-  contactName,
 }: {
   msg: Message;
   userId: string;
-  contactAvatarUrl?: string;
-  contactName?: string;
 }) => {
-  if (msg.sender_id !== userId) return null;
-  const isTemp = msg.id.startsWith("temp-");
-  if (isTemp)
+  if (msg.sender_id !== userId || msg.seen_at) return null;
+  if (msg.id.startsWith("temp-"))
     return <span className="text-[10px] text-white/30 ml-1 italic">Sending…</span>;
-  if (msg.seen_at) {
-    const initials = (contactName || "?")
-      .split(" ")
-      .map((w: string) => w[0])
-      .join("")
-      .slice(0, 2)
-      .toUpperCase();
-    return (
-      <span className="flex items-center gap-1 ml-1 mt-0.5">
-        <span className="relative inline-flex shrink-0">
-          {contactAvatarUrl ? (
-            <img
-              src={contactAvatarUrl}
-              alt={initials}
-              className="w-[14px] h-[14px] rounded-full object-cover ring-1 ring-[#d4ff00]/40"
-            />
-          ) : (
-            <span className="w-[14px] h-[14px] rounded-full bg-[#d4ff00]/20 flex items-center justify-center text-[7px] font-black text-[#d4ff00]">
-              {initials}
-            </span>
-          )}
-          <span className="absolute -bottom-[2px] -right-[2px] w-[7px] h-[7px] rounded-full bg-emerald-500 flex items-center justify-center shadow-sm">
-            <svg width="5" height="5" viewBox="0 0 5 5" fill="none">
-              <path d="M1 2.5L2.2 3.7L4 1.5" stroke="white" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          </span>
-        </span>
-        <span className="text-[10px] text-[#d4ff00] font-black tracking-wide">Seen</span>
-      </span>
-    );
-  }
-  return <span className="text-[10px] text-white/40 ml-1">Delivered</span>;
+  return (
+    <span className="inline-flex items-center gap-0.5 ml-1">
+      <svg width="16" height="10" viewBox="0 0 16 10" fill="none">
+        <path d="M1 5L4 8L9 2" stroke="rgba(255,255,255,0.45)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        <path d="M6 5L9 8L14 2" stroke="rgba(255,255,255,0.45)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+      </svg>
+    </span>
+  );
 };
 
 // ── Rose Petals (velvet theme only) ───────────────────────────────────────────
@@ -983,16 +884,14 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
 
   // ── Persisted state ───────────────────────────────────────────────────────
   const [theme, setTheme] = useState<Theme>(() => {
-    // Version migration: v3 = Midnight Maroon becomes new default
-    if (localStorage.getItem("cx_theme_v") !== "3") {
-      localStorage.setItem("cx_theme_v", "3");
+    // Version migration: v4 = remove water/nature/velvet, only maroon+whatsapp
+    if (localStorage.getItem("cx_theme_v") !== "4") {
+      localStorage.setItem("cx_theme_v", "4");
       localStorage.setItem("cx_theme", "maroon");
       return "maroon";
     }
     const s = localStorage.getItem("cx_theme") as Theme;
-    return s === "whatsapp" || s === "water" || s === "nature" || s === "velvet" || s === "maroon"
-      ? s
-      : "maroon";
+    return s === "whatsapp" || s === "maroon" ? s : "maroon";
   });
   const [activeStatus, setActiveStatus] = useState(
     () => localStorage.getItem("cx_active_status") !== "false",
@@ -3202,7 +3101,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
           </AnimatePresence>
 
           {/* ── Rose petals ──────────────────────────────────────────────── */}
-          {theme === "velvet" && <RosePetals />}
+          {/* no petal overlay for current themes */}
 
           {/* ── Smoke particles ──────────────────────────────────────────── */}
           {smokeParticles.map((p) => (
@@ -4757,14 +4656,39 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                 className={`text-[10px] mt-0.5 font-medium ${isMine ? "text-white/50" : T.text3} text-right flex items-center justify-end gap-1`}
                               >
                                 {formatTime(msg.created_at)}
-                                <MessageStatus
-                                  msg={msg}
-                                  userId={userId}
-                                  contactAvatarUrl={selectedUser?.avatar_url}
-                                  contactName={selectedUser?.full_name}
-                                />
+                                <MessageStatus msg={msg} userId={userId} />
                               </p>
                             </div>
+                            {/* ── Seen Indicator — below bubble, per spec ── */}
+                            {isMine && msg.seen_at && (
+                              <motion.div
+                                initial={{ opacity: 0, scale: 0.7 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                transition={{ type: "spring", stiffness: 300, damping: 22 }}
+                                className="flex flex-col items-end gap-1 mt-2 mr-1"
+                              >
+                                <span className="text-[11px] text-white/45 font-semibold tracking-wide">Seen by</span>
+                                <div className="relative">
+                                  {selectedUser?.avatar_url ? (
+                                    <img
+                                      src={selectedUser.avatar_url}
+                                      alt={selectedUser.full_name || ""}
+                                      className="w-8 h-8 rounded-full object-cover border-[1.5px] border-[#E3FF00]"
+                                    />
+                                  ) : (
+                                    <div className="w-8 h-8 rounded-full bg-[#E3FF00]/15 border-[1.5px] border-[#E3FF00] flex items-center justify-center text-[11px] font-black text-[#E3FF00]">
+                                      {(selectedUser?.full_name || "?").split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase()}
+                                    </div>
+                                  )}
+                                  <span className="absolute -bottom-0.5 -right-0.5 w-[13px] h-[13px] rounded-full bg-emerald-500 border border-[#050505] flex items-center justify-center shadow-sm">
+                                    <svg width="7" height="7" viewBox="0 0 7 7" fill="none">
+                                      <path d="M1.5 3.5L3 5L5.5 2" stroke="white" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+                                    </svg>
+                                  </span>
+                                </div>
+                                <span className="text-[10px] text-white/40">{formatTime(msg.seen_at)}</span>
+                              </motion.div>
+                            )}
                             {/* Reaction Bubbles */}
                             {msgReactions[msg.id] &&
                               Object.keys(msgReactions[msg.id]).length > 0 && (
@@ -5440,13 +5364,13 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                       </p>
                       <div className="flex gap-3">
                         {(
-                          ["maroon", "whatsapp", "water", "nature", "velvet"] as Theme[]
+                          ["maroon", "whatsapp"] as Theme[]
                         ).map((t) => (
                           <button
                             key={t}
                             type="button"
                             onClick={(e) => { e.stopPropagation(); setTheme(t); }}
-                            className={`flex-1 py-3 rounded-2xl border-2 transition-all font-black text-xs ${theme === t ? `border-[#d4ff00] bg-[#d4ff00]/10 ${T.text1}` : `border-transparent bg-white/5 ${T.text3}`}`}
+                            className={`flex-1 py-3 rounded-2xl border-2 transition-all font-black text-xs ${theme === t ? `border-[#E3FF00] bg-[#E3FF00]/10 ${T.text1}` : `border-transparent bg-white/5 ${T.text3}`}`}
                           >
                             <div className="text-xl mb-1">
                               {THEME_CFG[t].icon}
