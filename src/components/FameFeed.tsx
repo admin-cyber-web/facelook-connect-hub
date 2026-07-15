@@ -5651,30 +5651,32 @@ const FameFeed = ({
       )}
 
       {/* ── Report modal ──────────────────────────────────────────────── */}
-      <AnimatePresence>
-        {reportModal && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[998] bg-black/60 backdrop-blur-sm"
-              onClick={() => setReportModal(null)}
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: -6 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: -6 }}
-              transition={{ type: "spring", damping: 28, stiffness: 340 }}
-              style={{
-                position: "fixed",
-                top: reportModal.anchor.top,
-                right: reportModal.anchor.right,
-                zIndex: 999,
-              }}
-              className="w-72 bg-white rounded-2xl shadow-2xl border border-gray-100 p-4"
-              onClick={(e) => e.stopPropagation()}
-            >
+      {createPortal(
+        <AnimatePresence>
+          {reportModal && (
+            <>
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 bg-black/60 backdrop-blur-sm"
+                style={{ zIndex: 99998 }}
+                onClick={() => setReportModal(null)}
+              />
+              <motion.div
+                initial={{ opacity: 0, scale: 0.92 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.92 }}
+                transition={{ type: "spring", damping: 28, stiffness: 340 }}
+                style={{
+                  position: "fixed",
+                  top: reportModal.anchor.top,
+                  right: reportModal.anchor.right,
+                  zIndex: 99999,
+                }}
+                className="w-72 bg-white rounded-2xl shadow-2xl border border-gray-100 p-4"
+                onClick={(e) => e.stopPropagation()}
+              >
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
                   <div className="w-8 h-8 rounded-xl bg-orange-50 flex items-center justify-center">
@@ -5723,7 +5725,9 @@ const FameFeed = ({
             </motion.div>
           </>
         )}
-      </AnimatePresence>
+        </AnimatePresence>,
+        document.body
+      )}
 
       {/* ── Block Confirmation Dialog ─────────────────────────────────── */}
       <AnimatePresence>

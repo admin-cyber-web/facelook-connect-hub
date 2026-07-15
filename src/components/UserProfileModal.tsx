@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "../lib/supabaseClient";
 import { X, MapPin, GraduationCap, UserPlus, MessageCircle, Check, Users, Ban, ShieldCheck, UserMinus, Flag, ShieldAlert } from "lucide-react";
@@ -700,29 +701,32 @@ const UserProfileModal = ({ userId, currentUserId, isAdmin: isAdminProp = false,
       </div>
 
       {/* Report sheet */}
-      {reportOpen && (
-        <>
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={() => !reportSubmitting && setReportOpen(false)}
-            className="fixed inset-0 z-[1010] bg-black/60 backdrop-blur-sm"
-          />
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: -6 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: -6 }}
-            transition={{ type: "spring", stiffness: 320, damping: 30 }}
-            style={{
-              position: "fixed",
-              top: reportAnchor?.top ?? 120,
-              right: reportAnchor?.right ?? 16,
-              zIndex: 1020,
-            }}
-            className="w-72 bg-white rounded-2xl shadow-2xl border border-gray-100 p-4"
-            onClick={(e) => e.stopPropagation()}
-          >
+      {createPortal(
+        <AnimatePresence>
+          {reportOpen && (
+            <>
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => !reportSubmitting && setReportOpen(false)}
+                className="fixed inset-0 bg-black/60 backdrop-blur-sm"
+                style={{ zIndex: 99998 }}
+              />
+              <motion.div
+                initial={{ opacity: 0, scale: 0.92 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.92 }}
+                transition={{ type: "spring", stiffness: 320, damping: 30 }}
+                style={{
+                  position: "fixed",
+                  top: reportAnchor?.top ?? 120,
+                  right: reportAnchor?.right ?? 16,
+                  zIndex: 99999,
+                }}
+                className="w-72 bg-white rounded-2xl shadow-2xl border border-gray-100 p-4"
+                onClick={(e) => e.stopPropagation()}
+              >
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-xl bg-rose-50 flex items-center justify-center">
@@ -779,8 +783,11 @@ const UserProfileModal = ({ userId, currentUserId, isAdmin: isAdminProp = false,
                 {reportSubmitting ? "Submitting…" : "Submit"}
               </button>
             </div>
-          </motion.div>
-        </>
+            </motion.div>
+            </>
+          )}
+        </AnimatePresence>,
+        document.body
       )}
     </AnimatePresence>
   );
