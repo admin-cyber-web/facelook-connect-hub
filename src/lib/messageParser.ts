@@ -14,6 +14,8 @@ export type StickerType =
   | "holi"
   | "holiday"
   | "see_you_tomorrow"
+  | "waiting"
+  | "sleep_wake"
   | "warning"
   | null;
 
@@ -33,12 +35,20 @@ const KEYWORD_MAP: Record<NonNullable<StickerType>, string[]> = {
     "i lov u",
     "i love u",
     "i love you",
+    "love u",
+    "love you",
+    "luv u",
+    "luv you",
     "i kiss u",
+    "kiss u",
+    "kiss you",
     "i miss u",
     "i miss you",
-    "i wait u",
+    "miss u",
+    "hug u",
     "hug you",
     "i hug you",
+    "i wait u",
     "tum mere dil me ho",
     "aap bahut achi ho",
     "aap bahut achhi ho",
@@ -63,6 +73,35 @@ const KEYWORD_MAP: Record<NonNullable<StickerType>, string[]> = {
   holi:             ["happy holi"],
   holiday:          ["aaj chutti hai"],
   see_you_tomorrow: ["mai kal milunga", "see you tommorow", "see you tomorrow", "kal milna", "kal miloge"],
+
+  // ── Waiting (NEW) ──────────────────────────────────────────────────────────
+  waiting: [
+    "waiting u",
+    "waiting you",
+    "i am waiting",
+    "wait kar raha",
+    "wait kar rhi",
+    "wait kar rhe",
+    "kab aaoge",
+    "kab aaogi",
+    "kab aoge",
+    "kab aogi",
+    "kab ayoge",
+    "kab ayogi",
+  ],
+
+  // ── Sleep / Wake (NEW) ─────────────────────────────────────────────────────
+  sleep_wake: [
+    "uth jao",
+    "so rhe ho kya",
+    "so rahe ho kya",
+    "kab so kar uthe",
+    "chalo ab so jao",
+    "so gaye kya",
+    "so gyi kya",
+    "neend aa rhi",
+    "neend aa raha",
+  ],
 
   // ── Warning (aggressive language) — shows a warning badge, not an animation
   warning: ["i fuck u", "mai tujhe dekh lunga"],
@@ -94,4 +133,13 @@ export function parseMessage(text: string): ParseResult {
   }
 
   return { sticker: null, originalText: text };
+}
+
+/**
+ * Utility: returns the matched StickerType effect for a message text, or null.
+ * Use this on both sender and receiver side to keep effects in sync.
+ * Case-insensitive, substring-based.
+ */
+export function getEffectForMessage(text: string): NonNullable<StickerType> | null {
+  return parseMessage(text).sticker;
 }

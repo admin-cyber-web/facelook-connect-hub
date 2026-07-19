@@ -576,9 +576,17 @@ const KEYWORD_EMOJI_MAP: { keywords: string[]; emoji: string }[] = [
   // Emotions — dil ❤️
   { keywords: ["tum mere dil me ho", "tum mere dil mein ho", "aap mere dil me ho", "aap mere dil mein ho"], emoji: "❤️" },
   // Emotions — Love you 😍
-  { keywords: ["love you", "luv you", "i love you", "pyaar karta", "pyaar karti", "pyaar hai"], emoji: "😍" },
-  // Emotions — Miss you 🥺
-  { keywords: ["miss you", "missing you", "yaad aa raha", "yaad aa rhi", "bahut yaad", "yaad kiya"], emoji: "🥺" },
+  { keywords: ["love you", "love u", "i love u", "luv you", "luv u", "i love you", "pyaar karta", "pyaar karti", "pyaar hai"], emoji: "😍" },
+  // Emotions — Miss you 🥺 (expanded)
+  { keywords: ["miss you", "miss u", "i miss u", "i miss you", "missing you", "yaad aa raha", "yaad aa rhi", "bahut yaad", "yaad kiya"], emoji: "🥺" },
+  // Emotions — Hug 🤗
+  { keywords: ["hug u", "hug you", "i hug u", "i hug you"], emoji: "🤗" },
+  // Emotions — Kiss 😘
+  { keywords: ["kiss u", "kiss you", "i kiss u", "i kiss you"], emoji: "😘" },
+  // Emotions — Waiting ⏳ (NEW)
+  { keywords: ["waiting u", "waiting you", "i am waiting", "wait kar raha", "wait kar rhi"], emoji: "⏳" },
+  // Sleep / Wake 🌙 (NEW)
+  { keywords: ["uth jao", "so rhe ho kya", "so rahe ho kya", "kab so kar uthe", "chalo ab so jao", "so gaye kya", "neend aa rhi"], emoji: "🌙" },
   // Emotions — Best friends 👯
   { keywords: ["best friends", "bestfriends", "best friend", "bff", "dost forever", "yaar forever"], emoji: "👯" },
   // Gender-Adaptive: asking a female (aaogi = female conjugation)
@@ -2094,6 +2102,15 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
               .update({ seen_at: new Date().toISOString() })
               .eq("id", msg.id)
               .then(() => {});
+
+            // ── Sync effect blast to receiver side ────────────────────────
+            // Mirror the same emoji animation the sender already sees locally
+            if (msg.content) {
+              const kwEmoji = getKeywordEmoji(msg.content);
+              if (kwEmoji) {
+                setEmojiBlast({ id: ++blastIdRef.current, emoji: kwEmoji });
+              }
+            }
           }
         },
       )

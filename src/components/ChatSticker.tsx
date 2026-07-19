@@ -122,6 +122,20 @@ const STICKER_CONFIG: Record<NonNullable<StickerType>, StickerConfig> = {
     labelColor: "#c4b5fd",
     borderColor: "rgba(124,58,237,0.3)",
   },
+  waiting: {
+    emojis: ["⏳", "💭", "🥺", "🕐"],
+    label: "Still Waiting...",
+    gradient: "linear-gradient(135deg, rgba(99,102,241,0.35) 0%, rgba(139,92,246,0.2) 100%)",
+    labelColor: "#c4b5fd",
+    borderColor: "rgba(99,102,241,0.3)",
+  },
+  sleep_wake: {
+    emojis: ["😴", "🌙", "☁️", "💤"],
+    label: "Uth Jao / So Jao",
+    gradient: "linear-gradient(135deg, rgba(15,23,42,0.55) 0%, rgba(79,70,229,0.3) 100%)",
+    labelColor: "#a5b4fc",
+    borderColor: "rgba(79,70,229,0.35)",
+  },
   warning: {
     emojis: ["⚠️"],
     label: "Content Warning",
