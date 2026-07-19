@@ -54,6 +54,15 @@ import { supabase } from "@/lib/supabaseClient";
 import { toast } from "sonner";
 import { parseMessage } from "../lib/messageParser";
 import { ChatSticker } from "./ChatSticker";
+import {
+  hasRiskKeyword,
+  hasLoveKeyword,
+  incrementRiskScore,
+  getRiskProfile,
+  checkLoveProtectViolation,
+  sendSafetyNotification,
+  RISK_THRESHOLD,
+} from "../lib/safetyEngine";
 
 // ── Storage bucket (must match the bucket created in Supabase dashboard) ───────
 const CHAT_BUCKET = "chat-images";
@@ -937,6 +946,21 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   const [soundEnabled, setSoundEnabled] = useState(
     () => localStorage.getItem("cx_sound") !== "false",
   );
+
+  // ── Safety & Integrity Engine ──────────────────────────────────────────────
+  const [loveProtectEnabled, setLoveProtectEnabled] = useState(
+    () => localStorage.getItem("cx_love_protect") === "true",
+  );
+  const [loveProtectPartnerId, setLoveProtectPartnerId] = useState("");
+  const [loveProtectInput, setLoveProtectInput] = useState("");
+  const [savingLoveProtect, setSavingLoveProtect] = useState(false);
+  const [suspiciousAlert, setSuspiciousAlert] = useState<{
+    senderName: string;
+  } | null>(null);
+  const [loveProtectAlert, setLoveProtectAlert] = useState(false);
+  const loveProtectPartnerRef = useRef("");
+  const suspiciousTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const loveProtectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [mutedChats, setMutedChats] = useState<Set<string>>(() => {
     try {
       return new Set(JSON.parse(localStorage.getItem("cx_muted") || "[]"));
@@ -1127,6 +1151,30 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   useEffect(() => {
     localStorage.setItem("cx_archived", JSON.stringify([...archivedChats]));
   }, [archivedChats]);
+
+  // ── Love Protect: sync partner ref + load from DB on mount ────────────────
+  useEffect(() => {
+    loveProtectPartnerRef.current = loveProtectPartnerId;
+  }, [loveProtectPartnerId]);
+
+  useEffect(() => {
+    if (!userId) return;
+    supabase
+      .from("love_protect_links")
+      .select("partner_id, is_active")
+      .eq("user_id", userId)
+      .eq("is_active", true)
+      .maybeSingle()
+      .then(({ data }) => {
+        const row = data as { partner_id: string; is_active: boolean } | null;
+        if (row?.partner_id) {
+          setLoveProtectPartnerId(row.partner_id);
+          setLoveProtectInput(row.partner_id);
+          setLoveProtectEnabled(true);
+          localStorage.setItem("cx_love_protect", "true");
+        }
+      });
+  }, [userId]);
 
   // ── Auto-scroll ───────────────────────────────────────────────────────────
   useEffect(() => {
@@ -2104,12 +2152,54 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
               .then(() => {});
 
             // ── Sync effect blast to receiver side ────────────────────────
-            // Mirror the same emoji animation the sender already sees locally
             if (msg.content) {
               const kwEmoji = getKeywordEmoji(msg.content);
               if (kwEmoji) {
                 setEmojiBlast({ id: ++blastIdRef.current, emoji: kwEmoji });
               }
+            }
+
+            // ── Safety: check sender's risk profile ───────────────────────
+            getRiskProfile(sid).then((profile) => {
+              if (profile?.is_flagged) {
+                const senderName =
+                  contactsRef.current.find((c) => c.id === sid)?.full_name ||
+                  "Unknown";
+                if (suspiciousTimerRef.current)
+                  clearTimeout(suspiciousTimerRef.current);
+                setSuspiciousAlert({ senderName });
+                suspiciousTimerRef.current = setTimeout(
+                  () => setSuspiciousAlert(null),
+                  8000,
+                );
+              }
+            });
+
+            // ── Love Protect: check if partner sent love msgs to others ───
+            if (
+              loveProtectPartnerRef.current &&
+              sid === loveProtectPartnerRef.current &&
+              msg.content &&
+              hasLoveKeyword(msg.content)
+            ) {
+              checkLoveProtectViolation(loveProtectPartnerRef.current).then(
+                (violated) => {
+                  if (violated) {
+                    if (loveProtectTimerRef.current)
+                      clearTimeout(loveProtectTimerRef.current);
+                    setLoveProtectAlert(true);
+                    sendSafetyNotification(
+                      myId,
+                      "love_protect",
+                      "Warning: Your partner's communication pattern shows suspicious inconsistencies.",
+                    );
+                    loveProtectTimerRef.current = setTimeout(
+                      () => setLoveProtectAlert(false),
+                      10000,
+                    );
+                  }
+                },
+              );
             }
           }
         },
@@ -2411,6 +2501,11 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     const kwEmoji = getKeywordEmoji(text);
     if (kwEmoji) {
       setEmojiBlast({ id: ++blastIdRef.current, emoji: kwEmoji });
+    }
+
+    // ── Safety & Integrity — risk keyword scan (sender side) ─────────────
+    if (hasRiskKeyword(text)) {
+      incrementRiskScore(realSenderId);
     }
 
     const insertPayload: Record<string, unknown> = {
@@ -3172,6 +3267,79 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
               onDone={() => setEmojiBlast(null)}
             />
           )}
+
+          {/* ── Safety: Suspicious Activity Alert ────────────────────────── */}
+          <AnimatePresence>
+            {suspiciousAlert && (
+              <motion.div
+                key="suspicious-alert"
+                initial={{ y: -60, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                exit={{ y: -60, opacity: 0 }}
+                transition={{ type: "spring", stiffness: 300, damping: 26 }}
+                className="absolute top-16 left-3 right-3 z-[700] pointer-events-none"
+              >
+                <div
+                  className="rounded-2xl px-4 py-3 flex items-start gap-3 shadow-2xl border border-red-500/40"
+                  style={{
+                    background:
+                      "linear-gradient(135deg,rgba(220,38,38,0.95) 0%,rgba(153,27,27,0.97) 100%)",
+                  }}
+                >
+                  <span className="text-2xl shrink-0 mt-0.5">⚠️</span>
+                  <div>
+                    <p className="text-white font-black text-sm tracking-wide leading-tight">
+                      Warning: Suspicious Activity Detected
+                    </p>
+                    <p className="text-red-200 font-black text-sm tracking-wide leading-tight mt-0.5">
+                      चेतावनी: संदिग्ध गतिविधि
+                    </p>
+                    <p className="text-red-200/80 text-[11px] mt-1">
+                      Message from{" "}
+                      <span className="font-black text-white">
+                        {suspiciousAlert.senderName}
+                      </span>{" "}
+                      — this user has been flagged by our Safety Engine.
+                    </p>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* ── Love Protect Alert ─────────────────────────────────────────── */}
+          <AnimatePresence>
+            {loveProtectAlert && (
+              <motion.div
+                key="love-protect-alert"
+                initial={{ y: -60, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                exit={{ y: -60, opacity: 0 }}
+                transition={{ type: "spring", stiffness: 300, damping: 26 }}
+                className="absolute top-16 left-3 right-3 z-[700] pointer-events-none"
+              >
+                <div
+                  className="rounded-2xl px-4 py-3 flex items-start gap-3 shadow-2xl border border-pink-500/40"
+                  style={{
+                    background:
+                      "linear-gradient(135deg,rgba(190,24,93,0.96) 0%,rgba(131,24,67,0.97) 100%)",
+                  }}
+                >
+                  <span className="text-2xl shrink-0 mt-0.5">💔</span>
+                  <div>
+                    <p className="text-white font-black text-sm tracking-wide">
+                      Love Protect — System Alert
+                    </p>
+                    <p className="text-pink-200 text-[11px] mt-1 leading-relaxed">
+                      Warning: Your partner's communication pattern shows
+                      suspicious inconsistencies. No chat content is visible to
+                      protect your privacy.
+                    </p>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* ── Chat Message Floating Action Menu (long-press) ─────────── */}
           <AnimatePresence>
@@ -5562,6 +5730,138 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                         </button>
                       </div>
                     </div>
+
+                    {/* ── Love Protect ──────────────────────────────────────── */}
+                    <div
+                      className="p-4 rounded-2xl border"
+                      style={{
+                        borderColor: loveProtectEnabled
+                          ? "rgba(244,63,94,0.5)"
+                          : "rgba(255,255,255,0.08)",
+                        background: loveProtectEnabled
+                          ? "linear-gradient(135deg,rgba(244,63,94,0.12) 0%,rgba(131,24,67,0.08) 100%)"
+                          : "rgba(255,255,255,0.05)",
+                      }}
+                    >
+                      <p
+                        className={`text-xs font-black uppercase tracking-widest mb-3 ${T.text3}`}
+                      >
+                        💕 Love Protect
+                      </p>
+                      <div className="flex items-center justify-between mb-3">
+                        <div>
+                          <p className={`text-sm font-black ${T.text1}`}>
+                            Love Protect
+                          </p>
+                          <p className={`text-xs ${T.text3}`}>
+                            {loveProtectEnabled
+                              ? "🔒 Monitoring active"
+                              : "🔓 Protection off"}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => {
+                            const next = !loveProtectEnabled;
+                            setLoveProtectEnabled(next);
+                            localStorage.setItem(
+                              "cx_love_protect",
+                              String(next),
+                            );
+                            if (!next) {
+                              setLoveProtectPartnerId("");
+                              loveProtectPartnerRef.current = "";
+                              supabase
+                                .from("love_protect_links")
+                                .update({ is_active: false })
+                                .eq("user_id", userId ?? "")
+                                .then(() => {});
+                            }
+                          }}
+                          className={`relative w-12 h-6 rounded-full transition-all border ${loveProtectEnabled ? "bg-pink-500 border-pink-400" : "bg-gray-500 border-gray-400"}`}
+                        >
+                          <div
+                            className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${loveProtectEnabled ? "left-6" : "left-0.5"}`}
+                          />
+                        </button>
+                      </div>
+
+                      {/* Partner ID input — shown when enabled */}
+                      <AnimatePresence>
+                        {loveProtectEnabled && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: "auto", opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            className="overflow-hidden"
+                          >
+                            <p
+                              className={`text-[10px] font-black uppercase tracking-wider mb-1.5 ${T.text3}`}
+                            >
+                              Partner's User ID
+                            </p>
+                            <input
+                              value={loveProtectInput}
+                              onChange={(e) =>
+                                setLoveProtectInput(e.target.value)
+                              }
+                              placeholder="Paste your partner's user ID…"
+                              className={`w-full rounded-xl px-3 py-2.5 text-sm font-semibold outline-none border focus:ring-2 focus:ring-pink-500/30 ${T.searchBg} mb-2`}
+                            />
+                            <button
+                              onClick={async () => {
+                                const pid = loveProtectInput.trim();
+                                if (!pid || !userId) return;
+                                setSavingLoveProtect(true);
+                                await supabase
+                                  .from("love_protect_links")
+                                  .upsert(
+                                    {
+                                      user_id: userId,
+                                      partner_id: pid,
+                                      is_active: true,
+                                    },
+                                    { onConflict: "user_id" },
+                                  );
+                                setLoveProtectPartnerId(pid);
+                                loveProtectPartnerRef.current = pid;
+                                setSavingLoveProtect(false);
+                                toast.success("💕 Love Protect linked!");
+                              }}
+                              disabled={
+                                savingLoveProtect ||
+                                !loveProtectInput.trim() ||
+                                loveProtectInput.trim() ===
+                                  loveProtectPartnerId
+                              }
+                              className="w-full py-2.5 rounded-xl text-white font-black text-sm flex items-center justify-center gap-2 disabled:opacity-50"
+                              style={{
+                                background:
+                                  "linear-gradient(135deg,#f43f5e,#be185d)",
+                              }}
+                            >
+                              {savingLoveProtect ? (
+                                <>
+                                  <Loader2 size={13} className="animate-spin" />{" "}
+                                  Linking…
+                                </>
+                              ) : loveProtectPartnerId &&
+                                loveProtectInput.trim() ===
+                                  loveProtectPartnerId ? (
+                                "✅ Linked"
+                              ) : (
+                                "🔗 Link Partner"
+                              )}
+                            </button>
+                            <p className={`text-[10px] mt-2 leading-relaxed ${T.text3}`}>
+                              If your partner sends romantic messages to
+                              multiple people within 1 hour, you'll get a
+                              private system alert — no chat content is shown.
+                            </p>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+
                     <div
                       className={`p-4 rounded-2xl border ${T.divider} bg-white/5`}
                     >
