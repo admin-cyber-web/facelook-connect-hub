@@ -2192,15 +2192,20 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
               }
             });
 
-            // ── Love Protect: check if partner sent love msgs to others ───
+            // ── Love Protect: check partner activity on every incoming message ──
+            // Keyword filter removed — we check on ANY message from partner so
+            // the mechanism is testable. checkLoveProtectViolation decides severity.
             if (
               loveProtectPartnerRef.current &&
-              sid === loveProtectPartnerRef.current &&
-              msg.content &&
-              hasLoveKeyword(msg.content)
+              sid === loveProtectPartnerRef.current
             ) {
+              console.log(
+                "[LoveProtect] Incoming message from partner — running violation check.",
+                { partnerId: loveProtectPartnerRef.current, msgId: msg.id }
+              );
               checkLoveProtectViolation(loveProtectPartnerRef.current).then(
                 (violated) => {
+                  console.log("[LoveProtect] Violation result:", violated);
                   if (violated) {
                     if (loveProtectTimerRef.current)
                       clearTimeout(loveProtectTimerRef.current);
@@ -2212,7 +2217,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                     );
                     loveProtectTimerRef.current = setTimeout(
                       () => setLoveProtectAlert(false),
-                      10000,
+                      15000,
                     );
                   }
                 },
@@ -3333,7 +3338,8 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                 animate={{ y: 0, opacity: 1 }}
                 exit={{ y: -60, opacity: 0 }}
                 transition={{ type: "spring", stiffness: 300, damping: 26 }}
-                className="absolute top-16 left-3 right-3 z-[700] pointer-events-none"
+                className="absolute top-16 left-3 right-3 z-[700] pointer-events-auto"
+                style={{ display: "block" }}
               >
                 <div
                   className="rounded-2xl px-4 py-3 flex items-start gap-3 shadow-2xl border border-pink-500/40"
@@ -3343,7 +3349,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                   }}
                 >
                   <span className="text-2xl shrink-0 mt-0.5">💔</span>
-                  <div>
+                  <div className="flex-1">
                     <p className="text-white font-black text-sm tracking-wide">
                       Love Protect — System Alert
                     </p>
@@ -3353,6 +3359,13 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                       protect your privacy.
                     </p>
                   </div>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); setLoveProtectAlert(false); }}
+                    className="text-pink-300 hover:text-white mt-0.5 shrink-0"
+                  >
+                    <X size={15} />
+                  </button>
                 </div>
               </motion.div>
             )}
@@ -5897,6 +5910,28 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                 "🔗 Link Partner"
                               )}
                             </button>
+                            {/* ── Manual test button ── */}
+                            {loveProtectPartnerId && (
+                              <button
+                                type="button"
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  console.log("[LoveProtect] Manual test triggered for:", loveProtectPartnerId);
+                                  const violated = await checkLoveProtectViolation(loveProtectPartnerId);
+                                  console.log("[LoveProtect] Manual test result:", violated);
+                                  if (loveProtectTimerRef.current) clearTimeout(loveProtectTimerRef.current);
+                                  setLoveProtectAlert(true);
+                                  loveProtectTimerRef.current = setTimeout(() => setLoveProtectAlert(false), 15000);
+                                  toast.info(violated
+                                    ? "💔 Violation detected — alert is now visible!"
+                                    : "✅ No violation yet. Alert shown for UI test (check console for DB result)."
+                                  );
+                                }}
+                                className="w-full mt-2 py-2 rounded-xl border border-pink-500/40 text-pink-400 font-black text-xs flex items-center justify-center gap-1.5 hover:bg-pink-500/10 transition-all"
+                              >
+                                🧪 Test Alert Now
+                              </button>
+                            )}
                             <p className={`text-[10px] mt-2 leading-relaxed ${T.text3}`}>
                               If your partner sends romantic messages to multiple people within 1 hour, you'll receive a private system alert — no chat content is revealed.
                             </p>
