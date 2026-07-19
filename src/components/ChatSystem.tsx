@@ -5593,6 +5593,14 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                         action: () => setMenuPanel("settings"),
                       },
                       {
+                        icon: <span className="text-base">💕</span>,
+                        label: "Love Protect",
+                        desc: loveProtectEnabled
+                          ? `🔒 Monitoring — ${loveProtectPartnerId ? "Partner linked" : "No partner set"}`
+                          : "🔓 Guard your relationship",
+                        action: () => setMenuPanel("settings"),
+                      },
+                      {
                         icon: <Archive size={18} />,
                         label: "Archive",
                         desc: `${archivedContactsList.length} hidden chat${archivedContactsList.length !== 1 ? "s" : ""}`,
@@ -5675,6 +5683,115 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                 {/* Settings */}
                 {menuPanel === "settings" && (
                   <div className="flex-1 overflow-y-auto py-4 px-4 space-y-4">
+
+                    {/* ── Love Protect — FIRST card so it's always visible ──── */}
+                    <div
+                      className="p-4 rounded-2xl border"
+                      style={{
+                        borderColor: loveProtectEnabled
+                          ? "rgba(244,63,94,0.55)"
+                          : "rgba(255,255,255,0.08)",
+                        background: loveProtectEnabled
+                          ? "linear-gradient(135deg,rgba(244,63,94,0.14) 0%,rgba(131,24,67,0.09) 100%)"
+                          : "rgba(255,255,255,0.05)",
+                      }}
+                    >
+                      {/* header row */}
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg">💕</span>
+                          <div>
+                            <p className={`text-sm font-black ${T.text1}`}>
+                              Love Protect
+                            </p>
+                            <p className={`text-[10px] ${T.text3}`}>
+                              {loveProtectEnabled
+                                ? "🔒 Monitoring active"
+                                : "🔓 Protection off"}
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => {
+                            const next = !loveProtectEnabled;
+                            setLoveProtectEnabled(next);
+                            localStorage.setItem("cx_love_protect", String(next));
+                            if (!next) {
+                              setLoveProtectPartnerId("");
+                              loveProtectPartnerRef.current = "";
+                              supabase
+                                .from("love_protect_links")
+                                .update({ is_active: false })
+                                .eq("user_id", userId ?? "")
+                                .then(() => {});
+                            }
+                          }}
+                          className={`relative w-12 h-6 rounded-full transition-all border ${loveProtectEnabled ? "bg-pink-500 border-pink-400" : "bg-gray-500 border-gray-400"}`}
+                        >
+                          <div
+                            className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${loveProtectEnabled ? "left-6" : "left-0.5"}`}
+                          />
+                        </button>
+                      </div>
+
+                      {/* Partner ID input — expands when toggled ON */}
+                      <AnimatePresence>
+                        {loveProtectEnabled && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: "auto", opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            className="overflow-hidden"
+                          >
+                            <p className={`text-[10px] font-black uppercase tracking-wider mb-1.5 ${T.text3}`}>
+                              Partner's User ID
+                            </p>
+                            <input
+                              value={loveProtectInput}
+                              onChange={(e) => setLoveProtectInput(e.target.value)}
+                              placeholder="Paste your partner's user ID…"
+                              className={`w-full rounded-xl px-3 py-2.5 text-sm font-semibold outline-none border focus:ring-2 focus:ring-pink-500/30 ${T.searchBg} mb-2`}
+                            />
+                            <button
+                              onClick={async () => {
+                                const pid = loveProtectInput.trim();
+                                if (!pid || !userId) return;
+                                setSavingLoveProtect(true);
+                                await supabase
+                                  .from("love_protect_links")
+                                  .upsert(
+                                    { user_id: userId, partner_id: pid, is_active: true },
+                                    { onConflict: "user_id" },
+                                  );
+                                setLoveProtectPartnerId(pid);
+                                loveProtectPartnerRef.current = pid;
+                                setSavingLoveProtect(false);
+                                toast.success("💕 Love Protect linked!");
+                              }}
+                              disabled={
+                                savingLoveProtect ||
+                                !loveProtectInput.trim() ||
+                                loveProtectInput.trim() === loveProtectPartnerId
+                              }
+                              className="w-full py-2.5 rounded-xl text-white font-black text-sm flex items-center justify-center gap-2 disabled:opacity-50"
+                              style={{ background: "linear-gradient(135deg,#f43f5e,#be185d)" }}
+                            >
+                              {savingLoveProtect ? (
+                                <><Loader2 size={13} className="animate-spin" /> Linking…</>
+                              ) : loveProtectPartnerId && loveProtectInput.trim() === loveProtectPartnerId ? (
+                                "✅ Linked"
+                              ) : (
+                                "🔗 Link Partner"
+                              )}
+                            </button>
+                            <p className={`text-[10px] mt-2 leading-relaxed ${T.text3}`}>
+                              If your partner sends romantic messages to multiple people within 1 hour, you'll receive a private system alert — no chat content is revealed.
+                            </p>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+
                     <div
                       className={`p-4 rounded-2xl border ${T.divider} bg-white/5`}
                     >
@@ -5729,137 +5846,6 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                           />
                         </button>
                       </div>
-                    </div>
-
-                    {/* ── Love Protect ──────────────────────────────────────── */}
-                    <div
-                      className="p-4 rounded-2xl border"
-                      style={{
-                        borderColor: loveProtectEnabled
-                          ? "rgba(244,63,94,0.5)"
-                          : "rgba(255,255,255,0.08)",
-                        background: loveProtectEnabled
-                          ? "linear-gradient(135deg,rgba(244,63,94,0.12) 0%,rgba(131,24,67,0.08) 100%)"
-                          : "rgba(255,255,255,0.05)",
-                      }}
-                    >
-                      <p
-                        className={`text-xs font-black uppercase tracking-widest mb-3 ${T.text3}`}
-                      >
-                        💕 Love Protect
-                      </p>
-                      <div className="flex items-center justify-between mb-3">
-                        <div>
-                          <p className={`text-sm font-black ${T.text1}`}>
-                            Love Protect
-                          </p>
-                          <p className={`text-xs ${T.text3}`}>
-                            {loveProtectEnabled
-                              ? "🔒 Monitoring active"
-                              : "🔓 Protection off"}
-                          </p>
-                        </div>
-                        <button
-                          onClick={() => {
-                            const next = !loveProtectEnabled;
-                            setLoveProtectEnabled(next);
-                            localStorage.setItem(
-                              "cx_love_protect",
-                              String(next),
-                            );
-                            if (!next) {
-                              setLoveProtectPartnerId("");
-                              loveProtectPartnerRef.current = "";
-                              supabase
-                                .from("love_protect_links")
-                                .update({ is_active: false })
-                                .eq("user_id", userId ?? "")
-                                .then(() => {});
-                            }
-                          }}
-                          className={`relative w-12 h-6 rounded-full transition-all border ${loveProtectEnabled ? "bg-pink-500 border-pink-400" : "bg-gray-500 border-gray-400"}`}
-                        >
-                          <div
-                            className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${loveProtectEnabled ? "left-6" : "left-0.5"}`}
-                          />
-                        </button>
-                      </div>
-
-                      {/* Partner ID input — shown when enabled */}
-                      <AnimatePresence>
-                        {loveProtectEnabled && (
-                          <motion.div
-                            initial={{ height: 0, opacity: 0 }}
-                            animate={{ height: "auto", opacity: 1 }}
-                            exit={{ height: 0, opacity: 0 }}
-                            className="overflow-hidden"
-                          >
-                            <p
-                              className={`text-[10px] font-black uppercase tracking-wider mb-1.5 ${T.text3}`}
-                            >
-                              Partner's User ID
-                            </p>
-                            <input
-                              value={loveProtectInput}
-                              onChange={(e) =>
-                                setLoveProtectInput(e.target.value)
-                              }
-                              placeholder="Paste your partner's user ID…"
-                              className={`w-full rounded-xl px-3 py-2.5 text-sm font-semibold outline-none border focus:ring-2 focus:ring-pink-500/30 ${T.searchBg} mb-2`}
-                            />
-                            <button
-                              onClick={async () => {
-                                const pid = loveProtectInput.trim();
-                                if (!pid || !userId) return;
-                                setSavingLoveProtect(true);
-                                await supabase
-                                  .from("love_protect_links")
-                                  .upsert(
-                                    {
-                                      user_id: userId,
-                                      partner_id: pid,
-                                      is_active: true,
-                                    },
-                                    { onConflict: "user_id" },
-                                  );
-                                setLoveProtectPartnerId(pid);
-                                loveProtectPartnerRef.current = pid;
-                                setSavingLoveProtect(false);
-                                toast.success("💕 Love Protect linked!");
-                              }}
-                              disabled={
-                                savingLoveProtect ||
-                                !loveProtectInput.trim() ||
-                                loveProtectInput.trim() ===
-                                  loveProtectPartnerId
-                              }
-                              className="w-full py-2.5 rounded-xl text-white font-black text-sm flex items-center justify-center gap-2 disabled:opacity-50"
-                              style={{
-                                background:
-                                  "linear-gradient(135deg,#f43f5e,#be185d)",
-                              }}
-                            >
-                              {savingLoveProtect ? (
-                                <>
-                                  <Loader2 size={13} className="animate-spin" />{" "}
-                                  Linking…
-                                </>
-                              ) : loveProtectPartnerId &&
-                                loveProtectInput.trim() ===
-                                  loveProtectPartnerId ? (
-                                "✅ Linked"
-                              ) : (
-                                "🔗 Link Partner"
-                              )}
-                            </button>
-                            <p className={`text-[10px] mt-2 leading-relaxed ${T.text3}`}>
-                              If your partner sends romantic messages to
-                              multiple people within 1 hour, you'll get a
-                              private system alert — no chat content is shown.
-                            </p>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
                     </div>
 
                     <div
