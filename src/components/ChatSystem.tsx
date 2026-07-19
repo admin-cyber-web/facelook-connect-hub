@@ -954,6 +954,11 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   const [loveProtectPartnerId, setLoveProtectPartnerId] = useState("");
   const [loveProtectInput, setLoveProtectInput] = useState("");
   const [savingLoveProtect, setSavingLoveProtect] = useState(false);
+  const [lpSearchQuery, setLpSearchQuery] = useState("");
+  const [lpSearchResults, setLpSearchResults] = useState<{ id: string; full_name: string; username: string; avatar_url: string | null }[]>([]);
+  const [lpSelectedPartner, setLpSelectedPartner] = useState<{ id: string; full_name: string } | null>(null);
+  const [lpSearching, setLpSearching] = useState(false);
+  const [lpPartnerName, setLpPartnerName] = useState("");
   const [suspiciousAlert, setSuspiciousAlert] = useState<{
     senderName: string;
   } | null>(null);
@@ -5734,7 +5739,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                         </button>
                       </div>
 
-                      {/* Partner ID input — expands when toggled ON */}
+                      {/* Partner search — expands when toggled ON */}
                       <AnimatePresence>
                         {loveProtectEnabled && (
                           <motion.div
@@ -5743,47 +5748,134 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                             exit={{ height: 0, opacity: 0 }}
                             className="overflow-hidden"
                           >
-                            <p className={`text-[10px] font-black uppercase tracking-wider mb-1.5 ${T.text3}`}>
-                              Partner's User ID
-                            </p>
-                            <input
-                              value={loveProtectInput}
-                              onChange={(e) => setLoveProtectInput(e.target.value)}
-                              placeholder="Paste your partner's user ID…"
-                              className={`w-full rounded-xl px-3 py-2.5 text-sm font-semibold outline-none border focus:ring-2 focus:ring-pink-500/30 ${T.searchBg} mb-2`}
-                            />
-                            <button
-                              onClick={async () => {
-                                const pid = loveProtectInput.trim();
-                                if (!pid || !userId) return;
-                                setSavingLoveProtect(true);
-                                await supabase
-                                  .from("love_protect_links")
-                                  .upsert(
-                                    { user_id: userId, partner_id: pid, is_active: true },
-                                    { onConflict: "user_id" },
-                                  );
-                                setLoveProtectPartnerId(pid);
-                                loveProtectPartnerRef.current = pid;
-                                setSavingLoveProtect(false);
-                                toast.success("💕 Love Protect linked!");
-                              }}
-                              disabled={
-                                savingLoveProtect ||
-                                !loveProtectInput.trim() ||
-                                loveProtectInput.trim() === loveProtectPartnerId
-                              }
-                              className="w-full py-2.5 rounded-xl text-white font-black text-sm flex items-center justify-center gap-2 disabled:opacity-50"
-                              style={{ background: "linear-gradient(135deg,#f43f5e,#be185d)" }}
-                            >
-                              {savingLoveProtect ? (
-                                <><Loader2 size={13} className="animate-spin" /> Linking…</>
-                              ) : loveProtectPartnerId && loveProtectInput.trim() === loveProtectPartnerId ? (
-                                "✅ Linked"
-                              ) : (
-                                "🔗 Link Partner"
-                              )}
-                            </button>
+                            {/* Already linked banner */}
+                            {loveProtectPartnerId && lpPartnerName && (
+                              <div className="flex items-center justify-between rounded-xl px-3 py-2 mb-2 bg-pink-500/10 border border-pink-500/30">
+                                <div>
+                                  <p className={`text-xs font-black text-pink-400`}>✅ Linked to</p>
+                                  <p className={`text-sm font-black ${T.text1}`}>{lpPartnerName}</p>
+                                </div>
+                                <button
+                                  onClick={() => {
+                                    setLoveProtectPartnerId("");
+                                    loveProtectPartnerRef.current = "";
+                                    setLpSelectedPartner(null);
+                                    setLpPartnerName("");
+                                    setLpSearchQuery("");
+                                    setLpSearchResults([]);
+                                    supabase.from("love_protect_links").update({ is_active: false }).eq("user_id", userId ?? "").then(() => {});
+                                  }}
+                                  className="text-[10px] text-red-400 font-black border border-red-400/30 rounded-lg px-2 py-1"
+                                >
+                                  Unlink
+                                </button>
+                              </div>
+                            )}
+
+                            {/* Search bar */}
+                            {!loveProtectPartnerId && (
+                              <>
+                                <p className={`text-[10px] font-black uppercase tracking-wider mb-1.5 ${T.text3}`}>
+                                  Search Partner by Name
+                                </p>
+                                <div className="relative mb-2">
+                                  <input
+                                    value={lpSearchQuery}
+                                    onChange={async (e) => {
+                                      const q = e.target.value;
+                                      setLpSearchQuery(q);
+                                      setLpSelectedPartner(null);
+                                      if (q.trim().length < 2) { setLpSearchResults([]); return; }
+                                      setLpSearching(true);
+                                      const { data } = await supabase
+                                        .from("profiles")
+                                        .select("id, full_name, username, avatar_url")
+                                        .ilike("full_name", `%${q.trim()}%`)
+                                        .neq("id", userId ?? "")
+                                        .limit(6);
+                                      setLpSearchResults(data ?? []);
+                                      setLpSearching(false);
+                                    }}
+                                    placeholder="Type partner's name…"
+                                    className={`w-full rounded-xl px-3 py-2.5 text-sm font-semibold outline-none border focus:ring-2 focus:ring-pink-500/30 ${T.searchBg}`}
+                                  />
+                                  {lpSearching && (
+                                    <Loader2 size={13} className="animate-spin absolute right-3 top-3 text-pink-400" />
+                                  )}
+                                </div>
+
+                                {/* Search results dropdown */}
+                                {lpSearchResults.length > 0 && !lpSelectedPartner && (
+                                  <div className={`rounded-xl border ${T.divider} overflow-hidden mb-2`}>
+                                    {lpSearchResults.map((p) => (
+                                      <button
+                                        key={p.id}
+                                        onClick={() => {
+                                          setLpSelectedPartner({ id: p.id, full_name: p.full_name });
+                                          setLpSearchQuery(p.full_name);
+                                          setLpSearchResults([]);
+                                        }}
+                                        className={`flex items-center gap-3 w-full px-3 py-2.5 hover:bg-white/10 transition-all border-b last:border-b-0 ${T.divider} text-left`}
+                                      >
+                                        <div className="w-8 h-8 rounded-full bg-pink-500/20 flex items-center justify-center text-xs font-black text-pink-300 shrink-0 overflow-hidden">
+                                          {p.avatar_url
+                                            ? <img src={p.avatar_url} className="w-full h-full object-cover" />
+                                            : p.full_name.charAt(0).toUpperCase()}
+                                        </div>
+                                        <div>
+                                          <p className={`text-sm font-black ${T.text1}`}>{p.full_name}</p>
+                                          <p className={`text-[10px] ${T.text3}`}>@{p.username}</p>
+                                        </div>
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
+
+                                {/* Selected partner chip */}
+                                {lpSelectedPartner && (
+                                  <div className="flex items-center justify-between rounded-xl px-3 py-2 mb-2 bg-pink-500/10 border border-pink-500/30">
+                                    <p className={`text-sm font-black ${T.text1}`}>
+                                      Selected: {lpSelectedPartner.full_name}
+                                    </p>
+                                    <button
+                                      onClick={() => { setLpSelectedPartner(null); setLpSearchQuery(""); }}
+                                      className={`text-[10px] ${T.text3}`}
+                                    >✕</button>
+                                  </div>
+                                )}
+
+                                {/* Link button — only enabled when a profile is selected (has UUID) */}
+                                <button
+                                  onClick={async () => {
+                                    if (!lpSelectedPartner || !userId) return;
+                                    setSavingLoveProtect(true);
+                                    const { error } = await supabase
+                                      .from("love_protect_links")
+                                      .upsert(
+                                        { user_id: userId, partner_id: lpSelectedPartner.id, is_active: true },
+                                        { onConflict: "user_id" },
+                                      );
+                                    if (error) {
+                                      toast.error("Failed to link. Try again.");
+                                    } else {
+                                      setLoveProtectPartnerId(lpSelectedPartner.id);
+                                      loveProtectPartnerRef.current = lpSelectedPartner.id;
+                                      setLpPartnerName(lpSelectedPartner.full_name);
+                                      toast.success("💕 Love Protect linked!");
+                                    }
+                                    setSavingLoveProtect(false);
+                                  }}
+                                  disabled={savingLoveProtect || !lpSelectedPartner}
+                                  className="w-full py-2.5 rounded-xl text-white font-black text-sm flex items-center justify-center gap-2 disabled:opacity-40"
+                                  style={{ background: "linear-gradient(135deg,#f43f5e,#be185d)" }}
+                                >
+                                  {savingLoveProtect
+                                    ? <><Loader2 size={13} className="animate-spin" /> Linking…</>
+                                    : "🔗 Link Partner"}
+                                </button>
+                              </>
+                            )}
+
                             <p className={`text-[10px] mt-2 leading-relaxed ${T.text3}`}>
                               If your partner sends romantic messages to multiple people within 1 hour, you'll receive a private system alert — no chat content is revealed.
                             </p>
