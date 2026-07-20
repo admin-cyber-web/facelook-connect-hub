@@ -140,7 +140,7 @@ const FeedVideo = memo(({ src }: { src: string }) => {
        preload="none"/>
       <button
         onClick={toggle}
-        className="absolute bottom-3 right-3 p-2 bg-black/50 backdrop-blur-sm rounded-full border border-white/15"
+        className="absolute bottom-3 right-3 p-2 bg-black/75 rounded-full border border-white/15"
       >
         {muted ? (
           <VolumeX size={16} className="text-red-400" />
@@ -324,12 +324,12 @@ const DemoCirclesRow = memo(({ onCircleClick }: { onCircleClick: () => void }) =
           <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
           {/* Top badge */}
           <div className="absolute top-2.5 left-2.5">
-            <span className="bg-white/20 backdrop-blur-md border border-white/30 text-white text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
+            <span className="bg-black/65 border border-white/30 text-white text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
               Circle
             </span>
           </div>
           {/* Member count badge top-right */}
-          <div className="absolute top-2.5 right-2.5 flex items-center gap-0.5 bg-black/40 backdrop-blur-sm rounded-full px-2 py-0.5 border border-white/20">
+          <div className="absolute top-2.5 right-2.5 flex items-center gap-0.5 bg-black/70 rounded-full px-2 py-0.5 border border-white/20">
             <Users size={9} className="text-white/80" />
             <span className="text-white text-[9px] font-bold">
               {circle.member_count >= 1000
@@ -464,11 +464,11 @@ const DemoHookPagesRow = ({ onPageClick }: { onPageClick: () => void }) => (
            decoding="async"/>
           <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
           <div className="absolute top-2.5 left-2.5">
-            <span className="bg-white/20 backdrop-blur-md border border-white/30 text-white text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
+            <span className="bg-black/65 border border-white/30 text-white text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
               ⚡ Page
             </span>
           </div>
-          <div className="absolute top-2.5 right-2.5 flex items-center gap-0.5 bg-black/40 backdrop-blur-sm rounded-full px-2 py-0.5 border border-white/20">
+          <div className="absolute top-2.5 right-2.5 flex items-center gap-0.5 bg-black/70 rounded-full px-2 py-0.5 border border-white/20">
             <Users size={9} className="text-white/80" />
             <span className="text-white text-[9px] font-bold">
               {page.follower_count >= 1000
@@ -786,13 +786,13 @@ const TrendingFlicksRow = ({
               )}
               {/* Subtle play indicator — small badge in corner so the auto-playing video isn't covered */}
               {isVid && (
-                <div className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/55 backdrop-blur-sm flex items-center justify-center border border-white/40 shadow">
+                <div className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/70 flex items-center justify-center border border-white/40">
                   <VolumeX size={13} className="text-white" />
                 </div>
               )}
               {!isVid && (
                 <div className="absolute inset-0 flex items-center justify-center bg-black/15">
-                  <div className="w-12 h-12 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center border-2 border-white/40 shadow-lg">
+                  <div className="w-12 h-12 rounded-full bg-black/70 flex items-center justify-center border-2 border-white/40">
                     <Play size={20} fill="white" className="text-white ml-1" />
                   </div>
                 </div>
@@ -876,12 +876,12 @@ const SuggestedPagesRow = ({
               <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/25 to-transparent" />
               {/* Top: Page badge */}
               <div className="absolute top-2.5 left-2.5">
-                <span className="bg-white/20 backdrop-blur-md border border-white/30 text-white text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
+                <span className="bg-black/65 border border-white/30 text-white text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
                   Page
                 </span>
               </div>
               {/* Top-right: follower count */}
-              <div className="absolute top-2.5 right-2.5 flex items-center gap-0.5 bg-black/40 backdrop-blur-sm rounded-full px-2 py-0.5 border border-white/20">
+              <div className="absolute top-2.5 right-2.5 flex items-center gap-0.5 bg-black/70 rounded-full px-2 py-0.5 border border-white/20">
                 <Users size={9} className="text-white/80" />
                 <span className="text-white text-[9px] font-bold">
                   {count >= 1000 ? `${(count / 1000).toFixed(1)}K` : count}
@@ -1276,12 +1276,12 @@ const InFeedHooksStrip = ({
               <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
               {/* Top-left badge */}
               <div className="absolute top-2.5 left-2.5">
-                <span className="bg-white/20 backdrop-blur-md border border-white/30 text-white text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
+                <span className="bg-black/65 border border-white/30 text-white text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
                   ⚡ Page
                 </span>
               </div>
               {/* Top-right follower count */}
-              <div className="absolute top-2.5 right-2.5 flex items-center gap-0.5 bg-black/40 backdrop-blur-sm rounded-full px-2 py-0.5 border border-white/20">
+              <div className="absolute top-2.5 right-2.5 flex items-center gap-0.5 bg-black/70 rounded-full px-2 py-0.5 border border-white/20">
                 <Users size={9} className="text-white/80" />
                 <span className="text-white text-[9px] font-bold">
                   {count >= 1000 ? `${(count / 1000).toFixed(1)}K` : count}
@@ -3417,10 +3417,14 @@ const FameFeed = ({
   const handleShare = (post: any, e: React.MouseEvent<HTMLButtonElement>) => {
     e.stopPropagation();
     e.preventDefault();
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    setSharePopupData({
-      post,
-      anchor: { x: rect.left, y: rect.top, width: rect.width, height: rect.height },
+    const el = e.currentTarget as HTMLElement;
+    // Defer DOM read to rAF to avoid forced reflow mid-event
+    requestAnimationFrame(() => {
+      const rect = el.getBoundingClientRect();
+      setSharePopupData({
+        post,
+        anchor: { x: rect.left, y: rect.top, width: rect.width, height: rect.height },
+      });
     });
   };
 
@@ -4178,7 +4182,7 @@ const FameFeed = ({
                       animate={{ opacity: 1, scale: 1, y: 0 }}
                       exit={{ opacity: 0, scale: 0.88, y: -6 }}
                       transition={{ duration: 0.12 }}
-                      className="absolute right-0 top-10 z-50 w-48 bg-[#1a0d1e]/95 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden shadow-2xl"
+                      className="absolute right-0 top-10 z-50 w-48 bg-[#1a0d1e] border border-white/10 rounded-2xl overflow-hidden"
                       onClick={(e) => e.stopPropagation()}
                     >
                       {post.author_id === currentUserId && (
@@ -4422,7 +4426,7 @@ const FameFeed = ({
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 10, scale: 0.8 }}
                     transition={{ type: "spring", stiffness: 420, damping: 22 }}
-                    className="absolute bottom-11 left-0 flex items-center gap-0.5 bg-slate-900/90 backdrop-blur-md rounded-full shadow-2xl border border-white/10 px-3 py-1.5 z-50"
+                    className="absolute bottom-11 left-0 flex items-center gap-0.5 bg-slate-900 rounded-full border border-white/10 px-3 py-1.5 z-50"
                   >
                     {REACTIONS.map((r, i) => (
                       <motion.button
@@ -5293,7 +5297,7 @@ const FameFeed = ({
   }, [visiblePosts, videoPosts, flicksLoaded]);
 
   return (
-    <div className="bg-[#0F172A] min-h-screen pb-32">
+    <div className="bg-[#0F172A] min-h-screen pb-32" style={{ willChange: "transform" }}>
       {/* ── "What's on your mind" bar ──────────────────────────────────── */}
       <div
         className="flex items-center gap-3 px-4 py-3 border-b border-white/8"
@@ -5545,7 +5549,7 @@ const FameFeed = ({
                       style={{
                         width: 120,
                         height: 212,
-                        background: `linear-gradient(160deg,${GRAD[i % GRAD.length]} 0%,#1e1b4b 100%)`,
+                        background: IS_MOBILE ? "#1a1030" : `linear-gradient(160deg,${GRAD[i % GRAD.length]} 0%,#1e1b4b 100%)`,
                       }}
                       onClick={() => openProfile(u.id)}
                     >
