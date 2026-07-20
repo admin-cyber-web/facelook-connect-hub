@@ -1736,12 +1736,20 @@ const Index = ({ session, initialAdminOpen }: { session: Session; initialAdminOp
       }
     });
 
-    // 3. Scroll logic for Navbar
+    // 3. Scroll logic for Navbar — wrapped in rAF so the DOM read (scrollY)
+    //    and the React setState never happen in the same layout frame,
+    //    avoiding a Forced Reflow that causes overheating on mobile.
+    let rafPending = false;
     const handleScroll = () => {
-      if (window.scrollY > lastScrollY.current && window.scrollY > 100)
-        setShowNav(false);
-      else setShowNav(true);
-      lastScrollY.current = window.scrollY;
+      if (rafPending) return;
+      rafPending = true;
+      requestAnimationFrame(() => {
+        rafPending = false;
+        if (window.scrollY > lastScrollY.current && window.scrollY > 100)
+          setShowNav(false);
+        else setShowNav(true);
+        lastScrollY.current = window.scrollY;
+      });
     };
 
     window.addEventListener("scroll", handleScroll, { passive: true });

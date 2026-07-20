@@ -1194,11 +1194,19 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   }, [userId]);
 
   // ── Auto-scroll ───────────────────────────────────────────────────────────
+  // Only trigger when the message COUNT grows (new message), not on seen_at /
+  // reaction / content updates — those patch existing rows and must NOT cause
+  // a forced-reflow scroll on every update.
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    if (messages.length > prevMsgCount.current) {
+    const countIncreased = messages.length > prevMsgCount.current;
+    if (countIncreased) {
       const last = messages[messages.length - 1];
       if (last?.sender_id !== userId && soundEnabled) playSound("receive");
+      // requestAnimationFrame defers the DOM read/write out of the React paint
+      // cycle, preventing a Forced Reflow that heats up the GPU on mobile.
+      requestAnimationFrame(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      });
     }
     prevMsgCount.current = messages.length;
   }, [messages, userId, soundEnabled]);
@@ -6362,4 +6370,6 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   );
 };
 
-export default ChatSystem;
+// React.memo prevents re-renders when parent (Index.tsx) state changes that
+// are unrelated to chat — e.g. active tab switches, profile edits, etc.
+export default React.memo(ChatSystem);

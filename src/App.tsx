@@ -63,7 +63,14 @@ const App = () => {
 
     const { data: listener } = supabase.auth.onAuthStateChange((event, s) => {
       console.log(`[Auth] onAuthStateChange → event=${event}  user=${s?.user?.email ?? "none"}`);
-      if (event === "INITIAL_SESSION") return;
+      // INITIAL_SESSION is handled by getSession() above.
+      // TOKEN_REFRESHED fires silently every ~hour — skipping it prevents a full
+      // app-tree re-render / re-mount that causes overheating on mobile.
+      if (
+        event === "INITIAL_SESSION" ||
+        event === "TOKEN_REFRESHED" ||
+        event === "MFA_CHALLENGE_VERIFIED"
+      ) return;
       setSession(s);
     });
 
