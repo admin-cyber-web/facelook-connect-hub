@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback, memo } from "react";
 import { createPortal } from "react-dom";
 import { supabase } from "../lib/supabaseClient";
 import { smartTime } from "../lib/timeAgo";
@@ -62,7 +62,7 @@ const reactionEmoji = (type?: string) => {
 };
 
 // ── PostViewTracker — fires onView once when post scrolls into view ─────────
-const PostViewTracker = ({
+const PostViewTracker = memo(({
   postId,
   onView,
   children,
@@ -89,10 +89,10 @@ const PostViewTracker = ({
     return () => obs.disconnect();
   }, [postId, onView]);
   return <div ref={ref}>{children}</div>;
-};
+});
 
 // ── Inline video ───────────────────────────────────────────────────────────────
-const FeedVideo = ({ src }: { src: string }) => {
+const FeedVideo = memo(({ src }: { src: string }) => {
   const ref = useRef<HTMLVideoElement>(null);
   const [muted, setMuted] = useState(false);
   useEffect(() => {
@@ -150,10 +150,10 @@ const FeedVideo = ({ src }: { src: string }) => {
       </button>
     </div>
   );
-};
+});
 
 // ── YouTube embed ──────────────────────────────────────────────────────────────
-const YouTubeEmbed = ({ url }: { url: string }) => {
+const YouTubeEmbed = memo(({ url }: { url: string }) => {
   const m = url.match(
     /^.*(youtu.be\/|v\/|embed\/|watch\?v=|\/shorts\/)([^#&?]*).*/,
   );
@@ -169,10 +169,10 @@ const YouTubeEmbed = ({ url }: { url: string }) => {
       />
     </div>
   );
-};
+});
 
 // ── Smart media renderer ───────────────────────────────────────────────────────
-const PostMedia = ({ post }: { post: any }) => {
+const PostMedia = memo(({ post }: { post: any }) => {
   const url = post.media_url || post.image_url || post.cover_url || null;
   if (!url) return null;
   const isYT =
@@ -196,12 +196,16 @@ const PostMedia = ({ post }: { post: any }) => {
        decoding="async"/>
     </div>
   );
-};
+});
+
+// ── Mobile detection — used for Lite mode throughout FameFeed ────────────────
+const IS_MOBILE = typeof navigator !== "undefined" &&
+  /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
 
 // ── Post caption — 2-line clamp + "...more" toggle ────────────────────────────
 const CLAMP_THRESHOLD = 90;
 
-const PostCaption = ({ content }: { content: string }) => {
+const PostCaption = memo(({ content }: { content: string }) => {
   const [expanded, setExpanded] = useState(false);
   const isLong = content.length > CLAMP_THRESHOLD;
   return (
@@ -221,7 +225,7 @@ const PostCaption = ({ content }: { content: string }) => {
       )}
     </div>
   );
-};
+});
 
 // ── Static Demo Hindi Circles (forceful inject — always show) ─────────────────
 const DEMO_HINDI_CIRCLES = [
@@ -291,7 +295,7 @@ const DEMO_HINDI_CIRCLES = [
 ];
 
 // ── Demo Circles Row (cinematic, same card size as Trending Flicks) ────────────
-const DemoCirclesRow = ({ onCircleClick }: { onCircleClick: () => void }) => (
+const DemoCirclesRow = memo(({ onCircleClick }: { onCircleClick: () => void }) => (
   <div
     className="border-b border-white/5 pt-2 pb-1"
     style={{ background: "#0F172A" }}
@@ -374,7 +378,7 @@ const DemoCirclesRow = ({ onCircleClick }: { onCircleClick: () => void }) => (
       ))}
     </div>
   </div>
-);
+));
 
 // ── Demo Hook Pages (fallback when DB has no hook_pages yet) ───────────────────
 const DEMO_HOOK_PAGES = [
@@ -3024,13 +3028,13 @@ const FameFeed = ({
   // 1) Blocked users are always hidden
   // 2) Only public posts appear on the global feed
   // 3) Posts from private-mode accounts are hidden from the global feed
-  const visiblePosts = posts.filter((p) => {
+  const visiblePosts = useMemo(() => posts.filter((p) => {
     if (blockedUserIds.has(p.author_id)) return false;
     // Global feed: only public posts from public-mode accounts
     const isPublicPost = (p.visibility || "public") === "public";
     const authorPrivate = p.author_profile?.is_private_mode === true;
     return isPublicPost && !authorPrivate;
-  });
+  }), [posts, blockedUserIds]);
 
   const videoPosts = useMemo(
     () =>
@@ -3992,12 +3996,12 @@ const FameFeed = ({
       <PostViewTracker key={post.id} postId={post.id} onView={incrementView}>
         <motion.article
           id={post.id}
-          layout
           exit={{ opacity: 0, x: 60, transition: { duration: 0.2 } }}
           className="border-b border-white/5 overflow-hidden mx-0"
           style={{
-            background:
-              "linear-gradient(175deg,#2C001E 0%,#1a0812 38%,#0d0d14 100%)",
+            background: IS_MOBILE
+              ? "#110811"
+              : "linear-gradient(175deg,#2C001E 0%,#1a0812 38%,#0d0d14 100%)",
             borderRadius: "0px",
           }}
         >
@@ -4517,7 +4521,7 @@ const FameFeed = ({
 
             {/* Views */}
             <div className="flex items-center gap-1">
-              <Eye size={16} className="animate-pulse text-lime-400/70" />
+              <Eye size={16} className="text-lime-400/70" />
               <span className="text-xs font-bold text-lime-400/60">
                 {post.views_count || 0}
               </span>
@@ -4540,56 +4544,56 @@ const FameFeed = ({
               </button>
             )}
 
-            {/* Signal pipeline — 3 round node dots + traveling packet dot */}
-            <div
-              className="relative flex items-center shrink-0"
-              style={{ width: 30, height: 8 }}
-            >
-              {/* 3 stationary node dots */}
-              {[0, 1, 2].map((i) => (
+            {/* Signal pipeline — static on mobile, animated on desktop */}
+            {!IS_MOBILE && (
+              <div
+                className="relative flex items-center shrink-0"
+                style={{ width: 30, height: 8 }}
+              >
+                {[0, 1, 2].map((i) => (
+                  <motion.div
+                    key={i}
+                    className="absolute rounded-full"
+                    style={{ width: 6, height: 6, left: i * 12, top: 1 }}
+                    animate={{
+                      backgroundColor:
+                        i % 2 === 0
+                          ? ["#ef4444", "#22c55e", "#ef4444"]
+                          : ["#22c55e", "#ef4444", "#22c55e"],
+                      scale: [0.7, 1.25, 0.7],
+                      boxShadow: [
+                        "0 0 0px #ef4444",
+                        "0 0 5px #22c55e",
+                        "0 0 0px #ef4444",
+                      ],
+                    }}
+                    transition={{
+                      duration: 1.1,
+                      repeat: Infinity,
+                      delay: i * 0.32,
+                      ease: "easeInOut",
+                    }}
+                  />
+                ))}
                 <motion.div
-                  key={i}
                   className="absolute rounded-full"
-                  style={{ width: 6, height: 6, left: i * 12, top: 1 }}
-                  animate={{
-                    backgroundColor:
-                      i % 2 === 0
-                        ? ["#ef4444", "#22c55e", "#ef4444"]
-                        : ["#22c55e", "#ef4444", "#22c55e"],
-                    scale: [0.7, 1.25, 0.7],
-                    boxShadow: [
-                      "0 0 0px #ef4444",
-                      "0 0 5px #22c55e",
-                      "0 0 0px #ef4444",
-                    ],
+                  style={{
+                    width: 5,
+                    height: 5,
+                    top: 1.5,
+                    background: "#fff",
+                    boxShadow: "0 0 6px #a3e635",
                   }}
+                  animate={{ x: [-3, 26], opacity: [0, 1, 1, 0] }}
                   transition={{
-                    duration: 1.1,
+                    duration: 0.75,
                     repeat: Infinity,
-                    delay: i * 0.32,
-                    ease: "easeInOut",
+                    repeatDelay: 0.55,
+                    ease: "linear",
                   }}
                 />
-              ))}
-              {/* Traveling packet — bright dot that slides left→right like data in a pipe */}
-              <motion.div
-                className="absolute rounded-full"
-                style={{
-                  width: 5,
-                  height: 5,
-                  top: 1.5,
-                  background: "#fff",
-                  boxShadow: "0 0 6px #a3e635",
-                }}
-                animate={{ x: [-3, 26], opacity: [0, 1, 1, 0] }}
-                transition={{
-                  duration: 0.75,
-                  repeat: Infinity,
-                  repeatDelay: 0.55,
-                  ease: "linear",
-                }}
-              />
-            </div>
+              </div>
+            )}
 
             {/* 🔗 Link — viral chain button */}
             <MagnetButton
