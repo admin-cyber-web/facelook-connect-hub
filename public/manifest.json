@@ -1,4 +1,5 @@
 {
+  "id": "/",
   "name": "Flicks India",
   "short_name": "Flicks",
   "description": "India's premium social space — Real Connections, Real Stories.",
@@ -19,6 +20,22 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshot-mobile.png",
+      "sizes": "1080x2280",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Flicks Mobile App"
+    },
+    {
+      "src": "/screenshot-desktop.png",
+      "sizes": "1920x1080",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Flicks Desktop App"
     }
   ]
 }
