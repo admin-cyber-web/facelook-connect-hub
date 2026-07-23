@@ -27,6 +27,7 @@ import {
   Trash2,
   Share2,
   Reply,
+  Anchor,
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { toast } from "sonner";
