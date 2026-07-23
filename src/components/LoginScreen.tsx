@@ -75,7 +75,7 @@ const LoginScreen = () => {
     try {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
-        options: { redirectTo: window.location.origin },
+        options: { redirectTo: "https://flicksindia.online" },
       });
       if (error) setError("Google sign-in failed: " + error.message);
     } catch {
@@ -121,7 +121,7 @@ const LoginScreen = () => {
     setError("");
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-        redirectTo: `${window.location.origin}/reset-password`,
+        redirectTo: "https://flicksindia.online/reset-password",
       });
       if (error) setError(error.message);
       else setSuccess("📧 Reset link sent! Check your inbox.");
