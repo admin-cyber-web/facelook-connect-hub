@@ -211,6 +211,11 @@ const NOTIF_META: Record<
     color: "bg-indigo-500/20 text-indigo-400",
     label: "started following your hook page.",
   },
+  hook_invite_accepted: {
+    icon: <Anchor size={13} />,
+    color: "bg-green-500/20 text-green-400",
+    label: "accepted your hook invitation — you can now post!",
+  },
 };
 
 // ── Extract quoted comment text from content (handles both new "comment" and old hindi "ne ... \"text\"") ──
@@ -1875,8 +1880,9 @@ const Header = ({
       return;
     }
 
-    // Hook / page notifications → switch to Hooks feature
-    if (["hook_post_like", "hook_post_comment", "hook_share"].includes(n.type) && n.entity_id) {
+    // Hook / page notifications → navigate to that hook page
+    if (["hook_post_like", "hook_post_comment", "hook_share",
+         "hook_invite", "hook_follow", "hook_invite_accepted"].includes(n.type) && n.entity_id) {
       setShowNotif(false);
       window.dispatchEvent(new CustomEvent("flicks:open-hook", {
         detail: { hookId: n.entity_id },

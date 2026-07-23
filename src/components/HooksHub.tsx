@@ -584,6 +584,15 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
   const [followError, setFollowError] = useState<string | null>(null);
   const [followLoading, setFollowLoading] = useState(false);
 
+  // Requests / contributor state
+  const [activeTab, setActiveTab] = useState<"posts" | "requests">("posts");
+  const [pendingInvites, setPendingInvites] = useState<any[]>([]);
+  const [invitesLoading, setInvitesLoading] = useState(false);
+  const [isContributor, setIsContributor] = useState(false);
+  const [contributorExpired, setContributorExpired] = useState(false);
+  const [acceptingId, setAcceptingId] = useState<string | null>(null);
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
+
   // Edit / Delete state
   const [showEditPage, setShowEditPage]       = useState(false);
   const [postMenuId, setPostMenuId]           = useState<string | null>(null);
@@ -648,12 +657,19 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
   useEffect(() => {
     fetchPosts();
     fetchFollowData();
+    checkContributorStatus();
+    fetchPendingInvites();
     // Real-time: watch page_followers for this page
     const ch = supabase.channel(`page-followers-${page.id}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "page_followers",
         filter: `page_id=eq.${page.id}` }, () => fetchFollowData())
       .subscribe();
-    return () => { supabase.removeChannel(ch); };
+    // Real-time: watch hook_invites so owner sees new requests instantly
+    const invCh = supabase.channel(`hook-invites-${page.id}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "hook_invites",
+        filter: `page_id=eq.${page.id}` }, () => { fetchPendingInvites(); checkContributorStatus(); })
+      .subscribe();
+    return () => { supabase.removeChannel(ch); supabase.removeChannel(invCh); };
   }, [page.id]);
 
   const toggleFollow = async () => {
@@ -743,6 +759,80 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
   };
 
   const isOwner = page.owner_id === userId;
+
+  // ── Fetch pending invites for owner ──────────────────────────────────────
+  const fetchPendingInvites = async () => {
+    if (page.owner_id !== userId) return;
+    setInvitesLoading(true);
+    const { data } = await supabase
+      .from("hook_invites")
+      .select("id, page_id, inviter_id, invitee_id, status, created_at")
+      .eq("page_id", page.id)
+      .eq("status", "pending")
+      .order("created_at", { ascending: false });
+    if (data && data.length > 0) {
+      const ids = [...new Set(data.map((r: any) => r.invitee_id))];
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, full_name, avatar_url")
+        .in("id", ids);
+      const pm = Object.fromEntries((profiles || []).map((p: any) => [p.id, p]));
+      setPendingInvites(data.map((r: any) => ({ ...r, invitee: pm[r.invitee_id] || null })));
+    } else {
+      setPendingInvites([]);
+    }
+    setInvitesLoading(false);
+  };
+
+  // ── Check if current user is an accepted (non-expired) contributor ────────
+  const checkContributorStatus = async () => {
+    if (page.owner_id === userId) return;
+    const { data } = await supabase
+      .from("hook_invites")
+      .select("status, expires_at")
+      .eq("page_id", page.id)
+      .eq("invitee_id", userId)
+      .eq("status", "accepted")
+      .maybeSingle();
+    if (data) {
+      setIsContributor(true);
+      const exp = (data as any).expires_at;
+      setContributorExpired(exp ? new Date(exp) < new Date() : false);
+    } else {
+      setIsContributor(false);
+      setContributorExpired(false);
+    }
+  };
+
+  // ── Accept a pending invite ───────────────────────────────────────────────
+  const acceptInvite = async (inviteId: string, inviteeId: string, inviteeName: string) => {
+    setAcceptingId(inviteId);
+    await supabase.from("hook_invites").update({ status: "accepted" }).eq("id", inviteId);
+    // Notify invitee
+    await supabase.from("notifications").insert({
+      notifier_id: inviteeId,
+      actor_id: userId,
+      type: "hook_invite_accepted",
+      entity_id: page.id,
+      content: page.name,
+      is_read: false,
+    });
+    setPendingInvites(prev => prev.filter(i => i.id !== inviteId));
+    setAcceptingId(null);
+    toast.success(`${inviteeName || "User"} ab is page par post kar sakta/sakti hai!`);
+  };
+
+  // ── Reject a pending invite ───────────────────────────────────────────────
+  const rejectInvite = async (inviteId: string, inviteeId: string, inviteeName: string) => {
+    setRejectingId(inviteId);
+    await supabase.from("hook_invites").update({ status: "rejected" }).eq("id", inviteId);
+    setPendingInvites(prev => prev.filter(i => i.id !== inviteId));
+    setRejectingId(null);
+    toast(`${inviteeName || "User"} ki request reject kar di.`);
+  };
+
+  // canPost: owner always can; contributor only if accepted & not expired
+  const canPost = isOwner || (isContributor && !contributorExpired);
 
   return (
     <div className="flex flex-col min-h-screen bg-gray-50">
@@ -834,21 +924,93 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
         </div>
       </div>
 
-      {/* ── Post bar (owner only) ──────────────────────────────────────────── */}
+      {/* ── Tab bar (owner only) ──────────────────────────────────────────── */}
       {isOwner && (
+        <div className="flex bg-white border-b border-gray-100">
+          {(["posts", "requests"] as const).map(tab => (
+            <button key={tab} onClick={() => setActiveTab(tab)}
+              className={`flex-1 py-3 text-[12px] font-black uppercase tracking-widest transition-all border-b-2 ${activeTab === tab ? "text-blue-600 border-blue-500" : "text-gray-400 border-transparent"}`}>
+              {tab === "requests"
+                ? `Requests${pendingInvites.length > 0 ? ` (${pendingInvites.length})` : ""}`
+                : "Posts"}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* ── Post bar (owner or accepted contributor) ───────────────────────── */}
+      {canPost && activeTab === "posts" && (
         <div className="px-4 py-3 bg-white border-b border-gray-100">
-          <motion.button whileTap={{ scale: 0.97 }} onClick={() => setAddPost(true)}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl border border-gray-200 bg-gray-50 text-left">
-            <div className="flex gap-2">
-              <ImgIcon size={16} className="text-blue-400" />
-              <VideoIcon size={16} className="text-purple-400" />
+          {isContributor && !isOwner && (
+            <p className="text-[10px] font-black text-purple-500 uppercase tracking-widest mb-2 flex items-center gap-1">
+              <Anchor size={10} /> Contributor Access
+            </p>
+          )}
+          {contributorExpired && !isOwner && (
+            <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-orange-50 border border-orange-200 mb-2">
+              <AlertTriangle size={13} className="text-orange-500 shrink-0" />
+              <p className="text-[11px] text-orange-700 font-semibold">Contributor access expired. Owner se request karo.</p>
             </div>
-            <span className="text-gray-400 text-[13px] font-semibold">Photo, Video ya Text post karo...</span>
-          </motion.button>
+          )}
+          {!contributorExpired && (
+            <motion.button whileTap={{ scale: 0.97 }} onClick={() => setAddPost(true)}
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl border border-gray-200 bg-gray-50 text-left">
+              <div className="flex gap-2">
+                <ImgIcon size={16} className="text-blue-400" />
+                <VideoIcon size={16} className="text-purple-400" />
+              </div>
+              <span className="text-gray-400 text-[13px] font-semibold">Photo, Video ya Text post karo...</span>
+            </motion.button>
+          )}
+        </div>
+      )}
+
+      {/* ── Requests Panel (owner only) ───────────────────────────────────── */}
+      {isOwner && activeTab === "requests" && (
+        <div className="flex-1 p-4 space-y-3">
+          {invitesLoading && <div className="flex justify-center py-8"><Loader2 size={24} className="animate-spin text-blue-500" /></div>}
+          {!invitesLoading && pendingInvites.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-16 gap-3 text-gray-300">
+              <Anchor size={40} strokeWidth={1.2} />
+              <p className="text-[12px] font-black uppercase tracking-widest">Koi pending request nahi</p>
+              <p className="text-[11px] text-gray-400 text-center px-6">Jab koi user hook invite accept karne wala ho, yahan dikhai dega</p>
+            </div>
+          )}
+          {pendingInvites.map(invite => (
+            <motion.div key={invite.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+              className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex items-center gap-3">
+              <div className="w-12 h-12 rounded-full overflow-hidden bg-gray-200 shrink-0 flex items-center justify-center">
+                {invite.invitee?.avatar_url
+                  ? <img src={invite.invitee.avatar_url} className="w-full h-full object-cover" alt="" loading="lazy" decoding="async" />
+                  : <span className="text-gray-500 font-black text-lg">{(invite.invitee?.full_name || "?")[0].toUpperCase()}</span>}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-black text-gray-800 text-[14px] truncate">{invite.invitee?.full_name || "Unknown User"}</p>
+                <p className="text-[11px] text-gray-400 font-medium">{smartTime(invite.created_at)} · Hook join karna chahta/chahti hai</p>
+              </div>
+              <div className="flex gap-2 shrink-0">
+                <motion.button whileTap={{ scale: 0.93 }}
+                  onClick={() => acceptInvite(invite.id, invite.invitee_id, invite.invitee?.full_name)}
+                  disabled={acceptingId === invite.id || rejectingId === invite.id}
+                  className="flex items-center gap-1 px-3 py-2 rounded-xl bg-green-500 text-white text-[11px] font-black disabled:opacity-60">
+                  {acceptingId === invite.id ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
+                  Accept
+                </motion.button>
+                <motion.button whileTap={{ scale: 0.93 }}
+                  onClick={() => rejectInvite(invite.id, invite.invitee_id, invite.invitee?.full_name)}
+                  disabled={acceptingId === invite.id || rejectingId === invite.id}
+                  className="flex items-center gap-1 px-3 py-2 rounded-xl bg-red-100 text-red-500 text-[11px] font-black disabled:opacity-60">
+                  {rejectingId === invite.id ? <Loader2 size={12} className="animate-spin" /> : <X size={12} />}
+                  Reject
+                </motion.button>
+              </div>
+            </motion.div>
+          ))}
         </div>
       )}
 
       {/* ── Posts Feed ────────────────────────────────────────────────────── */}
+      {activeTab === "posts" && (
       <div className="flex-1 p-4 space-y-3">
         {loading && <div className="flex justify-center py-8"><Loader2 size={24} className="animate-spin text-blue-500" /></div>}
         {!loading && posts.length === 0 && (
@@ -858,7 +1020,8 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
           </div>
         )}
         {posts.map(post => {
-          const canEditPost = post.author_id === userId || isOwner;
+          // Owner can edit/delete any post; contributors & others can only manage their own
+          const canEditPost = isOwner || post.author_id === userId;
           return (
             <motion.div key={post.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
               className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
@@ -932,6 +1095,7 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
           );
         })}
       </div>
+      )}
 
       <AnimatePresence>
         {hookModal  && <HookModal pageId={page.id} pageName={livePage.name} userId={userId} onClose={() => { setHookModal(false); refreshPage(); }} />}
