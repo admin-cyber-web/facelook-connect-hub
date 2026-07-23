@@ -584,7 +584,7 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
     setLoading(true);
     const { data } = await supabase
       .from("hook_page_posts")
-      .select("id, page_id, author_id, content, media_url, type, likes_count, created_at")
+      .select("id, page_id, author_id, content, media_url, media_type, type, likes_count, created_at")
       .eq("page_id", page.id)
       .order("created_at", { ascending: false })
       .limit(30);
@@ -868,12 +868,17 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
                 {post.created_at && (
                   <p className="text-[10px] text-gray-400 mb-2 -mt-1">{smartTime(post.created_at)}</p>
                 )}
-                {post.media_url && post.media_type === "image" && (
-                  <img src={post.media_url} className="w-full rounded-xl object-cover max-h-72" alt="" loading="lazy"  decoding="async"/>
-                )}
-                {post.media_url && post.media_type === "video" && (
-                  <video src={post.media_url} className="w-full rounded-xl max-h-72" controls  preload="none"/>
-                )}
+                {post.media_url && (() => {
+                  const mt = post.media_type || post.type || "";
+                  const url = post.media_url.toLowerCase();
+                  const isVideo = mt === "video" || url.includes(".mp4") || url.includes(".mov") || url.includes(".webm");
+                  const isImage = mt === "image" || (!isVideo && (url.includes(".jpg") || url.includes(".jpeg") || url.includes(".png") || url.includes(".gif") || url.includes(".webp")));
+                  const showMedia = isVideo || isImage || (!mt && post.media_url);
+                  if (!showMedia) return null;
+                  return isVideo
+                    ? <video src={post.media_url} className="w-full rounded-xl mt-2 max-h-80" controls preload="metadata" style={{ display: "block" }} />
+                    : <img src={post.media_url} alt="Post media" className="w-full rounded-xl object-cover mt-2 max-h-80" loading="lazy" decoding="async" style={{ display: "block" }} />;
+                })()}
               </div>
               <div className="flex items-center gap-2 px-4 pb-3 pt-2 border-t border-gray-50">
                 <motion.button whileTap={{ scale: 0.88 }} onClick={() => likePost(post.id, post.likes_count)}
