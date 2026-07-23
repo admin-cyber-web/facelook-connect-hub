@@ -21,8 +21,8 @@
     "path": "/home/runner/workspace/android.keystore",
     "alias": "flicks"
   },
-  "appVersionName": "1",
-  "appVersionCode": 1,
+  "appVersionName": "2",
+  "appVersionCode": 2,
   "shortcuts": [],
   "generatorApp": "bubblewrap-cli",
   "webManifestUrl": "https://www.flicksindia.online/manifest.json",
@@ -37,12 +37,14 @@
   "fullScopeUrl": "https://www.flicksindia.online/",
   "minSdkVersion": 21,
   "orientation": "portrait",
-  "fingerprints": ["D1:09:F2:E1:B3:C9:F2:A3:21:6C:64:AD:1E:6F:01:09:34:8F:C6:67:CF:C4:17:74:8B:F6:68:1C:B4:8D:DC:BE"],
+  "fingerprints": [
+    "D1:09:F2:E1:B3:C9:F2:A3:21:6C:64:AD:1E:6F:01:09:34:8F:C6:67:CF:C4:17:74:8B:F6:68:1C:B4:8D:DC:BE"
+  ],
   "additionalTrustedOrigins": [],
   "retainedBundles": [],
   "protocolHandlers": [],
   "fileHandlers": [],
   "launchHandlerClientMode": "",
   "displayOverride": [],
-  "appVersion": "1"
+  "appVersion": "2"
 }
