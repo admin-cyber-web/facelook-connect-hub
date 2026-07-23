@@ -29,8 +29,7 @@ const LoginScreen = () => {
   const [dotIdx,       setDotIdx]       = useState(0);
   const emailRef = useRef<HTMLInputElement>(null);
 
-  const HERO_IMG =
-    "https://images.unsplash.com/photo-1518611012118-696072aa579a?q=85&w=800&auto=format&fit=crop";
+  const HERO_IMG = "/hero-bg.png";
 
   const SLIDES = [
     { heading: "Where Moments Meet Hearts", sub: "India's new way to connect through real stories and real people." },
