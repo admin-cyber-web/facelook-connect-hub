@@ -241,6 +241,20 @@ const HookModal = ({ pageId, pageName, userId, onClose }:
     await supabase.from("hook_invites").upsert(rows, { onConflict: "page_id,invitee_id" });
     const { data: cur } = await supabase.from("hook_pages").select("hook_count").eq("id", pageId).single();
     await supabase.from("hook_pages").update({ hook_count: (cur?.hook_count || 0) + selected.size }).eq("id", pageId);
+
+    // Notify each invited user — actor_id lets Header resolve the real sender name
+    const notifRows = Array.from(selected)
+      .filter(invitee_id => invitee_id !== userId)
+      .map(invitee_id => ({
+        notifier_id: invitee_id,
+        actor_id: userId,
+        type: "hook_invite",
+        entity_id: pageId,
+        content: pageName,
+        is_read: false,
+      }));
+    if (notifRows.length) await supabase.from("notifications").insert(notifRows);
+
     setSentIds(new Set(selected)); setSelected(new Set()); setSending(false);
   };
 
@@ -659,6 +673,17 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
         const { error } = await supabase.from("page_followers")
           .upsert([{ page_id: page.id, user_id: userId }], { onConflict: "page_id,user_id" });
         if (error) throw error;
+        // Notify page owner that someone followed their page
+        if (page.owner_id && page.owner_id !== userId) {
+          await supabase.from("notifications").insert({
+            notifier_id: page.owner_id,
+            actor_id: userId,
+            type: "hook_follow",
+            entity_id: page.id,
+            content: page.name,
+            is_read: false,
+          });
+        }
       }
       // Sync count from DB and update hook_pages.followers_count
       const { count, error: cErr } = await supabase

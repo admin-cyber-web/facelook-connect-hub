@@ -200,6 +200,16 @@ const NOTIF_META: Record<
     color: "bg-teal-500/20 text-teal-400",
     label: "sent you a link.",
   },
+  hook_invite: {
+    icon: <Anchor size={13} />,
+    color: "bg-blue-500/20 text-blue-400",
+    label: "sent you a hook invitation.",
+  },
+  hook_follow: {
+    icon: <Anchor size={13} />,
+    color: "bg-indigo-500/20 text-indigo-400",
+    label: "started following your hook page.",
+  },
 };
 
 // ── Extract quoted comment text from content (handles both new "comment" and old hindi "ne ... \"text\"") ──

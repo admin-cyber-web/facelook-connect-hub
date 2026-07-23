@@ -4117,6 +4117,16 @@ const FameFeed = ({
                                 { onConflict: "follower_id,following_id" },
                               );
                               setFollowingMap((p) => ({ ...p, [aid]: true }));
+                              // Notify the followed user with the real follower name
+                              if (currentUserId !== aid) {
+                                await supabase.from("notifications").insert({
+                                  notifier_id: aid,
+                                  actor_id: currentUserId,
+                                  type: "follow",
+                                  entity_id: currentUserId,
+                                  is_read: false,
+                                });
+                              }
                             }
                           } catch (err) {
                             console.warn("[FameFeed] follow error:", err);
