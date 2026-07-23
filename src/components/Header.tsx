@@ -265,6 +265,14 @@ function formatNotifAction(
     const rich = parseRichShare(content);
     return { text: rich?.text ?? meta?.label ?? "shared your content." };
   }
+  // Hook page follow — show the page name dynamically
+  if (type === "hook_follow") {
+    return { text: content ? `started following your "${content}" page.` : "started following your hook page." };
+  }
+  // Hook invite — show which page they were invited to
+  if (type === "hook_invite") {
+    return { text: content ? `invited you to join "${content}".` : "sent you a hook invitation." };
+  }
   if (meta) return { text: meta.label };
   // Fallback: try to clean any legacy hindi content
   return {
@@ -1409,6 +1417,8 @@ const Header = ({
   chatBadge?: number;
   userId?: string;
 }) => {
+  // ── Profile viewer (for routing follow notifications) ──────────────────────
+  const { openProfile } = useProfileViewer();
   // ── Existing state ─────────────────────────────────────────────────────────
   const [notifications, setNotifications] = useState<any[]>([]);
   const [friendRequests, setFriendRequests] = useState<any[]>([]);
@@ -1838,8 +1848,13 @@ const Header = ({
       return;
     }
 
-    // Follow / Friend accepted → open DM with that person
-    if (["follow", "friend_accepted"].includes(n.type) && n.actor_id) {
+    // Follow → open follower's profile; friend_accepted → open DM
+    if (n.type === "follow" && n.actor_id) {
+      setShowNotif(false);
+      openProfile(n.actor_id);
+      return;
+    }
+    if (n.type === "friend_accepted" && n.actor_id) {
       setShowNotif(false);
       window.dispatchEvent(new CustomEvent("flicks:open-chat", {
         detail: {
@@ -2189,11 +2204,12 @@ const Header = ({
                   New notification
                 </p>
                 <p className="text-white text-[13px] font-semibold leading-snug line-clamp-2">
-                  {newNotifPreview.content
-                    ? (newNotifPreview.content.startsWith("{")
-                      ? (() => { try { return JSON.parse(newNotifPreview.content)?.text || "New activity"; } catch { return "New activity"; } })()
-                      : newNotifPreview.content)
-                    : (NOTIF_META[newNotifPreview.type]?.label || "New activity")}
+                  {(() => {
+                    const actorName = newNotifPreview.actor?.full_name;
+                    const action = formatNotifAction(newNotifPreview.type, newNotifPreview.content);
+                    if (actorName) return `${actorName} ${action.text}`;
+                    return action.text || "New activity";
+                  })()}
                 </p>
               </div>
               {/* Dismiss */}
