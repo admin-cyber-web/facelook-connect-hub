@@ -20,13 +20,13 @@ runButton = "Project"
 name = "Start application"
 author = "agent"
 
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "npm run dev"
-waitForPort = 5000
-
 [workflows.workflow.metadata]
 outputType = "webview"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "fuser -k 5000/tcp 2>/dev/null; sleep 1; npm run dev"
+waitForPort = 5000
 
 [[workflows.workflow]]
 name = "Auto News Poster"
@@ -59,6 +59,15 @@ router = "path"
 [workflows.workflow.tasks.env]
 PORT = "23636"
 BASE_PATH = "/__mockup/"
+
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Start application"
 
 [[ports]]
 localPort = 5000
