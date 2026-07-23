@@ -4,6 +4,8 @@ app/build/
 .DS_Store
 android.keystore
 *.apk
+!app-release-signed.apk
+!public/app.apk
 *.aab
 *.idsig
 dist/
