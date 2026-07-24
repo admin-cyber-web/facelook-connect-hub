@@ -15,7 +15,7 @@ import {
   Share2, MessageCircle, FileText, Bell, MoreVertical, Pencil,
   UserPlus, UserMinus, Crown, ShieldCheck, Ban, Eye, LogOut, Pin,
   Megaphone, Calendar, MapPin, Clock, CalendarPlus, ChevronRight,
-  Reply, ImageIcon as ImagePlus, Smile, Video as VideoIcon,
+  Reply, ImageIcon as ImagePlus, Video as VideoIcon,
 } from "lucide-react";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -398,6 +398,8 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
   const [chatText, setChatText] = useState("");
   const [sendingChat, setSendingChat] = useState(false);
   const [chatLoaded, setChatLoaded] = useState(false);
+  const [chatInputFocused, setChatInputFocused] = useState(false);
+  const [commentInputFocused, setCommentInputFocused] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const chatSubRef = useRef<any>(null);
   const memberSubRef = useRef<any>(null);
@@ -2547,8 +2549,14 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
                     )}
                   </AnimatePresence>
 
-                  {/* Input row */}
-                  <div className="px-3 py-2.5 flex items-center gap-2">
+                  {/* Input row — focus mode: image btn fades out when typing */}
+                  <div
+                    className="px-3 py-2.5 flex items-center gap-2 transition-all duration-200"
+                    style={{
+                      background: chatInputFocused ? "rgba(255,255,255,1)" : "rgba(255,255,255,0.8)",
+                      borderTop: chatInputFocused ? "1.5px solid rgba(37,99,235,0.18)" : "1.5px solid rgba(0,0,0,0.06)",
+                    }}
+                  >
                     {/* Media picker */}
                     <input ref={chatMediaRef} type="file" accept="image/*,video/*" className="hidden"
                       onChange={e => {
@@ -2559,21 +2567,51 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
                         setChatMediaPreview(url);
                         e.target.value = "";
                       }} />
-                    <button onClick={() => chatMediaRef.current?.click()}
-                      className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 active:scale-90 transition-transform shrink-0">
-                      <ImagePlus size={17} />
-                    </button>
+                    {/* Image button — collapses in focus mode */}
+                    <AnimatePresence initial={false}>
+                      {!chatInputFocused && (
+                        <motion.div
+                          key="chat-img-btn"
+                          initial={{ opacity: 0, width: 0 }}
+                          animate={{ opacity: 1, width: "auto" }}
+                          exit={{ opacity: 0, width: 0 }}
+                          transition={{ duration: 0.18, ease: "easeInOut" }}
+                          className="overflow-hidden shrink-0"
+                        >
+                          <button
+                            onClick={() => chatMediaRef.current?.click()}
+                            className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 active:scale-90 transition-transform shrink-0"
+                          >
+                            <ImagePlus size={17} />
+                          </button>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
 
-                    <input type="text" value={chatText}
+                    <input
+                      type="text"
+                      value={chatText}
                       onChange={e => setChatText(e.target.value)}
                       onKeyDown={e => e.key === "Enter" && !e.shiftKey && (e.preventDefault(), sendChatMessage())}
+                      onFocus={() => setChatInputFocused(true)}
+                      onBlur={() => setChatInputFocused(false)}
                       placeholder="Message the circle…"
-                      className="flex-1 bg-gray-100 border border-gray-200 rounded-2xl px-4 py-2.5 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-blue-400/30" />
+                      className="flex-1 bg-gray-100 border border-gray-200 rounded-2xl px-4 py-2.5 text-sm text-gray-800 outline-none transition-all duration-200"
+                      style={{
+                        boxShadow: chatInputFocused ? "0 0 0 2px rgba(37,99,235,0.22)" : "none",
+                        borderColor: chatInputFocused ? "rgba(37,99,235,0.3)" : undefined,
+                      }}
+                    />
 
-                    <button onClick={sendChatMessage}
+                    <button
+                      onClick={sendChatMessage}
                       disabled={(!chatText.trim() && !chatMedia) || sendingChat}
-                      className="w-10 h-10 rounded-full flex items-center justify-center text-white disabled:opacity-40 active:scale-90 transition-transform shrink-0"
-                      style={{ background: "linear-gradient(135deg,#2563eb,#4f46e5)" }}>
+                      className="w-10 h-10 rounded-full flex items-center justify-center text-white disabled:opacity-40 active:scale-90 transition-all shrink-0"
+                      style={{
+                        background: "linear-gradient(135deg,#2563eb,#4f46e5)",
+                        boxShadow: chatInputFocused ? "0 4px 16px rgba(37,99,235,0.4)" : "0 2px 8px rgba(37,99,235,0.25)",
+                      }}
+                    >
                       {sendingChat || uploadingChatMedia
                         ? <Loader2 size={16} className="animate-spin" />
                         : <Send size={16} />}
@@ -3501,15 +3539,34 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
                     Comments are muted for this post.
                   </div>
                 ) : (
-                  <div className="px-3 py-3 border-t border-gray-100 flex items-center gap-2">
+                  <div
+                    className="px-3 py-3 border-t flex items-center gap-2 transition-all duration-200"
+                    style={{
+                      borderColor: commentInputFocused ? "rgba(37,99,235,0.18)" : "rgba(229,231,235,1)",
+                      background: commentInputFocused ? "rgba(255,255,255,1)" : undefined,
+                    }}
+                  >
                     <input
                       value={commentText}
                       onChange={e => setCommentText(e.target.value)}
                       onKeyDown={e => e.key === "Enter" && !e.shiftKey && (e.preventDefault(), sendComment())}
+                      onFocus={() => setCommentInputFocused(true)}
+                      onBlur={() => setCommentInputFocused(false)}
                       placeholder="Write a comment…"
-                      className="flex-1 bg-gray-100 border border-gray-200 rounded-2xl px-4 py-2.5 text-sm outline-none"
+                      className="flex-1 bg-gray-100 border rounded-2xl px-4 py-2.5 text-sm outline-none transition-all duration-200"
+                      style={{
+                        boxShadow: commentInputFocused ? "0 0 0 2px rgba(37,99,235,0.22)" : "none",
+                        borderColor: commentInputFocused ? "rgba(37,99,235,0.3)" : "rgba(229,231,235,1)",
+                      }}
                     />
-                    <button onClick={sendComment} disabled={!commentText.trim() || commenting} className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center disabled:opacity-40">
+                    <button
+                      onClick={sendComment}
+                      disabled={!commentText.trim() || commenting}
+                      className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center disabled:opacity-40 active:scale-90 transition-all"
+                      style={{
+                        boxShadow: commentInputFocused ? "0 4px 16px rgba(37,99,235,0.4)" : "0 2px 8px rgba(37,99,235,0.2)",
+                      }}
+                    >
                       {commenting ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
                     </button>
                   </div>
