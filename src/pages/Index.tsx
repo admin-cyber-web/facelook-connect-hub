@@ -2198,15 +2198,11 @@ const Index = ({ session, initialAdminOpen }: { session: Session; initialAdminOp
     const AuroraSection = ({
       number, title, children,
     }: { number: string; title: string; children: React.ReactNode }) => (
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
+      <div
         className="rounded-3xl overflow-hidden"
         style={{
-          background: "rgba(255,255,255,0.03)",
+          background: "rgba(255,255,255,0.035)",
           border: "1px solid rgba(255,255,255,0.07)",
-          backdropFilter: "blur(24px)",
-          WebkitBackdropFilter: "blur(24px)",
         }}
       >
         {/* Section header row */}
@@ -2217,31 +2213,31 @@ const Index = ({ session, initialAdminOpen }: { session: Session; initialAdminOp
           >
             {number}
           </span>
-          <div className="h-px flex-1" style={{ background: "linear-gradient(90deg,rgba(139,92,246,0.25),transparent)" }} />
+          <div className="h-px flex-1" style={{ background: "linear-gradient(90deg,rgba(139,92,246,0.22),transparent)" }} />
           <span className="text-[10px] font-black text-white/25 uppercase tracking-[0.12em] shrink-0">{title}</span>
         </div>
         <div className="pb-2">{children}</div>
-      </motion.div>
+      </div>
     );
 
     return (
       <div className="relative">
         {/* ── Aurora ambient glows ────────────────────── */}
-        <div className="pointer-events-none fixed inset-0 overflow-hidden" style={{ zIndex: 0 }}>
+        <div className="pointer-events-none absolute inset-0 overflow-hidden" style={{ zIndex: 0 }}>
           <div style={{
             position: "absolute", top: -100, left: -60, width: 320, height: 320, borderRadius: "50%",
-            background: "radial-gradient(circle, rgba(139,92,246,0.22) 0%, transparent 70%)",
-            filter: "blur(60px)",
+            background: "radial-gradient(circle, rgba(139,92,246,0.2) 0%, transparent 70%)",
+            filter: "blur(70px)", willChange: "transform",
           }} />
           <div style={{
-            position: "absolute", top: "35%", right: -80, width: 280, height: 280, borderRadius: "50%",
-            background: "radial-gradient(circle, rgba(236,72,153,0.18) 0%, transparent 70%)",
-            filter: "blur(60px)",
+            position: "absolute", top: "40%", right: -80, width: 260, height: 260, borderRadius: "50%",
+            background: "radial-gradient(circle, rgba(236,72,153,0.16) 0%, transparent 70%)",
+            filter: "blur(70px)", willChange: "transform",
           }} />
           <div style={{
-            position: "absolute", bottom: 40, left: "25%", width: 300, height: 300, borderRadius: "50%",
-            background: "radial-gradient(circle, rgba(245,158,11,0.14) 0%, transparent 70%)",
-            filter: "blur(60px)",
+            position: "absolute", bottom: 60, left: "20%", width: 280, height: 280, borderRadius: "50%",
+            background: "radial-gradient(circle, rgba(245,158,11,0.12) 0%, transparent 70%)",
+            filter: "blur(70px)", willChange: "transform",
           }} />
         </div>
 
