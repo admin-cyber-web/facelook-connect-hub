@@ -42,6 +42,7 @@ import {
   ShieldOff,
   Check,
   Link2,
+  TrendingUp,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import SharePopup, { type SharePostData, type ShareAnchor, type ShareMode } from "./SharePopup";
@@ -3109,34 +3110,17 @@ const FameFeed = ({
       .map(([tag]) => tag);
   }, [visiblePosts]);
 
-  // ── Live Mini-Ticker: Online community members ─────────────────────────────
+  // ── Live Mini-Ticker: Online community members (with avatars) ─────────────
   const liveTickerMembers = useMemo(() => {
     return [...onlineUserIds]
       .filter((id) => id !== currentUserId && authorNames[id])
-      .slice(0, 6)
-      .map((id) => authorNames[id]);
-  }, [onlineUserIds, authorNames, currentUserId]);
-
-  // ── Live Mini-Ticker: Combined flat item list ──────────────────────────────
-  const liveTickerItems = useMemo(() => {
-    const items: string[] = [];
-    if (liveWeather) {
-      items.push(
-        `${wxEmoji(liveWeather.code)} ${liveWeather.temp}°C${liveWeather.city ? " · " + liveWeather.city : ""}`,
-      );
-    }
-    for (const name of liveTickerMembers) {
-      items.push(`🟢 ${name} is here`);
-    }
-    for (const tag of trendingTickerTags) {
-      items.push(`🔥 ${tag}`);
-    }
-    // Always have at least a couple of fallback items so the strip is never empty
-    if (items.length < 2) {
-      items.push("✨ Live Community", "💫 Vibe & connect");
-    }
-    return items;
-  }, [liveWeather, liveTickerMembers, trendingTickerTags]);
+      .slice(0, 8)
+      .map((id) => ({
+        id,
+        name: authorNames[id] ?? "",
+        avatar: authorAvatars[id] ?? null,
+      }));
+  }, [onlineUserIds, authorNames, authorAvatars, currentUserId]);
 
   const videoPosts = useMemo(
     () =>
@@ -4522,6 +4506,124 @@ const FameFeed = ({
             );
           })()}
 
+          {/* ── Live Intel Card ─────────────────────────────────────────── */}
+          {(() => {
+            const hasWeather = !!liveWeather;
+            const topTagIdx  = trendingTickerTags.length > 0
+              ? tickerIdx % trendingTickerTags.length : -1;
+            const topTag     = topTagIdx >= 0 ? trendingTickerTags[topTagIdx] : null;
+            const topMember  = liveTickerMembers.length > 0
+              ? liveTickerMembers[tickerIdx % liveTickerMembers.length] : null;
+            if (!hasWeather && !topTag && !topMember) return null;
+            return (
+              <div className="mx-3 mb-2" style={{
+                padding: 1,
+                borderRadius: 14,
+                background: "linear-gradient(105deg,#00f0ff30 0%,#c8ff0028 55%,#00f0ff20 100%)",
+              }}>
+                <div
+                  className="flex items-stretch rounded-[13px] overflow-hidden"
+                  style={{ background: "rgba(0,0,0,0.52)", backdropFilter: "blur(14px)" }}
+                >
+                  {/* LEFT — Real Weather */}
+                  <div className="flex-1 flex flex-col items-center justify-center py-2 px-1.5 border-r border-white/[0.06] min-w-0">
+                    {hasWeather ? (
+                      <>
+                        <span className="text-[17px] leading-none mb-[2px]">
+                          {wxEmoji(liveWeather!.code)}
+                        </span>
+                        <span className="text-[13px] font-black leading-none" style={{ color: "#e0f7ff" }}>
+                          {liveWeather!.temp}°
+                        </span>
+                        {liveWeather!.city ? (
+                          <span
+                            className="text-[8.5px] font-semibold mt-[2px] truncate w-full text-center px-1"
+                            style={{ color: "#00c8ff80" }}
+                          >
+                            {liveWeather!.city}
+                          </span>
+                        ) : null}
+                      </>
+                    ) : (
+                      <span className="text-[9px] font-medium" style={{ color: "rgba(255,255,255,0.18)" }}>—</span>
+                    )}
+                  </div>
+
+                  {/* CENTER — Real Trending Tag (cycles with tickerIdx) */}
+                  <div className="flex-[1.5] flex flex-col items-center justify-center py-2 px-2 border-r border-white/[0.06] min-w-0">
+                    {topTag ? (
+                      <>
+                        <span className="flex items-center gap-[3px] mb-[2px]">
+                          <TrendingUp size={8} style={{ color: "#c8ff00" }} strokeWidth={3} />
+                          <span
+                            className="text-[8px] font-black uppercase tracking-widest"
+                            style={{ color: "rgba(255,255,255,0.28)" }}
+                          >
+                            TRENDING
+                          </span>
+                        </span>
+                        <span
+                          className="text-[11px] font-black tracking-wide truncate w-full text-center"
+                          style={{ color: "#c8ff00" }}
+                        >
+                          {topTag}
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-[8px] font-black uppercase tracking-widest mb-[2px]"
+                          style={{ color: "rgba(255,255,255,0.2)" }}>LIVE FEED</span>
+                        <span className="text-[10px] font-bold" style={{ color: "rgba(255,255,255,0.22)" }}>✨ Active</span>
+                      </>
+                    )}
+                  </div>
+
+                  {/* RIGHT — Real Online Member (cycles with tickerIdx) */}
+                  <div className="flex-1 flex flex-col items-center justify-center py-2 px-1.5 min-w-0">
+                    {topMember ? (
+                      <>
+                        <div
+                          className="w-[20px] h-[20px] rounded-full overflow-hidden mb-[2px] shrink-0 flex items-center justify-center"
+                          style={{
+                            background: "linear-gradient(135deg,#06b6d4,#8b5cf6)",
+                            border: "1.5px solid rgba(255,255,255,0.12)",
+                          }}
+                        >
+                          {topMember.avatar ? (
+                            <img
+                              src={topMember.avatar}
+                              className="w-full h-full object-cover"
+                              alt=""
+                              decoding="async"
+                              loading="lazy"
+                            />
+                          ) : (
+                            <span className="text-[7px] font-black text-white">
+                              {topMember.name?.[0]?.toUpperCase() ?? "?"}
+                            </span>
+                          )}
+                        </div>
+                        <span
+                          className="text-[9px] font-black truncate w-full text-center"
+                          style={{ color: "rgba(255,255,255,0.72)" }}
+                        >
+                          {topMember.name.split(" ")[0]}
+                        </span>
+                        <span className="text-[8px] font-semibold" style={{ color: "#00c8ff60" }}>
+                          is here
+                        </span>
+                      </>
+                    ) : (
+                      <span className="text-[9px] font-medium" style={{ color: "rgba(255,255,255,0.2)" }}>
+                        🟢 Community
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
           {/* ── Action bar ─────────────────────────────────────────────── */}
           <div className="flex items-center gap-3 px-4 py-2.5 border-t border-lime-400/10">
             {/* Reaction button — hover shows bar on desktop, long-press on mobile */}
@@ -4829,43 +4931,6 @@ const FameFeed = ({
               </div>
             );
           })()}
-
-          {/* ── Live Mini-Ticker Strip ───────────────────────────────────── */}
-          {liveTickerItems.length > 0 && (
-            <div
-              className="overflow-hidden border-y border-white/[0.06]"
-              style={{ height: 26, background: "rgba(0,0,0,0.25)" }}
-            >
-              {/* Items are doubled so the CSS -50% translate loops seamlessly */}
-              <div
-                className="live-ticker-track h-full"
-                style={{
-                  animationDuration: `${Math.max(18, liveTickerItems.length * 6)}s`,
-                }}
-              >
-                {[...liveTickerItems, ...liveTickerItems].map((item, i) => (
-                  <span
-                    key={i}
-                    className="inline-flex items-center h-full"
-                    style={{ padding: "0 14px" }}
-                  >
-                    <span
-                      className="text-[10.5px] font-semibold tracking-wide"
-                      style={{ color: "rgba(255,255,255,0.48)" }}
-                    >
-                      {item}
-                    </span>
-                    <span
-                      className="ml-3 text-[8px]"
-                      style={{ color: "rgba(255,255,255,0.15)" }}
-                    >
-                      ◆
-                    </span>
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
 
           {/* ── Comment preview / news-ticker ────────────────────────────── */}
           {(() => {
