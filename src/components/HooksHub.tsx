@@ -1760,8 +1760,8 @@ const HooksHub = ({ userId, initialOpenPageId }: { userId: string; initialOpenPa
     setDbError(null);
     // Step 1 — fetch hook_pages without relational join (avoids PostgREST FK dependency)
     const [{ data: mine, error: mErr }, { data: all, error: aErr }] = await Promise.all([
-      supabase.from("hook_pages").select("id, name, description, category, cover_url, avatar_url, owner_id, hook_count, created_at").eq("owner_id", userId).order("created_at", { ascending: false }),
-      supabase.from("hook_pages").select("id, name, description, category, cover_url, avatar_url, owner_id, hook_count, created_at").neq("owner_id", userId).order("hook_count", { ascending: false }).limit(12),
+      supabase.from("hook_pages").select("id, name, description, category, cover_url, avatar_url, owner_id, hook_count, followers_count, created_at").eq("owner_id", userId).order("created_at", { ascending: false }),
+      supabase.from("hook_pages").select("id, name, description, category, cover_url, avatar_url, owner_id, hook_count, followers_count, created_at").neq("owner_id", userId).order("hook_count", { ascending: false }).limit(12),
     ]);
     if (mErr || aErr) {
       const e = mErr || aErr;
