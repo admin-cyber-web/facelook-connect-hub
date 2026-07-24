@@ -700,6 +700,12 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
 
   // Post-author profiles (id → profile) for attribution on each card
   const [postAuthors, setPostAuthors] = useState<Record<string, { full_name: string | null; avatar_url: string | null }>>({});
+  // Partner expiry map: invitee_id → expires_at (from accepted hook_invites)
+  const [partnerExpiryMap, setPartnerExpiryMap] = useState<Record<string, string | null>>({});
+  // Current user's profile (for broadcast attribution)
+  const [myProfile, setMyProfile] = useState<{ full_name: string | null } | null>(null);
+  // Broadcasting state per post
+  const [broadcastingPostId, setBroadcastingPostId] = useState<string | null>(null);
 
   const fetchPosts = async () => {
     setLoading(true);
@@ -776,6 +782,10 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
     fetchFollowData();
     checkContributorStatus();
     fetchPendingInvites();
+    fetchPartnerExpiryMap();
+    // Fetch current user's profile for broadcast attribution
+    supabase.from("profiles").select("full_name").eq("id", userId).single()
+      .then(({ data }) => { if (data) setMyProfile(data as any); });
     // Real-time: watch page_followers for this page
     const ch = supabase.channel(`page-followers-${page.id}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "page_followers",
@@ -784,7 +794,7 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
     // Real-time: watch hook_invites so owner sees new requests instantly
     const invCh = supabase.channel(`hook-invites-${page.id}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "hook_invites",
-        filter: `page_id=eq.${page.id}` }, () => { fetchPendingInvites(); checkContributorStatus(); })
+        filter: `page_id=eq.${page.id}` }, () => { fetchPendingInvites(); checkContributorStatus(); fetchPartnerExpiryMap(); })
       .subscribe();
     return () => { supabase.removeChannel(ch); supabase.removeChannel(invCh); };
   }, [page.id]);
@@ -892,6 +902,54 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
     await supabase.from("hook_pages").delete().eq("id", page.id).eq("owner_id", userId);
     setDeletingPage(false);
     onBack();
+  };
+
+  // ── Fetch accepted partner expiry map (invitee_id → expires_at) ──────────
+  const fetchPartnerExpiryMap = async () => {
+    const { data } = await supabase
+      .from("hook_invites")
+      .select("invitee_id, expires_at")
+      .eq("page_id", page.id)
+      .eq("status", "accepted");
+    if (data) {
+      const map: Record<string, string | null> = {};
+      for (const row of data as any[]) map[row.invitee_id] = row.expires_at ?? null;
+      setPartnerExpiryMap(map);
+    }
+  };
+
+  // ── Broadcast an approved hook post to the main FameFeed ─────────────────
+  const broadcastToFameFeed = async (post: PagePost) => {
+    if (broadcastingPostId) return;
+    setBroadcastingPostId(post.id);
+    try {
+      const authorName = myProfile?.full_name || postAuthors[userId]?.full_name || "Page Owner";
+      const shareContent = post.content
+        ? `📌 ${livePage.name}: ${post.content}`
+        : `📌 Shared from ${livePage.name}`;
+      const { error } = await supabase.from("posts").insert([{
+        author_id: userId,
+        author: authorName,
+        content: shareContent,
+        media_url: post.media_url || null,
+        type: "post",
+        visibility: "public",
+        likes_count: 0,
+        comments_count: 0,
+        metadata: {
+          hook_page_id: page.id,
+          hook_page_name: livePage.name,
+          hook_post_id: post.id,
+          source: "hook_broadcast",
+        },
+      }]);
+      if (error) throw error;
+      toast.success("📢 FameFeed par broadcast ho gaya!");
+    } catch (err: any) {
+      toast.error(`Broadcast failed: ${err.message || "Unknown error"}`);
+    } finally {
+      setBroadcastingPostId(null);
+    }
   };
 
   // ── Fetch pending invites for owner (includes join requests) ─────────────
@@ -1158,8 +1216,15 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
               <h1 className="font-black text-white text-[21px] leading-tight truncate" style={{ textShadow: "0 2px 12px rgba(0,0,0,0.6)" }}>
                 {livePage.name}
               </h1>
+              {/* Prominent follower count */}
+              <div className="flex items-center gap-1.5 mt-1 mb-1">
+                <span className="font-black text-white text-[28px] leading-none" style={{ textShadow: "0 2px 16px rgba(37,99,235,0.5)" }}>
+                  {memberCount.toLocaleString()}
+                </span>
+                <span className="font-black text-blue-300 text-[11px] uppercase tracking-widest leading-none mt-1">Followers</span>
+              </div>
               {/* Owner identity chip */}
-              <div className="flex flex-wrap items-center gap-1.5 mt-1">
+              <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-black text-amber-300"
                   style={{ background: "rgba(251,191,36,0.18)", border: "1px solid rgba(251,191,36,0.35)", backdropFilter: "blur(4px)" }}>
                   {isOwner
@@ -1497,12 +1562,21 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
                         {isOwnerPost
                           ? <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-amber-300 text-[9px] font-black"
                               style={{ background: "rgba(251,191,36,0.18)", border: "1px solid rgba(251,191,36,0.35)" }}>
-                              ★ Owner
+                              👑 Owner
                             </span>
-                          : <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-purple-300 text-[9px] font-black"
-                              style={{ background: "rgba(147,51,234,0.2)", border: "1px solid rgba(147,51,234,0.35)" }}>
-                              🤝 Page Partner
-                            </span>
+                          : (() => {
+                              const partnerExpiry = partnerExpiryMap[post.author_id];
+                              const partnerExpired = partnerExpiry ? new Date(partnerExpiry) < new Date() : false;
+                              const timeLeft = partnerExpiry ? timeRemaining(partnerExpiry) : "No Limit";
+                              return (
+                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[9px] font-black"
+                                  style={partnerExpired
+                                    ? { background: "rgba(251,146,60,0.18)", border: "1px solid rgba(251,146,60,0.35)", color: "#fb923c" }
+                                    : { background: "rgba(147,51,234,0.2)", border: "1px solid rgba(147,51,234,0.35)", color: "#c4b5fd" }}>
+                                  🤝 Page Partner{timeLeft !== "No Limit" ? ` · ${timeLeft}` : ""}
+                                </span>
+                              );
+                            })()
                         }
                         {post.status === "pending_approval" && isOwner && (
                           <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-yellow-400 text-[9px] font-black"
@@ -1575,6 +1649,18 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
                     style={{ background: "rgba(37,99,235,0.13)", border: "1px solid rgba(37,99,235,0.25)" }}>
                     <Share2 size={13} /> Share
                   </motion.button>
+                  {(isOwner || (isContributor && !contributorExpired)) && (
+                    <motion.button whileTap={{ scale: 0.88 }}
+                      onClick={() => broadcastToFameFeed(post)}
+                      disabled={broadcastingPostId === post.id}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[12px] font-black text-green-400 disabled:opacity-50"
+                      style={{ background: "rgba(22,163,74,0.13)", border: "1px solid rgba(22,163,74,0.28)" }}>
+                      {broadcastingPostId === post.id
+                        ? <Loader2 size={13} className="animate-spin" />
+                        : <Zap size={13} />}
+                      FameFeed
+                    </motion.button>
+                  )}
                   <div className="flex-1" />
                   <motion.button whileTap={{ scale: 0.92 }} onClick={() => setHookModal(true)}
                     className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-white text-[12px] font-black"
