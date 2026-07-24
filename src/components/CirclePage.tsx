@@ -607,24 +607,26 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
         });
     }
 
-    // ── Post Reach: record views + fetch counts (non-blocking) ────────────────
+    // ── Post Reach: record views + fetch counts ───────────────────────────────
     if (currentUserId && rows.length > 0) {
       const approvedIds = rows.filter(p => p.status === "approved").map(p => p.id);
       const newlyViewed = approvedIds.filter(id => !viewedInSession.current.has(id));
       if (newlyViewed.length > 0) {
         newlyViewed.forEach(id => viewedInSession.current.add(id));
-        supabase.from("circle_post_views")
-          .upsert(newlyViewed.map(id => ({ post_id: id, viewer_id: currentUserId })), { onConflict: "post_id,viewer_id" })
-          .then(() => {});
+        // Await upsert so the current user's view is committed before we fetch counts
+        await supabase.from("circle_post_views")
+          .upsert(newlyViewed.map(id => ({ post_id: id, viewer_id: currentUserId })), { onConflict: "post_id,viewer_id" });
       }
-      // Fetch view counts for all posts in this group
-      supabase.from("circle_post_views").select("post_id").in("post_id", rows.map(p => p.id))
-        .then(({ data }) => {
-          if (!data) return;
-          const counts: Record<string, number> = {};
-          for (const row of data as any[]) counts[row.post_id] = (counts[row.post_id] || 0) + 1;
-          setViewCounts(counts);
-        });
+      // Now fetch view counts — includes the rows we just upserted
+      const { data: viewRows } = await supabase
+        .from("circle_post_views")
+        .select("post_id")
+        .in("post_id", rows.map(p => p.id));
+      if (viewRows) {
+        const counts: Record<string, number> = {};
+        for (const row of viewRows as any[]) counts[row.post_id] = (counts[row.post_id] || 0) + 1;
+        setViewCounts(counts);
+      }
     }
   }, [canModerate, currentUserId]);
 
@@ -2013,27 +2015,6 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
             ref={postsScrollRef}
             className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:hidden"
             style={{ scrollbarWidth: "none" }}
-            onTouchStart={e => {
-              if ((postsScrollRef.current?.scrollTop ?? 1) <= 0) {
-                pullStartY.current = e.touches[0].clientY;
-              } else {
-                pullStartY.current = -1;
-              }
-            }}
-            onTouchMove={e => {
-              if (pullStartY.current < 0) { pullDelta.current = 0; return; }
-              pullDelta.current = e.touches[0].clientY - pullStartY.current;
-            }}
-            onTouchEnd={async () => {
-              if (pullDelta.current > 72 && !pullRefreshing && selectedGroup) {
-                haptic(20);
-                setPullRefreshing(true);
-                await fetchCirclePosts(selectedGroup.id, canModerate);
-                setPullRefreshing(false);
-              }
-              pullDelta.current = 0;
-              pullStartY.current = -1;
-            }}
           >
             {/* Pull-to-refresh indicator */}
             {pullRefreshing && (
