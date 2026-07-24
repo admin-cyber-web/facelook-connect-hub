@@ -62,21 +62,6 @@ const reactionEmoji = (type?: string) => {
   return REACTIONS.find((r) => r.type === type)?.emoji ?? "👍";
 };
 
-// ── Weather code → emoji (WMO codes, Open-Meteo) ────────────────────────────
-const wxEmoji = (code: number): string => {
-  if (code === 0)            return "☀️";
-  if (code <= 2)             return "⛅";
-  if (code <= 3)             return "☁️";
-  if (code <= 48)            return "🌫️";
-  if (code <= 57)            return "🌧️";
-  if (code <= 67)            return "🌨️";
-  if (code <= 77)            return "❄️";
-  if (code <= 82)            return "🌦️";
-  if (code <= 86)            return "🌨️";
-  if (code <= 99)            return "⛈️";
-  return "🌡️";
-};
-
 // ── PostViewTracker — fires onView once when post scrolls into view ─────────
 const PostViewTracker = memo(({
   postId,
@@ -2033,46 +2018,6 @@ const FameFeed = ({
     const onViz = () => (document.hidden ? stop() : start());
     document.addEventListener("visibilitychange", onViz);
     return () => { stop(); document.removeEventListener("visibilitychange", onViz); };
-  }, []);
-
-  // ── Live Mini-Ticker: Weather ──────────────────────────────────────────────
-  const [liveWeather, setLiveWeather] = useState<{
-    temp: number; code: number; city: string;
-  } | null>(null);
-
-  useEffect(() => {
-    const fetchWeather = async (lat: number, lon: number) => {
-      try {
-        const [wxRes, geoRes] = await Promise.all([
-          fetch(
-            `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true`,
-          ),
-          fetch(
-            `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`,
-          ),
-        ]);
-        if (!wxRes.ok || !geoRes.ok) return;
-        const wx = await wxRes.json();
-        const geo = await geoRes.json();
-        const city =
-          geo.address?.city ||
-          geo.address?.town ||
-          geo.address?.village ||
-          geo.address?.county ||
-          geo.address?.state ||
-          "";
-        const temp = Math.round(wx.current_weather?.temperature ?? 0);
-        const code = wx.current_weather?.weathercode ?? 0;
-        setLiveWeather({ temp, code, city });
-      } catch { /* silent — weather is non-critical */ }
-    };
-    if (typeof navigator !== "undefined" && navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => fetchWeather(pos.coords.latitude, pos.coords.longitude),
-        () => { /* permission denied — skip */ },
-        { timeout: 8000, maximumAge: 600_000 },
-      );
-    }
   }, []);
 
   const [feedCommentAction, setFeedCommentAction] = useState<{
@@ -4508,13 +4453,38 @@ const FameFeed = ({
 
           {/* ── Live Intel Card ─────────────────────────────────────────── */}
           {(() => {
-            const hasWeather = !!liveWeather;
-            const topTagIdx  = trendingTickerTags.length > 0
-              ? tickerIdx % trendingTickerTags.length : -1;
-            const topTag     = topTagIdx >= 0 ? trendingTickerTags[topTagIdx] : null;
-            const topMember  = liveTickerMembers.length > 0
-              ? liveTickerMembers[tickerIdx % liveTickerMembers.length] : null;
-            if (!hasWeather && !topTag && !topMember) return null;
+            // ── LEFT: Flicks ecosystem highlights — rotates every tick ──
+            const circleName =
+              (post.metadata?.circle_name as string | undefined) ||
+              (post.metadata?.group_name  as string | undefined) ||
+              null;
+            const flicksSlots = [
+              circleName
+                ? { icon: "🔵", label: circleName.slice(0, 14), sub: "Circle" }
+                : { icon: "🔵", label: "Flicks Circles", sub: "Explore" },
+              { icon: "⚡", label: "Hooks & Vibes",  sub: "Page"   },
+              { icon: "📊", label: "Vote & React",   sub: "Poll"   },
+              { icon: "🚀", label: "Join Flicks",    sub: "Today"  },
+            ] as const;
+            const leftItem = flicksSlots[tickerIdx % flicksSlots.length];
+
+            // ── CENTER: trending tags + broadcast message interleaved ───
+            const BROADCAST = "✨ Flicks everywhere!";
+            // insert broadcast every 3 real tags so it surfaces often
+            const centerPool: string[] = [];
+            trendingTickerTags.forEach((t, i) => {
+              centerPool.push(t);
+              if ((i + 1) % 3 === 0) centerPool.push(BROADCAST);
+            });
+            if (centerPool.length === 0) centerPool.push(BROADCAST);
+            const centerItem = centerPool[tickerIdx % centerPool.length];
+            const isBroadcast = centerItem === BROADCAST;
+
+            // ── RIGHT: online member ────────────────────────────────────
+            const topMember = liveTickerMembers.length > 0
+              ? liveTickerMembers[tickerIdx % liveTickerMembers.length]
+              : null;
+
             return (
               <div className="mx-3 mb-2" style={{
                 padding: 1,
@@ -4525,33 +4495,39 @@ const FameFeed = ({
                   className="flex items-stretch rounded-[13px] overflow-hidden"
                   style={{ background: "rgba(0,0,0,0.52)", backdropFilter: "blur(14px)" }}
                 >
-                  {/* LEFT — Real Weather */}
+                  {/* LEFT — Flicks Ecosystem Highlights */}
                   <div className="flex-1 flex flex-col items-center justify-center py-2 px-1.5 border-r border-white/[0.06] min-w-0">
-                    {hasWeather ? (
-                      <>
-                        <span className="text-[17px] leading-none mb-[2px]">
-                          {wxEmoji(liveWeather!.code)}
-                        </span>
-                        <span className="text-[13px] font-black leading-none" style={{ color: "#e0f7ff" }}>
-                          {liveWeather!.temp}°
-                        </span>
-                        {liveWeather!.city ? (
-                          <span
-                            className="text-[8.5px] font-semibold mt-[2px] truncate w-full text-center px-1"
-                            style={{ color: "#00c8ff80" }}
-                          >
-                            {liveWeather!.city}
-                          </span>
-                        ) : null}
-                      </>
-                    ) : (
-                      <span className="text-[9px] font-medium" style={{ color: "rgba(255,255,255,0.18)" }}>—</span>
-                    )}
+                    <span className="text-[15px] leading-none mb-[2px]">{leftItem.icon}</span>
+                    <span
+                      className="text-[9.5px] font-black truncate w-full text-center leading-tight"
+                      style={{ color: "#e0f4ff" }}
+                    >
+                      {leftItem.label}
+                    </span>
+                    <span
+                      className="text-[8px] font-semibold mt-[1px]"
+                      style={{ color: "#00c8ff60" }}
+                    >
+                      {leftItem.sub}
+                    </span>
                   </div>
 
-                  {/* CENTER — Real Trending Tag (cycles with tickerIdx) */}
+                  {/* CENTER — Trending tag + broadcast interleaved */}
                   <div className="flex-[1.5] flex flex-col items-center justify-center py-2 px-2 border-r border-white/[0.06] min-w-0">
-                    {topTag ? (
+                    {isBroadcast ? (
+                      <>
+                        <span className="text-[8px] font-black uppercase tracking-widest mb-[2px]"
+                          style={{ color: "rgba(255,255,255,0.28)" }}>
+                          COMMUNITY
+                        </span>
+                        <span
+                          className="text-[9px] font-black text-center w-full leading-tight px-0.5"
+                          style={{ color: "#c8ff00" }}
+                        >
+                          {BROADCAST}
+                        </span>
+                      </>
+                    ) : (
                       <>
                         <span className="flex items-center gap-[3px] mb-[2px]">
                           <TrendingUp size={8} style={{ color: "#c8ff00" }} strokeWidth={3} />
@@ -4566,19 +4542,13 @@ const FameFeed = ({
                           className="text-[11px] font-black tracking-wide truncate w-full text-center"
                           style={{ color: "#c8ff00" }}
                         >
-                          {topTag}
+                          {centerItem}
                         </span>
-                      </>
-                    ) : (
-                      <>
-                        <span className="text-[8px] font-black uppercase tracking-widest mb-[2px]"
-                          style={{ color: "rgba(255,255,255,0.2)" }}>LIVE FEED</span>
-                        <span className="text-[10px] font-bold" style={{ color: "rgba(255,255,255,0.22)" }}>✨ Active</span>
                       </>
                     )}
                   </div>
 
-                  {/* RIGHT — Real Online Member (cycles with tickerIdx) */}
+                  {/* RIGHT — Real Online Member (unchanged) */}
                   <div className="flex-1 flex flex-col items-center justify-center py-2 px-1.5 min-w-0">
                     {topMember ? (
                       <>
