@@ -1989,6 +1989,9 @@ const FameFeed = ({
   const cachedPosts = dataCache.cacheRef.current.famePosts;
   const cachedFlicks = dataCache.cacheRef.current.fameFlicks;
   const [posts, setPosts] = useState<any[]>(() => cachedPosts?.data ?? []);
+  // Mirror of posts in a ref so callbacks can read the current count synchronously
+  // without being listed as a dep (which would break memoised callbacks).
+  const postsRef = useRef<any[]>(cachedPosts?.data ?? []);
   const [loading, setLoading] = useState(() => !cachedPosts?.data);
   const [activeComment, setActiveComment] = useState<string | null>(null);
   const [commentSheetId, setCommentSheetId] = useState<string | null>(null);
@@ -2065,6 +2068,8 @@ const FameFeed = ({
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const deletingPostIdsRef = useRef<Set<string>>(new Set()); // guard Realtime UPDATE from restoring a deleted post
   const [viewedPostIds, setViewedPostIds] = useState<Set<string>>(new Set());
+  // Ref mirror for synchronous deduplication inside incrementView callback
+  const viewedPostIdsRef = useRef<Set<string>>(new Set());
   const [replyingTo, setReplyingTo] = useState<{
     postId: string;
     commentId: string;
@@ -2188,12 +2193,10 @@ const FameFeed = ({
   // the window listener on every batchFetchAvatars call → infinite loop).
   const authorNamesRef = useRef<Record<string, string>>({});
   const authorAvatarsRef = useRef<Record<string, string>>({});
-  useEffect(() => {
-    authorNamesRef.current = authorNames;
-  }, [authorNames]);
-  useEffect(() => {
-    authorAvatarsRef.current = authorAvatars;
-  }, [authorAvatars]);
+  useEffect(() => { authorNamesRef.current = authorNames; }, [authorNames]);
+  useEffect(() => { authorAvatarsRef.current = authorAvatars; }, [authorAvatars]);
+  // Keep postsRef in sync so incrementView can read current counts synchronously
+  useEffect(() => { postsRef.current = posts; }, [posts]);
 
   useEffect(() => {
     const handler = () => {
@@ -3651,34 +3654,50 @@ const FameFeed = ({
   const incrementView = useCallback(
     async (postId: string) => {
       if (!postId) return;
-      let alreadyViewed = false;
-      let nextCount = 1;
-      setViewedPostIds((p) => {
-        if (p.has(postId)) {
-          alreadyViewed = true;
-          return p;
-        }
-        return new Set([...p, postId]);
-      });
-      if (alreadyViewed) return;
-      // Functional update — no stale closure on `posts`
+
+      // ── Deduplication: skip if already counted this session ──────────────
+      // Use a ref-based check so we never double-count even if the component
+      // re-renders between the IntersectionObserver firing and the state update.
+      if (viewedPostIdsRef.current.has(postId)) return;
+      viewedPostIdsRef.current.add(postId);
+      setViewedPostIds((p) => new Set([...p, postId]));
+
+      // ── Optimistic UI: read count synchronously from postsRef ────────────
+      // postsRef stays in sync via useEffect, so this is always current.
+      // This avoids the closure bug where nextCount was captured before
+      // setPosts() callback executed (it's scheduled async by React).
+      const currentPost = postsRef.current.find((p) => p.id === postId);
+      const nextCount = (currentPost?.views_count || 0) + 1;
       setPosts((prev) =>
-        prev.map((p) => {
-          if (p.id !== postId) return p;
-          nextCount = (p.views_count || 0) + 1;
-          return { ...p, views_count: nextCount };
-        }),
+        prev.map((p) => (p.id === postId ? { ...p, views_count: nextCount } : p)),
       );
+
+      // ── DB: atomic increment via security-definer RPC (bypasses RLS) ─────
+      // Direct posts.update() fails for non-authors due to RLS policy.
+      // increment_post_views() runs as DB owner and does: views_count += 1.
       try {
+        // Record unique viewer (upsert prevents duplicate rows)
         if (currentUserId) {
           await supabase
             .from("post_views")
-            .insert({ post_id: postId, user_id: currentUserId });
+            .upsert(
+              { post_id: postId, user_id: currentUserId },
+              { onConflict: "post_id,user_id" },
+            );
         }
-        await supabase
-          .from("posts")
-          .update({ views_count: nextCount })
-          .eq("id", postId);
+        // Atomic server-side increment — no race condition, no RLS block
+        const { error: rpcErr } = await supabase.rpc("increment_post_views", {
+          p_post_id: postId,
+        });
+        if (rpcErr) {
+          // RPC not deployed yet — fall back to direct update (works if user
+          // is the post author or service-role; silently skips for others)
+          await supabase
+            .from("posts")
+            .update({ views_count: nextCount })
+            .eq("id", postId)
+            .eq("author_id", currentPost?.author_id ?? "");
+        }
       } catch (err) {
         console.warn("[FameFeed] incrementView failed:", err);
       }
