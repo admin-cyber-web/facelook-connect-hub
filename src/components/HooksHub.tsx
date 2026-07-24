@@ -26,12 +26,46 @@ interface HookPage {
 }
 interface PagePost {
   id: string; page_id: string; author_id: string; content: string;
-  media_url: string; media_type: string; likes_count: number; created_at: string;
+  media_url: string; media_type: string; type?: string; likes_count: number;
+  created_at: string;
+  status?: "approved" | "pending_approval" | "rejected" | null;
 }
 interface Friend { id: string; full_name: string; avatar_url: string; }
 
 const CATEGORIES = ["General","Business","Entertainment","Education","Sports","Food","Travel","Tech","Art","Music"];
 const STORAGE_BUCKET = "hooks";
+
+// ── Time-limit duration options ────────────────────────────────────────────────
+const DURATION_OPTIONS = [
+  { label: "1 Hour",   value: "1h",   ms: 1   * 3_600_000 },
+  { label: "6 Hours",  value: "6h",   ms: 6   * 3_600_000 },
+  { label: "24 Hours", value: "24h",  ms: 24  * 3_600_000 },
+  { label: "3 Days",   value: "3d",   ms: 3   * 86_400_000 },
+  { label: "7 Days",   value: "7d",   ms: 7   * 86_400_000 },
+  { label: "30 Days",  value: "30d",  ms: 30  * 86_400_000 },
+  { label: "No Limit", value: "none", ms: 0 },
+] as const;
+type DurValue = typeof DURATION_OPTIONS[number]["value"];
+
+const calcExpiresAt = (value: DurValue | string): string | null => {
+  const opt = DURATION_OPTIONS.find(d => d.value === value);
+  if (!opt || opt.ms === 0) return null;
+  return new Date(Date.now() + opt.ms).toISOString();
+};
+
+// e.g. "6d 4h left" | "45m left" | "Expired" | "No Limit"
+const timeRemaining = (expiresAt: string | null | undefined): string => {
+  if (!expiresAt) return "No Limit";
+  const ms = new Date(expiresAt).getTime() - Date.now();
+  if (ms <= 0) return "Expired";
+  const totalMins = Math.floor(ms / 60_000);
+  const d = Math.floor(totalMins / 1440);
+  const h = Math.floor((totalMins % 1440) / 60);
+  const m = totalMins % 60;
+  if (d > 0) return `${d}d ${h}h left`;
+  if (h > 0) return `${h}h ${m}m left`;
+  return `${m}m left`;
+};
 
 
 // ── Upload helper ──────────────────────────────────────────────────────────────
@@ -217,6 +251,7 @@ const HookModal = ({ pageId, pageName, userId, onClose }:
   const [loading, setLoading]   = useState(true);
   const [sending, setSending]   = useState(false);
   const [sentIds, setSentIds]   = useState<Set<string>>(new Set());
+  const [duration, setDuration] = useState<DurValue>("7d");
 
   useEffect(() => {
     const fKey = `hookFriends_${userId}`;
@@ -237,12 +272,16 @@ const HookModal = ({ pageId, pageName, userId, onClose }:
   const sendHooks = async () => {
     if (!selected.size) return;
     setSending(true);
-    const rows = Array.from(selected).map(invitee_id => ({ page_id: pageId, inviter_id: userId, invitee_id, status: "pending" }));
+    const expires_at = calcExpiresAt(duration);
+    const rows = Array.from(selected).map(invitee_id => ({
+      page_id: pageId, inviter_id: userId, invitee_id, status: "pending",
+      ...(expires_at ? { expires_at } : {}),
+    }));
     await supabase.from("hook_invites").upsert(rows, { onConflict: "page_id,invitee_id" });
     const { data: cur } = await supabase.from("hook_pages").select("hook_count").eq("id", pageId).single();
     await supabase.from("hook_pages").update({ hook_count: (cur?.hook_count || 0) + selected.size }).eq("id", pageId);
 
-    // Notify each invited user — actor_id lets Header resolve the real sender name
+    const durLabel = DURATION_OPTIONS.find(d => d.value === duration)?.label || "7 Days";
     const notifRows = Array.from(selected)
       .filter(invitee_id => invitee_id !== userId)
       .map(invitee_id => ({
@@ -250,7 +289,7 @@ const HookModal = ({ pageId, pageName, userId, onClose }:
         actor_id: userId,
         type: "hook_invite",
         entity_id: pageId,
-        content: pageName,
+        content: `${pageName}|${durLabel}`,
         is_read: false,
       }));
     if (notifRows.length) await supabase.from("notifications").insert(notifRows);
@@ -266,7 +305,7 @@ const HookModal = ({ pageId, pageName, userId, onClose }:
       <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
         transition={{ type: "spring", damping: 26, stiffness: 260 }}
         className="w-full max-w-lg bg-white rounded-t-3xl overflow-hidden shadow-2xl"
-        style={{ maxHeight: "82vh", display: "flex", flexDirection: "column" }}>
+        style={{ maxHeight: "88vh", display: "flex", flexDirection: "column" }}>
         <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-gray-100">
           <div>
             <div className="flex items-center gap-2"><Anchor size={18} className="text-blue-600" /><h2 className="font-black text-gray-800 text-[16px]">Hook Friends</h2></div>
@@ -274,6 +313,22 @@ const HookModal = ({ pageId, pageName, userId, onClose }:
           </div>
           <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full text-gray-400"><X size={20} /></button>
         </div>
+
+        {/* Duration picker */}
+        <div className="px-5 py-3 bg-blue-50 border-b border-blue-100">
+          <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-2 flex items-center gap-1">
+            <Star size={9} fill="currentColor" /> Posting Access Duration
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {DURATION_OPTIONS.map(opt => (
+              <button key={opt.value} onClick={() => setDuration(opt.value as DurValue)}
+                className={`px-2.5 py-1 rounded-lg text-[10px] font-black transition-all ${duration === opt.value ? "bg-blue-600 text-white" : "bg-white text-gray-500 border border-gray-200"}`}>
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div className="px-5 py-2.5 border-b border-gray-50 flex items-center justify-between">
           <p className="text-[12px] font-bold text-gray-500">{friends.length} People</p>
           <button onClick={toggleAll} className="flex items-center gap-1.5 text-[12px] font-black text-blue-600">
@@ -306,7 +361,7 @@ const HookModal = ({ pageId, pageName, userId, onClose }:
             className="w-full py-3.5 rounded-2xl font-black text-[14px] flex items-center justify-center gap-2 transition-all"
             style={{ background: selected.size ? "linear-gradient(135deg,#2563eb,#1d4ed8)" : "#e5e7eb", color: selected.size ? "#fff" : "#9ca3af" }}>
             {sending ? <Loader2 size={18} className="animate-spin" /> : <Anchor size={18} />}
-            {sending ? "Bhej raha hoon..." : `Hook Bhejo (${selected.size})`}
+            {sending ? "Bhej raha hoon..." : `Hook Bhejo (${selected.size}) · ${DURATION_OPTIONS.find(d => d.value === duration)?.label}`}
           </motion.button>
         </div>
       </motion.div>
@@ -346,8 +401,8 @@ const shareHookPost = async (page: HookPage, post: PagePost) => {
 };
 
 // ── Rich Media Post Modal ──────────────────────────────────────────────────────
-const AddPostModal = ({ pageId, userId, onClose, onPosted }:
-  { pageId: string; userId: string; onClose: () => void; onPosted: () => void }) => {
+const AddPostModal = ({ pageId, userId, isOwner, pageName, onClose, onPosted }:
+  { pageId: string; userId: string; isOwner: boolean; pageName: string; onClose: () => void; onPosted: () => void }) => {
   const [content, setContent]   = useState("");
   const [mediaFile, setMediaFile] = useState<File | null>(null);
   const [mediaPreview, setMediaPreview] = useState("");
@@ -359,8 +414,7 @@ const AddPostModal = ({ pageId, userId, onClose, onPosted }:
 
   const pickFile = (file: File, type: "image" | "video") => {
     setMediaFile(file); setMediaType(type);
-    const url = URL.createObjectURL(file);
-    setMediaPreview(url);
+    setMediaPreview(URL.createObjectURL(file));
   };
 
   const clearMedia = () => { setMediaFile(null); setMediaPreview(""); setMediaType(""); };
@@ -374,12 +428,17 @@ const AddPostModal = ({ pageId, userId, onClose, onPosted }:
       media_url = (await uploadFile(mediaFile, "hook-posts")) || "";
       setUploadPct(80);
     }
+    // Contributors: post goes to pending_approval queue; owner posts go live immediately
+    const status = isOwner ? "approved" : "pending_approval";
     await supabase.from("hook_page_posts").insert([{
       page_id: pageId, author_id: userId,
-      content: content.trim(), media_url, media_type: mediaType,
+      content: content.trim(), media_url, media_type: mediaType, status,
     }]);
-    const { data: cur } = await supabase.from("hook_pages").select("hook_count").eq("id", pageId).single();
-    await supabase.from("hook_pages").update({ hook_count: (cur?.hook_count || 0) + 1 }).eq("id", pageId);
+    if (isOwner) {
+      // Only increment hook_count for owner posts that are immediately live
+      const { data: cur } = await supabase.from("hook_pages").select("hook_count").eq("id", pageId).single();
+      await supabase.from("hook_pages").update({ hook_count: (cur?.hook_count || 0) + 1 }).eq("id", pageId);
+    }
     setUploadPct(100);
     setSaving(false); onPosted(); onClose();
   };
@@ -393,9 +452,26 @@ const AddPostModal = ({ pageId, userId, onClose, onPosted }:
         transition={{ type: "spring", damping: 26, stiffness: 260 }}
         className="w-full max-w-lg bg-white rounded-t-3xl overflow-hidden shadow-2xl">
         <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-gray-100">
-          <h2 className="font-black text-gray-800 text-[16px]">Page Post</h2>
+          <div>
+            <h2 className="font-black text-gray-800 text-[16px]">
+              {isOwner ? "Page Post" : "🤝 Page Partner Post"}
+            </h2>
+            <p className="text-[10px] text-gray-400 mt-0.5">{pageName}</p>
+          </div>
           <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full"><X size={20} /></button>
         </div>
+
+        {/* Contributor approval notice */}
+        {!isOwner && (
+          <div className="mx-5 mt-4 flex items-start gap-2.5 px-3.5 py-3 rounded-2xl bg-amber-50 border border-amber-200">
+            <AlertTriangle size={14} className="text-amber-500 mt-0.5 shrink-0" />
+            <div>
+              <p className="text-[11px] font-black text-amber-700">Owner Approval Required</p>
+              <p className="text-[10px] text-amber-600 font-medium mt-0.5">Aapki post owner ke approve karne ke baad public feed par dikhai degi.</p>
+            </div>
+          </div>
+        )}
+
         <div className="p-5 space-y-4">
           <textarea value={content} onChange={e => setContent(e.target.value)}
             placeholder="Page par kya share karna hai..." rows={3} autoFocus
@@ -405,8 +481,8 @@ const AddPostModal = ({ pageId, userId, onClose, onPosted }:
           {mediaPreview && (
             <div className="relative rounded-xl overflow-hidden bg-black">
               {mediaType === "image"
-                ? <img src={mediaPreview} className="w-full max-h-48 object-cover" alt="" loading="lazy"  decoding="async"/>
-                : <video src={mediaPreview} className="w-full max-h-48" controls  preload="none"/>
+                ? <img src={mediaPreview} className="w-full max-h-48 object-cover" alt="" loading="lazy" decoding="async"/>
+                : <video src={mediaPreview} className="w-full max-h-48" controls preload="none"/>
               }
               <button onClick={clearMedia}
                 className="absolute top-2 right-2 w-7 h-7 bg-black/60 rounded-full flex items-center justify-center text-white">
@@ -440,9 +516,14 @@ const AddPostModal = ({ pageId, userId, onClose, onPosted }:
 
           <motion.button whileTap={{ scale: 0.97 }} onClick={post} disabled={saving || (!content.trim() && !mediaFile)}
             className="w-full py-3.5 rounded-2xl font-black text-[14px] flex items-center justify-center gap-2 transition-all"
-            style={{ background: (content.trim() || mediaFile) && !saving ? "linear-gradient(135deg,#2563eb,#1d4ed8)" : "#e5e7eb", color: (content.trim() || mediaFile) && !saving ? "#fff" : "#9ca3af" }}>
+            style={{
+              background: (content.trim() || mediaFile) && !saving
+                ? isOwner ? "linear-gradient(135deg,#2563eb,#1d4ed8)" : "linear-gradient(135deg,#7c3aed,#6d28d9)"
+                : "#e5e7eb",
+              color: (content.trim() || mediaFile) && !saving ? "#fff" : "#9ca3af",
+            }}>
             {saving ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
-            {saving ? "Upload ho raha hai..." : "Post Karo"}
+            {saving ? "Upload ho raha hai..." : isOwner ? "Post Karo" : "Submit for Approval"}
           </motion.button>
         </div>
       </motion.div>
@@ -585,13 +666,19 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
   const [followLoading, setFollowLoading] = useState(false);
 
   // Requests / contributor state
-  const [activeTab, setActiveTab] = useState<"posts" | "requests">("posts");
+  const [activeTab, setActiveTab] = useState<"posts" | "requests" | "approvals">("posts");
   const [pendingInvites, setPendingInvites] = useState<any[]>([]);
   const [invitesLoading, setInvitesLoading] = useState(false);
   const [isContributor, setIsContributor] = useState(false);
   const [contributorExpired, setContributorExpired] = useState(false);
+  const [contributorExpiresAt, setContributorExpiresAt] = useState<string | null>(null);
   const [acceptingId, setAcceptingId] = useState<string | null>(null);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
+  // Per-invite duration selection (owner sets when accepting)
+  const [acceptDurationMap, setAcceptDurationMap] = useState<Record<string, DurValue>>({});
+  // Post approval state
+  const [approvingPostId, setApprovingPostId] = useState<string | null>(null);
+  const [rejectingPostId, setRejectingPostId] = useState<string | null>(null);
 
   // Edit / Delete state
   const [showEditPage, setShowEditPage]       = useState(false);
