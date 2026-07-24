@@ -61,6 +61,21 @@ const reactionEmoji = (type?: string) => {
   return REACTIONS.find((r) => r.type === type)?.emoji ?? "👍";
 };
 
+// ── Weather code → emoji (WMO codes, Open-Meteo) ────────────────────────────
+const wxEmoji = (code: number): string => {
+  if (code === 0)            return "☀️";
+  if (code <= 2)             return "⛅";
+  if (code <= 3)             return "☁️";
+  if (code <= 48)            return "🌫️";
+  if (code <= 57)            return "🌧️";
+  if (code <= 67)            return "🌨️";
+  if (code <= 77)            return "❄️";
+  if (code <= 82)            return "🌦️";
+  if (code <= 86)            return "🌨️";
+  if (code <= 99)            return "⛈️";
+  return "🌡️";
+};
+
 // ── PostViewTracker — fires onView once when post scrolls into view ─────────
 const PostViewTracker = memo(({
   postId,
@@ -2018,6 +2033,47 @@ const FameFeed = ({
     document.addEventListener("visibilitychange", onViz);
     return () => { stop(); document.removeEventListener("visibilitychange", onViz); };
   }, []);
+
+  // ── Live Mini-Ticker: Weather ──────────────────────────────────────────────
+  const [liveWeather, setLiveWeather] = useState<{
+    temp: number; code: number; city: string;
+  } | null>(null);
+
+  useEffect(() => {
+    const fetchWeather = async (lat: number, lon: number) => {
+      try {
+        const [wxRes, geoRes] = await Promise.all([
+          fetch(
+            `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true`,
+          ),
+          fetch(
+            `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`,
+          ),
+        ]);
+        if (!wxRes.ok || !geoRes.ok) return;
+        const wx = await wxRes.json();
+        const geo = await geoRes.json();
+        const city =
+          geo.address?.city ||
+          geo.address?.town ||
+          geo.address?.village ||
+          geo.address?.county ||
+          geo.address?.state ||
+          "";
+        const temp = Math.round(wx.current_weather?.temperature ?? 0);
+        const code = wx.current_weather?.weathercode ?? 0;
+        setLiveWeather({ temp, code, city });
+      } catch { /* silent — weather is non-critical */ }
+    };
+    if (typeof navigator !== "undefined" && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => fetchWeather(pos.coords.latitude, pos.coords.longitude),
+        () => { /* permission denied — skip */ },
+        { timeout: 8000, maximumAge: 600_000 },
+      );
+    }
+  }, []);
+
   const [feedCommentAction, setFeedCommentAction] = useState<{
     comment: any;
     postId: string;
@@ -3035,6 +3091,52 @@ const FameFeed = ({
     const authorPrivate = p.author_profile?.is_private_mode === true;
     return isPublicPost && !authorPrivate;
   }), [posts, blockedUserIds]);
+
+  // ── Live Mini-Ticker: Trending hashtags from current posts ─────────────────
+  const trendingTickerTags = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const p of visiblePosts) {
+      const matches = (p.content || "").match(/#[\w\u0900-\u097F\u0980-\u09FF\u0A00-\u0A7F\u0B80-\u0BFF]+/g) || [];
+      for (const tag of matches) {
+        const key = tag.toLowerCase();
+        counts[key] = (counts[key] || 0) + 1;
+      }
+    }
+    return Object.entries(counts)
+      .filter(([, c]) => c >= 1)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 7)
+      .map(([tag]) => tag);
+  }, [visiblePosts]);
+
+  // ── Live Mini-Ticker: Online community members ─────────────────────────────
+  const liveTickerMembers = useMemo(() => {
+    return [...onlineUserIds]
+      .filter((id) => id !== currentUserId && authorNames[id])
+      .slice(0, 6)
+      .map((id) => authorNames[id]);
+  }, [onlineUserIds, authorNames, currentUserId]);
+
+  // ── Live Mini-Ticker: Combined flat item list ──────────────────────────────
+  const liveTickerItems = useMemo(() => {
+    const items: string[] = [];
+    if (liveWeather) {
+      items.push(
+        `${wxEmoji(liveWeather.code)} ${liveWeather.temp}°C${liveWeather.city ? " · " + liveWeather.city : ""}`,
+      );
+    }
+    for (const name of liveTickerMembers) {
+      items.push(`🟢 ${name} is here`);
+    }
+    for (const tag of trendingTickerTags) {
+      items.push(`🔥 ${tag}`);
+    }
+    // Always have at least a couple of fallback items so the strip is never empty
+    if (items.length < 2) {
+      items.push("✨ Live Community", "💫 Vibe & connect");
+    }
+    return items;
+  }, [liveWeather, liveTickerMembers, trendingTickerTags]);
 
   const videoPosts = useMemo(
     () =>
@@ -4727,6 +4829,43 @@ const FameFeed = ({
               </div>
             );
           })()}
+
+          {/* ── Live Mini-Ticker Strip ───────────────────────────────────── */}
+          {liveTickerItems.length > 0 && (
+            <div
+              className="overflow-hidden border-y border-white/[0.06]"
+              style={{ height: 26, background: "rgba(0,0,0,0.25)" }}
+            >
+              {/* Items are doubled so the CSS -50% translate loops seamlessly */}
+              <div
+                className="live-ticker-track h-full"
+                style={{
+                  animationDuration: `${Math.max(18, liveTickerItems.length * 6)}s`,
+                }}
+              >
+                {[...liveTickerItems, ...liveTickerItems].map((item, i) => (
+                  <span
+                    key={i}
+                    className="inline-flex items-center h-full"
+                    style={{ padding: "0 14px" }}
+                  >
+                    <span
+                      className="text-[10.5px] font-semibold tracking-wide"
+                      style={{ color: "rgba(255,255,255,0.48)" }}
+                    >
+                      {item}
+                    </span>
+                    <span
+                      className="ml-3 text-[8px]"
+                      style={{ color: "rgba(255,255,255,0.15)" }}
+                    >
+                      ◆
+                    </span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* ── Comment preview / news-ticker ────────────────────────────── */}
           {(() => {
