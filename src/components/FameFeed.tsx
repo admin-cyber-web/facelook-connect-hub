@@ -4453,34 +4453,48 @@ const FameFeed = ({
 
           {/* ── Live Intel Card ─────────────────────────────────────────── */}
           {(() => {
-            // ── LEFT: Flicks ecosystem highlights — rotates every tick ──
-            const circleName =
-              (post.metadata?.circle_name as string | undefined) ||
-              (post.metadata?.group_name  as string | undefined) ||
-              null;
-            const flicksSlots = [
-              circleName
-                ? { icon: "🔵", label: circleName.slice(0, 14), sub: "Circle" }
-                : { icon: "🔵", label: "Flicks Circles", sub: "Explore" },
-              { icon: "⚡", label: "Hooks & Vibes",  sub: "Page"   },
-              { icon: "📊", label: "Vote & React",   sub: "Poll"   },
-              { icon: "🚀", label: "Join Flicks",    sub: "Today"  },
-            ] as const;
-            const leftItem = flicksSlots[tickerIdx % flicksSlots.length];
+            // ── LEFT: current top trending tag, cycles with tickerIdx ───
+            const topTag = trendingTickerTags.length > 0
+              ? trendingTickerTags[tickerIdx % trendingTickerTags.length]
+              : null;
 
-            // ── CENTER: trending tags + broadcast message interleaved ───
-            const BROADCAST = "✨ Flicks everywhere!";
-            // insert broadcast every 3 real tags so it surfaces often
-            const centerPool: string[] = [];
-            trendingTickerTags.forEach((t, i) => {
-              centerPool.push(t);
-              if ((i + 1) % 3 === 0) centerPool.push(BROADCAST);
+            // ── CENTER: real ecosystem pool (circles → pages → flicks → broadcast)
+            type EcoItem =
+              | { kind: "circle";    name: string; cover: string | null }
+              | { kind: "page";      name: string; cover: string | null; category: string }
+              | { kind: "flick";     author: string; snippet: string }
+              | { kind: "broadcast" };
+            const ecoPool: EcoItem[] = [];
+            groupSuggestions.slice(0, 5).forEach((c: any, i: number) => {
+              ecoPool.push({ kind: "circle", name: c.name ?? "Circle", cover: c.cover_url ?? null });
+              // slot a broadcast after every 2nd circle so it surfaces naturally
+              if (i === 1) ecoPool.push({ kind: "broadcast" });
             });
-            if (centerPool.length === 0) centerPool.push(BROADCAST);
-            const centerItem = centerPool[tickerIdx % centerPool.length];
-            const isBroadcast = centerItem === BROADCAST;
+            pageSuggestions.slice(0, 4).forEach((p: any) => {
+              ecoPool.push({
+                kind: "page",
+                name: p.name ?? "Page",
+                cover: p.cover_url ?? p.avatar_url ?? null,
+                category: p.category ?? "Page",
+              });
+            });
+            trendingFlicks.slice(0, 3).forEach((f: any) => {
+              const raw = (f.content || "").replace(/#\S+/g, "").trim();
+              ecoPool.push({
+                kind: "flick",
+                author: f.author || f.author_profile?.full_name || "Creator",
+                snippet: raw.slice(0, 22) || "Watch now",
+              });
+            });
+            if (ecoPool.length === 0) ecoPool.push({ kind: "broadcast" });
 
-            // ── RIGHT: online member ────────────────────────────────────
+            // Per-post stable offset → different posts show different item at same tick
+            const postSeed =
+              (post.id.charCodeAt(0) || 0) +
+              (post.id.charCodeAt(post.id.length - 1) || 0);
+            const ecoItem = ecoPool[(postSeed + tickerIdx) % ecoPool.length];
+
+            // ── RIGHT: cycling online member ────────────────────────────
             const topMember = liveTickerMembers.length > 0
               ? liveTickerMembers[tickerIdx % liveTickerMembers.length]
               : null;
@@ -4495,97 +4509,138 @@ const FameFeed = ({
                   className="flex items-stretch rounded-[13px] overflow-hidden"
                   style={{ background: "rgba(0,0,0,0.52)", backdropFilter: "blur(14px)" }}
                 >
-                  {/* LEFT — Flicks Ecosystem Highlights */}
-                  <div className="flex-1 flex flex-col items-center justify-center py-2 px-1.5 border-r border-white/[0.06] min-w-0">
-                    <span className="text-[15px] leading-none mb-[2px]">{leftItem.icon}</span>
-                    <span
-                      className="text-[9.5px] font-black truncate w-full text-center leading-tight"
-                      style={{ color: "#e0f4ff" }}
-                    >
-                      {leftItem.label}
-                    </span>
-                    <span
-                      className="text-[8px] font-semibold mt-[1px]"
-                      style={{ color: "#00c8ff60" }}
-                    >
-                      {leftItem.sub}
-                    </span>
-                  </div>
-
-                  {/* CENTER — Trending tag + broadcast interleaved */}
-                  <div className="flex-[1.5] flex flex-col items-center justify-center py-2 px-2 border-r border-white/[0.06] min-w-0">
-                    {isBroadcast ? (
+                  {/* LEFT — Trending tag */}
+                  <div
+                    className="flex flex-col items-center justify-center py-2 px-2 border-r border-white/[0.06] shrink-0"
+                    style={{ width: 58 }}
+                  >
+                    {topTag ? (
                       <>
-                        <span className="text-[8px] font-black uppercase tracking-widest mb-[2px]"
-                          style={{ color: "rgba(255,255,255,0.28)" }}>
-                          COMMUNITY
+                        <span className="flex items-center gap-[2px] mb-[2px]">
+                          <TrendingUp size={7} style={{ color: "#c8ff00" }} strokeWidth={3} />
+                          <span className="text-[7px] font-black uppercase tracking-widest"
+                            style={{ color: "rgba(255,255,255,0.26)" }}>HOT</span>
                         </span>
                         <span
-                          className="text-[9px] font-black text-center w-full leading-tight px-0.5"
+                          className="text-[9.5px] font-black truncate w-full text-center leading-tight"
                           style={{ color: "#c8ff00" }}
                         >
-                          {BROADCAST}
+                          {topTag}
                         </span>
                       </>
                     ) : (
                       <>
-                        <span className="flex items-center gap-[3px] mb-[2px]">
-                          <TrendingUp size={8} style={{ color: "#c8ff00" }} strokeWidth={3} />
-                          <span
-                            className="text-[8px] font-black uppercase tracking-widest"
-                            style={{ color: "rgba(255,255,255,0.28)" }}
-                          >
-                            TRENDING
-                          </span>
-                        </span>
-                        <span
-                          className="text-[11px] font-black tracking-wide truncate w-full text-center"
-                          style={{ color: "#c8ff00" }}
-                        >
-                          {centerItem}
-                        </span>
+                        <TrendingUp size={11} style={{ color: "#c8ff0055" }} strokeWidth={2.5} />
+                        <span className="text-[8px] font-black mt-[2px]"
+                          style={{ color: "#c8ff0055" }}>Feed</span>
                       </>
                     )}
                   </div>
 
-                  {/* RIGHT — Real Online Member (unchanged) */}
-                  <div className="flex-1 flex flex-col items-center justify-center py-2 px-1.5 min-w-0">
+                  {/* CENTER — Real ecosystem content, widest section */}
+                  <div className="flex-1 flex items-center gap-2 py-2 px-2.5 border-r border-white/[0.06] min-w-0 overflow-hidden">
+                    {ecoItem.kind === "broadcast" ? (
+                      <div className="flex flex-col items-center justify-center w-full">
+                        <span className="text-[7.5px] font-black uppercase tracking-widest mb-[2px]"
+                          style={{ color: "rgba(255,255,255,0.26)" }}>COMMUNITY</span>
+                        <span className="text-[9.5px] font-black text-center leading-snug px-1"
+                          style={{ color: "#c8ff00" }}>
+                          ✨ Join Flicks and enjoy everywhere!
+                        </span>
+                      </div>
+                    ) : ecoItem.kind === "circle" ? (
+                      <>
+                        <div className="w-7 h-7 rounded-lg overflow-hidden shrink-0 flex items-center justify-center text-[14px]"
+                          style={{
+                            background: ecoItem.cover ? "transparent" : "rgba(0,200,255,0.12)",
+                            border: "1px solid rgba(0,200,255,0.2)",
+                          }}>
+                          {ecoItem.cover
+                            ? <img src={ecoItem.cover} className="w-full h-full object-cover" alt="" decoding="async" loading="lazy" />
+                            : "🔵"}
+                        </div>
+                        <div className="flex flex-col min-w-0 flex-1">
+                          <span className="text-[7.5px] font-black uppercase tracking-widest"
+                            style={{ color: "rgba(255,255,255,0.26)" }}>CIRCLE</span>
+                          <span className="text-[10.5px] font-black truncate leading-tight"
+                            style={{ color: "#e0f4ff" }}>{ecoItem.name}</span>
+                          <span className="text-[8px] font-semibold"
+                            style={{ color: "#00c8ff55" }}>Join group →</span>
+                        </div>
+                      </>
+                    ) : ecoItem.kind === "page" ? (
+                      <>
+                        <div className="w-7 h-7 rounded-lg overflow-hidden shrink-0 flex items-center justify-center text-[14px]"
+                          style={{
+                            background: ecoItem.cover ? "transparent" : "rgba(200,255,0,0.08)",
+                            border: "1px solid rgba(200,255,0,0.2)",
+                          }}>
+                          {ecoItem.cover
+                            ? <img src={ecoItem.cover} className="w-full h-full object-cover" alt="" decoding="async" loading="lazy" />
+                            : "⚡"}
+                        </div>
+                        <div className="flex flex-col min-w-0 flex-1">
+                          <span className="text-[7.5px] font-black uppercase tracking-widest"
+                            style={{ color: "rgba(255,255,255,0.26)" }}>
+                            {ecoItem.category.slice(0, 10).toUpperCase()}
+                          </span>
+                          <span className="text-[10.5px] font-black truncate leading-tight"
+                            style={{ color: "#e0f4ff" }}>{ecoItem.name}</span>
+                          <span className="text-[8px] font-semibold"
+                            style={{ color: "#c8ff0055" }}>Explore page →</span>
+                        </div>
+                      </>
+                    ) : /* flick */ (
+                      <>
+                        <div className="w-7 h-7 rounded-lg shrink-0 flex items-center justify-center text-[14px]"
+                          style={{ background: "rgba(139,92,246,0.15)", border: "1px solid rgba(139,92,246,0.25)" }}>
+                          🎬
+                        </div>
+                        <div className="flex flex-col min-w-0 flex-1">
+                          <span className="text-[7.5px] font-black uppercase tracking-widest"
+                            style={{ color: "rgba(255,255,255,0.26)" }}>🔥 FLICK</span>
+                          <span className="text-[10.5px] font-black truncate leading-tight"
+                            style={{ color: "#e0f4ff" }}>{ecoItem.author}</span>
+                          <span className="text-[8px] truncate"
+                            style={{ color: "rgba(255,255,255,0.32)" }}>{ecoItem.snippet}</span>
+                        </div>
+                      </>
+                    )}
+                  </div>
+
+                  {/* RIGHT — Live community member (unchanged) */}
+                  <div
+                    className="flex flex-col items-center justify-center py-2 px-1.5 shrink-0"
+                    style={{ width: 58 }}
+                  >
                     {topMember ? (
                       <>
                         <div
-                          className="w-[20px] h-[20px] rounded-full overflow-hidden mb-[2px] shrink-0 flex items-center justify-center"
+                          className="w-5 h-5 rounded-full overflow-hidden mb-[2px] shrink-0 flex items-center justify-center"
                           style={{
                             background: "linear-gradient(135deg,#06b6d4,#8b5cf6)",
                             border: "1.5px solid rgba(255,255,255,0.12)",
                           }}
                         >
                           {topMember.avatar ? (
-                            <img
-                              src={topMember.avatar}
-                              className="w-full h-full object-cover"
-                              alt=""
-                              decoding="async"
-                              loading="lazy"
-                            />
+                            <img src={topMember.avatar} className="w-full h-full object-cover" alt="" decoding="async" loading="lazy" />
                           ) : (
                             <span className="text-[7px] font-black text-white">
                               {topMember.name?.[0]?.toUpperCase() ?? "?"}
                             </span>
                           )}
                         </div>
-                        <span
-                          className="text-[9px] font-black truncate w-full text-center"
-                          style={{ color: "rgba(255,255,255,0.72)" }}
-                        >
+                        <span className="text-[9px] font-black truncate w-full text-center"
+                          style={{ color: "rgba(255,255,255,0.72)" }}>
                           {topMember.name.split(" ")[0]}
                         </span>
-                        <span className="text-[8px] font-semibold" style={{ color: "#00c8ff60" }}>
+                        <span className="text-[8px] font-semibold" style={{ color: "#00c8ff55" }}>
                           is here
                         </span>
                       </>
                     ) : (
                       <span className="text-[9px] font-medium" style={{ color: "rgba(255,255,255,0.2)" }}>
-                        🟢 Community
+                        🟢 Live
                       </span>
                     )}
                   </div>
