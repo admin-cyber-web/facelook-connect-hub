@@ -4817,7 +4817,12 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                       </p>
                     </div>
                   ) : (
-                    filteredMessages.map((msg) => {
+                    (() => {
+                    // compute once: the id of the last sent message that has been seen
+                    const lastSeenMsgId = filteredMessages
+                      .filter(m => String(m.sender_id || "").trim() === String(userId || "").trim() && m.seen_at)
+                      .slice(-1)[0]?.id ?? null;
+                    return filteredMessages.map((msg) => {
                       const isMine =
                         String(msg.sender_id || "").trim() ===
                         String(userId || "").trim();
@@ -4962,7 +4967,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                     }
                                     return (
                                       <>
-                                        <p className="text-lg font-bold leading-snug break-words">
+                                        <p className="text-sm font-medium leading-snug break-words">
                                           {msg.content}
                                         </p>
                                         {msg.is_edited && (
@@ -5000,12 +5005,13 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                             )}
                             </div>{/* end comic bubble wrapper */}
                             {/* ── Seen Indicator — below bubble, per spec ── */}
-                            {isMine && msg.seen_at && (
+                            {isMine && msg.id === lastSeenMsgId && (
                               <motion.div
-                                initial={{ opacity: 0, scale: 0.7 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                transition={{ type: "spring", stiffness: 300, damping: 22 }}
-                                className={`flex flex-col items-end gap-1 ${theme === "comic" ? "mt-5" : "mt-2"} mr-1`}
+                                key={lastSeenMsgId ?? undefined}
+                                initial={{ opacity: 0, y: 6, scale: 0.85 }}
+                                animate={{ opacity: 1, y: 0, scale: 1 }}
+                                transition={{ type: "spring", stiffness: 340, damping: 26 }}
+                                className={`flex flex-col items-end gap-0.5 ${theme === "comic" ? "mt-4" : "mt-1.5"} mr-1`}
                               >
                                 <span className={`text-[11px] font-semibold tracking-wide ${theme === "comic" ? "text-gray-500" : "text-white/45"}`}>Seen by</span>
                                 <div className="relative">
@@ -5041,7 +5047,8 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                           </div>
                         </motion.div>
                       );
-                    })
+                    });
+                    })()
                   )}
                   <div ref={messagesEndRef} />
                 </div>

@@ -197,28 +197,29 @@ export const ChatSticker: React.FC<ChatStickerProps> = ({ type, originalText, is
       style={{
         background: cfg.gradient,
         border: `1px solid ${cfg.borderColor}`,
-        borderRadius: 18,
-        padding: "12px 16px",
-        minWidth: 150,
+        borderRadius: 14,
+        padding: "8px 12px",
+        minWidth: 110,
+        maxWidth: 180,
         textAlign: "center",
       }}
     >
       {/* Floating emoji row */}
-      <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 6, marginBottom: 8 }}>
+      <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 4, marginBottom: 5 }}>
         {cfg.emojis.map((emoji, i) => (
           <motion.span
             key={i}
-            style={{ display: "inline-block", fontSize: 24 }}
+            style={{ display: "inline-block", fontSize: 17 }}
             animate={{
-              y: [0, -(6 + i * 3), 0],
-              scale: [1, 1.18, 1],
-              rotate: [0, i % 2 === 0 ? 8 : -8, 0],
+              y: [0, -(3 + i * 1.5), 0],
+              scale: [1, 1.1, 1],
+              rotate: [0, i % 2 === 0 ? 5 : -5, 0],
             }}
             transition={{
-              duration: 1.6 + i * 0.25,
+              duration: 1.8 + i * 0.2,
               repeat: Infinity,
               ease: "easeInOut",
-              delay: i * 0.18,
+              delay: i * 0.15,
             }}
           >
             {emoji}
@@ -229,11 +230,11 @@ export const ChatSticker: React.FC<ChatStickerProps> = ({ type, originalText, is
       {/* Label */}
       <p style={{
         color: cfg.labelColor,
-        fontSize: 11,
+        fontSize: 10,
         fontWeight: 900,
         textTransform: "uppercase",
-        letterSpacing: "0.07em",
-        marginBottom: 6,
+        letterSpacing: "0.06em",
+        marginBottom: 4,
       }}>
         {cfg.label}
       </p>
@@ -241,9 +242,9 @@ export const ChatSticker: React.FC<ChatStickerProps> = ({ type, originalText, is
       {/* Original text */}
       <p style={{
         color: "rgba(255,255,255,0.75)",
-        fontSize: 12,
+        fontSize: 11,
         fontStyle: "italic",
-        lineHeight: 1.4,
+        lineHeight: 1.35,
         wordBreak: "break-word",
       }}>
         {originalText}
