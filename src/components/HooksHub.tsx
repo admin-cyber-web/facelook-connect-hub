@@ -596,12 +596,21 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
   // Edit / Delete state
   const [showEditPage, setShowEditPage]       = useState(false);
   const [postMenuId, setPostMenuId]           = useState<string | null>(null);
-  const [editingPost, setEditingPost]         = useState<{ id: string; content: string } | null>(null);
+  const [editingPost, setEditingPost]         = useState<{ id: string; content: string; author_id: string } | null>(null);
   const [editPostText, setEditPostText]       = useState("");
   const [editPostSaving, setEditPostSaving]   = useState(false);
   const [confirmDeletePost, setConfirmDeletePost] = useState<string | null>(null);
   const [showDeletePageConfirm, setShowDeletePageConfirm] = useState(false);
   const [deletingPage, setDeletingPage]       = useState(false);
+
+  // Invite / join-request state for non-owner viewers
+  const [hasPendingInvite, setHasPendingInvite]   = useState(false); // owner invited this user, waiting for them to accept
+  const [hasPendingJoinReq, setHasPendingJoinReq] = useState(false); // user requested to join, waiting for owner
+  const [requestingJoin, setRequestingJoin]       = useState(false);
+  const [acceptingInvite, setAcceptingInvite]     = useState(false);
+
+  // Post-author profiles (id → profile) for attribution on each card
+  const [postAuthors, setPostAuthors] = useState<Record<string, { full_name: string | null; avatar_url: string | null }>>({});
 
   const fetchPosts = async () => {
     setLoading(true);
@@ -611,7 +620,23 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
       .eq("page_id", page.id)
       .order("created_at", { ascending: false })
       .limit(30);
-    setPosts(data || []);
+    const rows = data || [];
+    setPosts(rows);
+
+    // Fetch author profiles for attribution badges on each post card
+    const authorIds = [...new Set(rows.map((p: any) => p.author_id).filter(Boolean))];
+    if (authorIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, full_name, avatar_url")
+        .in("id", authorIds);
+      if (profiles) {
+        const pm: Record<string, { full_name: string | null; avatar_url: string | null }> = {};
+        for (const p of profiles as any[]) pm[p.id] = { full_name: p.full_name, avatar_url: p.avatar_url };
+        setPostAuthors(pm);
+      }
+    }
+
     setLoading(false);
   };
 
@@ -735,15 +760,34 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
 
   const saveEditPost = async () => {
     if (!editingPost || !editPostText.trim()) return;
+    // Permission guard: only owner or the post's own author may edit
+    if (!isOwner && editingPost.author_id !== userId) {
+      toast.error("Aap is post ko edit nahi kar sakte.");
+      setEditingPost(null);
+      return;
+    }
     setEditPostSaving(true);
-    await supabase.from("hook_page_posts").update({ content: editPostText.trim() }).eq("id", editingPost.id);
+    await supabase.from("hook_page_posts")
+      .update({ content: editPostText.trim() })
+      .eq("id", editingPost.id)
+      .eq("author_id", isOwner ? editingPost.author_id : userId); // server-side author lock for contributors
     setPosts(prev => prev.map(p => p.id === editingPost.id ? { ...p, content: editPostText.trim() } : p));
     setEditPostSaving(false);
     setEditingPost(null);
   };
 
   const deletePost = async (postId: string) => {
-    await supabase.from("hook_page_posts").delete().eq("id", postId);
+    // Permission guard: only owner or the post's own author may delete
+    const target = posts.find(p => p.id === postId);
+    if (!isOwner && target?.author_id !== userId) {
+      toast.error("Sirf apni post delete kar sakte ho.");
+      setConfirmDeletePost(null);
+      return;
+    }
+    // Server-side: owner deletes by id; contributor can only delete their own post
+    const query = supabase.from("hook_page_posts").delete().eq("id", postId);
+    if (!isOwner) query.eq("author_id", userId);
+    await query;
     setPosts(prev => prev.filter(p => p.id !== postId));
     setConfirmDeletePost(null);
     const { data: cur } = await supabase.from("hook_pages").select("hook_count").eq("id", page.id).single();
@@ -760,51 +804,134 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
 
   const isOwner = page.owner_id === userId;
 
-  // ── Fetch pending invites for owner ──────────────────────────────────────
+  // ── Fetch pending invites for owner (includes join requests) ─────────────
   const fetchPendingInvites = async () => {
     if (page.owner_id !== userId) return;
     setInvitesLoading(true);
     const { data } = await supabase
       .from("hook_invites")
-      .select("id, page_id, inviter_id, invitee_id, status, created_at")
+      .select("id, page_id, inviter_id, invitee_id, status, expires_at, created_at")
       .eq("page_id", page.id)
       .eq("status", "pending")
       .order("created_at", { ascending: false });
     if (data && data.length > 0) {
+      // Collect all unique user ids (invitees + join-requesters who are their own invitee)
       const ids = [...new Set(data.map((r: any) => r.invitee_id))];
       const { data: profiles } = await supabase
         .from("profiles")
         .select("id, full_name, avatar_url")
         .in("id", ids);
       const pm = Object.fromEntries((profiles || []).map((p: any) => [p.id, p]));
-      setPendingInvites(data.map((r: any) => ({ ...r, invitee: pm[r.invitee_id] || null })));
+      setPendingInvites(data.map((r: any) => ({
+        ...r,
+        invitee: pm[r.invitee_id] || null,
+        // isJoinRequest is true when the requesting user sent the row themselves
+        isJoinRequest: r.inviter_id === r.invitee_id,
+      })));
     } else {
       setPendingInvites([]);
     }
     setInvitesLoading(false);
   };
 
-  // ── Check if current user is an accepted (non-expired) contributor ────────
+  // ── Check contributor status + pending invite/join-request for this user ─
   const checkContributorStatus = async () => {
     if (page.owner_id === userId) return;
-    const { data } = await supabase
+
+    // Fetch all hook_invite rows for this page where invitee = current user
+    const { data: rows } = await supabase
       .from("hook_invites")
-      .select("status, expires_at")
+      .select("id, status, expires_at, inviter_id, invitee_id")
       .eq("page_id", page.id)
-      .eq("invitee_id", userId)
-      .eq("status", "accepted")
-      .maybeSingle();
-    if (data) {
+      .eq("invitee_id", userId);
+
+    const allRows = rows as any[] || [];
+
+    const accepted = allRows.find((r: any) => r.status === "accepted");
+    if (accepted) {
       setIsContributor(true);
-      const exp = (data as any).expires_at;
+      const exp = accepted.expires_at;
       setContributorExpired(exp ? new Date(exp) < new Date() : false);
-    } else {
-      setIsContributor(false);
-      setContributorExpired(false);
+      setHasPendingInvite(false);
+      setHasPendingJoinReq(false);
+      return;
     }
+
+    setIsContributor(false);
+    setContributorExpired(false);
+
+    // Pending invite sent by the page owner to this user
+    const ownerInvite = allRows.find(
+      (r: any) => r.status === "pending" && r.inviter_id === page.owner_id && r.invitee_id === userId
+    );
+    setHasPendingInvite(!!ownerInvite);
+
+    // Pending join request submitted by this user themselves
+    const joinReq = allRows.find(
+      (r: any) => r.status === "pending" && r.inviter_id === userId && r.invitee_id === userId
+    );
+    setHasPendingJoinReq(!!joinReq);
   };
 
-  // ── Accept a pending invite ───────────────────────────────────────────────
+  // ── Invitee accepts an owner-sent invite on the page ─────────────────────
+  const acceptMyInvite = async () => {
+    setAcceptingInvite(true);
+    const { data: row } = await supabase
+      .from("hook_invites")
+      .select("id")
+      .eq("page_id", page.id)
+      .eq("invitee_id", userId)
+      .eq("inviter_id", page.owner_id)
+      .eq("status", "pending")
+      .maybeSingle();
+    if (row) {
+      await supabase.from("hook_invites").update({ status: "accepted" }).eq("id", (row as any).id);
+      // Notify the owner that the invite was accepted
+      await supabase.from("notifications").insert({
+        notifier_id: page.owner_id,
+        actor_id: userId,
+        type: "hook_invite_accepted",
+        entity_id: page.id,
+        content: page.name,
+        is_read: false,
+      });
+      setHasPendingInvite(false);
+      setIsContributor(true);
+      setContributorExpired(false);
+      toast.success("Invite accept kar liya! Ab aap is page par post kar sakte ho.");
+    }
+    setAcceptingInvite(false);
+  };
+
+  // ── Non-invited user requests to join a hook page ─────────────────────────
+  const requestToJoin = async () => {
+    setRequestingJoin(true);
+    // Self-referential row: inviter_id = invitee_id = requesting user (owner identifies this as a join request)
+    const { error } = await supabase.from("hook_invites").upsert(
+      [{ page_id: page.id, inviter_id: userId, invitee_id: userId, status: "pending" }],
+      { onConflict: "page_id,invitee_id" }
+    );
+    if (!error) {
+      // Notify the page owner
+      if (page.owner_id !== userId) {
+        await supabase.from("notifications").insert({
+          notifier_id: page.owner_id,
+          actor_id: userId,
+          type: "hook_invite",
+          entity_id: page.id,
+          content: page.name,
+          is_read: false,
+        });
+      }
+      setHasPendingJoinReq(true);
+      toast.success("Join request bhej di! Owner ke accept karne ka wait karo.");
+    } else {
+      toast.error("Request bhejne mein dikkat aayi. Dobara try karo.");
+    }
+    setRequestingJoin(false);
+  };
+
+  // ── Accept a pending invite (owner dashboard) ─────────────────────────────
   const acceptInvite = async (inviteId: string, inviteeId: string, inviteeName: string) => {
     setAcceptingId(inviteId);
     await supabase.from("hook_invites").update({ status: "accepted" }).eq("id", inviteId);
@@ -868,20 +995,62 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
             {/* Action buttons */}
             <div className="flex items-center gap-2 pb-1">
               {!isOwner && (
-                <motion.button
-                  whileTap={{ scale: followLoading ? 1 : 0.93 }}
-                  onClick={toggleFollow}
-                  disabled={followLoading}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-[12px] font-black border-2 transition-all disabled:opacity-60"
-                  style={{
-                    background: isFollowing ? "white" : "linear-gradient(135deg,#2563eb,#7c3aed)",
-                    borderColor: isFollowing ? "#d1d5db" : "transparent",
-                    color: isFollowing ? "#374151" : "white",
-                  }}>
-                  {followLoading
-                    ? <><Loader2 size={12} className="animate-spin" /> Saving…</>
-                    : isFollowing ? "✓ Following" : "+ Follow"}
-                </motion.button>
+                <div className="flex items-center gap-2">
+                  {/* Follow / Following toggle */}
+                  <motion.button
+                    whileTap={{ scale: followLoading ? 1 : 0.93 }}
+                    onClick={toggleFollow}
+                    disabled={followLoading}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-[12px] font-black border-2 transition-all disabled:opacity-60"
+                    style={{
+                      background: isFollowing ? "white" : "linear-gradient(135deg,#2563eb,#7c3aed)",
+                      borderColor: isFollowing ? "#d1d5db" : "transparent",
+                      color: isFollowing ? "#374151" : "white",
+                    }}>
+                    {followLoading
+                      ? <><Loader2 size={12} className="animate-spin" /> Saving…</>
+                      : isFollowing ? "✓ Following" : "+ Follow"}
+                  </motion.button>
+
+                  {/* Contributor access buttons — only one shows at a time */}
+                  {isContributor && !contributorExpired && (
+                    <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-black bg-purple-50 text-purple-600 border-2 border-purple-200">
+                      <Anchor size={12} /> Contributor
+                    </div>
+                  )}
+                  {isContributor && contributorExpired && (
+                    <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-black bg-orange-50 text-orange-500 border-2 border-orange-200">
+                      <AlertTriangle size={12} /> Expired
+                    </div>
+                  )}
+                  {!isContributor && hasPendingInvite && (
+                    <motion.button
+                      whileTap={{ scale: acceptingInvite ? 1 : 0.93 }}
+                      onClick={acceptMyInvite}
+                      disabled={acceptingInvite}
+                      className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-black bg-green-500 text-white border-2 border-transparent transition-all disabled:opacity-60">
+                      {acceptingInvite
+                        ? <><Loader2 size={12} className="animate-spin" /> Accepting…</>
+                        : <><Check size={12} /> Accept Invite</>}
+                    </motion.button>
+                  )}
+                  {!isContributor && !hasPendingInvite && hasPendingJoinReq && (
+                    <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-black bg-gray-100 text-gray-500 border-2 border-gray-200">
+                      <Loader2 size={12} className="animate-spin" /> Request Pending…
+                    </div>
+                  )}
+                  {!isContributor && !hasPendingInvite && !hasPendingJoinReq && (
+                    <motion.button
+                      whileTap={{ scale: requestingJoin ? 1 : 0.93 }}
+                      onClick={requestToJoin}
+                      disabled={requestingJoin}
+                      className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-black border-2 border-blue-300 bg-blue-50 text-blue-600 transition-all disabled:opacity-60">
+                      {requestingJoin
+                        ? <><Loader2 size={12} className="animate-spin" /> Sending…</>
+                        : <><Plus size={12} /> Request to Post</>}
+                    </motion.button>
+                  )}
+                </div>
               )}
               {isOwner && (
                 <>
@@ -976,36 +1145,49 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
               <p className="text-[11px] text-gray-400 text-center px-6">Jab koi user hook invite accept karne wala ho, yahan dikhai dega</p>
             </div>
           )}
-          {pendingInvites.map(invite => (
-            <motion.div key={invite.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-              className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex items-center gap-3">
-              <div className="w-12 h-12 rounded-full overflow-hidden bg-gray-200 shrink-0 flex items-center justify-center">
-                {invite.invitee?.avatar_url
-                  ? <img src={invite.invitee.avatar_url} className="w-full h-full object-cover" alt="" loading="lazy" decoding="async" />
-                  : <span className="text-gray-500 font-black text-lg">{(invite.invitee?.full_name || "?")[0].toUpperCase()}</span>}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-black text-gray-800 text-[14px] truncate">{invite.invitee?.full_name || "Unknown User"}</p>
-                <p className="text-[11px] text-gray-400 font-medium">{smartTime(invite.created_at)} · Hook join karna chahta/chahti hai</p>
-              </div>
-              <div className="flex gap-2 shrink-0">
-                <motion.button whileTap={{ scale: 0.93 }}
-                  onClick={() => acceptInvite(invite.id, invite.invitee_id, invite.invitee?.full_name)}
-                  disabled={acceptingId === invite.id || rejectingId === invite.id}
-                  className="flex items-center gap-1 px-3 py-2 rounded-xl bg-green-500 text-white text-[11px] font-black disabled:opacity-60">
-                  {acceptingId === invite.id ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
-                  Accept
-                </motion.button>
-                <motion.button whileTap={{ scale: 0.93 }}
-                  onClick={() => rejectInvite(invite.id, invite.invitee_id, invite.invitee?.full_name)}
-                  disabled={acceptingId === invite.id || rejectingId === invite.id}
-                  className="flex items-center gap-1 px-3 py-2 rounded-xl bg-red-100 text-red-500 text-[11px] font-black disabled:opacity-60">
-                  {rejectingId === invite.id ? <Loader2 size={12} className="animate-spin" /> : <X size={12} />}
-                  Reject
-                </motion.button>
-              </div>
-            </motion.div>
-          ))}
+          {pendingInvites.map(invite => {
+            // Distinguish: owner-sent invite (inviter = owner) vs user join request (inviter = invitee)
+            const isJoinRequest = invite.inviter_id === invite.invitee_id;
+            return (
+              <motion.div key={invite.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex items-center gap-3">
+                <div className="w-12 h-12 rounded-full overflow-hidden bg-gray-200 shrink-0 flex items-center justify-center">
+                  {invite.invitee?.avatar_url
+                    ? <img src={invite.invitee.avatar_url} className="w-full h-full object-cover" alt="" loading="lazy" decoding="async" />
+                    : <span className="text-gray-500 font-black text-lg">{(invite.invitee?.full_name || "?")[0].toUpperCase()}</span>}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-black text-gray-800 text-[14px] truncate">{invite.invitee?.full_name || "Unknown User"}</p>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    {isJoinRequest
+                      ? <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-blue-50 text-blue-600 text-[9px] font-black uppercase tracking-wide"><Plus size={8} /> Join Request</span>
+                      : <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-purple-50 text-purple-600 text-[9px] font-black uppercase tracking-wide"><Anchor size={8} /> Aapne Invite Kiya</span>
+                    }
+                    <span className="text-[10px] text-gray-400 font-medium">{smartTime(invite.created_at)}</span>
+                  </div>
+                  <p className="text-[11px] text-gray-500 font-medium mt-0.5">
+                    {isJoinRequest ? "Is page par post karna chahta/chahti hai" : "Invite accept karna chahta/chahti hai"}
+                  </p>
+                </div>
+                <div className="flex gap-2 shrink-0">
+                  <motion.button whileTap={{ scale: 0.93 }}
+                    onClick={() => acceptInvite(invite.id, invite.invitee_id, invite.invitee?.full_name)}
+                    disabled={acceptingId === invite.id || rejectingId === invite.id}
+                    className="flex items-center gap-1 px-3 py-2 rounded-xl bg-green-500 text-white text-[11px] font-black disabled:opacity-60">
+                    {acceptingId === invite.id ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
+                    Accept
+                  </motion.button>
+                  <motion.button whileTap={{ scale: 0.93 }}
+                    onClick={() => rejectInvite(invite.id, invite.invitee_id, invite.invitee?.full_name)}
+                    disabled={acceptingId === invite.id || rejectingId === invite.id}
+                    className="flex items-center gap-1 px-3 py-2 rounded-xl bg-red-100 text-red-500 text-[11px] font-black disabled:opacity-60">
+                    {rejectingId === invite.id ? <Loader2 size={12} className="animate-spin" /> : <X size={12} />}
+                    Reject
+                  </motion.button>
+                </div>
+              </motion.div>
+            );
+          })}
         </div>
       )}
 
@@ -1020,42 +1202,63 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
           </div>
         )}
         {posts.map(post => {
-          // Owner can edit/delete any post; contributors & others can only manage their own
+          // Strict permission: owner can manage any post; contributors/viewers can only manage their OWN posts
           const canEditPost = isOwner || post.author_id === userId;
+          const author = postAuthors[post.author_id];
+          const isOwnerPost = post.author_id === page.owner_id;
           return (
             <motion.div key={post.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
               className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
               <div className="p-4">
-                {/* Post header with three-dots */}
-                {canEditPost && (
-                  <div className="flex justify-end mb-2 relative">
-                    <button onClick={() => setPostMenuId(postMenuId === post.id ? null : post.id)}
-                      className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400">
-                      <MoreVertical size={16} />
-                    </button>
-                    <AnimatePresence>
-                      {postMenuId === post.id && (
-                        <motion.div initial={{ opacity: 0, scale: 0.9, y: -4 }} animate={{ opacity: 1, scale: 1, y: 0 }}
-                          exit={{ opacity: 0, scale: 0.9, y: -4 }} transition={{ duration: 0.12 }}
-                          className="absolute right-0 top-8 z-50 w-36 bg-white border border-gray-100 rounded-2xl shadow-xl overflow-hidden"
-                          onClick={e => e.stopPropagation()}>
-                          <button onClick={() => { setEditingPost({ id: post.id, content: post.content }); setEditPostText(post.content); setPostMenuId(null); }}
-                            className="w-full flex items-center gap-2.5 px-4 py-3 text-blue-600 hover:bg-blue-50 text-[13px] font-semibold border-b border-gray-50">
-                            <Pencil size={14} /> Edit
-                          </button>
-                          <button onClick={() => { setConfirmDeletePost(post.id); setPostMenuId(null); }}
-                            className="w-full flex items-center gap-2.5 px-4 py-3 text-red-500 hover:bg-red-50 text-[13px] font-semibold">
-                            <Trash2 size={14} /> Delete
-                          </button>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
+                {/* Post author header row */}
+                <div className="flex items-center gap-2.5 mb-3">
+                  <div className="w-8 h-8 rounded-full overflow-hidden bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shrink-0">
+                    {author?.avatar_url
+                      ? <img src={author.avatar_url} className="w-full h-full object-cover" alt="" loading="lazy" decoding="async" />
+                      : <span className="text-white font-black text-[11px]">{(author?.full_name || "?")[0].toUpperCase()}</span>}
                   </div>
-                )}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="font-black text-gray-800 text-[13px] truncate">{author?.full_name || "Unknown"}</span>
+                      {isOwnerPost
+                        ? <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-amber-50 text-amber-600 text-[9px] font-black uppercase tracking-wide">★ Owner</span>
+                        : <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-purple-50 text-purple-600 text-[9px] font-black uppercase tracking-wide"><Anchor size={7} /> Contributor</span>
+                      }
+                    </div>
+                    {post.created_at && <p className="text-[10px] text-gray-400 mt-0.5">{smartTime(post.created_at)}</p>}
+                  </div>
+                  {/* Three-dot menu — only for permitted users */}
+                  {canEditPost && (
+                    <div className="relative shrink-0">
+                      <button onClick={() => setPostMenuId(postMenuId === post.id ? null : post.id)}
+                        className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400">
+                        <MoreVertical size={16} />
+                      </button>
+                      <AnimatePresence>
+                        {postMenuId === post.id && (
+                          <motion.div initial={{ opacity: 0, scale: 0.9, y: -4 }} animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.9, y: -4 }} transition={{ duration: 0.12 }}
+                            className="absolute right-0 top-8 z-50 w-36 bg-white border border-gray-100 rounded-2xl shadow-xl overflow-hidden"
+                            onClick={e => e.stopPropagation()}>
+                            {/* Edit — only owner or post's own author */}
+                            {(isOwner || post.author_id === userId) && (
+                              <button onClick={() => { setEditingPost({ id: post.id, content: post.content, author_id: post.author_id }); setEditPostText(post.content); setPostMenuId(null); }}
+                                className="w-full flex items-center gap-2.5 px-4 py-3 text-blue-600 hover:bg-blue-50 text-[13px] font-semibold border-b border-gray-50">
+                                <Pencil size={14} /> Edit
+                              </button>
+                            )}
+                            {/* Delete — owner can delete any; contributor only their own */}
+                            <button onClick={() => { setConfirmDeletePost(post.id); setPostMenuId(null); }}
+                              className="w-full flex items-center gap-2.5 px-4 py-3 text-red-500 hover:bg-red-50 text-[13px] font-semibold">
+                              <Trash2 size={14} /> Delete
+                            </button>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  )}
+                </div>
                 {post.content && <p className="text-[14px] text-gray-700 font-medium leading-relaxed mb-3">{post.content}</p>}
-                {post.created_at && (
-                  <p className="text-[10px] text-gray-400 mb-2 -mt-1">{smartTime(post.created_at)}</p>
-                )}
                 {post.media_url && (() => {
                   const mt = post.media_type || post.type || "";
                   const url = post.media_url.toLowerCase();
@@ -1199,7 +1402,25 @@ const HooksHub = ({ userId, initialOpenPageId }: { userId: string; initialOpenPa
   const [showCreate, setShowCreate]     = useState(false);
   const pendingOpenRef = useRef<string | null>(initialOpenPageId ?? null);
 
-  // Open specific page from deep-link (home strip click)
+  // ── Listen for notification-click deep-links to a specific hook page ──────
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const hookId = (e as CustomEvent<{ hookId: string }>).detail?.hookId;
+      if (!hookId) return;
+      // Try to find in already-loaded pages first
+      const found = [...myPages, ...suggested].find(p => p.id === hookId);
+      if (found) { setActivePage(found); return; }
+      // Otherwise fetch directly from DB (notification may point to a page not in current lists)
+      supabase.from("hook_pages")
+        .select("id, name, description, category, cover_url, avatar_url, owner_id, hook_count, created_at")
+        .eq("id", hookId).single()
+        .then(({ data }) => { if (data) setActivePage(data as HookPage); });
+    };
+    window.addEventListener("flicks:open-hook", handler);
+    return () => window.removeEventListener("flicks:open-hook", handler);
+  }, [myPages, suggested]);
+
+  // ── Open specific page from deep-link (home strip click or initial prop) ──
   useEffect(() => {
     if (!pendingOpenRef.current) return;
     const target = [...myPages, ...suggested].find(p => p.id === pendingOpenRef.current);
