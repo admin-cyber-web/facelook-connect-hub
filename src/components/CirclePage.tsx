@@ -183,7 +183,8 @@ function OnlineDot({ authorId }: { authorId: string }) {
   const onlineIds = useOnlineUsers();
   if (!onlineIds.has(authorId)) return null;
   return (
-    <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-green-500 border-2 border-white z-10" />
+    <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 z-10"
+      style={{ background: "#00F0FF", borderColor: "#090a0f", boxShadow: "0 0 6px #00F0FF" }} />
   );
 }
 
@@ -194,62 +195,76 @@ const CirclePostCard = memo(({
 }: PostCardProps) => {
   const canEdit = post.author_id === currentUserId || canModerate;
   return (
-    <div className="bg-[#d4f0e2] border-b border-gray-100">
+    <div className="mx-3 mb-3 rounded-3xl overflow-hidden border border-white/[0.08]"
+      style={{ background: "rgba(255,255,255,0.03)", backdropFilter: "blur(20px)", boxShadow: "0 8px 32px rgba(0,0,0,0.45)" }}>
+      {/* Header */}
       <div className="flex items-center gap-3 px-4 py-3">
-        <div className="relative w-9 h-9 rounded-full bg-blue-600 flex items-center justify-center text-white font-black text-sm shrink-0 overflow-hidden border border-gray-100">
+        <div className="relative w-10 h-10 rounded-full overflow-hidden shrink-0 flex items-center justify-center text-white font-black text-sm"
+          style={{ boxShadow: "0 0 0 2px rgba(0,240,255,0.35), 0 0 12px rgba(0,240,255,0.15)", background: "linear-gradient(135deg,#1e3a8a,#2563eb)" }}>
           {post.author_avatar
-            ? <img src={post.author_avatar} className="w-full h-full object-cover" alt="" loading="lazy"  decoding="async"/>
+            ? <img src={post.author_avatar} className="w-full h-full object-cover" alt="" loading="lazy" decoding="async"/>
             : (post.author_name || "M")[0].toUpperCase()}
           <OnlineDot authorId={post.author_id} />
         </div>
         <div className="flex-1">
           <div className="flex items-center gap-1.5">
-            <p className="text-gray-900 font-bold text-sm leading-none">{post.author_name}</p>
+            <p className="text-white font-bold text-sm leading-none">{post.author_name}</p>
+            {post.author_id === groupOwnerId && (
+              <span className="text-[8px] font-black px-1.5 py-0.5 rounded-full"
+                style={{ background: "linear-gradient(135deg,#f59e0b,#d97706)", color: "#000" }}>👑</span>
+            )}
             {post.status === "pending" && (
-              <span className="text-[8px] font-black text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full">PENDING</span>
+              <span className="text-[8px] font-black text-amber-300 px-1.5 py-0.5 rounded-full border border-amber-500/30"
+                style={{ background: "rgba(245,158,11,0.15)" }}>PENDING</span>
             )}
           </div>
-          <p className="text-[10px] text-gray-400 mt-0.5">{smartTime(post.created_at)}</p>
+          <p className="text-[10px] text-gray-500 mt-0.5">{smartTime(post.created_at)}</p>
         </div>
         {canEdit && (
-          <button onClick={() => { haptic(); onOptions(post); }} className="p-1.5 rounded-full active:bg-gray-100 text-gray-400">
+          <button onClick={() => { haptic(); onOptions(post); }} className="p-2 rounded-full text-gray-600 active:bg-white/10 transition-colors">
             <MoreVertical size={16} />
           </button>
         )}
       </div>
 
-      {post.content && <p className="px-4 pb-2 text-[13px] text-gray-800 leading-snug">{maskProfanity(post.content)}</p>}
+      {post.content && <p className="px-4 pb-3 text-[13px] text-gray-300 leading-relaxed">{maskProfanity(post.content)}</p>}
 
       {post.media_url && (
-        <div className="w-full bg-black">
+        <div className="w-full" style={{ background: "rgba(0,0,0,0.4)" }}>
           {isVideoUrl(post.media_url) ? (
             <video src={post.media_url} autoPlay muted playsInline loop controls className="w-full object-contain" style={{ maxHeight: "60vh" }} />
           ) : (
-            <img src={post.media_url} className="w-full object-cover" style={{ maxHeight: "60vh" }} loading="lazy" alt=""  decoding="async"/>
+            <img src={post.media_url} className="w-full object-cover" style={{ maxHeight: "60vh" }} loading="lazy" alt="" decoding="async"/>
           )}
         </div>
       )}
 
       {post.status === "pending" && (
         post.author_id === currentUserId && !canModerate ? (
-          <div className="mx-4 mb-2 flex items-center gap-2 px-3 py-2.5 bg-amber-50 border border-amber-200 rounded-xl">
-            <Clock size={12} className="text-amber-500 shrink-0 animate-pulse" />
+          <div className="mx-4 mb-2 flex items-center gap-2 px-3 py-2.5 rounded-xl border border-amber-500/20"
+            style={{ background: "rgba(245,158,11,0.08)" }}>
+            <Clock size={12} className="text-amber-400 shrink-0 animate-pulse" />
             <div className="flex-1 min-w-0">
-              <p className="text-[11px] font-black text-amber-700">Awaiting admin review</p>
-              <p className="text-[10px] text-amber-500 mt-0.5">Only you can see this until approved</p>
+              <p className="text-[11px] font-black text-amber-300">Awaiting admin review</p>
+              <p className="text-[10px] text-amber-500/70 mt-0.5">Only you can see this until approved</p>
             </div>
           </div>
         ) : canModerate ? (
-          <div className="mx-4 mb-2 flex items-center justify-between gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-xl">
+          <div className="mx-4 mb-2 flex items-center justify-between gap-2 px-3 py-2 rounded-xl border border-amber-500/20"
+            style={{ background: "rgba(245,158,11,0.08)" }}>
             <div className="flex items-center gap-1.5">
-              <ShieldCheck size={12} className="text-amber-600 shrink-0" />
-              <span className="text-[11px] font-black text-amber-700">Pending approval</span>
+              <ShieldCheck size={12} className="text-amber-400 shrink-0" />
+              <span className="text-[11px] font-black text-amber-300">Pending approval</span>
             </div>
             <div className="flex gap-1.5">
-              <button onClick={() => { haptic(); onReview(post.id, "rejected"); }} className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-red-50 text-red-600 font-black text-[10px] border border-red-200 active:scale-95 transition-transform">
+              <button onClick={() => { haptic(); onReview(post.id, "rejected"); }}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-red-400 font-black text-[10px] border border-red-500/30 active:scale-95 transition-transform"
+                style={{ background: "rgba(239,68,68,0.1)" }}>
                 <X size={11} /> Reject
               </button>
-              <button onClick={() => { haptic(); onReview(post.id, "approved"); }} className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-green-600 text-white font-black text-[10px] active:scale-95 transition-transform">
+              <button onClick={() => { haptic(); onReview(post.id, "approved"); }}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-green-300 font-black text-[10px] border border-green-500/30 active:scale-95 transition-transform"
+                style={{ background: "rgba(34,197,94,0.12)" }}>
                 <Check size={11} /> Approve
               </button>
             </div>
@@ -257,17 +272,18 @@ const CirclePostCard = memo(({
         ) : null
       )}
 
-      <div className="flex items-center gap-4 px-4 py-2.5">
-        <button onClick={() => { haptic(); onLike(post); }} className="flex items-center gap-1.5">
-          <Heart size={20} className={likedPostIds.has(post.id) ? "fill-red-500 text-red-500" : "text-gray-400"} />
+      {/* Actions */}
+      <div className="flex items-center gap-4 px-4 py-3 border-t border-white/[0.06]">
+        <button onClick={() => { haptic(); onLike(post); }} className="flex items-center gap-1.5 active:scale-90 transition-transform">
+          <Heart size={19} className={likedPostIds.has(post.id) ? "fill-red-500 text-red-500" : "text-gray-600"} />
           <span className="text-xs font-bold text-gray-500">{post.likes_count || 0}</span>
         </button>
-        <button onClick={() => onComment(post)} className="flex items-center gap-1.5">
-          <MessageCircle size={20} className={post.comments_muted ? "text-amber-500" : "text-gray-400"} />
+        <button onClick={() => onComment(post)} className="flex items-center gap-1.5 active:scale-90 transition-transform">
+          <MessageCircle size={19} className={post.comments_muted ? "text-amber-500" : "text-gray-600"} />
           <span className="text-xs font-bold text-gray-500">{post.comments_count || 0}</span>
         </button>
-        <button onClick={() => onShare(post)} className="flex items-center gap-1.5">
-          <Share2 size={19} className="text-gray-400" />
+        <button onClick={() => onShare(post)} className="flex items-center gap-1.5 active:scale-90 transition-transform">
+          <Share2 size={18} className="text-gray-600" />
           <span className="text-xs font-bold text-gray-500">{post.shares_count || 0}</span>
         </button>
         <MagnetButton
@@ -275,43 +291,41 @@ const CirclePostCard = memo(({
           postType="circle"
           postOwnerId={groupOwnerId}
           currentUserId={currentUserId}
-          dark={false}
+          dark={true}
         />
         {post.status !== "pending" && (
           <button
             onClick={() => { if (canAdmin) { haptic(); onViewers(post.id); } }}
             className={`flex items-center gap-1 ml-auto ${canAdmin ? "active:scale-90 transition-transform" : ""}`}
           >
-            <Eye size={16} className="text-gray-300" />
-            <span className="text-[11px] font-bold text-gray-300">{viewCounts[post.id] ?? 0}</span>
+            <Eye size={15} className="text-gray-700" />
+            <span className="text-[11px] font-bold text-gray-700">{viewCounts[post.id] ?? 0}</span>
           </button>
         )}
       </div>
 
-      {/* ── FB-style latest comment preview ─────────────────────────── */}
+      {/* Latest comment preview */}
       {(() => {
         const totalCount = post.comments_count || 0;
         if (!latestComment && totalCount === 0) return null;
         return (
-          <div
-            className="px-4 pb-3 pt-0.5 cursor-pointer"
-            onClick={() => onComment(post)}
-          >
+          <div className="px-4 pb-3 pt-0.5 cursor-pointer" onClick={() => onComment(post)}>
             {totalCount > 1 && (
-              <p className="text-[11px] text-gray-400 font-medium mb-1.5">
+              <p className="text-[11px] text-gray-600 font-medium mb-1.5">
                 View {totalCount - 1} more comment{totalCount - 1 > 1 ? "s" : ""}...
               </p>
             )}
             {latestComment && (
               <div className="flex items-start gap-2">
-                <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center text-[9px] font-black text-blue-600 shrink-0 overflow-hidden border border-blue-100">
+                <div className="w-6 h-6 rounded-full overflow-hidden shrink-0 flex items-center justify-center text-[9px] font-black text-[#00F0FF]"
+                  style={{ background: "rgba(0,240,255,0.1)", border: "1px solid rgba(0,240,255,0.2)" }}>
                   {latestComment.author_avatar
-                    ? <img src={latestComment.author_avatar} className="w-full h-full object-cover" alt="" loading="lazy"  decoding="async"/>
+                    ? <img src={latestComment.author_avatar} className="w-full h-full object-cover" alt="" loading="lazy" decoding="async"/>
                     : (latestComment.author_name || "M")[0].toUpperCase()}
                 </div>
-                <div className="flex-1 min-w-0 bg-white/70 rounded-2xl px-3 py-1.5">
-                  <span style={{ color: "#800000", fontSize: 11, fontWeight: 900 }}>{latestComment.author_name}</span>
-                  <span className="text-[12px] text-gray-700 ml-1.5 leading-snug">
+                <div className="flex-1 min-w-0 rounded-2xl px-3 py-1.5" style={{ background: "rgba(255,255,255,0.05)" }}>
+                  <span className="text-[#00F0FF] text-[11px] font-black">{latestComment.author_name}</span>
+                  <span className="text-[12px] text-gray-400 ml-1.5 leading-snug">
                     {latestComment.content.length > 90 ? latestComment.content.slice(0, 90) + "…" : latestComment.content}
                   </span>
                 </div>
@@ -1829,19 +1843,23 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
     const isMember = myGroupIds.has(selectedGroup.id);
 
     return (
-      <div className="min-h-screen bg-[#d4f0e2] flex flex-col">
-        {/* Cover + Back */}
-        <div
-          className="relative w-full flex-shrink-0"
-          style={{
-            height: 180,
+      <div className="min-h-screen flex flex-col" style={{
+        background: "#090a0f",
+        backgroundImage: "radial-gradient(circle at top,#1e3a8a22,transparent 45%),radial-gradient(circle at bottom,#00e5ff18,transparent 55%)"
+      }}>
+        {/* ── CINEMATIC HERO ──────────────────────────────────────────── */}
+        <div className="relative w-full flex-shrink-0" style={{ height: 220 }}>
+          {/* Cover image */}
+          <div className="absolute inset-0" style={{
             backgroundImage: selectedGroup.cover_url ? `url('${selectedGroup.cover_url}')` : "none",
-            backgroundColor: selectedGroup.cover_url ? "transparent" : "#e5e7eb",
+            backgroundColor: !selectedGroup.cover_url ? "#1a1f35" : "transparent",
             backgroundSize: "cover",
             backgroundPosition: "center",
-          }}
-        >
-          <div className="absolute inset-0 bg-gradient-to-b from-black/30 to-black/70" />
+          }} />
+          {/* Gradient overlay */}
+          <div className="absolute inset-0" style={{
+            background: "linear-gradient(to bottom, rgba(9,10,15,0.15) 0%, rgba(9,10,15,0.0) 30%, rgba(9,10,15,0.92) 100%)"
+          }} />
 
           {/* Back */}
           <button
@@ -1852,105 +1870,141 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
               if (chatSubRef.current) { supabase.removeChannel(chatSubRef.current); chatSubRef.current = null; }
               if (memberSubRef.current) { supabase.removeChannel(memberSubRef.current); memberSubRef.current = null; }
             }}
-            className="absolute top-4 left-4 w-9 h-9 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center border border-white/20"
+            className="absolute top-4 left-4 w-10 h-10 rounded-full flex items-center justify-center border border-white/20 z-10 active:scale-90 transition-transform"
+            style={{ background: "rgba(255,255,255,0.1)", backdropFilter: "blur(12px)" }}
           >
             <ChevronLeft size={20} className="text-white" />
           </button>
 
-          {/* Admin settings + edit/delete */}
+          {/* Admin buttons */}
           {canModerate && (
-            <div className="absolute top-4 right-4 flex items-center gap-2">
+            <div className="absolute top-4 right-4 flex items-center gap-2 z-10">
               <button
                 onClick={() => openEditGroup(selectedGroup)}
-                className="w-9 h-9 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center border border-white/20"
+                className="w-10 h-10 rounded-full flex items-center justify-center border border-white/20 active:scale-90 transition-transform"
+                style={{ background: "rgba(255,255,255,0.1)", backdropFilter: "blur(12px)" }}
               >
                 <Pencil size={16} className="text-white" />
               </button>
               <button
                 onClick={() => setShowSettings(true)}
-                className="w-9 h-9 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center border border-white/20"
+                className="w-10 h-10 rounded-full flex items-center justify-center border border-white/20 active:scale-90 transition-transform"
+                style={{ background: "rgba(255,255,255,0.1)", backdropFilter: "blur(12px)" }}
               >
                 <Settings size={18} className="text-white" />
               </button>
               {selectedGroup.created_by === currentUserId && (
                 <button
                   onClick={() => setConfirmDeleteGroup(true)}
-                  className="w-9 h-9 rounded-full bg-red-500/60 backdrop-blur-md flex items-center justify-center border border-red-300/30"
+                  className="w-10 h-10 rounded-full flex items-center justify-center border border-red-500/30 active:scale-90 transition-transform"
+                  style={{ background: "rgba(239,68,68,0.18)", backdropFilter: "blur(12px)" }}
                 >
-                  <Trash2 size={16} className="text-white" />
+                  <Trash2 size={16} className="text-red-400" />
                 </button>
               )}
             </div>
           )}
 
-          {/* Title */}
-          <div className="absolute bottom-3 left-4 right-4">
-            <div className="flex items-center gap-2 mb-0.5">
-              <h2 className="text-white font-black text-lg drop-shadow-lg">{selectedGroup.name}</h2>
-              {currentRole === "admin" && <span className="bg-yellow-500 text-black text-[9px] font-black px-2 py-0.5 rounded-full">ADMIN</span>}
-              {currentRole === "moderator" && <span className="bg-blue-500 text-white text-[9px] font-black px-2 py-0.5 rounded-full">MOD</span>}
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-1">
-                {selectedGroup.privacy === "private" ? <Lock size={10} className="text-white/80" /> : <Globe size={10} className="text-white/80" />}
-                <span className="text-white/80 text-[11px] font-semibold">
-                  {selectedGroup.privacy} · {selectedGroup.member_count ?? groupMembers.length} members
-                </span>
-              </div>
-              {/* Share button */}
-              <div className="flex items-center gap-1.5 ml-auto">
-                <button
-                  onClick={() => shareCircle(selectedGroup)}
-                  className="flex items-center gap-1 bg-white/20 backdrop-blur-sm text-white text-[10px] font-black px-2.5 py-1 rounded-full border border-white/30 active:scale-95 transition-transform"
-                >
-                  <Share2 size={10} />
-                  Share
-                </button>
-              </div>
+          {/* Floating Avatar — overlaps hero bottom */}
+          <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 z-20">
+            <div
+              className="w-24 h-24 rounded-full overflow-hidden border-2 border-white/10 flex items-center justify-center text-white font-black text-2xl"
+              style={{ boxShadow: "0 0 0 3px rgba(0,240,255,0.5), 0 0 24px rgba(0,240,255,0.25), 0 8px 32px rgba(0,0,0,0.7)", background: "linear-gradient(135deg,#1e3a8a,#2563eb)" }}
+            >
+              {(selectedGroup.cover_url || selectedGroup.profiles?.avatar_url) ? (
+                <img
+                  src={selectedGroup.cover_url || selectedGroup.profiles?.avatar_url || ""}
+                  className="w-full h-full object-cover"
+                  alt={selectedGroup.name}
+                  loading="lazy"
+                  decoding="async"
+                />
+              ) : (
+                (selectedGroup.name || "C")[0].toUpperCase()
+              )}
             </div>
           </div>
         </div>
 
-        {/* Tab Bar */}
-        <div className="bg-[#d4f0e2] border-b border-gray-100 flex items-stretch sticky top-0 z-20">
-          {([
-            { id: "posts" as const, icon: FileText, label: "Posts", show: true },
-            { id: "review" as const, icon: Eye, label: `Review${pendingPosts.length > 0 ? ` ${pendingPosts.length}` : ""}`, show: canModerate },
-            { id: "chat" as const, icon: MessageCircle, label: "Chat", show: true },
-            { id: "members" as const, icon: Users, label: `${canModerate ? "Admin" : "Members"}${newMemberCount > 0 && canModerate ? ` +${newMemberCount}` : ""}`, show: true },
-            { id: "about" as const, icon: Shield, label: "About", show: true },
-          ]).filter(tab => tab.show).map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => {
-                setGroupTab(tab.id);
-                if (tab.id === "members") setNewMemberCount(0);
-              }}
-              className={`flex-1 min-w-0 flex items-center justify-center gap-1 py-3 text-[11px] font-black border-b-2 transition-colors relative ${
-                groupTab === tab.id
-                  ? "border-blue-600 text-blue-600"
-                  : "border-transparent text-gray-400"
-              }`}
-            >
-              <tab.icon size={13} />
-              <span className="truncate">{tab.label}</span>
-              {tab.id === "members" && newMemberCount > 0 && canModerate && (
-                <span className="absolute top-1.5 right-1 w-4 h-4 bg-red-500 rounded-full text-white text-[8px] font-black flex items-center justify-center">
-                  {newMemberCount}
-                </span>
-              )}
-            </button>
-          ))}
-          {/* Leave Circle — shown inline after Members tab, only for non-admin members */}
-          {isMember && !isAdmin && (
-            <button
-              onClick={() => handleLeave(selectedGroup.id)}
-              className="shrink-0 flex items-center justify-center gap-1 px-2.5 py-3 text-[11px] font-black text-red-500 border-b-2 border-transparent hover:border-red-300 hover:bg-red-50 transition-colors"
-            >
-              <LogOut size={13} />
-              <span className="hidden xs:inline">Leave</span>
-            </button>
+        {/* Circle Info */}
+        <div className="flex flex-col items-center pt-14 pb-4 px-4">
+          <h2 className="text-white font-black text-xl text-center leading-tight">{selectedGroup.name}</h2>
+          <div className="flex items-center gap-2 mt-1.5">
+            {currentRole === "admin" && (
+              <span className="text-[10px] font-black px-2.5 py-1 rounded-full flex items-center gap-1"
+                style={{ background: "linear-gradient(135deg,#f59e0b,#d97706)", color: "#000" }}>
+                👑 Admin
+              </span>
+            )}
+            {currentRole === "moderator" && (
+              <span className="text-[10px] font-black px-2.5 py-1 rounded-full text-white border border-blue-500/40"
+                style={{ background: "rgba(59,130,246,0.2)" }}>
+                ⭐ Moderator
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2 mt-1.5">
+            {selectedGroup.privacy === "private" ? <Lock size={11} className="text-gray-500" /> : <Globe size={11} className="text-gray-500" />}
+            <span className="text-[12px] text-gray-400 font-semibold capitalize">
+              {selectedGroup.privacy} · {selectedGroup.member_count ?? groupMembers.length} Members
+            </span>
+          </div>
+          {selectedGroup.description && (
+            <p className="text-[12px] text-gray-500 mt-2 text-center leading-relaxed max-w-xs line-clamp-2">{selectedGroup.description}</p>
           )}
+          <div className="flex items-center gap-2 mt-3">
+            <button
+              onClick={() => shareCircle(selectedGroup)}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-full border border-white/15 text-[12px] font-black text-white active:scale-95 transition-transform"
+              style={{ background: "rgba(255,255,255,0.08)", backdropFilter: "blur(12px)" }}
+            >
+              <Share2 size={13} /> Share
+            </button>
+            {isMember && !isAdmin && (
+              <button
+                onClick={() => handleLeave(selectedGroup.id)}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-full border border-red-500/30 text-[12px] font-black text-red-400 active:scale-95 transition-transform"
+                style={{ background: "rgba(239,68,68,0.1)", backdropFilter: "blur(12px)" }}
+              >
+                <LogOut size={13} /> Leave
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* ── TAB BAR ─────────────────────────────────────────────────── */}
+        <div className="px-3 pb-2 sticky top-0 z-20 pt-1" style={{ background: "#090a0f" }}>
+          <div className="flex items-center rounded-2xl border border-white/[0.08] p-1 gap-0.5"
+            style={{ background: "rgba(255,255,255,0.04)", backdropFilter: "blur(20px)" }}>
+            {([
+              { id: "posts" as const, icon: FileText, label: "Posts", show: true },
+              { id: "review" as const, icon: Eye, label: `Review${pendingPosts.length > 0 ? ` ${pendingPosts.length}` : ""}`, show: canModerate },
+              { id: "chat" as const, icon: MessageCircle, label: "Chat", show: true },
+              { id: "members" as const, icon: Users, label: canModerate ? "Admin" : "Members", show: true },
+              { id: "about" as const, icon: Shield, label: "About", show: true },
+            ]).filter(tab => tab.show).map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => {
+                  setGroupTab(tab.id);
+                  if (tab.id === "members") setNewMemberCount(0);
+                }}
+                className={`flex-1 min-w-0 flex items-center justify-center gap-1 py-2 text-[11px] font-black rounded-xl transition-all relative ${
+                  groupTab === tab.id ? "text-[#090a0f]" : "text-gray-500"
+                }`}
+                style={groupTab === tab.id ? { background: "#00F0FF", boxShadow: "0 0 12px rgba(0,240,255,0.4)" } : {}}
+              >
+                <tab.icon size={12} />
+                <span className="truncate">{tab.label}</span>
+                {tab.id === "members" && newMemberCount > 0 && canModerate && (
+                  <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full text-white text-[8px] font-black flex items-center justify-center"
+                    style={{ background: "#ff5d5d" }}>
+                    {newMemberCount}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* ── POSTS TAB ──────────────────────────────────────────────────────── */}
