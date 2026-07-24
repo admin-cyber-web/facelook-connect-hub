@@ -667,6 +667,7 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
 
   // Requests / contributor state
   const [activeTab, setActiveTab] = useState<"posts" | "requests" | "approvals">("posts");
+  const isOwner = page.owner_id === userId;
   const [pendingInvites, setPendingInvites] = useState<any[]>([]);
   const [invitesLoading, setInvitesLoading] = useState(false);
   const [isContributor, setIsContributor] = useState(false);
@@ -701,12 +702,15 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
 
   const fetchPosts = async () => {
     setLoading(true);
-    const { data } = await supabase
+    // Owner sees all posts (including pending_approval); others only see approved
+    let query = supabase
       .from("hook_page_posts")
-      .select("id, page_id, author_id, content, media_url, media_type, type, likes_count, created_at")
+      .select("id, page_id, author_id, content, media_url, media_type, type, likes_count, created_at, status")
       .eq("page_id", page.id)
       .order("created_at", { ascending: false })
-      .limit(30);
+      .limit(60);
+    if (!isOwner) query = query.eq("status", "approved");
+    const { data } = await query;
     const rows = data || [];
     setPosts(rows);
 
@@ -889,8 +893,6 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
     onBack();
   };
 
-  const isOwner = page.owner_id === userId;
-
   // ── Fetch pending invites for owner (includes join requests) ─────────────
   const fetchPendingInvites = async () => {
     if (page.owner_id !== userId) return;
@@ -938,6 +940,7 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
     if (accepted) {
       setIsContributor(true);
       const exp = accepted.expires_at;
+      setContributorExpiresAt(exp || null);
       setContributorExpired(exp ? new Date(exp) < new Date() : false);
       setHasPendingInvite(false);
       setHasPendingJoinReq(false);
@@ -1021,19 +1024,54 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
   // ── Accept a pending invite (owner dashboard) ─────────────────────────────
   const acceptInvite = async (inviteId: string, inviteeId: string, inviteeName: string) => {
     setAcceptingId(inviteId);
-    await supabase.from("hook_invites").update({ status: "accepted" }).eq("id", inviteId);
-    // Notify invitee
+    // Apply the duration the owner selected for this invite
+    const durValue = acceptDurationMap[inviteId] || "7d";
+    const expires_at = calcExpiresAt(durValue);
+    const durLabel = DURATION_OPTIONS.find(d => d.value === durValue)?.label || "7 Days";
+    await supabase.from("hook_invites")
+      .update({ status: "accepted", ...(expires_at ? { expires_at } : {}) })
+      .eq("id", inviteId);
+    // Notify invitee with duration info
     await supabase.from("notifications").insert({
       notifier_id: inviteeId,
       actor_id: userId,
       type: "hook_invite_accepted",
       entity_id: page.id,
-      content: page.name,
+      content: `${page.name}||${durLabel}`,
       is_read: false,
     });
     setPendingInvites(prev => prev.filter(i => i.id !== inviteId));
     setAcceptingId(null);
-    toast.success(`${inviteeName || "User"} ab is page par post kar sakta/sakti hai!`);
+    toast.success(`${inviteeName || "User"} ko ${durLabel} ke liye posting access de diya!`);
+  };
+
+  // ── Approve / Reject a pending-approval contributor post ──────────────────
+  const approvePost = async (postId: string) => {
+    setApprovingPostId(postId);
+    await supabase.from("hook_page_posts").update({ status: "approved" }).eq("id", postId);
+    // Increment hook_count
+    const { data: cur } = await supabase.from("hook_pages").select("hook_count").eq("id", page.id).single();
+    await supabase.from("hook_pages").update({ hook_count: (cur?.hook_count || 0) + 1 }).eq("id", page.id);
+    // Notify the contributor
+    const post = posts.find(p => p.id === postId);
+    if (post && post.author_id !== userId) {
+      await supabase.from("notifications").insert({
+        notifier_id: post.author_id, actor_id: userId,
+        type: "hook_invite_accepted", entity_id: page.id,
+        content: `${page.name}||post_approved`, is_read: false,
+      });
+    }
+    setPosts(prev => prev.map(p => p.id === postId ? { ...p, status: "approved" } : p));
+    setApprovingPostId(null);
+    toast.success("Post approve kar diya! Ab public feed par dikhai dega.");
+  };
+
+  const rejectPost = async (postId: string) => {
+    setRejectingPostId(postId);
+    await supabase.from("hook_page_posts").update({ status: "rejected" }).eq("id", postId);
+    setPosts(prev => prev.map(p => p.id === postId ? { ...p, status: "rejected" } : p));
+    setRejectingPostId(null);
+    toast("Post reject kar diya.");
   };
 
   // ── Reject a pending invite ───────────────────────────────────────────────
@@ -1101,13 +1139,18 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
 
                   {/* Contributor access buttons — only one shows at a time */}
                   {isContributor && !contributorExpired && (
-                    <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-black bg-purple-50 text-purple-600 border-2 border-purple-200">
-                      <Anchor size={12} /> Contributor
+                    <div className="flex flex-col items-end gap-0.5">
+                      <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-black bg-purple-50 text-purple-600 border-2 border-purple-200">
+                        🤝 Page Partner
+                      </div>
+                      <span className="text-[9px] text-purple-400 font-bold px-1">
+                        {timeRemaining(contributorExpiresAt)}
+                      </span>
                     </div>
                   )}
                   {isContributor && contributorExpired && (
                     <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-black bg-orange-50 text-orange-500 border-2 border-orange-200">
-                      <AlertTriangle size={12} /> Expired
+                      <AlertTriangle size={12} /> Access Expired
                     </div>
                   )}
                   {!isContributor && hasPendingInvite && (
@@ -1183,14 +1226,19 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
       {/* ── Tab bar (owner only) ──────────────────────────────────────────── */}
       {isOwner && (
         <div className="flex bg-white border-b border-gray-100">
-          {(["posts", "requests"] as const).map(tab => (
-            <button key={tab} onClick={() => setActiveTab(tab)}
-              className={`flex-1 py-3 text-[12px] font-black uppercase tracking-widest transition-all border-b-2 ${activeTab === tab ? "text-blue-600 border-blue-500" : "text-gray-400 border-transparent"}`}>
-              {tab === "requests"
-                ? `Requests${pendingInvites.length > 0 ? ` (${pendingInvites.length})` : ""}`
-                : "Posts"}
-            </button>
-          ))}
+          {(["posts", "approvals", "requests"] as const).map(tab => {
+            const pendingPostCount = posts.filter(p => p.status === "pending_approval").length;
+            const label =
+              tab === "requests"   ? `Requests${pendingInvites.length > 0 ? ` (${pendingInvites.length})` : ""}`
+              : tab === "approvals" ? `Approvals${pendingPostCount > 0 ? ` (${pendingPostCount})` : ""}`
+              : "Posts";
+            return (
+              <button key={tab} onClick={() => setActiveTab(tab)}
+                className={`flex-1 py-3 text-[11px] font-black uppercase tracking-widest transition-all border-b-2 ${activeTab === tab ? "text-blue-600 border-blue-500" : "text-gray-400 border-transparent"}`}>
+                {label}
+              </button>
+            );
+          })}
         </div>
       )}
 
@@ -1233,42 +1281,121 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
             </div>
           )}
           {pendingInvites.map(invite => {
-            // Distinguish: owner-sent invite (inviter = owner) vs user join request (inviter = invitee)
             const isJoinRequest = invite.inviter_id === invite.invitee_id;
+            const selDur = acceptDurationMap[invite.id] || "7d";
             return (
               <motion.div key={invite.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-                className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex items-center gap-3">
-                <div className="w-12 h-12 rounded-full overflow-hidden bg-gray-200 shrink-0 flex items-center justify-center">
-                  {invite.invitee?.avatar_url
-                    ? <img src={invite.invitee.avatar_url} className="w-full h-full object-cover" alt="" loading="lazy" decoding="async" />
-                    : <span className="text-gray-500 font-black text-lg">{(invite.invitee?.full_name || "?")[0].toUpperCase()}</span>}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-black text-gray-800 text-[14px] truncate">{invite.invitee?.full_name || "Unknown User"}</p>
-                  <div className="flex items-center gap-1.5 mt-0.5">
-                    {isJoinRequest
-                      ? <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-blue-50 text-blue-600 text-[9px] font-black uppercase tracking-wide"><Plus size={8} /> Join Request</span>
-                      : <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-purple-50 text-purple-600 text-[9px] font-black uppercase tracking-wide"><Anchor size={8} /> Aapne Invite Kiya</span>
-                    }
-                    <span className="text-[10px] text-gray-400 font-medium">{smartTime(invite.created_at)}</span>
+                className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-full overflow-hidden bg-gray-200 shrink-0 flex items-center justify-center">
+                    {invite.invitee?.avatar_url
+                      ? <img src={invite.invitee.avatar_url} className="w-full h-full object-cover" alt="" loading="lazy" decoding="async" />
+                      : <span className="text-gray-500 font-black text-lg">{(invite.invitee?.full_name || "?")[0].toUpperCase()}</span>}
                   </div>
-                  <p className="text-[11px] text-gray-500 font-medium mt-0.5">
-                    {isJoinRequest ? "Is page par post karna chahta/chahti hai" : "Invite accept karna chahta/chahti hai"}
-                  </p>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-black text-gray-800 text-[14px] truncate">{invite.invitee?.full_name || "Unknown User"}</p>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      {isJoinRequest
+                        ? <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-blue-50 text-blue-600 text-[9px] font-black uppercase tracking-wide"><Plus size={8} /> Join Request</span>
+                        : <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-purple-50 text-purple-600 text-[9px] font-black uppercase tracking-wide"><Anchor size={8} /> Aapne Invite Kiya</span>
+                      }
+                      <span className="text-[10px] text-gray-400 font-medium">{smartTime(invite.created_at)}</span>
+                    </div>
+                    <p className="text-[11px] text-gray-500 font-medium mt-0.5">
+                      {isJoinRequest ? "Is page par post karna chahta/chahti hai" : "Invite accept karna chahta/chahti hai"}
+                    </p>
+                  </div>
                 </div>
-                <div className="flex gap-2 shrink-0">
+                {/* Duration selector — owner picks before accepting */}
+                <div>
+                  <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Posting Access Duration</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {DURATION_OPTIONS.map(opt => (
+                      <button key={opt.value}
+                        onClick={() => setAcceptDurationMap(prev => ({ ...prev, [invite.id]: opt.value }))}
+                        className={`px-2.5 py-1 rounded-lg text-[10px] font-black transition-all ${selDur === opt.value ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-500 border border-gray-200"}`}>
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex gap-2">
                   <motion.button whileTap={{ scale: 0.93 }}
                     onClick={() => acceptInvite(invite.id, invite.invitee_id, invite.invitee?.full_name)}
                     disabled={acceptingId === invite.id || rejectingId === invite.id}
-                    className="flex items-center gap-1 px-3 py-2 rounded-xl bg-green-500 text-white text-[11px] font-black disabled:opacity-60">
+                    className="flex-1 flex items-center justify-center gap-1 px-3 py-2.5 rounded-xl bg-green-500 text-white text-[11px] font-black disabled:opacity-60">
                     {acceptingId === invite.id ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
-                    Accept
+                    Accept · {DURATION_OPTIONS.find(d => d.value === selDur)?.label}
                   </motion.button>
                   <motion.button whileTap={{ scale: 0.93 }}
                     onClick={() => rejectInvite(invite.id, invite.invitee_id, invite.invitee?.full_name)}
                     disabled={acceptingId === invite.id || rejectingId === invite.id}
-                    className="flex items-center gap-1 px-3 py-2 rounded-xl bg-red-100 text-red-500 text-[11px] font-black disabled:opacity-60">
+                    className="flex items-center gap-1 px-3 py-2.5 rounded-xl bg-red-100 text-red-500 text-[11px] font-black disabled:opacity-60">
                     {rejectingId === invite.id ? <Loader2 size={12} className="animate-spin" /> : <X size={12} />}
+                    Reject
+                  </motion.button>
+                </div>
+              </motion.div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ── Approvals Panel (owner only) ─────────────────────────────────────── */}
+      {isOwner && activeTab === "approvals" && (
+        <div className="flex-1 p-4 space-y-3">
+          {loading && <div className="flex justify-center py-8"><Loader2 size={24} className="animate-spin text-blue-500" /></div>}
+          {!loading && posts.filter(p => p.status === "pending_approval").length === 0 && (
+            <div className="flex flex-col items-center justify-center py-16 gap-3 text-gray-300">
+              <CheckSquare size={40} strokeWidth={1.2} />
+              <p className="text-[12px] font-black uppercase tracking-widest">Koi pending approval nahi</p>
+              <p className="text-[11px] text-gray-400 text-center px-6">Contributors ke posts yahan review ke liye aayenge</p>
+            </div>
+          )}
+          {posts.filter(p => p.status === "pending_approval").map(post => {
+            const author = postAuthors[post.author_id];
+            return (
+              <motion.div key={post.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                className="bg-white rounded-2xl border border-yellow-200 shadow-sm overflow-hidden">
+                <div className="px-4 pt-4 pb-2">
+                  <div className="flex items-center gap-2.5 mb-3">
+                    <div className="w-8 h-8 rounded-full overflow-hidden bg-gradient-to-br from-purple-500 to-blue-600 flex items-center justify-center shrink-0">
+                      {author?.avatar_url
+                        ? <img src={author.avatar_url} className="w-full h-full object-cover" alt="" loading="lazy" decoding="async" />
+                        : <span className="text-white font-black text-[11px]">{(author?.full_name || "?")[0].toUpperCase()}</span>}
+                    </div>
+                    <div>
+                      <span className="font-black text-gray-800 text-[13px]">{author?.full_name || "Unknown"}</span>
+                      <span className="ml-1.5 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-purple-50 text-purple-600 text-[9px] font-black">🤝 Page Partner</span>
+                      <p className="text-[10px] text-gray-400">{smartTime(post.created_at)}</p>
+                    </div>
+                    <div className="ml-auto">
+                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-yellow-50 text-yellow-600 text-[9px] font-black border border-yellow-200">⏳ Awaiting Approval</span>
+                    </div>
+                  </div>
+                  {post.content && <p className="text-[14px] text-gray-700 font-medium leading-relaxed mb-2">{post.content}</p>}
+                  {post.media_url && (() => {
+                    const mt = post.media_type || post.type || "";
+                    const url = post.media_url.toLowerCase();
+                    const isVideo = mt === "video" || url.includes(".mp4") || url.includes(".mov") || url.includes(".webm");
+                    return isVideo
+                      ? <video src={post.media_url} className="w-full rounded-xl mb-2 max-h-64" controls preload="metadata" />
+                      : <img src={post.media_url} alt="" className="w-full rounded-xl object-cover mb-2 max-h-64" loading="lazy" />;
+                  })()}
+                </div>
+                <div className="flex gap-2 px-4 pb-4">
+                  <motion.button whileTap={{ scale: 0.93 }}
+                    onClick={() => approvePost(post.id)}
+                    disabled={approvingPostId === post.id || rejectingPostId === post.id}
+                    className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-green-500 text-white text-[12px] font-black disabled:opacity-60">
+                    {approvingPostId === post.id ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
+                    Approve & Publish
+                  </motion.button>
+                  <motion.button whileTap={{ scale: 0.93 }}
+                    onClick={() => rejectPost(post.id)}
+                    disabled={approvingPostId === post.id || rejectingPostId === post.id}
+                    className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-red-100 text-red-500 text-[12px] font-black disabled:opacity-60">
+                    {rejectingPostId === post.id ? <Loader2 size={13} className="animate-spin" /> : <X size={13} />}
                     Reject
                   </motion.button>
                 </div>
@@ -1282,13 +1409,13 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
       {activeTab === "posts" && (
       <div className="flex-1 p-4 space-y-3">
         {loading && <div className="flex justify-center py-8"><Loader2 size={24} className="animate-spin text-blue-500" /></div>}
-        {!loading && posts.length === 0 && (
+        {!loading && posts.filter(p => p.status === "approved" || !p.status).length === 0 && (
           <div className="flex flex-col items-center justify-center py-16 gap-3 text-gray-300">
             <FileText size={40} strokeWidth={1.2} />
             <p className="text-[12px] font-black uppercase tracking-widest">Abhi koi post nahi</p>
           </div>
         )}
-        {posts.map(post => {
+        {posts.filter(p => p.status === "approved" || !p.status).map(post => {
           // Strict permission: owner can manage any post; contributors/viewers can only manage their OWN posts
           const canEditPost = isOwner || post.author_id === userId;
           const author = postAuthors[post.author_id];
@@ -1309,8 +1436,11 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
                       <span className="font-black text-gray-800 text-[13px] truncate">{author?.full_name || "Unknown"}</span>
                       {isOwnerPost
                         ? <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-amber-50 text-amber-600 text-[9px] font-black uppercase tracking-wide">★ Owner</span>
-                        : <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-purple-50 text-purple-600 text-[9px] font-black uppercase tracking-wide"><Anchor size={7} /> Contributor</span>
+                        : <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-purple-50 text-purple-600 text-[9px] font-black">🤝 Page Partner</span>
                       }
+                      {post.status === "pending_approval" && isOwner && (
+                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-yellow-50 text-yellow-600 text-[9px] font-black">⏳ Pending</span>
+                      )}
                     </div>
                     {post.created_at && <p className="text-[10px] text-gray-400 mt-0.5">{smartTime(post.created_at)}</p>}
                   </div>
@@ -1389,7 +1519,7 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
 
       <AnimatePresence>
         {hookModal  && <HookModal pageId={page.id} pageName={livePage.name} userId={userId} onClose={() => { setHookModal(false); refreshPage(); }} />}
-        {addPost    && <AddPostModal pageId={page.id} userId={userId} onClose={() => setAddPost(false)} onPosted={() => { fetchPosts(); refreshPage(); }} />}
+        {addPost    && <AddPostModal pageId={page.id} userId={userId} isOwner={isOwner} pageName={livePage.name} onClose={() => setAddPost(false)} onPosted={() => { fetchPosts(); refreshPage(); }} />}
         {showEditPage && <EditPageModal page={livePage} userId={userId} onClose={() => setShowEditPage(false)} onSaved={p => { setLivePage(p); onPageUpdated(p); }} />}
 
         {/* Edit Post Modal */}
