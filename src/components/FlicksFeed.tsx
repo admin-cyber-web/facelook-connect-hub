@@ -370,21 +370,21 @@ const FlickCard = memo(({ post, isActive, currentUserId, onBridgeChat, isAdmin, 
   const tickerText = `♪  @${post.author || "user"}  —  ${localContent || "No caption"}`;
 
   return (
-    <div className="relative w-full bg-black snap-start flex items-center justify-center overflow-hidden" style={{ height: "100dvh" }}>
+    /* Root card — explicit height, no flex layout so absolute children are unambiguous */
+    <div className="relative w-full bg-black snap-start overflow-hidden" style={{ height: "100dvh" }}>
 
-      {/* ── Video (hidden when errored so it doesn't flash a broken frame) ── */}
+      {/* ── Video — absolute inset-0 so it is unambiguously at z=0 behind every overlay ── */}
       <video
         ref={videoRef}
-        key={post.media_url || post.url}   /* remount if src changes */
+        key={post.media_url || post.url}
         src={post.media_url || post.url}
         loop
         muted={isMuted}
         playsInline
-        autoPlay={false}                   /* we control play via ref */
+        autoPlay={false}
         preload="metadata"
-        x-webkit-airplay="deny"            /* suppress AirPlay UI on Safari */
-        className="w-full h-full object-cover"
-        style={{ backgroundColor: "black", display: videoError ? "none" : undefined }}
+        className="absolute inset-0 w-full h-full object-cover"
+        style={{ backgroundColor: "#000", zIndex: 0, display: videoError ? "none" : undefined }}
         onLoadStart={() => { setVideoLoading(true); setVideoError(null); }}
         onCanPlay={() => setVideoLoading(false)}
         onPlaying={() => setVideoLoading(false)}
@@ -399,31 +399,38 @@ const FlickCard = memo(({ post, isActive, currentUserId, onBridgeChat, isAdmin, 
         }}
       />
 
-      {/* ── Loading spinner (buffer / first-load) ── */}
+      {/* ── Tap overlay — z-10, full-screen, catches single/double tap ── */}
+      {/* Must sit below action bar (z-40) so buttons receive clicks first */}
+      <div className="absolute inset-0 z-10" style={{ touchAction: "none" }} onClick={handleVideoTap} />
+
+      {/* ── Gradient vignette — purely decorative, no pointer events ── */}
+      <div className="absolute inset-0 pointer-events-none z-20"
+        style={{ background: "linear-gradient(to bottom, rgba(0,0,0,0.28) 0%, transparent 35%, transparent 55%, rgba(0,0,0,0.78) 100%)" }} />
+
+      {/* ── Loading spinner (buffer / first-load) — z-[25], pointer-events-none ── */}
       {videoLoading && !videoError && isActive && (
-        <div className="absolute inset-0 z-25 flex items-center justify-center pointer-events-none">
+        <div className="absolute inset-0 z-[25] flex items-center justify-center pointer-events-none">
           <div className="w-12 h-12 rounded-full border-[3px] border-white/10 border-t-cyan-400 animate-spin" />
         </div>
       )}
 
-      {/* ── Video error fallback — shown instead of broken/black frame ── */}
+      {/* ── Video error fallback — z-[25], interactive (Retry button) ── */}
       {videoError && (
-        <div className="absolute inset-0 z-25 flex flex-col items-center justify-center gap-4 bg-[#090b14] px-8">
-          {/* Thumbnail if available, else gradient bg */}
+        <div className="absolute inset-0 z-[25] flex flex-col items-center justify-center gap-4 bg-[#090b14] px-8">
           {post.thumb_url && (
-            <img src={post.thumb_url} alt="thumbnail"
-              className="absolute inset-0 w-full h-full object-cover opacity-20 blur-sm" />
+            <img src={post.thumb_url} alt=""
+              className="absolute inset-0 w-full h-full object-cover opacity-20 blur-sm pointer-events-none" />
           )}
-          <div className="relative z-10 flex flex-col items-center gap-3 text-center">
+          <div className="relative flex flex-col items-center gap-3 text-center">
             <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center">
               <span style={{ fontSize: 32 }}>📵</span>
             </div>
             <p className="text-white/80 font-bold text-sm">{videoError}</p>
             <p className="text-white/35 text-[11px] leading-relaxed max-w-[220px]">
-              This video couldn't be played on your device. Try again or skip to the next one.
+              This video couldn't be played. Try again or scroll to the next one.
             </p>
             <button
-              className="mt-1 px-5 py-2 rounded-full text-[12px] font-black text-white border border-white/20 bg-white/8 backdrop-blur-md active:scale-95 transition-transform"
+              className="mt-1 px-5 py-2 rounded-full text-[12px] font-black text-white border border-white/20 bg-white/10 backdrop-blur-md active:scale-95 transition-transform"
               onClick={e => {
                 e.stopPropagation();
                 setVideoError(null);
@@ -437,10 +444,17 @@ const FlickCard = memo(({ post, isActive, currentUserId, onBridgeChat, isAdmin, 
         </div>
       )}
 
-      {/* ── Tap overlay (single = mute toggle, double = like) ── */}
-      <div className="absolute inset-0 z-10" onClick={handleVideoTap} />
+      {/* ── "Tap for Sound" pill — z-30, pointer-events-none (tap passes to z-10 overlay) ── */}
+      {isMuted && isActive && !videoError && !videoLoading && (
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 pointer-events-none select-none">
+          <div className="flex items-center gap-2 bg-black/55 backdrop-blur-md border border-white/20 rounded-full px-4 py-2 shadow-xl">
+            <span className="text-white text-base">🔇</span>
+            <span className="text-white text-[11px] font-bold tracking-wide">Tap for Sound</span>
+          </div>
+        </div>
+      )}
 
-      {/* ── Floating heart on double-tap ── */}
+      {/* ── Floating heart on double-tap — z-50, pointer-events-none ── */}
       <AnimatePresence>
         {heartPos && (
           <motion.div
@@ -456,19 +470,6 @@ const FlickCard = memo(({ post, isActive, currentUserId, onBridgeChat, isAdmin, 
           </motion.div>
         )}
       </AnimatePresence>
-
-      {/* ── "Tap for Sound" pill — shown only while muted and playing cleanly ── */}
-      {isMuted && isActive && !videoError && !videoLoading && (
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 pointer-events-none">
-          <div className="flex items-center gap-2 bg-black/55 backdrop-blur-md border border-white/20 rounded-full px-4 py-2 shadow-xl">
-            <span className="text-white text-base">🔇</span>
-            <span className="text-white text-[11px] font-bold tracking-wide">Tap for Sound</span>
-          </div>
-        </div>
-      )}
-
-      {/* ── Gradient vignette ── */}
-      <div className="absolute inset-0 bg-gradient-to-b from-black/25 via-transparent to-black/75 pointer-events-none z-20" />
 
       {/* ── 3-dot menu (top-right, above action bar) ── */}
       <div className="absolute top-12 right-3 z-50" onClick={e => e.stopPropagation()}>
