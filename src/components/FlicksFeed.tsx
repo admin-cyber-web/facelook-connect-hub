@@ -704,50 +704,38 @@ export default function FlicksApp({ onBack, onBridgeChat, isAdmin: isAdminProp =
 
     const fetchData = async () => {
       try {
-        const { data: flicksData, error: flicksErr } = await supabase
-          .from("flicks")
-          .select("*, author:profiles(avatar_url, full_name), comments(count)")
-          .order("created_at", { ascending: false })
-          .limit(15);
-
-        const flicksNormalized = (!flicksErr && flicksData ? flicksData : []).map((f: any) => ({
-          id: `flick_${f.id}`, _raw_id: f.id, _source: "flicks",
-          author_id: f.author_id || f.user_id,
-          author: f.author?.full_name || f.username || "User",
-          author_avatar: f.author?.avatar_url || null,
-          content: f.caption || f.content || "",
-          media_url: f.video_url || f.media_url,
-          thumb_url: f.thumb_url || null,
-          likes_count: f.likes_count || 0,
-          views_count: f.views_count || 0,
-          comments_count: f.comments?.[0]?.count || 0,
-          created_at: f.created_at,
-        }));
-
+        // Single source of truth: posts table, type=video, with unambiguous FK hint
         const { data: postsData, error: postsErr } = await supabase
-          .from("posts").select("*, profiles:author_id(avatar_url, full_name), comments(count)")
-          .eq("type", "video").order("created_at", { ascending: false }).limit(15);
-        if (postsErr && flicksErr) throw postsErr;
+          .from("posts")
+          .select("*, author:profiles!posts_author_id_fkey(avatar_url, full_name), comments(count)")
+          .eq("type", "video")
+          .order("created_at", { ascending: false })
+          .limit(20);
 
-        const postsNormalized = (postsData || []).map((p: any) => ({
-          id: `post_${p.id}`, _raw_id: p.id, _source: "posts",
+        if (postsErr) throw postsErr;
+
+        const normalized = (postsData || []).map((p: any) => ({
+          id: `post_${p.id}`,
+          _raw_id: p.id,
+          _source: "posts",
           author_id: p.author_id || p.user_id,
-          author: p.profiles?.full_name || p.username || p.author || "User",
-          author_avatar: p.profiles?.avatar_url || null,
-          content: p.caption || p.content || "",
-          media_url: p.video_url || p.media_url,
+          author: p.author?.full_name || p.username || p.author_name || "User",
+          author_avatar: p.author?.avatar_url || null,
+          content: p.content || p.caption || "",
+          media_url: p.media_url || p.video_url,
+          thumb_url: p.cover_url || p.thumb_url || null,
           likes_count: p.likes_count || 0,
           views_count: p.views_count || 0,
           comments_count: p.comments?.[0]?.count || 0,
+          shares_count: p.shares_count || 0,
+          meta_title: p.meta_title || null,
+          meta_description: p.meta_description || null,
           created_at: p.created_at,
         }));
 
-        const merged = [...flicksNormalized, ...postsNormalized].sort(
-          (a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
-        );
-        setFlicks(merged);
-        dataCache.setCache("flicksFeed", { data: merged, fetchedAt: Date.now() });
-      } catch (err) { console.error(err); }
+        setFlicks(normalized);
+        dataCache.setCache("flicksFeed", { data: normalized, fetchedAt: Date.now() });
+      } catch (err) { console.error("[FlicksApp] fetch error:", err); }
       finally { setLoading(false); }
     };
 
