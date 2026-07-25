@@ -924,10 +924,13 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
     setBroadcastingPostId(post.id);
     try {
       const authorName = myProfile?.full_name || postAuthors[userId]?.full_name || "Page Owner";
+      // Content carries the source attribution so it shows correctly in FameFeed
+      // even if the posts table has no metadata column.
       const shareContent = post.content
         ? `📌 ${livePage.name}: ${post.content}`
         : `📌 Shared from ${livePage.name}`;
-      const { error } = await supabase.from("posts").insert([{
+
+      const baseRow = {
         author_id: userId,
         author: authorName,
         content: shareContent,
@@ -936,13 +939,25 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
         visibility: "public",
         likes_count: 0,
         comments_count: 0,
-        metadata: {
+      };
+
+      // Try with metadata column first; fall back silently if column doesn't exist
+      let { error } = await supabase.from("posts").insert([{
+        ...baseRow,
+        metadata: JSON.stringify({
           hook_page_id: page.id,
           hook_page_name: livePage.name,
           hook_post_id: post.id,
           source: "hook_broadcast",
-        },
+        }),
       }]);
+
+      // code 42703 = column does not exist; PGRST204 = no content (unexpected schema)
+      if (error && (error.code === "42703" || error.code === "PGRST204" || error.message?.includes("column"))) {
+        const fallback = await supabase.from("posts").insert([baseRow]);
+        error = fallback.error;
+      }
+
       if (error) throw error;
       toast.success("📢 FameFeed par broadcast ho gaya!");
     } catch (err: any) {
