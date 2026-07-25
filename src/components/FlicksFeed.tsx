@@ -400,8 +400,10 @@ const FlickCard = memo(({ post, isActive, currentUserId, onBridgeChat, isAdmin, 
       />
 
       {/* ── Tap overlay — z-10, full-screen, catches single/double tap ── */}
+      {/* touchAction:"pan-y" lets the snap-scroll container receive vertical swipes  */}
+      {/* while still delivering tap (click) events for mute-toggle and double-tap-like */}
       {/* Must sit below action bar (z-40) so buttons receive clicks first */}
-      <div className="absolute inset-0 z-10" style={{ touchAction: "none" }} onClick={handleVideoTap} />
+      <div className="absolute inset-0 z-10" style={{ touchAction: "pan-y" }} onClick={handleVideoTap} />
 
       {/* ── Gradient vignette — purely decorative, no pointer events ── */}
       <div className="absolute inset-0 pointer-events-none z-20"
@@ -585,10 +587,10 @@ const FlickCard = memo(({ post, isActive, currentUserId, onBridgeChat, isAdmin, 
       </div>
 
       {/* ── Bottom info: username + caption ── */}
-      {/* Sits between cassette bar top (~104px) and has its own height (~50px) → bottom: 108 */}
+      {/* right: 68 leaves room for the action bar (≈44px wide) + gutter */}
       <div
         className={`absolute left-3 z-40 ${editingCaption ? "pointer-events-auto" : "pointer-events-none"}`}
-        style={{ bottom: 108, right: 60 }}
+        style={{ bottom: 108, right: 68 }}
         onClick={e => editingCaption && e.stopPropagation()}>
         <div className="flex items-center gap-1.5 mb-0.5 pointer-events-none">
           <h3 className="font-black text-white text-[14px]" style={{ textShadow: "0 1px 8px rgba(0,0,0,0.9)" }}>@{post.author || "user"}</h3>
@@ -611,8 +613,9 @@ const FlickCard = memo(({ post, isActive, currentUserId, onBridgeChat, isAdmin, 
       </div>
 
       {/* ── Cassette + Ticker Bar — pushed to the very bottom edge (above nav) ── */}
+      {/* pointer-events-none on wrapper: purely decorative, taps pass through to z-10 overlay */}
       {isActive && !editingCaption && (
-        <div className="absolute left-0 right-0 z-40 flex items-center gap-2.5 px-3 py-1"
+        <div className="absolute left-0 right-0 z-40 flex items-center gap-2.5 px-3 py-1 pointer-events-none"
           style={{
             bottom: 60,
             background: "rgba(0,0,0,0.55)",
