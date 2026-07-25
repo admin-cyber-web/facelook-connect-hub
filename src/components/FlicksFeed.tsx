@@ -191,24 +191,45 @@ const FlickCard = memo(({ post, isActive, currentUserId, onBridgeChat, isAdmin, 
   const [reporting,         setReporting]          = useState(false);
   const [editingCaption,    setEditingCaption]     = useState(false);
   const [localContent,      setLocalContent]       = useState(post?.content || "");
+  // ── Video health states ────────────────────────────────────────────────
+  const [videoError,        setVideoError]         = useState<string | null>(null);
+  const [videoLoading,      setVideoLoading]       = useState(true);
   const sounds = useSoundEffects();
   const { openProfile } = useProfileViewer();
+
+  // ── Parse MediaError into a human-readable label ──────────────────────
+  const parseMediaError = (err: MediaError | null): string => {
+    if (!err) return "Unknown playback error";
+    switch (err.code) {
+      case MediaError.MEDIA_ERR_ABORTED:       return "Playback aborted";
+      case MediaError.MEDIA_ERR_NETWORK:       return "Network error — check your connection";
+      case MediaError.MEDIA_ERR_DECODE:        return "Video decode error";
+      case MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED: return "Video format not supported";
+      default:                                  return "Playback error";
+    }
+  };
 
   // ── Play / pause + sound when card enters/leaves view ──────────────────
   useEffect(() => {
     const vid = videoRef.current;
     if (!vid) return;
     if (isActive) {
+      // Reset transient error/loading on each activation (e.g. user scrolled away and back)
+      setVideoError(null);
+      setVideoLoading(true);
       vid.currentTime = 0;
       const wantSound = globalSoundEnabled;
       vid.muted  = !wantSound;
       vid.volume = 1;
       setIsMuted(!wantSound);
-      vid.play().catch(() => {
-        // Autoplay blocked with sound — retry muted
-        vid.muted = true;
-        setIsMuted(true);
-        vid.play().catch(() => {});
+      vid.play().catch((err) => {
+        // NotAllowedError = autoplay policy; retry muted — not a decode failure
+        if (err?.name === "NotAllowedError" || err?.name === "AbortError") {
+          vid.muted = true;
+          setIsMuted(true);
+          vid.play().catch(() => {});
+        }
+        // Other errors (NotSupportedError etc.) are handled by the onError handler below
       });
     } else {
       vid.pause();
@@ -351,9 +372,70 @@ const FlickCard = memo(({ post, isActive, currentUserId, onBridgeChat, isAdmin, 
   return (
     <div className="relative w-full bg-black snap-start flex items-center justify-center overflow-hidden" style={{ height: "100dvh" }}>
 
-      {/* ── Video ── */}
-      <video ref={videoRef} src={post.media_url || post.url} loop muted={isMuted} playsInline preload="metadata"
-        className="w-full h-full object-cover" style={{ backgroundColor: "black" }} />
+      {/* ── Video (hidden when errored so it doesn't flash a broken frame) ── */}
+      <video
+        ref={videoRef}
+        key={post.media_url || post.url}   /* remount if src changes */
+        src={post.media_url || post.url}
+        loop
+        muted={isMuted}
+        playsInline
+        autoPlay={false}                   /* we control play via ref */
+        preload="metadata"
+        x-webkit-airplay="deny"            /* suppress AirPlay UI on Safari */
+        className="w-full h-full object-cover"
+        style={{ backgroundColor: "black", display: videoError ? "none" : undefined }}
+        onLoadStart={() => { setVideoLoading(true); setVideoError(null); }}
+        onCanPlay={() => setVideoLoading(false)}
+        onPlaying={() => setVideoLoading(false)}
+        onWaiting={() => { if (!videoError) setVideoLoading(true); }}
+        onStalled={() => { if (!videoError) setVideoLoading(true); }}
+        onError={e => {
+          const vid = e.currentTarget;
+          const msg = parseMediaError(vid.error);
+          console.warn("[FlickCard] video error:", msg, vid.src);
+          setVideoError(msg);
+          setVideoLoading(false);
+        }}
+      />
+
+      {/* ── Loading spinner (buffer / first-load) ── */}
+      {videoLoading && !videoError && isActive && (
+        <div className="absolute inset-0 z-25 flex items-center justify-center pointer-events-none">
+          <div className="w-12 h-12 rounded-full border-[3px] border-white/10 border-t-cyan-400 animate-spin" />
+        </div>
+      )}
+
+      {/* ── Video error fallback — shown instead of broken/black frame ── */}
+      {videoError && (
+        <div className="absolute inset-0 z-25 flex flex-col items-center justify-center gap-4 bg-[#090b14] px-8">
+          {/* Thumbnail if available, else gradient bg */}
+          {post.thumb_url && (
+            <img src={post.thumb_url} alt="thumbnail"
+              className="absolute inset-0 w-full h-full object-cover opacity-20 blur-sm" />
+          )}
+          <div className="relative z-10 flex flex-col items-center gap-3 text-center">
+            <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center">
+              <span style={{ fontSize: 32 }}>📵</span>
+            </div>
+            <p className="text-white/80 font-bold text-sm">{videoError}</p>
+            <p className="text-white/35 text-[11px] leading-relaxed max-w-[220px]">
+              This video couldn't be played on your device. Try again or skip to the next one.
+            </p>
+            <button
+              className="mt-1 px-5 py-2 rounded-full text-[12px] font-black text-white border border-white/20 bg-white/8 backdrop-blur-md active:scale-95 transition-transform"
+              onClick={e => {
+                e.stopPropagation();
+                setVideoError(null);
+                setVideoLoading(true);
+                const vid = videoRef.current;
+                if (vid) { vid.load(); vid.play().catch(() => {}); }
+              }}>
+              Retry
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ── Tap overlay (single = mute toggle, double = like) ── */}
       <div className="absolute inset-0 z-10" onClick={handleVideoTap} />
@@ -375,8 +457,8 @@ const FlickCard = memo(({ post, isActive, currentUserId, onBridgeChat, isAdmin, 
         )}
       </AnimatePresence>
 
-      {/* ── "Tap for Sound" pill — shown only while muted ── */}
-      {isMuted && isActive && (
+      {/* ── "Tap for Sound" pill — shown only while muted and playing cleanly ── */}
+      {isMuted && isActive && !videoError && !videoLoading && (
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 pointer-events-none">
           <div className="flex items-center gap-2 bg-black/55 backdrop-blur-md border border-white/20 rounded-full px-4 py-2 shadow-xl">
             <span className="text-white text-base">🔇</span>
