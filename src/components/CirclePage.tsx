@@ -884,7 +884,7 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
   const fetchCircleEvents = async (circleId: string) => {
     const { data: events } = await supabase
       .from("circle_events")
-      .select("*")
+      .select("id,circle_id,created_by,title,description,event_date,event_time,location,created_at")
       .eq("circle_id", circleId)
       .order("event_date", { ascending: true });
     if (!events) return;
@@ -1189,7 +1189,7 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
     setChatLoaded(false);
     const { data, error } = await supabase
       .from("group_messages")
-      .select("*")
+      .select("id,group_id,sender_id,sender_name,sender_avatar,content,media_url,reply_to_id,created_at")
       .eq("group_id", groupId)
       .order("created_at", { ascending: true })
       .limit(100);
@@ -1487,7 +1487,7 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
     setCommentLoading(true);
     const { data } = await supabase
       .from("circle_post_comments")
-      .select("*")
+      .select("id,post_id,author_id,author_name,author_avatar,content,created_at")
       .eq("post_id", post.id)
       .order("created_at", { ascending: true })
       .limit(100);

@@ -45,3 +45,19 @@ export function memFresh(key: string): boolean {
   if (Date.now() - entry.at > TTL_MS) { store.delete(key); return false; }
   return true;
 }
+
+/**
+ * Cache-then-fetch: returns the cached value when fresh, otherwise calls
+ * `fetchFn`, stores the result, and returns it.  Non-null/undefined values
+ * are cached; null/undefined bypass the cache so the next call retries.
+ */
+export async function memGetOrFetch<T>(
+  key: string,
+  fetchFn: () => Promise<T>,
+): Promise<T> {
+  const hit = memGet<T>(key);
+  if (hit !== null) return hit;
+  const data = await fetchFn();
+  if (data !== null && data !== undefined) memSet(key, data);
+  return data;
+}

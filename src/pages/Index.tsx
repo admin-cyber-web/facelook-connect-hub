@@ -1847,7 +1847,7 @@ const Index = ({ session, initialAdminOpen }: { session: Session; initialAdminOp
       // Step A: fetch existing profile (safe even if table missing)
       const { data, error: fetchErr } = await supabase
         .from("profiles")
-        .select("*")
+        .select("id,full_name,username,avatar_url,bio,location,school,mobile,profile_locked,profile_hidden,is_private_mode,account_status,suspension_reason,last_seen,fame_points,updated_at")
         .eq("id", userId)
         .maybeSingle();
 

@@ -6,6 +6,7 @@ import { X, MapPin, GraduationCap, UserPlus, MessageCircle, Check, Users, Ban, S
 import { useProfileViewer } from "../context/ProfileViewerContext";
 import { isAdminEmail } from "../lib/adminConfig";
 import { toast } from "sonner";
+import { memGet, memSet } from "../lib/memCache";
 
 interface Props {
   userId: string;
@@ -68,57 +69,110 @@ const UserProfileModal = ({ userId, currentUserId, isAdmin: isAdminProp = false,
     setLoading(true);
 
     const run = async () => {
+      // ── Cache keys ────────────────────────────────────────────────────────
+      const profileKey  = `upm:profile:${userId}`;
+      const friendsKey  = `upm:friends:${userId}`;
+      const countsKey   = `upm:counts:${userId}`;
+      const statusKey   = `upm:status:${currentUserId}:${userId}`;
+      const blockKey    = `upm:block:${currentUserId}:${userId}`;
+
+      type CachedCounts = { postCount: number; hookCount: number; pageCount: number };
+
+      const cachedProfile = memGet<ProfileData>(profileKey);
+      const cachedFriends = memGet<{ friends: Friend[]; count: number }>(friendsKey);
+      const cachedCounts  = memGet<CachedCounts>(countsKey);
+      const cachedStatus  = memGet<{ status: string; id: string | null }>(statusKey);
+      const cachedBlock   = memGet<boolean>(blockKey);
+
+      // Determine which requests are still needed
+      const needProfile = !cachedProfile;
+      const needFriends = !cachedFriends;
+      const needCounts  = !cachedCounts;
+      const needStatus  = !cachedStatus;
+      const needBlock   = !cachedBlock && !isOwnProfile;
+
       const [profileRes, postsRes, friendsRes, statusRes, hooksRes, pagesRes, blockRes] = await Promise.all([
-        supabase.from("profiles").select("id,full_name,avatar_url,bio,location,school,profile_locked,is_private_mode,last_seen,account_status").eq("id", userId).maybeSingle(),
-        supabase.from("posts").select("id", { count: "exact", head: true }).eq("author_id", userId),
-        supabase
-          .from("friendships")
-          .select("id, sender_id, receiver_id, profiles!friendships_sender_id_fkey(id,full_name,avatar_url), profiles!friendships_receiver_id_fkey(id,full_name,avatar_url)")
-          .eq("status", "accepted")
-          .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
-          .limit(30),
-        supabase
-          .from("friendships")
-          .select("id, status")
-          .or(`and(sender_id.eq.${currentUserId},receiver_id.eq.${userId}),and(sender_id.eq.${userId},receiver_id.eq.${currentUserId})`)
-          .maybeSingle(),
-        supabase.from("page_followers").select("page_id", { count: "exact", head: true }).eq("user_id", userId),
-        supabase.from("hook_pages").select("id", { count: "exact", head: true }).eq("owner_id", userId),
-        isOwnProfile
-          ? Promise.resolve({ data: null })
-          : supabase
+        needProfile
+          ? supabase.from("profiles").select("id,full_name,avatar_url,bio,location,school,profile_locked,is_private_mode,last_seen,account_status").eq("id", userId).maybeSingle()
+          : Promise.resolve({ data: cachedProfile }),
+        needCounts
+          ? supabase.from("posts").select("id", { count: "exact", head: true }).eq("author_id", userId)
+          : Promise.resolve({ count: cachedCounts!.postCount }),
+        needFriends
+          ? supabase
+              .from("friendships")
+              .select("id, sender_id, receiver_id, profiles!friendships_sender_id_fkey(id,full_name,avatar_url), profiles!friendships_receiver_id_fkey(id,full_name,avatar_url)")
+              .eq("status", "accepted")
+              .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
+              .limit(30)
+          : Promise.resolve({ data: null }),
+        needStatus
+          ? supabase
+              .from("friendships")
+              .select("id, status")
+              .or(`and(sender_id.eq.${currentUserId},receiver_id.eq.${userId}),and(sender_id.eq.${userId},receiver_id.eq.${currentUserId})`)
+              .maybeSingle()
+          : Promise.resolve({ data: cachedStatus }),
+        needCounts
+          ? supabase.from("page_followers").select("page_id", { count: "exact", head: true }).eq("user_id", userId)
+          : Promise.resolve({ count: cachedCounts!.hookCount }),
+        needCounts
+          ? supabase.from("hook_pages").select("id", { count: "exact", head: true }).eq("owner_id", userId)
+          : Promise.resolve({ count: cachedCounts!.pageCount }),
+        needBlock
+          ? supabase
               .from("user_blocks")
               .select("blocked_id")
               .eq("blocker_id", currentUserId)
               .eq("blocked_id", userId)
-              .maybeSingle(),
+              .maybeSingle()
+          : Promise.resolve({ data: isOwnProfile ? null : (cachedBlock ? { blocked_id: userId } : null) }),
       ]);
 
-      if (profileRes.data) setProfile(profileRes.data);
-      setPostCount(postsRes.count ?? 0);
-      setHookCount(hooksRes.count ?? 0);
-      setPageCount(pagesRes.count ?? 0);
+      // ── Apply results + populate cache ─────────────────────────────────
+      if (profileRes.data) {
+        setProfile(profileRes.data);
+        if (needProfile) memSet(profileKey, profileRes.data);
+      }
 
-      if (friendsRes.data) {
-        const parsed: Friend[] = friendsRes.data.map((row: any) => {
+      const pc = postsRes.count ?? 0;
+      const hc = (hooksRes as any).count ?? 0;
+      const pgc = (pagesRes as any).count ?? 0;
+      setPostCount(pc);
+      setHookCount(hc);
+      setPageCount(pgc);
+      if (needCounts) memSet(countsKey, { postCount: pc, hookCount: hc, pageCount: pgc });
+
+      if (needFriends && friendsRes.data) {
+        const parsed: Friend[] = (friendsRes.data as any[]).map((row: any) => {
           const isMe = row.sender_id === userId;
           const p = isMe ? row["profiles!friendships_receiver_id_fkey"] : row["profiles!friendships_sender_id_fkey"];
           return p ? { ...p, friendshipId: row.id } : null;
         }).filter((f: Friend | null): f is Friend => !!f && !!f.id && f.id !== currentUserId);
-
-        const allCount = friendsRes.data.length;
+        const allCount = (friendsRes.data as any[]).length;
         setFriends(parsed);
         setFriendCount(allCount);
+        memSet(friendsKey, { friends: parsed, count: allCount });
+      } else if (cachedFriends) {
+        setFriends(cachedFriends.friends);
+        setFriendCount(cachedFriends.count);
       }
 
-      if (statusRes.data) {
-        setFriendStatus(statusRes.data.status as any);
-        setFriendshipId((statusRes.data as any).id || null);
+      const statusData = statusRes.data as any;
+      if (statusData) {
+        setFriendStatus(statusData.status as any);
+        setFriendshipId(statusData.id || null);
+        if (needStatus) memSet(statusKey, { status: statusData.status, id: statusData.id || null });
       } else {
         setFriendStatus("none");
         setFriendshipId(null);
+        if (needStatus) memSet(statusKey, { status: "none", id: null });
       }
-      setIsBlocked(!!blockRes.data);
+
+      const blocked = !!blockRes.data;
+      setIsBlocked(blocked);
+      if (needBlock) memSet(blockKey, blocked);
+
       setLoading(false);
     };
 

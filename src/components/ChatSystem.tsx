@@ -2550,7 +2550,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       const { data, error } = await supabase
         .from("messages")
         .insert(insertPayload)
-        .select()
+        .select("id,sender_id,receiver_id,content,media_url,media_type,created_at,seen_at,reply_to_id,reply_preview,reactions,is_edited")
         .single();
 
       if (data) {
@@ -2737,7 +2737,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       const { data, error: dbError } = await supabase
         .from("messages")
         .insert(insertPayload)
-        .select()
+        .select("id,sender_id,receiver_id,content,media_url,media_type,created_at,seen_at,reply_to_id,reply_preview,reactions,is_edited")
         .single();
 
       if (dbError) {
