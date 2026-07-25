@@ -436,36 +436,38 @@ const FlickCard = memo(({ post, isActive, currentUserId, onBridgeChat, isAdmin, 
       </div>
 
       {/* ── COMPACT Right-side Action Bar ── */}
-      <div className="absolute right-3 z-40 flex flex-col items-center gap-5"
-        style={{ bottom: 120 }}>
+      {/* Sits at bottom:80 — above the cassette bar (bottom:60, ~40px tall) with breathing room */}
+      <div className="absolute right-2.5 z-40 flex flex-col items-center gap-3"
+        style={{ bottom: 110 }}>
 
         {/* Author avatar + follow */}
-        <div className="relative">
+        <div className="relative mb-1">
           <div
             className="w-10 h-10 rounded-full overflow-hidden cursor-pointer shrink-0"
-            style={{ border: "2px solid rgba(255,255,255,0.85)", boxShadow: "0 0 10px rgba(0,255,230,0.25)" }}
-            onClick={() => openProfile?.(post.author_id)}>
+            style={{ border: "2px solid rgba(255,255,255,0.9)", boxShadow: "0 0 8px rgba(0,255,230,0.3)" }}
+            onClick={e => { e.stopPropagation(); openProfile?.(post.author_id); }}>
             {post.author_avatar
               ? <img src={post.author_avatar} className="w-full h-full object-cover" alt="" decoding="async" />
-              : <div className="w-full h-full bg-zinc-700 flex items-center justify-center text-white font-black text-base uppercase">
+              : <div className="w-full h-full bg-gradient-to-br from-cyan-600 to-indigo-700 flex items-center justify-center text-white font-black text-sm uppercase">
                   {post.author?.[0] || "V"}
                 </div>
             }
           </div>
-          <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-5 h-5 bg-cyan-500 rounded-full flex items-center justify-center border-[1.5px] border-black">
-            <Plus size={11} className="text-white" strokeWidth={3} />
+          {/* Follow '+' badge */}
+          <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-[18px] h-[18px] bg-cyan-500 rounded-full flex items-center justify-center border-[1.5px] border-black shadow-md">
+            <Plus size={10} className="text-white" strokeWidth={3.5} />
           </div>
         </div>
 
         {/* Like */}
         <button
           onClick={e => { e.stopPropagation(); triggerLike(); }}
-          className="flex flex-col items-center gap-1 z-50">
-          <div className="w-10 h-10 rounded-full flex items-center justify-center"
-            style={{ background: "rgba(0,0,0,0.45)", backdropFilter: "blur(10px)", border: "1px solid rgba(255,255,255,0.12)", boxShadow: likedByMe ? "0 0 12px rgba(255,45,85,0.5)" : "none" }}>
-            <Heart size={22} fill={likedByMe ? "#ff2d55" : "none"} className={likedByMe ? "text-[#ff2d55]" : "text-white"} />
+          className="flex flex-col items-center gap-0.5 z-50">
+          <div className="w-9 h-9 rounded-full flex items-center justify-center"
+            style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(12px)", border: "1px solid rgba(255,255,255,0.13)", boxShadow: likedByMe ? "0 0 10px rgba(255,45,85,0.55)" : "none" }}>
+            <Heart size={18} fill={likedByMe ? "#ff2d55" : "none"} className={likedByMe ? "text-[#ff2d55]" : "text-white"} />
           </div>
-          <span className="text-[10px] font-black text-white" style={{ textShadow: "0 1px 4px rgba(0,0,0,0.8)" }}>
+          <span className="text-[9px] font-black text-white/90" style={{ textShadow: "0 1px 4px rgba(0,0,0,0.9)" }}>
             {formatCount(liveLikes)}
           </span>
         </button>
@@ -473,23 +475,23 @@ const FlickCard = memo(({ post, isActive, currentUserId, onBridgeChat, isAdmin, 
         {/* Comment */}
         <button
           onClick={e => { e.stopPropagation(); setShowComments(true); }}
-          className="flex flex-col items-center gap-1 z-50">
-          <div className="w-10 h-10 rounded-full flex items-center justify-center"
-            style={{ background: "rgba(0,0,0,0.45)", backdropFilter: "blur(10px)", border: "1px solid rgba(255,255,255,0.12)" }}>
-            <MessageCircle size={22} className="text-white" />
+          className="flex flex-col items-center gap-0.5 z-50">
+          <div className="w-9 h-9 rounded-full flex items-center justify-center"
+            style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(12px)", border: "1px solid rgba(255,255,255,0.13)" }}>
+            <MessageCircle size={18} className="text-white" />
           </div>
-          <span className="text-[10px] font-black text-white" style={{ textShadow: "0 1px 4px rgba(0,0,0,0.8)" }}>
+          <span className="text-[9px] font-black text-white/90" style={{ textShadow: "0 1px 4px rgba(0,0,0,0.9)" }}>
             {formatCount(liveCommentsCount)}
           </span>
         </button>
 
         {/* Share */}
-        <button onClick={handleShare} className="flex flex-col items-center gap-1 z-50">
-          <div className="w-10 h-10 rounded-full flex items-center justify-center"
-            style={{ background: "rgba(0,0,0,0.45)", backdropFilter: "blur(10px)", border: "1px solid rgba(255,255,255,0.12)" }}>
-            <Share2 size={21} className="text-white" />
+        <button onClick={handleShare} className="flex flex-col items-center gap-0.5 z-50">
+          <div className="w-9 h-9 rounded-full flex items-center justify-center"
+            style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(12px)", border: "1px solid rgba(255,255,255,0.13)" }}>
+            <Share2 size={17} className="text-white" />
           </div>
-          <span className="text-[10px] font-black text-white" style={{ textShadow: "0 1px 4px rgba(0,0,0,0.8)" }}>Share</span>
+          <span className="text-[9px] font-black text-white/90" style={{ textShadow: "0 1px 4px rgba(0,0,0,0.9)" }}>Share</span>
         </button>
 
         {/* Magnet */}
@@ -500,13 +502,14 @@ const FlickCard = memo(({ post, isActive, currentUserId, onBridgeChat, isAdmin, 
       </div>
 
       {/* ── Bottom info: username + caption ── */}
+      {/* Sits between cassette bar top (~104px) and has its own height (~50px) → bottom: 108 */}
       <div
-        className={`absolute left-4 z-40 ${editingCaption ? "pointer-events-auto" : "pointer-events-none"}`}
-        style={{ bottom: 152, right: 68 }}
+        className={`absolute left-3 z-40 ${editingCaption ? "pointer-events-auto" : "pointer-events-none"}`}
+        style={{ bottom: 108, right: 60 }}
         onClick={e => editingCaption && e.stopPropagation()}>
-        <div className="flex items-center gap-2 mb-1 pointer-events-none">
-          <h3 className="font-black text-white text-[15px]" style={{ textShadow: "0 1px 8px rgba(0,0,0,0.9)" }}>@{post.author || "user"}</h3>
-          <BadgeCheck size={15} className="text-cyan-400" />
+        <div className="flex items-center gap-1.5 mb-0.5 pointer-events-none">
+          <h3 className="font-black text-white text-[14px]" style={{ textShadow: "0 1px 8px rgba(0,0,0,0.9)" }}>@{post.author || "user"}</h3>
+          <BadgeCheck size={13} className="text-cyan-400" />
         </div>
         {editingCaption ? (
           <div onClick={e => e.stopPropagation()}>
@@ -520,24 +523,23 @@ const FlickCard = memo(({ post, isActive, currentUserId, onBridgeChat, isAdmin, 
             </div>
           </div>
         ) : (
-          <p className="text-[12px] text-white/80 line-clamp-2 leading-snug font-medium" style={{ textShadow: "0 1px 6px rgba(0,0,0,0.9)" }}>{localContent}</p>
+          <p className="text-[11.5px] text-white/80 line-clamp-2 leading-snug font-medium" style={{ textShadow: "0 1px 6px rgba(0,0,0,0.9)" }}>{localContent}</p>
         )}
       </div>
 
-      {/* ── Cassette + Ticker Bar ── */}
+      {/* ── Cassette + Ticker Bar — pushed to the very bottom edge (above nav) ── */}
       {isActive && !editingCaption && (
-        <div className="absolute left-0 right-0 z-40 flex items-center gap-3 px-3 py-1.5"
+        <div className="absolute left-0 right-0 z-40 flex items-center gap-2.5 px-3 py-1"
           style={{
-            bottom: 100,
-            background: "rgba(0,0,0,0.52)",
-            backdropFilter: "blur(14px)",
-            borderTop: "1px solid rgba(255,255,255,0.08)",
-            borderBottom: "1px solid rgba(255,255,255,0.06)",
+            bottom: 60,
+            background: "rgba(0,0,0,0.55)",
+            backdropFilter: "blur(16px)",
+            borderTop: "1px solid rgba(255,255,255,0.07)",
           }}>
           <AudioCassette spinning={!isMuted} />
+          {/* Neon rule */}
+          <div className="shrink-0 w-px h-4 rounded-full" style={{ background: "rgba(0,255,230,0.55)", boxShadow: "0 0 5px rgba(0,255,230,0.55)" }} />
           <Ticker text={tickerText} isActive={isActive} />
-          {/* Neon left accent */}
-          <div className="shrink-0 w-px h-5 rounded-full" style={{ background: "rgba(0,255,230,0.5)", boxShadow: "0 0 6px rgba(0,255,230,0.6)" }} />
         </div>
       )}
 
@@ -637,15 +639,15 @@ export default function FlicksApp({ onBack, onBridgeChat, isAdmin: isAdminProp =
         }));
 
         const { data: postsData, error: postsErr } = await supabase
-          .from("posts").select("*, comments(count)")
+          .from("posts").select("*, profiles:author_id(avatar_url, full_name), comments(count)")
           .eq("type", "video").order("created_at", { ascending: false }).limit(15);
         if (postsErr && flicksErr) throw postsErr;
 
         const postsNormalized = (postsData || []).map((p: any) => ({
           id: `post_${p.id}`, _raw_id: p.id, _source: "posts",
           author_id: p.author_id || p.user_id,
-          author: p.username || p.author || "User",
-          author_avatar: null,
+          author: p.profiles?.full_name || p.username || p.author || "User",
+          author_avatar: p.profiles?.avatar_url || null,
           content: p.caption || p.content || "",
           media_url: p.video_url || p.media_url,
           likes_count: p.likes_count || 0,
@@ -690,10 +692,13 @@ export default function FlicksApp({ onBack, onBridgeChat, isAdmin: isAdminProp =
 
   return (
     <div className="fixed inset-0 bg-black z-[100]">
+      {/* Back button — minimal, ghost style like TikTok/Instagram; no heavy border or background */}
       {onBack && (
         <button onClick={onBack}
-          className="fixed top-12 left-4 z-[110] p-2 bg-black/40 backdrop-blur-md rounded-full border border-white/10 text-white shadow-xl">
-          <X size={24} />
+          className="fixed top-12 left-3 z-[110] p-1.5 text-white/70 hover:text-white transition-opacity"
+          style={{ textShadow: "0 1px 6px rgba(0,0,0,0.9)" }}
+          aria-label="Close Flicks">
+          <X size={20} strokeWidth={2.5} />
         </button>
       )}
       <div ref={containerRef} onScroll={onScroll}
