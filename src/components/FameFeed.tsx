@@ -13,6 +13,9 @@ import { useProfileViewer } from "../context/ProfileViewerContext";
 import { useDataCache } from "../context/DataCacheContext";
 import { isAdminEmail } from "../lib/adminConfig";
 import AdsterraAd from "./AdsterraAd";
+import PeopleYouMayKnow from "./PeopleYouMayKnow";
+import NewInYourArea from "./NewInYourArea";
+import type { LocalProfile } from "../lib/recommendationEngine";
 import { sharePost } from "../lib/sharePost";
 import { RichCaption } from "./RichCaption";
 import AutoPlayMutedVideo from "./AutoPlayMutedVideo";
@@ -1782,6 +1785,7 @@ interface FameFeedProps {
   onNavigateToFlicks?: () => void;
   onNavigateToSurveys?: () => void;
   isAdmin?: boolean;
+  localProfile?: LocalProfile;
 }
 
 // ── Hidden Posts Archive Drawer ───────────────────────────────────────────────
@@ -1982,6 +1986,7 @@ const FameFeed = ({
   onNavigateToFlicks,
   onNavigateToSurveys,
   isAdmin: isAdminProp = false,
+  localProfile = {},
 }: FameFeedProps) => {
   const { openProfile } = useProfileViewer();
   const { playPop, playSwoosh } = useSoundEffects();
@@ -5671,6 +5676,30 @@ const FameFeed = ({
           <p className="text-white/30 text-[10px] font-black uppercase tracking-widest">
             Loading Feed
           </p>
+        </div>
+      )}
+
+      {/* ── People Discovery — New in Your Area ────────────────────────── */}
+      {currentUserId && localProfile.rec_new_users !== false && (
+        localProfile.district || localProfile.city || localProfile.state
+      ) && (
+        <div className="px-3 mt-1 mb-1">
+          <NewInYourArea
+            currentUserId={currentUserId}
+            localProfile={localProfile}
+            onProfileClick={(uid) => openProfile(uid)}
+          />
+        </div>
+      )}
+
+      {/* ── People You May Know ───────────────────────────────────────────── */}
+      {currentUserId && (
+        <div className="py-2">
+          <PeopleYouMayKnow
+            currentUserId={currentUserId}
+            localProfile={localProfile}
+            onProfileClick={(uid) => openProfile(uid)}
+          />
         </div>
       )}
 

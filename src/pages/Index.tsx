@@ -42,7 +42,10 @@ import {
   Copy,
   Info,
   Mail,
-} from "lucide-react";
+  Sparkles,
+  SlidersHorizontal,
+  Tags,
+      } from "lucide-react";
 
 // DHAYAN DEIN: Sirf ye ek supabase import rehna chahiye
 import { supabase } from "@/lib/supabaseClient";
@@ -1272,9 +1275,9 @@ const HelpSupportView = ({ setSettingsView, lang }: { setSettingsView: (v: any) 
 // ── Personal Info sub-view (outside Index to prevent focus loss) ──────────────
 interface PersonalInfoViewProps {
   lang: "en" | "hi";
-  setSettingsView: (v: "main" | "personal" | "blocklist" | "privacy" | "help") => void;
-  personalForm: { full_name: string; bio: string; school: string; mobile: string; location: string };
-  setPersonalForm: React.Dispatch<React.SetStateAction<{ full_name: string; bio: string; school: string; mobile: string; location: string }>>;
+  setSettingsView: (v: "main" | "personal" | "blocklist" | "privacy" | "help" | "personalization") => void;
+  personalForm: { full_name: string; bio: string; school: string; mobile: string; location: string; state: string; district: string; city: string; pincode: string };
+  setPersonalForm: React.Dispatch<React.SetStateAction<{ full_name: string; bio: string; school: string; mobile: string; location: string; state: string; district: string; city: string; pincode: string }>>;
   isSavingPersonal: boolean;
   personalSaved: boolean;
   handleSavePersonalInfo: () => void;
@@ -1402,7 +1405,6 @@ const PersonalInfoView = React.memo(({
           { key: "bio",       label: t("Bio", "परिचय"),                         placeholder: t("Tell the world about you", "अपने बारे में लिखें") },
           { key: "school",    label: t("School / College", "स्कूल / कॉलेज"),   placeholder: t("Your school", "आपका स्कूल") },
           { key: "mobile",    label: t("Mobile", "मोबाइल"),                     placeholder: "+92 300 0000000" },
-          { key: "location",  label: t("Location", "स्थान"),                    placeholder: t("City, Country", "शहर, देश") },
         ].map(({ key, label, placeholder }) => (
           <div key={key} className="space-y-1">
             <p className="text-[10px] font-black text-white/40 uppercase tracking-widest">{label}</p>
@@ -1415,6 +1417,33 @@ const PersonalInfoView = React.memo(({
             />
           </div>
         ))}
+
+        {/* ── Split Location Fields ── */}
+        <div className="space-y-1">
+          <p className="text-[10px] font-black text-white/40 uppercase tracking-widest flex items-center gap-1.5">
+            <span>📍</span> {t("Location", "स्थान")}
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            {[
+              { key: "state",    placeholder: t("State (e.g. UP)", "राज्य") },
+              { key: "district", placeholder: t("District", "जिला") },
+              { key: "city",     placeholder: t("City / Town", "शहर") },
+              { key: "pincode",  placeholder: t("Pincode", "पिनकोड") },
+            ].map(({ key, placeholder }) => (
+              <input
+                key={key}
+                type={key === "pincode" ? "tel" : "text"}
+                placeholder={placeholder}
+                value={(personalForm as any)[key]}
+                onChange={(e) => setPersonalForm((prev) => ({ ...prev, [key]: e.target.value }))}
+                className="w-full bg-white/5 border border-white/10 rounded-2xl px-3 py-2.5 text-sm font-bold text-white placeholder:text-white/20 outline-none focus:ring-2 focus:ring-blue-500/40 transition-all"
+              />
+            ))}
+          </div>
+          <p className="text-[9px] text-white/20 font-medium pl-1">
+            {t("Used for local recommendations — never shown publicly", "स्थानीय सुझावों के लिए — सार्वजनिक नहीं")}
+          </p>
+        </div>
 
         <button
           onClick={handleSavePersonalInfo}
@@ -1566,7 +1595,7 @@ const Index = ({ session, initialAdminOpen }: { session: Session; initialAdminOp
 
   // Settings sub-views
   const [settingsView, setSettingsView] = useState<
-    "main" | "personal" | "blocklist" | "privacy" | "help" | "about" | "contact"
+    "main" | "personal" | "blocklist" | "privacy" | "help" | "about" | "contact" | "personalization"
   >("main");
   const [isSavingPersonal, setIsSavingPersonal] = useState(false);
   const [personalSaved, setPersonalSaved] = useState(false);
@@ -1576,7 +1605,19 @@ const Index = ({ session, initialAdminOpen }: { session: Session; initialAdminOp
     school: "",
     mobile: "",
     location: "",
+    state: "",
+    district: "",
+    city: "",
+    pincode: "",
   });
+  // Interests + recommendation preferences
+  const [interests, setInterests] = useState<string[]>([]);
+  const [recLocalFirst,   setRecLocalFirst]   = useState(true);
+  const [recPeopleNearby, setRecPeopleNearby] = useState(true);
+  const [recInterestsPref, setRecInterestsPref] = useState(true);
+  const [recNewUsers,     setRecNewUsers]     = useState(true);
+  const [isSavingPrefs,   setIsSavingPrefs]   = useState(false);
+  const [prefsSaved,      setPrefsSaved]      = useState(false);
 
   // Settings toggles
   const [lang, setLang] = useState<"en" | "hi">(
@@ -1847,7 +1888,7 @@ const Index = ({ session, initialAdminOpen }: { session: Session; initialAdminOp
       // Step A: fetch existing profile (safe even if table missing)
       const { data, error: fetchErr } = await supabase
         .from("profiles")
-        .select("id,full_name,username,avatar_url,bio,location,school,mobile,profile_locked,profile_hidden,is_private_mode,account_status,suspension_reason,last_seen,fame_points,updated_at")
+        .select("id,full_name,username,avatar_url,bio,location,state,district,city,pincode,interests,rec_local_first,rec_people_nearby,rec_interests,rec_new_users,school,mobile,profile_locked,profile_hidden,is_private_mode,account_status,suspension_reason,last_seen,fame_points,updated_at")
         .eq("id", userId)
         .maybeSingle();
 
@@ -1896,7 +1937,16 @@ const Index = ({ session, initialAdminOpen }: { session: Session; initialAdminOp
           school: data.school || "",
           mobile: data.mobile || "",
           location: data.location || "",
+          state: data.state || "",
+          district: data.district || "",
+          city: data.city || "",
+          pincode: data.pincode || "",
         });
+        setInterests(Array.isArray(data.interests) ? data.interests : []);
+        setRecLocalFirst(data.rec_local_first !== false);
+        setRecPeopleNearby(data.rec_people_nearby !== false);
+        setRecInterestsPref(data.rec_interests !== false);
+        setRecNewUsers(data.rec_new_users !== false);
         setProfileLocked(data.profile_locked || false);
         setProfileHidden(data.profile_hidden || false);
         setIsPrivateMode(data.is_private_mode || false);
@@ -2074,6 +2124,32 @@ const Index = ({ session, initialAdminOpen }: { session: Session; initialAdminOp
       .eq("id", userId);
   };
 
+  const handleSaveInterests = async (newInterests: string[]) => {
+    setInterests(newInterests);
+    await supabase.from("profiles").update({ interests: newInterests }).eq("id", userId);
+  };
+
+  const handleToggleRecLocalFirst = async () => {
+    const next = !recLocalFirst;
+    setRecLocalFirst(next);
+    await supabase.from("profiles").update({ rec_local_first: next }).eq("id", userId);
+  };
+  const handleToggleRecPeopleNearby = async () => {
+    const next = !recPeopleNearby;
+    setRecPeopleNearby(next);
+    await supabase.from("profiles").update({ rec_people_nearby: next }).eq("id", userId);
+  };
+  const handleToggleRecInterests = async () => {
+    const next = !recInterestsPref;
+    setRecInterestsPref(next);
+    await supabase.from("profiles").update({ rec_interests: next }).eq("id", userId);
+  };
+  const handleToggleRecNewUsers = async () => {
+    const next = !recNewUsers;
+    setRecNewUsers(next);
+    await supabase.from("profiles").update({ rec_new_users: next }).eq("id", userId);
+  };
+
   const handleLogout = async () => {
     dataCache.clearCache();
     memClear();
@@ -2193,6 +2269,203 @@ const Index = ({ session, initialAdminOpen }: { session: Session; initialAdminOp
   };
 
   // ── Settings: Main view (Aurora Glass redesign) ──────────────────────────
+
+// ── PersonalizationView ──────────────────────────────────────────────────────
+interface PersonalizationViewProps {
+  lang: "en" | "hi";
+  setSettingsView: (v: any) => void;
+  interests: string[];
+  onSaveInterests: (i: string[]) => Promise<void>;
+  recLocalFirst: boolean;
+  recPeopleNearby: boolean;
+  recInterestsPref: boolean;
+  recNewUsers: boolean;
+  onToggleRecLocalFirst: () => void;
+  onToggleRecPeopleNearby: () => void;
+  onToggleRecInterests: () => void;
+  onToggleRecNewUsers: () => void;
+}
+
+const INTERESTS_CATALOGUE = [
+  "Cricket","Football","Music","Movies","Web Series","Comedy","Gaming",
+  "Education","Business","Technology","Food","Travel","Photography",
+  "Fashion","Fitness","Local Culture","News & Politics","Entertainment",
+  "Art & Drawing","Dance","Health & Wellness","Spirituality","Farming",
+  "Finance","Bollywood","Memes","Cooking","Yoga","Startup",
+];
+
+const PersonalizationView = React.memo(({
+  lang,
+  setSettingsView,
+  interests,
+  onSaveInterests,
+  recLocalFirst,
+  recPeopleNearby,
+  recInterestsPref,
+  recNewUsers,
+  onToggleRecLocalFirst,
+  onToggleRecPeopleNearby,
+  onToggleRecInterests,
+  onToggleRecNewUsers,
+}: PersonalizationViewProps) => {
+  const t = (en: string, hi: string) => (lang === "hi" ? hi : en);
+  const [localInterests, setLocalInterests] = React.useState<string[]>(interests);
+  const [saving, setSaving] = React.useState(false);
+  const [saved,  setSaved]  = React.useState(false);
+
+  const toggleInterest = (tag: string) => {
+    setLocalInterests(prev =>
+      prev.includes(tag) ? prev.filter(i => i !== tag) : [...prev, tag]
+    );
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    await onSaveInterests(localInterests);
+    setSaving(false);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 1500);
+  };
+
+  const RecToggleRow = ({
+    icon, title, desc, value, onToggle,
+  }: { icon: string; title: string; desc: string; value: boolean; onToggle: () => void }) => (
+    <button
+      onClick={onToggle}
+      className="flex items-center gap-3 w-full px-4 py-3.5 transition-all active:scale-[0.98]"
+    >
+      <span className="text-base shrink-0">{icon}</span>
+      <div className="flex-1 text-left min-w-0">
+        <p className="text-[13px] font-bold text-white/80 leading-tight">{title}</p>
+        <p className="text-[10px] text-white/35 font-medium mt-0.5 leading-tight">{desc}</p>
+      </div>
+      <div
+        className="w-11 h-6 rounded-full shrink-0 relative transition-all duration-200"
+        style={{
+          background: value
+            ? "linear-gradient(135deg,#7c3aed,#2563eb)"
+            : "rgba(255,255,255,0.1)",
+        }}
+      >
+        <div
+          className="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all duration-200"
+          style={{ left: value ? "calc(100% - 22px)" : "2px" }}
+        />
+      </div>
+    </button>
+  );
+
+  return (
+    <div className="space-y-4 pb-10">
+      <div className="flex items-center gap-3 px-4 pt-5">
+        <button
+          onClick={() => setSettingsView("main")}
+          className="w-9 h-9 rounded-2xl flex items-center justify-center transition-all active:scale-90 shrink-0"
+          style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.09)" }}
+        >
+          <ChevronLeft size={16} className="text-white/60" />
+        </button>
+        <div>
+          <p className="text-base font-black text-white">{t("Personalization", "वैयक्तिकरण")}</p>
+          <p className="text-[10px] text-white/30 font-medium">{t("Interests & Recommendations", "रुचियां और सुझाव")}</p>
+        </div>
+      </div>
+
+      {/* ── Interests picker ──────────────────────────────────────────────── */}
+      <div
+        className="rounded-3xl overflow-hidden mx-4"
+        style={{ background: "rgba(255,255,255,0.035)", border: "1px solid rgba(255,255,255,0.07)" }}
+      >
+        <div className="flex items-center gap-3 px-4 pt-4 pb-2">
+          <Tags size={13} className="text-violet-400 shrink-0" />
+          <p className="text-[11px] font-black text-white/50 uppercase tracking-widest">
+            {t("Your Interests", "आपकी रुचियां")}
+          </p>
+          <span className="ml-auto text-[9px] font-black text-violet-400">
+            {localInterests.length} {t("selected", "चुनी")}
+          </span>
+        </div>
+        <div className="flex flex-wrap gap-2 px-4 pb-4">
+          {INTERESTS_CATALOGUE.map(tag => {
+            const active = localInterests.includes(tag);
+            return (
+              <button
+                key={tag}
+                onClick={() => toggleInterest(tag)}
+                className="px-3 py-1.5 rounded-full text-[11px] font-black transition-all active:scale-95"
+                style={{
+                  background: active
+                    ? "linear-gradient(135deg,rgba(124,58,237,0.7),rgba(37,99,235,0.7))"
+                    : "rgba(255,255,255,0.06)",
+                  border: active ? "1.5px solid rgba(139,92,246,0.5)" : "1px solid rgba(255,255,255,0.09)",
+                  color: active ? "#e9d5ff" : "rgba(255,255,255,0.45)",
+                }}
+              >
+                {tag}
+              </button>
+            );
+          })}
+        </div>
+        <div className="px-4 pb-4">
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="w-full py-3 rounded-2xl font-black text-[12px] flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-60"
+            style={{ background: "linear-gradient(135deg,#7c3aed,#2563eb)", color: "#fff" }}
+          >
+            {saving ? <Loader2 size={14} className="animate-spin" /> : saved ? <CheckCircle size={14} /> : <Save size={14} />}
+            {saved ? t("Saved!", "सहेजा!") : t("Save Interests", "रुचियां सहेजें")}
+          </button>
+        </div>
+      </div>
+
+      {/* ── Recommendation Preferences ────────────────────────────────────── */}
+      <div
+        className="rounded-3xl overflow-hidden mx-4"
+        style={{ background: "rgba(255,255,255,0.035)", border: "1px solid rgba(255,255,255,0.07)" }}
+      >
+        <div className="flex items-center gap-3 px-4 pt-4 pb-1">
+          <SlidersHorizontal size={13} className="text-cyan-400 shrink-0" />
+          <p className="text-[11px] font-black text-white/50 uppercase tracking-widest">
+            {t("Recommendation Settings", "सुझाव सेटिंग्स")}
+          </p>
+        </div>
+        <RecToggleRow
+          icon="📍"
+          title={t("Local Content First", "स्थानीय सामग्री पहले")}
+          desc={t("Prioritise posts from your area", "अपने क्षेत्र की पोस्ट पहले दिखाएं")}
+          value={recLocalFirst}
+          onToggle={onToggleRecLocalFirst}
+        />
+        <div style={{ height: 1, background: "rgba(255,255,255,0.05)", margin: "0 16px" }} />
+        <RecToggleRow
+          icon="👥"
+          title={t("People From My Area", "मेरे क्षेत्र के लोग")}
+          desc={t("Show nearby users in discovery", "पास के उपयोगकर्ता सुझाएं")}
+          value={recPeopleNearby}
+          onToggle={onToggleRecPeopleNearby}
+        />
+        <div style={{ height: 1, background: "rgba(255,255,255,0.05)", margin: "0 16px" }} />
+        <RecToggleRow
+          icon="🎯"
+          title={t("Interest Recommendations", "रुचि आधारित सुझाव")}
+          desc={t("Show content matching your interests", "रुचि के अनुसार सामग्री दिखाएं")}
+          value={recInterestsPref}
+          onToggle={onToggleRecInterests}
+        />
+        <div style={{ height: 1, background: "rgba(255,255,255,0.05)", margin: "0 16px" }} />
+        <RecToggleRow
+          icon="✨"
+          title={t("New Users Nearby", "पास के नए उपयोगकर्ता")}
+          desc={t("Get notified when someone nearby joins", "पास से कोई जुड़े तो दिखाएं")}
+          value={recNewUsers}
+          onToggle={onToggleRecNewUsers}
+        />
+      </div>
+    </div>
+  );
+});
+
   const MainSettingsView = () => {
     // Inner section wrapper with numbered header
     const AuroraSection = ({
@@ -2427,8 +2700,19 @@ const Index = ({ session, initialAdminOpen }: { session: Session; initialAdminOp
             />
           </AuroraSection>
 
-          {/* ── 03 · Privacy ─────────────────────── */}
-          <AuroraSection number="03" title={t("Privacy & Visibility", "गोपनीयता")}>
+          {/* ── 03 · Personalization ──────────────── */}
+          <AuroraSection number="03" title={t("Personalization", "वैयक्तिकरण")}>
+            <SettingRow
+              icon={<Sparkles size={16} />}
+              title={t("Interests & Discovery", "रुचियां और खोज")}
+              desc={t("Manage interests · Local recs · New users", "रुचियां · स्थानीय सुझाव · नए लोग")}
+              color="violet"
+              onClick={() => setSettingsView("personalization")}
+            />
+          </AuroraSection>
+
+          {/* ── 04 · Privacy ─────────────────────── */}
+          <AuroraSection number="04" title={t("Privacy & Visibility", "गोपनीयता")}>
             <SettingRow
               icon={<Lock size={16} />}
               title={t("Profile Lock", "प्रोफ़ाइल लॉक")}
@@ -2462,8 +2746,8 @@ const Index = ({ session, initialAdminOpen }: { session: Session; initialAdminOp
             />
           </AuroraSection>
 
-          {/* ── 04 · Resources & Support ─────────── */}
-          <AuroraSection number="04" title={t("Resources & Support", "सहायता और जानकारी")}>
+          {/* ── 05 · Resources & Support ─────────── */}
+          <AuroraSection number="05" title={t("Resources & Support", "सहायता और जानकारी")}>
             <SettingRow
               icon={<Shield size={16} />}
               title={t("Privacy Policy", "गोपनीयता नीति")}
@@ -3365,6 +3649,17 @@ const Index = ({ session, initialAdminOpen }: { session: Session; initialAdminOp
                       onNavigateToFlicks={() => setActiveFeature("Flicks")}
                       onNavigateToSurveys={() => setActiveFeature("Task")}
                       isAdmin={isAppAdmin}
+                      localProfile={{
+                        state: personalForm.state || undefined,
+                        district: personalForm.district || undefined,
+                        city: personalForm.city || undefined,
+                        pincode: personalForm.pincode || undefined,
+                        interests: interests.length > 0 ? interests : undefined,
+                        rec_local_first: recLocalFirst,
+                        rec_people_nearby: recPeopleNearby,
+                        rec_interests: recInterestsPref,
+                        rec_new_users: recNewUsers,
+                      }}
                     />
                   </PullToRefresh>
                 </div>
@@ -3507,7 +3802,7 @@ const Index = ({ session, initialAdminOpen }: { session: Session; initialAdminOp
                         Location
                       </p>
                       <p className="text-xs font-bold text-white truncate">
-                        {profile.location || "Not Set"}
+                        {[personalForm.city || (profile as any).city, personalForm.district || (profile as any).district, personalForm.state || (profile as any).state].filter(Boolean).join(", ") || profile.location || "Not Set"}
                       </p>
                     </div>
                   </GlassCard>
@@ -3720,6 +4015,29 @@ const Index = ({ session, initialAdminOpen }: { session: Session; initialAdminOp
                       userId={userId}
                       currentAvatarUrl={profile.avatar_url}
                       onAvatarUpdated={(url) => setProfile(prev => ({ ...prev, avatar_url: url }))}
+                    />
+                  </motion.div>
+                )}
+                {settingsView === "personalization" && (
+                  <motion.div
+                    key="personalization"
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                  >
+                    <PersonalizationView
+                      lang={lang}
+                      setSettingsView={setSettingsView}
+                      interests={interests}
+                      onSaveInterests={handleSaveInterests}
+                      recLocalFirst={recLocalFirst}
+                      recPeopleNearby={recPeopleNearby}
+                      recInterestsPref={recInterestsPref}
+                      recNewUsers={recNewUsers}
+                      onToggleRecLocalFirst={handleToggleRecLocalFirst}
+                      onToggleRecPeopleNearby={handleToggleRecPeopleNearby}
+                      onToggleRecInterests={handleToggleRecInterests}
+                      onToggleRecNewUsers={handleToggleRecNewUsers}
                     />
                   </motion.div>
                 )}
