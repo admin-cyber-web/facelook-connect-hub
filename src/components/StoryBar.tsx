@@ -927,33 +927,38 @@ const ViewerListSheet = ({
   storyId: string;
   onClose: () => void;
 }) => {
-  const [viewers, setViewers] = useState<Array<{ id: string; viewed_at: string; profile: { full_name: string; avatar_url?: string } }>>([]);
+  const [viewers, setViewers] = useState<Array<{ id: string; viewed_at: string; profile: { full_name: string; username?: string; avatar_url?: string } }>>([]);
   const [likedSet, setLikedSet] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
       setLoading(true);
-      const { data: rows } = await supabase
-        .from("story_views")
-        .select("viewer_id, viewed_at")
-        .eq("story_id", storyId)
-        .order("viewed_at", { ascending: false });
-      const ids = [...new Set((rows || []).map((r: any) => r.viewer_id))];
-      let pmap: Record<string, any> = {};
-      if (ids.length) {
-        const { data: profs } = await supabase
-          .from("profiles").select("id, full_name, avatar_url").in("id", ids);
-        (profs || []).forEach((p: any) => { pmap[p.id] = p; });
-      }
-      const { data: likes } = await supabase
-        .from("story_likes").select("user_id").eq("story_id", storyId);
+      // Single query: join profiles via the viewer_id foreign key relation
+      const [{ data: rows }, { data: likes }] = await Promise.all([
+        supabase
+          .from("story_views")
+          .select("viewer_id, viewed_at, profiles:viewer_id(id, full_name, username, avatar_url)")
+          .eq("story_id", storyId)
+          .order("viewed_at", { ascending: false }),
+        supabase
+          .from("story_likes")
+          .select("user_id")
+          .eq("story_id", storyId),
+      ]);
       setLikedSet(new Set((likes || []).map((l: any) => l.user_id)));
-      setViewers((rows || []).map((r: any) => ({
-        id: r.viewer_id,
-        viewed_at: r.viewed_at,
-        profile: pmap[r.viewer_id] || { full_name: "User" },
-      })));
+      setViewers(
+        (rows || []).map((r: any) => {
+          const prof = Array.isArray(r.profiles) ? r.profiles[0] : r.profiles;
+          return {
+            id: r.viewer_id,
+            viewed_at: r.viewed_at,
+            profile: prof
+              ? { full_name: prof.full_name || "User", username: prof.username, avatar_url: prof.avatar_url }
+              : { full_name: "User" },
+          };
+        })
+      );
       setLoading(false);
     })();
   }, [storyId]);
