@@ -1,0 +1,736 @@
+# 🚀 FLICKS INDIA — Advanced Local + Interest Recommendation & People Discovery System
+
+Existing Flicks India app mein ek **advanced, smooth, privacy-first recommendation system** implement karo. Existing UI, authentication, database structure, features aur design ko break mat karo. Existing functionality safe rehni chahiye.
+
+Goal ye hai ki Flicks India user ko uske **local area, district, state, interests, mutual connections aur relevant activity** ke basis par highly personalized content aur people suggestions de — lekin recommendations natural aur smooth feel hon, spammy nahi.
+
+---
+
+## 1. 📍 USER LOCATION PROFILE
+
+Profile/Edit Profile mein existing profile system ke andar ye information support karo:
+
+* State
+* District
+* City/Town
+* Pincode
+* Optional locality/area
+
+Location hierarchy:
+
+```text
+Pincode / Locality
+        ↓
+City / Town
+        ↓
+District
+        ↓
+State
+        ↓
+India
+```
+
+Location ko recommendation system mein structured form mein store/use karo.
+
+Important:
+
+* User ki exact GPS location ko unnecessarily expose mat karo.
+* Public profile par exact address kabhi display mat karo.
+* Recommendation ke liye broad location matching use karo.
+
+---
+
+# 2. 🎯 INTEREST SYSTEM
+
+Profile Edit / Personalization section mein users ko interests select/update karne do.
+
+Example:
+
+* Cricket
+* Football
+* Music
+* Movies
+* Web Series
+* Comedy
+* Gaming
+* Education
+* Business
+* Technology
+* Food
+* Travel
+* Photography
+* Fashion
+* Fitness
+* Local Culture
+* News
+* Politics
+* Entertainment
+* etc.
+
+User multiple interests select kar sake.
+
+Interests ko recommendation engine mein use karo.
+
+---
+
+# 3. 🧠 AUTOMATIC INTEREST LEARNING
+
+User ke behavior se interest relevance gradually calculate karo.
+
+Signals:
+
+* Like
+* Comment
+* Share
+* Follow
+* Save
+* Reel watch time
+* Reel completion
+* Post interaction
+* Search behavior
+* Content categories
+* Repeated interaction with particular topics
+
+Example internal score:
+
+```text
+Cricket       92
+Comedy        84
+Music         73
+Travel        61
+Technology    34
+```
+
+Ye scoring internal recommendation system ke liye ho.
+
+Har interaction par expensive calculation mat karo.
+
+Use:
+
+* debouncing
+* batching
+* caching
+* server-side calculations where possible
+
+Taaki CPU/battery usage na badhe.
+
+---
+
+# 4. 👥 MOST IMPORTANT — NEW USER JOIN DETECTION
+
+Ye feature specially implement karo.
+
+### Jab koi NEW USER Flicks India join kare:
+
+Agar:
+
+```text
+New User Profile = PUBLIC
+```
+
+to recommendation system check kare:
+
+### Location matching:
+
+1. Same Pincode / Locality
+2. Same City
+3. Same District
+4. Same State
+
+Aur matching users ko gradually recommend karo.
+
+Example:
+
+User A:
+
+```text
+District: Varanasi
+State: Uttar Pradesh
+Profile: Public
+```
+
+New User B:
+
+```text
+District: Varanasi
+State: Uttar Pradesh
+Profile: Public
+```
+
+To User B ke join hone ke baad User A ke recommendation area mein:
+
+> ✨ New on Flicks India
+> **Someone from your area just joined**
+
+dikha sakte ho.
+
+---
+
+# 5. 🔐 PUBLIC / PRIVATE PROFILE RULE — VERY IMPORTANT
+
+App mein existing **Private Profile mode** already hai.
+
+Is existing privacy system ko respect karna mandatory hai.
+
+### PUBLIC PROFILE
+
+Agar user ka profile:
+
+```text
+profile_visibility = public
+```
+
+hai, tab eligible local users ko recommendation mein dikhaya ja sakta hai.
+
+Use signals:
+
+* Same locality
+* Same pincode
+* Same district
+* Same state
+* Similar interests
+* Mutual connections
+* Relevant activity
+
+---
+
+### PRIVATE PROFILE
+
+Agar user:
+
+```text
+profile_visibility = private
+```
+
+kar deta hai,
+
+to us user ko **location-based People Recommendation mein automatically recommend MAT karo.**
+
+Uska:
+
+* profile suggestion
+* local people suggestion
+* “new person from your area”
+* recommendation card
+
+automatically hide/remove ho.
+
+Private user ki privacy priority highest honi chahiye.
+
+### IMPORTANT:
+
+Privacy status change hone ke baad cached recommendation cards bhi immediately invalidate/remove hone chahiye.
+
+Example:
+
+```text
+User A = Public
+↓
+Recommended to nearby users
+↓
+User A changes to Private
+↓
+Existing recommendation cache invalidated
+↓
+User A no longer appears in local suggestions
+```
+
+No stale private-profile recommendations.
+
+---
+
+# 6. 🆕 “NEW IN YOUR AREA” SYSTEM
+
+Ek dedicated recommendation category banao:
+
+### ✨ New in Your Area
+
+Example:
+
+> **✨ New in your area**
+>
+> Rahul joined Flicks India
+> 📍 From Varanasi
+> 🎵 Music • Cricket • Photography
+>
+> `Connect`
+
+Lekin exact address ya exact live location mat dikhana.
+
+Use:
+
+> 📍 Varanasi
+
+instead of:
+
+> 📍 Exact locality/address
+
+---
+
+# 7. 📍 RECOMMENDATION PRIORITY
+
+Content aur people recommendations ke liye intelligent priority system banao.
+
+### PEOPLE
+
+Priority approximately:
+
+```text
+Same Pincode / Locality
+        ↓
+Same City
+        ↓
+Same District
+        ↓
+Same State
+        ↓
+Similar Interests
+        ↓
+Mutual Connections
+        ↓
+India-wide relevant users
+```
+
+Lekin fixed ranking mat banao.
+
+Final ranking multiple signals ke combination se calculate karo.
+
+Example:
+
+```text
+Location Match Score
++ Interest Match Score
++ Mutual Connection Score
++ Activity/Relevance Score
++ Freshness Score
++ Profile Quality Score
+```
+
+---
+
+# 8. 📰 CONTENT FEED — LOCAL FIRST
+
+News, Posts aur Reels ke liye same concept use karo.
+
+Feed priority:
+
+```text
+Local Area Content
+        ↓
+District Content
+        ↓
+State Content
+        ↓
+Interest-Based Content
+        ↓
+Trending India Content
+```
+
+Agar local content sufficient nahi hai:
+
+```text
+Local → District → State → India
+```
+
+automatically expand karo.
+
+Feed kabhi empty nahi hona chahiye.
+
+---
+
+# 9. 🎬 “WHY AM I SEEING THIS?” TRANSPARENCY
+
+Recommendation cards mein optional small explanation do.
+
+Examples:
+
+> 📍 From your district
+
+> 🎯 Based on your interests
+
+> 👥 3 mutual connections
+
+> 🔥 Trending in Varanasi
+
+> ✨ New in your area
+
+“Why am I seeing this?” tap karne par simple explanation dikhao.
+
+User ko secretly track kiya ja raha hai jaisa feel nahi hona chahiye.
+
+---
+
+# 10. ✨ CINEMATIC DISCOVERY POPUP
+
+First meaningful local discovery par beautiful cinematic popup dikhao.
+
+Example:
+
+```text
+✨ Someone From Your Area
+
+Rahul Verma
+
+📍 Varanasi
+🎵 Music • Cricket
+
+You both are from the same district.
+
+       Connect
+
+      Not Now
+```
+
+Animation:
+
+* smooth fade + scale
+* subtle glassmorphism
+* soft neon glow
+* no aggressive popup
+* no popup every time
+
+Once dismissed, repeatedly show mat karo.
+
+---
+
+# 11. 🧭 PROFILE → PERSONALIZATION SETTINGS
+
+Main Home screen ko clean rakho.
+
+Existing:
+
+**Profile → Edit Profile / Settings → Personalization**
+
+ke andar sections add karo:
+
+### 📍 Location
+
+* State
+* District
+* City
+* Pincode
+
+### 🎯 Interests
+
+* Manage Interests
+
+### 🧠 Recommendations
+
+Toggles:
+
+```text
+Local Content First       ON/OFF
+People From My Area       ON/OFF
+Interest Recommendations  ON/OFF
+New Users Nearby          ON/OFF
+```
+
+Privacy setting existing system ke saath integrate karo.
+
+---
+
+# 12. 🔒 PRIVACY RULES
+
+Recommendation engine ko kabhi bhi private profile ko bypass nahi karna hai.
+
+Rules:
+
+```text
+IF profile = PRIVATE
+→ Do not show in public/local people recommendations
+
+IF profile = PUBLIC
+→ Eligible for recommendation based on allowed signals
+
+IF user disables "People From My Area"
+→ Do not show local people recommendations to that user
+
+IF user disables "Local Content First"
+→ Use normal personalized feed ranking
+```
+
+Existing block, mute, report, restricted-user aur privacy systems ko recommendation engine mein respect karo.
+
+Blocked users ko ek dusre ko recommend mat karo.
+
+---
+
+# 13. ⚡ PERFORMANCE REQUIREMENTS
+
+Ye feature existing app ko slow ya heat nahi karna chahiye.
+
+DO NOT:
+
+* continuous polling
+* unnecessary setInterval
+* repeated full-table queries
+* client-side processing of thousands of users
+* repeated realtime listeners
+* unnecessary location requests
+
+Use:
+
+* indexed database queries
+* pagination
+* caching
+* batched recommendation generation
+* debounced updates
+* lazy loading
+* server-side ranking where practical
+* efficient Supabase queries
+* proper realtime subscriptions only where required
+
+Recommendation cards ko virtualize/lazy-load karo agar list long ho.
+
+---
+
+# 14. 🗄️ DATABASE / SUPABASE DESIGN
+
+Existing database ko inspect karo before modifying.
+
+New tables/columns add karne ki zarurat ho to existing schema ko break kiye bina migration create karo.
+
+Possible recommendation data:
+
+```text
+user_location_profile
+- user_id
+- state
+- district
+- city
+- pincode
+- locality
+- updated_at
+```
+
+```text
+user_interests
+- user_id
+- interest_id
+- source
+- score
+- updated_at
+```
+
+```text
+recommendation_events
+- user_id
+- recommended_user_id/content_id
+- recommendation_type
+- reason
+- score
+- created_at
+```
+
+Exact schema existing database dekh kar decide karo.
+
+Duplicate tables/columns mat banao.
+
+---
+
+# 15. 🚀 ADVANCED RECOMMENDATION ENGINE
+
+Final recommendation score multiple signals se calculate karo:
+
+```text
+Location Match
++
+Interest Match
++
+Mutual Connections
++
+Content Affinity
++
+Freshness
++
+User Activity
++
+New User Boost
++
+Profile Quality
+-
+Negative Feedback
+-
+Blocked/Muted Relationship
+```
+
+New users ko initial visibility boost mil sakta hai, BUT only if:
+
+```text
+Profile = PUBLIC
+```
+
+and recommendation privacy rules allow it.
+
+Example:
+
+```text
+NEW PUBLIC USER
++
+Same District
++
+Similar Interest
+=
+High initial recommendation score
+```
+
+---
+
+# 16. 🧠 IMPORTANT — DON'T MAKE IT CREEPY
+
+System powerful hona chahiye, lekin user ko unsafe feeling nahi deni chahiye.
+
+Don't show:
+
+❌ Exact home location
+❌ Exact GPS coordinates
+❌ Exact distance like “47 meters away”
+❌ Private profile details
+❌ Hidden/inferred sensitive personal attributes
+
+Prefer:
+
+✅ “From your district”
+✅ “From your area”
+✅ “Same city”
+✅ “Similar interests”
+✅ “3 mutual connections”
+✅ “New on Flicks India”
+
+---
+
+# 17. 🎯 FINAL USER EXPERIENCE
+
+Example:
+
+User Varanasi mein hai.
+
+Morning mein Flicks India open karta hai.
+
+Feed:
+
+```text
+📍 Varanasi
+
+Local News
+↓
+Local Posts
+↓
+Local Reels
+↓
+People From Your Area
+↓
+UP Trending
+↓
+Interest-Based Content
+↓
+India Trending
+```
+
+Aur agar kisi din Varanasi se 5 new PUBLIC users join karte hain:
+
+```text
+✨ New in Your Area
+
+5 people from Varanasi
+just joined Flicks India
+```
+
+Then show eligible profiles based on:
+
+* public profile
+* location match
+* interests
+* mutual connections
+* relevance
+
+Private profiles ko completely exclude karo.
+
+---
+
+# 18. 🧪 TESTING — MUST DO
+
+Implementation ke baad minimum ye scenarios test karo:
+
+### Test 1
+
+Same district + Public → Should recommend.
+
+### Test 2
+
+Same district + Private → Should NOT recommend.
+
+### Test 3
+
+Same state but different district → Lower-priority recommendation.
+
+### Test 4
+
+Different state + same interests → Interest recommendation possible.
+
+### Test 5
+
+User changes Public → Private → Existing recommendation disappears.
+
+### Test 6
+
+User changes Private → Public → Eligible recommendation can return.
+
+### Test 7
+
+New public user joins same district → Existing eligible users can receive “New in your area”.
+
+### Test 8
+
+Blocked user → Never recommend.
+
+### Test 9
+
+No local content → Automatically expand to district/state/India.
+
+### Test 10
+
+Large number of users → No performance degradation or excessive database requests.
+
+---
+
+# FINAL REQUIREMENT
+
+Implementation se pehle existing project architecture, Supabase schema, Profile/Edit Profile, privacy system, Home Feed, News Feed, Reels/Flicks, People/Friends/Suggestions system ko inspect karo.
+
+**Existing features ko rewrite ya break mat karo.**
+
+Feature ko modular components/services mein implement karo.
+
+UI Flicks India ke existing cinematic design language se match honi chahiye:
+
+* dark premium background
+* glassmorphism
+* subtle neon accents
+* smooth animations
+* mobile-first
+* no clutter
+* no excessive popups
+
+Sabse important:
+
+**PUBLIC profile = eligible for discovery**
+
+**PRIVATE profile = excluded from automatic people/location discovery**
+
+**Local content = first priority**
+
+**If local content is insufficient = automatically expand outward**
+
+**Interests + location + social signals = personalized recommendation**
+
+Aur implementation ke end mein mujhe clearly batao:
+
+1. Kaunse files modify kiye
+2. Kaunse database migrations banaye
+3. Recommendation algorithm kaise kaam karta hai
+4. Public/private privacy logic kaise enforce kiya
+5. Performance/heating ko kaise protect kiya
+6. Kaunse test cases pass hue
+
+Do not expose API keys or sensitive user data.

@@ -1,160 +1,189 @@
-import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabaseClient";
-import { UserPlus, Check, Sparkles } from "lucide-react";
-import { useProfileViewer } from "@/context/ProfileViewerContext";
+/**
+ * PeopleYouMayKnow — Smart recommendation strip
+ *
+ * Uses the recommendation engine (geo + interest + freshness scoring) to rank
+ * nearby / similar users. Shows up to 8 cards with a reason label.
+ * Fully respects privacy: private-mode and hidden profiles are excluded.
+ */
 
-interface Profile {
-  id: string;
-  full_name: string | null;
-  avatar_url: string | null;
-  username: string | null;
-}
+import { useEffect, useState, useRef } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { MapPin, Users, UserPlus, RefreshCw } from "lucide-react";
+import { fetchRecommendedPeople, type LocalProfile, type RecommendedUser } from "@/lib/recommendationEngine";
+import { supabase } from "@/lib/supabaseClient";
+import { memGet, memSet } from "@/lib/memCache";
 
 interface Props {
-  currentUserId?: string;
+  currentUserId: string;
+  localProfile?: LocalProfile;
+  onProfileClick?: (userId: string) => void;
 }
 
-export default function PeopleYouMayKnow({ currentUserId }: Props) {
-  const [people, setPeople] = useState<Profile[]>([]);
-  const [sentRequests, setSentRequests] = useState<Set<string>>(new Set());
-  const { openProfile } = useProfileViewer();
+const GRAD = ["#6366f1","#ec4899","#f59e0b","#10b981","#3b82f6","#8b5cf6","#ef4444","#06b6d4"];
 
-  useEffect(() => {
-    async function fetchPeople() {
-      if (!currentUserId) return;
+export default function PeopleYouMayKnow({ currentUserId, localProfile = {}, onProfileClick }: Props) {
+  const [users,   setUsers]   = useState<RecommendedUser[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [sentIds, setSentIds] = useState<Set<string>>(new Set());
+  const didFetch              = useRef(false);
 
-      const [{ data: profiles }, { data: existing }, { data: blocks }] = await Promise.all([
-        supabase
-          .from("profiles")
-          .select("id, full_name, avatar_url, username")
-          .neq("id", currentUserId)
-          .limit(30),
-        supabase
-          .from("friend_requests")
-          .select("receiver_id")
-          .eq("sender_id", currentUserId),
-        supabase
-          .from("user_blocks")
-          .select("blocker_id, blocked_id")
-          .or(`blocker_id.eq.${currentUserId},blocked_id.eq.${currentUserId}`),
-      ]);
-
-      const blockedSet = new Set<string>();
-      for (const b of blocks || []) {
-        if (b.blocker_id === currentUserId) blockedSet.add(b.blocked_id);
-        if (b.blocked_id === currentUserId) blockedSet.add(b.blocker_id);
-      }
-
-      if (profiles) {
-        const visible = (profiles as Profile[]).filter(p => !blockedSet.has(p.id)).slice(0, 9);
-        setPeople(visible);
-      }
-      if (existing) {
-        setSentRequests(new Set(existing.map((r: any) => r.receiver_id)));
-      }
+  const load = async (force = false) => {
+    setLoading(true);
+    const cacheKey = `smartPeople_${currentUserId}`;
+    if (!force) {
+      const cached = memGet<RecommendedUser[]>(cacheKey);
+      if (cached) { setUsers(cached); setLoading(false); return; }
     }
-    fetchPeople();
-  }, [currentUserId]);
-
-  const handleAddFriend = async (e: React.MouseEvent, personId: string) => {
-    e.stopPropagation();
-    if (!currentUserId || sentRequests.has(personId)) return;
-    setSentRequests((prev) => new Set([...prev, personId]));
-    await supabase.from("friend_requests").insert({
-      sender_id: currentUserId,
-      receiver_id: personId,
-      status: "pending",
-    });
+    try {
+      const results = await fetchRecommendedPeople(currentUserId, localProfile, 9);
+      setUsers(results);
+      memSet(cacheKey, results, 5 * 60_000); // 5 min cache
+    } catch (e) {
+      console.warn("[PeopleYouMayKnow]", e);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  if (people.length === 0) return null;
+  useEffect(() => {
+    if (!currentUserId || didFetch.current) return;
+    didFetch.current = true;
+    load();
+  }, [currentUserId]);
+
+  const handleConnect = async (targetId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (sentIds.has(targetId)) return;
+    const { error } = await supabase.from("friend_requests").insert({
+      sender_id:   currentUserId,
+      receiver_id: targetId,
+      status:      "pending",
+    });
+    if (!error || error.message?.includes("duplicate") || error.message?.includes("unique")) {
+      setSentIds(prev => new Set(prev).add(targetId));
+    }
+  };
+
+  if (loading) return (
+    <div className="flex gap-3 overflow-x-auto px-4 py-3 no-scrollbar">
+      {[...Array(4)].map((_, i) => (
+        <div key={i} className="flex-shrink-0 rounded-2xl animate-pulse"
+          style={{ width: 120, height: 212, background: "rgba(255,255,255,0.04)" }} />
+      ))}
+    </div>
+  );
+
+  if (users.length === 0) return null;
 
   return (
-    <div className="px-3 py-3" style={{ fontFamily: '"Inter","Segoe UI",system-ui,sans-serif' }}>
-      {/* ── Section header — softer, friendlier title ─────────────────────── */}
-      <div className="flex items-center gap-2 px-1 mb-3">
-        <div className="w-7 h-7 rounded-full flex items-center justify-center"
-             style={{ background: "linear-gradient(135deg,#10b981,#059669)" }}>
-          <Sparkles size={14} className="text-white" strokeWidth={2.5} />
+    <div>
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 mb-2">
+        <div className="flex items-center gap-2">
+          <Users size={13} className="text-white/40" />
+          <span className="text-[13px] font-black text-white/70 tracking-tight">People You May Know</span>
         </div>
-        <div>
-          <p className="text-[14px] font-extrabold text-gray-900 tracking-tight leading-none">
-            People You May Know
-          </p>
-          <p className="text-[10px] text-gray-500 mt-0.5 tracking-wide font-medium">
-            Tap to view · Add to grow your circle
-          </p>
-        </div>
+        <button
+          onClick={() => load(true)}
+          className="flex items-center gap-1 text-[10px] font-black text-white/30 hover:text-white/60 transition-colors"
+        >
+          <RefreshCw size={10} />
+          Refresh
+        </button>
       </div>
 
-      {/* ── Cards ─────────────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-3 gap-3">
-        {people.slice(0, 3).map((person) => {
-          const sent = sentRequests.has(person.id);
+      {/* Cards */}
+      <div className="flex gap-3 overflow-x-auto px-4 pb-2 no-scrollbar scroll-smooth">
+        {users.map((u, i) => {
+          const isSent  = sentIds.has(u.id);
+          const first   = (u.full_name || "User").split(" ")[0];
+          const hasLoc  = !!(u.city || u.district || u.state);
           return (
-            <div
-              key={person.id}
-              className="bg-white rounded-2xl flex flex-col items-center overflow-hidden cursor-pointer transition-transform active:scale-[0.97]"
+            <motion.div
+              key={u.id}
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: i * 0.04, type: "spring", stiffness: 240, damping: 20 }}
+              className="flex-shrink-0 relative rounded-2xl overflow-hidden cursor-pointer active:scale-[0.97] transition-transform"
               style={{
-                boxShadow: "0 2px 10px rgba(16,185,129,0.10), 0 1px 3px rgba(0,0,0,0.06)",
-                border: "1px solid #f0fdf4",
+                width: 120, height: 212,
+                background: `linear-gradient(160deg,${GRAD[i % GRAD.length]}33 0%,#1e1b4b 100%)`,
+                border: "1px solid rgba(255,255,255,0.07)",
               }}
-              onClick={() => openProfile(person.id)}
+              onClick={() => onProfileClick?.(u.id)}
             >
-              {/* Avatar — square top */}
-              <div className="w-full aspect-square overflow-hidden relative"
-                   style={{ background: "linear-gradient(135deg,#34d399,#059669)" }}>
-                {person.avatar_url ? (
-                  <img
-                    src={person.avatar_url}
-                    alt={person.full_name || "User"}
-                    className="w-full h-full object-cover"
-                    loading="lazy"
-                   decoding="async"/>
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-white font-black text-3xl tracking-tight">
-                    {(person.full_name || person.username || "?")[0].toUpperCase()}
-                  </div>
-                )}
-                {/* subtle bottom-fade so the name overlays cleanly if needed */}
-                <div className="absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-black/15 to-transparent" />
-              </div>
-
-              {/* Name */}
-              <p className="text-[12.5px] font-extrabold text-gray-900 text-center px-2 mt-2.5 leading-tight line-clamp-1 w-full truncate tracking-tight">
-                {person.full_name || person.username || "Flicks User"}
-              </p>
-              {person.username && person.full_name && (
-                <p className="text-[10px] text-gray-400 text-center px-2 mt-0.5 truncate w-full font-medium">
-                  @{person.username}
-                </p>
+              {/* Avatar */}
+              {u.avatar_url ? (
+                <img src={u.avatar_url} loading="lazy" decoding="async"
+                  className="w-full h-full object-cover absolute inset-0" alt="" />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center font-black text-5xl text-white/30 select-none">
+                  {(u.full_name || "U")[0].toUpperCase()}
+                </div>
               )}
 
-              {/* Add Friend — green pill */}
-              <button
-                onClick={(e) => handleAddFriend(e, person.id)}
-                disabled={sent}
-                className={`flex items-center justify-center gap-1.5 mt-2.5 mb-3 px-3 py-2 rounded-full text-[11.5px] font-extrabold tracking-wide transition-all active:scale-95 w-[88%] ${
-                  sent
-                    ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                    : "text-white"
-                }`}
-                style={
-                  sent
-                    ? {}
-                    : {
-                        background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
-                        boxShadow: "0 4px 12px rgba(16,185,129,0.45), 0 0 0 1px rgba(16,185,129,0.2) inset",
-                      }
-                }
-              >
-                {sent ? (
-                  <><Check size={13} strokeWidth={3} /> Requested</>
-                ) : (
-                  <><UserPlus size={13} strokeWidth={2.75} /> Add Friend</>
+              {/* Gradient overlay */}
+              <div className="absolute inset-0"
+                style={{ background: "linear-gradient(to top,rgba(0,0,0,0.88) 0%,rgba(0,0,0,0.15) 55%,transparent 100%)" }} />
+
+              {/* NEW badge */}
+              <AnimatePresence>
+                {u.isNew && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.7 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="absolute top-2 left-2 text-[8px] font-black px-1.5 py-0.5 rounded-full"
+                    style={{ background: "linear-gradient(135deg,#7c3aed,#2563eb)", color: "#fff" }}
+                  >
+                    NEW
+                  </motion.div>
                 )}
-              </button>
-            </div>
+              </AnimatePresence>
+
+              {/* Bottom */}
+              <div className="absolute bottom-0 left-0 right-0 px-2.5 pb-3 flex flex-col items-center gap-1.5">
+                <p className="text-white text-[14px] font-black truncate w-full text-center leading-tight drop-shadow-sm">
+                  {first}
+                </p>
+
+                {/* Reason tag */}
+                <div className="flex items-center gap-0.5 w-full justify-center">
+                  {hasLoc && <MapPin size={8} className="text-violet-300 shrink-0" />}
+                  <span className="text-[9px] text-white/50 font-semibold truncate leading-tight">
+                    {u.reason}
+                  </span>
+                </div>
+
+                {u.fame_points != null && u.fame_points > 0 && (
+                  <p className="text-white/50 text-[10px] font-black leading-none">
+                    ⭐ {u.fame_points}
+                  </p>
+                )}
+
+                {/* Connect button */}
+                <motion.button
+                  whileTap={{ scale: 0.94 }}
+                  onClick={e => handleConnect(u.id, e)}
+                  disabled={isSent}
+                  className="w-full py-2 rounded-xl font-black text-[11px] leading-tight flex items-center justify-center gap-1 transition-all"
+                  style={{
+                    background: isSent
+                      ? "rgba(255,255,255,0.08)"
+                      : `linear-gradient(135deg,${GRAD[i % GRAD.length]}cc,${GRAD[(i + 2) % GRAD.length]}99)`,
+                    color: isSent ? "rgba(255,255,255,0.4)" : "#fff",
+                  }}
+                >
+                  {isSent ? (
+                    <span>Sent ✓</span>
+                  ) : (
+                    <>
+                      <UserPlus size={9} />
+                      <span>Add Friend</span>
+                    </>
+                  )}
+                </motion.button>
+              </div>
+            </motion.div>
           );
         })}
       </div>
