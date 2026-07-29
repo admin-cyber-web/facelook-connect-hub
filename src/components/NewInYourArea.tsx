@@ -27,6 +27,24 @@ export default function NewInYourArea({ currentUserId, localProfile, onProfileCl
   const [sentIds,      setSentIds]      = useState<Set<string>>(new Set());
   const didFetch                        = useRef(false);
 
+  const doFetch = async () => {
+    try {
+      const results = await fetchNewInYourArea(currentUserId, localProfile, 8);
+      setUsers(results);
+
+      // Show popup once per user lifetime (not just session) if we find people nearby
+      const dismissed = localStorage.getItem(POPUP_KEY);
+      if (!dismissed && results.length > 0) {
+        setPopupUser(results[0]);
+        setTimeout(() => setShowPopup(true), 1200);
+      }
+    } catch (e) {
+      console.warn("[NewInYourArea]", e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (didFetch.current) return;
     if (!currentUserId || (!localProfile.state && !localProfile.district && !localProfile.city)) {
@@ -34,24 +52,28 @@ export default function NewInYourArea({ currentUserId, localProfile, onProfileCl
       return;
     }
     didFetch.current = true;
+    doFetch();
+  }, [currentUserId, localProfile.district, localProfile.city, localProfile.state]);
 
-    (async () => {
-      try {
-        const results = await fetchNewInYourArea(currentUserId, localProfile, 8);
-        setUsers(results);
+  // ── Realtime: re-fetch when a new user joins the same area ───────────────
+  useEffect(() => {
+    const areaKey = localProfile.district || localProfile.city || localProfile.state;
+    if (!areaKey || !currentUserId) return;
 
-        // Show popup once per user lifetime (not just session) if we find people nearby
-        const dismissed = localStorage.getItem(POPUP_KEY);
-        if (!dismissed && results.length > 0) {
-          setPopupUser(results[0]);
-          setTimeout(() => setShowPopup(true), 1200);
-        }
-      } catch (e) {
-        console.warn("[NewInYourArea]", e);
-      } finally {
-        setLoading(false);
-      }
-    })();
+    const channelName = `new-user-${areaKey.toLowerCase().replace(/\s+/g, "-")}`;
+    const channel = (supabase as any)
+      .channel(channelName)
+      .on("broadcast", { event: "new_user_joined" }, () => {
+        // Re-fetch silently; update strip without showing popup again
+        fetchNewInYourArea(currentUserId, localProfile, 8)
+          .then(results => { if (results.length > 0) setUsers(results); })
+          .catch(() => {});
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [currentUserId, localProfile.district, localProfile.city, localProfile.state]);
 
   const dismissPopup = () => {

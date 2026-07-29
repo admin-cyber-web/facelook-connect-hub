@@ -2854,7 +2854,7 @@ const FameFeed = ({
       let res = await supabase
         .from("posts")
         .select(
-          "id, author, author_id, content, media_url, image_url, type, likes_count, comments_count, created_at, metadata, cover_url, views_count, shares_count, visibility, meta_title, meta_description, author_profile:profiles!posts_author_id_fkey(avatar_url, full_name, is_verified, is_private_mode, last_seen, is_official_creator)",
+          "id, author, author_id, content, media_url, image_url, type, likes_count, comments_count, created_at, metadata, cover_url, views_count, shares_count, visibility, meta_title, meta_description, author_profile:profiles!posts_author_id_fkey(avatar_url, full_name, is_verified, is_private_mode, last_seen, is_official_creator, state, district, city)",
         )
         .order("created_at", { ascending: false })
         .range(from, to);
@@ -2867,7 +2867,7 @@ const FameFeed = ({
         res = await supabase
           .from("posts")
           .select(
-            "id, author, author_id, content, media_url, image_url, type, likes_count, comments_count, created_at, metadata, cover_url, views_count, shares_count, visibility, meta_title, meta_description, author_profile:profiles(avatar_url, full_name, is_verified, is_private_mode, last_seen, is_official_creator)",
+            "id, author, author_id, content, media_url, image_url, type, likes_count, comments_count, created_at, metadata, cover_url, views_count, shares_count, visibility, meta_title, meta_description, author_profile:profiles(avatar_url, full_name, is_verified, is_private_mode, last_seen, is_official_creator, state, district, city)",
           )
           .order("created_at", { ascending: false })
           .range(from, to);
@@ -2897,7 +2897,39 @@ const FameFeed = ({
       return;
     }
 
-    const rows = data ?? [];
+    let rows = data ?? [];
+
+    // ── Local-first reordering ────────────────────────────────────────────────
+    // When rec_local_first is enabled and viewer has location, interleave posts
+    // from the viewer's area ahead of global posts on each fresh load.
+    if (
+      reset &&
+      localProfile.rec_local_first !== false &&
+      (localProfile.district || localProfile.city || localProfile.state)
+    ) {
+      const vDistrict = localProfile.district?.toLowerCase();
+      const vCity     = localProfile.city?.toLowerCase();
+      const vState    = localProfile.state?.toLowerCase();
+
+      const localRows = (rows as any[]).filter(r => {
+        const p = r.author_profile;
+        if (!p) return false;
+        if (vDistrict && p.district?.toLowerCase() === vDistrict) return true;
+        if (vCity     && p.city    ?.toLowerCase() === vCity)     return true;
+        if (vState    && p.state   ?.toLowerCase() === vState)    return true;
+        return false;
+      });
+      const otherRows = (rows as any[]).filter(r => !localRows.includes(r));
+
+      // Interleave: 2 local → 4 global → 2 local → 4 global …
+      const interleaved: any[] = [];
+      let li = 0, oi = 0;
+      while (li < localRows.length || oi < otherRows.length) {
+        for (let k = 0; k < 2 && li < localRows.length; k++) interleaved.push(localRows[li++]);
+        for (let k = 0; k < 4 && oi < otherRows.length; k++) interleaved.push(otherRows[oi++]);
+      }
+      rows = interleaved;
+    }
 
     // Eagerly hydrate the avatar/name caches from the join result so the
     // first paint already has the right dp (no waiting for batch fetch).

@@ -49,7 +49,7 @@ import {
 
 // DHAYAN DEIN: Sirf ye ek supabase import rehna chahiye
 import { supabase } from "@/lib/supabaseClient";
-import { memGet, memSet, memClear } from "@/lib/memCache";
+import { memGet, memSet, memClear, memDel } from "@/lib/memCache";
 import { Helmet } from "react-helmet-async";
 import { toast } from "sonner";
 
@@ -2073,6 +2073,29 @@ const Index = ({ session, initialAdminOpen }: { session: Session; initialAdminOp
       }
 
       window.dispatchEvent(new CustomEvent("flicks-profile-updated"));
+
+      // ── New-user join broadcast ─────────────────────────────────────────────
+      // When the user saves location fields, broadcast to nearby area channel
+      // so NewInYourArea strips on other users' feeds refresh automatically.
+      const areaKey = personalForm.district || personalForm.city || personalForm.state;
+      if (areaKey && userId) {
+        const channelName = `new-user-${areaKey.toLowerCase().replace(/\s+/g, "-")}`;
+        const ch = (supabase as any).channel(channelName);
+        ch.subscribe((status: string) => {
+          if (status === "SUBSCRIBED") {
+            ch.send({ type: "broadcast", event: "new_user_joined", payload: { userId } })
+              .catch(() => {});
+            supabase.removeChannel(ch);
+          }
+        });
+      }
+
+      // Bust recommendation cache so updated location is reflected immediately
+      if (userId) {
+        memDel(`smartPeople_${userId}`);
+        window.dispatchEvent(new CustomEvent("flicks:rec-prefs-changed"));
+      }
+
       setTimeout(() => {
         setPersonalSaved(false);
         setSettingsView("main");
@@ -2122,6 +2145,9 @@ const Index = ({ session, initialAdminOpen }: { session: Session; initialAdminOp
       .from("profiles")
       .update({ is_private_mode: next })
       .eq("id", userId);
+    // Bust own suggestion cache so others won't see stale private profiles
+    if (userId) memDel(`smartPeople_${userId}`);
+    window.dispatchEvent(new CustomEvent("flicks:rec-prefs-changed"));
   };
 
   const handleSaveInterests = async (newInterests: string[]) => {
@@ -2133,21 +2159,29 @@ const Index = ({ session, initialAdminOpen }: { session: Session; initialAdminOp
     const next = !recLocalFirst;
     setRecLocalFirst(next);
     await supabase.from("profiles").update({ rec_local_first: next }).eq("id", userId);
+    if (userId) memDel(`smartPeople_${userId}`);
+    window.dispatchEvent(new CustomEvent("flicks:rec-prefs-changed"));
   };
   const handleToggleRecPeopleNearby = async () => {
     const next = !recPeopleNearby;
     setRecPeopleNearby(next);
     await supabase.from("profiles").update({ rec_people_nearby: next }).eq("id", userId);
+    if (userId) memDel(`smartPeople_${userId}`);
+    window.dispatchEvent(new CustomEvent("flicks:rec-prefs-changed"));
   };
   const handleToggleRecInterests = async () => {
     const next = !recInterestsPref;
     setRecInterestsPref(next);
     await supabase.from("profiles").update({ rec_interests: next }).eq("id", userId);
+    if (userId) memDel(`smartPeople_${userId}`);
+    window.dispatchEvent(new CustomEvent("flicks:rec-prefs-changed"));
   };
   const handleToggleRecNewUsers = async () => {
     const next = !recNewUsers;
     setRecNewUsers(next);
     await supabase.from("profiles").update({ rec_new_users: next }).eq("id", userId);
+    if (userId) memDel(`smartPeople_${userId}`);
+    window.dispatchEvent(new CustomEvent("flicks:rec-prefs-changed"));
   };
 
   const handleLogout = async () => {

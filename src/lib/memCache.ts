@@ -16,16 +16,19 @@ const store = new Map<string, CacheEntry>();
 export function memGet<T = unknown>(key: string): T | null {
   const entry = store.get(key);
   if (!entry) return null;
-  if (Date.now() - entry.at > TTL_MS) {
+  const ttl = (entry as any)._ttl ?? TTL_MS;
+  if (Date.now() - entry.at > ttl) {
     store.delete(key);
     return null;
   }
   return entry.data as T;
 }
 
-/** Stores data under key with current timestamp. */
-export function memSet(key: string, data: unknown): void {
-  store.set(key, { data, at: Date.now() });
+/** Stores data under key with current timestamp (optional custom TTL in ms). */
+export function memSet(key: string, data: unknown, ttlMs?: number): void {
+  const entry: CacheEntry = { data, at: Date.now() };
+  if (ttlMs !== undefined) (entry as any)._ttl = ttlMs;
+  store.set(key, entry);
 }
 
 /** Removes a key (use after mutations so next fetch gets fresh data). */

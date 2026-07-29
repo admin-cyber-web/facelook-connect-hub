@@ -44,20 +44,22 @@ export interface LocalProfile {
 }
 
 export interface RecommendedUser {
-  id:           string;
-  full_name:    string | null;
-  avatar_url:   string | null;
-  username:     string | null;
-  fame_points?: number;
-  state?:       string | null;
-  district?:    string | null;
-  city?:        string | null;
-  pincode?:     string | null;
-  interests:    string[];
-  created_at?:  string | null;
-  reason:       string;   // human-readable: "From Lucknow" / "3 shared interests"
-  score:        number;
-  isNew:        boolean;  // joined < 7 days ago
+  id:             string;
+  full_name:      string | null;
+  avatar_url:     string | null;
+  username:       string | null;
+  fame_points?:   number;
+  state?:         string | null;
+  district?:      string | null;
+  city?:          string | null;
+  pincode?:       string | null;
+  interests:      string[];
+  created_at?:    string | null;
+  reason:         string;   // human-readable: "From Lucknow" / "3 shared interests"
+  reasonDetail?:  string;   // full explanation for "Why am I seeing this?"
+  score:          number;
+  isNew:          boolean;  // joined < 7 days ago
+  mutualCount?:   number;   // number of mutual friends
 }
 
 // ── Internal helpers ──────────────────────────────────────────────────────────
@@ -93,14 +95,32 @@ function isNewUser(createdAt?: string | null): boolean {
   return (Date.now() - new Date(createdAt).getTime()) < 7 * 86_400_000;
 }
 
-function buildReason(v: LocalProfile, c: any, sharedInterests: number): string {
+function buildReason(v: LocalProfile, c: any, sharedInterests: number, mutualCount = 0): string {
   if (c.pincode  && v.pincode  && c.pincode  === v.pincode)                              return "From your area";
   if (c.city     && v.city     && c.city    .toLowerCase() === v.city    .toLowerCase()) return `From ${c.city}`;
   if (c.district && v.district && c.district.toLowerCase() === v.district.toLowerCase()) return `From ${c.district}`;
   if (c.state    && v.state    && c.state   .toLowerCase() === v.state   .toLowerCase()) return `From ${c.state}`;
+  if (mutualCount >= 2) return `${mutualCount} mutual friends`;
+  if (mutualCount === 1) return "1 mutual friend";
   if (sharedInterests >= 3) return `${sharedInterests} shared interests`;
   if (sharedInterests >= 1) return "Similar interests";
   return "On Flicks India";
+}
+
+function buildReasonDetail(v: LocalProfile, c: any, sharedInterests: number, mutualCount: number, isNew: boolean): string {
+  const parts: string[] = [];
+  // Location
+  if (c.pincode  && v.pincode  && c.pincode  === v.pincode)                              parts.push("Same pincode as you");
+  else if (c.city && v.city    && c.city    .toLowerCase() === v.city    .toLowerCase()) parts.push(`Lives in ${c.city} like you`);
+  else if (c.district && v.district && c.district.toLowerCase() === v.district.toLowerCase()) parts.push(`From ${c.district}, same as you`);
+  else if (c.state && v.state  && c.state   .toLowerCase() === v.state   .toLowerCase()) parts.push(`From ${c.state}`);
+  // Mutual
+  if (mutualCount > 0) parts.push(`${mutualCount} mutual friend${mutualCount > 1 ? "s" : ""}`);
+  // Interests
+  if (sharedInterests > 0) parts.push(`${sharedInterests} shared interest${sharedInterests > 1 ? "s" : ""}`);
+  // New
+  if (isNew) parts.push("Recently joined Flicks India");
+  return parts.length > 0 ? parts.join(" · ") : "Active on Flicks India";
 }
 
 // ── Public: People You May Know ───────────────────────────────────────────────
@@ -140,29 +160,54 @@ export async function fetchRecommendedPeople(
     friends.add(f.sender_id === currentUserId ? f.receiver_id : f.sender_id);
   }
 
-  const viewerInts      = viewer.interests ?? [];
-  const useLocation     = viewer.rec_people_nearby !== false;
-  const useInterests    = viewer.rec_interests     !== false;
+  // ── Mutual connections: fetch friends-of-friends ──────────────────────────
+  // Only run when viewer has ≤ 60 friends (keep query cost bounded)
+  const friendsList = Array.from(friends);
+  const mutualMap = new Map<string, number>(); // candidate_id → mutual friend count
+  if (friendsList.length > 0 && friendsList.length <= 60) {
+    const { data: fofRows } = await supabase
+      .from("friend_requests")
+      .select("sender_id,receiver_id")
+      .or(`sender_id.in.(${friendsList.join(",")}),receiver_id.in.(${friendsList.join(",")})`)
+      .eq("status", "accepted");
+    for (const row of fofRows ?? []) {
+      const isFromFriend = friends.has(row.sender_id);
+      const other        = isFromFriend ? row.receiver_id : row.sender_id;
+      // other must be a non-viewer, non-friend candidate
+      if (other !== currentUserId && !friends.has(other)) {
+        mutualMap.set(other, (mutualMap.get(other) ?? 0) + 1);
+      }
+    }
+  }
+
+  const viewerInts   = viewer.interests ?? [];
+  const useLocation  = viewer.rec_people_nearby !== false;
+  const useInterests = viewer.rec_interests     !== false;
 
   return ((candRes.data ?? []) as any[])
     .filter(c => !blocked.has(c.id) && !friends.has(c.id))
     .map(c => {
       const cInts: string[] = Array.isArray(c.interests) ? c.interests : [];
-      const vSet   = new Set(viewerInts.map(x => x.toLowerCase()));
-      const shared = cInts.filter(x => vSet.has(x.toLowerCase())).length;
+      const vSet      = new Set(viewerInts.map(x => x.toLowerCase()));
+      const shared    = cInts.filter(x => vSet.has(x.toLowerCase())).length;
+      const mutual    = mutualMap.get(c.id) ?? 0;
+      const newUser   = isNewUser(c.created_at);
 
       const score =
         (useLocation  ? geoScore(viewer, c)              : 0) +
         (useInterests ? interestScore(viewerInts, cInts) : 0) +
         freshnessScore(c.created_at)                         +
-        Math.random() * 3; // jitter
+        Math.min(mutual * 8, 20)                             + // mutual friends bonus
+        Math.random() * 3;                                     // jitter
 
       return {
         ...c,
-        interests: cInts,
+        interests:    cInts,
         score,
-        reason:  buildReason(viewer, c, shared),
-        isNew:   isNewUser(c.created_at),
+        reason:       buildReason(viewer, c, shared, mutual),
+        reasonDetail: buildReasonDetail(viewer, c, shared, mutual, newUser),
+        isNew:        newUser,
+        mutualCount:  mutual,
       } as RecommendedUser;
     })
     .sort((a, b) => b.score - a.score)
