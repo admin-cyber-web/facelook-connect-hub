@@ -4,20 +4,22 @@ import "./index.css";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 
 // OneSignal is loaded via CDN script in index.html.
-// Push the init config once the SDK is ready.
-window.OneSignalDeferred = window.OneSignalDeferred || [];
-window.OneSignalDeferred.push(async (OneSignal: any) => {
-  try {
-    await OneSignal.init({
-      appId: "cee03105-9658-4f06-98fa-70957cb0e1cf",
-      allowLocalhostAsSecureOrigin: true,
-      serviceWorkerPath: "/OneSignalSDKWorker.js",
-      notifyButton: { enable: false },
-    });
-  } catch (err) {
-    console.warn("[OneSignal] init error:", err);
-  }
-});
+// Only initialise on the production domain — skip silently on Replit dev / localhost.
+const ONESIGNAL_DOMAIN = "flicksindia.online";
+if (window.location.hostname === ONESIGNAL_DOMAIN) {
+  window.OneSignalDeferred = window.OneSignalDeferred || [];
+  window.OneSignalDeferred.push(async (OneSignal: any) => {
+    try {
+      await OneSignal.init({
+        appId: "cee03105-9658-4f06-98fa-70957cb0e1cf",
+        serviceWorkerPath: "/OneSignalSDKWorker.js",
+        notifyButton: { enable: false },
+      });
+    } catch (err) {
+      console.warn("[OneSignal] init error:", err);
+    }
+  });
+}
 
 createRoot(document.getElementById("root")!).render(
   <ErrorBoundary
