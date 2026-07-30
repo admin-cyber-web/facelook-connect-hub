@@ -927,37 +927,27 @@ const ViewerListSheet = ({
   storyId: string;
   onClose: () => void;
 }) => {
-  const [viewers, setViewers] = useState<Array<{ id: string; viewed_at: string; profile: { full_name: string; username?: string; avatar_url?: string } }>>([]);
+  const [viewers, setViewers] = useState<Array<{ id: string; viewed_at: string; full_name: string; username?: string; avatar_url?: string }>>([]);
   const [likedSet, setLikedSet] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
       setLoading(true);
-      // Single query: join profiles via the viewer_id foreign key relation
       const [{ data: rows }, { data: likes }] = await Promise.all([
-        supabase
-          .from("story_views")
-          .select("viewer_id, viewed_at, profiles:viewer_id(id, full_name, username, avatar_url)")
-          .eq("story_id", storyId)
-          .order("viewed_at", { ascending: false }),
-        supabase
-          .from("story_likes")
-          .select("user_id")
-          .eq("story_id", storyId),
+        // Use RPC to get a flat, reliable join of story_views + profiles
+        supabase.rpc("get_story_viewers_list", { p_story_id: storyId }),
+        supabase.from("story_likes").select("user_id").eq("story_id", storyId),
       ]);
       setLikedSet(new Set((likes || []).map((l: any) => l.user_id)));
       setViewers(
-        (rows || []).map((r: any) => {
-          const prof = Array.isArray(r.profiles) ? r.profiles[0] : r.profiles;
-          return {
-            id: r.viewer_id,
-            viewed_at: r.viewed_at,
-            profile: prof
-              ? { full_name: prof.full_name || "User", username: prof.username, avatar_url: prof.avatar_url }
-              : { full_name: "User" },
-          };
-        })
+        (rows || []).map((r: any) => ({
+          id: r.viewer_id,
+          viewed_at: r.viewed_at,
+          full_name: r.full_name || "User",
+          username: r.username,
+          avatar_url: r.avatar_url,
+        }))
       );
       setLoading(false);
     })();
@@ -1001,22 +991,23 @@ const ViewerListSheet = ({
           ) : viewers.length === 0 ? (
             <p className="text-center text-sm text-gray-400 py-10">No viewers yet</p>
           ) : (
-            viewers.map(v => {
-              const profile = Array.isArray(v.profiles) ? v.profiles[0] : v.profiles;
-              return (
+            viewers.map(v => (
               <div key={v.id} className="flex items-center gap-3 px-3 py-2.5 hover:bg-[#c4e8d4] rounded-xl">
-                {profile?.avatar_url ? (
-                  <img src={profile?.avatar_url} className="w-11 h-11 rounded-full object-cover" loading="lazy" crossOrigin="anonymous" referrerPolicy="no-referrer" decoding="async"/>
+                {v.avatar_url ? (
+                  <img src={v.avatar_url} className="w-11 h-11 rounded-full object-cover" loading="lazy" crossOrigin="anonymous" referrerPolicy="no-referrer" decoding="async"/>
                 ) : (
                   <div
                     className="w-11 h-11 rounded-full flex items-center justify-center text-white font-black"
                     style={{ background: gradFor(v.id) }}
                   >
-                    {profile?.full_name?.[0] || "U"}
+                    {v.full_name?.[0] || "U"}
                   </div>
                 )}
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold text-gray-900 truncate">{profile?.full_name}</p>
+                  <p className="text-sm font-bold text-gray-900 truncate">{v.full_name}</p>
+                  {v.username && (
+                    <p className="text-[11px] text-gray-400 truncate">@{v.username}</p>
+                  )}
                   <p className="text-[11px] text-gray-400">
                     {new Date(v.viewed_at).toLocaleString(undefined, { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "short" })}
                   </p>
@@ -1025,8 +1016,7 @@ const ViewerListSheet = ({
                   <Heart size={16} className="text-red-500" fill="#ef4444" />
                 )}
               </div>
-              );
-            })
+            ))
           )}
         </div>
       </motion.div>
