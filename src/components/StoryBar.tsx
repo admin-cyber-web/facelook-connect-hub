@@ -1001,20 +1001,22 @@ const ViewerListSheet = ({
           ) : viewers.length === 0 ? (
             <p className="text-center text-sm text-gray-400 py-10">No viewers yet</p>
           ) : (
-            viewers.map(v => (
+            viewers.map(v => {
+              const profile = Array.isArray(v.profiles) ? v.profiles[0] : v.profiles;
+              return (
               <div key={v.id} className="flex items-center gap-3 px-3 py-2.5 hover:bg-[#c4e8d4] rounded-xl">
-                {v.profile.avatar_url ? (
-                  <img src={v.profile.avatar_url} className="w-11 h-11 rounded-full object-cover" loading="lazy" crossOrigin="anonymous" referrerPolicy="no-referrer" decoding="async"/>
+                {profile?.avatar_url ? (
+                  <img src={profile?.avatar_url} className="w-11 h-11 rounded-full object-cover" loading="lazy" crossOrigin="anonymous" referrerPolicy="no-referrer" decoding="async"/>
                 ) : (
                   <div
                     className="w-11 h-11 rounded-full flex items-center justify-center text-white font-black"
                     style={{ background: gradFor(v.id) }}
                   >
-                    {v.profile.full_name?.[0] || "U"}
+                    {profile?.full_name?.[0] || "U"}
                   </div>
                 )}
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold text-gray-900 truncate">{v.profile.full_name}</p>
+                  <p className="text-sm font-bold text-gray-900 truncate">{profile?.full_name}</p>
                   <p className="text-[11px] text-gray-400">
                     {new Date(v.viewed_at).toLocaleString(undefined, { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "short" })}
                   </p>
@@ -1023,7 +1025,8 @@ const ViewerListSheet = ({
                   <Heart size={16} className="text-red-500" fill="#ef4444" />
                 )}
               </div>
-            ))
+              );
+            })
           )}
         </div>
       </motion.div>
