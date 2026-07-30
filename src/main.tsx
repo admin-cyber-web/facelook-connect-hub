@@ -2,14 +2,22 @@ import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
 import { ErrorBoundary } from "./components/ErrorBoundary";
-import OneSignal from "react-onesignal";
 
-OneSignal.init({
-  appId: "cee03105-9658-4f06-98fa-70957cb0e1cf",
-  allowLocalhostAsSecureOrigin: true,
-  serviceWorkerPath: "/OneSignalSDKWorker.js",
-  notifyButton: { enable: false },
-}).catch((err) => console.warn("[OneSignal] init error:", err));
+// OneSignal is loaded via CDN script in index.html.
+// Push the init config once the SDK is ready.
+window.OneSignalDeferred = window.OneSignalDeferred || [];
+window.OneSignalDeferred.push(async (OneSignal: any) => {
+  try {
+    await OneSignal.init({
+      appId: "cee03105-9658-4f06-98fa-70957cb0e1cf",
+      allowLocalhostAsSecureOrigin: true,
+      serviceWorkerPath: "/OneSignalSDKWorker.js",
+      notifyButton: { enable: false },
+    });
+  } catch (err) {
+    console.warn("[OneSignal] init error:", err);
+  }
+});
 
 createRoot(document.getElementById("root")!).render(
   <ErrorBoundary
