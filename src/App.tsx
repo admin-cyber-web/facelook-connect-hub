@@ -7,6 +7,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { supabase } from "@/lib/supabaseClient";
 import type { Session } from "@supabase/supabase-js";
+import { registerPushPlayer } from "@/lib/oneSignalPush";
 import { Plus } from "lucide-react";
 import AdminPostPanel from "./components/AdminPostPanel";
 import CurvedEdgeOverlay from "./components/CurvedEdgeOverlay";
@@ -72,6 +73,10 @@ const App = () => {
         event === "MFA_CHALLENGE_VERIFIED"
       ) return;
       setSession(s);
+      // Register OneSignal push subscription whenever a user signs in
+      if (event === "SIGNED_IN" && s?.user?.id) {
+        registerPushPlayer(s.user.id);
+      }
     });
 
     return () => listener.subscription.unsubscribe();
