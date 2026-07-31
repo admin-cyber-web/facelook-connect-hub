@@ -42,11 +42,14 @@ import {
   Copy,
   Info,
   Mail,
-} from "lucide-react";
+  Sparkles,
+  SlidersHorizontal,
+  Tags,
+      } from "lucide-react";
 
 // DHAYAN DEIN: Sirf ye ek supabase import rehna chahiye
 import { supabase } from "@/lib/supabaseClient";
-import { memGet, memSet, memClear } from "@/lib/memCache";
+import { memGet, memSet, memClear, memDel } from "@/lib/memCache";
 import { Helmet } from "react-helmet-async";
 import { toast } from "sonner";
 
@@ -77,7 +80,14 @@ const CreatePost     = lazy(() => import("@/components/CreatePost"));
 // ── Reusable styled blocks ───────────────────────────────────────────────────
 const GlassCard = ({ children, className = "", noPadding = false }: any) => (
   <div
-    className={`bg-white/10 backdrop-blur-2xl border-y sm:border border-white/10 shadow-lg w-full ${noPadding ? "p-0" : "p-4"} ${className}`}
+    className={`w-full ${noPadding ? "p-0" : "p-4"} ${className}`}
+    style={{
+      background: "rgba(255,255,255,0.035)",
+      backdropFilter: "blur(24px)",
+      WebkitBackdropFilter: "blur(24px)",
+      border: "1px solid rgba(255,255,255,0.07)",
+      boxShadow: "0 4px 32px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.05)",
+    }}
   >
     {children}
   </div>
@@ -118,44 +128,68 @@ const LightModeStyles = () => (
   `}</style>
 );
 
-const SettingRow = ({ icon, title, desc, color, onClick, right }: any) => (
-  <div
-    onClick={onClick}
-    className="flex items-center justify-between p-4 hover:bg-white/10 rounded-2xl cursor-pointer transition-all border border-transparent hover:border-white/10 group"
-  >
-    <div className="flex items-center gap-4">
-      <div
-        className={`w-10 h-10 rounded-xl flex items-center justify-center bg-white/20 backdrop-blur-md border border-white/10 ${color}`}
-      >
-        {icon}
-      </div>
-      <div>
-        <p className="text-sm font-bold text-white">{title}</p>
-        <p className="text-[10px] text-white/50 font-medium uppercase tracking-tighter">
-          {desc}
-        </p>
-      </div>
-    </div>
-    {right || (
-      <ChevronRight
-        size={16}
-        className="text-white/30 group-hover:text-white"
-      />
-    )}
-  </div>
-);
+// Aurora color map for SettingRow icon containers
+const AURORA_COLORS: Record<string, { bg: string; border: string; color: string }> = {
+  violet:  { bg: "rgba(139,92,246,0.15)",  border: "rgba(139,92,246,0.28)",  color: "#a78bfa" },
+  pink:    { bg: "rgba(236,72,153,0.15)",  border: "rgba(236,72,153,0.28)",  color: "#f472b6" },
+  amber:   { bg: "rgba(245,158,11,0.15)",  border: "rgba(245,158,11,0.28)",  color: "#fbbf24" },
+  emerald: { bg: "rgba(16,185,129,0.15)",  border: "rgba(16,185,129,0.28)",  color: "#34d399" },
+  sky:     { bg: "rgba(56,189,248,0.15)",  border: "rgba(56,189,248,0.28)",  color: "#38bdf8" },
+  slate:   { bg: "rgba(148,163,184,0.1)",  border: "rgba(148,163,184,0.2)",  color: "#94a3b8" },
+  red:     { bg: "rgba(239,68,68,0.12)",   border: "rgba(239,68,68,0.22)",   color: "#f87171" },
+};
 
-// Simple pill toggle
+const SettingRow = ({ icon, title, desc, color = "violet", onClick, right }: any) => {
+  const c = AURORA_COLORS[color] ?? AURORA_COLORS.violet;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={!onClick}
+      className="w-full flex items-center justify-between px-4 py-3.5 rounded-2xl transition-all active:scale-[0.98] group disabled:pointer-events-none text-left"
+      style={{ background: "transparent" }}
+      onMouseEnter={(e) => { if (onClick) (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.04)"; }}
+      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
+    >
+      <div className="flex items-center gap-3.5">
+        <div
+          className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+          style={{ background: c.bg, border: `1px solid ${c.border}`, color: c.color }}
+        >
+          {icon}
+        </div>
+        <div className="text-left">
+          <p className="text-[13px] font-semibold text-white/90 leading-tight">{title}</p>
+          <p className="text-[11px] text-white/35 font-medium mt-0.5 leading-tight">{desc}</p>
+        </div>
+      </div>
+      <div className="ml-3 shrink-0">
+        {right ?? (
+          <ChevronRight size={15} className="text-white/20 group-hover:text-white/50 transition-colors" />
+        )}
+      </div>
+    </button>
+  );
+};
+
+// Aurora glow toggle switch
 const Toggle = ({ on, onToggle }: { on: boolean; onToggle: () => void }) => (
   <button
-    onClick={(e) => {
-      e.stopPropagation();
-      onToggle();
+    type="button"
+    onClick={(e) => { e.stopPropagation(); onToggle(); }}
+    className="relative shrink-0 transition-all duration-300 active:scale-95"
+    style={{
+      width: 44, height: 24, borderRadius: 12,
+      background: on
+        ? "linear-gradient(135deg, #8B5CF6, #EC4899)"
+        : "rgba(255,255,255,0.1)",
+      border: on ? "1px solid rgba(139,92,246,0.5)" : "1px solid rgba(255,255,255,0.15)",
+      boxShadow: on ? "0 0 14px rgba(139,92,246,0.4)" : "none",
     }}
-    className={`relative w-12 h-6 rounded-full transition-all duration-300 border ${on ? "bg-blue-600 border-blue-500" : "bg-white/10 border-white/20"}`}
   >
     <div
-      className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all duration-300 ${on ? "left-6" : "left-0.5"}`}
+      className="absolute top-[3px] w-[18px] h-[18px] bg-white rounded-full shadow-md transition-all duration-300"
+      style={{ left: on ? 22 : 3 }}
     />
   </button>
 );
@@ -886,16 +920,17 @@ function FrameModePage({ onBack, userProfile, userEmail }: { onBack: () => void;
 // ── About Us sub-view ──────────────────────────────────────────────────────
 const AboutUsView = ({ setSettingsView }: { setSettingsView: (v: any) => void }) => (
   <div className="space-y-4">
-    <div className="flex items-center gap-3 px-4 pt-4">
+    <div className="flex items-center gap-3 px-4 pt-5">
       <button
         onClick={() => setSettingsView("main")}
-        className="p-2 bg-white/5 rounded-xl border border-white/10 text-white/60 hover:text-white"
+        className="w-9 h-9 rounded-2xl flex items-center justify-center transition-all active:scale-90 shrink-0"
+        style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.09)" }}
       >
-        <ChevronLeft size={16} />
+        <ChevronLeft size={16} className="text-white/60" />
       </button>
       <div className="flex items-center gap-2">
-        <Info size={18} style={{ color: "#FFF44F" }} />
-        <p className="text-sm font-black text-white">About Us</p>
+        <Info size={17} style={{ color: "#F59E0B" }} />
+        <p className="text-base font-black text-white">About Us</p>
       </div>
     </div>
 
@@ -962,16 +997,17 @@ const ContactUsView = ({ setSettingsView }: { setSettingsView: (v: any) => void 
   };
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3 px-4 pt-4">
+      <div className="flex items-center gap-3 px-4 pt-5">
         <button
           onClick={() => setSettingsView("main")}
-          className="p-2 bg-white/5 rounded-xl border border-white/10 text-white/60 hover:text-white"
+          className="w-9 h-9 rounded-2xl flex items-center justify-center transition-all active:scale-90 shrink-0"
+          style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.09)" }}
         >
-          <ChevronLeft size={16} />
+          <ChevronLeft size={16} className="text-white/60" />
         </button>
         <div className="flex items-center gap-2">
-          <Mail size={18} style={{ color: "#FFF44F" }} />
-          <p className="text-sm font-black text-white">Contact Us</p>
+          <Mail size={17} style={{ color: "#EC4899" }} />
+          <p className="text-base font-black text-white">Contact Us</p>
         </div>
       </div>
 
@@ -1059,16 +1095,17 @@ const PrivacyPolicyView = ({ setSettingsView, lang }: { setSettingsView: (v: any
   const t = (en: string, hi: string) => (lang === "hi" ? hi : en);
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3 px-4 pt-4">
+      <div className="flex items-center gap-3 px-4 pt-5">
         <button
           onClick={() => setSettingsView("main")}
-          className="p-2 bg-white/5 rounded-xl border border-white/10 text-white/60 hover:text-white"
+          className="w-9 h-9 rounded-2xl flex items-center justify-center transition-all active:scale-90 shrink-0"
+          style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.09)" }}
         >
-          <ChevronLeft size={16} />
+          <ChevronLeft size={16} className="text-white/60" />
         </button>
         <div className="flex items-center gap-2">
-          <Shield size={18} className="text-emerald-400" />
-          <p className="text-sm font-black text-white">{t("Privacy Policy", "गोपनीयता नीति")}</p>
+          <Shield size={17} className="text-emerald-400" />
+          <p className="text-base font-black text-white">{t("Privacy Policy", "गोपनीयता नीति")}</p>
         </div>
       </div>
 
@@ -1153,16 +1190,17 @@ const HelpSupportView = ({ setSettingsView, lang }: { setSettingsView: (v: any) 
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3 px-4 pt-4">
+      <div className="flex items-center gap-3 px-4 pt-5">
         <button
           onClick={() => setSettingsView("main")}
-          className="p-2 bg-white/5 rounded-xl border border-white/10 text-white/60 hover:text-white"
+          className="w-9 h-9 rounded-2xl flex items-center justify-center transition-all active:scale-90 shrink-0"
+          style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.09)" }}
         >
-          <ChevronLeft size={16} />
+          <ChevronLeft size={16} className="text-white/60" />
         </button>
         <div className="flex items-center gap-2">
-          <LifeBuoy size={18} className="text-sky-400" />
-          <p className="text-sm font-black text-white">{t("Help & Support", "सहायता केंद्र")}</p>
+          <LifeBuoy size={17} className="text-sky-400" />
+          <p className="text-base font-black text-white">{t("Help & Support", "सहायता केंद्र")}</p>
         </div>
       </div>
 
@@ -1237,9 +1275,9 @@ const HelpSupportView = ({ setSettingsView, lang }: { setSettingsView: (v: any) 
 // ── Personal Info sub-view (outside Index to prevent focus loss) ──────────────
 interface PersonalInfoViewProps {
   lang: "en" | "hi";
-  setSettingsView: (v: "main" | "personal" | "blocklist" | "privacy" | "help") => void;
-  personalForm: { full_name: string; bio: string; school: string; mobile: string; location: string };
-  setPersonalForm: React.Dispatch<React.SetStateAction<{ full_name: string; bio: string; school: string; mobile: string; location: string }>>;
+  setSettingsView: (v: "main" | "personal" | "blocklist" | "privacy" | "help" | "personalization") => void;
+  personalForm: { full_name: string; bio: string; school: string; mobile: string; location: string; state: string; district: string; city: string; pincode: string };
+  setPersonalForm: React.Dispatch<React.SetStateAction<{ full_name: string; bio: string; school: string; mobile: string; location: string; state: string; district: string; city: string; pincode: string }>>;
   isSavingPersonal: boolean;
   personalSaved: boolean;
   handleSavePersonalInfo: () => void;
@@ -1300,16 +1338,15 @@ const PersonalInfoView = React.memo(({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3 px-4 pt-4">
+      <div className="flex items-center gap-3 px-4 pt-5">
         <button
           onClick={() => setSettingsView("main")}
-          className="p-2 bg-white/5 rounded-xl border border-white/10 text-white/60 hover:text-white"
+          className="w-9 h-9 rounded-2xl flex items-center justify-center transition-all active:scale-90 shrink-0"
+          style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.09)" }}
         >
-          <ChevronLeft size={16} />
+          <ChevronLeft size={16} className="text-white/60" />
         </button>
-        <p className="text-sm font-black text-white">
-          {t("Personal Info", "व्यक्तिगत जानकारी")}
-        </p>
+        <p className="text-base font-black text-white">{t("Personal Info", "व्यक्तिगत जानकारी")}</p>
       </div>
 
       <GlassCard className="rounded-[2.5rem] p-6 space-y-4 border border-white/10">
@@ -1368,7 +1405,6 @@ const PersonalInfoView = React.memo(({
           { key: "bio",       label: t("Bio", "परिचय"),                         placeholder: t("Tell the world about you", "अपने बारे में लिखें") },
           { key: "school",    label: t("School / College", "स्कूल / कॉलेज"),   placeholder: t("Your school", "आपका स्कूल") },
           { key: "mobile",    label: t("Mobile", "मोबाइल"),                     placeholder: "+92 300 0000000" },
-          { key: "location",  label: t("Location", "स्थान"),                    placeholder: t("City, Country", "शहर, देश") },
         ].map(({ key, label, placeholder }) => (
           <div key={key} className="space-y-1">
             <p className="text-[10px] font-black text-white/40 uppercase tracking-widest">{label}</p>
@@ -1381,6 +1417,33 @@ const PersonalInfoView = React.memo(({
             />
           </div>
         ))}
+
+        {/* ── Split Location Fields ── */}
+        <div className="space-y-1">
+          <p className="text-[10px] font-black text-white/40 uppercase tracking-widest flex items-center gap-1.5">
+            <span>📍</span> {t("Location", "स्थान")}
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            {[
+              { key: "state",    placeholder: t("State (e.g. UP)", "राज्य") },
+              { key: "district", placeholder: t("District", "जिला") },
+              { key: "city",     placeholder: t("City / Town", "शहर") },
+              { key: "pincode",  placeholder: t("Pincode", "पिनकोड") },
+            ].map(({ key, placeholder }) => (
+              <input
+                key={key}
+                type={key === "pincode" ? "tel" : "text"}
+                placeholder={placeholder}
+                value={(personalForm as any)[key]}
+                onChange={(e) => setPersonalForm((prev) => ({ ...prev, [key]: e.target.value }))}
+                className="w-full bg-white/5 border border-white/10 rounded-2xl px-3 py-2.5 text-sm font-bold text-white placeholder:text-white/20 outline-none focus:ring-2 focus:ring-blue-500/40 transition-all"
+              />
+            ))}
+          </div>
+          <p className="text-[9px] text-white/20 font-medium pl-1">
+            {t("Used for local recommendations — never shown publicly", "स्थानीय सुझावों के लिए — सार्वजनिक नहीं")}
+          </p>
+        </div>
 
         <button
           onClick={handleSavePersonalInfo}
@@ -1532,7 +1595,7 @@ const Index = ({ session, initialAdminOpen }: { session: Session; initialAdminOp
 
   // Settings sub-views
   const [settingsView, setSettingsView] = useState<
-    "main" | "personal" | "blocklist" | "privacy" | "help" | "about" | "contact"
+    "main" | "personal" | "blocklist" | "privacy" | "help" | "about" | "contact" | "personalization"
   >("main");
   const [isSavingPersonal, setIsSavingPersonal] = useState(false);
   const [personalSaved, setPersonalSaved] = useState(false);
@@ -1542,7 +1605,19 @@ const Index = ({ session, initialAdminOpen }: { session: Session; initialAdminOp
     school: "",
     mobile: "",
     location: "",
+    state: "",
+    district: "",
+    city: "",
+    pincode: "",
   });
+  // Interests + recommendation preferences
+  const [interests, setInterests] = useState<string[]>([]);
+  const [recLocalFirst,   setRecLocalFirst]   = useState(true);
+  const [recPeopleNearby, setRecPeopleNearby] = useState(true);
+  const [recInterestsPref, setRecInterestsPref] = useState(true);
+  const [recNewUsers,     setRecNewUsers]     = useState(true);
+  const [isSavingPrefs,   setIsSavingPrefs]   = useState(false);
+  const [prefsSaved,      setPrefsSaved]      = useState(false);
 
   // Settings toggles
   const [lang, setLang] = useState<"en" | "hi">(
@@ -1813,7 +1888,7 @@ const Index = ({ session, initialAdminOpen }: { session: Session; initialAdminOp
       // Step A: fetch existing profile (safe even if table missing)
       const { data, error: fetchErr } = await supabase
         .from("profiles")
-        .select("*")
+        .select("id,full_name,username,avatar_url,bio,location,state,district,city,pincode,interests,rec_local_first,rec_people_nearby,rec_interests,rec_new_users,school,mobile,profile_locked,profile_hidden,is_private_mode,account_status,suspension_reason,last_seen,fame_points,updated_at")
         .eq("id", userId)
         .maybeSingle();
 
@@ -1862,7 +1937,16 @@ const Index = ({ session, initialAdminOpen }: { session: Session; initialAdminOp
           school: data.school || "",
           mobile: data.mobile || "",
           location: data.location || "",
+          state: data.state || "",
+          district: data.district || "",
+          city: data.city || "",
+          pincode: data.pincode || "",
         });
+        setInterests(Array.isArray(data.interests) ? data.interests : []);
+        setRecLocalFirst(data.rec_local_first !== false);
+        setRecPeopleNearby(data.rec_people_nearby !== false);
+        setRecInterestsPref(data.rec_interests !== false);
+        setRecNewUsers(data.rec_new_users !== false);
         setProfileLocked(data.profile_locked || false);
         setProfileHidden(data.profile_hidden || false);
         setIsPrivateMode(data.is_private_mode || false);
@@ -1989,6 +2073,29 @@ const Index = ({ session, initialAdminOpen }: { session: Session; initialAdminOp
       }
 
       window.dispatchEvent(new CustomEvent("flicks-profile-updated"));
+
+      // ── New-user join broadcast ─────────────────────────────────────────────
+      // When the user saves location fields, broadcast to nearby area channel
+      // so NewInYourArea strips on other users' feeds refresh automatically.
+      const areaKey = personalForm.district || personalForm.city || personalForm.state;
+      if (areaKey && userId) {
+        const channelName = `new-user-${areaKey.toLowerCase().replace(/\s+/g, "-")}`;
+        const ch = (supabase as any).channel(channelName);
+        ch.subscribe((status: string) => {
+          if (status === "SUBSCRIBED") {
+            ch.send({ type: "broadcast", event: "new_user_joined", payload: { userId } })
+              .catch(() => {});
+            supabase.removeChannel(ch);
+          }
+        });
+      }
+
+      // Bust recommendation cache so updated location is reflected immediately
+      if (userId) {
+        memDel(`smartPeople_${userId}`);
+        window.dispatchEvent(new CustomEvent("flicks:rec-prefs-changed"));
+      }
+
       setTimeout(() => {
         setPersonalSaved(false);
         setSettingsView("main");
@@ -2038,6 +2145,43 @@ const Index = ({ session, initialAdminOpen }: { session: Session; initialAdminOp
       .from("profiles")
       .update({ is_private_mode: next })
       .eq("id", userId);
+    // Bust own suggestion cache so others won't see stale private profiles
+    if (userId) memDel(`smartPeople_${userId}`);
+    window.dispatchEvent(new CustomEvent("flicks:rec-prefs-changed"));
+  };
+
+  const handleSaveInterests = async (newInterests: string[]) => {
+    setInterests(newInterests);
+    await supabase.from("profiles").update({ interests: newInterests }).eq("id", userId);
+  };
+
+  const handleToggleRecLocalFirst = async () => {
+    const next = !recLocalFirst;
+    setRecLocalFirst(next);
+    await supabase.from("profiles").update({ rec_local_first: next }).eq("id", userId);
+    if (userId) memDel(`smartPeople_${userId}`);
+    window.dispatchEvent(new CustomEvent("flicks:rec-prefs-changed"));
+  };
+  const handleToggleRecPeopleNearby = async () => {
+    const next = !recPeopleNearby;
+    setRecPeopleNearby(next);
+    await supabase.from("profiles").update({ rec_people_nearby: next }).eq("id", userId);
+    if (userId) memDel(`smartPeople_${userId}`);
+    window.dispatchEvent(new CustomEvent("flicks:rec-prefs-changed"));
+  };
+  const handleToggleRecInterests = async () => {
+    const next = !recInterestsPref;
+    setRecInterestsPref(next);
+    await supabase.from("profiles").update({ rec_interests: next }).eq("id", userId);
+    if (userId) memDel(`smartPeople_${userId}`);
+    window.dispatchEvent(new CustomEvent("flicks:rec-prefs-changed"));
+  };
+  const handleToggleRecNewUsers = async () => {
+    const next = !recNewUsers;
+    setRecNewUsers(next);
+    await supabase.from("profiles").update({ rec_new_users: next }).eq("id", userId);
+    if (userId) memDel(`smartPeople_${userId}`);
+    window.dispatchEvent(new CustomEvent("flicks:rec-prefs-changed"));
   };
 
   const handleLogout = async () => {
@@ -2101,14 +2245,15 @@ const Index = ({ session, initialAdminOpen }: { session: Session; initialAdminOp
 
     return (
       <div className="space-y-4">
-        <div className="flex items-center gap-3 px-4 pt-4">
+        <div className="flex items-center gap-3 px-4 pt-5">
           <button
             onClick={() => setSettingsView("main")}
-            className="p-2 bg-white/5 rounded-xl border border-white/10 text-white/60 hover:text-white"
+            className="w-9 h-9 rounded-2xl flex items-center justify-center transition-all active:scale-90 shrink-0"
+            style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.09)" }}
           >
-            <ChevronLeft size={16} />
+            <ChevronLeft size={16} className="text-white/60" />
           </button>
-          <p className="text-sm font-black text-white">
+          <p className="text-base font-black text-white">
             {t("Blocked Users", "अवरुद्ध उपयोगकर्ता")}
           </p>
         </div>
@@ -2157,209 +2302,580 @@ const Index = ({ session, initialAdminOpen }: { session: Session; initialAdminOp
     );
   };
 
-  // ── Settings: Main view ────────────────────────────────────────────────────
-  const MainSettingsView = () => (
-    <div className="space-y-4 px-4 sm:px-0">
-      {/* Appearance */}
-      <GlassCard className="rounded-[2.5rem] p-6 border border-white/10">
-        <h2 className="text-xs font-black text-white/40 uppercase tracking-widest mb-4 flex items-center gap-2">
-          <Palette size={14} /> {t("Appearance", "रूप")}
-        </h2>
-        <div className="flex gap-3">
+  // ── Settings: Main view (Aurora Glass redesign) ──────────────────────────
+
+// ── PersonalizationView ──────────────────────────────────────────────────────
+interface PersonalizationViewProps {
+  lang: "en" | "hi";
+  setSettingsView: (v: any) => void;
+  interests: string[];
+  onSaveInterests: (i: string[]) => Promise<void>;
+  recLocalFirst: boolean;
+  recPeopleNearby: boolean;
+  recInterestsPref: boolean;
+  recNewUsers: boolean;
+  onToggleRecLocalFirst: () => void;
+  onToggleRecPeopleNearby: () => void;
+  onToggleRecInterests: () => void;
+  onToggleRecNewUsers: () => void;
+}
+
+const INTERESTS_CATALOGUE = [
+  "Cricket","Football","Music","Movies","Web Series","Comedy","Gaming",
+  "Education","Business","Technology","Food","Travel","Photography",
+  "Fashion","Fitness","Local Culture","News & Politics","Entertainment",
+  "Art & Drawing","Dance","Health & Wellness","Spirituality","Farming",
+  "Finance","Bollywood","Memes","Cooking","Yoga","Startup",
+];
+
+const PersonalizationView = React.memo(({
+  lang,
+  setSettingsView,
+  interests,
+  onSaveInterests,
+  recLocalFirst,
+  recPeopleNearby,
+  recInterestsPref,
+  recNewUsers,
+  onToggleRecLocalFirst,
+  onToggleRecPeopleNearby,
+  onToggleRecInterests,
+  onToggleRecNewUsers,
+}: PersonalizationViewProps) => {
+  const t = (en: string, hi: string) => (lang === "hi" ? hi : en);
+  const [localInterests, setLocalInterests] = React.useState<string[]>(interests);
+  const [saving, setSaving] = React.useState(false);
+  const [saved,  setSaved]  = React.useState(false);
+
+  const toggleInterest = (tag: string) => {
+    setLocalInterests(prev =>
+      prev.includes(tag) ? prev.filter(i => i !== tag) : [...prev, tag]
+    );
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    await onSaveInterests(localInterests);
+    setSaving(false);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 1500);
+  };
+
+  const RecToggleRow = ({
+    icon, title, desc, value, onToggle,
+  }: { icon: string; title: string; desc: string; value: boolean; onToggle: () => void }) => (
+    <button
+      onClick={onToggle}
+      className="flex items-center gap-3 w-full px-4 py-3.5 transition-all active:scale-[0.98]"
+    >
+      <span className="text-base shrink-0">{icon}</span>
+      <div className="flex-1 text-left min-w-0">
+        <p className="text-[13px] font-bold text-white/80 leading-tight">{title}</p>
+        <p className="text-[10px] text-white/35 font-medium mt-0.5 leading-tight">{desc}</p>
+      </div>
+      <div
+        className="w-11 h-6 rounded-full shrink-0 relative transition-all duration-200"
+        style={{
+          background: value
+            ? "linear-gradient(135deg,#7c3aed,#2563eb)"
+            : "rgba(255,255,255,0.1)",
+        }}
+      >
+        <div
+          className="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all duration-200"
+          style={{ left: value ? "calc(100% - 22px)" : "2px" }}
+        />
+      </div>
+    </button>
+  );
+
+  return (
+    <div className="space-y-4 pb-10">
+      <div className="flex items-center gap-3 px-4 pt-5">
+        <button
+          onClick={() => setSettingsView("main")}
+          className="w-9 h-9 rounded-2xl flex items-center justify-center transition-all active:scale-90 shrink-0"
+          style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.09)" }}
+        >
+          <ChevronLeft size={16} className="text-white/60" />
+        </button>
+        <div>
+          <p className="text-base font-black text-white">{t("Personalization", "वैयक्तिकरण")}</p>
+          <p className="text-[10px] text-white/30 font-medium">{t("Interests & Recommendations", "रुचियां और सुझाव")}</p>
+        </div>
+      </div>
+
+      {/* ── Interests picker ──────────────────────────────────────────────── */}
+      <div
+        className="rounded-3xl overflow-hidden mx-4"
+        style={{ background: "rgba(255,255,255,0.035)", border: "1px solid rgba(255,255,255,0.07)" }}
+      >
+        <div className="flex items-center gap-3 px-4 pt-4 pb-2">
+          <Tags size={13} className="text-violet-400 shrink-0" />
+          <p className="text-[11px] font-black text-white/50 uppercase tracking-widest">
+            {t("Your Interests", "आपकी रुचियां")}
+          </p>
+          <span className="ml-auto text-[9px] font-black text-violet-400">
+            {localInterests.length} {t("selected", "चुनी")}
+          </span>
+        </div>
+        <div className="flex flex-wrap gap-2 px-4 pb-4">
+          {INTERESTS_CATALOGUE.map(tag => {
+            const active = localInterests.includes(tag);
+            return (
+              <button
+                key={tag}
+                onClick={() => toggleInterest(tag)}
+                className="px-3 py-1.5 rounded-full text-[11px] font-black transition-all active:scale-95"
+                style={{
+                  background: active
+                    ? "linear-gradient(135deg,rgba(124,58,237,0.7),rgba(37,99,235,0.7))"
+                    : "rgba(255,255,255,0.06)",
+                  border: active ? "1.5px solid rgba(139,92,246,0.5)" : "1px solid rgba(255,255,255,0.09)",
+                  color: active ? "#e9d5ff" : "rgba(255,255,255,0.45)",
+                }}
+              >
+                {tag}
+              </button>
+            );
+          })}
+        </div>
+        <div className="px-4 pb-4">
           <button
-            onClick={() => toggleDarkMode(true)}
-            className={`flex-1 h-14 rounded-2xl flex flex-col items-center justify-center gap-1 border-2 transition-all ${darkMode ? "border-blue-500 bg-slate-800" : "border-transparent bg-white/5 opacity-60 hover:opacity-100"}`}
+            onClick={handleSave}
+            disabled={saving}
+            className="w-full py-3 rounded-2xl font-black text-[12px] flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-60"
+            style={{ background: "linear-gradient(135deg,#7c3aed,#2563eb)", color: "#fff" }}
           >
-            <span className="text-lg">🌙</span>
-            <span className="text-[10px] font-black text-white uppercase">{t("Dark", "डार्क")}</span>
-          </button>
-          <button
-            onClick={() => toggleDarkMode(false)}
-            className={`flex-1 h-14 rounded-2xl flex flex-col items-center justify-center gap-1 border-2 transition-all ${!darkMode ? "border-blue-500 bg-slate-100/20" : "border-transparent bg-white/5 opacity-60 hover:opacity-100"}`}
-          >
-            <span className="text-lg">☀️</span>
-            <span className="text-[10px] font-black text-white uppercase">{t("Light", "लाइट")}</span>
+            {saving ? <Loader2 size={14} className="animate-spin" /> : saved ? <CheckCircle size={14} /> : <Save size={14} />}
+            {saved ? t("Saved!", "सहेजा!") : t("Save Interests", "रुचियां सहेजें")}
           </button>
         </div>
-      </GlassCard>
+      </div>
 
-      {/* Personal Info */}
-      <GlassCard className="rounded-[2.5rem] p-2 border border-white/10">
-        <SettingRow
-          icon={<User size={18} />}
-          title={t("Personal Info", "व्यक्तिगत जानकारी")}
-          desc={t("Name, Bio, School, Mobile", "नाम, परिचय, स्कूल, मोबाइल")}
-          color="text-blue-400"
-          onClick={() => setSettingsView("personal")}
+      {/* ── Recommendation Preferences ────────────────────────────────────── */}
+      <div
+        className="rounded-3xl overflow-hidden mx-4"
+        style={{ background: "rgba(255,255,255,0.035)", border: "1px solid rgba(255,255,255,0.07)" }}
+      >
+        <div className="flex items-center gap-3 px-4 pt-4 pb-1">
+          <SlidersHorizontal size={13} className="text-cyan-400 shrink-0" />
+          <p className="text-[11px] font-black text-white/50 uppercase tracking-widest">
+            {t("Recommendation Settings", "सुझाव सेटिंग्स")}
+          </p>
+        </div>
+        <RecToggleRow
+          icon="📍"
+          title={t("Local Content First", "स्थानीय सामग्री पहले")}
+          desc={t("Prioritise posts from your area", "अपने क्षेत्र की पोस्ट पहले दिखाएं")}
+          value={recLocalFirst}
+          onToggle={onToggleRecLocalFirst}
         />
-      </GlassCard>
-
-      {/* Security */}
-      <GlassCard className="rounded-[2.5rem] p-2 border border-white/10">
-        <h2 className="text-[10px] font-black text-white/30 uppercase tracking-widest px-4 pt-3 pb-1 flex items-center gap-2">
-          <Shield size={12} /> {t("Security", "सुरक्षा")}
-        </h2>
-        <SettingRow
-          icon={<KeyRound size={18} />}
-          title={t("Reset Password", "पासवर्ड रीसेट करें")}
-          desc={
-            resetSent
-              ? t("Email sent! Check inbox", "ईमेल भेज दिया!")
-              : t("Send reset link to email", "ईमेल पर लिंक भेजें")
-          }
-          color={resetSent ? "text-green-400" : "text-orange-400"}
-          onClick={resetSent ? undefined : handlePasswordReset}
-          right={
-            resetSent ? (
-              <CheckCircle size={16} className="text-green-400" />
-            ) : undefined
-          }
+        <div style={{ height: 1, background: "rgba(255,255,255,0.05)", margin: "0 16px" }} />
+        <RecToggleRow
+          icon="👥"
+          title={t("People From My Area", "मेरे क्षेत्र के लोग")}
+          desc={t("Show nearby users in discovery", "पास के उपयोगकर्ता सुझाएं")}
+          value={recPeopleNearby}
+          onToggle={onToggleRecPeopleNearby}
         />
-      </GlassCard>
-
-      {/* Language */}
-      <GlassCard className="rounded-[2.5rem] p-2 border border-white/10">
-        <SettingRow
-          icon={<Languages size={18} />}
-          title={t("Language", "भाषा")}
-          desc={lang === "en" ? "English (Active)" : "हिंदी (सक्रिय)"}
-          color="text-purple-400"
-          onClick={toggleLang}
-          right={
-            <div className="flex items-center gap-2">
-              <span
-                className={`text-[10px] font-black ${lang === "en" ? "text-white" : "text-white/30"}`}
-              >
-                EN
-              </span>
-              <Toggle on={lang === "hi"} onToggle={toggleLang} />
-              <span
-                className={`text-[10px] font-black ${lang === "hi" ? "text-white" : "text-white/30"}`}
-              >
-                HI
-              </span>
-            </div>
-          }
+        <div style={{ height: 1, background: "rgba(255,255,255,0.05)", margin: "0 16px" }} />
+        <RecToggleRow
+          icon="🎯"
+          title={t("Interest Recommendations", "रुचि आधारित सुझाव")}
+          desc={t("Show content matching your interests", "रुचि के अनुसार सामग्री दिखाएं")}
+          value={recInterestsPref}
+          onToggle={onToggleRecInterests}
         />
-      </GlassCard>
-
-      {/* Privacy Controls */}
-      <GlassCard className="rounded-[2.5rem] p-2 border border-white/10">
-        <h2 className="text-[10px] font-black text-white/30 uppercase tracking-widest px-4 pt-3 pb-1 flex items-center gap-2">
-          <EyeOff size={12} /> {t("Privacy Controls", "गोपनीयता")}
-        </h2>
-        <SettingRow
-          icon={<Lock size={18} />}
-          title={t("Profile Lock", "प्रोफ़ाइल लॉक")}
-          desc={
-            profileLocked
-              ? t("Profile is locked", "लॉक है")
-              : t("Anyone can view your profile", "सभी देख सकते हैं")
-          }
-          color="text-yellow-400"
-          onClick={handleToggleProfileLock}
-          right={
-            <Toggle on={profileLocked} onToggle={handleToggleProfileLock} />
-          }
+        <div style={{ height: 1, background: "rgba(255,255,255,0.05)", margin: "0 16px" }} />
+        <RecToggleRow
+          icon="✨"
+          title={t("New Users Nearby", "पास के नए उपयोगकर्ता")}
+          desc={t("Get notified when someone nearby joins", "पास से कोई जुड़े तो दिखाएं")}
+          value={recNewUsers}
+          onToggle={onToggleRecNewUsers}
         />
-        <SettingRow
-          icon={<EyeOff size={18} />}
-          title={t("Hide Profile", "प्रोफ़ाइल छुपाएं")}
-          desc={
-            profileHidden
-              ? t("Hidden from discovery", "खोज से छुपाया")
-              : t("Visible in search", "खोज में दिखता है")
-          }
-          color="text-red-400"
-          onClick={handleToggleProfileHidden}
-          right={
-            <Toggle on={profileHidden} onToggle={handleToggleProfileHidden} />
-          }
-        />
-        <SettingRow
-          icon={<Shield size={18} />}
-          title={t("Private Profile Mode", "निजी प्रोफ़ाइल मोड")}
-          desc={
-            isPrivateMode
-              ? t("Only friends can view & interact", "केवल दोस्त देख और इंटरैक्ट कर सकते हैं")
-              : t("Anyone can view your timeline", "कोई भी आपकी टाइमलाइन देख सकता है")
-          }
-          color="text-purple-400"
-          onClick={handleTogglePrivateMode}
-          right={
-            <Toggle on={isPrivateMode} onToggle={handleTogglePrivateMode} />
-          }
-        />
-      </GlassCard>
-
-      {/* Block List */}
-      <GlassCard className="rounded-[2.5rem] p-2 border border-white/10">
-        <SettingRow
-          icon={<Ban size={18} />}
-          title={t("Blocked Users", "अवरुद्ध उपयोगकर्ता")}
-          desc={t("Manage your block list", "ब्लॉक सूची प्रबंधित करें")}
-          color="text-slate-400"
-          onClick={() => setSettingsView("blocklist")}
-        />
-      </GlassCard>
-
-      {/* Privacy Policy, Help, About Us & Contact Us */}
-      <GlassCard className="rounded-[2.5rem] p-2 border border-white/10">
-        <SettingRow
-          icon={<Shield size={18} />}
-          title={t("Privacy Policy", "गोपनीयता नीति")}
-          desc={t("How we protect your data", "डेटा सुरक्षा नीति")}
-          color="text-emerald-400"
-          onClick={() => setSettingsView("privacy")}
-        />
-        <SettingRow
-          icon={<LifeBuoy size={18} />}
-          title={t("Help & Support", "सहायता केंद्र")}
-          desc={t("FAQs, contact our team 24/7", "24/7 सहायता उपलब्ध")}
-          color="text-sky-400"
-          onClick={() => setSettingsView("help")}
-        />
-        <SettingRow
-          icon={<Info size={18} />}
-          title={t("About Us", "हमारे बारे में")}
-          desc={t("Our story, mission & values", "हमारी कहानी और मिशन")}
-          color="text-yellow-400"
-          onClick={() => setSettingsView("about")}
-        />
-        <SettingRow
-          icon={<Mail size={18} />}
-          title={t("Contact Us", "संपर्क करें")}
-          desc={t("Email · Call · Feedback", "ईमेल · कॉल · फ़ीडबैक")}
-          color="text-orange-400"
-          onClick={() => setSettingsView("contact")}
-        />
-      </GlassCard>
-
-      {/* Danger Zone */}
-      <GlassCard className="rounded-[2.5rem] p-2 border border-red-500/20">
-        <h2 className="text-[10px] font-black text-red-400/70 uppercase tracking-widest px-4 pt-3 pb-1 flex items-center gap-2">
-          <AlertTriangle size={12} /> Danger Zone
-        </h2>
-        <SettingRow
-          icon={<Trash2 size={18} />}
-          title="Delete Account"
-          desc="Submit a request to permanently delete your account"
-          color="text-red-400"
-          onClick={() => { setDeleteSubmitted(false); setShowDeleteDialog(true); }}
-        />
-      </GlassCard>
-
-      {/* Logout */}
-      <div className="px-0">
-        <button
-          onClick={handleLogout}
-          className="w-full py-4 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-2xl font-black text-xs uppercase tracking-widest border border-red-500/20 transition-all flex items-center justify-center gap-2 active:scale-95"
-        >
-          <LogOut size={16} /> {t("Sign Out", "साइन आउट")}
-        </button>
       </div>
     </div>
   );
+});
+
+  const MainSettingsView = () => {
+    // Inner section wrapper with numbered header
+    const AuroraSection = ({
+      number, title, children,
+    }: { number: string; title: string; children: React.ReactNode }) => (
+      <div
+        className="rounded-3xl overflow-hidden"
+        style={{
+          background: "rgba(255,255,255,0.035)",
+          border: "1px solid rgba(255,255,255,0.07)",
+        }}
+      >
+        {/* Section header row */}
+        <div className="flex items-center gap-3 px-5 pt-4 pb-1">
+          <span
+            className="text-[11px] font-black shrink-0"
+            style={{ background: "linear-gradient(135deg,#8B5CF6,#EC4899)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}
+          >
+            {number}
+          </span>
+          <div className="h-px flex-1" style={{ background: "linear-gradient(90deg,rgba(139,92,246,0.22),transparent)" }} />
+          <span className="text-[10px] font-black text-white/25 uppercase tracking-[0.12em] shrink-0">{title}</span>
+        </div>
+        <div className="pb-2">{children}</div>
+      </div>
+    );
+
+    return (
+      <div className="relative">
+        {/* ── Aurora ambient glows ────────────────────── */}
+        <div className="pointer-events-none absolute inset-0 overflow-hidden" style={{ zIndex: 0 }}>
+          <div style={{
+            position: "absolute", top: -100, left: -60, width: 320, height: 320, borderRadius: "50%",
+            background: "radial-gradient(circle, rgba(139,92,246,0.2) 0%, transparent 70%)",
+            filter: "blur(70px)", willChange: "transform",
+          }} />
+          <div style={{
+            position: "absolute", top: "40%", right: -80, width: 260, height: 260, borderRadius: "50%",
+            background: "radial-gradient(circle, rgba(236,72,153,0.16) 0%, transparent 70%)",
+            filter: "blur(70px)", willChange: "transform",
+          }} />
+          <div style={{
+            position: "absolute", bottom: 60, left: "20%", width: 280, height: 280, borderRadius: "50%",
+            background: "radial-gradient(circle, rgba(245,158,11,0.12) 0%, transparent 70%)",
+            filter: "blur(70px)", willChange: "transform",
+          }} />
+        </div>
+
+        <div className="relative z-10 max-w-[720px] mx-auto px-4 pt-5 pb-10 space-y-4">
+
+          {/* ── Page header ──────────────────────── */}
+          <div className="flex items-start justify-between mb-2">
+            <div>
+              <h1 className="text-[22px] font-black text-white tracking-tight leading-none">
+                {t("Settings", "सेटिंग्स")}
+              </h1>
+              <p className="text-[11px] text-white/35 font-medium mt-1.5">
+                {t("Manage your account & preferences", "खाता और प्राथमिकताएं")}
+              </p>
+            </div>
+            <button
+              onClick={() => setActiveFeature("Fame")}
+              className="w-9 h-9 rounded-2xl flex items-center justify-center transition-all active:scale-90 shrink-0"
+              style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.09)" }}
+            >
+              <ArrowLeft size={16} className="text-white/50" />
+            </button>
+          </div>
+
+          {/* ── Profile card ─────────────────────── */}
+          <motion.div
+            initial={{ opacity: 0, y: 14 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.38 }}
+            className="rounded-3xl overflow-hidden"
+            style={{
+              background: "linear-gradient(135deg, rgba(139,92,246,0.1) 0%, rgba(236,72,153,0.07) 55%, rgba(245,158,11,0.05) 100%)",
+              border: "1px solid rgba(255,255,255,0.09)",
+              backdropFilter: "blur(28px)",
+              WebkitBackdropFilter: "blur(28px)",
+            }}
+          >
+            {/* Gradient accent bar */}
+            <div className="h-[2px]" style={{ background: "linear-gradient(90deg,#8B5CF6,#EC4899,#F59E0B)" }} />
+
+            <div className="p-5">
+              <div className="flex items-center gap-4">
+                {/* Avatar */}
+                <div className="relative shrink-0">
+                  <div
+                    className="w-[60px] h-[60px] rounded-2xl overflow-hidden flex items-center justify-center"
+                    style={{ border: "2px solid rgba(139,92,246,0.45)", boxShadow: "0 0 18px rgba(139,92,246,0.2)" }}
+                  >
+                    {profile.avatar_url ? (
+                      <img src={profile.avatar_url} className="w-full h-full object-cover" alt="" loading="lazy" decoding="async" />
+                    ) : (
+                      <div
+                        className="w-full h-full flex items-center justify-center text-xl font-black text-white"
+                        style={{ background: "linear-gradient(135deg,#8B5CF6,#EC4899)" }}
+                      >
+                        {(profile.full_name || userEmail || "U")[0].toUpperCase()}
+                      </div>
+                    )}
+                  </div>
+                  {/* Online dot */}
+                  <div
+                    className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-emerald-400"
+                    style={{ border: "2px solid #09090B", boxShadow: "0 0 6px rgba(52,211,153,0.5)" }}
+                  />
+                </div>
+
+                {/* Name / username / bio */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="font-black text-white text-[15px] leading-tight truncate">
+                      {profile.full_name || t("Your Name", "आपका नाम")}
+                    </p>
+                    <span
+                      className="text-[9px] font-black shrink-0 px-1.5 py-[2px] rounded-full"
+                      style={{ color: "#F59E0B", background: "rgba(245,158,11,0.1)", border: "1px solid rgba(245,158,11,0.22)" }}
+                    >
+                      ✦ Member
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-white/35 font-medium mt-0.5">
+                    @{profile.username || userEmail.split("@")[0]}
+                  </p>
+                  {profile.bio ? (
+                    <p className="text-[10px] text-white/30 mt-1 line-clamp-1">{profile.bio}</p>
+                  ) : (
+                    <button
+                      onClick={() => setSettingsView("personal")}
+                      className="text-[10px] mt-1 font-semibold"
+                      style={{ color: "rgba(139,92,246,0.6)" }}
+                    >
+                      + {t("Add bio", "बायो जोड़ें")}
+                    </button>
+                  )}
+                </div>
+
+                {/* Edit profile button */}
+                <button
+                  onClick={() => setSettingsView("personal")}
+                  className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-all active:scale-90"
+                  style={{ background: "rgba(139,92,246,0.12)", border: "1px solid rgba(139,92,246,0.22)" }}
+                >
+                  <UserRound size={15} style={{ color: "#a78bfa" }} />
+                </button>
+              </div>
+
+              {/* Quick-action row */}
+              <div className="flex gap-2 mt-4">
+                {[
+                  { label: t("Edit Profile", "प्रोफ़ाइल"), emoji: "✏️", action: () => setSettingsView("personal") },
+                  { label: darkMode ? t("Light Mode", "लाइट") : t("Dark Mode", "डार्क"), emoji: darkMode ? "☀️" : "🌙", action: () => toggleDarkMode(!darkMode) },
+                  { label: lang === "en" ? "हिंदी" : "English", emoji: "🌐", action: toggleLang },
+                ].map((a) => (
+                  <button
+                    key={a.label}
+                    onClick={a.action}
+                    className="flex-1 flex flex-col items-center gap-1.5 py-3 rounded-2xl transition-all active:scale-95"
+                    style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}
+                  >
+                    <span className="text-[17px] leading-none">{a.emoji}</span>
+                    <span className="text-[9.5px] font-bold text-white/35 text-center leading-tight">{a.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </motion.div>
+
+          {/* ── 01 · Appearance ──────────────────── */}
+          <AuroraSection number="01" title={t("Appearance & Theme", "रूप और थीम")}>
+            <div className="flex gap-2.5 px-4 pb-1">
+              <button
+                onClick={() => toggleDarkMode(true)}
+                className="flex-1 h-[68px] rounded-2xl flex flex-col items-center justify-center gap-2 transition-all active:scale-95"
+                style={{
+                  background: darkMode ? "rgba(139,92,246,0.14)" : "rgba(255,255,255,0.04)",
+                  border: darkMode ? "1.5px solid rgba(139,92,246,0.4)" : "1px solid rgba(255,255,255,0.07)",
+                  boxShadow: darkMode ? "0 0 20px rgba(139,92,246,0.15)" : "none",
+                }}
+              >
+                <span className="text-xl">🌙</span>
+                <span className="text-[10px] font-black text-white/55 uppercase tracking-wider">{t("Dark", "डार्क")}</span>
+              </button>
+              <button
+                onClick={() => toggleDarkMode(false)}
+                className="flex-1 h-[68px] rounded-2xl flex flex-col items-center justify-center gap-2 transition-all active:scale-95"
+                style={{
+                  background: !darkMode ? "rgba(245,158,11,0.12)" : "rgba(255,255,255,0.04)",
+                  border: !darkMode ? "1.5px solid rgba(245,158,11,0.38)" : "1px solid rgba(255,255,255,0.07)",
+                  boxShadow: !darkMode ? "0 0 20px rgba(245,158,11,0.12)" : "none",
+                }}
+              >
+                <span className="text-xl">☀️</span>
+                <span className="text-[10px] font-black text-white/55 uppercase tracking-wider">{t("Light", "लाइट")}</span>
+              </button>
+            </div>
+          </AuroraSection>
+
+          {/* ── 02 · Account & Security ──────────── */}
+          <AuroraSection number="02" title={t("Account & Security", "खाता और सुरक्षा")}>
+            <SettingRow
+              icon={<User size={16} />}
+              title={t("Personal Info", "व्यक्तिगत जानकारी")}
+              desc={t("Name · Bio · School · Mobile", "नाम · परिचय · स्कूल · मोबाइल")}
+              color="violet"
+              onClick={() => setSettingsView("personal")}
+            />
+            <SettingRow
+              icon={<KeyRound size={16} />}
+              title={t("Reset Password", "पासवर्ड रीसेट")}
+              desc={resetSent ? t("Email sent! Check inbox", "ईमेल भेज दिया!") : t("Send reset link to email", "रीसेट लिंक भेजें")}
+              color={resetSent ? "emerald" : "amber"}
+              onClick={resetSent ? undefined : handlePasswordReset}
+              right={resetSent ? <CheckCircle size={15} className="text-emerald-400" /> : undefined}
+            />
+            <SettingRow
+              icon={<Languages size={16} />}
+              title={t("Language", "भाषा")}
+              desc={lang === "en" ? "English (Active)" : "हिंदी (सक्रिय)"}
+              color="sky"
+              onClick={toggleLang}
+              right={
+                <div className="flex items-center gap-2">
+                  <span className={`text-[10px] font-black ${lang === "en" ? "text-white" : "text-white/30"}`}>EN</span>
+                  <Toggle on={lang === "hi"} onToggle={toggleLang} />
+                  <span className={`text-[10px] font-black ${lang === "hi" ? "text-white" : "text-white/30"}`}>HI</span>
+                </div>
+              }
+            />
+          </AuroraSection>
+
+          {/* ── 03 · Personalization ──────────────── */}
+          <AuroraSection number="03" title={t("Personalization", "वैयक्तिकरण")}>
+            <SettingRow
+              icon={<Sparkles size={16} />}
+              title={t("Interests & Discovery", "रुचियां और खोज")}
+              desc={t("Manage interests · Local recs · New users", "रुचियां · स्थानीय सुझाव · नए लोग")}
+              color="violet"
+              onClick={() => setSettingsView("personalization")}
+            />
+          </AuroraSection>
+
+          {/* ── 04 · Privacy ─────────────────────── */}
+          <AuroraSection number="04" title={t("Privacy & Visibility", "गोपनीयता")}>
+            <SettingRow
+              icon={<Lock size={16} />}
+              title={t("Profile Lock", "प्रोफ़ाइल लॉक")}
+              desc={profileLocked ? t("Profile is locked", "लॉक है") : t("Anyone can view your profile", "सभी देख सकते हैं")}
+              color="amber"
+              onClick={handleToggleProfileLock}
+              right={<Toggle on={profileLocked} onToggle={handleToggleProfileLock} />}
+            />
+            <SettingRow
+              icon={<EyeOff size={16} />}
+              title={t("Hide Profile", "प्रोफ़ाइल छुपाएं")}
+              desc={profileHidden ? t("Hidden from discovery", "खोज से छुपाया") : t("Visible in search", "खोज में दिखता है")}
+              color="pink"
+              onClick={handleToggleProfileHidden}
+              right={<Toggle on={profileHidden} onToggle={handleToggleProfileHidden} />}
+            />
+            <SettingRow
+              icon={<Shield size={16} />}
+              title={t("Private Profile Mode", "निजी प्रोफ़ाइल")}
+              desc={isPrivateMode ? t("Only friends can view & interact", "केवल दोस्त") : t("Anyone can view your timeline", "सार्वजनिक")}
+              color="violet"
+              onClick={handleTogglePrivateMode}
+              right={<Toggle on={isPrivateMode} onToggle={handleTogglePrivateMode} />}
+            />
+            <SettingRow
+              icon={<Ban size={16} />}
+              title={t("Blocked Users", "अवरुद्ध उपयोगकर्ता")}
+              desc={t("Manage your block list", "ब्लॉक सूची प्रबंधित करें")}
+              color="slate"
+              onClick={() => setSettingsView("blocklist")}
+            />
+          </AuroraSection>
+
+          {/* ── 05 · Resources & Support ─────────── */}
+          <AuroraSection number="05" title={t("Resources & Support", "सहायता और जानकारी")}>
+            <SettingRow
+              icon={<Shield size={16} />}
+              title={t("Privacy Policy", "गोपनीयता नीति")}
+              desc={t("How we protect your data", "डेटा सुरक्षा नीति")}
+              color="emerald"
+              onClick={() => setSettingsView("privacy")}
+            />
+            <SettingRow
+              icon={<LifeBuoy size={16} />}
+              title={t("Help & Support", "सहायता केंद्र")}
+              desc={t("FAQs · Contact our team 24/7", "24/7 सहायता उपलब्ध")}
+              color="sky"
+              onClick={() => setSettingsView("help")}
+            />
+            <SettingRow
+              icon={<Info size={16} />}
+              title={t("About Us", "हमारे बारे में")}
+              desc={t("Our story, mission & values", "हमारी कहानी और मिशन")}
+              color="amber"
+              onClick={() => setSettingsView("about")}
+            />
+            <SettingRow
+              icon={<Mail size={16} />}
+              title={t("Contact Us", "संपर्क करें")}
+              desc={t("Email · Call · Feedback", "ईमेल · कॉल · फ़ीडबैक")}
+              color="pink"
+              onClick={() => setSettingsView("contact")}
+            />
+          </AuroraSection>
+
+          {/* ── 05 · Danger Zone ─────────────────── */}
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.15 }}
+            className="rounded-3xl overflow-hidden"
+            style={{
+              background: "rgba(239,68,68,0.04)",
+              border: "1px solid rgba(239,68,68,0.1)",
+              backdropFilter: "blur(24px)",
+              WebkitBackdropFilter: "blur(24px)",
+            }}
+          >
+            <div className="flex items-center gap-3 px-5 pt-4 pb-1">
+              <span className="text-[11px] font-black text-red-500/50">05</span>
+              <div className="h-px flex-1" style={{ background: "linear-gradient(90deg,rgba(239,68,68,0.2),transparent)" }} />
+              <div className="flex items-center gap-1.5">
+                <AlertTriangle size={9} className="text-red-400/40" />
+                <span className="text-[10px] font-black text-red-400/40 uppercase tracking-[0.12em]">Danger Zone</span>
+              </div>
+            </div>
+            <div className="px-4 pb-4">
+              <button
+                onClick={() => { setDeleteSubmitted(false); setShowDeleteDialog(true); }}
+                className="w-full flex items-center gap-3.5 p-4 rounded-2xl transition-all active:scale-[0.98] group"
+                style={{ background: "rgba(239,68,68,0.06)", border: "1px solid rgba(239,68,68,0.1)" }}
+              >
+                <div
+                  className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+                  style={{ background: "rgba(239,68,68,0.12)", border: "1px solid rgba(239,68,68,0.2)" }}
+                >
+                  <Trash2 size={15} className="text-red-400" />
+                </div>
+                <div className="flex-1 text-left">
+                  <p className="text-[13px] font-semibold text-red-400">{t("Delete Account", "खाता हटाएं")}</p>
+                  <p className="text-[11px] text-red-400/45 mt-0.5">{t("This action cannot be undone", "यह क्रिया पूर्ववत नहीं होगी")}</p>
+                </div>
+                <ChevronRight size={15} className="text-red-400/25 group-hover:text-red-400/50 transition-colors shrink-0" />
+              </button>
+            </div>
+          </motion.div>
+
+          {/* ── Sign Out ─────────────────────────── */}
+          <motion.button
+            whileTap={{ scale: 0.97 }}
+            onClick={handleLogout}
+            className="w-full py-4 rounded-2xl font-black text-[11px] uppercase tracking-[0.12em] flex items-center justify-center gap-2.5 transition-all"
+            style={{
+              background: "rgba(255,255,255,0.04)",
+              border: "1px solid rgba(255,255,255,0.08)",
+              color: "rgba(255,255,255,0.4)",
+            }}
+          >
+            <LogOut size={14} />
+            {t("Sign Out", "साइन आउट")}
+          </motion.button>
+
+          <p className="text-center text-[10px] pb-2" style={{ color: "rgba(255,255,255,0.12)" }}>
+            Flicks India © 2024–2025
+          </p>
+        </div>
+      </div>
+    );
+  };
 
   // ── Render ─────────────────────────────────────────────────────────────────
   // ── Profile error banner (only shown on genuine DB failures, never during normal load)
@@ -3167,6 +3683,17 @@ const Index = ({ session, initialAdminOpen }: { session: Session; initialAdminOp
                       onNavigateToFlicks={() => setActiveFeature("Flicks")}
                       onNavigateToSurveys={() => setActiveFeature("Task")}
                       isAdmin={isAppAdmin}
+                      localProfile={{
+                        state: personalForm.state || undefined,
+                        district: personalForm.district || undefined,
+                        city: personalForm.city || undefined,
+                        pincode: personalForm.pincode || undefined,
+                        interests: interests.length > 0 ? interests : undefined,
+                        rec_local_first: recLocalFirst,
+                        rec_people_nearby: recPeopleNearby,
+                        rec_interests: recInterestsPref,
+                        rec_new_users: recNewUsers,
+                      }}
                     />
                   </PullToRefresh>
                 </div>
@@ -3309,7 +3836,7 @@ const Index = ({ session, initialAdminOpen }: { session: Session; initialAdminOp
                         Location
                       </p>
                       <p className="text-xs font-bold text-white truncate">
-                        {profile.location || "Not Set"}
+                        {[personalForm.city || (profile as any).city, personalForm.district || (profile as any).district, personalForm.state || (profile as any).state].filter(Boolean).join(", ") || profile.location || "Not Set"}
                       </p>
                     </div>
                   </GlassCard>
@@ -3492,7 +4019,7 @@ const Index = ({ session, initialAdminOpen }: { session: Session; initialAdminOp
             {/* 6. SETTINGS ─────────────────────────────────────────────────── */}
             {activeFeature === "Settings" && (
               <ErrorBoundary>
-              <div className="w-full min-h-screen pb-32">
+              <div className="w-full min-h-screen pb-32" style={{ background: "#09090B" }}>
               <AnimatePresence mode="wait">
                 {settingsView === "main" && (
                   <motion.div
@@ -3522,6 +4049,29 @@ const Index = ({ session, initialAdminOpen }: { session: Session; initialAdminOp
                       userId={userId}
                       currentAvatarUrl={profile.avatar_url}
                       onAvatarUpdated={(url) => setProfile(prev => ({ ...prev, avatar_url: url }))}
+                    />
+                  </motion.div>
+                )}
+                {settingsView === "personalization" && (
+                  <motion.div
+                    key="personalization"
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                  >
+                    <PersonalizationView
+                      lang={lang}
+                      setSettingsView={setSettingsView}
+                      interests={interests}
+                      onSaveInterests={handleSaveInterests}
+                      recLocalFirst={recLocalFirst}
+                      recPeopleNearby={recPeopleNearby}
+                      recInterestsPref={recInterestsPref}
+                      recNewUsers={recNewUsers}
+                      onToggleRecLocalFirst={handleToggleRecLocalFirst}
+                      onToggleRecPeopleNearby={handleToggleRecPeopleNearby}
+                      onToggleRecInterests={handleToggleRecInterests}
+                      onToggleRecNewUsers={handleToggleRecNewUsers}
                     />
                   </motion.div>
                 )}

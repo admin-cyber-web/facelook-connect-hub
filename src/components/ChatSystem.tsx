@@ -1041,6 +1041,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   } | null>(null);
   const [showEmojiGrid, setShowEmojiGrid] = useState(false);
   const [showInputEmoji, setShowInputEmoji] = useState(false);
+  const [inputFocused, setInputFocused] = useState(false);
   const smokeIdRef = useRef(0);
   const blastIdRef = useRef(0);
 
@@ -2549,7 +2550,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       const { data, error } = await supabase
         .from("messages")
         .insert(insertPayload)
-        .select()
+        .select("id,sender_id,receiver_id,content,media_url,media_type,created_at,seen_at,reply_to_id,reply_preview,reactions,is_edited")
         .single();
 
       if (data) {
@@ -2736,7 +2737,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       const { data, error: dbError } = await supabase
         .from("messages")
         .insert(insertPayload)
-        .select()
+        .select("id,sender_id,receiver_id,content,media_url,media_type,created_at,seen_at,reply_to_id,reply_preview,reactions,is_edited")
         .single();
 
       if (dbError) {
@@ -4817,7 +4818,12 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                       </p>
                     </div>
                   ) : (
-                    filteredMessages.map((msg) => {
+                    (() => {
+                    // compute once: the id of the last sent message that has been seen
+                    const lastSeenMsgId = filteredMessages
+                      .filter(m => String(m.sender_id || "").trim() === String(userId || "").trim() && m.seen_at)
+                      .slice(-1)[0]?.id ?? null;
+                    return filteredMessages.map((msg) => {
                       const isMine =
                         String(msg.sender_id || "").trim() ===
                         String(userId || "").trim();
@@ -4962,7 +4968,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                     }
                                     return (
                                       <>
-                                        <p className="text-lg font-bold leading-snug break-words">
+                                        <p className="text-sm font-medium leading-snug break-words">
                                           {msg.content}
                                         </p>
                                         {msg.is_edited && (
@@ -5000,12 +5006,13 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                             )}
                             </div>{/* end comic bubble wrapper */}
                             {/* ── Seen Indicator — below bubble, per spec ── */}
-                            {isMine && msg.seen_at && (
+                            {isMine && msg.id === lastSeenMsgId && (
                               <motion.div
-                                initial={{ opacity: 0, scale: 0.7 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                transition={{ type: "spring", stiffness: 300, damping: 22 }}
-                                className={`flex flex-col items-end gap-1 ${theme === "comic" ? "mt-5" : "mt-2"} mr-1`}
+                                key={lastSeenMsgId ?? undefined}
+                                initial={{ opacity: 0, y: 6, scale: 0.85 }}
+                                animate={{ opacity: 1, y: 0, scale: 1 }}
+                                transition={{ type: "spring", stiffness: 340, damping: 26 }}
+                                className={`flex flex-col items-end gap-0.5 ${theme === "comic" ? "mt-4" : "mt-1.5"} mr-1`}
                               >
                                 <span className={`text-[11px] font-semibold tracking-wide ${theme === "comic" ? "text-gray-500" : "text-white/45"}`}>Seen by</span>
                                 <div className="relative">
@@ -5041,7 +5048,8 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                           </div>
                         </motion.div>
                       );
-                    })
+                    });
+                    })()
                   )}
                   <div ref={messagesEndRef} />
                 </div>
@@ -5169,35 +5177,54 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                   </AnimatePresence>
 
                   <div
-                    className="flex items-center gap-2 px-4 h-16 rounded-[32px] border border-white/[0.08] mt-2 mb-[max(12px,env(safe-area-inset-bottom))]"
+                    className="flex items-center gap-2 px-3 rounded-[32px] border border-white/[0.08] mt-2 mb-[max(12px,env(safe-area-inset-bottom))] transition-all duration-300"
                     style={{
+                      minHeight: 56,
                       background: theme === "comic" ? "rgba(255,255,255,0.95)" : "rgba(20,20,20,0.88)",
                       backdropFilter:"blur(20px)",
                       WebkitBackdropFilter:"blur(20px)",
-                      boxShadow: theme === "comic"
-                        ? "0 4px 20px rgba(0,0,0,0.10), 0 0 0 1.5px rgba(0,0,0,0.09)"
-                        : "0 8px 32px rgba(0,0,0,0.5), 0 0 0 1px rgba(227,255,0,0.05)"
+                      boxShadow: inputFocused
+                        ? theme === "comic"
+                          ? "0 6px 28px rgba(0,0,0,0.14), 0 0 0 2px rgba(37,211,102,0.35)"
+                          : "0 8px 32px rgba(0,0,0,0.6), 0 0 0 1.5px rgba(227,255,0,0.22)"
+                        : theme === "comic"
+                          ? "0 4px 20px rgba(0,0,0,0.10), 0 0 0 1.5px rgba(0,0,0,0.09)"
+                          : "0 8px 32px rgba(0,0,0,0.5), 0 0 0 1px rgba(227,255,0,0.05)"
                     }}
                   >
-                    {/* Emoji button — left of textarea */}
-                    <button
-                      onClick={() => setShowInputEmoji((p) => !p)}
-                      className={`w-10 h-10 rounded-2xl border ${T.divider} flex items-center justify-center text-xl hover:bg-white/20 shrink-0 transition-all ${showInputEmoji ? "bg-white/20" : "bg-white/10"}`}
-                    >
-                      😊
-                    </button>
-                    <button
-                      onClick={() => fileInputRef.current?.click()}
-                      disabled={isUploadingMedia}
-                      className={`w-10 h-10 rounded-2xl border flex items-center justify-center shrink-0 disabled:opacity-40 transition-colors
-                        ${pendingFile ? "bg-blue-500 border-blue-400 text-white" : `bg-white/10 ${T.divider} ${T.text3} hover:bg-white/20`}`}
-                    >
-                      {isUploadingMedia ? (
-                        <Loader2 size={16} className="animate-spin" />
-                      ) : (
-                        <Paperclip size={16} />
+                    {/* ── Left buttons — emoji + attach — collapse in focus mode ── */}
+                    <AnimatePresence initial={false}>
+                      {!inputFocused && (
+                        <motion.div
+                          key="left-btns"
+                          initial={{ opacity: 0, width: 0 }}
+                          animate={{ opacity: 1, width: "auto" }}
+                          exit={{ opacity: 0, width: 0 }}
+                          transition={{ duration: 0.18, ease: "easeInOut" }}
+                          className="flex items-center gap-2 overflow-hidden shrink-0"
+                          style={{ willChange: "opacity, width" }}
+                        >
+                          <button
+                            onClick={() => setShowInputEmoji((p) => !p)}
+                            className={`w-9 h-9 rounded-2xl border ${T.divider} flex items-center justify-center text-lg hover:bg-white/20 shrink-0 transition-all ${showInputEmoji ? "bg-white/20" : "bg-white/10"}`}
+                          >
+                            😊
+                          </button>
+                          <button
+                            onClick={() => fileInputRef.current?.click()}
+                            disabled={isUploadingMedia}
+                            className={`w-9 h-9 rounded-2xl border flex items-center justify-center shrink-0 disabled:opacity-40 transition-colors
+                              ${pendingFile ? "bg-blue-500 border-blue-400 text-white" : `bg-white/10 ${T.divider} ${T.text3} hover:bg-white/20`}`}
+                          >
+                            {isUploadingMedia ? (
+                              <Loader2 size={15} className="animate-spin" />
+                            ) : (
+                              <Paperclip size={15} />
+                            )}
+                          </button>
+                        </motion.div>
                       )}
-                    </button>
+                    </AnimatePresence>
                     <input
                       type="file"
                       ref={fileInputRef}
@@ -5205,6 +5232,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                       onChange={handleMediaUpload}
                       accept="image/*,video/*,audio/*"
                     />
+                    {/* ── Textarea — expands on focus ── */}
                     <textarea
                       value={newMessage}
                       onChange={(e) => {
@@ -5217,21 +5245,23 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                           sendMessage();
                         }
                       }}
+                      onFocus={() => setInputFocused(true)}
+                      onBlur={() => setInputFocused(false)}
                       placeholder="Type a message..."
                       rows={1}
-                      className={`flex-1 rounded-full px-5 py-2.5 text-base font-medium outline-none border resize-none max-h-28 overflow-y-auto ${T.searchBg} focus:ring-2 focus:ring-[#25D366]/40`}
+                      className={`flex-1 rounded-full px-4 py-2.5 text-base font-medium outline-none border resize-none overflow-y-auto transition-all duration-200 ${T.searchBg}`}
+                      style={{ maxHeight: inputFocused ? 96 : 52 }}
                     />
+                    {/* ── Send button — always visible ── */}
                     <button
-                      onClick={() => {
-                        sendMessage();
-                      }}
+                      onClick={() => { sendMessage(); }}
                       disabled={
                         (!newMessage.trim() && !pendingFile) ||
                         isSending ||
                         isUploadingMedia
                       }
-                      className={`w-12 h-12 rounded-full flex items-center justify-center ${T.sendBtnText} shrink-0 active:scale-90 disabled:opacity-40 transition-transform ${T.accent}`}
-                      style={{ boxShadow:"0 4px 18px rgba(227,255,0,0.30)" }}
+                      className={`w-11 h-11 rounded-full flex items-center justify-center ${T.sendBtnText} shrink-0 active:scale-90 disabled:opacity-40 transition-all ${T.accent}`}
+                      style={{ boxShadow: inputFocused ? "0 4px 22px rgba(227,255,0,0.45)" : "0 4px 18px rgba(227,255,0,0.30)" }}
                     >
                       {isSending || isUploadingMedia ? (
                         <Loader2 size={16} className="animate-spin" />
@@ -5239,16 +5269,30 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                         <Send size={16} />
                       )}
                     </button>
-                    {/* Mic / Voice Mode button */}
-                    <button
-                      onClick={() =>
-                        voiceMode ? stopVoiceMode() : startVoiceMode()
-                      }
-                      className={`w-10 h-10 rounded-2xl border flex items-center justify-center text-lg shrink-0 active:scale-90 transition-all
-                        ${voiceMode ? "bg-red-500 border-red-400 animate-pulse text-white" : `bg-white/10 ${T.divider} hover:bg-white/20`}`}
-                    >
-                      🎙️
-                    </button>
+                    {/* ── Mic button — collapses in focus mode ── */}
+                    <AnimatePresence initial={false}>
+                      {!inputFocused && (
+                        <motion.div
+                          key="mic-btn"
+                          initial={{ opacity: 0, width: 0 }}
+                          animate={{ opacity: 1, width: "auto" }}
+                          exit={{ opacity: 0, width: 0 }}
+                          transition={{ duration: 0.18, ease: "easeInOut" }}
+                          className="overflow-hidden shrink-0"
+                          style={{ willChange: "opacity, width" }}
+                        >
+                          <button
+                            onClick={() =>
+                              voiceMode ? stopVoiceMode() : startVoiceMode()
+                            }
+                            className={`w-9 h-9 rounded-2xl border flex items-center justify-center text-base shrink-0 active:scale-90 transition-all
+                              ${voiceMode ? "bg-red-500 border-red-400 animate-pulse text-white" : `bg-white/10 ${T.divider} hover:bg-white/20`}`}
+                          >
+                            🎙️
+                          </button>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                   </div>
                 </div>
               </div>

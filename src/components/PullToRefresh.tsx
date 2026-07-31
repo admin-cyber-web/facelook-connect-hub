@@ -24,18 +24,32 @@ export default function PullToRefresh({
     const el = wrapperRef.current;
     if (!el) return;
 
+    // Walk up the DOM to find the nearest scrolled ancestor.
+    // FameFeed lives inside a custom scrollable div (not window), so
+    // window.scrollY is always 0 — we must check the actual scroll container.
+    const getScrollTop = (): number => {
+      let node: HTMLElement | null = el;
+      while (node) {
+        if (node.scrollTop > 4) return node.scrollTop;
+        node = node.parentElement;
+      }
+      return window.scrollY;
+    };
+
     const onTouchStart = (e: TouchEvent) => {
-      // Only arm pull when we're at the very top of the page.
-      if (window.scrollY > 4) { startY.current = null; return; }
+      // Only arm the puller when the feed is truly at the top.
+      if (getScrollTop() > 4) { startY.current = null; return; }
       startY.current = e.touches[0].clientY;
     };
 
     const onTouchMove = (e: TouchEvent) => {
       if (startY.current == null || refreshing) return;
+      // If the user scrolled down since touchstart, disarm immediately.
+      if (getScrollTop() > 4) { startY.current = null; setPullY(0); return; }
       const dy = e.touches[0].clientY - startY.current;
       if (dy <= 0) { setPullY(0); return; }
-      // Resistance curve: feels rubbery, capped at 1.6x threshold.
-      const damped = Math.min(dy * 0.5, threshold * 1.6);
+      // Resistance curve: feels rubbery, capped at 1.6× threshold.
+      const damped = Math.min(dy * 0.45, threshold * 1.6);
       setPullY(damped);
     };
 

@@ -13,6 +13,9 @@ import { useProfileViewer } from "../context/ProfileViewerContext";
 import { useDataCache } from "../context/DataCacheContext";
 import { isAdminEmail } from "../lib/adminConfig";
 import AdsterraAd from "./AdsterraAd";
+import PeopleYouMayKnow from "./PeopleYouMayKnow";
+import NewInYourArea from "./NewInYourArea";
+import type { LocalProfile } from "../lib/recommendationEngine";
 import { sharePost } from "../lib/sharePost";
 import { RichCaption } from "./RichCaption";
 import AutoPlayMutedVideo from "./AutoPlayMutedVideo";
@@ -42,6 +45,7 @@ import {
   ShieldOff,
   Check,
   Link2,
+  TrendingUp,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import SharePopup, { type SharePostData, type ShareAnchor, type ShareMode } from "./SharePopup";
@@ -1781,6 +1785,7 @@ interface FameFeedProps {
   onNavigateToFlicks?: () => void;
   onNavigateToSurveys?: () => void;
   isAdmin?: boolean;
+  localProfile?: LocalProfile;
 }
 
 // ── Hidden Posts Archive Drawer ───────────────────────────────────────────────
@@ -1981,6 +1986,7 @@ const FameFeed = ({
   onNavigateToFlicks,
   onNavigateToSurveys,
   isAdmin: isAdminProp = false,
+  localProfile = {},
 }: FameFeedProps) => {
   const { openProfile } = useProfileViewer();
   const { playPop, playSwoosh } = useSoundEffects();
@@ -1988,6 +1994,9 @@ const FameFeed = ({
   const cachedPosts = dataCache.cacheRef.current.famePosts;
   const cachedFlicks = dataCache.cacheRef.current.fameFlicks;
   const [posts, setPosts] = useState<any[]>(() => cachedPosts?.data ?? []);
+  // Mirror of posts in a ref so callbacks can read the current count synchronously
+  // without being listed as a dep (which would break memoised callbacks).
+  const postsRef = useRef<any[]>(cachedPosts?.data ?? []);
   const [loading, setLoading] = useState(() => !cachedPosts?.data);
   const [activeComment, setActiveComment] = useState<string | null>(null);
   const [commentSheetId, setCommentSheetId] = useState<string | null>(null);
@@ -2018,6 +2027,7 @@ const FameFeed = ({
     document.addEventListener("visibilitychange", onViz);
     return () => { stop(); document.removeEventListener("visibilitychange", onViz); };
   }, []);
+
   const [feedCommentAction, setFeedCommentAction] = useState<{
     comment: any;
     postId: string;
@@ -2063,6 +2073,8 @@ const FameFeed = ({
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const deletingPostIdsRef = useRef<Set<string>>(new Set()); // guard Realtime UPDATE from restoring a deleted post
   const [viewedPostIds, setViewedPostIds] = useState<Set<string>>(new Set());
+  // Ref mirror for synchronous deduplication inside incrementView callback
+  const viewedPostIdsRef = useRef<Set<string>>(new Set());
   const [replyingTo, setReplyingTo] = useState<{
     postId: string;
     commentId: string;
@@ -2186,12 +2198,10 @@ const FameFeed = ({
   // the window listener on every batchFetchAvatars call → infinite loop).
   const authorNamesRef = useRef<Record<string, string>>({});
   const authorAvatarsRef = useRef<Record<string, string>>({});
-  useEffect(() => {
-    authorNamesRef.current = authorNames;
-  }, [authorNames]);
-  useEffect(() => {
-    authorAvatarsRef.current = authorAvatars;
-  }, [authorAvatars]);
+  useEffect(() => { authorNamesRef.current = authorNames; }, [authorNames]);
+  useEffect(() => { authorAvatarsRef.current = authorAvatars; }, [authorAvatars]);
+  // Keep postsRef in sync so incrementView can read current counts synchronously
+  useEffect(() => { postsRef.current = posts; }, [posts]);
 
   useEffect(() => {
     const handler = () => {
@@ -2849,7 +2859,7 @@ const FameFeed = ({
       let res = await supabase
         .from("posts")
         .select(
-          "id, author, author_id, content, media_url, image_url, type, likes_count, comments_count, created_at, metadata, cover_url, views_count, shares_count, visibility, meta_title, meta_description, author_profile:profiles!posts_author_id_fkey(avatar_url, full_name, is_verified, is_private_mode, last_seen, is_official_creator)",
+          "id, author, author_id, content, media_url, image_url, type, likes_count, comments_count, created_at, metadata, cover_url, views_count, shares_count, visibility, meta_title, meta_description, author_profile:profiles!posts_author_id_fkey(avatar_url, full_name, is_verified, is_private_mode, last_seen, is_official_creator, state, district, city)",
         )
         .order("created_at", { ascending: false })
         .range(from, to);
@@ -2862,7 +2872,7 @@ const FameFeed = ({
         res = await supabase
           .from("posts")
           .select(
-            "id, author, author_id, content, media_url, image_url, type, likes_count, comments_count, created_at, metadata, cover_url, views_count, shares_count, visibility, meta_title, meta_description, author_profile:profiles(avatar_url, full_name, is_verified, is_private_mode, last_seen, is_official_creator)",
+            "id, author, author_id, content, media_url, image_url, type, likes_count, comments_count, created_at, metadata, cover_url, views_count, shares_count, visibility, meta_title, meta_description, author_profile:profiles(avatar_url, full_name, is_verified, is_private_mode, last_seen, is_official_creator, state, district, city)",
           )
           .order("created_at", { ascending: false })
           .range(from, to);
@@ -2892,7 +2902,39 @@ const FameFeed = ({
       return;
     }
 
-    const rows = data ?? [];
+    let rows = data ?? [];
+
+    // ── Local-first reordering ────────────────────────────────────────────────
+    // When rec_local_first is enabled and viewer has location, interleave posts
+    // from the viewer's area ahead of global posts on each fresh load.
+    if (
+      reset &&
+      localProfile.rec_local_first !== false &&
+      (localProfile.district || localProfile.city || localProfile.state)
+    ) {
+      const vDistrict = localProfile.district?.toLowerCase();
+      const vCity     = localProfile.city?.toLowerCase();
+      const vState    = localProfile.state?.toLowerCase();
+
+      const localRows = (rows as any[]).filter(r => {
+        const p = r.author_profile;
+        if (!p) return false;
+        if (vDistrict && p.district?.toLowerCase() === vDistrict) return true;
+        if (vCity     && p.city    ?.toLowerCase() === vCity)     return true;
+        if (vState    && p.state   ?.toLowerCase() === vState)    return true;
+        return false;
+      });
+      const otherRows = (rows as any[]).filter(r => !localRows.includes(r));
+
+      // Interleave: 2 local → 4 global → 2 local → 4 global …
+      const interleaved: any[] = [];
+      let li = 0, oi = 0;
+      while (li < localRows.length || oi < otherRows.length) {
+        for (let k = 0; k < 2 && li < localRows.length; k++) interleaved.push(localRows[li++]);
+        for (let k = 0; k < 4 && oi < otherRows.length; k++) interleaved.push(otherRows[oi++]);
+      }
+      rows = interleaved;
+    }
 
     // Eagerly hydrate the avatar/name caches from the join result so the
     // first paint already has the right dp (no waiting for batch fetch).
@@ -3040,6 +3082,35 @@ const FameFeed = ({
     const authorPrivate = p.author_profile?.is_private_mode === true;
     return isPublicPost && !authorPrivate;
   }), [posts, blockedUserIds]);
+
+  // ── Live Mini-Ticker: Trending hashtags from current posts ─────────────────
+  const trendingTickerTags = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const p of visiblePosts) {
+      const matches = (p.content || "").match(/#[\w\u0900-\u097F\u0980-\u09FF\u0A00-\u0A7F\u0B80-\u0BFF]+/g) || [];
+      for (const tag of matches) {
+        const key = tag.toLowerCase();
+        counts[key] = (counts[key] || 0) + 1;
+      }
+    }
+    return Object.entries(counts)
+      .filter(([, c]) => c >= 1)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 7)
+      .map(([tag]) => tag);
+  }, [visiblePosts]);
+
+  // ── Live Mini-Ticker: Online community members (with avatars) ─────────────
+  const liveTickerMembers = useMemo(() => {
+    return [...onlineUserIds]
+      .filter((id) => id !== currentUserId && authorNames[id])
+      .slice(0, 8)
+      .map((id) => ({
+        id,
+        name: authorNames[id] ?? "",
+        avatar: authorAvatars[id] ?? null,
+      }));
+  }, [onlineUserIds, authorNames, authorAvatars, currentUserId]);
 
   const videoPosts = useMemo(
     () =>
@@ -3625,34 +3696,50 @@ const FameFeed = ({
   const incrementView = useCallback(
     async (postId: string) => {
       if (!postId) return;
-      let alreadyViewed = false;
-      let nextCount = 1;
-      setViewedPostIds((p) => {
-        if (p.has(postId)) {
-          alreadyViewed = true;
-          return p;
-        }
-        return new Set([...p, postId]);
-      });
-      if (alreadyViewed) return;
-      // Functional update — no stale closure on `posts`
+
+      // ── Deduplication: skip if already counted this session ──────────────
+      // Use a ref-based check so we never double-count even if the component
+      // re-renders between the IntersectionObserver firing and the state update.
+      if (viewedPostIdsRef.current.has(postId)) return;
+      viewedPostIdsRef.current.add(postId);
+      setViewedPostIds((p) => new Set([...p, postId]));
+
+      // ── Optimistic UI: read count synchronously from postsRef ────────────
+      // postsRef stays in sync via useEffect, so this is always current.
+      // This avoids the closure bug where nextCount was captured before
+      // setPosts() callback executed (it's scheduled async by React).
+      const currentPost = postsRef.current.find((p) => p.id === postId);
+      const nextCount = (currentPost?.views_count || 0) + 1;
       setPosts((prev) =>
-        prev.map((p) => {
-          if (p.id !== postId) return p;
-          nextCount = (p.views_count || 0) + 1;
-          return { ...p, views_count: nextCount };
-        }),
+        prev.map((p) => (p.id === postId ? { ...p, views_count: nextCount } : p)),
       );
+
+      // ── DB: atomic increment via security-definer RPC (bypasses RLS) ─────
+      // Direct posts.update() fails for non-authors due to RLS policy.
+      // increment_post_views() runs as DB owner and does: views_count += 1.
       try {
+        // Record unique viewer (upsert prevents duplicate rows)
         if (currentUserId) {
           await supabase
             .from("post_views")
-            .insert({ post_id: postId, user_id: currentUserId });
+            .upsert(
+              { post_id: postId, user_id: currentUserId },
+              { onConflict: "post_id,user_id" },
+            );
         }
-        await supabase
-          .from("posts")
-          .update({ views_count: nextCount })
-          .eq("id", postId);
+        // Atomic server-side increment — no race condition, no RLS block
+        const { error: rpcErr } = await supabase.rpc("increment_post_views", {
+          p_post_id: postId,
+        });
+        if (rpcErr) {
+          // RPC not deployed yet — fall back to direct update (works if user
+          // is the post author or service-role; silently skips for others)
+          await supabase
+            .from("posts")
+            .update({ views_count: nextCount })
+            .eq("id", postId)
+            .eq("author_id", currentPost?.author_id ?? "");
+        }
       } catch (err) {
         console.warn("[FameFeed] incrementView failed:", err);
       }
@@ -4422,6 +4509,236 @@ const FameFeed = ({
               <p className="px-4 pb-1 text-sm text-white/50 leading-snug">
                 {node}
               </p>
+            );
+          })()}
+
+          {/* ── Live Intel Card ─────────────────────────────────────────── */}
+          {(() => {
+            // ── LEFT: trending tag cycles with tickerIdx ─────────────────
+            const topTag = trendingTickerTags.length > 0
+              ? trendingTickerTags[tickerIdx % trendingTickerTags.length]
+              : null;
+
+            // ── CENTER: rich ecosystem pool (circles → pages → flicks) ───
+            type EcoItem =
+              | { kind: "circle"; id: string; name: string; cover: string | null; members?: number }
+              | { kind: "page";   id: string; name: string; cover: string | null; category: string }
+              | { kind: "flick";  id: string; author: string; snippet: string; media_url: string | null; author_avatar: string | null; is_video: boolean }
+              | { kind: "broadcast" };
+
+            const ecoPool: EcoItem[] = [];
+            groupSuggestions.slice(0, 6).forEach((c: any) => {
+              ecoPool.push({ kind: "circle", id: c.id, name: c.name ?? "Circle", cover: c.cover_url ?? null, members: circleMemberCounts[c.id] });
+            });
+            pageSuggestions.slice(0, 5).forEach((p: any) => {
+              ecoPool.push({ kind: "page", id: p.id, name: p.name ?? "Page", cover: p.cover_url ?? p.avatar_url ?? null, category: p.category ?? "Page" });
+            });
+            trendingFlicks.slice(0, 5).forEach((f: any) => {
+              const raw = (f.content || "").replace(/#\S+/g, "").trim();
+              const isVid = !!(f.media_url && /\.(mp4|webm|ogg|mov|m4v)/i.test((f.media_url as string).split("?")[0]));
+              ecoPool.push({
+                kind: "flick",
+                id: f.id,
+                author: f.author || f.author_profile?.full_name || "Creator",
+                snippet: raw.slice(0, 28) || "Watch now",
+                media_url: f.media_url ?? null,
+                author_avatar: f.author_avatar ?? f.author_profile?.avatar_url ?? null,
+                is_video: isVid,
+              });
+            });
+            if (ecoPool.length === 0) ecoPool.push({ kind: "broadcast" });
+
+            // Spread seed across the full pool length for per-post variety
+            const postSeed = post.id.split("").reduce(
+              (acc: number, ch: string, i: number) => acc + ch.charCodeAt(0) * (i + 1), 0,
+            );
+            const ecoItem = ecoPool[(postSeed + tickerIdx) % ecoPool.length];
+
+            // ── RIGHT: live members + feed-author fallback ───────────────
+            const feedAuthors = visiblePosts.slice(0, 10)
+              .map((p: any) => ({ id: p.author_id, name: authorNames[p.author_id] || p.author || "", avatar: authorAvatars[p.author_id] ?? null }))
+              .filter((m: any) => m.id && m.name && m.id !== currentUserId);
+            const memberPool = liveTickerMembers.length > 0 ? liveTickerMembers : feedAuthors;
+            const rightIdx = memberPool.length > 0 ? ((postSeed * 7 + tickerIdx) % memberPool.length) : 0;
+            const topMember = memberPool.length > 0 ? memberPool[rightIdx] : null;
+
+            return (
+              <div className="mx-3 mb-2" style={{
+                padding: 1,
+                borderRadius: 14,
+                background: "linear-gradient(105deg,#00f0ff30 0%,#c8ff0028 55%,#00f0ff20 100%)",
+              }}>
+                <div
+                  className="flex items-stretch rounded-[13px] overflow-hidden"
+                  style={{ background: "rgba(0,0,0,0.52)", backdropFilter: "blur(14px)" }}
+                >
+                  {/* LEFT — Trending tag | flex:1 */}
+                  <button
+                    className="flex flex-col items-center justify-center py-2 px-2 border-r border-white/[0.06] active:opacity-60 transition-opacity"
+                    style={{ flex: 1, minWidth: 0 }}
+                    onClick={() => window.dispatchEvent(new CustomEvent("flicks-pull-refresh"))}
+                  >
+                    {topTag ? (
+                      <>
+                        <span className="flex items-center gap-[2px] mb-[2px]">
+                          <TrendingUp size={7} style={{ color: "#c8ff00" }} strokeWidth={3} />
+                          <span className="text-[7px] font-black uppercase tracking-widest"
+                            style={{ color: "rgba(255,255,255,0.26)" }}>HOT</span>
+                        </span>
+                        <span className="text-[9px] font-black truncate w-full text-center leading-tight px-1"
+                          style={{ color: "#c8ff00" }}>
+                          {topTag}
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <TrendingUp size={11} style={{ color: "#c8ff0055" }} strokeWidth={2.5} />
+                        <span className="text-[8px] font-black mt-[2px]"
+                          style={{ color: "#c8ff0055" }}>Trending</span>
+                      </>
+                    )}
+                  </button>
+
+                  {/* CENTER — Real ecosystem content | flex:2 (2× each side) */}
+                  <button
+                    className="flex items-center gap-2 py-2 px-2.5 border-r border-white/[0.06] min-w-0 overflow-hidden active:opacity-60 transition-opacity text-left"
+                    style={{ flex: 2 }}
+                    onClick={() => {
+                      if (ecoItem.kind === "circle") onNavigateToCircles?.();
+                      else if (ecoItem.kind === "page") onNavigateToPages?.();
+                      else if (ecoItem.kind === "flick" || ecoItem.kind === "broadcast") onNavigateToFlicks?.();
+                    }}
+                  >
+                    {ecoItem.kind === "broadcast" ? (
+                      <div className="flex flex-col items-center justify-center w-full">
+                        <span className="text-[7.5px] font-black uppercase tracking-widest mb-[2px]"
+                          style={{ color: "rgba(255,255,255,0.26)" }}>COMMUNITY</span>
+                        <span className="text-[9px] font-black text-center leading-snug px-1"
+                          style={{ color: "#c8ff00" }}>
+                          ✨ Join Flicks!
+                        </span>
+                      </div>
+                    ) : ecoItem.kind === "circle" ? (
+                      <>
+                        <div className="w-8 h-8 rounded-lg overflow-hidden shrink-0 flex items-center justify-center text-[15px]"
+                          style={{ background: ecoItem.cover ? "transparent" : "rgba(0,200,255,0.12)", border: "1px solid rgba(0,200,255,0.2)", minWidth: 32 }}>
+                          {ecoItem.cover
+                            ? <img src={ecoItem.cover} className="w-full h-full object-cover" alt="" decoding="async" loading="lazy" />
+                            : "🔵"}
+                        </div>
+                        <div className="flex flex-col min-w-0 flex-1 overflow-hidden">
+                          <span className="text-[7px] font-black uppercase tracking-widest"
+                            style={{ color: "rgba(255,255,255,0.26)" }}>CIRCLE</span>
+                          <span className="text-[10px] font-black truncate leading-tight"
+                            style={{ color: "#e0f4ff" }}>{ecoItem.name}</span>
+                          <span className="text-[8px] font-semibold"
+                            style={{ color: "#00c8ff66" }}>
+                            {ecoItem.members != null ? `${ecoItem.members} members` : "Join →"}
+                          </span>
+                        </div>
+                      </>
+                    ) : ecoItem.kind === "page" ? (
+                      <>
+                        <div className="w-8 h-8 rounded-lg overflow-hidden shrink-0 flex items-center justify-center text-[15px]"
+                          style={{ background: ecoItem.cover ? "transparent" : "rgba(200,255,0,0.08)", border: "1px solid rgba(200,255,0,0.2)", minWidth: 32 }}>
+                          {ecoItem.cover
+                            ? <img src={ecoItem.cover} className="w-full h-full object-cover" alt="" decoding="async" loading="lazy" />
+                            : "⚡"}
+                        </div>
+                        <div className="flex flex-col min-w-0 flex-1 overflow-hidden">
+                          <span className="text-[7px] font-black uppercase tracking-widest"
+                            style={{ color: "rgba(255,255,255,0.26)" }}>
+                            {ecoItem.category.slice(0, 12).toUpperCase()}
+                          </span>
+                          <span className="text-[10px] font-black truncate leading-tight"
+                            style={{ color: "#e0f4ff" }}>{ecoItem.name}</span>
+                          <span className="text-[8px] font-semibold"
+                            style={{ color: "#c8ff0066" }}>Explore →</span>
+                        </div>
+                      </>
+                    ) : /* flick */ (
+                      <>
+                        {/* Thumbnail: muted video preview if available, else avatar/image */}
+                        <div className="w-8 h-8 rounded-lg shrink-0 overflow-hidden flex items-center justify-center relative"
+                          style={{ background: "rgba(139,92,246,0.15)", border: "1px solid rgba(139,92,246,0.25)", minWidth: 32 }}>
+                          {ecoItem.is_video && ecoItem.media_url ? (
+                            <>
+                              <video
+                                src={ecoItem.media_url}
+                                autoPlay
+                                muted
+                                loop
+                                playsInline
+                                className="w-full h-full object-cover absolute inset-0"
+                                style={{ opacity: 0.85 }}
+                              />
+                              <div className="absolute inset-0 flex items-center justify-center">
+                                <Play size={9} className="text-white drop-shadow" style={{ opacity: 0.9 }} />
+                              </div>
+                            </>
+                          ) : ecoItem.author_avatar ? (
+                            <img src={ecoItem.author_avatar} className="w-full h-full object-cover" alt="" decoding="async" loading="lazy" />
+                          ) : (
+                            <span className="text-[15px]">🎬</span>
+                          )}
+                        </div>
+                        <div className="flex flex-col min-w-0 flex-1 overflow-hidden">
+                          <span className="text-[7px] font-black uppercase tracking-widest"
+                            style={{ color: "rgba(255,255,255,0.26)" }}>🔥 FLICK</span>
+                          <span className="text-[10px] font-black truncate leading-tight"
+                            style={{ color: "#e0f4ff" }}>{ecoItem.author}</span>
+                          <span className="text-[8px] truncate"
+                            style={{ color: "rgba(255,255,255,0.35)" }}>{ecoItem.snippet}</span>
+                        </div>
+                      </>
+                    )}
+                  </button>
+
+                  {/* RIGHT — Live member | flex:1 */}
+                  <button
+                    className="flex flex-col items-center justify-center py-2 px-1.5 active:opacity-60 transition-opacity"
+                    style={{ flex: 1, minWidth: 0 }}
+                    onClick={() => topMember && openProfile(topMember.id)}
+                  >
+                    {topMember ? (
+                      <>
+                        <div
+                          className="w-6 h-6 rounded-full overflow-hidden mb-[2px] shrink-0 flex items-center justify-center"
+                          style={{ background: "linear-gradient(135deg,#06b6d4,#8b5cf6)", border: "1.5px solid rgba(0,200,255,0.35)" }}
+                        >
+                          {topMember.avatar ? (
+                            <img src={topMember.avatar} className="w-full h-full object-cover" alt="" decoding="async" loading="lazy" />
+                          ) : (
+                            <span className="text-[8px] font-black text-white">
+                              {topMember.name?.[0]?.toUpperCase() ?? "?"}
+                            </span>
+                          )}
+                        </div>
+                        {/* green pulse dot */}
+                        <span className="text-[8.5px] font-black truncate w-full text-center leading-tight"
+                          style={{ color: "rgba(255,255,255,0.8)" }}>
+                          {topMember.name.split(" ")[0]}
+                        </span>
+                        <span className="text-[7px] font-semibold flex items-center gap-[2px]"
+                          style={{ color: "#00c8ff66" }}>
+                          <span className="w-[5px] h-[5px] rounded-full bg-green-400 inline-block" />
+                          online
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <div className="w-6 h-6 rounded-full mb-[2px] flex items-center justify-center"
+                          style={{ background: "rgba(0,200,255,0.08)", border: "1.5px solid rgba(0,200,255,0.15)" }}>
+                          <Users size={10} style={{ color: "rgba(0,200,255,0.4)" }} />
+                        </div>
+                        <span className="text-[7.5px] font-semibold" style={{ color: "rgba(255,255,255,0.2)" }}>
+                          Community
+                        </span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
             );
           })()}
 
@@ -5396,6 +5713,30 @@ const FameFeed = ({
           <p className="text-white/30 text-[10px] font-black uppercase tracking-widest">
             Loading Feed
           </p>
+        </div>
+      )}
+
+      {/* ── People Discovery — New in Your Area ────────────────────────── */}
+      {currentUserId && localProfile.rec_new_users !== false && (
+        localProfile.district || localProfile.city || localProfile.state
+      ) && (
+        <div className="px-3 mt-1 mb-1">
+          <NewInYourArea
+            currentUserId={currentUserId}
+            localProfile={localProfile}
+            onProfileClick={(uid) => openProfile(uid)}
+          />
+        </div>
+      )}
+
+      {/* ── People You May Know ───────────────────────────────────────────── */}
+      {currentUserId && (
+        <div className="py-2">
+          <PeopleYouMayKnow
+            currentUserId={currentUserId}
+            localProfile={localProfile}
+            onProfileClick={(uid) => openProfile(uid)}
+          />
         </div>
       )}
 

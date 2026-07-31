@@ -183,7 +183,7 @@ export default function AntakshariArena({
   const fetchPublicRooms = useCallback(async () => {
     const { data } = await supabase
       .from("antakshari_rooms")
-      .select("*")
+      .select("id,code,name,theme,max_players,host_id,is_public,status,current_word,current_singer_id,round_number,created_at")
       .eq("is_public", true)
       .eq("status", "waiting")
       .order("created_at", { ascending: false })
@@ -191,10 +191,16 @@ export default function AntakshariArena({
     if (data) setPublicRooms(data);
   }, []);
 
+  // Replace 10-second polling with a realtime subscription — zero egress between room changes
   useEffect(() => {
     fetchPublicRooms();
-    const id = setInterval(fetchPublicRooms, 10000);
-    return () => clearInterval(id);
+    const ch = supabase
+      .channel("antakshari-rooms-rt")
+      .on("postgres_changes", { event: "*", schema: "public", table: "antakshari_rooms" }, () => {
+        fetchPublicRooms();
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
   }, [fetchPublicRooms]);
 
   /* ── Load leaderboard ────────────────────────────────────────────────────── */
@@ -262,7 +268,7 @@ export default function AntakshariArena({
     try {
       const { data: roomRow } = await supabase
         .from("antakshari_rooms")
-        .select("*")
+        .select("id,code,name,theme,max_players,host_id,is_public,status,current_word,current_singer_id,round_number,created_at")
         .eq("code", code.toUpperCase())
         .single();
 

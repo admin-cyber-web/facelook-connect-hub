@@ -15,7 +15,7 @@ import {
   Share2, MessageCircle, FileText, Bell, MoreVertical, Pencil,
   UserPlus, UserMinus, Crown, ShieldCheck, Ban, Eye, LogOut, Pin,
   Megaphone, Calendar, MapPin, Clock, CalendarPlus, ChevronRight,
-  Reply, ImageIcon as ImagePlus, Smile, Video as VideoIcon,
+  Reply, ImageIcon as ImagePlus, Video as VideoIcon,
 } from "lucide-react";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -183,7 +183,8 @@ function OnlineDot({ authorId }: { authorId: string }) {
   const onlineIds = useOnlineUsers();
   if (!onlineIds.has(authorId)) return null;
   return (
-    <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-green-500 border-2 border-white z-10" />
+    <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 z-10"
+      style={{ background: "#00F0FF", borderColor: "#090a0f", boxShadow: "0 0 6px #00F0FF" }} />
   );
 }
 
@@ -194,62 +195,76 @@ const CirclePostCard = memo(({
 }: PostCardProps) => {
   const canEdit = post.author_id === currentUserId || canModerate;
   return (
-    <div className="bg-[#d4f0e2] border-b border-gray-100">
+    <div className="mx-3 mb-3 rounded-3xl overflow-hidden border border-white/[0.08]"
+      style={{ background: "rgba(255,255,255,0.03)", backdropFilter: "blur(20px)", boxShadow: "0 8px 32px rgba(0,0,0,0.45)" }}>
+      {/* Header */}
       <div className="flex items-center gap-3 px-4 py-3">
-        <div className="relative w-9 h-9 rounded-full bg-blue-600 flex items-center justify-center text-white font-black text-sm shrink-0 overflow-hidden border border-gray-100">
+        <div className="relative w-10 h-10 rounded-full overflow-hidden shrink-0 flex items-center justify-center text-white font-black text-sm"
+          style={{ boxShadow: "0 0 0 2px rgba(0,240,255,0.35), 0 0 12px rgba(0,240,255,0.15)", background: "linear-gradient(135deg,#1e3a8a,#2563eb)" }}>
           {post.author_avatar
-            ? <img src={post.author_avatar} className="w-full h-full object-cover" alt="" loading="lazy"  decoding="async"/>
+            ? <img src={post.author_avatar} className="w-full h-full object-cover" alt="" loading="lazy" decoding="async"/>
             : (post.author_name || "M")[0].toUpperCase()}
           <OnlineDot authorId={post.author_id} />
         </div>
         <div className="flex-1">
           <div className="flex items-center gap-1.5">
-            <p className="text-gray-900 font-bold text-sm leading-none">{post.author_name}</p>
+            <p className="text-white font-bold text-sm leading-none">{post.author_name}</p>
+            {post.author_id === groupOwnerId && (
+              <span className="text-[8px] font-black px-1.5 py-0.5 rounded-full"
+                style={{ background: "linear-gradient(135deg,#f59e0b,#d97706)", color: "#000" }}>👑</span>
+            )}
             {post.status === "pending" && (
-              <span className="text-[8px] font-black text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full">PENDING</span>
+              <span className="text-[8px] font-black text-amber-300 px-1.5 py-0.5 rounded-full border border-amber-500/30"
+                style={{ background: "rgba(245,158,11,0.15)" }}>PENDING</span>
             )}
           </div>
-          <p className="text-[10px] text-gray-400 mt-0.5">{smartTime(post.created_at)}</p>
+          <p className="text-[10px] text-gray-500 mt-0.5">{smartTime(post.created_at)}</p>
         </div>
         {canEdit && (
-          <button onClick={() => { haptic(); onOptions(post); }} className="p-1.5 rounded-full active:bg-gray-100 text-gray-400">
+          <button onClick={() => { haptic(); onOptions(post); }} className="p-2 rounded-full text-gray-600 active:bg-white/10 transition-colors">
             <MoreVertical size={16} />
           </button>
         )}
       </div>
 
-      {post.content && <p className="px-4 pb-2 text-[13px] text-gray-800 leading-snug">{maskProfanity(post.content)}</p>}
+      {post.content && <p className="px-4 pb-3 text-[13px] text-gray-300 leading-relaxed">{maskProfanity(post.content)}</p>}
 
       {post.media_url && (
-        <div className="w-full bg-black">
+        <div className="w-full" style={{ background: "rgba(0,0,0,0.4)" }}>
           {isVideoUrl(post.media_url) ? (
             <video src={post.media_url} autoPlay muted playsInline loop controls className="w-full object-contain" style={{ maxHeight: "60vh" }} />
           ) : (
-            <img src={post.media_url} className="w-full object-cover" style={{ maxHeight: "60vh" }} loading="lazy" alt=""  decoding="async"/>
+            <img src={post.media_url} className="w-full object-cover" style={{ maxHeight: "60vh" }} loading="lazy" alt="" decoding="async"/>
           )}
         </div>
       )}
 
       {post.status === "pending" && (
         post.author_id === currentUserId && !canModerate ? (
-          <div className="mx-4 mb-2 flex items-center gap-2 px-3 py-2.5 bg-amber-50 border border-amber-200 rounded-xl">
-            <Clock size={12} className="text-amber-500 shrink-0 animate-pulse" />
+          <div className="mx-4 mb-2 flex items-center gap-2 px-3 py-2.5 rounded-xl border border-amber-500/20"
+            style={{ background: "rgba(245,158,11,0.08)" }}>
+            <Clock size={12} className="text-amber-400 shrink-0 animate-pulse" />
             <div className="flex-1 min-w-0">
-              <p className="text-[11px] font-black text-amber-700">Awaiting admin review</p>
-              <p className="text-[10px] text-amber-500 mt-0.5">Only you can see this until approved</p>
+              <p className="text-[11px] font-black text-amber-300">Awaiting admin review</p>
+              <p className="text-[10px] text-amber-500/70 mt-0.5">Only you can see this until approved</p>
             </div>
           </div>
         ) : canModerate ? (
-          <div className="mx-4 mb-2 flex items-center justify-between gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-xl">
+          <div className="mx-4 mb-2 flex items-center justify-between gap-2 px-3 py-2 rounded-xl border border-amber-500/20"
+            style={{ background: "rgba(245,158,11,0.08)" }}>
             <div className="flex items-center gap-1.5">
-              <ShieldCheck size={12} className="text-amber-600 shrink-0" />
-              <span className="text-[11px] font-black text-amber-700">Pending approval</span>
+              <ShieldCheck size={12} className="text-amber-400 shrink-0" />
+              <span className="text-[11px] font-black text-amber-300">Pending approval</span>
             </div>
             <div className="flex gap-1.5">
-              <button onClick={() => { haptic(); onReview(post.id, "rejected"); }} className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-red-50 text-red-600 font-black text-[10px] border border-red-200 active:scale-95 transition-transform">
+              <button onClick={() => { haptic(); onReview(post.id, "rejected"); }}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-red-400 font-black text-[10px] border border-red-500/30 active:scale-95 transition-transform"
+                style={{ background: "rgba(239,68,68,0.1)" }}>
                 <X size={11} /> Reject
               </button>
-              <button onClick={() => { haptic(); onReview(post.id, "approved"); }} className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-green-600 text-white font-black text-[10px] active:scale-95 transition-transform">
+              <button onClick={() => { haptic(); onReview(post.id, "approved"); }}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-green-300 font-black text-[10px] border border-green-500/30 active:scale-95 transition-transform"
+                style={{ background: "rgba(34,197,94,0.12)" }}>
                 <Check size={11} /> Approve
               </button>
             </div>
@@ -257,17 +272,18 @@ const CirclePostCard = memo(({
         ) : null
       )}
 
-      <div className="flex items-center gap-4 px-4 py-2.5">
-        <button onClick={() => { haptic(); onLike(post); }} className="flex items-center gap-1.5">
-          <Heart size={20} className={likedPostIds.has(post.id) ? "fill-red-500 text-red-500" : "text-gray-400"} />
+      {/* Actions */}
+      <div className="flex items-center gap-4 px-4 py-3 border-t border-white/[0.06]">
+        <button onClick={() => { haptic(); onLike(post); }} className="flex items-center gap-1.5 active:scale-90 transition-transform">
+          <Heart size={19} className={likedPostIds.has(post.id) ? "fill-red-500 text-red-500" : "text-gray-600"} />
           <span className="text-xs font-bold text-gray-500">{post.likes_count || 0}</span>
         </button>
-        <button onClick={() => onComment(post)} className="flex items-center gap-1.5">
-          <MessageCircle size={20} className={post.comments_muted ? "text-amber-500" : "text-gray-400"} />
+        <button onClick={() => onComment(post)} className="flex items-center gap-1.5 active:scale-90 transition-transform">
+          <MessageCircle size={19} className={post.comments_muted ? "text-amber-500" : "text-gray-600"} />
           <span className="text-xs font-bold text-gray-500">{post.comments_count || 0}</span>
         </button>
-        <button onClick={() => onShare(post)} className="flex items-center gap-1.5">
-          <Share2 size={19} className="text-gray-400" />
+        <button onClick={() => onShare(post)} className="flex items-center gap-1.5 active:scale-90 transition-transform">
+          <Share2 size={18} className="text-gray-600" />
           <span className="text-xs font-bold text-gray-500">{post.shares_count || 0}</span>
         </button>
         <MagnetButton
@@ -275,43 +291,41 @@ const CirclePostCard = memo(({
           postType="circle"
           postOwnerId={groupOwnerId}
           currentUserId={currentUserId}
-          dark={false}
+          dark={true}
         />
         {post.status !== "pending" && (
           <button
             onClick={() => { if (canAdmin) { haptic(); onViewers(post.id); } }}
             className={`flex items-center gap-1 ml-auto ${canAdmin ? "active:scale-90 transition-transform" : ""}`}
           >
-            <Eye size={16} className="text-gray-300" />
-            <span className="text-[11px] font-bold text-gray-300">{viewCounts[post.id] ?? 0}</span>
+            <Eye size={15} className="text-gray-700" />
+            <span className="text-[11px] font-bold text-gray-700">{viewCounts[post.id] ?? 0}</span>
           </button>
         )}
       </div>
 
-      {/* ── FB-style latest comment preview ─────────────────────────── */}
+      {/* Latest comment preview */}
       {(() => {
         const totalCount = post.comments_count || 0;
         if (!latestComment && totalCount === 0) return null;
         return (
-          <div
-            className="px-4 pb-3 pt-0.5 cursor-pointer"
-            onClick={() => onComment(post)}
-          >
+          <div className="px-4 pb-3 pt-0.5 cursor-pointer" onClick={() => onComment(post)}>
             {totalCount > 1 && (
-              <p className="text-[11px] text-gray-400 font-medium mb-1.5">
+              <p className="text-[11px] text-gray-600 font-medium mb-1.5">
                 View {totalCount - 1} more comment{totalCount - 1 > 1 ? "s" : ""}...
               </p>
             )}
             {latestComment && (
               <div className="flex items-start gap-2">
-                <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center text-[9px] font-black text-blue-600 shrink-0 overflow-hidden border border-blue-100">
+                <div className="w-6 h-6 rounded-full overflow-hidden shrink-0 flex items-center justify-center text-[9px] font-black text-[#00F0FF]"
+                  style={{ background: "rgba(0,240,255,0.1)", border: "1px solid rgba(0,240,255,0.2)" }}>
                   {latestComment.author_avatar
-                    ? <img src={latestComment.author_avatar} className="w-full h-full object-cover" alt="" loading="lazy"  decoding="async"/>
+                    ? <img src={latestComment.author_avatar} className="w-full h-full object-cover" alt="" loading="lazy" decoding="async"/>
                     : (latestComment.author_name || "M")[0].toUpperCase()}
                 </div>
-                <div className="flex-1 min-w-0 bg-white/70 rounded-2xl px-3 py-1.5">
-                  <span style={{ color: "#800000", fontSize: 11, fontWeight: 900 }}>{latestComment.author_name}</span>
-                  <span className="text-[12px] text-gray-700 ml-1.5 leading-snug">
+                <div className="flex-1 min-w-0 rounded-2xl px-3 py-1.5" style={{ background: "rgba(255,255,255,0.05)" }}>
+                  <span className="text-[#00F0FF] text-[11px] font-black">{latestComment.author_name}</span>
+                  <span className="text-[12px] text-gray-400 ml-1.5 leading-snug">
                     {latestComment.content.length > 90 ? latestComment.content.slice(0, 90) + "…" : latestComment.content}
                   </span>
                 </div>
@@ -398,6 +412,8 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
   const [chatText, setChatText] = useState("");
   const [sendingChat, setSendingChat] = useState(false);
   const [chatLoaded, setChatLoaded] = useState(false);
+  const [chatInputFocused, setChatInputFocused] = useState(false);
+  const [commentInputFocused, setCommentInputFocused] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const chatSubRef = useRef<any>(null);
   const memberSubRef = useRef<any>(null);
@@ -591,24 +607,26 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
         });
     }
 
-    // ── Post Reach: record views + fetch counts (non-blocking) ────────────────
+    // ── Post Reach: record views + fetch counts ───────────────────────────────
     if (currentUserId && rows.length > 0) {
       const approvedIds = rows.filter(p => p.status === "approved").map(p => p.id);
       const newlyViewed = approvedIds.filter(id => !viewedInSession.current.has(id));
       if (newlyViewed.length > 0) {
         newlyViewed.forEach(id => viewedInSession.current.add(id));
-        supabase.from("circle_post_views")
-          .upsert(newlyViewed.map(id => ({ post_id: id, viewer_id: currentUserId })), { onConflict: "post_id,viewer_id" })
-          .then(() => {});
+        // Await upsert so the current user's view is committed before we fetch counts
+        await supabase.from("circle_post_views")
+          .upsert(newlyViewed.map(id => ({ post_id: id, viewer_id: currentUserId })), { onConflict: "post_id,viewer_id" });
       }
-      // Fetch view counts for all posts in this group
-      supabase.from("circle_post_views").select("post_id").in("post_id", rows.map(p => p.id))
-        .then(({ data }) => {
-          if (!data) return;
-          const counts: Record<string, number> = {};
-          for (const row of data as any[]) counts[row.post_id] = (counts[row.post_id] || 0) + 1;
-          setViewCounts(counts);
-        });
+      // Now fetch view counts — includes the rows we just upserted
+      const { data: viewRows } = await supabase
+        .from("circle_post_views")
+        .select("post_id")
+        .in("post_id", rows.map(p => p.id));
+      if (viewRows) {
+        const counts: Record<string, number> = {};
+        for (const row of viewRows as any[]) counts[row.post_id] = (counts[row.post_id] || 0) + 1;
+        setViewCounts(counts);
+      }
     }
   }, [canModerate, currentUserId]);
 
@@ -866,7 +884,7 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
   const fetchCircleEvents = async (circleId: string) => {
     const { data: events } = await supabase
       .from("circle_events")
-      .select("*")
+      .select("id,circle_id,created_by,title,description,event_date,event_time,location,created_at")
       .eq("circle_id", circleId)
       .order("event_date", { ascending: true });
     if (!events) return;
@@ -1176,7 +1194,7 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
     setChatLoaded(false);
     const { data, error } = await supabase
       .from("group_messages")
-      .select("*")
+      .select("id,group_id,sender_id,sender_name,sender_avatar,content,media_url,reply_to_id,created_at")
       .eq("group_id", groupId)
       .order("created_at", { ascending: true })
       .limit(100);
@@ -1474,7 +1492,7 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
     setCommentLoading(true);
     const { data } = await supabase
       .from("circle_post_comments")
-      .select("*")
+      .select("id,post_id,author_id,author_name,author_avatar,content,created_at")
       .eq("post_id", post.id)
       .order("created_at", { ascending: true })
       .limit(100);
@@ -1832,19 +1850,23 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
     const isMember = myGroupIds.has(selectedGroup.id);
 
     return (
-      <div className="min-h-screen bg-[#d4f0e2] flex flex-col">
-        {/* Cover + Back */}
-        <div
-          className="relative w-full flex-shrink-0"
-          style={{
-            height: 180,
+      <div className="min-h-screen flex flex-col" style={{
+        background: "#090a0f",
+        backgroundImage: "radial-gradient(circle at top,#1e3a8a22,transparent 45%),radial-gradient(circle at bottom,#00e5ff18,transparent 55%)"
+      }}>
+        {/* ── CINEMATIC HERO ──────────────────────────────────────────── */}
+        <div className="relative w-full flex-shrink-0" style={{ height: 220 }}>
+          {/* Cover image */}
+          <div className="absolute inset-0" style={{
             backgroundImage: selectedGroup.cover_url ? `url('${selectedGroup.cover_url}')` : "none",
-            backgroundColor: selectedGroup.cover_url ? "transparent" : "#e5e7eb",
+            backgroundColor: !selectedGroup.cover_url ? "#1a1f35" : "transparent",
             backgroundSize: "cover",
             backgroundPosition: "center",
-          }}
-        >
-          <div className="absolute inset-0 bg-gradient-to-b from-black/30 to-black/70" />
+          }} />
+          {/* Gradient overlay */}
+          <div className="absolute inset-0" style={{
+            background: "linear-gradient(to bottom, rgba(9,10,15,0.15) 0%, rgba(9,10,15,0.0) 30%, rgba(9,10,15,0.92) 100%)"
+          }} />
 
           {/* Back */}
           <button
@@ -1855,105 +1877,141 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
               if (chatSubRef.current) { supabase.removeChannel(chatSubRef.current); chatSubRef.current = null; }
               if (memberSubRef.current) { supabase.removeChannel(memberSubRef.current); memberSubRef.current = null; }
             }}
-            className="absolute top-4 left-4 w-9 h-9 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center border border-white/20"
+            className="absolute top-4 left-4 w-10 h-10 rounded-full flex items-center justify-center border border-white/20 z-10 active:scale-90 transition-transform"
+            style={{ background: "rgba(255,255,255,0.1)", backdropFilter: "blur(12px)" }}
           >
             <ChevronLeft size={20} className="text-white" />
           </button>
 
-          {/* Admin settings + edit/delete */}
+          {/* Admin buttons */}
           {canModerate && (
-            <div className="absolute top-4 right-4 flex items-center gap-2">
+            <div className="absolute top-4 right-4 flex items-center gap-2 z-10">
               <button
                 onClick={() => openEditGroup(selectedGroup)}
-                className="w-9 h-9 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center border border-white/20"
+                className="w-10 h-10 rounded-full flex items-center justify-center border border-white/20 active:scale-90 transition-transform"
+                style={{ background: "rgba(255,255,255,0.1)", backdropFilter: "blur(12px)" }}
               >
                 <Pencil size={16} className="text-white" />
               </button>
               <button
                 onClick={() => setShowSettings(true)}
-                className="w-9 h-9 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center border border-white/20"
+                className="w-10 h-10 rounded-full flex items-center justify-center border border-white/20 active:scale-90 transition-transform"
+                style={{ background: "rgba(255,255,255,0.1)", backdropFilter: "blur(12px)" }}
               >
                 <Settings size={18} className="text-white" />
               </button>
               {selectedGroup.created_by === currentUserId && (
                 <button
                   onClick={() => setConfirmDeleteGroup(true)}
-                  className="w-9 h-9 rounded-full bg-red-500/60 backdrop-blur-md flex items-center justify-center border border-red-300/30"
+                  className="w-10 h-10 rounded-full flex items-center justify-center border border-red-500/30 active:scale-90 transition-transform"
+                  style={{ background: "rgba(239,68,68,0.18)", backdropFilter: "blur(12px)" }}
                 >
-                  <Trash2 size={16} className="text-white" />
+                  <Trash2 size={16} className="text-red-400" />
                 </button>
               )}
             </div>
           )}
 
-          {/* Title */}
-          <div className="absolute bottom-3 left-4 right-4">
-            <div className="flex items-center gap-2 mb-0.5">
-              <h2 className="text-white font-black text-lg drop-shadow-lg">{selectedGroup.name}</h2>
-              {currentRole === "admin" && <span className="bg-yellow-500 text-black text-[9px] font-black px-2 py-0.5 rounded-full">ADMIN</span>}
-              {currentRole === "moderator" && <span className="bg-blue-500 text-white text-[9px] font-black px-2 py-0.5 rounded-full">MOD</span>}
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-1">
-                {selectedGroup.privacy === "private" ? <Lock size={10} className="text-white/80" /> : <Globe size={10} className="text-white/80" />}
-                <span className="text-white/80 text-[11px] font-semibold">
-                  {selectedGroup.privacy} · {selectedGroup.member_count ?? groupMembers.length} members
-                </span>
-              </div>
-              {/* Share button */}
-              <div className="flex items-center gap-1.5 ml-auto">
-                <button
-                  onClick={() => shareCircle(selectedGroup)}
-                  className="flex items-center gap-1 bg-white/20 backdrop-blur-sm text-white text-[10px] font-black px-2.5 py-1 rounded-full border border-white/30 active:scale-95 transition-transform"
-                >
-                  <Share2 size={10} />
-                  Share
-                </button>
-              </div>
+          {/* Floating Avatar — overlaps hero bottom */}
+          <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 z-20">
+            <div
+              className="w-24 h-24 rounded-full overflow-hidden border-2 border-white/10 flex items-center justify-center text-white font-black text-2xl"
+              style={{ boxShadow: "0 0 0 3px rgba(0,240,255,0.5), 0 0 24px rgba(0,240,255,0.25), 0 8px 32px rgba(0,0,0,0.7)", background: "linear-gradient(135deg,#1e3a8a,#2563eb)" }}
+            >
+              {(selectedGroup.cover_url || selectedGroup.profiles?.avatar_url) ? (
+                <img
+                  src={selectedGroup.cover_url || selectedGroup.profiles?.avatar_url || ""}
+                  className="w-full h-full object-cover"
+                  alt={selectedGroup.name}
+                  loading="lazy"
+                  decoding="async"
+                />
+              ) : (
+                (selectedGroup.name || "C")[0].toUpperCase()
+              )}
             </div>
           </div>
         </div>
 
-        {/* Tab Bar */}
-        <div className="bg-[#d4f0e2] border-b border-gray-100 flex items-stretch sticky top-0 z-20">
-          {([
-            { id: "posts" as const, icon: FileText, label: "Posts", show: true },
-            { id: "review" as const, icon: Eye, label: `Review${pendingPosts.length > 0 ? ` ${pendingPosts.length}` : ""}`, show: canModerate },
-            { id: "chat" as const, icon: MessageCircle, label: "Chat", show: true },
-            { id: "members" as const, icon: Users, label: `${canModerate ? "Admin" : "Members"}${newMemberCount > 0 && canModerate ? ` +${newMemberCount}` : ""}`, show: true },
-            { id: "about" as const, icon: Shield, label: "About", show: true },
-          ]).filter(tab => tab.show).map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => {
-                setGroupTab(tab.id);
-                if (tab.id === "members") setNewMemberCount(0);
-              }}
-              className={`flex-1 min-w-0 flex items-center justify-center gap-1 py-3 text-[11px] font-black border-b-2 transition-colors relative ${
-                groupTab === tab.id
-                  ? "border-blue-600 text-blue-600"
-                  : "border-transparent text-gray-400"
-              }`}
-            >
-              <tab.icon size={13} />
-              <span className="truncate">{tab.label}</span>
-              {tab.id === "members" && newMemberCount > 0 && canModerate && (
-                <span className="absolute top-1.5 right-1 w-4 h-4 bg-red-500 rounded-full text-white text-[8px] font-black flex items-center justify-center">
-                  {newMemberCount}
-                </span>
-              )}
-            </button>
-          ))}
-          {/* Leave Circle — shown inline after Members tab, only for non-admin members */}
-          {isMember && !isAdmin && (
-            <button
-              onClick={() => handleLeave(selectedGroup.id)}
-              className="shrink-0 flex items-center justify-center gap-1 px-2.5 py-3 text-[11px] font-black text-red-500 border-b-2 border-transparent hover:border-red-300 hover:bg-red-50 transition-colors"
-            >
-              <LogOut size={13} />
-              <span className="hidden xs:inline">Leave</span>
-            </button>
+        {/* Circle Info */}
+        <div className="flex flex-col items-center pt-14 pb-4 px-4">
+          <h2 className="text-white font-black text-xl text-center leading-tight">{selectedGroup.name}</h2>
+          <div className="flex items-center gap-2 mt-1.5">
+            {currentRole === "admin" && (
+              <span className="text-[10px] font-black px-2.5 py-1 rounded-full flex items-center gap-1"
+                style={{ background: "linear-gradient(135deg,#f59e0b,#d97706)", color: "#000" }}>
+                👑 Admin
+              </span>
+            )}
+            {currentRole === "moderator" && (
+              <span className="text-[10px] font-black px-2.5 py-1 rounded-full text-white border border-blue-500/40"
+                style={{ background: "rgba(59,130,246,0.2)" }}>
+                ⭐ Moderator
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2 mt-1.5">
+            {selectedGroup.privacy === "private" ? <Lock size={11} className="text-gray-500" /> : <Globe size={11} className="text-gray-500" />}
+            <span className="text-[12px] text-gray-400 font-semibold capitalize">
+              {selectedGroup.privacy} · {selectedGroup.member_count ?? groupMembers.length} Members
+            </span>
+          </div>
+          {selectedGroup.description && (
+            <p className="text-[12px] text-gray-500 mt-2 text-center leading-relaxed max-w-xs line-clamp-2">{selectedGroup.description}</p>
           )}
+          <div className="flex items-center gap-2 mt-3">
+            <button
+              onClick={() => shareCircle(selectedGroup)}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-full border border-white/15 text-[12px] font-black text-white active:scale-95 transition-transform"
+              style={{ background: "rgba(255,255,255,0.08)", backdropFilter: "blur(12px)" }}
+            >
+              <Share2 size={13} /> Share
+            </button>
+            {isMember && !isAdmin && (
+              <button
+                onClick={() => handleLeave(selectedGroup.id)}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-full border border-red-500/30 text-[12px] font-black text-red-400 active:scale-95 transition-transform"
+                style={{ background: "rgba(239,68,68,0.1)", backdropFilter: "blur(12px)" }}
+              >
+                <LogOut size={13} /> Leave
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* ── TAB BAR ─────────────────────────────────────────────────── */}
+        <div className="px-3 pb-2 sticky top-0 z-20 pt-1" style={{ background: "#090a0f" }}>
+          <div className="flex items-center rounded-2xl border border-white/[0.08] p-1 gap-0.5"
+            style={{ background: "rgba(255,255,255,0.04)", backdropFilter: "blur(20px)" }}>
+            {([
+              { id: "posts" as const, icon: FileText, label: "Posts", show: true },
+              { id: "review" as const, icon: Eye, label: `Review${pendingPosts.length > 0 ? ` ${pendingPosts.length}` : ""}`, show: canModerate },
+              { id: "chat" as const, icon: MessageCircle, label: "Chat", show: true },
+              { id: "members" as const, icon: Users, label: canModerate ? "Admin" : "Members", show: true },
+              { id: "about" as const, icon: Shield, label: "About", show: true },
+            ]).filter(tab => tab.show).map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => {
+                  setGroupTab(tab.id);
+                  if (tab.id === "members") setNewMemberCount(0);
+                }}
+                className={`flex-1 min-w-0 flex items-center justify-center gap-1 py-2 text-[11px] font-black rounded-xl transition-all relative ${
+                  groupTab === tab.id ? "text-[#090a0f]" : "text-gray-500"
+                }`}
+                style={groupTab === tab.id ? { background: "#00F0FF", boxShadow: "0 0 12px rgba(0,240,255,0.4)" } : {}}
+              >
+                <tab.icon size={12} />
+                <span className="truncate">{tab.label}</span>
+                {tab.id === "members" && newMemberCount > 0 && canModerate && (
+                  <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full text-white text-[8px] font-black flex items-center justify-center"
+                    style={{ background: "#ff5d5d" }}>
+                    {newMemberCount}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* ── POSTS TAB ──────────────────────────────────────────────────────── */}
@@ -1962,33 +2020,13 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
             ref={postsScrollRef}
             className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:hidden"
             style={{ scrollbarWidth: "none" }}
-            onTouchStart={e => {
-              if ((postsScrollRef.current?.scrollTop ?? 1) <= 0) {
-                pullStartY.current = e.touches[0].clientY;
-              } else {
-                pullStartY.current = -1;
-              }
-            }}
-            onTouchMove={e => {
-              if (pullStartY.current < 0) { pullDelta.current = 0; return; }
-              pullDelta.current = e.touches[0].clientY - pullStartY.current;
-            }}
-            onTouchEnd={async () => {
-              if (pullDelta.current > 72 && !pullRefreshing && selectedGroup) {
-                haptic(20);
-                setPullRefreshing(true);
-                await fetchCirclePosts(selectedGroup.id, canModerate);
-                setPullRefreshing(false);
-              }
-              pullDelta.current = 0;
-              pullStartY.current = -1;
-            }}
           >
             {/* Pull-to-refresh indicator */}
             {pullRefreshing && (
-              <div className="flex items-center justify-center gap-2 py-3 bg-blue-50 border-b border-blue-100">
-                <Loader2 size={14} className="animate-spin text-blue-500" />
-                <span className="text-[11px] font-black text-blue-600">Refreshing…</span>
+              <div className="flex items-center justify-center gap-2 py-3 border-b border-white/[0.06]"
+                style={{ background: "rgba(0,240,255,0.06)" }}>
+                <Loader2 size={14} className="animate-spin text-[#00F0FF]" />
+                <span className="text-[11px] font-black text-[#00F0FF]">Refreshing…</span>
               </div>
             )}
 
@@ -2063,7 +2101,7 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
                     <div className="px-4 pb-4 pt-1">
                       <p className="text-[13px] text-amber-900 leading-snug whitespace-pre-wrap">{selectedGroup.pinned_announcement}</p>
                       {selectedGroup.pinned_at && (
-                        <p className="text-[10px] text-amber-500 mt-1.5">
+                        <p className="text-[10px] text-amber-500/60 mt-1.5">
                           {new Date(selectedGroup.pinned_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
                         </p>
                       )}
@@ -2229,11 +2267,13 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
 
             {/* Post box — only for members */}
             {isMember && (
-              <div className="bg-[#d4f0e2] border-b border-gray-100 px-4 py-3">
+              <div className="mx-3 mb-3 rounded-3xl border border-white/[0.08] px-4 py-3"
+                style={{ background: "rgba(255,255,255,0.03)", backdropFilter: "blur(20px)" }}>
                 <div className="flex items-start gap-3">
-                  <div className="w-9 h-9 rounded-full bg-blue-600 flex items-center justify-center text-white font-black text-sm shrink-0 overflow-hidden">
+                  <div className="w-9 h-9 rounded-full bg-blue-700 flex items-center justify-center text-white font-black text-sm shrink-0 overflow-hidden"
+                    style={{ boxShadow: "0 0 0 2px rgba(0,240,255,0.3)" }}>
                     {userProfile?.avatar_url ? (
-                      <img src={userProfile.avatar_url} className="w-full h-full object-cover" alt="" loading="lazy"  decoding="async"/>
+                      <img src={userProfile.avatar_url} className="w-full h-full object-cover" alt="" loading="lazy" decoding="async"/>
                     ) : (
                       (userProfile?.full_name || "U")[0]
                     )}
@@ -2243,19 +2283,22 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
                       value={postText}
                       onChange={e => setPostText(e.target.value)}
                       placeholder="Post something in this Circle…"
-                      className="w-full bg-gray-100 rounded-xl px-3 py-2.5 text-sm text-gray-800 outline-none resize-none focus:ring-2 focus:ring-blue-400/30 border border-gray-200"
+                      className="w-full rounded-xl px-3 py-2.5 text-sm text-white outline-none resize-none border border-white/10 placeholder:text-white/25 focus:border-[#00F0FF]/40"
+                      style={{ background: "rgba(255,255,255,0.06)" }}
                       rows={2}
                     />
                     {postMedia && (
                       <div className="relative mt-2 w-20 h-20 rounded-lg overflow-hidden">
-                        <img src={URL.createObjectURL(postMedia)} className="w-full h-full object-cover" alt="" loading="lazy"  decoding="async"/>
-                        <button onClick={() => setPostMedia(null)} className="absolute top-1 right-1 bg-black/60 rounded-full p-0.5">
+                        <img src={URL.createObjectURL(postMedia)} className="w-full h-full object-cover" alt="" loading="lazy" decoding="async"/>
+                        <button onClick={() => setPostMedia(null)} className="absolute top-1 right-1 bg-black/70 rounded-full p-0.5">
                           <X size={10} className="text-white" />
                         </button>
                       </div>
                     )}
                     <div className="flex items-center justify-between mt-2">
-                      <button onClick={() => mediaInputRef.current?.click()} className="p-1.5 rounded-lg bg-gray-100 text-gray-500">
+                      <button onClick={() => mediaInputRef.current?.click()}
+                        className="p-1.5 rounded-lg text-white/40 border border-white/10"
+                        style={{ background: "rgba(255,255,255,0.06)" }}>
                         <ImageIcon size={16} />
                       </button>
                       <input ref={mediaInputRef} type="file" accept="image/*,video/*" className="hidden"
@@ -2263,7 +2306,8 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
                       <button
                         onClick={handleGroupPost}
                         disabled={!postText.trim() || posting}
-                        className="flex items-center gap-1.5 bg-blue-600 text-white px-4 py-1.5 rounded-xl text-sm font-bold disabled:opacity-40 active:scale-95 transition-transform"
+                        className="flex items-center gap-1.5 text-[#090a0f] px-4 py-1.5 rounded-xl text-sm font-bold disabled:opacity-40 active:scale-95 transition-transform"
+                        style={{ background: "linear-gradient(135deg,#00F0FF,#2563eb)" }}
                       >
                         {posting ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
                         {selectedGroup.post_approval && !canModerate ? "Submit" : "Post"}
@@ -2277,7 +2321,8 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
             {/* Posts list */}
             <div className="space-y-0">
               {/* ── Manual Refresh Row ───────────────────────────────────── */}
-              <div className="flex items-center justify-end px-4 py-2 border-b border-gray-100 bg-[#d4f0e2]">
+              <div className="flex items-center justify-end px-4 py-2 border-b border-white/[0.06]"
+                style={{ background: "rgba(255,255,255,0.02)" }}>
                 <button
                   onClick={async () => {
                     haptic();
@@ -2286,7 +2331,7 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
                     setPullRefreshing(false);
                   }}
                   disabled={pullRefreshing || postsLoading}
-                  className="flex items-center gap-1.5 text-[11px] font-black text-blue-500 active:scale-95 transition-transform disabled:opacity-40"
+                  className="flex items-center gap-1.5 text-[11px] font-black text-[#00F0FF] active:scale-95 transition-transform disabled:opacity-40"
                 >
                   <Loader2 size={13} className={pullRefreshing ? "animate-spin" : ""} />
                   {pullRefreshing ? "Refreshing…" : "Pull to Refresh"}
@@ -2346,36 +2391,43 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
 
         {/* ── REVIEW TAB ─────────────────────────────────────────────────────── */}
         {groupTab === "review" && canModerate && (
-          <div className="flex-1 overflow-y-auto bg-[#d4f0e2]">
-            <div className="bg-[#d4f0e2] border-b border-gray-100 px-4 py-3">
-              <p className="text-[13px] font-black text-gray-900">Pending Post Review</p>
-              <p className="text-[10px] text-gray-400 mt-0.5">Approve posts to make them visible to all members.</p>
+          <div className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:hidden" style={{ scrollbarWidth: "none" }}>
+            <div className="px-4 py-3 border-b border-white/[0.06]"
+              style={{ background: "rgba(255,255,255,0.03)", backdropFilter: "blur(12px)" }}>
+              <p className="text-[13px] font-black text-white">Pending Post Review</p>
+              <p className="text-[10px] text-white/35 mt-0.5">Approve posts to make them visible to all members.</p>
             </div>
             {pendingPosts.length === 0 ? (
-              <div className="flex flex-col items-center py-16 text-gray-300">
+              <div className="flex flex-col items-center py-16 text-white/20">
                 <ShieldCheck size={34} className="mb-3 opacity-40" />
                 <p className="text-xs font-black uppercase tracking-widest">Nothing to review</p>
               </div>
             ) : (
               <div className="space-y-3 p-3">
                 {pendingPosts.map(post => (
-                  <div key={post.id} className="bg-[#d4f0e2] rounded-2xl border border-amber-100 overflow-hidden shadow-sm">
+                  <div key={post.id} className="rounded-3xl border border-amber-500/20 overflow-hidden"
+                    style={{ background: "rgba(245,158,11,0.04)", backdropFilter: "blur(20px)", boxShadow: "0 8px 32px rgba(0,0,0,0.35)" }}>
                     <div className="flex items-center gap-3 px-4 py-3">
-                      <div className="w-9 h-9 rounded-full bg-blue-600 flex items-center justify-center text-white font-black text-sm shrink-0 overflow-hidden">
-                        {post.author_avatar ? <img src={post.author_avatar} className="w-full h-full object-cover" alt="" loading="lazy"  decoding="async"/> : (post.author_name || "M")[0].toUpperCase()}
+                      <div className="w-9 h-9 rounded-full bg-blue-700 flex items-center justify-center text-white font-black text-sm shrink-0 overflow-hidden"
+                        style={{ boxShadow: "0 0 0 2px rgba(0,240,255,0.3)" }}>
+                        {post.author_avatar ? <img src={post.author_avatar} className="w-full h-full object-cover" alt="" loading="lazy" decoding="async"/> : (post.author_name || "M")[0].toUpperCase()}
                       </div>
                       <div className="flex-1">
-                        <p className="text-gray-900 font-bold text-sm">{post.author_name}</p>
-                        <p className="text-[10px] text-amber-600 font-bold">Waiting for approval</p>
+                        <p className="text-white font-bold text-sm">{post.author_name}</p>
+                        <p className="text-[10px] text-amber-400 font-bold">Waiting for approval</p>
                       </div>
                     </div>
-                    {post.content && <p className="px-4 pb-3 text-[13px] text-gray-800 leading-snug">{maskProfanity(post.content)}</p>}
-                    {post.media_url && <img src={post.media_url} className="w-full object-cover max-h-80" alt="" loading="lazy"  decoding="async"/>}
-                    <div className="flex gap-2 p-3 border-t border-gray-50">
-                      <button onClick={() => reviewPost(post.id, "rejected")} className="flex-1 py-2.5 rounded-xl bg-red-50 text-red-600 font-black text-[12px] flex items-center justify-center gap-1.5">
+                    {post.content && <p className="px-4 pb-3 text-[13px] text-white/70 leading-snug">{maskProfanity(post.content)}</p>}
+                    {post.media_url && <img src={post.media_url} className="w-full object-cover max-h-80" alt="" loading="lazy" decoding="async"/>}
+                    <div className="flex gap-2 p-3 border-t border-white/[0.06]">
+                      <button onClick={() => reviewPost(post.id, "rejected")}
+                        className="flex-1 py-2.5 rounded-xl text-red-400 font-black text-[12px] flex items-center justify-center gap-1.5 border border-red-500/25"
+                        style={{ background: "rgba(239,68,68,0.08)" }}>
                         <X size={14} /> Reject
                       </button>
-                      <button onClick={() => reviewPost(post.id, "approved")} className="flex-1 py-2.5 rounded-xl bg-green-600 text-white font-black text-[12px] flex items-center justify-center gap-1.5">
+                      <button onClick={() => reviewPost(post.id, "approved")}
+                        className="flex-1 py-2.5 rounded-xl text-[#090a0f] font-black text-[12px] flex items-center justify-center gap-1.5"
+                        style={{ background: "linear-gradient(135deg,#00F0FF,#22c55e)" }}>
                         <Check size={14} /> Approve
                       </button>
                     </div>
@@ -2442,18 +2494,19 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
                                 animate={{ opacity: 1, scale: 1, y: 0 }}
                                 exit={{ opacity: 0, scale: 0.85, y: 6 }}
                                 transition={{ type: "spring", damping: 22, stiffness: 380 }}
-                                className={`absolute bottom-full mb-1 z-50 flex items-center gap-1 bg-white rounded-2xl shadow-xl border border-gray-100 px-2 py-1.5 ${isMe ? "right-0" : "left-0"}`}
+                                className={`absolute bottom-full mb-1 z-50 flex items-center gap-1 rounded-2xl px-2 py-1.5 border border-white/10 ${isMe ? "right-0" : "left-0"}`}
+                                style={{ background: "rgba(20,22,35,0.95)", backdropFilter: "blur(20px)", boxShadow: "0 8px 32px rgba(0,0,0,0.6)" }}
                                 onClick={e => e.stopPropagation()}
                               >
                                 {["❤️","👍","😂","🔥","😮"].map(em => (
                                   <button key={em} onClick={() => toggleChatReaction(msg.id, em)}
-                                    className={`text-[20px] active:scale-75 transition-transform px-0.5 rounded-xl ${reactions.find(r => r.emoji === em && r.mine) ? "bg-blue-50" : ""}`}>
+                                    className={`text-[20px] active:scale-75 transition-transform px-0.5 rounded-xl ${reactions.find(r => r.emoji === em && r.mine) ? "bg-[#00F0FF]/15" : ""}`}>
                                     {em}
                                   </button>
                                 ))}
-                                <div className="w-px h-5 bg-gray-100 mx-0.5" />
+                                <div className="w-px h-5 bg-white/10 mx-0.5" />
                                 <button onClick={() => { setReplyTo(msg); setEmojiBarMsgId(null); }}
-                                  className="p-1 rounded-xl active:bg-gray-100 text-gray-500">
+                                  className="p-1 rounded-xl active:bg-white/10 text-white/50">
                                   <Reply size={15} />
                                 </button>
                               </motion.div>
@@ -2463,9 +2516,11 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
                           {/* Bubble */}
                           <div
                             className={`px-3 py-2 rounded-2xl text-sm leading-snug select-none ${
-                              isMe ? "text-white rounded-br-sm" : "bg-white text-gray-800 rounded-bl-sm border border-gray-100"
+                              isMe ? "text-white rounded-br-sm" : "text-white/90 rounded-bl-sm"
                             }`}
-                            style={isMe ? { background: "linear-gradient(135deg,#2563eb,#4f46e5)" } : {}}
+                            style={isMe
+                              ? { background: "linear-gradient(135deg,#2563eb,#4f46e5)", boxShadow: "0 4px 16px rgba(37,99,235,0.3)" }
+                              : { background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.1)", backdropFilter: "blur(12px)" }}
                             onTouchStart={() => {
                               longPressTimer.current = setTimeout(() => { haptic(16); setEmojiBarMsgId(msg.id); }, 550);
                             }}
@@ -2501,7 +2556,8 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
                               <div className="flex gap-0.5">
                                 {reactions.map(r => (
                                   <button key={r.emoji} onClick={() => toggleChatReaction(msg.id, r.emoji)}
-                                    className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-black border transition-all active:scale-90 ${r.mine ? "bg-blue-50 border-blue-200 text-blue-700" : "bg-white border-gray-200 text-gray-600"}`}>
+                                    className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-black border transition-all active:scale-90 ${r.mine ? "border-[#00F0FF]/40 text-[#00F0FF]" : "border-white/10 text-white/50"}`}
+                                    style={{ background: r.mine ? "rgba(0,240,255,0.12)" : "rgba(255,255,255,0.05)" }}>
                                     {r.emoji} {r.count > 1 && <span>{r.count}</span>}
                                   </button>
                                 ))}
@@ -2516,18 +2572,24 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
                 </div>
 
                 {/* ── Input area ───────────────────────────────────── */}
-                <div className="bg-white border-t border-gray-100 flex-shrink-0">
+                <div className="flex-shrink-0 border-t border-white/[0.06]"
+                  style={{ background: "rgba(9,10,15,0.85)", backdropFilter: "blur(20px)" }}>
                   {/* Reply banner */}
                   <AnimatePresence>
                     {replyTo && (
                       <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }}
-                        className="flex items-center gap-2 px-4 py-2 bg-blue-50 border-b border-blue-100 overflow-hidden">
-                        <div className="w-0.5 h-8 bg-blue-400 rounded-full shrink-0" />
+                        className="flex items-center gap-2 px-4 py-2 border-b border-white/[0.06] overflow-hidden"
+                        style={{ background: "rgba(0,240,255,0.06)" }}>
+                        <div className="w-0.5 h-8 rounded-full shrink-0" style={{ background: "#00F0FF" }} />
                         <div className="flex-1 min-w-0">
-                          <p className="text-[10px] font-black text-blue-600">Replying to {replyTo.sender_name}</p>
-                          <p className="text-[11px] text-gray-600 truncate">{replyTo.content || "📎 Media"}</p>
+                          <p className="text-[10px] font-black text-[#00F0FF]">Replying to {replyTo.sender_name}</p>
+                          <p className="text-[11px] text-white/50 truncate">{replyTo.content || "📎 Media"}</p>
                         </div>
-                        <button onClick={() => setReplyTo(null)} className="p-1 rounded-full bg-blue-100 text-blue-500 shrink-0"><X size={12} /></button>
+                        <button onClick={() => setReplyTo(null)}
+                          className="p-1 rounded-full shrink-0 text-white/50"
+                          style={{ background: "rgba(255,255,255,0.08)" }}>
+                          <X size={12} />
+                        </button>
                       </motion.div>
                     )}
                   </AnimatePresence>
@@ -2536,24 +2598,25 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
                   <AnimatePresence>
                     {chatMediaPreview && (
                       <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }}
-                        className="px-4 py-2 flex items-center gap-3 bg-gray-50 border-b border-gray-100 overflow-hidden">
+                        className="px-4 py-2 flex items-center gap-3 border-b border-white/[0.06] overflow-hidden"
+                        style={{ background: "rgba(255,255,255,0.04)" }}>
                         <div className="relative shrink-0">
                           {chatMedia && isVideoUrl(chatMedia.name)
-                            ? <div className="w-14 h-14 rounded-xl bg-gray-800 flex items-center justify-center"><VideoIcon size={20} className="text-white" /></div>
-                            : <img src={chatMediaPreview} className="w-14 h-14 rounded-xl object-cover" alt="" loading="lazy"  decoding="async"/>}
+                            ? <div className="w-14 h-14 rounded-xl bg-white/10 flex items-center justify-center"><VideoIcon size={20} className="text-white/60" /></div>
+                            : <img src={chatMediaPreview} className="w-14 h-14 rounded-xl object-cover" alt="" loading="lazy" decoding="async"/>}
                           <button onClick={() => { setChatMedia(null); setChatMediaPreview(null); }}
-                            className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-gray-700 text-white flex items-center justify-center">
+                            className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-black/70 text-white flex items-center justify-center border border-white/20">
                             <X size={10} />
                           </button>
                         </div>
-                        <p className="text-[11px] text-gray-500 truncate flex-1">{chatMedia?.name}</p>
-                        {uploadingChatMedia && <Loader2 size={16} className="animate-spin text-blue-500 shrink-0" />}
+                        <p className="text-[11px] text-white/40 truncate flex-1">{chatMedia?.name}</p>
+                        {uploadingChatMedia && <Loader2 size={16} className="animate-spin text-[#00F0FF] shrink-0" />}
                       </motion.div>
                     )}
                   </AnimatePresence>
 
-                  {/* Input row */}
-                  <div className="px-3 py-2.5 flex items-center gap-2">
+                  {/* Input row — focus mode: image btn fades out when typing */}
+                  <div className="px-3 py-2.5 flex items-center gap-2 transition-all duration-200">
                     {/* Media picker */}
                     <input ref={chatMediaRef} type="file" accept="image/*,video/*" className="hidden"
                       onChange={e => {
@@ -2564,21 +2627,53 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
                         setChatMediaPreview(url);
                         e.target.value = "";
                       }} />
-                    <button onClick={() => chatMediaRef.current?.click()}
-                      className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 active:scale-90 transition-transform shrink-0">
-                      <ImagePlus size={17} />
-                    </button>
+                    {/* Image button — collapses in focus mode */}
+                    <AnimatePresence initial={false}>
+                      {!chatInputFocused && (
+                        <motion.div
+                          key="chat-img-btn"
+                          initial={{ opacity: 0, width: 0 }}
+                          animate={{ opacity: 1, width: "auto" }}
+                          exit={{ opacity: 0, width: 0 }}
+                          transition={{ duration: 0.18, ease: "easeInOut" }}
+                          className="overflow-hidden shrink-0"
+                        >
+                          <button
+                            onClick={() => chatMediaRef.current?.click()}
+                            className="w-9 h-9 rounded-full flex items-center justify-center text-white/50 active:scale-90 transition-transform shrink-0 border border-white/10"
+                            style={{ background: "rgba(255,255,255,0.07)" }}
+                          >
+                            <ImagePlus size={17} />
+                          </button>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
 
-                    <input type="text" value={chatText}
+                    <input
+                      type="text"
+                      value={chatText}
                       onChange={e => setChatText(e.target.value)}
                       onKeyDown={e => e.key === "Enter" && !e.shiftKey && (e.preventDefault(), sendChatMessage())}
+                      onFocus={() => setChatInputFocused(true)}
+                      onBlur={() => setChatInputFocused(false)}
                       placeholder="Message the circle…"
-                      className="flex-1 bg-gray-100 border border-gray-200 rounded-2xl px-4 py-2.5 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-blue-400/30" />
+                      className="flex-1 rounded-2xl px-4 py-2.5 text-sm text-white outline-none transition-all duration-200 border placeholder:text-white/25"
+                      style={{
+                        background: "rgba(255,255,255,0.07)",
+                        borderColor: chatInputFocused ? "rgba(0,240,255,0.4)" : "rgba(255,255,255,0.1)",
+                        boxShadow: chatInputFocused ? "0 0 0 2px rgba(0,240,255,0.1)" : "none",
+                      }}
+                    />
 
-                    <button onClick={sendChatMessage}
+                    <button
+                      onClick={sendChatMessage}
                       disabled={(!chatText.trim() && !chatMedia) || sendingChat}
-                      className="w-10 h-10 rounded-full flex items-center justify-center text-white disabled:opacity-40 active:scale-90 transition-transform shrink-0"
-                      style={{ background: "linear-gradient(135deg,#2563eb,#4f46e5)" }}>
+                      className="w-10 h-10 rounded-full flex items-center justify-center text-[#090a0f] disabled:opacity-40 active:scale-90 transition-all shrink-0 font-black"
+                      style={{
+                        background: "linear-gradient(135deg,#00F0FF,#2563eb)",
+                        boxShadow: chatInputFocused ? "0 4px 16px rgba(0,240,255,0.35)" : "0 2px 8px rgba(0,240,255,0.2)",
+                      }}
+                    >
                       {sendingChat || uploadingChatMedia
                         ? <Loader2 size={16} className="animate-spin" />
                         : <Send size={16} />}
@@ -2592,77 +2687,99 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
 
         {/* ── MEMBERS TAB ──────────────────────────────────────────────────── */}
         {groupTab === "members" && (
-          <div className="flex-1 overflow-y-auto bg-[#d4f0e2] [&::-webkit-scrollbar]:hidden" style={{ scrollbarWidth: "none" }}>
+          <div className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:hidden" style={{ scrollbarWidth: "none" }}>
             {/* Members count header */}
-            <div className="bg-[#d4f0e2] border-b border-gray-100 px-4 py-3 flex items-center justify-between">
+            <div className="px-4 py-3 flex items-center justify-between border-b border-white/[0.06]"
+              style={{ background: "rgba(255,255,255,0.03)", backdropFilter: "blur(12px)" }}>
               <div>
-                <p className="text-[13px] font-black text-gray-900">
+                <p className="text-[13px] font-black text-white">
                   {groupMembers.length} Member{groupMembers.length !== 1 ? "s" : ""} Joined
                 </p>
-                <p className="text-[10px] text-gray-400 mt-0.5">Real-time · Updates live</p>
+                <p className="text-[10px] text-white/40 mt-0.5">Real-time · Updates live</p>
               </div>
               {newMemberCount > 0 && canModerate && (
-                <div className="flex items-center gap-1.5 bg-green-50 border border-green-200 rounded-xl px-3 py-1.5">
-                  <Bell size={12} className="text-green-600" />
-                  <span className="text-[11px] font-black text-green-700">+{newMemberCount} New</span>
+                <div className="flex items-center gap-1.5 rounded-xl px-3 py-1.5 border border-[#00F0FF]/30"
+                  style={{ background: "rgba(0,240,255,0.08)" }}>
+                  <Bell size={12} className="text-[#00F0FF]" />
+                  <span className="text-[11px] font-black text-[#00F0FF]">+{newMemberCount} New</span>
                 </div>
               )}
             </div>
 
-            {/* Members list */}
-            <div className="divide-y divide-gray-100">
+            {/* Members grid */}
+            <div className="grid grid-cols-2 gap-3 p-3">
               {membersLoading ? (
-                <div className="flex flex-col items-center py-14">
-                  <Loader2 size={24} className="animate-spin text-blue-400 mb-2" />
-                  <p className="text-[11px] font-black text-gray-400 uppercase tracking-widest">Loading Members…</p>
+                <div className="col-span-2 flex flex-col items-center py-14">
+                  <Loader2 size={24} className="animate-spin text-[#00F0FF] mb-2" />
+                  <p className="text-[11px] font-black text-white/40 uppercase tracking-widest">Loading Members…</p>
                 </div>
               ) : null}
               {!membersLoading && groupMembers.map((m: any) => (
-                <div key={m.id} className="bg-[#d4f0e2] flex items-center gap-3 px-4 py-3">
-                  <div
-                    className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-black text-sm overflow-hidden shrink-0 cursor-pointer"
-                    style={{ boxShadow: m.role === "admin" ? "0 0 0 2px #f59e0b" : m.role === "moderator" ? "0 0 0 2px #3b82f6" : "0 0 0 1px #e5e7eb" }}
-                    onClick={() => m.user_id && openProfile(m.user_id)}
-                  >
-                    {m.profiles?.avatar_url ? (
-                      <img src={m.profiles.avatar_url} className="w-full h-full object-cover" alt="" loading="lazy"  decoding="async"/>
-                    ) : (
-                      (m.profiles?.full_name || "M")[0].toUpperCase()
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[13px] font-bold text-gray-900 truncate">
-                      {m.profiles?.full_name || "Member"}
-                      {m.user_id === currentUserId && (
-                        <span className="text-[10px] text-gray-400 font-medium ml-1">(you)</span>
+                <div key={m.id}
+                  className="flex flex-col items-center p-4 rounded-3xl border border-white/[0.08] relative"
+                  style={{ background: "rgba(255,255,255,0.03)", backdropFilter: "blur(20px)", boxShadow: "0 8px 32px rgba(0,0,0,0.35)" }}>
+                  {/* Avatar */}
+                  <div className="relative mb-2">
+                    <div
+                      className="w-16 h-16 rounded-full bg-blue-700 flex items-center justify-center text-white font-black text-xl overflow-hidden cursor-pointer"
+                      style={{
+                        boxShadow: m.role === "admin"
+                          ? "0 0 0 2.5px #f59e0b, 0 0 14px rgba(245,158,11,0.35)"
+                          : m.role === "moderator"
+                            ? "0 0 0 2.5px #3b82f6, 0 0 14px rgba(59,130,246,0.35)"
+                            : "0 0 0 2px rgba(0,240,255,0.35), 0 0 12px rgba(0,240,255,0.1)"
+                      }}
+                      onClick={() => m.user_id && openProfile(m.user_id)}
+                    >
+                      {m.profiles?.avatar_url ? (
+                        <img src={m.profiles.avatar_url} className="w-full h-full object-cover" alt="" loading="lazy" decoding="async"/>
+                      ) : (
+                        (m.profiles?.full_name || "M")[0].toUpperCase()
                       )}
-                    </p>
-                    <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full border ${
-                      m.role === "admin"
-                        ? "text-amber-700 bg-amber-50 border-amber-200"
-                        : m.role === "moderator"
-                          ? "text-blue-700 bg-blue-50 border-blue-200"
-                          : "text-gray-500 bg-[#c4e8d4] border-gray-200"
-                    }`}>
-                      {m.role === "admin" ? "Admin" : m.role === "moderator" ? "Moderator" : "Member"}
-                    </span>
+                    </div>
+                    <OnlineDot authorId={m.user_id} />
                   </div>
+                  {/* Name */}
+                  <p className="text-[12px] font-bold text-white truncate w-full text-center leading-tight">
+                    {m.profiles?.full_name || "Member"}
+                    {m.user_id === currentUserId && (
+                      <span className="text-[10px] text-white/30 font-medium"> (you)</span>
+                    )}
+                  </p>
+                  {/* Role badge */}
+                  <span className={`mt-1 text-[9px] font-black px-2 py-0.5 rounded-full ${
+                    m.role === "admin"
+                      ? "text-amber-300 border border-amber-500/40"
+                      : m.role === "moderator"
+                        ? "text-blue-300 border border-blue-500/40"
+                        : "text-white/40 border border-white/15"
+                  }`}
+                    style={{
+                      background: m.role === "admin"
+                        ? "rgba(245,158,11,0.12)"
+                        : m.role === "moderator"
+                          ? "rgba(59,130,246,0.12)"
+                          : "rgba(255,255,255,0.04)"
+                    }}>
+                    {m.role === "admin" ? "👑 Admin" : m.role === "moderator" ? "⭐ Mod" : "Member"}
+                  </span>
+                  {/* Action button */}
                   {m.user_id !== currentUserId && (
-                    <div className="flex items-center gap-1.5 shrink-0">
+                    <div className="mt-3 w-full">
                       {canManageMember(m) ? (
-                        /* Admin/Mod: prominent Manage button */
                         <button
                           onClick={() => { haptic(); setMemberSheet(m); }}
-                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-gray-100 border border-gray-200 text-gray-700 text-[10px] font-black active:bg-gray-200 active:scale-95 transition-transform"
+                          className="w-full flex items-center justify-center gap-1 py-1.5 rounded-xl text-[10px] font-black text-white/70 border border-white/10 active:scale-95 transition-transform"
+                          style={{ background: "rgba(255,255,255,0.07)" }}
                         >
-                          <MoreVertical size={13} />
+                          <MoreVertical size={11} />
                           Manage
                         </button>
                       ) : (
-                        /* Regular member or non-manageable: View Profile */
                         <button
                           onClick={() => { haptic(); m.user_id && openProfile(m.user_id); }}
-                          className="text-[10px] font-black text-blue-600 border border-blue-200 px-3 py-1.5 rounded-xl bg-blue-50 active:scale-95 transition-transform"
+                          className="w-full py-1.5 rounded-xl text-[10px] font-black text-[#00F0FF] border border-[#00F0FF]/25 active:scale-95 transition-transform"
+                          style={{ background: "rgba(0,240,255,0.07)" }}
                         >
                           View
                         </button>
@@ -2672,7 +2789,7 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
                 </div>
               ))}
               {!membersLoading && groupMembers.length === 0 && (
-                <div className="flex flex-col items-center py-12 text-gray-300">
+                <div className="col-span-2 flex flex-col items-center py-12 text-white/30">
                   <Users size={32} className="mb-2 opacity-40" />
                   <p className="text-xs font-black uppercase tracking-widest">No members yet</p>
                 </div>
@@ -2680,11 +2797,12 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
             </div>
 
             {canAdmin && (
-              <div className="p-4 pb-0">
-                <div className="bg-[#d4f0e2] border border-gray-100 rounded-2xl p-4">
+              <div className="px-3 pb-3">
+                <div className="rounded-3xl border border-white/[0.08] p-4"
+                  style={{ background: "rgba(255,255,255,0.03)", backdropFilter: "blur(20px)" }}>
                   <div className="flex items-center gap-2 mb-3">
-                    <UserPlus size={15} className="text-blue-600" />
-                    <p className="text-[12px] font-black text-gray-900">Invite friends</p>
+                    <UserPlus size={15} className="text-[#00F0FF]" />
+                    <p className="text-[12px] font-black text-white">Invite friends</p>
                   </div>
                   <div className="flex gap-2">
                     <input
@@ -2692,21 +2810,27 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
                       onChange={e => setInviteSearch(e.target.value)}
                       onKeyDown={e => e.key === "Enter" && searchInvitees()}
                       placeholder="Search profile name…"
-                      className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-[12px] outline-none focus:ring-2 focus:ring-blue-400/30"
+                      className="flex-1 rounded-xl px-3 py-2 text-[12px] text-white outline-none border border-white/10 placeholder:text-white/30 focus:border-[#00F0FF]/40"
+                      style={{ background: "rgba(255,255,255,0.06)" }}
                     />
-                    <button onClick={searchInvitees} disabled={inviteLoading || !inviteSearch.trim()} className="px-3 rounded-xl bg-blue-600 text-white text-[11px] font-black disabled:opacity-40">
+                    <button onClick={searchInvitees} disabled={inviteLoading || !inviteSearch.trim()}
+                      className="px-3 rounded-xl text-[#090a0f] text-[11px] font-black disabled:opacity-40"
+                      style={{ background: "#00F0FF" }}>
                       {inviteLoading ? <Loader2 size={13} className="animate-spin" /> : "Search"}
                     </button>
                   </div>
                   {inviteResults.length > 0 && (
-                    <div className="mt-3 divide-y divide-gray-100">
+                    <div className="mt-3 space-y-2">
                       {inviteResults.map(person => (
-                        <div key={person.id} className="flex items-center gap-2 py-2">
-                          <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-black overflow-hidden">
-                            {person.avatar_url ? <img src={person.avatar_url} className="w-full h-full object-cover" alt="" loading="lazy"  decoding="async"/> : (person.full_name || "U")[0]}
+                        <div key={person.id} className="flex items-center gap-2 py-1.5 border-t border-white/[0.06]">
+                          <div className="w-8 h-8 rounded-full bg-blue-700 text-white flex items-center justify-center font-black overflow-hidden"
+                            style={{ boxShadow: "0 0 0 1.5px rgba(0,240,255,0.3)" }}>
+                            {person.avatar_url ? <img src={person.avatar_url} className="w-full h-full object-cover" alt="" loading="lazy" decoding="async"/> : (person.full_name || "U")[0]}
                           </div>
-                          <p className="flex-1 text-[12px] font-bold text-gray-800 truncate">{person.full_name || "Member"}</p>
-                          <button onClick={() => sendInvite(person)} className="text-[10px] font-black bg-green-50 text-green-700 border border-green-200 px-3 py-1.5 rounded-xl">
+                          <p className="flex-1 text-[12px] font-bold text-white truncate">{person.full_name || "Member"}</p>
+                          <button onClick={() => sendInvite(person)}
+                            className="text-[10px] font-black text-[#090a0f] px-3 py-1.5 rounded-xl"
+                            style={{ background: "#00F0FF" }}>
                             Invite
                           </button>
                         </div>
@@ -2718,18 +2842,18 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
             )}
 
             {/* Share to invite */}
-            <div className="p-4">
-              <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4">
-                <p className="text-[12px] font-black text-blue-800 mb-2">Invite more members</p>
-                <p className="text-[11px] text-blue-600 mb-3">Share this Circle so others can join</p>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => shareCircle(selectedGroup)}
-                    className="flex-1 flex items-center justify-center gap-1.5 bg-blue-600 text-white py-2.5 rounded-xl text-[12px] font-black active:scale-95 transition-transform"
-                  >
-                    <Share2 size={13} /> Share
-                  </button>
-                </div>
+            <div className="px-3 pb-6">
+              <div className="rounded-3xl border border-[#00F0FF]/15 p-4"
+                style={{ background: "rgba(0,240,255,0.05)", backdropFilter: "blur(12px)" }}>
+                <p className="text-[12px] font-black text-white mb-1">Invite more members</p>
+                <p className="text-[11px] text-white/40 mb-3">Share this Circle so others can join</p>
+                <button
+                  onClick={() => shareCircle(selectedGroup)}
+                  className="w-full flex items-center justify-center gap-1.5 text-[#090a0f] py-2.5 rounded-xl text-[12px] font-black active:scale-95 transition-transform"
+                  style={{ background: "linear-gradient(135deg,#00F0FF,#2563eb)" }}
+                >
+                  <Share2 size={13} /> Share Circle
+                </button>
               </div>
             </div>
           </div>
@@ -2737,46 +2861,52 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
 
         {/* ── ABOUT TAB ──────────────────────────────────────────────────── */}
         {groupTab === "about" && (
-          <div className="flex-1 overflow-y-auto bg-[#d4f0e2] pb-6 [&::-webkit-scrollbar]:hidden" style={{ scrollbarWidth: "none" }}>
+          <div className="flex-1 overflow-y-auto pb-6 [&::-webkit-scrollbar]:hidden" style={{ scrollbarWidth: "none" }}>
 
             {/* ── Group Info Card ────────────────────────────────────────── */}
-            <div className="bg-[#d4f0e2] border-b border-gray-100 px-4 py-4">
+            <div className="mx-3 mt-3 rounded-3xl border border-white/[0.08] px-4 py-4"
+              style={{ background: "rgba(255,255,255,0.03)", backdropFilter: "blur(20px)", boxShadow: "0 8px 32px rgba(0,0,0,0.35)" }}>
               <div className="flex items-center gap-2 mb-2">
-                {selectedGroup.privacy === "private" ? <Lock size={14} className="text-gray-500" /> : <Globe size={14} className="text-blue-500" />}
-                <span className="text-[13px] font-black text-gray-800 capitalize">{selectedGroup.privacy} Group</span>
+                {selectedGroup.privacy === "private" ? <Lock size={13} className="text-white/40" /> : <Globe size={13} className="text-[#00F0FF]" />}
+                <span className="text-[12px] font-black text-white/70 capitalize">{selectedGroup.privacy} Group</span>
               </div>
               {selectedGroup.description ? (
-                <p className="text-[13px] text-gray-600 leading-relaxed mb-3">{selectedGroup.description}</p>
+                <p className="text-[13px] text-white/60 leading-relaxed mb-3">{selectedGroup.description}</p>
               ) : (
-                <p className="text-[12px] text-gray-400 italic mb-3">No description added yet.</p>
+                <p className="text-[12px] text-white/25 italic mb-3">No description added yet.</p>
               )}
-              <div className="flex flex-wrap gap-3">
-                <div className="flex items-center gap-1.5 bg-blue-50 rounded-xl px-3 py-1.5">
-                  <Users size={12} className="text-blue-600" />
-                  <span className="text-[11px] font-black text-blue-700">{selectedGroup.member_count ?? groupMembers.length} Members</span>
+              <div className="flex flex-wrap gap-2">
+                <div className="flex items-center gap-1.5 rounded-xl px-3 py-1.5 border border-[#00F0FF]/20"
+                  style={{ background: "rgba(0,240,255,0.07)" }}>
+                  <Users size={11} className="text-[#00F0FF]" />
+                  <span className="text-[11px] font-black text-[#00F0FF]">{selectedGroup.member_count ?? groupMembers.length} Members</span>
                 </div>
-                <div className="flex items-center gap-1.5 bg-green-50 rounded-xl px-3 py-1.5">
-                  <FileText size={12} className="text-green-600" />
-                  <span className="text-[11px] font-black text-green-700">{groupPosts.length} Posts</span>
+                <div className="flex items-center gap-1.5 rounded-xl px-3 py-1.5 border border-green-500/20"
+                  style={{ background: "rgba(34,197,94,0.07)" }}>
+                  <FileText size={11} className="text-green-400" />
+                  <span className="text-[11px] font-black text-green-400">{groupPosts.length} Posts</span>
                 </div>
-                <div className="flex items-center gap-1.5 bg-violet-50 rounded-xl px-3 py-1.5">
-                  <Calendar size={12} className="text-violet-600" />
-                  <span className="text-[11px] font-black text-violet-700">{circleEvents.length} Events</span>
+                <div className="flex items-center gap-1.5 rounded-xl px-3 py-1.5 border border-violet-500/20"
+                  style={{ background: "rgba(139,92,246,0.07)" }}>
+                  <Calendar size={11} className="text-violet-400" />
+                  <span className="text-[11px] font-black text-violet-400">{circleEvents.length} Events</span>
                 </div>
               </div>
             </div>
 
             {/* ── Pinned Announcement ─────────────────────────────────────── */}
-            <div className="mx-4 mt-4 bg-amber-50 border border-amber-200 rounded-2xl overflow-hidden">
-              <div className="flex items-center justify-between px-4 py-3 border-b border-amber-100">
+            <div className="mx-3 mt-3 rounded-3xl border border-amber-500/20 overflow-hidden"
+              style={{ background: "rgba(245,158,11,0.06)", backdropFilter: "blur(20px)" }}>
+              <div className="flex items-center justify-between px-4 py-3 border-b border-amber-500/10">
                 <div className="flex items-center gap-2">
-                  <Megaphone size={14} className="text-amber-600" />
-                  <span className="text-[12px] font-black text-amber-800">Pinned Announcement</span>
+                  <Megaphone size={13} className="text-amber-400" />
+                  <span className="text-[12px] font-black text-amber-300">Pinned Announcement</span>
                 </div>
                 {canAdmin && (
                   <button
                     onClick={() => { setPinnedEditing(true); setPinnedText(selectedGroup.pinned_announcement ?? ""); }}
-                    className="text-[10px] font-black text-amber-700 bg-amber-100 border border-amber-200 px-2.5 py-1 rounded-lg flex items-center gap-1 active:scale-95 transition-transform"
+                    className="text-[10px] font-black text-amber-300 border border-amber-500/30 px-2.5 py-1 rounded-lg flex items-center gap-1 active:scale-95 transition-transform"
+                    style={{ background: "rgba(245,158,11,0.1)" }}
                   >
                     <Pencil size={10} /> {selectedGroup.pinned_announcement ? "Edit" : "Add"}
                   </button>
@@ -2785,7 +2915,7 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
               <div className="px-4 py-3">
                 {selectedGroup.pinned_announcement ? (
                   <>
-                    <p className="text-[13px] text-amber-900 leading-relaxed whitespace-pre-wrap">{selectedGroup.pinned_announcement}</p>
+                    <p className="text-[13px] text-amber-200 leading-relaxed whitespace-pre-wrap">{selectedGroup.pinned_announcement}</p>
                     {selectedGroup.pinned_at && (
                       <p className="text-[10px] text-amber-500 mt-1.5">
                         Pinned {new Date(selectedGroup.pinned_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
@@ -2794,29 +2924,31 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
                     {canAdmin && (
                       <button
                         onClick={() => savePinnedAnnouncement(null)}
-                        className="mt-2 text-[10px] font-black text-red-500 flex items-center gap-1"
+                        className="mt-2 text-[10px] font-black text-red-400 flex items-center gap-1"
                       >
                         <X size={10} /> Remove announcement
                       </button>
                     )}
                   </>
                 ) : (
-                  <p className="text-[12px] text-amber-600 italic">{canAdmin ? "Tap 'Add' to pin an announcement for all members." : "No announcement yet."}</p>
+                  <p className="text-[12px] text-amber-400/60 italic">{canAdmin ? "Tap 'Add' to pin an announcement for all members." : "No announcement yet."}</p>
                 )}
               </div>
             </div>
 
             {/* ── Group Rules ─────────────────────────────────────────────── */}
-            <div className="mx-4 mt-4 bg-[#d4f0e2] border border-gray-100 rounded-2xl overflow-hidden">
-              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+            <div className="mx-3 mt-3 rounded-3xl border border-white/[0.08] overflow-hidden"
+              style={{ background: "rgba(255,255,255,0.03)", backdropFilter: "blur(20px)" }}>
+              <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.06]">
                 <div className="flex items-center gap-2">
-                  <ShieldCheck size={14} className="text-blue-600" />
-                  <span className="text-[12px] font-black text-gray-800">Group Rules</span>
+                  <ShieldCheck size={13} className="text-[#00F0FF]" />
+                  <span className="text-[12px] font-black text-white">Group Rules</span>
                 </div>
                 {canAdmin && !rulesEditing && (
                   <button
                     onClick={() => { setRulesEditing(true); setRulesText(selectedGroup.rules ?? ""); }}
-                    className="text-[10px] font-black text-blue-600 bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-lg flex items-center gap-1 active:scale-95 transition-transform"
+                    className="text-[10px] font-black text-[#00F0FF] border border-[#00F0FF]/25 px-2.5 py-1 rounded-lg flex items-center gap-1 active:scale-95 transition-transform"
+                    style={{ background: "rgba(0,240,255,0.07)" }}
                   >
                     <Pencil size={10} /> {selectedGroup.rules ? "Edit" : "Add"}
                   </button>
@@ -2830,20 +2962,23 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
                       onChange={e => setRulesText(e.target.value)}
                       rows={5}
                       placeholder={"1. Be respectful to all members\n2. No spam or self-promotion\n3. Stay on topic"}
-                      className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-[13px] text-gray-800 outline-none focus:ring-2 focus:ring-blue-400/30 resize-none"
+                      className="w-full rounded-xl px-3 py-2.5 text-[13px] text-white outline-none resize-none border border-white/10 placeholder:text-white/20 focus:border-[#00F0FF]/40"
+                      style={{ background: "rgba(255,255,255,0.06)" }}
                     />
                     <div className="flex gap-2">
                       <button
                         onClick={saveRulesInline}
                         disabled={savingRules}
-                        className="flex-1 bg-blue-600 text-white text-[12px] font-black py-2 rounded-xl disabled:opacity-50 flex items-center justify-center gap-1 active:scale-95 transition-transform"
+                        className="flex-1 text-[#090a0f] text-[12px] font-black py-2 rounded-xl disabled:opacity-50 flex items-center justify-center gap-1 active:scale-95 transition-transform"
+                        style={{ background: "linear-gradient(135deg,#00F0FF,#2563eb)" }}
                       >
                         {savingRules ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
                         Save Rules
                       </button>
                       <button
                         onClick={() => setRulesEditing(false)}
-                        className="px-4 bg-gray-100 text-gray-600 text-[12px] font-black py-2 rounded-xl active:scale-95 transition-transform"
+                        className="px-4 text-white/60 text-[12px] font-black py-2 rounded-xl active:scale-95 transition-transform border border-white/10"
+                        style={{ background: "rgba(255,255,255,0.06)" }}
                       >
                         Cancel
                       </button>
@@ -2853,26 +2988,28 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
                   <div className="space-y-2">
                     {selectedGroup.rules.split("\n").filter(Boolean).map((rule, i) => (
                       <div key={i} className="flex items-start gap-2.5">
-                        <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 text-[10px] font-black flex items-center justify-center shrink-0 mt-0.5">{i + 1}</span>
-                        <p className="text-[13px] text-gray-700 leading-relaxed">{rule.replace(/^\d+\.\s*/, "")}</p>
+                        <span className="w-5 h-5 rounded-full text-[#00F0FF] text-[10px] font-black flex items-center justify-center shrink-0 mt-0.5 border border-[#00F0FF]/30"
+                          style={{ background: "rgba(0,240,255,0.1)" }}>{i + 1}</span>
+                        <p className="text-[13px] text-white/60 leading-relaxed">{rule.replace(/^\d+\.\s*/, "")}</p>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-[12px] text-gray-400 italic">{canAdmin ? "Tap 'Add' to set group rules." : "No rules set yet."}</p>
+                  <p className="text-[12px] text-white/25 italic">{canAdmin ? "Tap 'Add' to set group rules." : "No rules set yet."}</p>
                 )}
               </div>
             </div>
 
             {/* ── Admins & Moderators ─────────────────────────────────────── */}
-            <div className="mx-4 mt-4 bg-[#d4f0e2] border border-gray-100 rounded-2xl overflow-hidden">
-              <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-100">
-                <Crown size={14} className="text-amber-500" />
-                <span className="text-[12px] font-black text-gray-800">Admins &amp; Moderators</span>
+            <div className="mx-3 mt-3 rounded-3xl border border-white/[0.08] overflow-hidden"
+              style={{ background: "rgba(255,255,255,0.03)", backdropFilter: "blur(20px)" }}>
+              <div className="flex items-center gap-2 px-4 py-3 border-b border-white/[0.06]">
+                <Crown size={13} className="text-amber-400" />
+                <span className="text-[12px] font-black text-white">Admins &amp; Moderators</span>
               </div>
-              <div className="divide-y divide-gray-50">
+              <div className="divide-y divide-white/[0.04]">
                 {groupMembers.filter((m: any) => m.role === "admin" || m.role === "moderator").length === 0 ? (
-                  <p className="px-4 py-3 text-[12px] text-gray-400 italic">No admins listed.</p>
+                  <p className="px-4 py-3 text-[12px] text-white/25 italic">No admins listed.</p>
                 ) : (
                   groupMembers
                     .filter((m: any) => m.role === "admin" || m.role === "moderator")
@@ -2880,26 +3017,31 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
                       <div key={m.id} className="flex items-center gap-3 px-4 py-3">
                         <div
                           className="w-10 h-10 rounded-full flex items-center justify-center text-white font-black text-sm overflow-hidden shrink-0 cursor-pointer"
-                          style={{ background: m.role === "admin" ? "#f59e0b" : "#3b82f6" }}
+                          style={{
+                            background: m.role === "admin" ? "linear-gradient(135deg,#f59e0b,#d97706)" : "linear-gradient(135deg,#3b82f6,#2563eb)",
+                            boxShadow: m.role === "admin" ? "0 0 0 2px rgba(245,158,11,0.4)" : "0 0 0 2px rgba(59,130,246,0.4)"
+                          }}
                           onClick={() => m.user_id && openProfile(m.user_id)}
                         >
                           {m.profiles?.avatar_url
-                            ? <img src={m.profiles.avatar_url} className="w-full h-full object-cover" alt="" loading="lazy"  decoding="async"/>
+                            ? <img src={m.profiles.avatar_url} className="w-full h-full object-cover" alt="" loading="lazy" decoding="async"/>
                             : (m.profiles?.full_name || "A")[0].toUpperCase()}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-[13px] font-bold text-gray-900 truncate">
+                          <p className="text-[13px] font-bold text-white truncate">
                             {m.profiles?.full_name || "Member"}
-                            {m.user_id === currentUserId && <span className="text-[10px] text-gray-400 font-medium ml-1">(you)</span>}
+                            {m.user_id === currentUserId && <span className="text-[10px] text-white/30 font-medium ml-1">(you)</span>}
                           </p>
-                          <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full ${m.role === "admin" ? "bg-amber-100 text-amber-700" : "bg-blue-100 text-blue-700"}`}>
-                            {m.role === "admin" ? "Admin" : "Moderator"}
+                          <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full ${m.role === "admin" ? "text-amber-300 border border-amber-500/30" : "text-blue-300 border border-blue-500/30"}`}
+                            style={{ background: m.role === "admin" ? "rgba(245,158,11,0.12)" : "rgba(59,130,246,0.12)" }}>
+                            {m.role === "admin" ? "👑 Admin" : "⭐ Moderator"}
                           </span>
                         </div>
                         {m.user_id !== currentUserId && (
                           <button
                             onClick={() => m.user_id && openProfile(m.user_id)}
-                            className="text-[10px] font-black text-blue-600 border border-blue-200 px-3 py-1.5 rounded-xl bg-blue-50 active:scale-95 transition-transform"
+                            className="text-[10px] font-black text-[#00F0FF] border border-[#00F0FF]/25 px-3 py-1.5 rounded-xl active:scale-95 transition-transform"
+                            style={{ background: "rgba(0,240,255,0.07)" }}
                           >
                             Message
                           </button>
@@ -2911,16 +3053,18 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
             </div>
 
             {/* ── Upcoming Events ─────────────────────────────────────────── */}
-            <div className="mx-4 mt-4 bg-[#d4f0e2] border border-gray-100 rounded-2xl overflow-hidden">
-              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+            <div className="mx-3 mt-3 rounded-3xl border border-white/[0.08] overflow-hidden"
+              style={{ background: "rgba(255,255,255,0.03)", backdropFilter: "blur(20px)" }}>
+              <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.06]">
                 <div className="flex items-center gap-2">
-                  <Calendar size={14} className="text-violet-600" />
-                  <span className="text-[12px] font-black text-gray-800">Upcoming Events</span>
+                  <Calendar size={13} className="text-violet-400" />
+                  <span className="text-[12px] font-black text-white">Upcoming Events</span>
                 </div>
                 {canAdmin && (
                   <button
                     onClick={() => setShowCreateEvent(true)}
-                    className="flex items-center gap-1 text-[10px] font-black text-violet-700 bg-violet-50 border border-violet-200 px-2.5 py-1 rounded-lg active:scale-95 transition-transform"
+                    className="flex items-center gap-1 text-[10px] font-black text-violet-300 border border-violet-500/30 px-2.5 py-1 rounded-lg active:scale-95 transition-transform"
+                    style={{ background: "rgba(139,92,246,0.1)" }}
                   >
                     <Plus size={10} /> Create
                   </button>
@@ -2928,52 +3072,55 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
               </div>
               {circleEvents.length === 0 ? (
                 <div className="px-4 py-5 flex flex-col items-center text-center">
-                  <Calendar size={28} className="text-gray-200 mb-2" />
-                  <p className="text-[11px] font-black text-gray-400 uppercase tracking-widest">No events yet</p>
-                  {canAdmin && <p className="text-[11px] text-gray-400 mt-1">Tap 'Create' to add the first event</p>}
+                  <Calendar size={28} className="text-white/15 mb-2" />
+                  <p className="text-[11px] font-black text-white/25 uppercase tracking-widest">No events yet</p>
+                  {canAdmin && <p className="text-[11px] text-white/20 mt-1">Tap 'Create' to add the first event</p>}
                 </div>
               ) : (
-                <div className="divide-y divide-gray-50">
+                <div className="divide-y divide-white/[0.04]">
                   {circleEvents.map(ev => {
                     const counts = eventRsvpCounts[ev.id] ?? { going: 0, maybe: 0, not_going: 0 };
                     const myRsvp = myRsvps[ev.id];
                     return (
                       <div key={ev.id} className="px-4 py-3">
                         <div className="flex items-start gap-3">
-                          <div className="w-10 h-10 rounded-xl bg-violet-100 flex flex-col items-center justify-center shrink-0">
-                            <span className="text-[9px] font-black text-violet-600 uppercase leading-none">
+                          <div className="w-10 h-10 rounded-xl flex flex-col items-center justify-center shrink-0 border border-violet-500/25"
+                            style={{ background: "rgba(139,92,246,0.12)" }}>
+                            <span className="text-[9px] font-black text-violet-400 uppercase leading-none">
                               {new Date(ev.event_date + "T00:00:00").toLocaleDateString("en-IN", { month: "short" })}
                             </span>
-                            <span className="text-[16px] font-black text-violet-800 leading-none">
+                            <span className="text-[16px] font-black text-violet-300 leading-none">
                               {new Date(ev.event_date + "T00:00:00").getDate()}
                             </span>
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-[13px] font-black text-gray-900 truncate">{ev.title}</p>
+                            <p className="text-[13px] font-black text-white truncate">{ev.title}</p>
                             <div className="flex flex-wrap items-center gap-2 mt-0.5">
                               {ev.event_time && (
-                                <span className="flex items-center gap-1 text-[10px] text-gray-500">
+                                <span className="flex items-center gap-1 text-[10px] text-white/40">
                                   <Clock size={9} /> {formatEventDate("", ev.event_time).replace(" · ", "")}
                                 </span>
                               )}
                               {ev.location && (
-                                <span className="flex items-center gap-1 text-[10px] text-gray-500">
+                                <span className="flex items-center gap-1 text-[10px] text-white/40">
                                   <MapPin size={9} /> {ev.location}
                                 </span>
                               )}
                             </div>
                             {ev.description && (
-                              <p className="text-[11px] text-gray-500 mt-1 leading-relaxed line-clamp-2">{ev.description}</p>
+                              <p className="text-[11px] text-white/35 mt-1 leading-relaxed line-clamp-2">{ev.description}</p>
                             )}
                             {/* RSVP counts */}
                             <div className="flex gap-2 mt-2">
-                              <span className="text-[10px] text-gray-400">{counts.going} Going</span>
-                              <span className="text-[10px] text-gray-300">·</span>
-                              <span className="text-[10px] text-gray-400">{counts.maybe} Maybe</span>
+                              <span className="text-[10px] text-white/30">{counts.going} Going</span>
+                              <span className="text-[10px] text-white/20">·</span>
+                              <span className="text-[10px] text-white/30">{counts.maybe} Maybe</span>
                             </div>
                           </div>
                           {canAdmin && (
-                            <button onClick={() => deleteEvent(ev.id)} className="p-1.5 rounded-full bg-red-50 shrink-0">
+                            <button onClick={() => deleteEvent(ev.id)}
+                              className="p-1.5 rounded-full shrink-0 border border-red-500/20"
+                              style={{ background: "rgba(239,68,68,0.1)" }}>
                               <Trash2 size={12} className="text-red-400" />
                             </button>
                           )}
@@ -2991,9 +3138,10 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
                               disabled={rsvpLoading === ev.id}
                               className={`flex-1 py-1.5 rounded-xl text-[10px] font-black border transition-all active:scale-95 ${
                                 myRsvp === opt.status
-                                  ? "bg-blue-600 text-white border-blue-600"
-                                  : "bg-gray-50 text-gray-600 border-gray-200"
+                                  ? "text-[#090a0f] border-[#00F0FF]"
+                                  : "text-white/50 border-white/10"
                               }`}
+                              style={{ background: myRsvp === opt.status ? "#00F0FF" : "rgba(255,255,255,0.05)" }}
                             >
                               {rsvpLoading === ev.id ? <Loader2 size={10} className="animate-spin mx-auto" /> : opt.label}
                             </button>
@@ -3007,78 +3155,83 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
             </div>
 
             {/* ── Invite / Share ──────────────────────────────────────────── */}
-            <div className="mx-4 mt-4 bg-blue-50 border border-blue-100 rounded-2xl p-4">
-              <p className="text-[12px] font-black text-blue-800 mb-1">Invite friends to this Circle</p>
-              <p className="text-[11px] text-blue-600 mb-3">Share so more people can join and participate</p>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => shareCircle(selectedGroup)}
-                  className="flex-1 flex items-center justify-center gap-1.5 bg-blue-600 text-white py-2.5 rounded-xl text-[12px] font-black active:scale-95 transition-transform"
-                >
-                  <Share2 size={13} /> Share
-                </button>
-              </div>
+            <div className="mx-3 mt-3 rounded-3xl border border-[#00F0FF]/15 p-4"
+              style={{ background: "rgba(0,240,255,0.05)", backdropFilter: "blur(12px)" }}>
+              <p className="text-[12px] font-black text-white mb-1">Invite friends to this Circle</p>
+              <p className="text-[11px] text-white/40 mb-3">Share so more people can join and participate</p>
+              <button
+                onClick={() => shareCircle(selectedGroup)}
+                className="w-full flex items-center justify-center gap-1.5 text-[#090a0f] py-2.5 rounded-xl text-[12px] font-black active:scale-95 transition-transform"
+                style={{ background: "linear-gradient(135deg,#00F0FF,#2563eb)" }}
+              >
+                <Share2 size={13} /> Share Circle
+              </button>
             </div>
 
             {/* ── Admin Quick Actions ─────────────────────────────────────── */}
             {canAdmin && (
-              <div className="mx-4 mt-4 bg-[#d4f0e2] border border-gray-100 rounded-2xl overflow-hidden">
-                <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-100">
-                  <Settings size={14} className="text-gray-500" />
-                  <span className="text-[12px] font-black text-gray-800">Admin Settings</span>
+              <div className="mx-3 mt-3 rounded-3xl border border-white/[0.08] overflow-hidden"
+              style={{ background: "rgba(255,255,255,0.03)", backdropFilter: "blur(20px)" }}>
+                <div className="flex items-center gap-2 px-4 py-3 border-b border-white/[0.06]">
+                  <Settings size={13} className="text-white/40" />
+                  <span className="text-[12px] font-black text-white">Admin Settings</span>
                 </div>
-                <div className="divide-y divide-gray-50">
+                <div className="divide-y divide-white/[0.04]">
                   <button
                     onClick={() => { setShowSettings(true); setSettingsForm({ rules: selectedGroup.rules ?? "", post_approval: selectedGroup.post_approval ?? false }); }}
-                    className="w-full flex items-center gap-3 px-4 py-3 active:bg-[#c4e8d4] transition-colors text-left"
+                    className="w-full flex items-center gap-3 px-4 py-3 active:bg-white/[0.03] transition-colors text-left"
                   >
-                    <div className="w-8 h-8 rounded-xl bg-blue-100 flex items-center justify-center shrink-0">
-                      <Settings size={14} className="text-blue-600" />
+                    <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border border-[#00F0FF]/20"
+                      style={{ background: "rgba(0,240,255,0.08)" }}>
+                      <Settings size={14} className="text-[#00F0FF]" />
                     </div>
                     <div className="flex-1">
-                      <p className="text-[13px] font-bold text-gray-800">Circle Settings</p>
-                      <p className="text-[10px] text-gray-400">Post approval, visibility, rules</p>
+                      <p className="text-[13px] font-bold text-white">Circle Settings</p>
+                      <p className="text-[10px] text-white/35">Post approval, visibility, rules</p>
                     </div>
-                    <ChevronRight size={14} className="text-gray-300" />
+                    <ChevronRight size={14} className="text-white/20" />
                   </button>
                   <button
                     onClick={() => { setGroupTab("members"); }}
-                    className="w-full flex items-center gap-3 px-4 py-3 active:bg-[#c4e8d4] transition-colors text-left"
+                    className="w-full flex items-center gap-3 px-4 py-3 active:bg-white/[0.03] transition-colors text-left"
                   >
-                    <div className="w-8 h-8 rounded-xl bg-amber-100 flex items-center justify-center shrink-0">
-                      <UserPlus size={14} className="text-amber-600" />
+                    <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border border-amber-500/20"
+                      style={{ background: "rgba(245,158,11,0.08)" }}>
+                      <UserPlus size={14} className="text-amber-400" />
                     </div>
                     <div className="flex-1">
-                      <p className="text-[13px] font-bold text-gray-800">Manage Members</p>
-                      <p className="text-[10px] text-gray-400">Invite, promote, or remove members</p>
+                      <p className="text-[13px] font-bold text-white">Manage Members</p>
+                      <p className="text-[10px] text-white/35">Invite, promote, or remove members</p>
                     </div>
-                    <ChevronRight size={14} className="text-gray-300" />
+                    <ChevronRight size={14} className="text-white/20" />
                   </button>
                   <button
                     onClick={() => setShowCreateEvent(true)}
-                    className="w-full flex items-center gap-3 px-4 py-3 active:bg-[#c4e8d4] transition-colors text-left"
+                    className="w-full flex items-center gap-3 px-4 py-3 active:bg-white/[0.03] transition-colors text-left"
                   >
-                    <div className="w-8 h-8 rounded-xl bg-violet-100 flex items-center justify-center shrink-0">
-                      <CalendarPlus size={14} className="text-violet-600" />
+                    <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border border-violet-500/20"
+                      style={{ background: "rgba(139,92,246,0.08)" }}>
+                      <CalendarPlus size={14} className="text-violet-400" />
                     </div>
                     <div className="flex-1">
-                      <p className="text-[13px] font-bold text-gray-800">Create Event</p>
-                      <p className="text-[10px] text-gray-400">Schedule a group event with RSVP</p>
+                      <p className="text-[13px] font-bold text-white">Create Event</p>
+                      <p className="text-[10px] text-white/35">Schedule a group event with RSVP</p>
                     </div>
-                    <ChevronRight size={14} className="text-gray-300" />
+                    <ChevronRight size={14} className="text-white/20" />
                   </button>
                   <button
                     onClick={() => { setShowEditGroup(true); setEditGroupForm({ name: selectedGroup.name, description: selectedGroup.description ?? "" }); }}
-                    className="w-full flex items-center gap-3 px-4 py-3 active:bg-[#c4e8d4] transition-colors text-left"
+                    className="w-full flex items-center gap-3 px-4 py-3 active:bg-white/[0.03] transition-colors text-left"
                   >
-                    <div className="w-8 h-8 rounded-xl bg-green-100 flex items-center justify-center shrink-0">
-                      <Pencil size={14} className="text-green-600" />
+                    <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border border-green-500/20"
+                      style={{ background: "rgba(34,197,94,0.08)" }}>
+                      <Pencil size={14} className="text-green-400" />
                     </div>
                     <div className="flex-1">
-                      <p className="text-[13px] font-bold text-gray-800">Edit Group Info</p>
-                      <p className="text-[10px] text-gray-400">Change name, description or cover</p>
+                      <p className="text-[13px] font-bold text-white">Edit Group Info</p>
+                      <p className="text-[10px] text-white/35">Change name, description or cover</p>
                     </div>
-                    <ChevronRight size={14} className="text-gray-300" />
+                    <ChevronRight size={14} className="text-white/20" />
                   </button>
                 </div>
               </div>
@@ -3506,15 +3659,34 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
                     Comments are muted for this post.
                   </div>
                 ) : (
-                  <div className="px-3 py-3 border-t border-gray-100 flex items-center gap-2">
+                  <div
+                    className="px-3 py-3 border-t flex items-center gap-2 transition-all duration-200"
+                    style={{
+                      borderColor: commentInputFocused ? "rgba(37,99,235,0.18)" : "rgba(229,231,235,1)",
+                      background: commentInputFocused ? "rgba(255,255,255,1)" : undefined,
+                    }}
+                  >
                     <input
                       value={commentText}
                       onChange={e => setCommentText(e.target.value)}
                       onKeyDown={e => e.key === "Enter" && !e.shiftKey && (e.preventDefault(), sendComment())}
+                      onFocus={() => setCommentInputFocused(true)}
+                      onBlur={() => setCommentInputFocused(false)}
                       placeholder="Write a comment…"
-                      className="flex-1 bg-gray-100 border border-gray-200 rounded-2xl px-4 py-2.5 text-sm outline-none"
+                      className="flex-1 bg-gray-100 border rounded-2xl px-4 py-2.5 text-sm outline-none transition-all duration-200"
+                      style={{
+                        boxShadow: commentInputFocused ? "0 0 0 2px rgba(37,99,235,0.22)" : "none",
+                        borderColor: commentInputFocused ? "rgba(37,99,235,0.3)" : "rgba(229,231,235,1)",
+                      }}
                     />
-                    <button onClick={sendComment} disabled={!commentText.trim() || commenting} className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center disabled:opacity-40">
+                    <button
+                      onClick={sendComment}
+                      disabled={!commentText.trim() || commenting}
+                      className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center disabled:opacity-40 active:scale-90 transition-all"
+                      style={{
+                        boxShadow: commentInputFocused ? "0 4px 16px rgba(37,99,235,0.4)" : "0 2px 8px rgba(37,99,235,0.2)",
+                      }}
+                    >
                       {commenting ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
                     </button>
                   </div>

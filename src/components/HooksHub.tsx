@@ -26,12 +26,46 @@ interface HookPage {
 }
 interface PagePost {
   id: string; page_id: string; author_id: string; content: string;
-  media_url: string; media_type: string; likes_count: number; created_at: string;
+  media_url: string; media_type: string; type?: string; likes_count: number;
+  created_at: string;
+  status?: "approved" | "pending_approval" | "rejected" | null;
 }
 interface Friend { id: string; full_name: string; avatar_url: string; }
 
 const CATEGORIES = ["General","Business","Entertainment","Education","Sports","Food","Travel","Tech","Art","Music"];
 const STORAGE_BUCKET = "hooks";
+
+// ── Time-limit duration options ────────────────────────────────────────────────
+const DURATION_OPTIONS = [
+  { label: "1 Hour",   value: "1h",   ms: 1   * 3_600_000 },
+  { label: "6 Hours",  value: "6h",   ms: 6   * 3_600_000 },
+  { label: "24 Hours", value: "24h",  ms: 24  * 3_600_000 },
+  { label: "3 Days",   value: "3d",   ms: 3   * 86_400_000 },
+  { label: "7 Days",   value: "7d",   ms: 7   * 86_400_000 },
+  { label: "30 Days",  value: "30d",  ms: 30  * 86_400_000 },
+  { label: "No Limit", value: "none", ms: 0 },
+] as const;
+type DurValue = typeof DURATION_OPTIONS[number]["value"];
+
+const calcExpiresAt = (value: DurValue | string): string | null => {
+  const opt = DURATION_OPTIONS.find(d => d.value === value);
+  if (!opt || opt.ms === 0) return null;
+  return new Date(Date.now() + opt.ms).toISOString();
+};
+
+// e.g. "6d 4h left" | "45m left" | "Expired" | "No Limit"
+const timeRemaining = (expiresAt: string | null | undefined): string => {
+  if (!expiresAt) return "No Limit";
+  const ms = new Date(expiresAt).getTime() - Date.now();
+  if (ms <= 0) return "Expired";
+  const totalMins = Math.floor(ms / 60_000);
+  const d = Math.floor(totalMins / 1440);
+  const h = Math.floor((totalMins % 1440) / 60);
+  const m = totalMins % 60;
+  if (d > 0) return `${d}d ${h}h left`;
+  if (h > 0) return `${h}h ${m}m left`;
+  return `${m}m left`;
+};
 
 
 // ── Upload helper ──────────────────────────────────────────────────────────────
@@ -217,6 +251,7 @@ const HookModal = ({ pageId, pageName, userId, onClose }:
   const [loading, setLoading]   = useState(true);
   const [sending, setSending]   = useState(false);
   const [sentIds, setSentIds]   = useState<Set<string>>(new Set());
+  const [duration, setDuration] = useState<DurValue>("7d");
 
   useEffect(() => {
     const fKey = `hookFriends_${userId}`;
@@ -237,12 +272,16 @@ const HookModal = ({ pageId, pageName, userId, onClose }:
   const sendHooks = async () => {
     if (!selected.size) return;
     setSending(true);
-    const rows = Array.from(selected).map(invitee_id => ({ page_id: pageId, inviter_id: userId, invitee_id, status: "pending" }));
+    const expires_at = calcExpiresAt(duration);
+    const rows = Array.from(selected).map(invitee_id => ({
+      page_id: pageId, inviter_id: userId, invitee_id, status: "pending",
+      ...(expires_at ? { expires_at } : {}),
+    }));
     await supabase.from("hook_invites").upsert(rows, { onConflict: "page_id,invitee_id" });
     const { data: cur } = await supabase.from("hook_pages").select("hook_count").eq("id", pageId).single();
     await supabase.from("hook_pages").update({ hook_count: (cur?.hook_count || 0) + selected.size }).eq("id", pageId);
 
-    // Notify each invited user — actor_id lets Header resolve the real sender name
+    const durLabel = DURATION_OPTIONS.find(d => d.value === duration)?.label || "7 Days";
     const notifRows = Array.from(selected)
       .filter(invitee_id => invitee_id !== userId)
       .map(invitee_id => ({
@@ -250,7 +289,7 @@ const HookModal = ({ pageId, pageName, userId, onClose }:
         actor_id: userId,
         type: "hook_invite",
         entity_id: pageId,
-        content: pageName,
+        content: `${pageName}|${durLabel}`,
         is_read: false,
       }));
     if (notifRows.length) await supabase.from("notifications").insert(notifRows);
@@ -266,7 +305,7 @@ const HookModal = ({ pageId, pageName, userId, onClose }:
       <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
         transition={{ type: "spring", damping: 26, stiffness: 260 }}
         className="w-full max-w-lg bg-white rounded-t-3xl overflow-hidden shadow-2xl"
-        style={{ maxHeight: "82vh", display: "flex", flexDirection: "column" }}>
+        style={{ maxHeight: "88vh", display: "flex", flexDirection: "column" }}>
         <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-gray-100">
           <div>
             <div className="flex items-center gap-2"><Anchor size={18} className="text-blue-600" /><h2 className="font-black text-gray-800 text-[16px]">Hook Friends</h2></div>
@@ -274,6 +313,22 @@ const HookModal = ({ pageId, pageName, userId, onClose }:
           </div>
           <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full text-gray-400"><X size={20} /></button>
         </div>
+
+        {/* Duration picker */}
+        <div className="px-5 py-3 bg-blue-50 border-b border-blue-100">
+          <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-2 flex items-center gap-1">
+            <Star size={9} fill="currentColor" /> Posting Access Duration
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {DURATION_OPTIONS.map(opt => (
+              <button key={opt.value} onClick={() => setDuration(opt.value as DurValue)}
+                className={`px-2.5 py-1 rounded-lg text-[10px] font-black transition-all ${duration === opt.value ? "bg-blue-600 text-white" : "bg-white text-gray-500 border border-gray-200"}`}>
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div className="px-5 py-2.5 border-b border-gray-50 flex items-center justify-between">
           <p className="text-[12px] font-bold text-gray-500">{friends.length} People</p>
           <button onClick={toggleAll} className="flex items-center gap-1.5 text-[12px] font-black text-blue-600">
@@ -306,7 +361,7 @@ const HookModal = ({ pageId, pageName, userId, onClose }:
             className="w-full py-3.5 rounded-2xl font-black text-[14px] flex items-center justify-center gap-2 transition-all"
             style={{ background: selected.size ? "linear-gradient(135deg,#2563eb,#1d4ed8)" : "#e5e7eb", color: selected.size ? "#fff" : "#9ca3af" }}>
             {sending ? <Loader2 size={18} className="animate-spin" /> : <Anchor size={18} />}
-            {sending ? "Bhej raha hoon..." : `Hook Bhejo (${selected.size})`}
+            {sending ? "Bhej raha hoon..." : `Hook Bhejo (${selected.size}) · ${DURATION_OPTIONS.find(d => d.value === duration)?.label}`}
           </motion.button>
         </div>
       </motion.div>
@@ -346,8 +401,8 @@ const shareHookPost = async (page: HookPage, post: PagePost) => {
 };
 
 // ── Rich Media Post Modal ──────────────────────────────────────────────────────
-const AddPostModal = ({ pageId, userId, onClose, onPosted }:
-  { pageId: string; userId: string; onClose: () => void; onPosted: () => void }) => {
+const AddPostModal = ({ pageId, userId, isOwner, pageName, onClose, onPosted }:
+  { pageId: string; userId: string; isOwner: boolean; pageName: string; onClose: () => void; onPosted: () => void }) => {
   const [content, setContent]   = useState("");
   const [mediaFile, setMediaFile] = useState<File | null>(null);
   const [mediaPreview, setMediaPreview] = useState("");
@@ -359,8 +414,7 @@ const AddPostModal = ({ pageId, userId, onClose, onPosted }:
 
   const pickFile = (file: File, type: "image" | "video") => {
     setMediaFile(file); setMediaType(type);
-    const url = URL.createObjectURL(file);
-    setMediaPreview(url);
+    setMediaPreview(URL.createObjectURL(file));
   };
 
   const clearMedia = () => { setMediaFile(null); setMediaPreview(""); setMediaType(""); };
@@ -374,12 +428,17 @@ const AddPostModal = ({ pageId, userId, onClose, onPosted }:
       media_url = (await uploadFile(mediaFile, "hook-posts")) || "";
       setUploadPct(80);
     }
+    // Contributors: post goes to pending_approval queue; owner posts go live immediately
+    const status = isOwner ? "approved" : "pending_approval";
     await supabase.from("hook_page_posts").insert([{
       page_id: pageId, author_id: userId,
-      content: content.trim(), media_url, media_type: mediaType,
+      content: content.trim(), media_url, media_type: mediaType, status,
     }]);
-    const { data: cur } = await supabase.from("hook_pages").select("hook_count").eq("id", pageId).single();
-    await supabase.from("hook_pages").update({ hook_count: (cur?.hook_count || 0) + 1 }).eq("id", pageId);
+    if (isOwner) {
+      // Only increment hook_count for owner posts that are immediately live
+      const { data: cur } = await supabase.from("hook_pages").select("hook_count").eq("id", pageId).single();
+      await supabase.from("hook_pages").update({ hook_count: (cur?.hook_count || 0) + 1 }).eq("id", pageId);
+    }
     setUploadPct(100);
     setSaving(false); onPosted(); onClose();
   };
@@ -393,9 +452,26 @@ const AddPostModal = ({ pageId, userId, onClose, onPosted }:
         transition={{ type: "spring", damping: 26, stiffness: 260 }}
         className="w-full max-w-lg bg-white rounded-t-3xl overflow-hidden shadow-2xl">
         <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-gray-100">
-          <h2 className="font-black text-gray-800 text-[16px]">Page Post</h2>
+          <div>
+            <h2 className="font-black text-gray-800 text-[16px]">
+              {isOwner ? "Page Post" : "🤝 Page Partner Post"}
+            </h2>
+            <p className="text-[10px] text-gray-400 mt-0.5">{pageName}</p>
+          </div>
           <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full"><X size={20} /></button>
         </div>
+
+        {/* Contributor approval notice */}
+        {!isOwner && (
+          <div className="mx-5 mt-4 flex items-start gap-2.5 px-3.5 py-3 rounded-2xl bg-amber-50 border border-amber-200">
+            <AlertTriangle size={14} className="text-amber-500 mt-0.5 shrink-0" />
+            <div>
+              <p className="text-[11px] font-black text-amber-700">Owner Approval Required</p>
+              <p className="text-[10px] text-amber-600 font-medium mt-0.5">Aapki post owner ke approve karne ke baad public feed par dikhai degi.</p>
+            </div>
+          </div>
+        )}
+
         <div className="p-5 space-y-4">
           <textarea value={content} onChange={e => setContent(e.target.value)}
             placeholder="Page par kya share karna hai..." rows={3} autoFocus
@@ -405,8 +481,8 @@ const AddPostModal = ({ pageId, userId, onClose, onPosted }:
           {mediaPreview && (
             <div className="relative rounded-xl overflow-hidden bg-black">
               {mediaType === "image"
-                ? <img src={mediaPreview} className="w-full max-h-48 object-cover" alt="" loading="lazy"  decoding="async"/>
-                : <video src={mediaPreview} className="w-full max-h-48" controls  preload="none"/>
+                ? <img src={mediaPreview} className="w-full max-h-48 object-cover" alt="" loading="lazy" decoding="async"/>
+                : <video src={mediaPreview} className="w-full max-h-48" controls preload="none"/>
               }
               <button onClick={clearMedia}
                 className="absolute top-2 right-2 w-7 h-7 bg-black/60 rounded-full flex items-center justify-center text-white">
@@ -440,9 +516,14 @@ const AddPostModal = ({ pageId, userId, onClose, onPosted }:
 
           <motion.button whileTap={{ scale: 0.97 }} onClick={post} disabled={saving || (!content.trim() && !mediaFile)}
             className="w-full py-3.5 rounded-2xl font-black text-[14px] flex items-center justify-center gap-2 transition-all"
-            style={{ background: (content.trim() || mediaFile) && !saving ? "linear-gradient(135deg,#2563eb,#1d4ed8)" : "#e5e7eb", color: (content.trim() || mediaFile) && !saving ? "#fff" : "#9ca3af" }}>
+            style={{
+              background: (content.trim() || mediaFile) && !saving
+                ? isOwner ? "linear-gradient(135deg,#2563eb,#1d4ed8)" : "linear-gradient(135deg,#7c3aed,#6d28d9)"
+                : "#e5e7eb",
+              color: (content.trim() || mediaFile) && !saving ? "#fff" : "#9ca3af",
+            }}>
             {saving ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
-            {saving ? "Upload ho raha hai..." : "Post Karo"}
+            {saving ? "Upload ho raha hai..." : isOwner ? "Post Karo" : "Submit for Approval"}
           </motion.button>
         </div>
       </motion.div>
@@ -561,12 +642,13 @@ const CreatePageModal = ({ userId, onClose, onCreated }:
   );
 };
 
-// ── Stat Card ─────────────────────────────────────────────────────────────────
+// ── Stat Card (dark-glass version for PageDashboard) ──────────────────────────
 const StatCard = ({ icon, label, value, color }: { icon: React.ReactNode; label: string; value: number; color: string }) => (
-  <div className="flex-1 flex flex-col items-center gap-1 p-3 rounded-2xl bg-white border border-gray-100 shadow-sm">
-    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${color}`}>{icon}</div>
-    <p className="text-[20px] font-black text-gray-800 leading-tight">{value.toLocaleString()}</p>
-    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{label}</p>
+  <div className={`flex-1 flex flex-col items-center gap-1 p-3 rounded-2xl border border-white/15 ${color}`}
+    style={{ backdropFilter: "blur(12px)" }}>
+    <div className="flex items-center justify-center">{icon}</div>
+    <p className="text-[20px] font-black text-white leading-tight">{value.toLocaleString()}</p>
+    <p className="text-[9px] font-bold text-white/50 uppercase tracking-wider">{label}</p>
   </div>
 );
 
@@ -585,33 +667,74 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
   const [followLoading, setFollowLoading] = useState(false);
 
   // Requests / contributor state
-  const [activeTab, setActiveTab] = useState<"posts" | "requests">("posts");
+  const [activeTab, setActiveTab] = useState<"posts" | "requests" | "approvals">("posts");
+  const isOwner = page.owner_id === userId;
   const [pendingInvites, setPendingInvites] = useState<any[]>([]);
   const [invitesLoading, setInvitesLoading] = useState(false);
   const [isContributor, setIsContributor] = useState(false);
   const [contributorExpired, setContributorExpired] = useState(false);
+  const [contributorExpiresAt, setContributorExpiresAt] = useState<string | null>(null);
   const [acceptingId, setAcceptingId] = useState<string | null>(null);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
+  // Per-invite duration selection (owner sets when accepting)
+  const [acceptDurationMap, setAcceptDurationMap] = useState<Record<string, DurValue>>({});
+  // Post approval state
+  const [approvingPostId, setApprovingPostId] = useState<string | null>(null);
+  const [rejectingPostId, setRejectingPostId] = useState<string | null>(null);
 
   // Edit / Delete state
   const [showEditPage, setShowEditPage]       = useState(false);
   const [postMenuId, setPostMenuId]           = useState<string | null>(null);
-  const [editingPost, setEditingPost]         = useState<{ id: string; content: string } | null>(null);
+  const [editingPost, setEditingPost]         = useState<{ id: string; content: string; author_id: string } | null>(null);
   const [editPostText, setEditPostText]       = useState("");
   const [editPostSaving, setEditPostSaving]   = useState(false);
   const [confirmDeletePost, setConfirmDeletePost] = useState<string | null>(null);
   const [showDeletePageConfirm, setShowDeletePageConfirm] = useState(false);
   const [deletingPage, setDeletingPage]       = useState(false);
 
+  // Invite / join-request state for non-owner viewers
+  const [hasPendingInvite, setHasPendingInvite]   = useState(false); // owner invited this user, waiting for them to accept
+  const [hasPendingJoinReq, setHasPendingJoinReq] = useState(false); // user requested to join, waiting for owner
+  const [requestingJoin, setRequestingJoin]       = useState(false);
+  const [acceptingInvite, setAcceptingInvite]     = useState(false);
+
+  // Post-author profiles (id → profile) for attribution on each card
+  const [postAuthors, setPostAuthors] = useState<Record<string, { full_name: string | null; avatar_url: string | null }>>({});
+  // Partner expiry map: invitee_id → expires_at (from accepted hook_invites)
+  const [partnerExpiryMap, setPartnerExpiryMap] = useState<Record<string, string | null>>({});
+  // Current user's profile (for broadcast attribution)
+  const [myProfile, setMyProfile] = useState<{ full_name: string | null } | null>(null);
+  // Broadcasting state per post
+  const [broadcastingPostId, setBroadcastingPostId] = useState<string | null>(null);
+
   const fetchPosts = async () => {
     setLoading(true);
-    const { data } = await supabase
+    // Owner sees all posts (including pending_approval); others only see approved
+    let query = supabase
       .from("hook_page_posts")
-      .select("id, page_id, author_id, content, media_url, media_type, type, likes_count, created_at")
+      .select("id, page_id, author_id, content, media_url, media_type, type, likes_count, created_at, status")
       .eq("page_id", page.id)
       .order("created_at", { ascending: false })
-      .limit(30);
-    setPosts(data || []);
+      .limit(60);
+    if (!isOwner) query = query.eq("status", "approved");
+    const { data } = await query;
+    const rows = data || [];
+    setPosts(rows);
+
+    // Fetch author profiles for attribution badges on each post card
+    const authorIds = [...new Set(rows.map((p: any) => p.author_id).filter(Boolean))];
+    if (authorIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, full_name, avatar_url")
+        .in("id", authorIds);
+      if (profiles) {
+        const pm: Record<string, { full_name: string | null; avatar_url: string | null }> = {};
+        for (const p of profiles as any[]) pm[p.id] = { full_name: p.full_name, avatar_url: p.avatar_url };
+        setPostAuthors(pm);
+      }
+    }
+
     setLoading(false);
   };
 
@@ -659,6 +782,10 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
     fetchFollowData();
     checkContributorStatus();
     fetchPendingInvites();
+    fetchPartnerExpiryMap();
+    // Fetch current user's profile for broadcast attribution
+    supabase.from("profiles").select("full_name").eq("id", userId).single()
+      .then(({ data }) => { if (data) setMyProfile(data as any); });
     // Real-time: watch page_followers for this page
     const ch = supabase.channel(`page-followers-${page.id}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "page_followers",
@@ -667,7 +794,7 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
     // Real-time: watch hook_invites so owner sees new requests instantly
     const invCh = supabase.channel(`hook-invites-${page.id}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "hook_invites",
-        filter: `page_id=eq.${page.id}` }, () => { fetchPendingInvites(); checkContributorStatus(); })
+        filter: `page_id=eq.${page.id}` }, () => { fetchPendingInvites(); checkContributorStatus(); fetchPartnerExpiryMap(); })
       .subscribe();
     return () => { supabase.removeChannel(ch); supabase.removeChannel(invCh); };
   }, [page.id]);
@@ -735,15 +862,34 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
 
   const saveEditPost = async () => {
     if (!editingPost || !editPostText.trim()) return;
+    // Permission guard: only owner or the post's own author may edit
+    if (!isOwner && editingPost.author_id !== userId) {
+      toast.error("Aap is post ko edit nahi kar sakte.");
+      setEditingPost(null);
+      return;
+    }
     setEditPostSaving(true);
-    await supabase.from("hook_page_posts").update({ content: editPostText.trim() }).eq("id", editingPost.id);
+    await supabase.from("hook_page_posts")
+      .update({ content: editPostText.trim() })
+      .eq("id", editingPost.id)
+      .eq("author_id", isOwner ? editingPost.author_id : userId); // server-side author lock for contributors
     setPosts(prev => prev.map(p => p.id === editingPost.id ? { ...p, content: editPostText.trim() } : p));
     setEditPostSaving(false);
     setEditingPost(null);
   };
 
   const deletePost = async (postId: string) => {
-    await supabase.from("hook_page_posts").delete().eq("id", postId);
+    // Permission guard: only owner or the post's own author may delete
+    const target = posts.find(p => p.id === postId);
+    if (!isOwner && target?.author_id !== userId) {
+      toast.error("Sirf apni post delete kar sakte ho.");
+      setConfirmDeletePost(null);
+      return;
+    }
+    // Server-side: owner deletes by id; contributor can only delete their own post
+    const query = supabase.from("hook_page_posts").delete().eq("id", postId);
+    if (!isOwner) query.eq("author_id", userId);
+    await query;
     setPosts(prev => prev.filter(p => p.id !== postId));
     setConfirmDeletePost(null);
     const { data: cur } = await supabase.from("hook_pages").select("hook_count").eq("id", page.id).single();
@@ -758,68 +904,248 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
     onBack();
   };
 
-  const isOwner = page.owner_id === userId;
+  // ── Fetch accepted partner expiry map (invitee_id → expires_at) ──────────
+  const fetchPartnerExpiryMap = async () => {
+    const { data } = await supabase
+      .from("hook_invites")
+      .select("invitee_id, expires_at")
+      .eq("page_id", page.id)
+      .eq("status", "accepted");
+    if (data) {
+      const map: Record<string, string | null> = {};
+      for (const row of data as any[]) map[row.invitee_id] = row.expires_at ?? null;
+      setPartnerExpiryMap(map);
+    }
+  };
 
-  // ── Fetch pending invites for owner ──────────────────────────────────────
+  // ── Broadcast an approved hook post to the main FameFeed ─────────────────
+  const broadcastToFameFeed = async (post: PagePost) => {
+    if (broadcastingPostId) return;
+    setBroadcastingPostId(post.id);
+    try {
+      const authorName = myProfile?.full_name || postAuthors[userId]?.full_name || "Page Owner";
+      // Content carries the source attribution so it shows correctly in FameFeed
+      // even if the posts table has no metadata column.
+      const shareContent = post.content
+        ? `📌 ${livePage.name}: ${post.content}`
+        : `📌 Shared from ${livePage.name}`;
+
+      const baseRow = {
+        author_id: userId,
+        author: authorName,
+        content: shareContent,
+        media_url: post.media_url || null,
+        type: "post",
+        visibility: "public",
+        likes_count: 0,
+        comments_count: 0,
+      };
+
+      // Try with metadata column first; fall back silently if column doesn't exist
+      let { error } = await supabase.from("posts").insert([{
+        ...baseRow,
+        metadata: JSON.stringify({
+          hook_page_id: page.id,
+          hook_page_name: livePage.name,
+          hook_post_id: post.id,
+          source: "hook_broadcast",
+        }),
+      }]);
+
+      // code 42703 = column does not exist; PGRST204 = no content (unexpected schema)
+      if (error && (error.code === "42703" || error.code === "PGRST204" || error.message?.includes("column"))) {
+        const fallback = await supabase.from("posts").insert([baseRow]);
+        error = fallback.error;
+      }
+
+      if (error) throw error;
+      toast.success("📢 FameFeed par broadcast ho gaya!");
+    } catch (err: any) {
+      toast.error(`Broadcast failed: ${err.message || "Unknown error"}`);
+    } finally {
+      setBroadcastingPostId(null);
+    }
+  };
+
+  // ── Fetch pending invites for owner (includes join requests) ─────────────
   const fetchPendingInvites = async () => {
     if (page.owner_id !== userId) return;
     setInvitesLoading(true);
     const { data } = await supabase
       .from("hook_invites")
-      .select("id, page_id, inviter_id, invitee_id, status, created_at")
+      .select("id, page_id, inviter_id, invitee_id, status, expires_at, created_at")
       .eq("page_id", page.id)
       .eq("status", "pending")
       .order("created_at", { ascending: false });
     if (data && data.length > 0) {
+      // Collect all unique user ids (invitees + join-requesters who are their own invitee)
       const ids = [...new Set(data.map((r: any) => r.invitee_id))];
       const { data: profiles } = await supabase
         .from("profiles")
         .select("id, full_name, avatar_url")
         .in("id", ids);
       const pm = Object.fromEntries((profiles || []).map((p: any) => [p.id, p]));
-      setPendingInvites(data.map((r: any) => ({ ...r, invitee: pm[r.invitee_id] || null })));
+      setPendingInvites(data.map((r: any) => ({
+        ...r,
+        invitee: pm[r.invitee_id] || null,
+        // isJoinRequest is true when the requesting user sent the row themselves
+        isJoinRequest: r.inviter_id === r.invitee_id,
+      })));
     } else {
       setPendingInvites([]);
     }
     setInvitesLoading(false);
   };
 
-  // ── Check if current user is an accepted (non-expired) contributor ────────
+  // ── Check contributor status + pending invite/join-request for this user ─
   const checkContributorStatus = async () => {
     if (page.owner_id === userId) return;
-    const { data } = await supabase
+
+    // Fetch all hook_invite rows for this page where invitee = current user
+    const { data: rows } = await supabase
       .from("hook_invites")
-      .select("status, expires_at")
+      .select("id, status, expires_at, inviter_id, invitee_id")
       .eq("page_id", page.id)
-      .eq("invitee_id", userId)
-      .eq("status", "accepted")
-      .maybeSingle();
-    if (data) {
+      .eq("invitee_id", userId);
+
+    const allRows = rows as any[] || [];
+
+    const accepted = allRows.find((r: any) => r.status === "accepted");
+    if (accepted) {
       setIsContributor(true);
-      const exp = (data as any).expires_at;
+      const exp = accepted.expires_at;
+      setContributorExpiresAt(exp || null);
       setContributorExpired(exp ? new Date(exp) < new Date() : false);
-    } else {
-      setIsContributor(false);
-      setContributorExpired(false);
+      setHasPendingInvite(false);
+      setHasPendingJoinReq(false);
+      return;
     }
+
+    setIsContributor(false);
+    setContributorExpired(false);
+
+    // Pending invite sent by the page owner to this user
+    const ownerInvite = allRows.find(
+      (r: any) => r.status === "pending" && r.inviter_id === page.owner_id && r.invitee_id === userId
+    );
+    setHasPendingInvite(!!ownerInvite);
+
+    // Pending join request submitted by this user themselves
+    const joinReq = allRows.find(
+      (r: any) => r.status === "pending" && r.inviter_id === userId && r.invitee_id === userId
+    );
+    setHasPendingJoinReq(!!joinReq);
   };
 
-  // ── Accept a pending invite ───────────────────────────────────────────────
+  // ── Invitee accepts an owner-sent invite on the page ─────────────────────
+  const acceptMyInvite = async () => {
+    setAcceptingInvite(true);
+    const { data: row } = await supabase
+      .from("hook_invites")
+      .select("id")
+      .eq("page_id", page.id)
+      .eq("invitee_id", userId)
+      .eq("inviter_id", page.owner_id)
+      .eq("status", "pending")
+      .maybeSingle();
+    if (row) {
+      await supabase.from("hook_invites").update({ status: "accepted" }).eq("id", (row as any).id);
+      // Notify the owner that the invite was accepted
+      await supabase.from("notifications").insert({
+        notifier_id: page.owner_id,
+        actor_id: userId,
+        type: "hook_invite_accepted",
+        entity_id: page.id,
+        content: page.name,
+        is_read: false,
+      });
+      setHasPendingInvite(false);
+      setIsContributor(true);
+      setContributorExpired(false);
+      toast.success("Invite accept kar liya! Ab aap is page par post kar sakte ho.");
+    }
+    setAcceptingInvite(false);
+  };
+
+  // ── Non-invited user requests to join a hook page ─────────────────────────
+  const requestToJoin = async () => {
+    setRequestingJoin(true);
+    // Self-referential row: inviter_id = invitee_id = requesting user (owner identifies this as a join request)
+    const { error } = await supabase.from("hook_invites").upsert(
+      [{ page_id: page.id, inviter_id: userId, invitee_id: userId, status: "pending" }],
+      { onConflict: "page_id,invitee_id" }
+    );
+    if (!error) {
+      // Notify the page owner
+      if (page.owner_id !== userId) {
+        await supabase.from("notifications").insert({
+          notifier_id: page.owner_id,
+          actor_id: userId,
+          type: "hook_invite",
+          entity_id: page.id,
+          content: page.name,
+          is_read: false,
+        });
+      }
+      setHasPendingJoinReq(true);
+      toast.success("Join request bhej di! Owner ke accept karne ka wait karo.");
+    } else {
+      toast.error("Request bhejne mein dikkat aayi. Dobara try karo.");
+    }
+    setRequestingJoin(false);
+  };
+
+  // ── Accept a pending invite (owner dashboard) ─────────────────────────────
   const acceptInvite = async (inviteId: string, inviteeId: string, inviteeName: string) => {
     setAcceptingId(inviteId);
-    await supabase.from("hook_invites").update({ status: "accepted" }).eq("id", inviteId);
-    // Notify invitee
+    // Apply the duration the owner selected for this invite
+    const durValue = acceptDurationMap[inviteId] || "7d";
+    const expires_at = calcExpiresAt(durValue);
+    const durLabel = DURATION_OPTIONS.find(d => d.value === durValue)?.label || "7 Days";
+    await supabase.from("hook_invites")
+      .update({ status: "accepted", ...(expires_at ? { expires_at } : {}) })
+      .eq("id", inviteId);
+    // Notify invitee with duration info
     await supabase.from("notifications").insert({
       notifier_id: inviteeId,
       actor_id: userId,
       type: "hook_invite_accepted",
       entity_id: page.id,
-      content: page.name,
+      content: `${page.name}||${durLabel}`,
       is_read: false,
     });
     setPendingInvites(prev => prev.filter(i => i.id !== inviteId));
     setAcceptingId(null);
-    toast.success(`${inviteeName || "User"} ab is page par post kar sakta/sakti hai!`);
+    toast.success(`${inviteeName || "User"} ko ${durLabel} ke liye posting access de diya!`);
+  };
+
+  // ── Approve / Reject a pending-approval contributor post ──────────────────
+  const approvePost = async (postId: string) => {
+    setApprovingPostId(postId);
+    await supabase.from("hook_page_posts").update({ status: "approved" }).eq("id", postId);
+    // Increment hook_count
+    const { data: cur } = await supabase.from("hook_pages").select("hook_count").eq("id", page.id).single();
+    await supabase.from("hook_pages").update({ hook_count: (cur?.hook_count || 0) + 1 }).eq("id", page.id);
+    // Notify the contributor
+    const post = posts.find(p => p.id === postId);
+    if (post && post.author_id !== userId) {
+      await supabase.from("notifications").insert({
+        notifier_id: post.author_id, actor_id: userId,
+        type: "hook_invite_accepted", entity_id: page.id,
+        content: `${page.name}||post_approved`, is_read: false,
+      });
+    }
+    setPosts(prev => prev.map(p => p.id === postId ? { ...p, status: "approved" } : p));
+    setApprovingPostId(null);
+    toast.success("Post approve kar diya! Ab public feed par dikhai dega.");
+  };
+
+  const rejectPost = async (postId: string) => {
+    setRejectingPostId(postId);
+    await supabase.from("hook_page_posts").update({ status: "rejected" }).eq("id", postId);
+    setPosts(prev => prev.map(p => p.id === postId ? { ...p, status: "rejected" } : p));
+    setRejectingPostId(null);
+    toast("Post reject kar diya.");
   };
 
   // ── Reject a pending invite ───────────────────────────────────────────────
@@ -835,293 +1161,568 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
   const canPost = isOwner || (isContributor && !contributorExpired);
 
   return (
-    <div className="flex flex-col min-h-screen bg-gray-50">
-      {/* ── Facebook-style Banner ──────────────────────────────────────────── */}
-      <div className="relative bg-white border-b border-gray-100 shadow-sm">
-        {/* Banner */}
-        <div
-          className="relative w-full"
-          style={{
-            height: 160,
-            backgroundImage: livePage.cover_url ? `url('${livePage.cover_url}')` : "none",
-            backgroundColor: livePage.cover_url ? "transparent" : "#f3f4f6",
-            backgroundSize: "cover",
-            backgroundPosition: "center",
-          }}
-        >
-          <div className="absolute inset-0 bg-black/15" />
-          <button onClick={onBack}
-            className="absolute top-3 left-3 w-9 h-9 bg-black/40 backdrop-blur-sm rounded-full flex items-center justify-center text-white z-10">
-            <ArrowLeft size={18} />
-          </button>
+    <div className="flex flex-col min-h-screen relative" style={{ background: "#090b14" }}>
+
+      {/* ── Ambient BG: cover art faintly bleeds through entire page ── */}
+      {livePage.cover_url && (
+        <div className="fixed inset-0 -z-10 pointer-events-none" style={{
+          backgroundImage: `url('${livePage.cover_url}')`,
+          backgroundSize: "cover", backgroundPosition: "center",
+          filter: "blur(48px) brightness(0.16) saturate(1.5)",
+          transform: "scale(1.1)",
+        }} />
+      )}
+
+      {/* ── CINEMATIC BANNER ──────────────────────────────────────── */}
+      <div className="relative overflow-hidden shrink-0" style={{ height: 252 }}>
+        {/* Banner image */}
+        <div className="absolute inset-0" style={{
+          backgroundImage: livePage.cover_url ? `url('${livePage.cover_url}')` : "none",
+          backgroundColor: livePage.cover_url ? "transparent" : "#1a1f3a",
+          backgroundSize: "cover", backgroundPosition: "center",
+        }} />
+        {/* Cinematic gradient — clear top, heavy dark fade at bottom */}
+        <div className="absolute inset-0" style={{
+          background: "linear-gradient(to bottom, rgba(0,0,0,0.08) 0%, rgba(0,0,0,0.35) 45%, rgba(9,11,20,0.93) 100%)"
+        }} />
+
+        {/* Back button */}
+        <button onClick={onBack}
+          className="absolute top-3 left-3 z-20 w-9 h-9 rounded-full flex items-center justify-center text-white"
+          style={{ background: "rgba(0,0,0,0.45)", backdropFilter: "blur(10px)", border: "1px solid rgba(255,255,255,0.18)" }}>
+          <ArrowLeft size={18} />
+        </button>
+
+        {/* Top-right quick actions */}
+        <div className="absolute top-3 right-3 z-20 flex items-center gap-2">
+          {isOwner && (
+            <>
+              <motion.button whileTap={{ scale: 0.93 }} onClick={() => setShowEditPage(true)}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-[11px] font-black text-white"
+                style={{ background: "rgba(255,255,255,0.13)", backdropFilter: "blur(10px)", border: "1px solid rgba(255,255,255,0.18)" }}>
+                <Pencil size={12} /> Edit
+              </motion.button>
+              <motion.button whileTap={{ scale: 0.93 }} onClick={() => setShowDeletePageConfirm(true)}
+                className="w-8 h-8 flex items-center justify-center rounded-xl text-red-400"
+                style={{ background: "rgba(239,68,68,0.16)", backdropFilter: "blur(10px)", border: "1px solid rgba(239,68,68,0.3)" }}>
+                <Trash2 size={14} />
+              </motion.button>
+            </>
+          )}
+          <motion.button whileTap={{ scale: 0.93 }} onClick={() => shareHookPage(livePage)}
+            className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-[11px] font-black text-white"
+            style={{ background: "rgba(255,255,255,0.13)", backdropFilter: "blur(10px)", border: "1px solid rgba(255,255,255,0.18)" }}>
+            <Share2 size={13} /> Share
+          </motion.button>
         </div>
 
-        {/* Round profile pic — overlapping banner */}
-        <div className="px-4">
-          <div className="flex items-end justify-between -mt-10 mb-3 relative z-10">
-            <div className="w-20 h-20 rounded-full border-4 border-white shadow-xl overflow-hidden bg-gray-200 flex items-center justify-center shrink-0">
+        {/* ── Page identity block — bottom of banner ── */}
+        <div className="absolute bottom-0 left-0 right-0 px-4 pb-4 z-10">
+          <div className="flex items-end gap-3">
+            {/* Owner / page avatar */}
+            <div className="shrink-0 w-[72px] h-[72px] rounded-2xl overflow-hidden flex items-center justify-center"
+              style={{ border: "2px solid rgba(255,255,255,0.25)", background: "#1e2235", boxShadow: "0 8px 32px rgba(0,0,0,0.5)" }}>
               {(livePage.profiles?.avatar_url || livePage.avatar_url)
-                ? <img src={livePage.profiles?.avatar_url || livePage.avatar_url} className="w-full h-full object-cover" alt="" loading="lazy"  decoding="async"/>
-                : <span className="text-gray-500 font-black text-2xl">{(livePage.name || "H")[0].toUpperCase()}</span>
+                ? <img src={livePage.profiles?.avatar_url || livePage.avatar_url} className="w-full h-full object-cover" alt="" loading="lazy" decoding="async"/>
+                : <span className="text-white font-black text-2xl">{(livePage.name || "H")[0].toUpperCase()}</span>
               }
             </div>
-            {/* Action buttons */}
-            <div className="flex items-center gap-2 pb-1">
-              {!isOwner && (
-                <motion.button
-                  whileTap={{ scale: followLoading ? 1 : 0.93 }}
-                  onClick={toggleFollow}
-                  disabled={followLoading}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-[12px] font-black border-2 transition-all disabled:opacity-60"
-                  style={{
-                    background: isFollowing ? "white" : "linear-gradient(135deg,#2563eb,#7c3aed)",
-                    borderColor: isFollowing ? "#d1d5db" : "transparent",
-                    color: isFollowing ? "#374151" : "white",
-                  }}>
-                  {followLoading
-                    ? <><Loader2 size={12} className="animate-spin" /> Saving…</>
-                    : isFollowing ? "✓ Following" : "+ Follow"}
-                </motion.button>
+            <div className="flex-1 min-w-0 pb-0.5">
+              <h1 className="font-black text-white text-[21px] leading-tight truncate" style={{ textShadow: "0 2px 12px rgba(0,0,0,0.6)" }}>
+                {livePage.name}
+              </h1>
+              {/* Prominent follower count */}
+              <div className="flex items-center gap-1.5 mt-1 mb-1">
+                <span className="font-black text-white text-[28px] leading-none" style={{ textShadow: "0 2px 16px rgba(37,99,235,0.5)" }}>
+                  {memberCount.toLocaleString()}
+                </span>
+                <span className="font-black text-blue-300 text-[11px] uppercase tracking-widest leading-none mt-1">Followers</span>
+              </div>
+              {/* Owner identity chip */}
+              <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-black text-amber-300"
+                  style={{ background: "rgba(251,191,36,0.18)", border: "1px solid rgba(251,191,36,0.35)", backdropFilter: "blur(4px)" }}>
+                  {isOwner
+                    ? "👑 Your Page"
+                    : `👑 ${livePage.profiles?.full_name || "Creator"}`}
+                </span>
+                <span className="inline-flex items-center px-2 py-0.5 rounded-lg text-[10px] font-bold text-white/60"
+                  style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)" }}>
+                  {livePage.category}
+                </span>
+              </div>
+              {livePage.description && (
+                <p className="text-[11px] text-white/55 font-medium mt-1 line-clamp-1">{livePage.description}</p>
               )}
-              {isOwner && (
-                <>
-                  <motion.button whileTap={{ scale: 0.93 }} onClick={() => setShowEditPage(true)}
-                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-black border-2 border-blue-200 bg-blue-50 text-blue-600 transition-all">
-                    <Pencil size={13} /> Edit
-                  </motion.button>
-                  <motion.button whileTap={{ scale: 0.93 }} onClick={() => setShowDeletePageConfirm(true)}
-                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-black border-2 border-red-200 bg-red-50 text-red-500 transition-all">
-                    <Trash2 size={13} />
-                  </motion.button>
-                </>
-              )}
-              <motion.button whileTap={{ scale: 0.93 }} onClick={() => shareHookPage(livePage)}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[12px] font-black bg-gray-100 text-gray-700 border border-gray-200">
-                <Share2 size={14} /> Share
-              </motion.button>
             </div>
-          </div>
-
-          {/* Name + description */}
-          <h1 className="font-black text-gray-800 text-[18px] leading-tight">{livePage.name}</h1>
-          <p className="text-[11px] text-blue-600 font-bold mt-0.5">{livePage.category}</p>
-          {livePage.description && <p className="text-[13px] text-gray-500 font-medium leading-snug mt-1 mb-2">{livePage.description}</p>}
-
-          {/* DB Error Banner */}
-          {followError && (
-            <div className="flex items-start gap-2 mt-2 mb-2 px-3 py-2.5 rounded-xl bg-red-50 border border-red-200">
-              <AlertTriangle size={14} className="text-red-500 mt-0.5 shrink-0" />
-              <p className="text-[11px] text-red-700 font-semibold leading-snug">{followError}</p>
-            </div>
-          )}
-
-          {/* Stats Row — Followers from hook_pages.followers_count */}
-          <div className="flex gap-2 mt-3 mb-4">
-            <StatCard icon={<Users size={18} className="text-blue-600" />}    label="Followers" value={memberCount}              color="bg-blue-50" />
-            <StatCard icon={<Anchor size={18} className="text-purple-600" />} label="Hooks"     value={livePage.hook_count || 0} color="bg-purple-50" />
-            <StatCard icon={<Heart size={18} className="text-red-500" />}     label="Likes"     value={livePage.like_count || 0} color="bg-red-50" />
           </div>
         </div>
       </div>
 
-      {/* ── Tab bar (owner only) ──────────────────────────────────────────── */}
-      {isOwner && (
-        <div className="flex bg-white border-b border-gray-100">
-          {(["posts", "requests"] as const).map(tab => (
-            <button key={tab} onClick={() => setActiveTab(tab)}
-              className={`flex-1 py-3 text-[12px] font-black uppercase tracking-widest transition-all border-b-2 ${activeTab === tab ? "text-blue-600 border-blue-500" : "text-gray-400 border-transparent"}`}>
-              {tab === "requests"
-                ? `Requests${pendingInvites.length > 0 ? ` (${pendingInvites.length})` : ""}`
-                : "Posts"}
-            </button>
-          ))}
-        </div>
-      )}
+      {/* ── Visitor action bar (follow / contributor / join buttons) ── */}
+      {!isOwner && (
+        <div className="px-4 py-3 flex flex-wrap items-center gap-2 border-b border-white/10"
+          style={{ background: "rgba(255,255,255,0.04)", backdropFilter: "blur(12px)" }}>
+          <motion.button whileTap={{ scale: followLoading ? 1 : 0.93 }} onClick={toggleFollow} disabled={followLoading}
+            className="flex items-center gap-1.5 px-5 py-2 rounded-xl text-[12px] font-black text-white transition-all disabled:opacity-60"
+            style={{
+              background: isFollowing ? "rgba(255,255,255,0.12)" : "linear-gradient(135deg,#2563eb,#7c3aed)",
+              border: isFollowing ? "1.5px solid rgba(255,255,255,0.2)" : "1.5px solid transparent",
+            }}>
+            {followLoading
+              ? <><Loader2 size={12} className="animate-spin" /> Saving…</>
+              : isFollowing ? "✓ Following" : "+ Follow"}
+          </motion.button>
 
-      {/* ── Post bar (owner or accepted contributor) ───────────────────────── */}
-      {canPost && activeTab === "posts" && (
-        <div className="px-4 py-3 bg-white border-b border-gray-100">
-          {isContributor && !isOwner && (
-            <p className="text-[10px] font-black text-purple-500 uppercase tracking-widest mb-2 flex items-center gap-1">
-              <Anchor size={10} /> Contributor Access
-            </p>
-          )}
-          {contributorExpired && !isOwner && (
-            <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-orange-50 border border-orange-200 mb-2">
-              <AlertTriangle size={13} className="text-orange-500 shrink-0" />
-              <p className="text-[11px] text-orange-700 font-semibold">Contributor access expired. Owner se request karo.</p>
+          {/* Contributor access chips */}
+          {isContributor && !contributorExpired && (
+            <div className="flex flex-col gap-0.5">
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-black text-purple-300"
+                style={{ background: "rgba(147,51,234,0.22)", border: "1.5px solid rgba(147,51,234,0.35)" }}>
+                🤝 Page Partner
+              </div>
+              <span className="text-[9px] text-purple-400 font-bold px-1">{timeRemaining(contributorExpiresAt)}</span>
             </div>
           )}
-          {!contributorExpired && (
-            <motion.button whileTap={{ scale: 0.97 }} onClick={() => setAddPost(true)}
-              className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl border border-gray-200 bg-gray-50 text-left">
-              <div className="flex gap-2">
-                <ImgIcon size={16} className="text-blue-400" />
-                <VideoIcon size={16} className="text-purple-400" />
-              </div>
-              <span className="text-gray-400 text-[13px] font-semibold">Photo, Video ya Text post karo...</span>
+          {isContributor && contributorExpired && (
+            <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-black text-orange-400"
+              style={{ background: "rgba(251,146,60,0.15)", border: "1.5px solid rgba(251,146,60,0.3)" }}>
+              <AlertTriangle size={12} /> Access Expired
+            </div>
+          )}
+          {!isContributor && hasPendingInvite && (
+            <motion.button whileTap={{ scale: acceptingInvite ? 1 : 0.93 }} onClick={acceptMyInvite} disabled={acceptingInvite}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-black text-white disabled:opacity-60"
+              style={{ background: "linear-gradient(135deg,#16a34a,#15803d)" }}>
+              {acceptingInvite
+                ? <><Loader2 size={12} className="animate-spin" /> Accepting…</>
+                : <><Check size={12} /> Accept Invite</>}
+            </motion.button>
+          )}
+          {!isContributor && !hasPendingInvite && hasPendingJoinReq && (
+            <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-black text-white/50"
+              style={{ background: "rgba(255,255,255,0.08)", border: "1.5px solid rgba(255,255,255,0.15)" }}>
+              <Loader2 size={12} className="animate-spin" /> Request Pending…
+            </div>
+          )}
+          {!isContributor && !hasPendingInvite && !hasPendingJoinReq && (
+            <motion.button whileTap={{ scale: requestingJoin ? 1 : 0.93 }} onClick={requestToJoin} disabled={requestingJoin}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-black text-blue-300 disabled:opacity-60"
+              style={{ background: "rgba(37,99,235,0.2)", border: "1.5px solid rgba(37,99,235,0.35)" }}>
+              {requestingJoin
+                ? <><Loader2 size={12} className="animate-spin" /> Sending…</>
+                : <><Plus size={12} /> Request to Post</>}
             </motion.button>
           )}
         </div>
       )}
 
-      {/* ── Requests Panel (owner only) ───────────────────────────────────── */}
-      {isOwner && activeTab === "requests" && (
-        <div className="flex-1 p-4 space-y-3">
-          {invitesLoading && <div className="flex justify-center py-8"><Loader2 size={24} className="animate-spin text-blue-500" /></div>}
-          {!invitesLoading && pendingInvites.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-16 gap-3 text-gray-300">
-              <Anchor size={40} strokeWidth={1.2} />
-              <p className="text-[12px] font-black uppercase tracking-widest">Koi pending request nahi</p>
-              <p className="text-[11px] text-gray-400 text-center px-6">Jab koi user hook invite accept karne wala ho, yahan dikhai dega</p>
-            </div>
-          )}
-          {pendingInvites.map(invite => (
-            <motion.div key={invite.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-              className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex items-center gap-3">
-              <div className="w-12 h-12 rounded-full overflow-hidden bg-gray-200 shrink-0 flex items-center justify-center">
-                {invite.invitee?.avatar_url
-                  ? <img src={invite.invitee.avatar_url} className="w-full h-full object-cover" alt="" loading="lazy" decoding="async" />
-                  : <span className="text-gray-500 font-black text-lg">{(invite.invitee?.full_name || "?")[0].toUpperCase()}</span>}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-black text-gray-800 text-[14px] truncate">{invite.invitee?.full_name || "Unknown User"}</p>
-                <p className="text-[11px] text-gray-400 font-medium">{smartTime(invite.created_at)} · Hook join karna chahta/chahti hai</p>
-              </div>
-              <div className="flex gap-2 shrink-0">
-                <motion.button whileTap={{ scale: 0.93 }}
-                  onClick={() => acceptInvite(invite.id, invite.invitee_id, invite.invitee?.full_name)}
-                  disabled={acceptingId === invite.id || rejectingId === invite.id}
-                  className="flex items-center gap-1 px-3 py-2 rounded-xl bg-green-500 text-white text-[11px] font-black disabled:opacity-60">
-                  {acceptingId === invite.id ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
-                  Accept
-                </motion.button>
-                <motion.button whileTap={{ scale: 0.93 }}
-                  onClick={() => rejectInvite(invite.id, invite.invitee_id, invite.invitee?.full_name)}
-                  disabled={acceptingId === invite.id || rejectingId === invite.id}
-                  className="flex items-center gap-1 px-3 py-2 rounded-xl bg-red-100 text-red-500 text-[11px] font-black disabled:opacity-60">
-                  {rejectingId === invite.id ? <Loader2 size={12} className="animate-spin" /> : <X size={12} />}
-                  Reject
-                </motion.button>
-              </div>
-            </motion.div>
-          ))}
+      {/* ── DB Error Banner ── */}
+      {followError && (
+        <div className="mx-4 mt-3 flex items-start gap-2 px-3 py-2.5 rounded-xl"
+          style={{ background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.3)", backdropFilter: "blur(8px)" }}>
+          <AlertTriangle size={14} className="text-red-400 mt-0.5 shrink-0" />
+          <p className="text-[11px] text-red-300 font-semibold leading-snug">{followError}</p>
         </div>
       )}
 
-      {/* ── Posts Feed ────────────────────────────────────────────────────── */}
-      {activeTab === "posts" && (
-      <div className="flex-1 p-4 space-y-3">
-        {loading && <div className="flex justify-center py-8"><Loader2 size={24} className="animate-spin text-blue-500" /></div>}
-        {!loading && posts.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-16 gap-3 text-gray-300">
-            <FileText size={40} strokeWidth={1.2} />
-            <p className="text-[12px] font-black uppercase tracking-widest">Abhi koi post nahi</p>
-          </div>
-        )}
-        {posts.map(post => {
-          // Owner can edit/delete any post; contributors & others can only manage their own
-          const canEditPost = isOwner || post.author_id === userId;
-          return (
-            <motion.div key={post.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-              className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-              <div className="p-4">
-                {/* Post header with three-dots */}
-                {canEditPost && (
-                  <div className="flex justify-end mb-2 relative">
-                    <button onClick={() => setPostMenuId(postMenuId === post.id ? null : post.id)}
-                      className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400">
-                      <MoreVertical size={16} />
-                    </button>
-                    <AnimatePresence>
-                      {postMenuId === post.id && (
-                        <motion.div initial={{ opacity: 0, scale: 0.9, y: -4 }} animate={{ opacity: 1, scale: 1, y: 0 }}
-                          exit={{ opacity: 0, scale: 0.9, y: -4 }} transition={{ duration: 0.12 }}
-                          className="absolute right-0 top-8 z-50 w-36 bg-white border border-gray-100 rounded-2xl shadow-xl overflow-hidden"
-                          onClick={e => e.stopPropagation()}>
-                          <button onClick={() => { setEditingPost({ id: post.id, content: post.content }); setEditPostText(post.content); setPostMenuId(null); }}
-                            className="w-full flex items-center gap-2.5 px-4 py-3 text-blue-600 hover:bg-blue-50 text-[13px] font-semibold border-b border-gray-50">
-                            <Pencil size={14} /> Edit
-                          </button>
-                          <button onClick={() => { setConfirmDeletePost(post.id); setPostMenuId(null); }}
-                            className="w-full flex items-center gap-2.5 px-4 py-3 text-red-500 hover:bg-red-50 text-[13px] font-semibold">
-                            <Trash2 size={14} /> Delete
-                          </button>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </div>
-                )}
-                {post.content && <p className="text-[14px] text-gray-700 font-medium leading-relaxed mb-3">{post.content}</p>}
-                {post.created_at && (
-                  <p className="text-[10px] text-gray-400 mb-2 -mt-1">{smartTime(post.created_at)}</p>
-                )}
-                {post.media_url && (() => {
-                  const mt = post.media_type || post.type || "";
-                  const url = post.media_url.toLowerCase();
-                  const isVideo = mt === "video" || url.includes(".mp4") || url.includes(".mov") || url.includes(".webm");
-                  const isImage = mt === "image" || (!isVideo && (url.includes(".jpg") || url.includes(".jpeg") || url.includes(".png") || url.includes(".gif") || url.includes(".webp")));
-                  const showMedia = isVideo || isImage || (!mt && post.media_url);
-                  if (!showMedia) return null;
-                  return isVideo
-                    ? <video src={post.media_url} className="w-full rounded-xl mt-2 max-h-80" controls preload="metadata" style={{ display: "block" }} />
-                    : <img src={post.media_url} alt="Post media" className="w-full rounded-xl object-cover mt-2 max-h-80" loading="lazy" decoding="async" style={{ display: "block" }} />;
-                })()}
-              </div>
-              <div className="flex items-center gap-2 px-4 pb-3 pt-2 border-t border-gray-50">
-                <motion.button whileTap={{ scale: 0.88 }} onClick={() => likePost(post.id, post.likes_count)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-50 text-red-500 text-[12px] font-black">
-                  <Heart size={14} fill="currentColor" /> {post.likes_count}
-                </motion.button>
-                <MagnetButton
-                  postId={post.id}
-                  postType="hook"
-                  postOwnerId={page.owner_id}
-                  currentUserId={userId}
-                  dark={false}
-                />
-                <motion.button whileTap={{ scale: 0.88 }} onClick={() => shareHookPost(livePage, post)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 text-blue-600 text-[12px] font-black">
-                  <Share2 size={13} /> Share
-                </motion.button>
-                <div className="flex-1" />
-                <motion.button whileTap={{ scale: 0.92 }} onClick={() => setHookModal(true)}
-                  className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-white text-[12px] font-black"
-                  style={{ background: "linear-gradient(135deg,#2563eb,#7c3aed)" }}>
-                  <Anchor size={13} /> Hook
-                </motion.button>
-              </div>
-            </motion.div>
-          );
-        })}
+      {/* ── Stats row ── */}
+      <div className="flex gap-2 px-4 py-3">
+        <StatCard icon={<Users size={16} className="text-blue-400" />}    label="Followers" value={memberCount}              color="bg-blue-500/20" />
+        <StatCard icon={<Anchor size={16} className="text-purple-400" />} label="Hooks"     value={livePage.hook_count || 0} color="bg-purple-500/20" />
+        <StatCard icon={<Heart size={16} className="text-red-400" />}     label="Likes"     value={livePage.like_count || 0} color="bg-red-500/20" />
       </div>
+
+      {/* ── Tab bar (owner only) ── */}
+      {isOwner && (
+        <div className="flex mx-4 mb-1 border-b border-white/12">
+          {(["posts", "approvals", "requests"] as const).map(tab => {
+            const pendingPostCount = posts.filter(p => p.status === "pending_approval").length;
+            const label =
+              tab === "requests"    ? `Requests${pendingInvites.length > 0 ? ` (${pendingInvites.length})` : ""}`
+              : tab === "approvals" ? `Approvals${pendingPostCount > 0 ? ` (${pendingPostCount})` : ""}`
+              : "Posts";
+            return (
+              <button key={tab} onClick={() => setActiveTab(tab)}
+                className={`flex-1 py-2.5 text-[11px] font-black uppercase tracking-widest transition-all border-b-2 ${
+                  activeTab === tab
+                    ? "text-white border-blue-400"
+                    : "text-white/35 border-transparent hover:text-white/60"
+                }`}>
+                {label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ── Post compose bar (owner or active contributor) ── */}
+      {canPost && activeTab === "posts" && (
+        <div className="px-4 pb-3">
+          {isContributor && !isOwner && (
+            <p className="text-[10px] font-black text-purple-400 uppercase tracking-widest mb-2 flex items-center gap-1">
+              <Anchor size={9} /> 🤝 Page Partner Access
+            </p>
+          )}
+          {contributorExpired && !isOwner && (
+            <div className="flex items-center gap-2 px-3 py-2 rounded-xl mb-2"
+              style={{ background: "rgba(251,146,60,0.15)", border: "1px solid rgba(251,146,60,0.3)" }}>
+              <AlertTriangle size={13} className="text-orange-400 shrink-0" />
+              <p className="text-[11px] text-orange-300 font-semibold">Contributor access expired. Owner se request karo.</p>
+            </div>
+          )}
+          {!contributorExpired && (
+            <motion.button whileTap={{ scale: 0.97 }} onClick={() => setAddPost(true)}
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-left"
+              style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.14)", backdropFilter: "blur(12px)" }}>
+              <div className="flex gap-2">
+                <ImgIcon size={15} className="text-blue-400" />
+                <VideoIcon size={15} className="text-purple-400" />
+              </div>
+              <span className="text-white/35 text-[13px] font-semibold">Photo, Video ya Text post karo...</span>
+            </motion.button>
+          )}
+        </div>
+      )}
+
+      {/* ── Requests Panel (owner only) ── */}
+      {isOwner && activeTab === "requests" && (
+        <div className="flex-1 px-4 pb-6 space-y-3">
+          {invitesLoading && <div className="flex justify-center py-8"><Loader2 size={24} className="animate-spin text-blue-400" /></div>}
+          {!invitesLoading && pendingInvites.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-16 gap-3">
+              <Anchor size={40} className="text-white/18" strokeWidth={1.2} />
+              <p className="text-[12px] font-black uppercase tracking-widest text-white/28">Koi pending request nahi</p>
+              <p className="text-[11px] text-white/20 text-center px-6">Jab koi user hook invite accept karne wala ho, yahan dikhai dega</p>
+            </div>
+          )}
+          {pendingInvites.map(invite => {
+            const isJoinRequest = invite.inviter_id === invite.invitee_id;
+            const selDur = acceptDurationMap[invite.id] || "7d";
+            return (
+              <motion.div key={invite.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                className="rounded-2xl p-4 space-y-3"
+                style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.13)", backdropFilter: "blur(14px)" }}>
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-full overflow-hidden shrink-0 flex items-center justify-center"
+                    style={{ background: "#1e2235", border: "2px solid rgba(255,255,255,0.18)" }}>
+                    {invite.invitee?.avatar_url
+                      ? <img src={invite.invitee.avatar_url} className="w-full h-full object-cover" alt="" loading="lazy" decoding="async" />
+                      : <span className="text-white font-black text-lg">{(invite.invitee?.full_name || "?")[0].toUpperCase()}</span>}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-black text-white text-[14px] truncate">{invite.invitee?.full_name || "Unknown User"}</p>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      {isJoinRequest
+                        ? <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-blue-300 text-[9px] font-black"
+                            style={{ background: "rgba(37,99,235,0.2)", border: "1px solid rgba(37,99,235,0.35)" }}>
+                            <Plus size={8} /> Join Request
+                          </span>
+                        : <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-purple-300 text-[9px] font-black"
+                            style={{ background: "rgba(147,51,234,0.2)", border: "1px solid rgba(147,51,234,0.35)" }}>
+                            <Anchor size={8} /> Aapne Invite Kiya
+                          </span>
+                      }
+                      <span className="text-[10px] text-white/38 font-medium">{smartTime(invite.created_at)}</span>
+                    </div>
+                    <p className="text-[11px] text-white/45 font-medium mt-0.5">
+                      {isJoinRequest ? "Is page par post karna chahta/chahti hai" : "Invite accept karna chahta/chahti hai"}
+                    </p>
+                  </div>
+                </div>
+                {/* Duration selector */}
+                <div>
+                  <p className="text-[9px] font-black text-white/35 uppercase tracking-widest mb-1.5">Posting Access Duration</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {DURATION_OPTIONS.map(opt => (
+                      <button key={opt.value}
+                        onClick={() => setAcceptDurationMap(prev => ({ ...prev, [invite.id]: opt.value }))}
+                        className="px-2.5 py-1 rounded-lg text-[10px] font-black transition-all"
+                        style={selDur === opt.value
+                          ? { background: "#2563eb", color: "#fff", border: "1px solid #3b82f6" }
+                          : { background: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.5)", border: "1px solid rgba(255,255,255,0.14)" }}>
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <motion.button whileTap={{ scale: 0.93 }}
+                    onClick={() => acceptInvite(invite.id, invite.invitee_id, invite.invitee?.full_name)}
+                    disabled={acceptingId === invite.id || rejectingId === invite.id}
+                    className="flex-1 flex items-center justify-center gap-1 px-3 py-2.5 rounded-xl text-white text-[11px] font-black disabled:opacity-60"
+                    style={{ background: "linear-gradient(135deg,#16a34a,#15803d)" }}>
+                    {acceptingId === invite.id ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
+                    Accept · {DURATION_OPTIONS.find(d => d.value === selDur)?.label}
+                  </motion.button>
+                  <motion.button whileTap={{ scale: 0.93 }}
+                    onClick={() => rejectInvite(invite.id, invite.invitee_id, invite.invitee?.full_name)}
+                    disabled={acceptingId === invite.id || rejectingId === invite.id}
+                    className="flex items-center gap-1 px-3 py-2.5 rounded-xl text-red-400 text-[11px] font-black disabled:opacity-60"
+                    style={{ background: "rgba(239,68,68,0.13)", border: "1px solid rgba(239,68,68,0.3)" }}>
+                    {rejectingId === invite.id ? <Loader2 size={12} className="animate-spin" /> : <X size={12} />}
+                    Reject
+                  </motion.button>
+                </div>
+              </motion.div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ── Approvals Panel (owner only) ── */}
+      {isOwner && activeTab === "approvals" && (
+        <div className="flex-1 px-4 pb-6 space-y-3">
+          {loading && <div className="flex justify-center py-8"><Loader2 size={24} className="animate-spin text-blue-400" /></div>}
+          {!loading && posts.filter(p => p.status === "pending_approval").length === 0 && (
+            <div className="flex flex-col items-center justify-center py-16 gap-3">
+              <CheckSquare size={40} className="text-white/18" strokeWidth={1.2} />
+              <p className="text-[12px] font-black uppercase tracking-widest text-white/28">Koi pending approval nahi</p>
+              <p className="text-[11px] text-white/20 text-center px-6">Contributors ke posts yahan review ke liye aayenge</p>
+            </div>
+          )}
+          {posts.filter(p => p.status === "pending_approval").map(post => {
+            const author = postAuthors[post.author_id];
+            return (
+              <motion.div key={post.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                className="rounded-2xl overflow-hidden"
+                style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(251,191,36,0.28)", backdropFilter: "blur(14px)" }}>
+                <div className="px-4 pt-4 pb-2">
+                  <div className="flex items-center gap-2.5 mb-3">
+                    <div className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center shrink-0"
+                      style={{ background: "linear-gradient(135deg,#7c3aed,#2563eb)" }}>
+                      {author?.avatar_url
+                        ? <img src={author.avatar_url} className="w-full h-full object-cover" alt="" loading="lazy" decoding="async" />
+                        : <span className="text-white font-black text-[11px]">{(author?.full_name || "?")[0].toUpperCase()}</span>}
+                    </div>
+                    <div>
+                      <span className="font-black text-white text-[13px]">{author?.full_name || "Unknown"}</span>
+                      <span className="ml-1.5 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-purple-300 text-[9px] font-black"
+                        style={{ background: "rgba(147,51,234,0.2)", border: "1px solid rgba(147,51,234,0.35)" }}>
+                        🤝 Page Partner
+                      </span>
+                      <p className="text-[10px] text-white/38 mt-0.5">{smartTime(post.created_at)}</p>
+                    </div>
+                    <div className="ml-auto">
+                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-yellow-400 text-[9px] font-black"
+                        style={{ background: "rgba(251,191,36,0.14)", border: "1px solid rgba(251,191,36,0.32)" }}>
+                        ⏳ Awaiting Approval
+                      </span>
+                    </div>
+                  </div>
+                  {post.content && <p className="text-[14px] text-white/80 font-medium leading-relaxed mb-2">{post.content}</p>}
+                  {post.media_url && (() => {
+                    const mt = post.media_type || post.type || "";
+                    const url = post.media_url.toLowerCase();
+                    const isVideo = mt === "video" || url.includes(".mp4") || url.includes(".mov") || url.includes(".webm");
+                    return isVideo
+                      ? <video src={post.media_url} className="w-full rounded-xl mb-2 max-h-64" controls preload="metadata" />
+                      : <img src={post.media_url} alt="" className="w-full rounded-xl object-cover mb-2 max-h-64" loading="lazy" />;
+                  })()}
+                </div>
+                <div className="flex gap-2 px-4 pb-4">
+                  <motion.button whileTap={{ scale: 0.93 }}
+                    onClick={() => approvePost(post.id)}
+                    disabled={approvingPostId === post.id || rejectingPostId === post.id}
+                    className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-white text-[12px] font-black disabled:opacity-60"
+                    style={{ background: "linear-gradient(135deg,#16a34a,#15803d)" }}>
+                    {approvingPostId === post.id ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
+                    Approve & Publish
+                  </motion.button>
+                  <motion.button whileTap={{ scale: 0.93 }}
+                    onClick={() => rejectPost(post.id)}
+                    disabled={approvingPostId === post.id || rejectingPostId === post.id}
+                    className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-red-400 text-[12px] font-black disabled:opacity-60"
+                    style={{ background: "rgba(239,68,68,0.13)", border: "1px solid rgba(239,68,68,0.3)" }}>
+                    {rejectingPostId === post.id ? <Loader2 size={13} className="animate-spin" /> : <X size={13} />}
+                    Reject
+                  </motion.button>
+                </div>
+              </motion.div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ── Posts Feed ── */}
+      {activeTab === "posts" && (
+        <div className="flex-1 px-4 pb-6 space-y-3">
+          {loading && <div className="flex justify-center py-8"><Loader2 size={24} className="animate-spin text-blue-400" /></div>}
+          {!loading && posts.filter(p => p.status === "approved" || !p.status).length === 0 && (
+            <div className="flex flex-col items-center justify-center py-16 gap-3">
+              <FileText size={40} className="text-white/18" strokeWidth={1.2} />
+              <p className="text-[12px] font-black uppercase tracking-widest text-white/28">Abhi koi post nahi</p>
+            </div>
+          )}
+          {posts.filter(p => p.status === "approved" || !p.status).map(post => {
+            const canEditPost = isOwner || post.author_id === userId;
+            const author = postAuthors[post.author_id];
+            const isOwnerPost = post.author_id === page.owner_id;
+            return (
+              <motion.div key={post.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                className="rounded-2xl overflow-hidden"
+                style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.11)", backdropFilter: "blur(16px)" }}>
+                <div className="p-4">
+                  {/* Post author header */}
+                  <div className="flex items-center gap-2.5 mb-3">
+                    <div className="w-9 h-9 rounded-full overflow-hidden flex items-center justify-center shrink-0"
+                      style={{ background: "linear-gradient(135deg,#2563eb,#7c3aed)" }}>
+                      {author?.avatar_url
+                        ? <img src={author.avatar_url} className="w-full h-full object-cover" alt="" loading="lazy" decoding="async" />
+                        : <span className="text-white font-black text-[12px]">{(author?.full_name || "?")[0].toUpperCase()}</span>}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-black text-white text-[13px] truncate">{author?.full_name || "Unknown"}</span>
+                        {isOwnerPost
+                          ? <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-amber-300 text-[9px] font-black"
+                              style={{ background: "rgba(251,191,36,0.18)", border: "1px solid rgba(251,191,36,0.35)" }}>
+                              👑 Owner
+                            </span>
+                          : (() => {
+                              const partnerExpiry = partnerExpiryMap[post.author_id];
+                              const partnerExpired = partnerExpiry ? new Date(partnerExpiry) < new Date() : false;
+                              const timeLeft = partnerExpiry ? timeRemaining(partnerExpiry) : "No Limit";
+                              return (
+                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[9px] font-black"
+                                  style={partnerExpired
+                                    ? { background: "rgba(251,146,60,0.18)", border: "1px solid rgba(251,146,60,0.35)", color: "#fb923c" }
+                                    : { background: "rgba(147,51,234,0.2)", border: "1px solid rgba(147,51,234,0.35)", color: "#c4b5fd" }}>
+                                  🤝 Page Partner{timeLeft !== "No Limit" ? ` · ${timeLeft}` : ""}
+                                </span>
+                              );
+                            })()
+                        }
+                        {post.status === "pending_approval" && isOwner && (
+                          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-yellow-400 text-[9px] font-black"
+                            style={{ background: "rgba(251,191,36,0.14)", border: "1px solid rgba(251,191,36,0.3)" }}>
+                            ⏳ Pending
+                          </span>
+                        )}
+                      </div>
+                      {post.created_at && <p className="text-[10px] text-white/38 mt-0.5">{smartTime(post.created_at)}</p>}
+                    </div>
+                    {/* Three-dot menu */}
+                    {canEditPost && (
+                      <div className="relative shrink-0">
+                        <button onClick={() => setPostMenuId(postMenuId === post.id ? null : post.id)}
+                          className="p-1.5 rounded-full text-white/38 hover:text-white/70 hover:bg-white/10 transition-colors">
+                          <MoreVertical size={16} />
+                        </button>
+                        <AnimatePresence>
+                          {postMenuId === post.id && (
+                            <motion.div initial={{ opacity: 0, scale: 0.9, y: -4 }} animate={{ opacity: 1, scale: 1, y: 0 }}
+                              exit={{ opacity: 0, scale: 0.9, y: -4 }} transition={{ duration: 0.12 }}
+                              className="absolute right-0 top-8 z-50 w-36 rounded-2xl shadow-2xl overflow-hidden"
+                              style={{ background: "rgba(14,16,28,0.97)", border: "1px solid rgba(255,255,255,0.14)", backdropFilter: "blur(20px)" }}
+                              onClick={e => e.stopPropagation()}>
+                              {(isOwner || post.author_id === userId) && (
+                                <button onClick={() => { setEditingPost({ id: post.id, content: post.content, author_id: post.author_id }); setEditPostText(post.content); setPostMenuId(null); }}
+                                  className="w-full flex items-center gap-2.5 px-4 py-3 text-blue-400 hover:bg-white/8 text-[13px] font-semibold border-b border-white/10">
+                                  <Pencil size={14} /> Edit
+                                </button>
+                              )}
+                              <button onClick={() => { setConfirmDeletePost(post.id); setPostMenuId(null); }}
+                                className="w-full flex items-center gap-2.5 px-4 py-3 text-red-400 hover:bg-white/8 text-[13px] font-semibold">
+                                <Trash2 size={14} /> Delete
+                              </button>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </div>
+                    )}
+                  </div>
+                  {post.content && <p className="text-[14px] text-white/82 font-medium leading-relaxed mb-3">{post.content}</p>}
+                  {post.media_url && (() => {
+                    const mt = post.media_type || post.type || "";
+                    const url = post.media_url.toLowerCase();
+                    const isVideo = mt === "video" || url.includes(".mp4") || url.includes(".mov") || url.includes(".webm");
+                    const isImage = mt === "image" || (!isVideo && (url.includes(".jpg") || url.includes(".jpeg") || url.includes(".png") || url.includes(".gif") || url.includes(".webp")));
+                    const showMedia = isVideo || isImage || (!mt && post.media_url);
+                    if (!showMedia) return null;
+                    return isVideo
+                      ? <video src={post.media_url} className="w-full rounded-xl mt-2 max-h-80" controls preload="metadata" style={{ display: "block" }} />
+                      : <img src={post.media_url} alt="Post media" className="w-full rounded-xl object-cover mt-2 max-h-80" loading="lazy" decoding="async" style={{ display: "block" }} />;
+                  })()}
+                </div>
+                {/* Action bar */}
+                <div className="flex items-center gap-2 px-4 pb-3 pt-2 border-t border-white/8">
+                  <motion.button whileTap={{ scale: 0.88 }} onClick={() => likePost(post.id, post.likes_count)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[12px] font-black text-red-400"
+                    style={{ background: "rgba(239,68,68,0.13)", border: "1px solid rgba(239,68,68,0.25)" }}>
+                    <Heart size={13} fill="currentColor" /> {post.likes_count}
+                  </motion.button>
+                  <MagnetButton
+                    postId={post.id}
+                    postType="hook"
+                    postOwnerId={page.owner_id}
+                    currentUserId={userId}
+                    dark={false}
+                  />
+                  <motion.button whileTap={{ scale: 0.88 }} onClick={() => shareHookPost(livePage, post)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[12px] font-black text-blue-400"
+                    style={{ background: "rgba(37,99,235,0.13)", border: "1px solid rgba(37,99,235,0.25)" }}>
+                    <Share2 size={13} /> Share
+                  </motion.button>
+                  {(isOwner || (isContributor && !contributorExpired)) && (
+                    <motion.button whileTap={{ scale: 0.88 }}
+                      onClick={() => broadcastToFameFeed(post)}
+                      disabled={broadcastingPostId === post.id}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[12px] font-black text-green-400 disabled:opacity-50"
+                      style={{ background: "rgba(22,163,74,0.13)", border: "1px solid rgba(22,163,74,0.28)" }}>
+                      {broadcastingPostId === post.id
+                        ? <Loader2 size={13} className="animate-spin" />
+                        : <Zap size={13} />}
+                      FameFeed
+                    </motion.button>
+                  )}
+                  <div className="flex-1" />
+                  <motion.button whileTap={{ scale: 0.92 }} onClick={() => setHookModal(true)}
+                    className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-white text-[12px] font-black"
+                    style={{ background: "linear-gradient(135deg,#2563eb,#7c3aed)" }}>
+                    <Anchor size={13} /> Hook
+                  </motion.button>
+                </div>
+              </motion.div>
+            );
+          })}
+        </div>
       )}
 
       <AnimatePresence>
         {hookModal  && <HookModal pageId={page.id} pageName={livePage.name} userId={userId} onClose={() => { setHookModal(false); refreshPage(); }} />}
-        {addPost    && <AddPostModal pageId={page.id} userId={userId} onClose={() => setAddPost(false)} onPosted={() => { fetchPosts(); refreshPage(); }} />}
+        {addPost    && <AddPostModal pageId={page.id} userId={userId} isOwner={isOwner} pageName={livePage.name} onClose={() => setAddPost(false)} onPosted={() => { fetchPosts(); refreshPage(); }} />}
         {showEditPage && <EditPageModal page={livePage} userId={userId} onClose={() => setShowEditPage(false)} onSaved={p => { setLivePage(p); onPageUpdated(p); }} />}
 
         {/* Edit Post Modal */}
         {editingPost && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="fixed inset-0 z-[500] flex items-end justify-center"
-            style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(6px)" }}
+            style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(14px)" }}
             onClick={e => { if (e.target === e.currentTarget) setEditingPost(null); }}>
             <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
               transition={{ type: "spring", damping: 28, stiffness: 280 }}
-              className="w-full max-w-lg bg-white rounded-t-3xl p-5"
+              className="w-full max-w-lg rounded-t-3xl p-5"
+              style={{ background: "rgba(14,16,28,0.97)", border: "1px solid rgba(255,255,255,0.13)", borderBottom: "none", backdropFilter: "blur(24px)" }}
               onClick={e => e.stopPropagation()}>
               <div className="flex items-center justify-between mb-4">
-                <h3 className="font-black text-gray-800 text-[16px] flex items-center gap-2"><Pencil size={16} className="text-blue-600" /> Post Edit Karo</h3>
-                <button onClick={() => setEditingPost(null)} className="p-1.5 rounded-full bg-gray-100"><X size={18} className="text-gray-500" /></button>
+                <h3 className="font-black text-white text-[16px] flex items-center gap-2">
+                  <Pencil size={16} className="text-blue-400" /> Post Edit Karo
+                </h3>
+                <button onClick={() => setEditingPost(null)} className="p-1.5 rounded-full text-white/50 hover:bg-white/10">
+                  <X size={18} />
+                </button>
               </div>
               <textarea value={editPostText} onChange={e => setEditPostText(e.target.value)} rows={4}
-                className="w-full border border-gray-200 rounded-2xl px-4 py-3 text-[14px] text-gray-800 outline-none focus:border-blue-500 resize-none mb-4" />
+                className="w-full rounded-2xl px-4 py-3 text-[14px] text-white outline-none resize-none mb-4"
+                style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.14)" }} />
               <div className="flex gap-2">
-                <button onClick={() => setEditingPost(null)} className="flex-1 py-3 rounded-2xl bg-gray-100 text-gray-600 font-black text-sm">Cancel</button>
+                <button onClick={() => setEditingPost(null)}
+                  className="flex-1 py-3 rounded-2xl font-black text-sm text-white/55"
+                  style={{ background: "rgba(255,255,255,0.08)" }}>Cancel</button>
                 <button onClick={saveEditPost} disabled={editPostSaving || !editPostText.trim()}
-                  className="flex-1 py-3 rounded-2xl bg-blue-600 text-white font-black text-sm flex items-center justify-center gap-2 disabled:opacity-40">
+                  className="flex-1 py-3 rounded-2xl font-black text-sm text-white flex items-center justify-center gap-2 disabled:opacity-40"
+                  style={{ background: "linear-gradient(135deg,#2563eb,#1d4ed8)" }}>
                   {editPostSaving ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
                   {editPostSaving ? "Saving…" : "Save"}
                 </button>
@@ -1134,19 +1735,24 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
         {confirmDeletePost && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="fixed inset-0 z-[500] flex items-center justify-center px-6"
-            style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(6px)" }}
+            style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(14px)" }}
             onClick={() => setConfirmDeletePost(null)}>
             <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-white rounded-3xl p-6 w-full max-w-xs shadow-2xl"
+              className="rounded-3xl p-6 w-full max-w-xs shadow-2xl"
+              style={{ background: "rgba(14,16,28,0.97)", border: "1px solid rgba(255,255,255,0.13)", backdropFilter: "blur(24px)" }}
               onClick={e => e.stopPropagation()}>
-              <div className="w-12 h-12 rounded-2xl bg-red-100 flex items-center justify-center mx-auto mb-4">
-                <Trash2 size={22} className="text-red-500" />
+              <div className="w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-4"
+                style={{ background: "rgba(239,68,68,0.18)", border: "1px solid rgba(239,68,68,0.35)" }}>
+                <Trash2 size={22} className="text-red-400" />
               </div>
-              <p className="text-gray-900 font-black text-center text-[16px] mb-1">Post Delete Karo?</p>
-              <p className="text-gray-400 text-center text-[12px] mb-5">Yeh post hamesha ke liye delete ho jayegi.</p>
+              <p className="text-white font-black text-center text-[16px] mb-1">Post Delete Karo?</p>
+              <p className="text-white/40 text-center text-[12px] mb-5">Yeh post hamesha ke liye delete ho jayegi.</p>
               <div className="flex gap-2">
-                <button onClick={() => setConfirmDeletePost(null)} className="flex-1 py-3 rounded-2xl bg-gray-100 text-gray-600 font-black text-sm">Cancel</button>
-                <button onClick={() => deletePost(confirmDeletePost)} className="flex-1 py-3 rounded-2xl bg-red-500 text-white font-black text-sm">Delete</button>
+                <button onClick={() => setConfirmDeletePost(null)}
+                  className="flex-1 py-3 rounded-2xl font-black text-sm text-white/55"
+                  style={{ background: "rgba(255,255,255,0.08)" }}>Cancel</button>
+                <button onClick={() => deletePost(confirmDeletePost)}
+                  className="flex-1 py-3 rounded-2xl bg-red-500 text-white font-black text-sm">Delete</button>
               </div>
             </motion.div>
           </motion.div>
@@ -1156,18 +1762,22 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
         {showDeletePageConfirm && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="fixed inset-0 z-[500] flex items-center justify-center px-6"
-            style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(6px)" }}
+            style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(14px)" }}
             onClick={() => setShowDeletePageConfirm(false)}>
             <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-white rounded-3xl p-6 w-full max-w-xs shadow-2xl"
+              className="rounded-3xl p-6 w-full max-w-xs shadow-2xl"
+              style={{ background: "rgba(14,16,28,0.97)", border: "1px solid rgba(255,255,255,0.13)", backdropFilter: "blur(24px)" }}
               onClick={e => e.stopPropagation()}>
-              <div className="w-12 h-12 rounded-2xl bg-red-100 flex items-center justify-center mx-auto mb-4">
-                <Trash2 size={22} className="text-red-500" />
+              <div className="w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-4"
+                style={{ background: "rgba(239,68,68,0.18)", border: "1px solid rgba(239,68,68,0.35)" }}>
+                <Trash2 size={22} className="text-red-400" />
               </div>
-              <p className="text-gray-900 font-black text-center text-[16px] mb-1">Page Delete Karo?</p>
-              <p className="text-gray-400 text-center text-[12px] mb-5">Yeh page aur iske saare posts hamesha ke liye delete ho jayenge.</p>
+              <p className="text-white font-black text-center text-[16px] mb-1">Page Delete Karo?</p>
+              <p className="text-white/40 text-center text-[12px] mb-5">Yeh page aur iske saare posts hamesha ke liye delete ho jayenge.</p>
               <div className="flex gap-2">
-                <button onClick={() => setShowDeletePageConfirm(false)} className="flex-1 py-3 rounded-2xl bg-gray-100 text-gray-600 font-black text-sm">Cancel</button>
+                <button onClick={() => setShowDeletePageConfirm(false)}
+                  className="flex-1 py-3 rounded-2xl font-black text-sm text-white/55"
+                  style={{ background: "rgba(255,255,255,0.08)" }}>Cancel</button>
                 <button onClick={deletePage} disabled={deletingPage}
                   className="flex-1 py-3 rounded-2xl bg-red-500 text-white font-black text-sm flex items-center justify-center gap-2 disabled:opacity-40">
                   {deletingPage ? <Loader2 size={16} className="animate-spin" /> : null}
@@ -1199,7 +1809,25 @@ const HooksHub = ({ userId, initialOpenPageId }: { userId: string; initialOpenPa
   const [showCreate, setShowCreate]     = useState(false);
   const pendingOpenRef = useRef<string | null>(initialOpenPageId ?? null);
 
-  // Open specific page from deep-link (home strip click)
+  // ── Listen for notification-click deep-links to a specific hook page ──────
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const hookId = (e as CustomEvent<{ hookId: string }>).detail?.hookId;
+      if (!hookId) return;
+      // Try to find in already-loaded pages first
+      const found = [...myPages, ...suggested].find(p => p.id === hookId);
+      if (found) { setActivePage(found); return; }
+      // Otherwise fetch directly from DB (notification may point to a page not in current lists)
+      supabase.from("hook_pages")
+        .select("id, name, description, category, cover_url, avatar_url, owner_id, hook_count, created_at")
+        .eq("id", hookId).single()
+        .then(({ data }) => { if (data) setActivePage(data as HookPage); });
+    };
+    window.addEventListener("flicks:open-hook", handler);
+    return () => window.removeEventListener("flicks:open-hook", handler);
+  }, [myPages, suggested]);
+
+  // ── Open specific page from deep-link (home strip click or initial prop) ──
   useEffect(() => {
     if (!pendingOpenRef.current) return;
     const target = [...myPages, ...suggested].find(p => p.id === pendingOpenRef.current);
@@ -1233,8 +1861,8 @@ const HooksHub = ({ userId, initialOpenPageId }: { userId: string; initialOpenPa
     setDbError(null);
     // Step 1 — fetch hook_pages without relational join (avoids PostgREST FK dependency)
     const [{ data: mine, error: mErr }, { data: all, error: aErr }] = await Promise.all([
-      supabase.from("hook_pages").select("id, name, description, category, cover_url, avatar_url, owner_id, hook_count, created_at").eq("owner_id", userId).order("created_at", { ascending: false }),
-      supabase.from("hook_pages").select("id, name, description, category, cover_url, avatar_url, owner_id, hook_count, created_at").neq("owner_id", userId).order("hook_count", { ascending: false }).limit(12),
+      supabase.from("hook_pages").select("id, name, description, category, cover_url, avatar_url, owner_id, hook_count, followers_count, created_at").eq("owner_id", userId).order("created_at", { ascending: false }),
+      supabase.from("hook_pages").select("id, name, description, category, cover_url, avatar_url, owner_id, hook_count, followers_count, created_at").neq("owner_id", userId).order("hook_count", { ascending: false }).limit(12),
     ]);
     if (mErr || aErr) {
       const e = mErr || aErr;

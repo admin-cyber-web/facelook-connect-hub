@@ -211,3 +211,19 @@ body.body-locked {
   0%, 100% { opacity: 1; }
   50%       { opacity: 0.3; }
 }
+
+/* ── Live mini-ticker strip — pure CSS, compositor-only, zero JS cost ── */
+@keyframes live-ticker-scroll {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+.live-ticker-track {
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+  will-change: transform;
+  animation: live-ticker-scroll 28s linear infinite;
+}
+.live-ticker-track:hover {
+  animation-play-state: paused;
+}
