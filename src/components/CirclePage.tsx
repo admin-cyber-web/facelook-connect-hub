@@ -1133,6 +1133,8 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
 
     // Real-time member subscription (for owner new-member notifications)
     if (memberSubRef.current) supabase.removeChannel(memberSubRef.current);
+    // Debounce member refetch — avoid burst DB reads when multiple members join/leave at once
+    let memberDebounceTimer: ReturnType<typeof setTimeout> | null = null;
     const memberCh = supabase
       .channel(`members-${group.id}`)
       .on("postgres_changes", {
@@ -1140,15 +1142,18 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
         schema: "public",
         table: "circle_members",
         filter: `circle_id=eq.${group.id}`,
-      }, async (payload) => {
+      }, (payload) => {
         const newRow = payload.new as any;
-        // Refresh members list with full profile data
-        const refreshed = await fetchMembersWithProfiles(group.id);
-        setGroupMembers(refreshed);
-        setSelectedGroup(prev => prev ? { ...prev, member_count: refreshed.length } : prev);
         if (payload.eventType === "INSERT" && newRow.user_id !== currentUserId) {
           setNewMemberCount(c => c + 1);
         }
+        // Debounce full profile refetch — max one refetch per 4 seconds
+        if (memberDebounceTimer) clearTimeout(memberDebounceTimer);
+        memberDebounceTimer = setTimeout(async () => {
+          const refreshed = await fetchMembersWithProfiles(group.id);
+          setGroupMembers(refreshed);
+          setSelectedGroup(prev => prev ? { ...prev, member_count: refreshed.length } : prev);
+        }, 4000);
       })
       .subscribe();
     memberSubRef.current = memberCh;

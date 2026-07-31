@@ -2231,7 +2231,8 @@ const FameFeed = ({
       const { data, error } = await supabase
         .from("likes")
         .select("post_id, reaction_type")
-        .eq("user_id", uid);
+        .eq("user_id", uid)
+        .limit(1000);
       if (error) {
         console.warn("[FameFeed] fetchLikedPostIds error:", error.message);
         return;
@@ -2338,7 +2339,8 @@ const FameFeed = ({
                 const { data: sentRows } = await supabase
                   .from("friendships")
                   .select("receiver_id")
-                  .eq("sender_id", uid);
+                  .eq("sender_id", uid)
+                  .limit(500);
                 if (sentRows) {
                   const ids = sentRows.map((r: any) => r.receiver_id);
                   setSentRequestIds(ids);
@@ -2359,7 +2361,8 @@ const FameFeed = ({
                 const { data: hookedRows } = await supabase
                   .from("page_followers")
                   .select("page_id")
-                  .eq("user_id", uid);
+                  .eq("user_id", uid)
+                  .limit(500);
                 if (hookedRows) {
                   const ids = hookedRows.map((r: any) => r.page_id);
                   setHookedPageIds(ids);
@@ -2380,7 +2383,8 @@ const FameFeed = ({
                 const { data: circleRows } = await supabase
                   .from("circle_members")
                   .select("circle_id")
-                  .eq("user_id", uid);
+                  .eq("user_id", uid)
+                  .limit(500);
                 if (circleRows) {
                   const ids = circleRows.map((r: any) => r.circle_id);
                   setJoinedCircleIds(ids);
@@ -2401,7 +2405,8 @@ const FameFeed = ({
                 const { data: blockedRows } = await supabase
                   .from("user_blocks")
                   .select("blocked_id")
-                  .eq("blocker_id", uid);
+                  .eq("blocker_id", uid)
+                  .limit(500);
                 if (blockedRows) {
                   const ids = blockedRows.map((r: any) => r.blocked_id);
                   setBlockedUserIds(new Set(ids));

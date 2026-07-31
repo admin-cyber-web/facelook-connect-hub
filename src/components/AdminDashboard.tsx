@@ -170,7 +170,7 @@ const AdminDashboard: React.FC<Props> = ({
 
   useEffect(() => {
     const ch = supabase
-      .channel(`admin-dash-${Date.now()}`)
+      .channel(`admin-dash-stable`)
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "profiles" },

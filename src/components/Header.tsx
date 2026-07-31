@@ -1546,10 +1546,11 @@ const Header = ({
     if (!userId) return;
     const { data } = await supabase
       .from("friendships")
-      .select("*")
+      .select("id, sender_id, receiver_id, status, created_at")
       .eq("receiver_id", userId)
       .eq("status", "pending")
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false })
+      .limit(20);
     if (data && data.length > 0) {
       const senderIds = [...new Set(data.map((r) => r.sender_id))];
       const { data: profiles } = await supabase

@@ -1406,7 +1406,8 @@ export const StoryBar = ({ userProfile }: { userProfile?: any }) => {
       .from("stories")
       .select("id, user_id, created_at, image_url, media_type, caption, music_url")
       .gte("created_at", since)
-      .order("created_at", { ascending: true });
+      .order("created_at", { ascending: true })
+      .limit(300);
 
     if (fetchError) {
       console.error("[StoryBar] fetch failed:", fetchError.message, "| code:", fetchError.code, "| details:", fetchError.details);
@@ -1419,7 +1420,8 @@ export const StoryBar = ({ userProfile }: { userProfile?: any }) => {
       const { data: blockRows } = await supabase
         .from("user_blocks")
         .select("blocker_id, blocked_id")
-        .or(`blocker_id.eq.${uid},blocked_id.eq.${uid}`);
+        .or(`blocker_id.eq.${uid},blocked_id.eq.${uid}`)
+        .limit(500);
       for (const b of blockRows || []) {
         if (b.blocker_id === uid) blockedSet.add(b.blocked_id);
         if (b.blocked_id === uid) blockedSet.add(b.blocker_id);
@@ -1450,7 +1452,8 @@ export const StoryBar = ({ userProfile }: { userProfile?: any }) => {
         .from("friendships")
         .select("requester_id, addressee_id")
         .eq("status", "accepted")
-        .or(`requester_id.eq.${uid},addressee_id.eq.${uid}`);
+        .or(`requester_id.eq.${uid},addressee_id.eq.${uid}`)
+        .limit(500);
       for (const f of friendRows || []) {
         friendSet.add(f.requester_id === uid ? f.addressee_id : f.requester_id);
       }
@@ -1494,11 +1497,20 @@ export const StoryBar = ({ userProfile }: { userProfile?: any }) => {
 
   useEffect(() => {
     fetchStories();
+    // Debounced refetch — prevents burst of DB reads when many story events fire at once
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    const debouncedFetch = () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => fetchStories(true), 3000);
+    };
     const ch = supabase
       .channel("story-bar-global")
-      .on("postgres_changes", { event: "*", schema: "public", table: "stories" }, () => fetchStories(true))
+      .on("postgres_changes", { event: "*", schema: "public", table: "stories" }, debouncedFetch)
       .subscribe();
-    return () => { supabase.removeChannel(ch); };
+    return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      supabase.removeChannel(ch);
+    };
   }, [fetchStories]);
 
   // Listen for notification-click story opens

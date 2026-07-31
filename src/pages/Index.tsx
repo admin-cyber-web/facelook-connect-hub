@@ -236,7 +236,7 @@ function FrameModePage({ onBack, userProfile, userEmail }: { onBack: () => void;
         setRequests(prev => prev.filter(r => r.id !== (payload.old as any).id));
       })
       .subscribe();
-    return () => { ch.unsubscribe(); };
+    return () => { supabase.removeChannel(ch); };
   }, []);
 
   const fetchRequests = async () => {
@@ -1719,7 +1719,7 @@ const Index = ({ session, initialAdminOpen }: { session: Session; initialAdminOp
         setMyFrameRequests(prev => prev.map(r => r.id === (payload.new as FrameRequest).id ? { ...r, ...payload.new as FrameRequest } : r));
       })
       .subscribe();
-    return () => { myCh.unsubscribe(); };
+    return () => { supabase.removeChannel(myCh); };
   }, [userId]);
 
   // ── Fetch & Realtime (Updated for Auto-Refresh) ──────────────────────────────
