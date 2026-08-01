@@ -18,6 +18,19 @@
 
 export type PostType = "post" | "reel" | "circle" | "hook" | "quote" | "story";
 
+// ── Promo footer appended to every share ──────────────────────────────────────
+const PROMO_FOOTER =
+  "🎬 Join Flicks and update every time, everywhere.\n— Flicks India · flicksindia.online";
+
+/**
+ * Build the final share text: body (optional) + blank line + promo footer.
+ * Safe to call with empty/null body.
+ */
+export function buildShareText(body?: string | null): string {
+  const trimmed = (body || "").trim();
+  return trimmed ? `${trimmed}\n\n${PROMO_FOOTER}` : PROMO_FOOTER;
+}
+
 export interface UniversalShareInput {
   title: string;
   text: string;
@@ -148,7 +161,10 @@ export function resolveShareMediaUrl(post: {
 export async function universalShare(
   input: UniversalShareInput,
 ): Promise<ShareOutcome> {
-  const { title, text, url, mediaUrl, canvas, type = "post" } = input;
+  const { title, url, mediaUrl, canvas, type = "post" } = input;
+
+  // Always include the promo footer in the share text — lightweight string op.
+  const text = buildShareText(input.text);
 
   // ── Step 1: Build a File object ───────────────────────────────────────────
   let file: File | null = null;
@@ -190,7 +206,7 @@ export async function universalShare(
 
   // ── Step 4: Copy link to clipboard ────────────────────────────────────────
   try {
-    await navigator.clipboard.writeText(url);
+    await navigator.clipboard.writeText(`${text}\n${url}`);
     return "copied";
   } catch {
     return "error";

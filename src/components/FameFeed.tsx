@@ -3517,6 +3517,7 @@ const FameFeed = ({
       `${posterName} posted: ${(post.content || "").slice(0, 80) || "Check this out on Flicks!"}`;
 
     if (mode === "copy") {
+      // Clipboard copy — used when native share is unavailable
       try {
         await navigator.clipboard.writeText(shareUrl);
         toast.success("Link copied to clipboard!");
@@ -3524,60 +3525,12 @@ const FameFeed = ({
         toast.error("Copy nahi ho saka.");
         return;
       }
-    } else if (mode === "whatsapp") {
-      window.open(
-        `https://api.whatsapp.com/send?text=${encodeURIComponent(shareText + " " + shareUrl)}`,
-        "_blank",
-      );
-    } else if (mode === "messenger") {
-      window.open(
-        `fb-messenger://share?link=${encodeURIComponent(shareUrl)}`,
-        "_blank",
-      );
-    } else if (mode === "facebook") {
-      window.open(
-        `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`,
-        "_blank",
-      );
-    } else if (mode === "instagram") {
-      await navigator.clipboard.writeText(shareUrl);
-      toast.success("Link copied — paste it in Instagram!");
-    } else if (mode === "twitter") {
-      window.open(
-        `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(shareUrl)}`,
-        "_blank",
-      );
-    } else if (mode === "telegram") {
-      window.open(
-        `https://t.me/share/url?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(shareText)}`,
-        "_blank",
-      );
     } else if (mode === "system") {
-      // File-based share via universalShare (called from SharePopup media button)
-      const { universalShare, resolveShareMediaUrl } = await import(
-        "../lib/universalShare"
-      );
-      const mediaUrl = resolveShareMediaUrl({
-        type: post.type,
-        media_url: post.media_url,
-        cover_url: post.cover_url,
-      });
-      const outcome = await universalShare({
-        title: shareText,
-        text: post.content || "",
-        url: shareUrl,
-        mediaUrl,
-        type: (post.type as import("../lib/universalShare").PostType) || "post",
-      });
-      if (outcome === "copied") {
-        toast.success("Link copied to clipboard!");
-      } else if (outcome === "error") {
-        toast.error("Share failed.");
-        return;
-      } else if (outcome === "cancelled") {
-        return;
-      }
+      // SharePopup already completed the native share; counter update runs below.
+      // Do NOT call universalShare again — that would open a duplicate share dialog.
     }
+    // All other platform modes (whatsapp, facebook, telegram, etc.) are now handled
+    // by SharePopup via the OS native share sheet and arrive here as mode==="system".
 
     await supabase
       .from("posts")

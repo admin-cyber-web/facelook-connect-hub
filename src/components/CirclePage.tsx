@@ -988,13 +988,16 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
   // ── Share Circle (single unified native share, original media, English) ─────
   const shareCircle = async (group: Group) => {
     const link = `${window.location.origin}?circle=${group.id}`;
-    const text = `Check out this Circle on Flicks: "${group.name}"`;
+    const titleLine = group.name;
+    const bodyLine  = (group as any).description
+      ? ((group as any).description as string).slice(0, 140)
+      : `Join the "${group.name}" circle and connect with the community on Flicks.`;
     const mediaUrl = (group as any).cover_url || (group as any).avatar_url || "";
     try {
       const { universalShare } = await import("../lib/universalShare");
       const result = await universalShare({
-        title: group.name,
-        text,
+        title: titleLine,
+        text: `${titleLine}\n${bodyLine}`,
         url: link,
         mediaUrl: mediaUrl || undefined,
         type: "circle",
@@ -1601,13 +1604,14 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
   const sharePost = async (post: GroupPost) => {
     const url = `${window.location.origin}?circle=${selectedGroup?.id}&post=${post.id}`;
     const circleName = selectedGroup?.name || "Circle";
-    const text = post.content
-      ? `${post.content}\n\nCheck out this Circle post on Flicks`
-      : `Check out this post from "${circleName}" on Flicks`;
+    const titleLine = circleName;
+    const bodyLine  = post.content
+      ? post.content.slice(0, 160)
+      : `New post from "${circleName}" — check it out on Flicks.`;
     const { universalShare } = await import("../lib/universalShare");
     const outcome = await universalShare({
-      title: circleName,
-      text,
+      title: titleLine,
+      text: `${titleLine}\n${bodyLine}`,
       url,
       mediaUrl: post.media_url || (selectedGroup as any)?.cover_url,
       type: "circle",

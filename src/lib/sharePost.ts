@@ -27,6 +27,7 @@ export interface SharePostOptions {
 
 const BASE_URL = "https://flicksindia.online";
 const MAX_CAPTION_CHARS = 240; // ~4-5 lines on the share card
+const PROMO_FOOTER = "🎬 Join Flicks and update every time, everywhere.\n— Flicks India · flicksindia.online";
 
 // ── helpers ────────────────────────────────────────────────────────────────
 async function urlToFile(url: string, filename: string): Promise<File | null> {
@@ -255,6 +256,7 @@ export async function sharePost(opts: SharePostOptions): Promise<"shared" | "cop
   const parts: string[] = [];
   if (headline) parts.push(headline);
   if (body && body !== headline) parts.push(body);
+  parts.push(PROMO_FOOTER);
   parts.push(`${credit}\n${postUrl}`);
   const shareText = parts.join("\n\n");
 

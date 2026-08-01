@@ -193,15 +193,18 @@ const SharePopup: React.FC<SharePopupProps> = ({
     return () => document.removeEventListener("keydown", handleKey);
   }, [onClose]);
 
-  // ── Platform link buttons (URL-only) ──────────────────────────────────────
+  // ── Platform buttons — all non-copy modes open the OS native share sheet ──
+  // On mobile the sheet lists all installed apps (WhatsApp, Telegram, etc.)
+  // so there is no need for separate URL deep-links per platform.
   const handlePlatformClick = (mode: ShareMode) => {
     if (mode === "copy") {
       setCopied(true);
       setTimeout(() => { setCopied(false); onClose(); }, 1200);
+      onShare(mode, post);
     } else {
-      onClose();
+      // Trigger the native OS share drawer for every other platform icon
+      handleMediaShare();
     }
-    onShare(mode, post);
   };
 
   // ── File-based native share (opens OS sheet WITH the image/video) ─────────

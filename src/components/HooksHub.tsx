@@ -374,9 +374,13 @@ const shareHookPage = async (page: HookPage) => {
   const pageUrl = `${window.location.origin}/?page=${page.id}`;
   const media = page.cover_url || page.avatar_url || "";
   const { universalShare } = await import("../lib/universalShare");
+  const titleLine = page.name;
+  const bodyLine  = (page as any).description
+    ? ((page as any).description as string).slice(0, 140)
+    : `Follow "${page.name}" for the latest updates on Flicks.`;
   const outcome = await universalShare({
-    title: page.name,
-    text: `Check out this Hook on Flicks: "${page.name}"`,
+    title: titleLine,
+    text: `${titleLine}\n${bodyLine}`,
     url: pageUrl,
     mediaUrl: media || undefined,
     type: "hook",
@@ -388,11 +392,13 @@ const shareHookPost = async (page: HookPage, post: PagePost) => {
   const pageUrl = `${window.location.origin}/?hook=${page.id}&post=${post.id}`;
   const media = post.media_url || page.cover_url || page.avatar_url || "";
   const { universalShare } = await import("../lib/universalShare");
+  const titleLine = page.name;
+  const bodyLine  = post.content
+    ? post.content.slice(0, 160)
+    : `New post from "${page.name}" — check it out on Flicks.`;
   const outcome = await universalShare({
-    title: `${page.name} — Hook post`,
-    text: post.content
-      ? `${post.content}\n\nCheck out this Hook on Flicks`
-      : `Check out this Hook post on Flicks`,
+    title: titleLine,
+    text: `${titleLine}\n${bodyLine}`,
     url: pageUrl,
     mediaUrl: media || undefined,
     type: "post",

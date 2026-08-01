@@ -293,9 +293,15 @@ const FlickCard = memo(({ post, isActive, currentUserId, onBridgeChat, isAdmin, 
     const mediaUrl = post.cover_url || post.media_url || post.video_url;
     const postUrl  = `${window.location.origin}/?post=${post._raw_id || post.id}`;
     const { universalShare } = await import("../lib/universalShare");
+    const titleLine = post.meta_title || post.content?.slice(0, 72) || "Watch this Flick!";
+    const bodyLine  = post.meta_description
+      || (post.content && post.content.length > 72 ? post.content.slice(72, 220) : "")
+      || "";
+    const captionText = [titleLine, bodyLine].filter(Boolean).join("\n");
     const outcome = await universalShare({
-      title: post.meta_title || post.content?.slice(0, 60) || "Watch this Flick!",
-      text: post.content || "", url: postUrl, mediaUrl, type: "reel",
+      title: titleLine,
+      text: captionText,
+      url: postUrl, mediaUrl, type: "reel",
     });
     if (outcome === "copied") toast.success("Link copied!");
     if (["shared-with-file", "shared-url-only", "copied"].includes(outcome || "")) {
