@@ -2151,6 +2151,9 @@ const Header = ({
           <motion.div
             whileTap={{ scale: 0.88 }}
             onClick={() => {
+              setDashMagnetFetched(false); // always re-fetch counts on open
+              setDashMagnetSent(0);
+              setDashMagnetReceived(0);
               setShowDash(true);
               setDashFriends([]);
             }}

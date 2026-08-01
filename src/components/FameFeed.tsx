@@ -4428,6 +4428,7 @@ const FameFeed = ({
             postId={post.id}
             postType="post"
             postOwnerId={post.user_id || post.author_id || ""}
+            currentUserId={currentUserId}
           />
 
           {/* ── Liked by line ──────────────────────────────────────────── */}
