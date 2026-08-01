@@ -5,7 +5,7 @@ import { supabase } from "../lib/supabaseClient";
 import {
   X, AlertTriangle, MessageCircle, TrendingUp,
   Users, GitBranch, VolumeX, Skull, Check, Loader2,
-  Radio, Search, Zap, Globe, ArrowRight, ArrowUpRight, ArrowDownLeft, Trophy,
+  Radio, Search, Zap, Globe, ArrowRight, ArrowUpRight, ArrowDownLeft, Trophy, Lock,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -34,6 +34,8 @@ export interface MagnetVoice {
   status_text: string | null;
   is_warning: boolean;
   updated_at: string;
+  /** NULL = public voice (all chain members see it). UUID = private, only that user sees it. */
+  target_user_id?: string | null;
 }
 
 interface Friend {
@@ -124,13 +126,15 @@ export function useMagnet(postId: string, postType: string, currentUserId: strin
         setMyChainId(mine?.id ?? null);
       }
 
-      // All voices for this post
+      // All voices for this post — public (no target) + ones targeted at me
       const { data: vRows } = await supabase
         .from("post_magnet_voice")
-        .select("id,post_id,post_type,owner_id,status_text,is_warning,updated_at")
+        .select("id,post_id,post_type,owner_id,status_text,is_warning,updated_at,target_user_id")
         .eq("post_id", postId)
         .eq("post_type", postType);
-      const activeVoices = (vRows || []).filter((v: MagnetVoice) => v.status_text);
+      const activeVoices = (vRows || []).filter((v: any) =>
+        v.status_text && (!v.target_user_id || v.target_user_id === currentUserId)
+      ) as MagnetVoice[];
       setVoices(activeVoices);
       setVoice(activeVoices[0] ?? null);  // backward compat
 
@@ -204,8 +208,13 @@ export function useMagnet(postId: string, postType: string, currentUserId: strin
     const voiceCh = supabase
       .channel(`magnet-voice-${postId}-${postType}`)
       .on("broadcast", { event: "voice_update" }, ({ payload }: any) => {
+        // Only process if public (no target) or targeted specifically at me
+        const isForMe = !payload.target_user_id || payload.target_user_id === currentUserId;
+        if (!isForMe) return;
         setVoices(prev => {
-          const existing = prev.findIndex(v => v.owner_id === payload.owner_id);
+          const existing = prev.findIndex(
+            v => v.owner_id === payload.owner_id && (v.target_user_id ?? null) === (payload.target_user_id ?? null)
+          );
           if (existing >= 0) {
             const next = [...prev];
             next[existing] = payload as MagnetVoice;
@@ -213,7 +222,10 @@ export function useMagnet(postId: string, postType: string, currentUserId: strin
           }
           return payload.status_text ? [...prev, payload as MagnetVoice] : prev;
         });
-        setVoice(payload.status_text ? payload as MagnetVoice : null);
+        // Update backward-compat single voice (only for public voices)
+        if (!payload.target_user_id) {
+          setVoice(payload.status_text ? payload as MagnetVoice : null);
+        }
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "post_magnet_voice", filter: `post_id=eq.${postId}` },
         () => fetchAllRef.current())
@@ -459,6 +471,8 @@ function MagnetDashboard({ currentUserId }: { currentUserId: string | null }) {
   const [received, setReceived] = useState<DashboardEntry[]>([]);
   const [loading, setLoading]   = useState(true);
   const [dashTab, setDashTab]   = useState<"sent" | "received">("sent");
+  const [totalSent, setTotalSent]           = useState(0);
+  const [totalReceived, setTotalReceived]   = useState(0);
 
   const fetchDashboardStats = useCallback(async () => {
     if (!currentUserId) { setLoading(false); return; }
@@ -467,13 +481,13 @@ function MagnetDashboard({ currentUserId }: { currentUserId: string | null }) {
       const [sentRes, recvRes] = await Promise.all([
         supabase
           .from("magnet_chains")
-          .select("id, post_id, created_at, profile:profiles!magnet_chains_user_id_fkey(full_name,avatar_url)")
+          .select("id, post_id, created_at, profile:profiles!magnet_chains_user_id_fkey(full_name,avatar_url)", { count: "exact" })
           .eq("invited_by", currentUserId)
           .order("created_at", { ascending: false })
           .limit(50),
         supabase
           .from("magnet_chains")
-          .select("id, post_id, created_at, inviter:profiles!magnet_chains_invited_by_fkey(full_name,avatar_url)")
+          .select("id, post_id, created_at, inviter:profiles!magnet_chains_invited_by_fkey(full_name,avatar_url)", { count: "exact" })
           .eq("user_id", currentUserId)
           .not("invited_by", "is", null)
           .order("created_at", { ascending: false })
@@ -481,6 +495,9 @@ function MagnetDashboard({ currentUserId }: { currentUserId: string | null }) {
       ]);
       setSent(sentRes.data ?? []);
       setReceived(recvRes.data ?? []);
+      // Use Supabase exact count (works even when limit caps the rows returned)
+      setTotalSent(sentRes.count ?? sentRes.data?.length ?? 0);
+      setTotalReceived(recvRes.count ?? recvRes.data?.length ?? 0);
     } catch (_) {}
     setLoading(false);
   }, [currentUserId]);
@@ -495,8 +512,8 @@ function MagnetDashboard({ currentUserId }: { currentUserId: string | null }) {
       <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">📊 My Link Dashboard</p>
       <div className="flex gap-2 mb-3">
         {[
-          { label: "Total Sent",     value: formatReach(sent.length),     bg: "rgba(124,58,237,0.07)",  bd: "rgba(124,58,237,0.18)", tc: "text-purple-700", sc: "text-purple-400" },
-          { label: "Total Received", value: formatReach(received.length), bg: "rgba(219,39,119,0.07)", bd: "rgba(219,39,119,0.18)", tc: "text-pink-600",   sc: "text-pink-400"   },
+          { label: "Total Sent",     value: formatReach(totalSent),     bg: "rgba(124,58,237,0.07)",  bd: "rgba(124,58,237,0.18)", tc: "text-purple-700", sc: "text-purple-400" },
+          { label: "Total Received", value: formatReach(totalReceived), bg: "rgba(219,39,119,0.07)", bd: "rgba(219,39,119,0.18)", tc: "text-pink-600",   sc: "text-pink-400"   },
         ].map(s => (
           <div key={s.label} className="flex-1 rounded-2xl p-3 text-center border" style={{ background: s.bg, borderColor: s.bd }}>
             <p className={`${s.tc} font-black text-xl leading-none`}>{s.value}</p>
