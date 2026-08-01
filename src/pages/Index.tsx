@@ -1464,7 +1464,7 @@ const PersonalInfoView = React.memo(({
 });
 
 // ── Component ────────────────────────────────────────────────────────────────
-const Index = ({ session, initialAdminOpen }: { session: Session; initialAdminOpen?: boolean }) => {
+const Index = ({ session, initialAdminOpen, isGuest = false }: { session: Session; initialAdminOpen?: boolean; isGuest?: boolean }) => {
   const userId = session.user.id;
   const userEmail = session.user.email || "";
   const isAppAdmin = isAdminEmail(userEmail);
@@ -1943,6 +1943,11 @@ const Index = ({ session, initialAdminOpen }: { session: Session; initialAdminOp
           pincode: data.pincode || "",
         });
         setInterests(Array.isArray(data.interests) ? data.interests : []);
+        // Show onboarding when non-guest profile is missing location & interests
+        if (!isGuest && !data.city && !data.pincode && (!data.interests || data.interests.length === 0)) {
+          // Small delay so the main UI settles first
+          setTimeout(() => setShowOnboarding(true), 800);
+        }
         setRecLocalFirst(data.rec_local_first !== false);
         setRecPeopleNearby(data.rec_people_nearby !== false);
         setRecInterestsPref(data.rec_interests !== false);

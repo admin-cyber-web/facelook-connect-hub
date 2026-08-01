@@ -45,18 +45,31 @@ export default function MagnetDashboard({ userId, viewerUserId, userName, onBack
   const loadDashboard = async () => {
     setLoading(true);
 
-    // SENT: chains where invited_by = userId (this user sent a magnet to others)
-    const { data: sentRaw, count: sentCount } = await supabase
-      .from("magnet_chains")
-      .select(`
-        id, post_id, post_type, depth, created_at, is_killed,
-        target:profiles!magnet_chains_user_id_fkey(full_name, avatar_url)
-      `, { count: "exact" })
-      .eq("invited_by", userId)
+    // SENT: from magnet_invites where sender_id = userId (I invited others)
+    let sentRaw: any[] = [];
+    let sentCount      = 0;
+    const sentRes = await supabase
+      .from("magnet_invites")
+      .select("id, post_id, created_at, target:profiles!receiver_id(full_name, avatar_url)", { count: "exact" })
+      .eq("sender_id", userId)
       .order("created_at", { ascending: false })
       .limit(50);
+    if (sentRes.error) {
+      // Fallback: magnet_chains invited_by column
+      const fb = await supabase
+        .from("magnet_chains")
+        .select("id, post_id, post_type, depth, created_at, is_killed, target:profiles!magnet_chains_user_id_fkey(full_name, avatar_url)", { count: "exact" })
+        .eq("invited_by", userId)
+        .order("created_at", { ascending: false })
+        .limit(50);
+      sentRaw   = fb.data   ?? [];
+      sentCount = fb.count  ?? 0;
+    } else {
+      sentRaw   = sentRes.data  ?? [];
+      sentCount = sentRes.count ?? 0;
+    }
 
-    // RECEIVED: chains where user_id = userId AND invited_by IS NOT NULL
+    // RECEIVED: magnet_chains where user_id = userId (I joined — any method)
     const { data: receivedRaw, count: receivedCount } = await supabase
       .from("magnet_chains")
       .select(`
@@ -64,17 +77,16 @@ export default function MagnetDashboard({ userId, viewerUserId, userName, onBack
         inviter:profiles!magnet_chains_invited_by_fkey(full_name, avatar_url)
       `, { count: "exact" })
       .eq("user_id", userId)
-      .not("invited_by", "is", null)
       .order("created_at", { ascending: false })
       .limit(50);
 
     // Compute max depth from all entries
-    const allDepths = [...(sentRaw || []), ...(receivedRaw || [])].map(e => e.depth ?? 0);
+    const allDepths = [...sentRaw, ...(receivedRaw || [])].map(e => e.depth ?? 0);
     setMaxDepth(allDepths.length ? Math.max(...allDepths) : 0);
 
     // Enrich with post content
     const postIds = [...new Set([
-      ...(sentRaw || []).map(e => e.post_id),
+      ...sentRaw.map(e => e.post_id),
       ...(receivedRaw || []).map(e => e.post_id),
     ])];
 
@@ -92,9 +104,9 @@ export default function MagnetDashboard({ userId, viewerUserId, userName, onBack
         post_author:  postMap[r.post_id]?.author,
       }));
 
-    setSent(enrich(sentRaw || []));
+    setSent(enrich(sentRaw));
     setReceived(enrich(receivedRaw || []));
-    setTotalSent(sentCount ?? 0);
+    setTotalSent(sentCount);
     setTotalReceived(receivedCount ?? 0);
     setLoading(false);
   };

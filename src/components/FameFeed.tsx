@@ -2936,6 +2936,44 @@ const FameFeed = ({
       rows = interleaved;
     }
 
+    // ── Pincode-based local priority (highest specificity) ────────────────────
+    if (reset && localProfile.pincode) {
+      const vPin = localProfile.pincode;
+      const pinRows   = (rows as any[]).filter(r => r.author_profile?.pincode === vPin);
+      const otherRows = (rows as any[]).filter(r => r.author_profile?.pincode !== vPin);
+      // Pin-matched posts go to the very front
+      rows = [...pinRows, ...otherRows];
+    }
+
+    // ── Viral Reach Propagation ───────────────────────────────────────────────
+    // Posts where the current user is in magnet_chains appear in their feed.
+    if (reset && currentUserId) {
+      try {
+        const { data: myChains } = await supabase
+          .from("magnet_chains")
+          .select("post_id")
+          .eq("user_id", currentUserId)
+          .eq("is_killed", false)
+          .limit(20);
+        if (myChains?.length) {
+          const existingIds  = new Set((rows as any[]).map((r: any) => r.id));
+          const newPostIds   = myChains.map(c => c.post_id).filter(id => !existingIds.has(id));
+          if (newPostIds.length) {
+            const { data: chainPosts } = await supabase
+              .from("posts")
+              .select("id, author, author_id, content, media_url, image_url, type, likes_count, comments_count, created_at, metadata, cover_url, views_count, shares_count, visibility, meta_title, meta_description, author_profile:profiles!posts_author_id_fkey(avatar_url,full_name,is_verified,is_private_mode,last_seen,is_official_creator,state,district,city,pincode)")
+              .in("id", newPostIds)
+              .limit(10);
+            if (chainPosts?.length) {
+              // Prepend viral posts with a marker so the UI can highlight them
+              const marked = chainPosts.map(p => ({ ...p, _viral_reach: true }));
+              rows = [...marked, ...rows];
+            }
+          }
+        }
+      } catch (_) { /* magnet_chains unavailable — skip */ }
+    }
+
     // Eagerly hydrate the avatar/name caches from the join result so the
     // first paint already has the right dp (no waiting for batch fetch).
     if (rows.length > 0) {

@@ -479,24 +479,38 @@ function MagnetDashboard({ currentUserId }: { currentUserId: string | null }) {
     setLoading(true);
     try {
       const [sentRes, recvRes] = await Promise.all([
+        // SENT: from magnet_invites (who the current user invited)
         supabase
-          .from("magnet_chains")
-          .select("id, post_id, created_at, profile:profiles!magnet_chains_user_id_fkey(full_name,avatar_url)", { count: "exact" })
-          .eq("invited_by", currentUserId)
+          .from("magnet_invites")
+          .select("id, post_id, created_at, profile:profiles!receiver_id(full_name,avatar_url)", { count: "exact" })
+          .eq("sender_id", currentUserId)
           .order("created_at", { ascending: false })
           .limit(50),
+        // RECEIVED: magnet_chains where I joined (any invite)
         supabase
           .from("magnet_chains")
           .select("id, post_id, created_at, inviter:profiles!magnet_chains_invited_by_fkey(full_name,avatar_url)", { count: "exact" })
           .eq("user_id", currentUserId)
-          .not("invited_by", "is", null)
           .order("created_at", { ascending: false })
           .limit(50),
       ]);
-      setSent(sentRes.data ?? []);
+
+      // Gracefully handle case where magnet_invites table doesn't exist yet
+      if (sentRes.error) {
+        // Fall back to magnet_chains invited_by column
+        const { data: fbData, count: fbCount } = await supabase
+          .from("magnet_chains")
+          .select("id, post_id, created_at, profile:profiles!magnet_chains_user_id_fkey(full_name,avatar_url)", { count: "exact" })
+          .eq("invited_by", currentUserId)
+          .order("created_at", { ascending: false })
+          .limit(50);
+        setSent(fbData ?? []);
+        setTotalSent(fbCount ?? fbData?.length ?? 0);
+      } else {
+        setSent(sentRes.data ?? []);
+        setTotalSent(sentRes.count ?? sentRes.data?.length ?? 0);
+      }
       setReceived(recvRes.data ?? []);
-      // Use Supabase exact count (works even when limit caps the rows returned)
-      setTotalSent(sentRes.count ?? sentRes.data?.length ?? 0);
       setTotalReceived(recvRes.count ?? recvRes.data?.length ?? 0);
     } catch (_) {}
     setLoading(false);
@@ -868,9 +882,22 @@ export function MagnetModal({
     if (myChainId) { toast("You're already in this chain! 🔗"); return; }
     setJoiningChain(true);
     try {
+      // Check if we were directly invited — use that as invited_by
+      let invitedBy: string | null = null;
+      let joinDepth = 0;
+      const { data: myInvite } = await supabase
+        .from("magnet_invites")
+        .select("sender_id")
+        .eq("receiver_id", currentUserId)
+        .eq("post_id", postId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (myInvite?.sender_id) { invitedBy = myInvite.sender_id; joinDepth = 1; }
+
       await supabase.from("magnet_chains").insert({
         post_id: postId, post_type: postType, user_id: currentUserId,
-        invited_by: null, depth: 0,
+        invited_by: invitedBy, depth: joinDepth,
       });
 
       // Notify post owner
@@ -925,6 +952,20 @@ export function MagnetModal({
       }));
 
       await supabase.from("magnet_chains").upsert(rows, { onConflict: "user_id,post_id,post_type", ignoreDuplicates: true });
+
+      // ── Log in magnet_invites (sender_id, receiver_id, post_id) ───────────
+      // This powers the Trace panel and Dashboard "Sent" count.
+      const inviteRows = Array.from(selected).map(fid => ({
+        sender_id:   currentUserId,
+        receiver_id: fid,
+        post_id:     postId,
+      }));
+      supabase.from("magnet_invites").upsert(inviteRows, {
+        onConflict: "sender_id,receiver_id,post_id",
+        ignoreDuplicates: true,
+      }).then(({ error: ie }) => {
+        if (ie) console.warn("[Magnet] magnet_invites insert failed (run SQL migration):", ie.message);
+      });
 
       // Notify each selected user (private — only they receive this)
       await Promise.all(Array.from(selected).map(uid =>
