@@ -54,6 +54,7 @@ import { Helmet } from "react-helmet-async";
 import { toast } from "sonner";
 
 import Header from "@/components/Header";
+import InviteCard from "@/components/InviteCard";
 import GolSlider from "@/components/GolSlider";
 import PullToRefresh from "@/components/PullToRefresh";
 import AutoPlayMutedVideo from "@/components/AutoPlayMutedVideo";
@@ -3190,6 +3191,14 @@ const PersonalizationView = React.memo(({
                       </div>
                     </div>
                   </div>
+
+                  {/* ── Invite Friends Card ─────────────────────────────── */}
+                  {session?.user?.id && (
+                    <InviteCard
+                      userId={session.user.id}
+                      username={profile?.username || session.user.email?.split("@")[0] || "user"}
+                    />
+                  )}
 
                   {/* Navigation shortcuts */}
                   <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">

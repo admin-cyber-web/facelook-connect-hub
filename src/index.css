@@ -223,6 +223,11 @@ body.body-locked {
 
 /* ── Magnet system: CSS animations replace Framer Motion infinite loops ── */
 /* These run on the compositor thread (no main-thread cost) */
+@keyframes invite-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(204,255,0,0.5); }
+  50%       { box-shadow: 0 0 0 6px rgba(204,255,0,0); }
+}
+
 @keyframes magnet-pulse-scale {
   0%, 100% { transform: scale(1); }
   50%       { transform: scale(1.2); }
