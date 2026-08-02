@@ -2531,7 +2531,7 @@ const Header = ({
               <div
                 className="relative px-5 pb-4 shrink-0"
                 style={{
-                  paddingTop: "calc(env(safe-area-inset-top) + 20px)",
+                  paddingTop: "calc(var(--cap-safe-top) + 20px)",
                   background:
                     "linear-gradient(135deg, rgba(37,99,235,0.25) 0%, rgba(79,70,229,0.15) 100%)",
                   borderBottom: "1px solid rgba(255,255,255,0.07)",
@@ -2545,7 +2545,7 @@ const Header = ({
                     setDashFriends([]);
                   }}
                   className="absolute right-4 p-1.5 hover:bg-white/10 rounded-full text-white/40 hover:text-white transition-all"
-                  style={{ top: "calc(env(safe-area-inset-top) + 16px)" }}
+                  style={{ top: "calc(var(--cap-safe-top) + 16px)" }}
                 >
                   <X size={18} />
                 </button>

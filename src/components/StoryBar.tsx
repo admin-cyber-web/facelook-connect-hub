@@ -551,7 +551,7 @@ const StoryViewer = ({
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         className="fixed inset-0 z-[999] bg-black flex flex-col touch-none overflow-x-hidden"
-        style={{ paddingTop: "env(safe-area-inset-top)", maxWidth: "100vw", width: "100%" }}
+        style={{ paddingTop: "var(--cap-safe-top)", maxWidth: "100vw", width: "100%" }}
         onPointerDown={() => setPaused(true)}
         onPointerUp={() => setPaused(false)}
         onPointerLeave={() => setPaused(false)}
@@ -560,7 +560,7 @@ const StoryViewer = ({
         <ProgressSegments total={totalInGroup} current={storyIdx} elapsed={elapsed} duration={DURATION} />
 
         {/* Close button — top-right, always on top */}
-        <div className="absolute right-4 z-[100]" style={{ top: "calc(env(safe-area-inset-top) + 16px)" }}>
+        <div className="absolute right-4 z-[100]" style={{ top: "calc(var(--cap-safe-top) + 16px)" }}>
           <button
             className="w-10 h-10 rounded-full bg-black/70 backdrop-blur-md flex items-center justify-center border border-white/40 shadow-xl active:scale-90 transition-transform"
             onPointerDown={e => e.stopPropagation()} onPointerUp={e => e.stopPropagation()}

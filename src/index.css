@@ -33,6 +33,26 @@
   will-change: color, box-shadow;
 }
 
+/* ── Capacitor Android safe-area CSS variables ────────────────────────────
+   --cap-safe-top / --cap-safe-bottom are the single source of truth used
+   by all modal/header components that need status-bar clearance.
+
+   Web / iOS  : follows env(safe-area-inset-*) directly (0 on plain browser,
+                notch height on iPhone).
+   Android    : guarantees ≥ 24px (standard Android status-bar height in dp)
+                even when the WebView hasn't yet populated the env() variable.
+                The .cap-android class is added by main.tsx at startup via
+                window.Capacitor.getPlatform().
+   ──────────────────────────────────────────────────────────────────────── */
+:root {
+  --cap-safe-top:    env(safe-area-inset-top, 0px);
+  --cap-safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+.cap-android {
+  --cap-safe-top:    max(env(safe-area-inset-top, 24px), 24px);
+  --cap-safe-bottom: max(env(safe-area-inset-bottom, 0px),  0px);
+}
+
 /* ── Mobile safety ────────────────────────────────────────────────────────
    1. Lock the viewport: no horizontal overflow, never wider than the screen
    2. Honor iOS notches / Android nav bars with safe-area insets
