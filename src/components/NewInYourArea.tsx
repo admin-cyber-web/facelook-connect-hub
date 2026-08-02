@@ -6,6 +6,7 @@
  */
 
 import { useEffect, useState, useRef } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { MapPin, X, UserPlus, Sparkles } from "lucide-react";
 import { fetchNewInYourArea, type LocalProfile, type RecommendedUser } from "@/lib/recommendationEngine";
@@ -103,117 +104,127 @@ export default function NewInYourArea({ currentUserId, localProfile, onProfileCl
 
   return (
     <>
-      {/* ── Discovery Popup ─────────────────────────────────────────────────── */}
-      <AnimatePresence>
-        {showPopup && popupUser && (
-          <motion.div
-            key="discovery-popup"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[9999] flex items-end justify-center pb-8 px-4"
-            style={{ background: "rgba(0,0,0,0.72)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" }}
-            onClick={dismissPopup}
-          >
-            <motion.div
-              initial={{ y: 80, scale: 0.92, opacity: 0 }}
-              animate={{ y: 0,  scale: 1,    opacity: 1 }}
-              exit={{    y: 60, scale: 0.95, opacity: 0 }}
-              transition={{ type: "spring", stiffness: 320, damping: 26 }}
-              className="w-full max-w-sm rounded-[28px] overflow-hidden relative"
-              style={{
-                background: "linear-gradient(135deg, rgba(20,14,40,0.97) 0%, rgba(10,8,28,0.99) 100%)",
-                border:     "1px solid rgba(139,92,246,0.35)",
-                boxShadow:  "0 0 40px rgba(139,92,246,0.2), 0 20px 60px rgba(0,0,0,0.7)",
-              }}
-              onClick={e => e.stopPropagation()}
-            >
-              {/* Glow stripe */}
-              <div className="absolute inset-x-0 top-0 h-[2px]"
-                style={{ background: "linear-gradient(90deg,transparent,#7c3aed,#06b6d4,transparent)" }} />
+      {/* ── Discovery Popup — portalled to body to escape any transform/filter
+            ancestor in FameFeed that would break fixed positioning ────────── */}
+      {createPortal(
+        <AnimatePresence>
+          {showPopup && popupUser && (
+            <>
+              {/* Backdrop — own layer, pointer-events-auto so tapping outside dismisses */}
+              <motion.div
+                key="discovery-backdrop"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 z-[9998]"
+                style={{ background: "rgba(0,0,0,0.72)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" }}
+                onClick={dismissPopup}
+              />
 
-              <div className="p-5">
-                {/* Header */}
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xl">✨</span>
-                    <span className="text-[13px] font-black text-white/80 tracking-tight">
-                      New in {locationLabel}
-                    </span>
-                  </div>
-                  <button
-                    onClick={dismissPopup}
-                    className="w-7 h-7 rounded-full flex items-center justify-center"
-                    style={{ background: "rgba(255,255,255,0.07)" }}
-                  >
-                    <X size={13} className="text-white/50" />
-                  </button>
-                </div>
+              {/* Centering shell — pointer-events-none so backdrop clicks pass through */}
+              <div className="fixed inset-0 z-[9999] flex items-center justify-center px-4 pointer-events-none">
+                <motion.div
+                  key="discovery-popup"
+                  initial={{ y: 80, scale: 0.92, opacity: 0 }}
+                  animate={{ y: 0,  scale: 1,    opacity: 1 }}
+                  exit={{    y: 60, scale: 0.95, opacity: 0 }}
+                  transition={{ type: "spring", stiffness: 320, damping: 26 }}
+                  className="w-full max-w-sm rounded-[28px] overflow-hidden relative pointer-events-auto"
+                  style={{
+                    background: "linear-gradient(135deg, rgba(20,14,40,0.97) 0%, rgba(10,8,28,0.99) 100%)",
+                    border:     "1px solid rgba(139,92,246,0.35)",
+                    boxShadow:  "0 0 40px rgba(139,92,246,0.2), 0 20px 60px rgba(0,0,0,0.7)",
+                  }}
+                >
+                  {/* Glow stripe */}
+                  <div className="absolute inset-x-0 top-0 h-[2px]"
+                    style={{ background: "linear-gradient(90deg,transparent,#7c3aed,#06b6d4,transparent)" }} />
 
-                {/* User card */}
-                <div className="flex items-center gap-3.5 mb-5">
-                  <div
-                    className="w-14 h-14 rounded-2xl overflow-hidden shrink-0 flex items-center justify-center font-black text-2xl text-white"
-                    style={{ background: "linear-gradient(135deg,#7c3aed,#2563eb)" }}
-                  >
-                    {popupUser.avatar_url ? (
-                      <img src={popupUser.avatar_url} className="w-full h-full object-cover" alt="" />
-                    ) : (
-                      (popupUser.full_name || "U")[0].toUpperCase()
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[15px] font-black text-white truncate">
-                      {popupUser.full_name || "Someone new"}
-                    </p>
-                    <div className="flex items-center gap-1 mt-0.5">
-                      <MapPin size={10} className="text-violet-400 shrink-0" />
-                      <span className="text-[11px] text-violet-300 font-semibold truncate">{popupUser.reason}</span>
-                    </div>
-                    {popupUser.interests.length > 0 && (
-                      <div className="flex gap-1 mt-1.5 flex-wrap">
-                        {popupUser.interests.slice(0, 3).map(tag => (
-                          <span
-                            key={tag}
-                            className="text-[9px] font-black px-1.5 py-0.5 rounded-full"
-                            style={{ background: "rgba(139,92,246,0.18)", color: "#c4b5fd" }}
-                          >
-                            {tag}
-                          </span>
-                        ))}
+                  <div className="p-5">
+                    {/* Header */}
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xl">✨</span>
+                        <span className="text-[13px] font-black text-white/80 tracking-tight">
+                          New in {locationLabel}
+                        </span>
                       </div>
-                    )}
-                  </div>
-                </div>
+                      <button
+                        onClick={dismissPopup}
+                        className="w-7 h-7 rounded-full flex items-center justify-center"
+                        style={{ background: "rgba(255,255,255,0.07)" }}
+                      >
+                        <X size={13} className="text-white/50" />
+                      </button>
+                    </div>
 
-                {/* CTAs */}
-                <div className="flex gap-2.5">
-                  <button
-                    onClick={() => handleConnect(popupUser.id)}
-                    disabled={sentIds.has(popupUser.id)}
-                    className="flex-1 py-3 rounded-2xl font-black text-[13px] text-white flex items-center justify-center gap-1.5 transition-all active:scale-95"
-                    style={{
-                      background: sentIds.has(popupUser.id)
-                        ? "rgba(255,255,255,0.08)"
-                        : "linear-gradient(135deg,#7c3aed 0%,#2563eb 100%)",
-                    }}
-                  >
-                    <UserPlus size={13} />
-                    {sentIds.has(popupUser.id) ? "Sent!" : "Connect"}
-                  </button>
-                  <button
-                    onClick={dismissPopup}
-                    className="flex-1 py-3 rounded-2xl font-black text-[12px] text-white/40 transition-all active:scale-95"
-                    style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.07)" }}
-                  >
-                    Not Now
-                  </button>
-                </div>
+                    {/* User card */}
+                    <div className="flex items-center gap-3.5 mb-5">
+                      <div
+                        className="w-14 h-14 rounded-2xl overflow-hidden shrink-0 flex items-center justify-center font-black text-2xl text-white"
+                        style={{ background: "linear-gradient(135deg,#7c3aed,#2563eb)" }}
+                      >
+                        {popupUser.avatar_url ? (
+                          <img src={popupUser.avatar_url} className="w-full h-full object-cover" alt="" />
+                        ) : (
+                          (popupUser.full_name || "U")[0].toUpperCase()
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[15px] font-black text-white truncate">
+                          {popupUser.full_name || "Someone new"}
+                        </p>
+                        <div className="flex items-center gap-1 mt-0.5">
+                          <MapPin size={10} className="text-violet-400 shrink-0" />
+                          <span className="text-[11px] text-violet-300 font-semibold truncate">{popupUser.reason}</span>
+                        </div>
+                        {popupUser.interests.length > 0 && (
+                          <div className="flex gap-1 mt-1.5 flex-wrap">
+                            {popupUser.interests.slice(0, 3).map(tag => (
+                              <span
+                                key={tag}
+                                className="text-[9px] font-black px-1.5 py-0.5 rounded-full"
+                                style={{ background: "rgba(139,92,246,0.18)", color: "#c4b5fd" }}
+                              >
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* CTAs */}
+                    <div className="flex gap-2.5">
+                      <button
+                        onClick={() => handleConnect(popupUser.id)}
+                        disabled={sentIds.has(popupUser.id)}
+                        className="flex-1 py-3 rounded-2xl font-black text-[13px] text-white flex items-center justify-center gap-1.5 transition-all active:scale-95"
+                        style={{
+                          background: sentIds.has(popupUser.id)
+                            ? "rgba(255,255,255,0.08)"
+                            : "linear-gradient(135deg,#7c3aed 0%,#2563eb 100%)",
+                        }}
+                      >
+                        <UserPlus size={13} />
+                        {sentIds.has(popupUser.id) ? "Sent!" : "Connect"}
+                      </button>
+                      <button
+                        onClick={dismissPopup}
+                        className="flex-1 py-3 rounded-2xl font-black text-[12px] text-white/40 transition-all active:scale-95"
+                        style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.07)" }}
+                      >
+                        Not Now
+                      </button>
+                    </div>
+                  </div>
+                </motion.div>
               </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+            </>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
 
       {/* ── Discovery Strip ──────────────────────────────────────────────────── */}
       <div
