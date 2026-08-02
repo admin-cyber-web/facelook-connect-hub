@@ -1,0 +1,54 @@
+Let me explore the codebase to understand where exactly to integrate everything before building:
+
+Perfect, I have everything I need. Let me now build the complete system — all files in one big parallel batch:
+
+Let me check Header.tsx imports quickly, then build everything in one massive parallel batch:
+
+Now I have everything. Building the complete system — all files in one massive parallel batch:
+
+Now let me wire everything up in parallel — App routes, Header button, MagnetSystem, and Index sidebar:
+
+Now let me add all the wiring — routes, referral tracking, Header button, MagnetSystem, and Index sidebar all in one batch:
+
+Good — routes are already clean. Let me add the /invite route and wire up all remaining integration points in parallel:
+
+Let me check the exact whitespace in App.tsx and fix the failing edits:
+
+Let me now add the InviteCard to the Index.tsx sidebar and fix remaining details in one parallel batch:
+
+Now let me fix the remaining details — MagnetSystem username, Index sidebar InviteCard, and the CSS animation — all in parallel:
+
+Now let me add the InviteCard to the Index.tsx sidebar and do a build check in parallel:
+
+TypeScript is clean. Let me take a screenshot to verify the app looks good, and also check that the personalForm.username reference in Index.tsx is valid:
+
+The personalForm doesn't have a username field — let me fix that reference and take a screenshot to verify everything:
+
+The /invite landing page looks exactly right — midnight maroon, floating badges, phone mockup, electric lemon "Join Now" button. Here's everything that was built and integrated:
+
+What's done:
+
+src/components/InviteCard.tsx — Reusable card in two sizes:
+
+    Full (sidebar + landing): phone mockup, floating animated badges, referral link row with copy, WhatsApp + Share buttons
+    Compact (Magnet hub): condensed strip version
+
+src/pages/InviteLanding.tsx — /invite?ref=USER_ID page with:
+
+    Dynamic OG/Twitter meta tags (title, description, image) so WhatsApp previews the card
+    Fetches inviter's name + avatar for personalised "X is inviting you" banner
+    Saves ref to localStorage on visit so signup is attributed
+    Pulsing electric lemon "Join Now — It's Free" button → routes to app (LoginScreen appears for non-users)
+
+src/App.tsx — Three changes:
+
+    /invite route added to both the auth and no-auth route blocks (publicly accessible)
+    Referral tracking in onAuthStateChange: on SIGNED_IN, reads flicks_referrer from localStorage and logs to magnet_chains (invited_by = referrerId), then clears it
+
+src/components/Header.tsx — Lemon-yellow invite button (🔗 Share2 icon) with a pulsing dot, placed before the Home button
+
+src/components/MagnetSystem.tsx — Compact InviteCard injected below MagnetDashboard in the Magnet tab
+
+src/pages/Index.tsx — Full InviteCard added to the left desktop sidebar, below the profile quick-card
+
+    ⚠️ Run this SQL in your Supabase editor (if not done already — this powers the Magnet Dashboard/Trace fixes built earlier): → supabase_magnet_invites.sql (already in your project root)

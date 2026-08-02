@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import InviteCard from "./InviteCard";
 import { supabase } from "../lib/supabaseClient";
 import {
   X, AlertTriangle, MessageCircle, TrendingUp,
@@ -1557,13 +1556,6 @@ export function MagnetModal({
 
                   {/* ── My Link Dashboard ───────────────────────────────────── */}
                   <MagnetDashboard currentUserId={currentUserId} />
-
-                  {/* ── Invite Friends via Referral Link ────────────────────── */}
-                  {currentUserId && (
-                    <div className="mt-4 px-1">
-                      <InviteCard userId={currentUserId} username={myName || currentUserId} compact />
-                    </div>
-                  )}
                 </>
               )}
             </div>
