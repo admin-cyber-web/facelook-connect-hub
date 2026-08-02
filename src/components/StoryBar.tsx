@@ -560,7 +560,7 @@ const StoryViewer = ({
         <ProgressSegments total={totalInGroup} current={storyIdx} elapsed={elapsed} duration={DURATION} />
 
         {/* Close button — top-right, always on top */}
-        <div className="absolute top-4 right-4 z-[100]">
+        <div className="absolute right-4 z-[100]" style={{ top: "calc(env(safe-area-inset-top) + 16px)" }}>
           <button
             className="w-10 h-10 rounded-full bg-black/70 backdrop-blur-md flex items-center justify-center border border-white/40 shadow-xl active:scale-90 transition-transform"
             onPointerDown={e => e.stopPropagation()} onPointerUp={e => e.stopPropagation()}

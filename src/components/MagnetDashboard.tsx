@@ -171,8 +171,8 @@ export default function MagnetDashboard({ userId, viewerUserId, userName, onBack
   return (
     <div className="min-h-screen bg-[#f0f2f5]">
       {/* Header */}
-      <div className="sticky top-0 z-50 px-4 py-3 flex items-center gap-3"
-        style={{ background: "linear-gradient(135deg,#7c3aed,#db2777)", boxShadow: "0 2px 16px rgba(124,58,237,0.3)" }}>
+      <div className="sticky top-0 z-50 px-4 pb-3 flex items-center gap-3"
+        style={{ paddingTop: "calc(env(safe-area-inset-top) + 12px)", background: "linear-gradient(135deg,#7c3aed,#db2777)", boxShadow: "0 2px 16px rgba(124,58,237,0.3)" }}>
         <button onClick={onBack}
           className="p-2 bg-white/20 rounded-xl text-white hover:bg-white/30 transition-all">
           <ChevronLeft size={18} />
