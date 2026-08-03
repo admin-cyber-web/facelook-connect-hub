@@ -2847,8 +2847,7 @@ const PersonalizationView = React.memo(({
                   if (navigator.share) {
                     navigator.share({ title: "Flicks India", text: shareText, url: "https://flicksindia.online" });
                   } else {
-                    navigator.clipboard.writeText(shareText + "
-https://flicksindia.online").then(() => toast.success("Link copied!"));
+                    navigator.clipboard.writeText(shareText + "\nhttps://flicksindia.online").then(() => toast.success("Link copied!"));
                   }
                 }}
                 className="w-full flex items-center gap-3.5 p-4 rounded-2xl transition-all active:scale-[0.98] group"

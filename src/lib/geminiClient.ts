@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+// @google/generative-ai is loaded dynamically to avoid build-time resolution errors
 
 export type QuoteCategory =
   | "Motivational"
@@ -325,13 +325,12 @@ export function resolveApiKey(): string {
   return (import.meta.env.VITE_GEMINI_API_KEY as string) || "";
 }
 
-export function getClient(): GoogleGenerativeAI {
+export async function getClient(): Promise<any> {
+  const { GoogleGenerativeAI } = await import("@google/generative-ai");
   return new GoogleGenerativeAI(resolveApiKey());
 }
 
-export const getGeminiClient = () => {
-  return getClient();
-};
+export const getGeminiClient = () => getClient();
 
 export const isGeminiConfigured = (): boolean => true;
 

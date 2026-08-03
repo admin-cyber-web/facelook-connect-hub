@@ -193,7 +193,7 @@ export default defineConfig({
   build: {
     chunkSizeWarningLimit: 600,
     rollupOptions: {
-      external: ["onnxruntime-web", "onnxruntime-web/webgpu", "@imgly/background-removal"],
+      external: ["onnxruntime-web", "onnxruntime-web/webgpu", "@imgly/background-removal", "@google/generative-ai"],
       onwarn(warning, warn) {
         if (warning.code === "CIRCULAR_DEPENDENCY") {
           console.error("🔴 CIRCULAR:", warning.message);
