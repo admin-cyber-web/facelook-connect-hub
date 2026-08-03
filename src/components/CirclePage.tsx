@@ -12,7 +12,7 @@ import { maskProfanity, sanitizeText } from "../lib/profanityFilter";
 import {
   Plus, Users, Lock, Globe, ChevronLeft, Settings, Send,
   Heart, Camera, Shield, X, Check, ImageIcon, Loader2, Trash2,
-  Share2, MessageCircle, FileText, Bell, MoreVertical, Pencil,
+  Share2, MessageCircle, FileText, Bell, MoreVertical, MoreHorizontal, Pencil,
   UserPlus, UserMinus, Crown, ShieldCheck, Ban, Eye, LogOut, Pin,
   Megaphone, Calendar, MapPin, Clock, CalendarPlus, ChevronRight,
   Reply, ImageIcon as ImagePlus, Video as VideoIcon,
@@ -506,6 +506,8 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
   const pullStartY = useRef(0);
   const pullDelta = useRef(0);
   const postsScrollRef = useRef<HTMLDivElement>(null);
+  // Menu dropdown
+  const [showMenuDropdown, setShowMenuDropdown] = useState(false);
 
   // Post Reach (views)
   const [viewCounts, setViewCounts] = useState<Record<string, number>>({});
@@ -1971,50 +1973,112 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
             >
               <Share2 size={13} /> Share
             </button>
-            {isMember && !isAdmin && (
+            {!isMember && (
               <button
-                onClick={() => handleLeave(selectedGroup.id)}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-full border border-red-500/30 text-[12px] font-black text-red-400 active:scale-95 transition-transform"
-                style={{ background: "rgba(239,68,68,0.1)", backdropFilter: "blur(12px)" }}
+                onClick={() => handleJoin(selectedGroup.id)}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-full border border-[#00F0FF]/30 text-[12px] font-black text-[#00F0FF] active:scale-95 transition-transform"
+                style={{ background: "rgba(0,240,255,0.08)", backdropFilter: "blur(12px)" }}
               >
-                <LogOut size={13} /> Leave
+                <Users size={13} /> Join
               </button>
             )}
           </div>
         </div>
 
-        {/* ── TAB BAR ─────────────────────────────────────────────────── */}
+        {/* ── COMPACT NAV BAR ─────────────────────────────────────────── */}
         <div className="px-3 pb-2 sticky top-0 z-20 pt-1" style={{ background: "#090a0f" }}>
-          <div className="flex items-center rounded-2xl border border-white/[0.08] p-1 gap-0.5"
+          <div className="flex items-center rounded-2xl border border-white/[0.08] px-2 py-1.5 gap-2"
             style={{ background: "rgba(255,255,255,0.04)", backdropFilter: "blur(20px)" }}>
-            {([
-              { id: "posts" as const, icon: FileText, label: "Posts", show: true },
-              { id: "review" as const, icon: Eye, label: `Review${pendingPosts.length > 0 ? ` ${pendingPosts.length}` : ""}`, show: canModerate },
-              { id: "chat" as const, icon: MessageCircle, label: "Chat", show: true },
-              { id: "members" as const, icon: Users, label: canModerate ? "Admin" : "Members", show: true },
-              { id: "about" as const, icon: Shield, label: "About", show: true },
-            ]).filter(tab => tab.show).map(tab => (
+            {/* Posts — always visible primary tab */}
+            <button
+              onClick={() => setGroupTab("posts")}
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-[12px] font-black transition-all ${
+                groupTab === "posts" ? "text-[#090a0f]" : "text-gray-400"
+              }`}
+              style={groupTab === "posts" ? { background: "#00F0FF", boxShadow: "0 0 12px rgba(0,240,255,0.4)" } : {}}
+            >
+              <FileText size={13} />
+              Posts
+            </button>
+
+            {/* Active section label (when not on Posts) */}
+            {groupTab !== "posts" && (
+              <div className="flex-1 flex items-center gap-1.5 px-2 min-w-0">
+                <span className="text-[12px] font-black text-[#00F0FF] truncate capitalize">
+                  {groupTab === "review" ? "Post Approval" : groupTab === "members" ? (canModerate ? "Admin" : "Members") : groupTab}
+                </span>
+                {pendingPosts.length > 0 && groupTab === "review" && (
+                  <span className="w-4 h-4 rounded-full text-white text-[8px] font-black flex items-center justify-center shrink-0"
+                    style={{ background: "#ff5d5d" }}>{pendingPosts.length}</span>
+                )}
+              </div>
+            )}
+            {groupTab === "posts" && <div className="flex-1" />}
+
+            {/* Menu / Options button */}
+            <div className="relative">
               <button
-                key={tab.id}
-                onClick={() => {
-                  setGroupTab(tab.id);
-                  if (tab.id === "members") setNewMemberCount(0);
-                }}
-                className={`flex-1 min-w-0 flex items-center justify-center gap-1 py-2 text-[11px] font-black rounded-xl transition-all relative ${
-                  groupTab === tab.id ? "text-[#090a0f]" : "text-gray-500"
+                onClick={() => setShowMenuDropdown(v => !v)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[12px] font-black transition-all relative border ${
+                  showMenuDropdown ? "text-[#090a0f] border-transparent" : "text-gray-300 border-white/10"
                 }`}
-                style={groupTab === tab.id ? { background: "#00F0FF", boxShadow: "0 0 12px rgba(0,240,255,0.4)" } : {}}
+                style={showMenuDropdown ? { background: "#00F0FF", boxShadow: "0 0 10px rgba(0,240,255,0.35)" } : { background: "rgba(255,255,255,0.07)" }}
               >
-                <tab.icon size={12} />
-                <span className="truncate">{tab.label}</span>
-                {tab.id === "members" && newMemberCount > 0 && canModerate && (
-                  <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full text-white text-[8px] font-black flex items-center justify-center"
-                    style={{ background: "#ff5d5d" }}>
-                    {newMemberCount}
-                  </span>
+                <MoreHorizontal size={15} />
+                <span>Menu</span>
+                {pendingPosts.length > 0 && canModerate && !showMenuDropdown && (
+                  <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full text-white text-[8px] font-black flex items-center justify-center"
+                    style={{ background: "#ff5d5d" }}>{pendingPosts.length}</span>
+                )}
+                {newMemberCount > 0 && canModerate && !showMenuDropdown && pendingPosts.length === 0 && (
+                  <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full text-white text-[8px] font-black flex items-center justify-center"
+                    style={{ background: "#ff5d5d" }}>{newMemberCount}</span>
                 )}
               </button>
-            ))}
+
+              {/* Dropdown */}
+              {showMenuDropdown && (
+                <>
+                  <div className="fixed inset-0 z-30" onClick={() => setShowMenuDropdown(false)} />
+                  <div
+                    className="absolute right-0 top-full mt-2 w-52 rounded-2xl border border-white/[0.10] overflow-hidden z-40 shadow-2xl"
+                    style={{ background: "rgba(13,14,22,0.97)", backdropFilter: "blur(24px)" }}
+                  >
+                    {([
+                      canModerate && { id: "review" as const, icon: Eye, label: "Post Approval", badge: pendingPosts.length > 0 ? pendingPosts.length : 0, desc: "Review pending posts" },
+                      { id: "chat" as const, icon: MessageCircle, label: "Chat", badge: 0, desc: "Group chat" },
+                      { id: "members" as const, icon: Users, label: canModerate ? "Admin" : "Members", badge: newMemberCount > 0 && canModerate ? newMemberCount : 0, desc: canModerate ? "Manage members & roles" : "View members" },
+                      { id: "about" as const, icon: Shield, label: "About & Settings", badge: 0, desc: "Info, rules, leave group" },
+                    ].filter(Boolean) as { id: GroupTab; icon: any; label: string; badge: number; desc: string }[]).map(item => (
+                      <button
+                        key={item.id}
+                        onClick={() => {
+                          setGroupTab(item.id);
+                          if (item.id === "members") setNewMemberCount(0);
+                          setShowMenuDropdown(false);
+                        }}
+                        className="w-full flex items-center gap-3 px-4 py-3 text-left border-b border-white/[0.06] last:border-0 active:bg-white/10 transition-colors relative"
+                        style={groupTab === item.id ? { background: "rgba(0,240,255,0.07)" } : {}}
+                      >
+                        <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${groupTab === item.id ? "text-[#00F0FF]" : "text-white/50"}`}
+                          style={{ background: groupTab === item.id ? "rgba(0,240,255,0.12)" : "rgba(255,255,255,0.06)" }}>
+                          <item.icon size={15} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-[13px] font-black ${groupTab === item.id ? "text-[#00F0FF]" : "text-white"}`}>{item.label}</p>
+                          <p className="text-[10px] text-white/30">{item.desc}</p>
+                        </div>
+                        {item.badge > 0 && (
+                          <span className="w-5 h-5 rounded-full text-white text-[9px] font-black flex items-center justify-center shrink-0"
+                            style={{ background: "#ff5d5d" }}>{item.badge}</span>
+                        )}
+                        {groupTab === item.id && <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: "#00F0FF" }} />}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
 
@@ -2024,6 +2088,25 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
             ref={postsScrollRef}
             className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:hidden"
             style={{ scrollbarWidth: "none" }}
+            onTouchStart={(e) => {
+              if (postsScrollRef.current && postsScrollRef.current.scrollTop === 0) {
+                pullStartY.current = e.touches[0].clientY;
+              }
+            }}
+            onTouchMove={(e) => {
+              if (pullStartY.current > 0) {
+                pullDelta.current = e.touches[0].clientY - pullStartY.current;
+              }
+            }}
+            onTouchEnd={async () => {
+              if (pullDelta.current > 64 && !pullRefreshing && selectedGroup) {
+                setPullRefreshing(true);
+                await fetchCirclePosts(selectedGroup.id, canModerate);
+                setPullRefreshing(false);
+              }
+              pullStartY.current = 0;
+              pullDelta.current = 0;
+            }}
           >
             {/* Pull-to-refresh indicator */}
             {pullRefreshing && (
@@ -2324,23 +2407,6 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
 
             {/* Posts list */}
             <div className="space-y-0">
-              {/* ── Manual Refresh Row ───────────────────────────────────── */}
-              <div className="flex items-center justify-end px-4 py-2 border-b border-white/[0.06]"
-                style={{ background: "rgba(255,255,255,0.02)" }}>
-                <button
-                  onClick={async () => {
-                    haptic();
-                    setPullRefreshing(true);
-                    await fetchCirclePosts(selectedGroup.id, canModerate);
-                    setPullRefreshing(false);
-                  }}
-                  disabled={pullRefreshing || postsLoading}
-                  className="flex items-center gap-1.5 text-[11px] font-black text-[#00F0FF] active:scale-95 transition-transform disabled:opacity-40"
-                >
-                  <Loader2 size={13} className={pullRefreshing ? "animate-spin" : ""} />
-                  {pullRefreshing ? "Refreshing…" : "Pull to Refresh"}
-                </button>
-              </div>
 
               {postsLoading ? (
                 <div className="flex flex-col items-center py-16">
@@ -2866,6 +2932,68 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
         {/* ── ABOUT TAB ──────────────────────────────────────────────────── */}
         {groupTab === "about" && (
           <div className="flex-1 overflow-y-auto pb-6 [&::-webkit-scrollbar]:hidden" style={{ scrollbarWidth: "none" }}>
+
+            {/* ── Membership Actions ──────────────────────────────────────── */}
+            <div className="mx-3 mt-3 rounded-3xl border border-white/[0.08] overflow-hidden"
+              style={{ background: "rgba(255,255,255,0.03)", backdropFilter: "blur(20px)" }}>
+              <div className="flex items-center gap-2 px-4 py-3 border-b border-white/[0.06]">
+                <Settings size={13} className="text-[#00F0FF]" />
+                <span className="text-[12px] font-black text-white">Settings</span>
+              </div>
+              <div className="divide-y divide-white/[0.04]">
+                {/* Follow/Unfollow — share the circle */}
+                <button
+                  onClick={() => shareCircle(selectedGroup)}
+                  className="w-full flex items-center gap-3 px-4 py-3.5 active:bg-white/[0.06] transition-colors text-left"
+                >
+                  <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 text-[#00F0FF]"
+                    style={{ background: "rgba(0,240,255,0.1)" }}>
+                    <Share2 size={15} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[13px] font-black text-white">Share Circle</p>
+                    <p className="text-[10px] text-white/30">Invite friends via link</p>
+                  </div>
+                  <ChevronRight size={14} className="text-white/20" />
+                </button>
+
+                {/* Join — only for non-members */}
+                {!isMember && (
+                  <button
+                    onClick={() => handleJoin(selectedGroup.id)}
+                    className="w-full flex items-center gap-3 px-4 py-3.5 active:bg-white/[0.06] transition-colors text-left"
+                  >
+                    <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 text-green-400"
+                      style={{ background: "rgba(34,197,94,0.1)" }}>
+                      <UserPlus size={15} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[13px] font-black text-white">Join Circle</p>
+                      <p className="text-[10px] text-white/30">Become a member</p>
+                    </div>
+                    <ChevronRight size={14} className="text-white/20" />
+                  </button>
+                )}
+
+                {/* Leave — only for non-admin members */}
+                {isMember && !isAdmin && (
+                  <button
+                    onClick={() => handleLeave(selectedGroup.id)}
+                    className="w-full flex items-center gap-3 px-4 py-3.5 active:bg-red-500/10 transition-colors text-left"
+                  >
+                    <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 text-red-400"
+                      style={{ background: "rgba(239,68,68,0.1)" }}>
+                      <LogOut size={15} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[13px] font-black text-red-400">Leave Circle</p>
+                      <p className="text-[10px] text-white/30">You can rejoin later</p>
+                    </div>
+                    <ChevronRight size={14} className="text-red-400/30" />
+                  </button>
+                )}
+              </div>
+            </div>
 
             {/* ── Group Info Card ────────────────────────────────────────── */}
             <div className="mx-3 mt-3 rounded-3xl border border-white/[0.08] px-4 py-4"
