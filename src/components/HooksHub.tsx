@@ -35,6 +35,23 @@ interface Friend { id: string; full_name: string; avatar_url: string; }
 const CATEGORIES = ["General","Business","Entertainment","Education","Sports","Food","Travel","Tech","Art","Music"];
 const STORAGE_BUCKET = "hooks";
 
+// ── Graceful hook_pages helper ─────────────────────────────────────────────
+// Silently absorbs errors when hook_pages table doesn't exist yet (PGRST204 /
+// 42P01). Run supabase_hooks_tables.sql in your Supabase SQL Editor to create it.
+const safeHp = (promise: Promise<{ error: any }>) =>
+  promise.then(({ error }) => {
+    if (error && error.code !== "PGRST116") // PGRST116 = 0 rows, harmless
+      console.warn("[HooksHub] hook_pages:", error.code, error.message);
+  }).catch(() => {});
+
+const safeHpRead = async <T,>(promise: Promise<{ data: T | null; error: any }>): Promise<T | null> => {
+  try {
+    const { data, error } = await promise;
+    if (error) console.warn("[HooksHub] hook_pages read:", error.code, error.message);
+    return data;
+  } catch { return null; }
+};
+
 // ── Time-limit duration options ────────────────────────────────────────────────
 const DURATION_OPTIONS = [
   { label: "1 Hour",   value: "1h",   ms: 1   * 3_600_000 },
@@ -278,8 +295,8 @@ const HookModal = ({ pageId, pageName, userId, onClose }:
       ...(expires_at ? { expires_at } : {}),
     }));
     await supabase.from("hook_invites").upsert(rows, { onConflict: "page_id,invitee_id" });
-    const { data: cur } = await supabase.from("hook_pages").select("hook_count").eq("id", pageId).single();
-    await supabase.from("hook_pages").update({ hook_count: (cur?.hook_count || 0) + selected.size }).eq("id", pageId);
+    const cur = await safeHpRead(supabase.from("hook_pages").select("hook_count").eq("id", pageId).single());
+    await safeHp(supabase.from("hook_pages").update({ hook_count: (cur?.hook_count || 0) + selected.size }).eq("id", pageId));
 
     const durLabel = DURATION_OPTIONS.find(d => d.value === duration)?.label || "7 Days";
     const notifRows = Array.from(selected)
@@ -442,8 +459,8 @@ const AddPostModal = ({ pageId, userId, isOwner, pageName, onClose, onPosted }:
     }]);
     if (isOwner) {
       // Only increment hook_count for owner posts that are immediately live
-      const { data: cur } = await supabase.from("hook_pages").select("hook_count").eq("id", pageId).single();
-      await supabase.from("hook_pages").update({ hook_count: (cur?.hook_count || 0) + 1 }).eq("id", pageId);
+      const cur = await safeHpRead(supabase.from("hook_pages").select("hook_count").eq("id", pageId).single());
+      await safeHp(supabase.from("hook_pages").update({ hook_count: (cur?.hook_count || 0) + 1 }).eq("id", pageId));
     }
     setUploadPct(100);
     setSaving(false); onPosted(); onClose();
@@ -860,9 +877,10 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
   };
 
   const likePost = async (postId: string, cur: number) => {
-    await supabase.from("hook_page_posts").update({ likes_count: cur + 1 }).eq("id", postId);
+    await supabase.from("hook_page_posts").update({ likes_count: cur + 1 }).eq("id", postId)
+      .then(({ error }) => { if (error) console.warn("[HooksHub] hook_page_posts like:", error.message); });
     setPosts(prev => prev.map(p => p.id === postId ? { ...p, likes_count: cur + 1 } : p));
-    await supabase.from("hook_pages").update({ like_count: (livePage.like_count || 0) + 1 }).eq("id", page.id);
+    safeHp(supabase.from("hook_pages").update({ like_count: (livePage.like_count || 0) + 1 }).eq("id", page.id));
     setLivePage(prev => ({ ...prev, like_count: (prev.like_count || 0) + 1 }));
   };
 
@@ -898,14 +916,15 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
     await query;
     setPosts(prev => prev.filter(p => p.id !== postId));
     setConfirmDeletePost(null);
-    const { data: cur } = await supabase.from("hook_pages").select("hook_count").eq("id", page.id).single();
-    await supabase.from("hook_pages").update({ hook_count: Math.max((cur?.hook_count || 1) - 1, 0) }).eq("id", page.id);
+    const curPage = await safeHpRead(supabase.from("hook_pages").select("hook_count").eq("id", page.id).single());
+    safeHp(supabase.from("hook_pages").update({ hook_count: Math.max((curPage?.hook_count || 1) - 1, 0) }).eq("id", page.id));
   };
 
   const deletePage = async () => {
     setDeletingPage(true);
-    await supabase.from("hook_page_posts").delete().eq("page_id", page.id);
-    await supabase.from("hook_pages").delete().eq("id", page.id).eq("owner_id", userId);
+    await supabase.from("hook_page_posts").delete().eq("page_id", page.id)
+      .then(({ error }) => { if (error) console.warn("[HooksHub] delete page posts:", error.message); });
+    await safeHp(supabase.from("hook_pages").delete().eq("id", page.id).eq("owner_id", userId));
     setDeletingPage(false);
     onBack();
   };
@@ -1128,10 +1147,11 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
   // ── Approve / Reject a pending-approval contributor post ──────────────────
   const approvePost = async (postId: string) => {
     setApprovingPostId(postId);
-    await supabase.from("hook_page_posts").update({ status: "approved" }).eq("id", postId);
+    await supabase.from("hook_page_posts").update({ status: "approved" }).eq("id", postId)
+      .then(({ error }) => { if (error) console.warn("[HooksHub] approve post:", error.message); });
     // Increment hook_count
-    const { data: cur } = await supabase.from("hook_pages").select("hook_count").eq("id", page.id).single();
-    await supabase.from("hook_pages").update({ hook_count: (cur?.hook_count || 0) + 1 }).eq("id", page.id);
+    const curApprove = await safeHpRead(supabase.from("hook_pages").select("hook_count").eq("id", page.id).single());
+    safeHp(supabase.from("hook_pages").update({ hook_count: (curApprove?.hook_count || 0) + 1 }).eq("id", page.id));
     // Notify the contributor
     const post = posts.find(p => p.id === postId);
     if (post && post.author_id !== userId) {

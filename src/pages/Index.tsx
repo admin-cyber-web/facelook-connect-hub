@@ -1545,6 +1545,9 @@ const Index = ({ session, initialAdminOpen, isGuest = false }: { session: Sessio
   // Magnet Dashboard
   const [showMagnetDashboard, setShowMagnetDashboard] = useState(false);
 
+  // Onboarding (first-run modal for new users missing location/interests)
+  const [showOnboarding, setShowOnboarding] = useState(false);
+
   // Frame Mode
   const dataCache = useDataCache();
   const cachedOnline = dataCache.cacheRef.current.onlineUsers;
