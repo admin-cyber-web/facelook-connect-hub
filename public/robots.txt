@@ -1,8 +1,18 @@
 User-agent: Googlebot
 Allow: /
+Allow: /post/
+Disallow: /chat
+Disallow: /settings
+Disallow: /login
+Disallow: /signup
 
 User-agent: Bingbot
 Allow: /
+Allow: /post/
+Disallow: /chat
+Disallow: /settings
+Disallow: /login
+Disallow: /signup
 
 User-agent: Twitterbot
 Allow: /
@@ -12,3 +22,11 @@ Allow: /
 
 User-agent: *
 Allow: /
+Allow: /post/
+Disallow: /chat
+Disallow: /settings
+Disallow: /login
+Disallow: /signup
+
+Sitemap: https://flicksindia.online/sitemap.xml
+Sitemap: https://www.flicksindia.online/sitemap.xml

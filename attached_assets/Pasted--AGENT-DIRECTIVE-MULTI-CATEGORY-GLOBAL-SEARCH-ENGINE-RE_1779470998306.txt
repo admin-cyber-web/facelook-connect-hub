@@ -1,0 +1,36 @@
+# AGENT DIRECTIVE: MULTI-CATEGORY GLOBAL SEARCH ENGINE & REAL-TIME ADMIN COUNTER
+
+We need to significantly expand our front-page search capabilities and implement the requested live database metrics in the admin dashboard. Execute the following technical updates:
+
+---
+
+## PART 1: ADVANCED MULTI-CATEGORY SEARCH & MATCHING ALGORITHM
+
+### 1. Multi-Table Search Expansion (Profiles, Circles, Hooks)
+- Expand the main header search engine to query across three distinct entities:
+  1. **Profiles:** Public user accounts (`profile_hidden: false`, `is_private_mode: false`).
+  2. **Circles:** Public community groups or group page names.
+  3. **Hooks:** Public pages, topic tags, or curated title sections.
+
+### 2. Priority Sorting & Fuzzy Suggestions (Facebook-Style)
+- As the user types (e.g., "Kahani"), execute an optimized text-matching query that catches partial and fuzzy variations (e.g., returning "Kahani Ghar Ghar Ki", "Nayi Kahani").
+- **Strict Sorting Logic:** The results must be ordered by relevance. The exact or closest matching title string must automatically be pushed to the absolute top of the header suggestions box.
+- Clicking any suggestion or pressing enter must isolate the viewport to display that specific target entity's main profile, circle page, or hook feed.
+
+---
+
+## PART 2: REAL-TIME ADMIN COUNTER VIA SUPABASE REALTIME
+
+### 1. Live Postgres Changes Subscription
+- In the Admin Dashboard stats module, implement a live `supabase.channel()` subscription targeting the `profiles` table.
+- Listen natively for the `INSERT` event (whenever a new user signs up).
+
+### 2. Zero-Refresh UI Counter Increments
+- Bind this real-time subscription stream directly to the newly created "Last 24 Hours" and "Total Users" state variables.
+- When an event fires, instantly increment the counter badge dynamically in the browser dashboard view. The admin should see the digits update in real-time without executing a manual page refresh.
+
+---
+
+## PART 3: ARCHITECTURE & CLEAN STATE
+- Maintain standard loading state indicators while performing multi-table search queries to prevent input UI freezing.
+- Ensure all component cleanups are handled correctly to prevent memory leaks from active Supabase Realtime channels when navigating away from the Admin panel.

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, lazy, Suspense } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { Session } from "@supabase/supabase-js";
 import {
@@ -22,7 +22,7 @@ import {
   Save,
   Shield,
   CheckCircle,
-  Video,
+  Video, VolumeX,
   PhoneCall,
   ArrowLeft,
   Heart,
@@ -40,146 +40,157 @@ import {
   UserRound,
   LifeBuoy,
   Copy,
-} from "lucide-react";
+  Info,
+  Mail,
+  Sparkles,
+  SlidersHorizontal,
+  Tags,
+      } from "lucide-react";
 
 // DHAYAN DEIN: Sirf ye ek supabase import rehna chahiye
 import { supabase } from "@/lib/supabaseClient";
+import { memGet, memSet, memClear, memDel } from "@/lib/memCache";
+import { Helmet } from "react-helmet-async";
+import { toast } from "sonner";
 
 import Header from "@/components/Header";
+import InviteCard from "@/components/InviteCard";
 import GolSlider from "@/components/GolSlider";
-import FameFeed from "@/components/FameFeed";
-import { StoryBar } from "@/components/StoryBar";
-import FlicksFeed from "@/components/FlicksFeed";
-import CreatePost from "@/components/CreatePost";
-import ChatSystem from "@/components/ChatSystem";
-import SnapyStudio from "@/components/SnapyStudio";
-import MovieGame from "@/components/MovieGame";
-import ConnectionPanel from "@/components/ConnectionPanel";
-import CirclePage from "@/components/CirclePage";
-import HooksHub from "@/components/HooksHub";
-import MagnetDashboard from "@/components/MagnetDashboard";
+import PullToRefresh from "@/components/PullToRefresh";
+import AutoPlayMutedVideo from "@/components/AutoPlayMutedVideo";
+import { isAdminEmail } from "@/lib/adminConfig";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { useDataCache } from "@/context/DataCacheContext";
+
+// ── Lazy-loaded feature sections (breaks circular deps + improves load time) ──
+const FameFeed       = lazy(() => import("@/components/FameFeed"));
+const StoryBar       = lazy(() => import("@/components/StoryBar"));
+const FlicksFeed     = lazy(() => import("@/components/FlicksFeed"));
+const ChatSystem     = lazy(() => import("@/components/ChatSystem"));
+const CirclePage     = lazy(() => import("@/components/CirclePage"));
+const HooksHub       = lazy(() => import("@/components/HooksHub"));
+const SurveyFeed     = lazy(() => import("@/components/SurveyFeed"));
+const SnapyStudio    = lazy(() => import("@/components/SnapyStudio"));
+const QuotesMaker    = lazy(() => import("@/components/QuotesMaker"));
+const AdminDashboard = lazy(() => import("@/components/AdminDashboard"));
+const MagnetDashboard= lazy(() => import("@/components/MagnetDashboard"));
+const FlicksStudio   = lazy(() => import("@/components/FlicksStudio"));
+const AntakshariArena = lazy(() => import("@/components/AntakshariArena"));
+const ConnectionPanel= lazy(() => import("@/components/ConnectionPanel"));
+const CreatePost     = lazy(() => import("@/components/CreatePost"));
 // ── Reusable styled blocks ───────────────────────────────────────────────────
 const GlassCard = ({ children, className = "", noPadding = false }: any) => (
   <div
-    className={`bg-white/10 backdrop-blur-2xl border-y sm:border border-white/10 shadow-lg w-full ${noPadding ? "p-0" : "p-4"} ${className}`}
+    className={`w-full ${noPadding ? "p-0" : "p-4"} ${className}`}
+    style={{
+      background: "rgba(255,255,255,0.035)",
+      backdropFilter: "blur(24px)",
+      WebkitBackdropFilter: "blur(24px)",
+      border: "1px solid rgba(255,255,255,0.07)",
+      boxShadow: "0 4px 32px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.05)",
+    }}
   >
     {children}
   </div>
 );
 
-// ── Rose Petals background ─────────────────────────────────────────────────────
-const GLOBAL_PETAL_DATA = Array.from({ length: 10 }, (_, i) => ({
-  id: i,
-  left: `${5 + ((i * 11) % 90)}%`,
-  delay: `${(i * 0.9) % 10}s`,
-  duration: `${9 + ((i * 1.3) % 8)}s`,
-  size: 7 + ((i * 3) % 9),
-  color: i % 3 === 0 ? "#f43f5e" : i % 3 === 1 ? "#fb7185" : "#fda4af",
-}));
-
-const GlobalRosePetals = () => (
-  <>
-    <style>{`
-      @keyframes gp-fall {
-        0%   { transform: translateY(-30px) rotate(0deg) scale(1);   opacity: 0.7; }
-        80%  { opacity: 0.45; }
-        100% { transform: translateY(105vh) rotate(540deg) scale(0.4); opacity: 0; }
-      }
-      @keyframes gp-sway {
-        0%,100% { margin-left: 0px; }
-        40%      { margin-left: 16px; }
-        70%      { margin-left: -10px; }
-      }
-
-      /* ── Light mode text overrides ─────────────────────────────────────── */
-      .light-mode { color: #1e293b; }
-      .light-mode .text-white        { color: #1e293b !important; }
-      .light-mode .text-white\\/90   { color: #1e293b !important; }
-      .light-mode .text-white\\/80   { color: #334155 !important; }
-      .light-mode .text-white\\/70   { color: #475569 !important; }
-      .light-mode .text-white\\/60   { color: #64748b !important; }
-      .light-mode .text-white\\/50   { color: #64748b !important; }
-      .light-mode .text-white\\/40   { color: #94a3b8 !important; }
-      .light-mode .text-white\\/30   { color: #94a3b8 !important; }
-      .light-mode .text-white\\/20   { color: #cbd5e1 !important; }
-      .light-mode .bg-white\\/10     { background-color: rgba(255,255,255,0.85) !important; }
-      .light-mode .bg-white\\/5      { background-color: rgba(255,255,255,0.7) !important; }
-      .light-mode .border-white\\/10 { border-color: rgba(0,0,0,0.1) !important; }
-      .light-mode .border-white\\/20 { border-color: rgba(0,0,0,0.15) !important; }
-      .light-mode .bg-slate-900\\/80 { background-color: rgba(255,255,255,0.9) !important; }
-      .light-mode .bg-slate-900      { background-color: #f1f5f9 !important; }
-      .light-mode .bg-slate-800      { background-color: #e2e8f0 !important; }
-      .light-mode .bg-\\[\\#020617\\]  { background-color: #f1f5f9 !important; }
-      .light-mode input,
-      .light-mode textarea           { color: #1e293b !important; }
-      .light-mode input::placeholder,
-      .light-mode textarea::placeholder { color: #94a3b8 !important; }
-    `}</style>
-    <div
-      style={{
-        position: "fixed", inset: 0, zIndex: 0,
-        pointerEvents: "none", overflow: "hidden",
-      }}
-    >
-      {GLOBAL_PETAL_DATA.map((p) => (
-        <div
-          key={p.id}
-          style={{
-            position: "absolute",
-            top: -20,
-            left: p.left,
-            width: p.size,
-            height: p.size * 1.35,
-            background: p.color,
-            borderRadius: "50% 10% 50% 10%",
-            opacity: 0.65,
-            filter: "blur(0.4px)",
-            animation: `gp-fall ${p.duration} ${p.delay} linear infinite, gp-sway ${parseFloat(p.duration) * 0.55}s ${p.delay} ease-in-out infinite`,
-          }}
-        />
-      ))}
-    </div>
-  </>
-);
-
-const SettingRow = ({ icon, title, desc, color, onClick, right }: any) => (
-  <div
-    onClick={onClick}
-    className="flex items-center justify-between p-4 hover:bg-white/10 rounded-2xl cursor-pointer transition-all border border-transparent hover:border-white/10 group"
-  >
-    <div className="flex items-center gap-4">
-      <div
-        className={`w-10 h-10 rounded-xl flex items-center justify-center bg-white/20 backdrop-blur-md border border-white/10 ${color}`}
-      >
-        {icon}
-      </div>
-      <div>
-        <p className="text-sm font-bold text-white">{title}</p>
-        <p className="text-[10px] text-white/50 font-medium uppercase tracking-tighter">
-          {desc}
-        </p>
-      </div>
-    </div>
-    {right || (
-      <ChevronRight
-        size={16}
-        className="text-white/30 group-hover:text-white"
-      />
-    )}
+// ── Suspense fallback for lazy sections ──────────────────────────────────────
+const SectionLoader = () => (
+  <div className="w-full flex items-center justify-center py-20">
+    <div className="w-8 h-8 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
   </div>
 );
 
-// Simple pill toggle
+// ── Light-mode CSS overrides (previously bundled with rose petals, now standalone) ──
+const LightModeStyles = () => (
+  <style>{`
+    .light-mode { color: #1e293b; }
+    .light-mode .text-white        { color: #1e293b !important; }
+    .light-mode .text-white\\/90   { color: #1e293b !important; }
+    .light-mode .text-white\\/80   { color: #334155 !important; }
+    .light-mode .text-white\\/70   { color: #475569 !important; }
+    .light-mode .text-white\\/60   { color: #64748b !important; }
+    .light-mode .text-white\\/50   { color: #64748b !important; }
+    .light-mode .text-white\\/40   { color: #94a3b8 !important; }
+    .light-mode .text-white\\/30   { color: #94a3b8 !important; }
+    .light-mode .text-white\\/20   { color: #cbd5e1 !important; }
+    .light-mode .bg-white\\/10     { background-color: rgba(255,255,255,0.85) !important; }
+    .light-mode .bg-white\\/5      { background-color: rgba(255,255,255,0.7) !important; }
+    .light-mode .border-white\\/10 { border-color: rgba(0,0,0,0.1) !important; }
+    .light-mode .border-white\\/20 { border-color: rgba(0,0,0,0.15) !important; }
+    .light-mode .bg-slate-900\\/80 { background-color: rgba(255,255,255,0.9) !important; }
+    .light-mode .bg-slate-900      { background-color: #f1f5f9 !important; }
+    .light-mode .bg-slate-800      { background-color: #e2e8f0 !important; }
+    .light-mode .bg-\\[\\#020617\\]  { background-color: #f1f5f9 !important; }
+    .light-mode input,
+    .light-mode textarea           { color: #1e293b !important; }
+    .light-mode input::placeholder,
+    .light-mode textarea::placeholder { color: #94a3b8 !important; }
+  `}</style>
+);
+
+// Aurora color map for SettingRow icon containers
+const AURORA_COLORS: Record<string, { bg: string; border: string; color: string }> = {
+  violet:  { bg: "rgba(139,92,246,0.15)",  border: "rgba(139,92,246,0.28)",  color: "#a78bfa" },
+  pink:    { bg: "rgba(236,72,153,0.15)",  border: "rgba(236,72,153,0.28)",  color: "#f472b6" },
+  amber:   { bg: "rgba(245,158,11,0.15)",  border: "rgba(245,158,11,0.28)",  color: "#fbbf24" },
+  emerald: { bg: "rgba(16,185,129,0.15)",  border: "rgba(16,185,129,0.28)",  color: "#34d399" },
+  sky:     { bg: "rgba(56,189,248,0.15)",  border: "rgba(56,189,248,0.28)",  color: "#38bdf8" },
+  slate:   { bg: "rgba(148,163,184,0.1)",  border: "rgba(148,163,184,0.2)",  color: "#94a3b8" },
+  red:     { bg: "rgba(239,68,68,0.12)",   border: "rgba(239,68,68,0.22)",   color: "#f87171" },
+};
+
+const SettingRow = ({ icon, title, desc, color = "violet", onClick, right }: any) => {
+  const c = AURORA_COLORS[color] ?? AURORA_COLORS.violet;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={!onClick}
+      className="w-full flex items-center justify-between px-4 py-3.5 rounded-2xl transition-all active:scale-[0.98] group disabled:pointer-events-none text-left"
+      style={{ background: "transparent" }}
+      onMouseEnter={(e) => { if (onClick) (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.04)"; }}
+      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
+    >
+      <div className="flex items-center gap-3.5">
+        <div
+          className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+          style={{ background: c.bg, border: `1px solid ${c.border}`, color: c.color }}
+        >
+          {icon}
+        </div>
+        <div className="text-left">
+          <p className="text-[13px] font-semibold text-white/90 leading-tight">{title}</p>
+          <p className="text-[11px] text-white/35 font-medium mt-0.5 leading-tight">{desc}</p>
+        </div>
+      </div>
+      <div className="ml-3 shrink-0">
+        {right ?? (
+          <ChevronRight size={15} className="text-white/20 group-hover:text-white/50 transition-colors" />
+        )}
+      </div>
+    </button>
+  );
+};
+
+// Aurora glow toggle switch
 const Toggle = ({ on, onToggle }: { on: boolean; onToggle: () => void }) => (
   <button
-    onClick={(e) => {
-      e.stopPropagation();
-      onToggle();
+    type="button"
+    onClick={(e) => { e.stopPropagation(); onToggle(); }}
+    className="relative shrink-0 transition-all duration-300 active:scale-95"
+    style={{
+      width: 44, height: 24, borderRadius: 12,
+      background: on
+        ? "linear-gradient(135deg, #8B5CF6, #EC4899)"
+        : "rgba(255,255,255,0.1)",
+      border: on ? "1px solid rgba(139,92,246,0.5)" : "1px solid rgba(255,255,255,0.15)",
+      boxShadow: on ? "0 0 14px rgba(139,92,246,0.4)" : "none",
     }}
-    className={`relative w-12 h-6 rounded-full transition-all duration-300 border ${on ? "bg-blue-600 border-blue-500" : "bg-white/10 border-white/20"}`}
   >
     <div
-      className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all duration-300 ${on ? "left-6" : "left-0.5"}`}
+      className="absolute top-[3px] w-[18px] h-[18px] bg-white rounded-full shadow-md transition-all duration-300"
+      style={{ left: on ? 22 : 3 }}
     />
   </button>
 );
@@ -224,8 +235,8 @@ interface FrameRequest {
 
 // ── Frame Mode full-screen view ────────────────────────────────────────────────
 function FrameModePage({ onBack, userProfile, userEmail }: { onBack: () => void; userProfile: any; userEmail?: string }) {
-  const ADMIN_EMAIL = "tiwarijhumki@gmail.com";
-  const isAdmin = userEmail === ADMIN_EMAIL;
+  const ADMIN_EMAILS = ["tiwarijhumki@gmail.com", "textilevikhyat@gmail.com"];
+  const isAdmin = !!userEmail && ADMIN_EMAILS.includes(userEmail.toLowerCase());
 
   const [requests, setRequests]         = useState<FrameRequest[]>([]);
   const [loading, setLoading]           = useState(true);
@@ -260,7 +271,7 @@ function FrameModePage({ onBack, userProfile, userEmail }: { onBack: () => void;
         setRequests(prev => prev.filter(r => r.id !== (payload.old as any).id));
       })
       .subscribe();
-    return () => { ch.unsubscribe(); };
+    return () => { supabase.removeChannel(ch); };
   }, []);
 
   const fetchRequests = async () => {
@@ -321,7 +332,6 @@ function FrameModePage({ onBack, userProfile, userEmail }: { onBack: () => void;
       is_priority:      false,
     });
 
-    console.log("Asli Insert Result:", { data, error });
 
     if (error) {
       alert(`Submit failed: ${error.message}`);
@@ -459,7 +469,7 @@ function FrameModePage({ onBack, userProfile, userEmail }: { onBack: () => void;
               className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm" onClick={() => setShowForm(false)} />
             <motion.div key="formsheet" initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
               transition={{ type: "spring", stiffness: 300, damping: 30 }}
-              className="fixed bottom-0 left-0 w-full z-[61] bg-white rounded-t-3xl border-t-2 border-amber-200 max-h-[92vh] overflow-y-auto"
+              className="fixed bottom-0 left-0 w-full z-[61] bg-[#d4f0e2] rounded-t-3xl border-t-2 border-amber-200 max-h-[92vh] overflow-y-auto"
             >
               <div className="px-4 pt-4 pb-2 flex items-center justify-between border-b border-amber-100">
                 <div>
@@ -473,7 +483,7 @@ function FrameModePage({ onBack, userProfile, userEmail }: { onBack: () => void;
                 <p className="text-[10px] font-black text-amber-700 uppercase tracking-widest mb-2">Reporting By (Auto)</p>
                 <div className="flex items-center gap-3">
                   {userProfile?.avatar_url ? (
-                    <img src={userProfile.avatar_url} className="w-10 h-10 rounded-full object-cover border-2 border-amber-300" />
+                    <img src={userProfile.avatar_url} loading="lazy" className="w-10 h-10 rounded-full object-cover border-2 border-amber-300"  decoding="async"/>
                   ) : (
                     <div className="w-10 h-10 rounded-full bg-amber-400 flex items-center justify-center text-white font-black">
                       {(userProfile?.full_name || "U")[0]}
@@ -491,7 +501,7 @@ function FrameModePage({ onBack, userProfile, userEmail }: { onBack: () => void;
                   <p className="text-xs font-black text-gray-700 mb-2">Zarooratmand ki Photo</p>
                   <label className="flex flex-col items-center justify-center w-full h-32 rounded-2xl border-2 border-dashed border-amber-300 bg-amber-50 cursor-pointer overflow-hidden">
                     {photoPreview ? (
-                      <img src={photoPreview} className="w-full h-full object-cover" />
+                      <img src={photoPreview} loading="lazy" className="w-full h-full object-cover"  decoding="async"/>
                     ) : (
                       <div className="flex flex-col items-center gap-2 text-amber-500">
                         <Camera size={28} />
@@ -505,7 +515,7 @@ function FrameModePage({ onBack, userProfile, userEmail }: { onBack: () => void;
                 <div>
                   <p className="text-xs font-black text-gray-700 mb-1.5">Zarooratmand ka Naam *</p>
                   <input value={formData.needy_name} onChange={e => fld("needy_name", e.target.value)}
-                    placeholder="Jaise: Ramesh Kumar" className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold text-gray-900 outline-none focus:ring-2 focus:ring-amber-400/40" />
+                    placeholder="Jaise: Ramesh Kumar" className="w-full bg-[#c4e8d4] border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold text-gray-900 outline-none focus:ring-2 focus:ring-amber-400/40" />
                 </div>
 
                 <div>
@@ -531,21 +541,21 @@ function FrameModePage({ onBack, userProfile, userEmail }: { onBack: () => void;
                   <p className="text-xs font-black text-gray-700 mb-1.5">Pura Address *</p>
                   <textarea value={formData.address} onChange={e => fld("address", e.target.value)}
                     placeholder="Gali, Mohalla, Sheher, State..."
-                    rows={3} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold text-gray-900 outline-none focus:ring-2 focus:ring-amber-400/40 resize-none" />
+                    rows={3} className="w-full bg-[#c4e8d4] border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold text-gray-900 outline-none focus:ring-2 focus:ring-amber-400/40 resize-none" />
                 </div>
 
                 <div>
                   <p className="text-xs font-black text-gray-700 mb-1.5">Mobile No. *</p>
                   <input value={formData.mobile} onChange={e => fld("mobile", e.target.value)}
                     placeholder="+91 XXXXX XXXXX" type="tel"
-                    className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold text-gray-900 outline-none focus:ring-2 focus:ring-amber-400/40" />
+                    className="w-full bg-[#c4e8d4] border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold text-gray-900 outline-none focus:ring-2 focus:ring-amber-400/40" />
                 </div>
 
                 <div>
                   <p className="text-xs font-black text-gray-700 mb-1.5">Zaroorat ka Karan (Optional)</p>
                   <textarea value={formData.description} onChange={e => fld("description", e.target.value)}
                     placeholder="Thodi si aur baat..."
-                    rows={2} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold text-gray-900 outline-none focus:ring-2 focus:ring-amber-400/40 resize-none" />
+                    rows={2} className="w-full bg-[#c4e8d4] border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold text-gray-900 outline-none focus:ring-2 focus:ring-amber-400/40 resize-none" />
                 </div>
 
                 <motion.button whileTap={{ scale: 0.97 }} onClick={handleSubmit} disabled={submitting || uploadingPhoto}
@@ -568,7 +578,7 @@ function FrameModePage({ onBack, userProfile, userEmail }: { onBack: () => void;
             <motion.div key="sucbox" initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }}
               className="fixed inset-0 z-[71] flex items-center justify-center px-6"
             >
-              <div className="bg-white rounded-3xl p-6 w-full max-w-sm text-center border-2 border-amber-300 shadow-2xl">
+              <div className="bg-[#d4f0e2] rounded-3xl p-6 w-full max-w-sm text-center border-2 border-amber-300 shadow-2xl">
                 <div className="text-5xl mb-3">✅</div>
                 <p className="text-lg font-black text-amber-900 mb-2">Request Submit Ho Gayi!</p>
                 <p className="text-sm text-gray-600 leading-relaxed mb-4">
@@ -598,7 +608,7 @@ function FrameModePage({ onBack, userProfile, userEmail }: { onBack: () => void;
               className="fixed inset-0 z-[70] bg-black/60 backdrop-blur-sm" onClick={() => setHelpPopup(null)} />
             <motion.div key="hpbox" initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
               transition={{ type: "spring", stiffness: 300, damping: 28 }}
-              className="fixed bottom-0 left-0 w-full z-[71] bg-white rounded-t-3xl border-t-2 border-amber-200 px-5 pt-5 pb-8"
+              className="fixed bottom-0 left-0 w-full z-[71] bg-[#d4f0e2] rounded-t-3xl border-t-2 border-amber-200 px-5 pt-5 pb-8"
             >
               <div className="w-10 h-1 rounded-full bg-gray-300 mx-auto mb-4" />
               <div className="text-center mb-5">
@@ -625,7 +635,7 @@ function FrameModePage({ onBack, userProfile, userEmail }: { onBack: () => void;
                     <Video size={18} /> Watch Ad & Help (+₹0.50)
                   </motion.button>
                   <motion.button whileTap={{ scale: 0.97 }} onClick={handleShare}
-                    className="w-full py-4 rounded-2xl bg-gray-100 text-gray-700 font-black text-sm flex items-center justify-center gap-2">
+                    className="w-full py-4 rounded-2xl bg-[#b0dcc4] text-gray-700 font-black text-sm flex items-center justify-center gap-2">
                     <Globe size={18} /> Share App 🤝
                   </motion.button>
                 </div>
@@ -642,7 +652,7 @@ function FrameModePage({ onBack, userProfile, userEmail }: { onBack: () => void;
             <motion.div key="phonebg" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               className="fixed inset-0 z-[80] bg-black/50 backdrop-blur-sm" onClick={() => setShowPhonePopup(false)} />
             <motion.div key="phonebox" initial={{ opacity: 0, scale: 0.85, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.85 }}
-              className="fixed bottom-24 right-4 z-[81] bg-white rounded-3xl border-2 border-amber-300 shadow-2xl p-5 w-72"
+              className="fixed bottom-24 right-4 z-[81] bg-[#d4f0e2] rounded-3xl border-2 border-amber-300 shadow-2xl p-5 w-72"
             >
               <p className="text-[10px] font-black text-amber-600 uppercase tracking-widest mb-1">Direct Help / Status</p>
               <p className="text-xs text-gray-500 mb-3">Call ya WhatsApp karein:</p>
@@ -673,7 +683,7 @@ function FrameModePage({ onBack, userProfile, userEmail }: { onBack: () => void;
             {requests.filter(r => r.status === "active").slice(0, 6).map(req => {
               const cat = FRAME_CATS[req.category as FrameCategory] || FRAME_CATS.Food;
               return (
-                <div key={req.id} className="flex items-center justify-between bg-white rounded-2xl px-3 py-2 border border-yellow-200">
+                <div key={req.id} className="flex items-center justify-between bg-[#d4f0e2] rounded-2xl px-3 py-2 border border-yellow-200">
                   <div className="flex items-center gap-2 min-w-0">
                     <span className="text-base">{cat.icon}</span>
                     <div className="min-w-0">
@@ -770,7 +780,7 @@ function FrameModePage({ onBack, userProfile, userEmail }: { onBack: () => void;
 
             return (
               <motion.div key={req.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
-                className={`bg-white rounded-3xl border-2 overflow-hidden shadow-sm ${req.is_priority ? "border-yellow-400 shadow-yellow-100" : done ? "border-green-200" : "border-amber-100"}`}
+                className={`bg-[#d4f0e2] rounded-3xl border-2 overflow-hidden shadow-sm ${req.is_priority ? "border-yellow-400 shadow-yellow-100" : done ? "border-green-200" : "border-amber-100"}`}
               >
                 {req.is_priority ? (
                   <div className="bg-gradient-to-r from-yellow-400 to-amber-400 px-4 py-1.5 flex items-center gap-2">
@@ -788,7 +798,7 @@ function FrameModePage({ onBack, userProfile, userEmail }: { onBack: () => void;
                   <div className="flex items-center gap-2 mb-3">
                     <div className="relative shrink-0">
                       {req.user_avatar ? (
-                        <img src={req.user_avatar} className="w-10 h-10 rounded-full object-cover border-2 border-amber-200" />
+                        <img src={req.user_avatar} loading="lazy" className="w-10 h-10 rounded-full object-cover border-2 border-amber-200"  decoding="async"/>
                       ) : (
                         <div className="w-10 h-10 rounded-full bg-amber-400 flex items-center justify-center text-white font-black text-sm border-2 border-amber-200">
                           {(req.user_name || "U")[0]}
@@ -807,7 +817,7 @@ function FrameModePage({ onBack, userProfile, userEmail }: { onBack: () => void;
 
                   <div className="flex items-start gap-3 mb-2">
                     {req.needy_photo_url ? (
-                      <img src={req.needy_photo_url} className="w-16 h-16 rounded-2xl object-cover border-2 border-amber-100 shrink-0" />
+                      <img src={req.needy_photo_url} loading="lazy" className="w-16 h-16 rounded-2xl object-cover border-2 border-amber-100 shrink-0"  decoding="async"/>
                     ) : (
                       <div className="w-16 h-16 rounded-2xl bg-amber-100 flex items-center justify-center text-2xl border-2 border-amber-100 shrink-0">
                         {cat.icon}
@@ -908,21 +918,195 @@ function FrameModePage({ onBack, userProfile, userEmail }: { onBack: () => void;
   );
 }
 
+// ── About Us sub-view ──────────────────────────────────────────────────────
+const AboutUsView = ({ setSettingsView }: { setSettingsView: (v: any) => void }) => (
+  <div className="space-y-4">
+    <div className="flex items-center gap-3 px-4 pt-5">
+      <button
+        onClick={() => setSettingsView("main")}
+        className="w-9 h-9 rounded-2xl flex items-center justify-center transition-all active:scale-90 shrink-0"
+        style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.09)" }}
+      >
+        <ChevronLeft size={16} className="text-white/60" />
+      </button>
+      <div className="flex items-center gap-2">
+        <Info size={17} style={{ color: "#F59E0B" }} />
+        <p className="text-base font-black text-white">About Us</p>
+      </div>
+    </div>
+
+    {/* Hero banner */}
+    <div
+      className="mx-0 rounded-[2.5rem] p-6 text-center space-y-1"
+      style={{ background: "linear-gradient(135deg, #2d0010 0%, #800020 60%, #1a0510 100%)", border: "1px solid rgba(128,0,32,0.55)" }}
+    >
+      <p className="text-4xl mb-2">🇮🇳</p>
+      <p className="text-base font-black" style={{ color: "#FFF44F" }}>Flicks India</p>
+      <p className="text-xs leading-relaxed" style={{ color: "rgba(255,255,255,0.55)" }}>
+        Authentic Community · Creative Expression
+      </p>
+    </div>
+
+    {/* Content blocks */}
+    <div className="mx-0 rounded-[2.5rem] bg-white/5 border border-white/10 p-6 space-y-5">
+      {[
+        {
+          emoji: "🚀",
+          title: "Our Story",
+          body: "Welcome to Flicks India, your ultimate destination for authentic community connection and creative expression. Flicks India was founded with a singular vision: to create a space where content is not just consumed but felt.",
+        },
+        {
+          emoji: "💡",
+          title: "Our Belief",
+          body: "We believe that every user has a story to tell, and our platform provides the tools — from AI-powered quote generation to interactive social feeds — to make those stories stand out.",
+        },
+        {
+          emoji: "🛡️",
+          title: "Our Mission",
+          body: "Our mission is to foster a safe, secure, and positive environment where real-world connections are prioritized over fake news and superficial interactions. We are continuously evolving to bring you the best features that merge cutting-edge technology with user-centric design.",
+        },
+      ].map(({ emoji, title, body }) => (
+        <div key={title} className="flex gap-4 items-start">
+          <div
+            className="w-10 h-10 rounded-2xl flex items-center justify-center text-xl shrink-0"
+            style={{ background: "rgba(128,0,32,0.35)", border: "1px solid rgba(128,0,32,0.5)" }}
+          >
+            {emoji}
+          </div>
+          <div>
+            <p className="text-sm font-black text-white mb-1">{title}</p>
+            <p className="text-xs text-white/55 leading-relaxed">{body}</p>
+          </div>
+        </div>
+      ))}
+    </div>
+
+    <p className="text-[10px] text-white/20 text-center pb-2">
+      © 2024–2025 Flicks India · Made with ❤️ in India
+    </p>
+  </div>
+);
+
+// ── Contact Us sub-view ─────────────────────────────────────────────────────
+const ContactUsView = ({ setSettingsView }: { setSettingsView: (v: any) => void }) => {
+  const [copiedEmail, setCopiedEmail] = React.useState(false);
+  const handleCopyEmail = () => {
+    navigator.clipboard.writeText("textilevikhyat@gmail.com").then(() => {
+      setCopiedEmail(true);
+      setTimeout(() => setCopiedEmail(false), 2000);
+    });
+  };
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-3 px-4 pt-5">
+        <button
+          onClick={() => setSettingsView("main")}
+          className="w-9 h-9 rounded-2xl flex items-center justify-center transition-all active:scale-90 shrink-0"
+          style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.09)" }}
+        >
+          <ChevronLeft size={16} className="text-white/60" />
+        </button>
+        <div className="flex items-center gap-2">
+          <Mail size={17} style={{ color: "#EC4899" }} />
+          <p className="text-base font-black text-white">Contact Us</p>
+        </div>
+      </div>
+
+      {/* Hero banner */}
+      <div
+        className="mx-0 rounded-[2.5rem] p-6 text-center space-y-1"
+        style={{ background: "linear-gradient(135deg, #2d0010 0%, #800020 60%, #1a0510 100%)", border: "1px solid rgba(128,0,32,0.55)" }}
+      >
+        <p className="text-4xl mb-2">💌</p>
+        <p className="text-base font-black" style={{ color: "#FFF44F" }}>We'd love to hear from you!</p>
+        <p className="text-xs leading-relaxed" style={{ color: "rgba(255,255,255,0.55)" }}>
+          Feedback, questions, or support — our team is always here.
+        </p>
+      </div>
+
+      {/* Email card */}
+      <div className="mx-0 rounded-[2.5rem] bg-white/5 border border-white/10 p-5 space-y-3">
+        <p className="text-[10px] font-black text-white/30 uppercase tracking-widest">📧 General Support</p>
+        <p className="text-xs text-white/50 leading-relaxed">
+          You can reach us via email at any time. We typically respond within 24–48 hours.
+        </p>
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <a
+            href="mailto:textilevikhyat@gmail.com"
+            className="text-sm font-black tracking-wide break-all"
+            style={{ color: "#FFF44F" }}
+          >
+            textilevikhyat@gmail.com
+          </a>
+          <motion.button
+            whileTap={{ scale: 0.92 }}
+            onClick={handleCopyEmail}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black border transition-all shrink-0 ${
+              copiedEmail
+                ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-300"
+                : "bg-white/5 border-white/15 text-white/50 hover:bg-white/10"
+            }`}
+          >
+            {copiedEmail ? <CheckCircle size={12} /> : <Copy size={12} />}
+            {copiedEmail ? "Copied!" : "Copy"}
+          </motion.button>
+        </div>
+      </div>
+
+      {/* Phone card */}
+      <div className="mx-0 rounded-[2.5rem] bg-white/5 border border-white/10 p-5 space-y-3">
+        <p className="text-[10px] font-black text-white/30 uppercase tracking-widest">📞 Emergency / Direct Support</p>
+        <p className="text-xs text-white/50 leading-relaxed">
+          For urgent assistance, please call our support team in India.
+        </p>
+        <a
+          href="tel:+917080809908"
+          className="flex items-center gap-3 px-4 py-3.5 rounded-2xl active:scale-95 transition-transform"
+          style={{
+            background: "linear-gradient(135deg, rgba(128,0,32,0.35), rgba(77,0,16,0.45))",
+            border: "1px solid rgba(128,0,32,0.6)",
+          }}
+        >
+          <span className="text-2xl">📲</span>
+          <div className="flex-1">
+            <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest mb-0.5">Tap to Call</p>
+            <p className="text-sm font-black" style={{ color: "#FFF44F" }}>+91 70808 09908</p>
+          </div>
+          <ChevronRight size={16} className="text-white/25" />
+        </a>
+      </div>
+
+      {/* Feedback card */}
+      <div className="mx-0 rounded-[2.5rem] bg-white/5 border border-white/10 p-5">
+        <p className="text-[10px] font-black text-white/30 uppercase tracking-widest mb-2">💬 Feedback</p>
+        <p className="text-xs text-white/55 leading-relaxed">
+          Your suggestions help us make Flicks India better every day. Please feel free to reach out to us at any time — we read every message.
+        </p>
+      </div>
+
+      <p className="text-[10px] text-white/20 text-center pb-2">
+        Flicks India · Support Team 🇮🇳
+      </p>
+    </div>
+  );
+};
+
 // ── Privacy Policy sub-view ────────────────────────────────────────────────
 const PrivacyPolicyView = ({ setSettingsView, lang }: { setSettingsView: (v: any) => void; lang: "en" | "hi" }) => {
   const t = (en: string, hi: string) => (lang === "hi" ? hi : en);
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3 px-4 pt-4">
+      <div className="flex items-center gap-3 px-4 pt-5">
         <button
           onClick={() => setSettingsView("main")}
-          className="p-2 bg-white/5 rounded-xl border border-white/10 text-white/60 hover:text-white"
+          className="w-9 h-9 rounded-2xl flex items-center justify-center transition-all active:scale-90 shrink-0"
+          style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.09)" }}
         >
-          <ChevronLeft size={16} />
+          <ChevronLeft size={16} className="text-white/60" />
         </button>
         <div className="flex items-center gap-2">
-          <Shield size={18} className="text-emerald-400" />
-          <p className="text-sm font-black text-white">{t("Privacy Policy", "गोपनीयता नीति")}</p>
+          <Shield size={17} className="text-emerald-400" />
+          <p className="text-base font-black text-white">{t("Privacy Policy", "गोपनीयता नीति")}</p>
         </div>
       </div>
 
@@ -1007,16 +1191,17 @@ const HelpSupportView = ({ setSettingsView, lang }: { setSettingsView: (v: any) 
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3 px-4 pt-4">
+      <div className="flex items-center gap-3 px-4 pt-5">
         <button
           onClick={() => setSettingsView("main")}
-          className="p-2 bg-white/5 rounded-xl border border-white/10 text-white/60 hover:text-white"
+          className="w-9 h-9 rounded-2xl flex items-center justify-center transition-all active:scale-90 shrink-0"
+          style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.09)" }}
         >
-          <ChevronLeft size={16} />
+          <ChevronLeft size={16} className="text-white/60" />
         </button>
         <div className="flex items-center gap-2">
-          <LifeBuoy size={18} className="text-sky-400" />
-          <p className="text-sm font-black text-white">{t("Help & Support", "सहायता केंद्र")}</p>
+          <LifeBuoy size={17} className="text-sky-400" />
+          <p className="text-base font-black text-white">{t("Help & Support", "सहायता केंद्र")}</p>
         </div>
       </div>
 
@@ -1091,9 +1276,9 @@ const HelpSupportView = ({ setSettingsView, lang }: { setSettingsView: (v: any) 
 // ── Personal Info sub-view (outside Index to prevent focus loss) ──────────────
 interface PersonalInfoViewProps {
   lang: "en" | "hi";
-  setSettingsView: (v: "main" | "personal" | "blocklist" | "privacy" | "help") => void;
-  personalForm: { full_name: string; bio: string; school: string; mobile: string; location: string };
-  setPersonalForm: React.Dispatch<React.SetStateAction<{ full_name: string; bio: string; school: string; mobile: string; location: string }>>;
+  setSettingsView: (v: "main" | "personal" | "blocklist" | "privacy" | "help" | "personalization") => void;
+  personalForm: { full_name: string; bio: string; school: string; mobile: string; location: string; state: string; district: string; city: string; pincode: string };
+  setPersonalForm: React.Dispatch<React.SetStateAction<{ full_name: string; bio: string; school: string; mobile: string; location: string; state: string; district: string; city: string; pincode: string }>>;
   isSavingPersonal: boolean;
   personalSaved: boolean;
   handleSavePersonalInfo: () => void;
@@ -1154,16 +1339,15 @@ const PersonalInfoView = React.memo(({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3 px-4 pt-4">
+      <div className="flex items-center gap-3 px-4 pt-5">
         <button
           onClick={() => setSettingsView("main")}
-          className="p-2 bg-white/5 rounded-xl border border-white/10 text-white/60 hover:text-white"
+          className="w-9 h-9 rounded-2xl flex items-center justify-center transition-all active:scale-90 shrink-0"
+          style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.09)" }}
         >
-          <ChevronLeft size={16} />
+          <ChevronLeft size={16} className="text-white/60" />
         </button>
-        <p className="text-sm font-black text-white">
-          {t("Personal Info", "व्यक्तिगत जानकारी")}
-        </p>
+        <p className="text-base font-black text-white">{t("Personal Info", "व्यक्तिगत जानकारी")}</p>
       </div>
 
       <GlassCard className="rounded-[2.5rem] p-6 space-y-4 border border-white/10">
@@ -1177,7 +1361,7 @@ const PersonalInfoView = React.memo(({
               style={{ borderColor: "rgba(96,165,250,0.6)", boxShadow: "0 0 24px rgba(96,165,250,0.35)" }}
             >
               {avatarPreview ? (
-                <img src={avatarPreview} className="w-full h-full object-cover" alt="Profile" />
+                <img src={avatarPreview} loading="lazy" className="w-full h-full object-cover" alt="Profile"  decoding="async"/>
               ) : (
                 <div className="w-full h-full bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center text-white font-black text-3xl">
                   {personalForm.full_name?.[0]?.toUpperCase() || "?"}
@@ -1222,7 +1406,6 @@ const PersonalInfoView = React.memo(({
           { key: "bio",       label: t("Bio", "परिचय"),                         placeholder: t("Tell the world about you", "अपने बारे में लिखें") },
           { key: "school",    label: t("School / College", "स्कूल / कॉलेज"),   placeholder: t("Your school", "आपका स्कूल") },
           { key: "mobile",    label: t("Mobile", "मोबाइल"),                     placeholder: "+92 300 0000000" },
-          { key: "location",  label: t("Location", "स्थान"),                    placeholder: t("City, Country", "शहर, देश") },
         ].map(({ key, label, placeholder }) => (
           <div key={key} className="space-y-1">
             <p className="text-[10px] font-black text-white/40 uppercase tracking-widest">{label}</p>
@@ -1235,6 +1418,33 @@ const PersonalInfoView = React.memo(({
             />
           </div>
         ))}
+
+        {/* ── Split Location Fields ── */}
+        <div className="space-y-1">
+          <p className="text-[10px] font-black text-white/40 uppercase tracking-widest flex items-center gap-1.5">
+            <span>📍</span> {t("Location", "स्थान")}
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            {[
+              { key: "state",    placeholder: t("State (e.g. UP)", "राज्य") },
+              { key: "district", placeholder: t("District", "जिला") },
+              { key: "city",     placeholder: t("City / Town", "शहर") },
+              { key: "pincode",  placeholder: t("Pincode", "पिनकोड") },
+            ].map(({ key, placeholder }) => (
+              <input
+                key={key}
+                type={key === "pincode" ? "tel" : "text"}
+                placeholder={placeholder}
+                value={(personalForm as any)[key]}
+                onChange={(e) => setPersonalForm((prev) => ({ ...prev, [key]: e.target.value }))}
+                className="w-full bg-white/5 border border-white/10 rounded-2xl px-3 py-2.5 text-sm font-bold text-white placeholder:text-white/20 outline-none focus:ring-2 focus:ring-blue-500/40 transition-all"
+              />
+            ))}
+          </div>
+          <p className="text-[9px] text-white/20 font-medium pl-1">
+            {t("Used for local recommendations — never shown publicly", "स्थानीय सुझावों के लिए — सार्वजनिक नहीं")}
+          </p>
+        </div>
 
         <button
           onClick={handleSavePersonalInfo}
@@ -1255,12 +1465,61 @@ const PersonalInfoView = React.memo(({
 });
 
 // ── Component ────────────────────────────────────────────────────────────────
-const Index = ({ session }: { session: Session }) => {
+const Index = ({ session, initialAdminOpen, isGuest = false }: { session: Session; initialAdminOpen?: boolean; isGuest?: boolean }) => {
   const userId = session.user.id;
   const userEmail = session.user.email || "";
+  const isAppAdmin = isAdminEmail(userEmail);
 
   // Core UI
   const [activeFeature, setActiveFeature] = useState("Fame");
+  const [highlightedSurveyId, setHighlightedSurveyId] = useState<string | null>(null);
+  const [trendingSurveys, setTrendingSurveys] = useState<any[]>([]);
+  const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(!!initialAdminOpen && isAppAdmin);
+
+  // Deep-link handler: ?survey=<id> → open Surveys tab + highlight that card
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const surveyId = params.get("survey");
+    if (surveyId) {
+      setActiveFeature("Task");
+      setHighlightedSurveyId(surveyId);
+      // Clean up the URL without a hard reload
+      const clean = window.location.pathname + window.location.hash;
+      window.history.replaceState({}, "", clean);
+    }
+  }, []);
+
+  // Trending Surveys fetch — top 3 by total votes
+  useEffect(() => {
+    if (!userId) return;
+    const cKey = "trendingSurveys_v1";
+    const hit = memGet<any[]>(cKey);
+    if (hit) { setTrendingSurveys(hit); return; }
+    (async () => {
+      const { data: votes } = await supabase
+        .from("votes")
+        .select("survey_id")
+        .limit(5000);
+      if (!votes?.length) return;
+      const countMap: Record<string, number> = {};
+      votes.forEach((v: any) => { countMap[v.survey_id] = (countMap[v.survey_id] || 0) + 1; });
+      const top3ids = Object.entries(countMap)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 3)
+        .map(([id]) => id);
+      if (!top3ids.length) return;
+      const { data: surveys } = await supabase
+        .from("surveys")
+        .select("id, question, image_url, user_id, profiles(full_name, avatar_url)")
+        .in("id", top3ids);
+      if (!surveys?.length) return;
+      const enriched = surveys
+        .map((s: any) => ({ ...s, total_votes: countMap[s.id] || 0 }))
+        .sort((a: any, b: any) => b.total_votes - a.total_votes);
+      setTrendingSurveys(enriched);
+      memSet(cKey, enriched);
+    })();
+  }, [userId]);
   const [isUploading, setIsUploading] = useState(false);
   const [isPostOpen, setIsPostOpen] = useState(false);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
@@ -1274,32 +1533,73 @@ const Index = ({ session }: { session: Session }) => {
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [chatBadgeCount, setChatBadgeCount] = useState(0);
 
+  // Allow other components (e.g. UserProfileModal "Message" button) to open
+  // the chat panel via a global event. ChatSystem itself listens for the
+  // same event and will route to the right conversation/requests panel.
+  useEffect(() => {
+    const open = () => setIsChatOpen(true);
+    window.addEventListener("flicks:open-chat", open);
+    return () => window.removeEventListener("flicks:open-chat", open);
+  }, []);
+
   // Magnet Dashboard
   const [showMagnetDashboard, setShowMagnetDashboard] = useState(false);
 
+  // Onboarding (first-run modal for new users missing location/interests)
+  const [showOnboarding, setShowOnboarding] = useState(false);
+
   // Frame Mode
+  const dataCache = useDataCache();
+  const cachedOnline = dataCache.cacheRef.current.onlineUsers;
+  const cachedReels  = dataCache.cacheRef.current.reelPosts;
+  const cachedProfile = dataCache.cacheRef.current.profile;
   const [isFrameMode, setIsFrameMode] = useState(false);
-  const [onlineUsers, setOnlineUsers] = useState<{ id: string; full_name: string; avatar_url: string }[]>([]);
+  const [onlineUsers, setOnlineUsers] = useState<{ id: string; full_name: string; avatar_url: string }[]>(() => cachedOnline?.data ?? []);
   const [myFrameRequests, setMyFrameRequests] = useState<FrameRequest[]>([]);
   // Agora Video Call modal
   const [isVideoCallOpen, setIsVideoCallOpen] = useState(false);
 
+  // ── Body scroll lock ───────────────────────────────────────────────────
+  // Whenever ANY full-screen overlay is open, freeze the page behind it so
+  // the underlying feed/reels don't scroll or autoplay through touches.
+  // Restores the user's scroll position on close.
+  useEffect(() => {
+    const anyOverlay =
+      isChatOpen ||
+      isPostOpen ||
+      isAdminPanelOpen ||
+      isVideoCallOpen ||
+      showMagnetDashboard;
+    if (!anyOverlay) return;
+    const scrollY = window.scrollY;
+    document.body.classList.add("body-locked");
+    document.body.style.top = `-${scrollY}px`;
+    return () => {
+      document.body.classList.remove("body-locked");
+      document.body.style.top = "";
+      window.scrollTo(0, scrollY);
+    };
+  }, [isChatOpen, isPostOpen, isAdminPanelOpen, isVideoCallOpen, showMagnetDashboard]);
+
   // Profile
-  const [profile, setProfile] = useState({
-    id: userId,
-    full_name: "",
-    username: "",
-    avatar_url: "",
-    bio: "",
-    location: "",
-    school: "",
-    mobile: "",
-    updated_at: "",
+  const [profile, setProfile] = useState(() => {
+    const cached = dataCache.cacheRef.current.profile;
+    return cached?.data ?? {
+      id: userId,
+      full_name: "",
+      username: "",
+      avatar_url: "",
+      bio: "",
+      location: "",
+      school: "",
+      mobile: "",
+      updated_at: "",
+    };
   });
 
   // Settings sub-views
   const [settingsView, setSettingsView] = useState<
-    "main" | "personal" | "blocklist" | "privacy" | "help"
+    "main" | "personal" | "blocklist" | "privacy" | "help" | "about" | "contact" | "personalization"
   >("main");
   const [isSavingPersonal, setIsSavingPersonal] = useState(false);
   const [personalSaved, setPersonalSaved] = useState(false);
@@ -1309,7 +1609,19 @@ const Index = ({ session }: { session: Session }) => {
     school: "",
     mobile: "",
     location: "",
+    state: "",
+    district: "",
+    city: "",
+    pincode: "",
   });
+  // Interests + recommendation preferences
+  const [interests, setInterests] = useState<string[]>([]);
+  const [recLocalFirst,   setRecLocalFirst]   = useState(true);
+  const [recPeopleNearby, setRecPeopleNearby] = useState(true);
+  const [recInterestsPref, setRecInterestsPref] = useState(true);
+  const [recNewUsers,     setRecNewUsers]     = useState(true);
+  const [isSavingPrefs,   setIsSavingPrefs]   = useState(false);
+  const [prefsSaved,      setPrefsSaved]      = useState(false);
 
   // Settings toggles
   const [lang, setLang] = useState<"en" | "hi">(
@@ -1317,20 +1629,57 @@ const Index = ({ session }: { session: Session }) => {
   );
   const [profileLocked, setProfileLocked] = useState(false);
   const [profileHidden, setProfileHidden] = useState(false);
+  const [isPrivateMode, setIsPrivateMode] = useState(false);
   const [resetSent, setResetSent] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deleteSubmitted, setDeleteSubmitted] = useState(false);
   const [accountStatus, setAccountStatus] = useState<string>("active");
   const [suspensionReason, setSuspensionReason] = useState<string>("");
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [profileError, setProfileError] = useState<string | null>(null);
+
+  // ── Hook pages for home strip ──────────────────────────────────────────────
+  const [homeHookPages, setHomeHookPages] = useState<any[]>([]);
+  const [initialHookPageId, setInitialHookPageId] = useState<string | null>(null);
+
+  // ── Sidebar Circles (desktop right panel) ─────────────────────────────────
+  const [sidebarCircles, setSidebarCircles] = useState<any[]>([]);
 
   // ── Reel posts (real videos/posts for Flicks strip) ──────────────────────
-  const [reelPosts, setReelPosts] = useState<any[]>([]);
+  const [reelPosts, setReelPosts] = useState<any[]>(() => cachedReels?.data ?? []);
 
   // ── Current user's own reels ──────────────────────────────────────────────
   const [myReels, setMyReels]           = useState<any[]>([]);
   const [reelUploadPct, setReelUploadPct] = useState(0);   // 0 = idle
   const [reelUploading, setReelUploading] = useState(false);
   const reelInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!userId) return;
+    const cKey = "homeHookPages";
+    const hit = memGet<any[]>(cKey);
+    if (hit) { setHomeHookPages(hit); return; }
+    supabase
+      .from("hook_pages")
+      .select("id, name, cover_url, hook_count, category, owner_id")
+      .order("hook_count", { ascending: false })
+      .limit(10)
+      .then(({ data }) => { if (data) { setHomeHookPages(data); memSet(cKey, data); } });
+  }, [userId]);
+
+  // ── Fetch top circles for desktop sidebar ──────────────────────────────────
+  useEffect(() => {
+    if (!userId) return;
+    const cKey = "sidebarCircles_v1";
+    const hit = memGet<any[]>(cKey);
+    if (hit) { setSidebarCircles(hit); return; }
+    supabase
+      .from("circles")
+      .select("id, name, cover_url, member_count, category")
+      .order("member_count", { ascending: false })
+      .limit(10)
+      .then(({ data }) => { if (data) { setSidebarCircles(data); memSet(cKey, data); } });
+  }, [userId]);
 
   const fetchMyReels = () => {
     supabase.from("posts")
@@ -1339,7 +1688,12 @@ const Index = ({ session }: { session: Session }) => {
       .eq("type", "video")
       .order("created_at", { ascending: false })
       .limit(5)
-      .then(({ data }) => { if (data) setMyReels(data); });
+      .then(({ data }) => {
+        if (data) {
+          setMyReels(data);
+          dataCache.setCache("myReels", { data, fetchedAt: Date.now() });
+        }
+      });
   };
 
   const handleReelCardClick = () => {
@@ -1383,15 +1737,39 @@ const Index = ({ session }: { session: Session }) => {
 
   // ── Fetch online users + real reel posts in parallel ─────────────────────
   useEffect(() => {
-    supabase.from("profiles").select("id, full_name, avatar_url")
-      .neq("id", userId).limit(8)
-      .then(({ data }) => { if (data) setOnlineUsers(data); });
+    if (!userId) return;
 
-    supabase.from("posts")
-      .select("id, author, author_id, media_url, type, metadata, content")
-      .order("created_at", { ascending: false })
-      .limit(15)
-      .then(({ data }) => { if (data) setReelPosts(data); });
+    // Online users — skip if cache is still fresh
+    if (!dataCache.isStale("onlineUsers")) {
+      const hit = dataCache.cacheRef.current.onlineUsers;
+      if (hit?.data) setOnlineUsers(hit.data);
+    } else {
+      supabase.from("profiles").select("id, full_name, avatar_url")
+        .neq("id", userId).limit(8)
+        .then(({ data }) => {
+          if (data) {
+            setOnlineUsers(data);
+            dataCache.setCache("onlineUsers", { data, fetchedAt: Date.now() });
+          }
+        });
+    }
+
+    // Reel posts — skip if cache is still fresh
+    if (!dataCache.isStale("reelPosts")) {
+      const hit = dataCache.cacheRef.current.reelPosts;
+      if (hit?.data) setReelPosts(hit.data);
+    } else {
+      supabase.from("posts")
+        .select("id, author, author_id, media_url, type, metadata, content")
+        .order("created_at", { ascending: false })
+        .limit(15)
+        .then(({ data }) => {
+          if (data) {
+            setReelPosts(data);
+            dataCache.setCache("reelPosts", { data, fetchedAt: Date.now() });
+          }
+        });
+    }
 
     fetchMyReels();
   }, [userId]);
@@ -1404,7 +1782,12 @@ const Index = ({ session }: { session: Session }) => {
       .select("id, request_code, user_id, user_name, user_avatar, needy_name, needy_photo_url, address, category, mobile, description, collected_amount, target_amount, delivery_charge, support_count, status, is_priority, created_at")
       .order("created_at", { ascending: false })
       .limit(30)
-      .then(({ data }) => { if (data) setMyFrameRequests(data as FrameRequest[]); });
+      .then(({ data }) => {
+        if (data) {
+          setMyFrameRequests(data as FrameRequest[]);
+          dataCache.setCache("frameRequests", { data: data as FrameRequest[], fetchedAt: Date.now() });
+        }
+      });
 
     const myCh = supabase
       .channel(`my-frame-requests-${userId}`)
@@ -1415,7 +1798,7 @@ const Index = ({ session }: { session: Session }) => {
         setMyFrameRequests(prev => prev.map(r => r.id === (payload.new as FrameRequest).id ? { ...r, ...payload.new as FrameRequest } : r));
       })
       .subscribe();
-    return () => { myCh.unsubscribe(); };
+    return () => { supabase.removeChannel(myCh); };
   }, [userId]);
 
   // ── Fetch & Realtime (Updated for Auto-Refresh) ──────────────────────────────
@@ -1426,18 +1809,26 @@ const Index = ({ session }: { session: Session }) => {
     // 2. Auth Listener: Jaise hi login ho, bina refresh profile update ho jaye
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
+    } = supabase.auth.onAuthStateChange((event, _session) => {
       if (event === "SIGNED_IN" || event === "USER_UPDATED") {
         fetchProfile();
       }
     });
 
-    // 3. Scroll logic for Navbar
+    // 3. Scroll logic for Navbar — wrapped in rAF so the DOM read (scrollY)
+    //    and the React setState never happen in the same layout frame,
+    //    avoiding a Forced Reflow that causes overheating on mobile.
+    let rafPending = false;
     const handleScroll = () => {
-      if (window.scrollY > lastScrollY.current && window.scrollY > 100)
-        setShowNav(false);
-      else setShowNav(true);
-      lastScrollY.current = window.scrollY;
+      if (rafPending) return;
+      rafPending = true;
+      requestAnimationFrame(() => {
+        rafPending = false;
+        if (window.scrollY > lastScrollY.current && window.scrollY > 100)
+          setShowNav(false);
+        else setShowNav(true);
+        lastScrollY.current = window.scrollY;
+      });
     };
 
     window.addEventListener("scroll", handleScroll, { passive: true });
@@ -1448,70 +1839,188 @@ const Index = ({ session }: { session: Session }) => {
     };
   }, [userId]);
 
-
-  // Yahan se fetchProfile shuru ho raha hai
-  const fetchProfile = async () => {
-    // ── Fetch profile row from DB first ──────────────────────────────────
-    const { data } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", userId)
-      .maybeSingle();
-
-    if (data) {
-      // Existing profile — use DB values, but sync Google photo if still empty
-      const meta = session.user.user_metadata ?? {};
-      const merged = {
-        ...data,
-        avatar_url: data.avatar_url || meta.picture || meta.avatar_url || "",
-        full_name: data.full_name || meta.full_name || meta.name || "",
-      };
-      setProfile((prev) => ({ ...prev, ...merged }));
-      setPersonalForm({
-        full_name: merged.full_name,
-        bio: data.bio || "",
-        school: data.school || "",
-        mobile: data.mobile || "",
-        location: data.location || "",
-      });
-      setProfileLocked(data.profile_locked || false);
-      setProfileHidden(data.profile_hidden || false);
-      setAccountStatus(data.account_status || "active");
-      setSuspensionReason(data.suspension_reason || "");
-
-      // Silently patch missing avatar/name into DB
-      if (!data.avatar_url || !data.full_name) {
-        await supabase
-          .from("profiles")
-          .update({
-            avatar_url: merged.avatar_url,
-            full_name: merged.full_name,
-          })
-          .eq("id", userId);
+  // ── Live presence heartbeat: stamps profiles.last_seen so the Admin
+  //    Dashboard can show "Live now" (active in last 5 minutes).
+  //    Wrapped in try/catch so a missing table never crashes the tab.
+  useEffect(() => {
+    if (!userId) return;
+    const ping = () => {
+      try {
+        supabase.from("profiles")
+          .update({ last_seen: new Date().toISOString() })
+          .eq("id", userId)
+          .then(() => {});
+      } catch {
+        void 0;
       }
-    } else {
-      // New Google user — create their profile row from OAuth metadata
-      const meta = session.user.user_metadata ?? {};
-      const newProfile = {
-        id: userId,
-        full_name: meta.full_name || meta.name || userEmail.split("@")[0],
-        username: userEmail.split("@")[0],
-        avatar_url: meta.picture || meta.avatar_url || "",
-        bio: "",
-        location: "",
-        school: "",
-        mobile: "",
-        updated_at: new Date().toISOString(),
-      };
-      await supabase.from("profiles").upsert(newProfile);
-      setProfile((prev) => ({ ...prev, ...newProfile }));
+    };
+    ping(); // immediate
+    const id = setInterval(() => {
+      if (document.visibilityState === "visible") ping();
+    }, 60 * 1000); // every minute while tab is visible
+    const onVis = () => { if (document.visibilityState === "visible") ping(); };
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, [userId]);
+
+
+  // Yahan se fetchProfile shuru ho raha hai — BULLETPROOF VERSION
+  const fetchProfile = async () => {
+    // Serve from cache instantly if fresh — skip DB hit
+    const profileCacheKey = `profile_${userId}`;
+    const cachedProfile = memGet<any>(profileCacheKey);
+    if (cachedProfile) {
+      setProfile((prev) => ({ ...prev, ...cachedProfile }));
       setPersonalForm({
-        full_name: newProfile.full_name,
-        bio: "",
-        school: "",
-        mobile: "",
-        location: "",
+        full_name: cachedProfile.full_name || "",
+        bio: cachedProfile.bio || "",
+        school: cachedProfile.school || "",
+        mobile: cachedProfile.mobile || "",
+        location: cachedProfile.location || "",
       });
+      setProfileLoading(false);
+      return;
+    }
+
+    setProfileLoading(true);
+    setProfileError(null);
+
+    try {
+      // Step A: fetch existing profile (safe even if table missing)
+      const { data, error: fetchErr } = await supabase
+        .from("profiles")
+        .select("id,full_name,username,avatar_url,bio,location,state,district,city,pincode,interests,rec_local_first,rec_people_nearby,rec_interests,rec_new_users,school,mobile,profile_locked,profile_hidden,is_private_mode,account_status,suspension_reason,last_seen,fame_points,updated_at")
+        .eq("id", userId)
+        .maybeSingle();
+
+      if (fetchErr) {
+        console.warn("[Profile] DB fetch failed — table likely missing:", fetchErr.message);
+        // Build a minimal in-memory profile from session so the UI still works
+        const meta = session?.user?.user_metadata ?? {};
+        const fallbackProfile = {
+          id: userId,
+          full_name: meta.full_name || meta.name || userEmail.split("@")[0],
+          username: userEmail.split("@")[0],
+          avatar_url: meta.picture || meta.avatar_url || "",
+          bio: "",
+          location: "",
+          school: "",
+          mobile: "",
+          updated_at: "",
+        };
+        setProfile((prev) => ({ ...prev, ...fallbackProfile }));
+        setPersonalForm({
+          full_name: fallbackProfile.full_name,
+          bio: "",
+          school: "",
+          mobile: "",
+          location: "",
+        });
+        setProfileLoading(false);
+        setProfileError(
+          "Database tables not ready yet. Please run the SQL setup in Supabase, then refresh."
+        );
+        return;
+      }
+
+      if (data) {
+        // Existing profile — use DB values, but sync Google photo if still empty
+        const meta = session?.user?.user_metadata ?? {};
+        const merged = {
+          ...data,
+          avatar_url: data.avatar_url || meta.picture || meta.avatar_url || "",
+          full_name: data.full_name || meta.full_name || meta.name || "",
+        };
+        setProfile((prev) => ({ ...prev, ...merged }));
+        setPersonalForm({
+          full_name: merged.full_name,
+          bio: data.bio || "",
+          school: data.school || "",
+          mobile: data.mobile || "",
+          location: data.location || "",
+          state: data.state || "",
+          district: data.district || "",
+          city: data.city || "",
+          pincode: data.pincode || "",
+        });
+        setInterests(Array.isArray(data.interests) ? data.interests : []);
+        // Show onboarding when non-guest profile is missing location & interests
+        if (!isGuest && !data.city && !data.pincode && (!data.interests || data.interests.length === 0)) {
+          // Small delay so the main UI settles first
+          setTimeout(() => setShowOnboarding(true), 800);
+        }
+        setRecLocalFirst(data.rec_local_first !== false);
+        setRecPeopleNearby(data.rec_people_nearby !== false);
+        setRecInterestsPref(data.rec_interests !== false);
+        setRecNewUsers(data.rec_new_users !== false);
+        setProfileLocked(data.profile_locked || false);
+        setProfileHidden(data.profile_hidden || false);
+        setIsPrivateMode(data.is_private_mode || false);
+        setAccountStatus(data.account_status || "active");
+        setSuspensionReason(data.suspension_reason || "");
+        dataCache.setCache("profile", { data: merged, fetchedAt: Date.now() });
+        memSet(profileCacheKey, merged);
+
+        // Update last_seen on every profile fetch so the DB stays fresh (fire-and-forget)
+        supabase.from("profiles").update({ last_seen: new Date().toISOString() }).eq("id", userId).then(() => {});
+
+        // Silently patch missing avatar/name into DB (fire-and-forget)
+        if (!data.avatar_url || !data.full_name) {
+          supabase.from("profiles")
+            .update({ avatar_url: merged.avatar_url, full_name: merged.full_name })
+            .eq("id", userId)
+            .then(() => {});
+        }
+      } else {
+        // New Google user — create their profile row from OAuth metadata
+        const meta = session?.user?.user_metadata ?? {};
+        const newProfile = {
+          id: userId,
+          full_name: meta.full_name || meta.name || userEmail.split("@")[0],
+          username: userEmail.split("@")[0],
+          avatar_url: meta.picture || meta.avatar_url || "",
+          bio: "",
+          location: "",
+          school: "",
+          mobile: "",
+          is_private_mode: false,
+          last_seen: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+
+        // Attempt upsert — ignore failure so missing table doesn't freeze the app
+        const { error: upsertErr } = await supabase.from("profiles").upsert(newProfile);
+        if (upsertErr) {
+          console.warn("[Profile] Upsert failed — table likely missing:", upsertErr.message);
+          setProfileError(
+            "Profile table missing. App will work in read-only mode until SQL is applied."
+          );
+        }
+
+        setProfile((prev) => ({ ...prev, ...newProfile }));
+        setPersonalForm({
+          full_name: newProfile.full_name,
+          bio: "",
+          school: "",
+          mobile: "",
+          location: "",
+        });
+      }
+    } catch (err: any) {
+      console.error("[Profile] fetchProfile CRASHED:", err?.message || err);
+      setProfileError("Unexpected error loading profile. Please refresh.");
+      // Still populate a minimal profile so the UI doesn't stay blank
+      const meta = session?.user?.user_metadata ?? {};
+      setProfile((prev) => ({
+        ...prev,
+        full_name: meta.full_name || meta.name || userEmail.split("@")[0],
+        avatar_url: meta.picture || meta.avatar_url || "",
+      }));
+    } finally {
+      setProfileLoading(false);
     }
   };
 
@@ -1535,6 +2044,9 @@ const Index = ({ session }: { session: Session }) => {
         .update({ avatar_url: publicUrl })
         .eq("id", userId);
       setProfile((prev) => ({ ...prev, avatar_url: publicUrl }));
+      // Broadcast so FameFeed/Header refresh the new dp instantly across the app.
+      window.dispatchEvent(new CustomEvent("flicks-avatar-updated", { detail: { url: publicUrl } }));
+      window.dispatchEvent(new CustomEvent("flicks-profile-updated"));
     } catch {
       alert("Upload error!");
     } finally {
@@ -1554,7 +2066,45 @@ const Index = ({ session }: { session: Session }) => {
     if (!error) {
       setProfile((prev) => ({ ...prev, ...personalForm }));
       setPersonalSaved(true);
+
+      // Backfill the new name on all existing posts/comments by this user
+      // so the saved name shows everywhere, not just on new content.
+      const newName = (personalForm.full_name || "").trim();
+      if (newName && userId) {
+        try {
+          await Promise.all([
+            supabase.from("posts").update({ author: newName }).eq("author_id", userId),
+            supabase.from("comments").update({ author: newName }).eq("author_id", userId),
+          ]);
+        } catch (backfillErr) {
+          console.warn("[Profile] Name backfill warning:", backfillErr);
+        }
+      }
+
       window.dispatchEvent(new CustomEvent("flicks-profile-updated"));
+
+      // ── New-user join broadcast ─────────────────────────────────────────────
+      // When the user saves location fields, broadcast to nearby area channel
+      // so NewInYourArea strips on other users' feeds refresh automatically.
+      const areaKey = personalForm.district || personalForm.city || personalForm.state;
+      if (areaKey && userId) {
+        const channelName = `new-user-${areaKey.toLowerCase().replace(/\s+/g, "-")}`;
+        const ch = (supabase as any).channel(channelName);
+        ch.subscribe((status: string) => {
+          if (status === "SUBSCRIBED") {
+            ch.send({ type: "broadcast", event: "new_user_joined", payload: { userId } })
+              .catch(() => {});
+            supabase.removeChannel(ch);
+          }
+        });
+      }
+
+      // Bust recommendation cache so updated location is reflected immediately
+      if (userId) {
+        memDel(`smartPeople_${userId}`);
+        window.dispatchEvent(new CustomEvent("flicks:rec-prefs-changed"));
+      }
+
       setTimeout(() => {
         setPersonalSaved(false);
         setSettingsView("main");
@@ -1567,7 +2117,7 @@ const Index = ({ session }: { session: Session }) => {
 
   const handlePasswordReset = async () => {
     const { error } = await supabase.auth.resetPasswordForEmail(userEmail, {
-      redirectTo: `${window.location.origin}/reset-password`,
+      redirectTo: "https://flicksindia.online/reset-password",
     });
     if (!error) setResetSent(true);
     else alert("Error: " + error.message);
@@ -1597,7 +2147,55 @@ const Index = ({ session }: { session: Session }) => {
       .eq("id", userId);
   };
 
+  const handleTogglePrivateMode = async () => {
+    const next = !isPrivateMode;
+    setIsPrivateMode(next);
+    await supabase
+      .from("profiles")
+      .update({ is_private_mode: next })
+      .eq("id", userId);
+    // Bust own suggestion cache so others won't see stale private profiles
+    if (userId) memDel(`smartPeople_${userId}`);
+    window.dispatchEvent(new CustomEvent("flicks:rec-prefs-changed"));
+  };
+
+  const handleSaveInterests = async (newInterests: string[]) => {
+    setInterests(newInterests);
+    await supabase.from("profiles").update({ interests: newInterests }).eq("id", userId);
+  };
+
+  const handleToggleRecLocalFirst = async () => {
+    const next = !recLocalFirst;
+    setRecLocalFirst(next);
+    await supabase.from("profiles").update({ rec_local_first: next }).eq("id", userId);
+    if (userId) memDel(`smartPeople_${userId}`);
+    window.dispatchEvent(new CustomEvent("flicks:rec-prefs-changed"));
+  };
+  const handleToggleRecPeopleNearby = async () => {
+    const next = !recPeopleNearby;
+    setRecPeopleNearby(next);
+    await supabase.from("profiles").update({ rec_people_nearby: next }).eq("id", userId);
+    if (userId) memDel(`smartPeople_${userId}`);
+    window.dispatchEvent(new CustomEvent("flicks:rec-prefs-changed"));
+  };
+  const handleToggleRecInterests = async () => {
+    const next = !recInterestsPref;
+    setRecInterestsPref(next);
+    await supabase.from("profiles").update({ rec_interests: next }).eq("id", userId);
+    if (userId) memDel(`smartPeople_${userId}`);
+    window.dispatchEvent(new CustomEvent("flicks:rec-prefs-changed"));
+  };
+  const handleToggleRecNewUsers = async () => {
+    const next = !recNewUsers;
+    setRecNewUsers(next);
+    await supabase.from("profiles").update({ rec_new_users: next }).eq("id", userId);
+    if (userId) memDel(`smartPeople_${userId}`);
+    window.dispatchEvent(new CustomEvent("flicks:rec-prefs-changed"));
+  };
+
   const handleLogout = async () => {
+    dataCache.clearCache();
+    memClear();
     await supabase.auth.signOut();
   };
 
@@ -1614,6 +2212,8 @@ const Index = ({ session }: { session: Session }) => {
     }
     setDeleteSubmitted(true);
     setTimeout(() => {
+      dataCache.clearCache();
+      memClear();
       supabase.auth.signOut();
     }, 6000);
   };
@@ -1623,220 +2223,726 @@ const Index = ({ session }: { session: Session }) => {
 
 
   // ── Settings: Block List sub-view ─────────────────────────────────────────
-  const BlockListView = () => (
-    <div className="space-y-4">
-      <div className="flex items-center gap-3 px-4 pt-4">
+  const BlockListView = () => {
+    const [blockedList, setBlockedList] = React.useState<any[]>([]);
+    const [blLoading, setBlLoading] = React.useState(true);
+    const [unblocking, setUnblocking] = React.useState<string | null>(null);
+
+    React.useEffect(() => {
+      (async () => {
+        setBlLoading(true);
+        const { data } = await supabase
+          .from("user_blocks")
+          .select("blocked_id, profiles!user_blocks_blocked_id_fkey(id, full_name, avatar_url)")
+          .eq("blocker_id", userId);
+        setBlockedList(
+          (data || []).map((row: any) => ({
+            blockId: row.blocked_id,
+            ...row["profiles!user_blocks_blocked_id_fkey"],
+          })).filter((r: any) => r.id)
+        );
+        setBlLoading(false);
+      })();
+    }, []);
+
+    const handleUnblock = async (blockedId: string) => {
+      setUnblocking(blockedId);
+      await supabase.from("user_blocks").delete().eq("blocker_id", userId).eq("blocked_id", blockedId);
+      setBlockedList(prev => prev.filter((u: any) => u.id !== blockedId));
+      setUnblocking(null);
+    };
+
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center gap-3 px-4 pt-5">
+          <button
+            onClick={() => setSettingsView("main")}
+            className="w-9 h-9 rounded-2xl flex items-center justify-center transition-all active:scale-90 shrink-0"
+            style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.09)" }}
+          >
+            <ChevronLeft size={16} className="text-white/60" />
+          </button>
+          <p className="text-base font-black text-white">
+            {t("Blocked Users", "अवरुद्ध उपयोगकर्ता")}
+          </p>
+        </div>
+        <GlassCard className="rounded-[2.5rem] border border-white/10 p-0 overflow-hidden">
+          {blLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 size={24} className="animate-spin text-white/40" />
+            </div>
+          ) : blockedList.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-10 text-center space-y-3 p-6">
+              <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center">
+                <Ban size={28} className="text-white/20" />
+              </div>
+              <p className="text-sm font-black text-white/30">
+                {t("No Blocked Users", "कोई अवरुद्ध उपयोगकर्ता नहीं")}
+              </p>
+              <p className="text-xs text-white/20">
+                {t("Users you block will appear here.", "जिन उपयोगकर्ताओं को आप ब्लॉक करते हैं वे यहाँ दिखेंगे।")}
+              </p>
+            </div>
+          ) : (
+            <div className="divide-y divide-white/5">
+              {blockedList.map((u: any) => (
+                <div key={u.id} className="flex items-center gap-3 px-5 py-4">
+                  <div className="w-10 h-10 rounded-full bg-white/10 border border-white/10 overflow-hidden shrink-0 flex items-center justify-center">
+                    {u.avatar_url ? (
+                      <img src={u.avatar_url} loading="lazy" className="w-full h-full object-cover" alt=""  decoding="async"/>
+                    ) : (
+                      <span className="text-white font-black text-base">{(u.full_name || "U")[0].toUpperCase()}</span>
+                    )}
+                  </div>
+                  <p className="flex-1 text-white font-semibold text-sm truncate">{u.full_name || "Unknown User"}</p>
+                  <button
+                    onClick={() => handleUnblock(u.id)}
+                    disabled={unblocking === u.id}
+                    className="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-black transition disabled:opacity-50 shrink-0"
+                  >
+                    {unblocking === u.id ? "…" : t("Unblock", "अनब्लॉक")}
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </GlassCard>
+      </div>
+    );
+  };
+
+  // ── Settings: Main view (Aurora Glass redesign) ──────────────────────────
+
+// ── PersonalizationView ──────────────────────────────────────────────────────
+interface PersonalizationViewProps {
+  lang: "en" | "hi";
+  setSettingsView: (v: any) => void;
+  interests: string[];
+  onSaveInterests: (i: string[]) => Promise<void>;
+  recLocalFirst: boolean;
+  recPeopleNearby: boolean;
+  recInterestsPref: boolean;
+  recNewUsers: boolean;
+  onToggleRecLocalFirst: () => void;
+  onToggleRecPeopleNearby: () => void;
+  onToggleRecInterests: () => void;
+  onToggleRecNewUsers: () => void;
+}
+
+const INTERESTS_CATALOGUE = [
+  "Cricket","Football","Music","Movies","Web Series","Comedy","Gaming",
+  "Education","Business","Technology","Food","Travel","Photography",
+  "Fashion","Fitness","Local Culture","News & Politics","Entertainment",
+  "Art & Drawing","Dance","Health & Wellness","Spirituality","Farming",
+  "Finance","Bollywood","Memes","Cooking","Yoga","Startup",
+];
+
+const PersonalizationView = React.memo(({
+  lang,
+  setSettingsView,
+  interests,
+  onSaveInterests,
+  recLocalFirst,
+  recPeopleNearby,
+  recInterestsPref,
+  recNewUsers,
+  onToggleRecLocalFirst,
+  onToggleRecPeopleNearby,
+  onToggleRecInterests,
+  onToggleRecNewUsers,
+}: PersonalizationViewProps) => {
+  const t = (en: string, hi: string) => (lang === "hi" ? hi : en);
+  const [localInterests, setLocalInterests] = React.useState<string[]>(interests);
+  const [saving, setSaving] = React.useState(false);
+  const [saved,  setSaved]  = React.useState(false);
+
+  const toggleInterest = (tag: string) => {
+    setLocalInterests(prev =>
+      prev.includes(tag) ? prev.filter(i => i !== tag) : [...prev, tag]
+    );
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    await onSaveInterests(localInterests);
+    setSaving(false);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 1500);
+  };
+
+  const RecToggleRow = ({
+    icon, title, desc, value, onToggle,
+  }: { icon: string; title: string; desc: string; value: boolean; onToggle: () => void }) => (
+    <button
+      onClick={onToggle}
+      className="flex items-center gap-3 w-full px-4 py-3.5 transition-all active:scale-[0.98]"
+    >
+      <span className="text-base shrink-0">{icon}</span>
+      <div className="flex-1 text-left min-w-0">
+        <p className="text-[13px] font-bold text-white/80 leading-tight">{title}</p>
+        <p className="text-[10px] text-white/35 font-medium mt-0.5 leading-tight">{desc}</p>
+      </div>
+      <div
+        className="w-11 h-6 rounded-full shrink-0 relative transition-all duration-200"
+        style={{
+          background: value
+            ? "linear-gradient(135deg,#7c3aed,#2563eb)"
+            : "rgba(255,255,255,0.1)",
+        }}
+      >
+        <div
+          className="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all duration-200"
+          style={{ left: value ? "calc(100% - 22px)" : "2px" }}
+        />
+      </div>
+    </button>
+  );
+
+  return (
+    <div className="space-y-4 pb-10">
+      <div className="flex items-center gap-3 px-4 pt-5">
         <button
           onClick={() => setSettingsView("main")}
-          className="p-2 bg-white/5 rounded-xl border border-white/10 text-white/60 hover:text-white"
+          className="w-9 h-9 rounded-2xl flex items-center justify-center transition-all active:scale-90 shrink-0"
+          style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.09)" }}
         >
-          <ChevronLeft size={16} />
+          <ChevronLeft size={16} className="text-white/60" />
         </button>
-        <p className="text-sm font-black text-white">
-          {t("Blocked Users", "अवरुद्ध उपयोगकर्ता")}
-        </p>
+        <div>
+          <p className="text-base font-black text-white">{t("Personalization", "वैयक्तिकरण")}</p>
+          <p className="text-[10px] text-white/30 font-medium">{t("Interests & Recommendations", "रुचियां और सुझाव")}</p>
+        </div>
       </div>
-      <GlassCard className="rounded-[2.5rem] p-6 border border-white/10">
-        <div className="flex flex-col items-center justify-center py-10 text-center space-y-3">
-          <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center">
-            <Ban size={28} className="text-white/20" />
-          </div>
-          <p className="text-sm font-black text-white/30">
-            {t("No Blocked Users", "कोई अवरुद्ध उपयोगकर्ता नहीं")}
+
+      {/* ── Interests picker ──────────────────────────────────────────────── */}
+      <div
+        className="rounded-3xl overflow-hidden mx-4"
+        style={{ background: "rgba(255,255,255,0.035)", border: "1px solid rgba(255,255,255,0.07)" }}
+      >
+        <div className="flex items-center gap-3 px-4 pt-4 pb-2">
+          <Tags size={13} className="text-violet-400 shrink-0" />
+          <p className="text-[11px] font-black text-white/50 uppercase tracking-widest">
+            {t("Your Interests", "आपकी रुचियां")}
           </p>
-          <p className="text-xs text-white/20">
-            {t(
-              "Users you block will appear here.",
-              "जिन उपयोगकर्ताओं को आप ब्लॉक करते हैं वे यहाँ दिखेंगे।",
-            )}
+          <span className="ml-auto text-[9px] font-black text-violet-400">
+            {localInterests.length} {t("selected", "चुनी")}
+          </span>
+        </div>
+        <div className="flex flex-wrap gap-2 px-4 pb-4">
+          {INTERESTS_CATALOGUE.map(tag => {
+            const active = localInterests.includes(tag);
+            return (
+              <button
+                key={tag}
+                onClick={() => toggleInterest(tag)}
+                className="px-3 py-1.5 rounded-full text-[11px] font-black transition-all active:scale-95"
+                style={{
+                  background: active
+                    ? "linear-gradient(135deg,rgba(124,58,237,0.7),rgba(37,99,235,0.7))"
+                    : "rgba(255,255,255,0.06)",
+                  border: active ? "1.5px solid rgba(139,92,246,0.5)" : "1px solid rgba(255,255,255,0.09)",
+                  color: active ? "#e9d5ff" : "rgba(255,255,255,0.45)",
+                }}
+              >
+                {tag}
+              </button>
+            );
+          })}
+        </div>
+        <div className="px-4 pb-4">
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="w-full py-3 rounded-2xl font-black text-[12px] flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-60"
+            style={{ background: "linear-gradient(135deg,#7c3aed,#2563eb)", color: "#fff" }}
+          >
+            {saving ? <Loader2 size={14} className="animate-spin" /> : saved ? <CheckCircle size={14} /> : <Save size={14} />}
+            {saved ? t("Saved!", "सहेजा!") : t("Save Interests", "रुचियां सहेजें")}
+          </button>
+        </div>
+      </div>
+
+      {/* ── Recommendation Preferences ────────────────────────────────────── */}
+      <div
+        className="rounded-3xl overflow-hidden mx-4"
+        style={{ background: "rgba(255,255,255,0.035)", border: "1px solid rgba(255,255,255,0.07)" }}
+      >
+        <div className="flex items-center gap-3 px-4 pt-4 pb-1">
+          <SlidersHorizontal size={13} className="text-cyan-400 shrink-0" />
+          <p className="text-[11px] font-black text-white/50 uppercase tracking-widest">
+            {t("Recommendation Settings", "सुझाव सेटिंग्स")}
           </p>
         </div>
-      </GlassCard>
+        <RecToggleRow
+          icon="📍"
+          title={t("Local Content First", "स्थानीय सामग्री पहले")}
+          desc={t("Prioritise posts from your area", "अपने क्षेत्र की पोस्ट पहले दिखाएं")}
+          value={recLocalFirst}
+          onToggle={onToggleRecLocalFirst}
+        />
+        <div style={{ height: 1, background: "rgba(255,255,255,0.05)", margin: "0 16px" }} />
+        <RecToggleRow
+          icon="👥"
+          title={t("People From My Area", "मेरे क्षेत्र के लोग")}
+          desc={t("Show nearby users in discovery", "पास के उपयोगकर्ता सुझाएं")}
+          value={recPeopleNearby}
+          onToggle={onToggleRecPeopleNearby}
+        />
+        <div style={{ height: 1, background: "rgba(255,255,255,0.05)", margin: "0 16px" }} />
+        <RecToggleRow
+          icon="🎯"
+          title={t("Interest Recommendations", "रुचि आधारित सुझाव")}
+          desc={t("Show content matching your interests", "रुचि के अनुसार सामग्री दिखाएं")}
+          value={recInterestsPref}
+          onToggle={onToggleRecInterests}
+        />
+        <div style={{ height: 1, background: "rgba(255,255,255,0.05)", margin: "0 16px" }} />
+        <RecToggleRow
+          icon="✨"
+          title={t("New Users Nearby", "पास के नए उपयोगकर्ता")}
+          desc={t("Get notified when someone nearby joins", "पास से कोई जुड़े तो दिखाएं")}
+          value={recNewUsers}
+          onToggle={onToggleRecNewUsers}
+        />
+      </div>
     </div>
   );
+});
 
-  // ── Settings: Main view ────────────────────────────────────────────────────
-  const MainSettingsView = () => (
-    <div className="space-y-4 px-4 sm:px-0">
-      {/* Appearance */}
-      <GlassCard className="rounded-[2.5rem] p-6 border border-white/10">
-        <h2 className="text-xs font-black text-white/40 uppercase tracking-widest mb-4 flex items-center gap-2">
-          <Palette size={14} /> {t("Appearance", "रूप")}
-        </h2>
-        <div className="flex gap-3">
-          <button
-            onClick={() => toggleDarkMode(true)}
-            className={`flex-1 h-14 rounded-2xl flex flex-col items-center justify-center gap-1 border-2 transition-all ${darkMode ? "border-blue-500 bg-slate-800" : "border-transparent bg-white/5 opacity-60 hover:opacity-100"}`}
+  const MainSettingsView = () => {
+    // Inner section wrapper with numbered header
+    const AuroraSection = ({
+      number, title, children,
+    }: { number: string; title: string; children: React.ReactNode }) => (
+      <div
+        className="rounded-3xl overflow-hidden"
+        style={{
+          background: "rgba(255,255,255,0.035)",
+          border: "1px solid rgba(255,255,255,0.07)",
+        }}
+      >
+        {/* Section header row */}
+        <div className="flex items-center gap-3 px-5 pt-4 pb-1">
+          <span
+            className="text-[11px] font-black shrink-0"
+            style={{ background: "linear-gradient(135deg,#8B5CF6,#EC4899)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}
           >
-            <span className="text-lg">🌙</span>
-            <span className="text-[10px] font-black text-white uppercase">{t("Dark", "डार्क")}</span>
-          </button>
-          <button
-            onClick={() => toggleDarkMode(false)}
-            className={`flex-1 h-14 rounded-2xl flex flex-col items-center justify-center gap-1 border-2 transition-all ${!darkMode ? "border-blue-500 bg-slate-100/20" : "border-transparent bg-white/5 opacity-60 hover:opacity-100"}`}
-          >
-            <span className="text-lg">☀️</span>
-            <span className="text-[10px] font-black text-white uppercase">{t("Light", "लाइट")}</span>
-          </button>
+            {number}
+          </span>
+          <div className="h-px flex-1" style={{ background: "linear-gradient(90deg,rgba(139,92,246,0.22),transparent)" }} />
+          <span className="text-[10px] font-black text-white/25 uppercase tracking-[0.12em] shrink-0">{title}</span>
         </div>
-      </GlassCard>
+        <div className="pb-2">{children}</div>
+      </div>
+    );
 
-      {/* Personal Info */}
-      <GlassCard className="rounded-[2.5rem] p-2 border border-white/10">
-        <SettingRow
-          icon={<User size={18} />}
-          title={t("Personal Info", "व्यक्तिगत जानकारी")}
-          desc={t("Name, Bio, School, Mobile", "नाम, परिचय, स्कूल, मोबाइल")}
-          color="text-blue-400"
-          onClick={() => setSettingsView("personal")}
-        />
-      </GlassCard>
+    return (
+      <div className="relative">
+        {/* ── Aurora ambient glows ────────────────────── */}
+        <div className="pointer-events-none absolute inset-0 overflow-hidden" style={{ zIndex: 0 }}>
+          <div style={{
+            position: "absolute", top: -100, left: -60, width: 320, height: 320, borderRadius: "50%",
+            background: "radial-gradient(circle, rgba(139,92,246,0.2) 0%, transparent 70%)",
+            filter: "blur(70px)", willChange: "transform",
+          }} />
+          <div style={{
+            position: "absolute", top: "40%", right: -80, width: 260, height: 260, borderRadius: "50%",
+            background: "radial-gradient(circle, rgba(236,72,153,0.16) 0%, transparent 70%)",
+            filter: "blur(70px)", willChange: "transform",
+          }} />
+          <div style={{
+            position: "absolute", bottom: 60, left: "20%", width: 280, height: 280, borderRadius: "50%",
+            background: "radial-gradient(circle, rgba(245,158,11,0.12) 0%, transparent 70%)",
+            filter: "blur(70px)", willChange: "transform",
+          }} />
+        </div>
 
-      {/* Security */}
-      <GlassCard className="rounded-[2.5rem] p-2 border border-white/10">
-        <h2 className="text-[10px] font-black text-white/30 uppercase tracking-widest px-4 pt-3 pb-1 flex items-center gap-2">
-          <Shield size={12} /> {t("Security", "सुरक्षा")}
-        </h2>
-        <SettingRow
-          icon={<KeyRound size={18} />}
-          title={t("Reset Password", "पासवर्ड रीसेट करें")}
-          desc={
-            resetSent
-              ? t("Email sent! Check inbox", "ईमेल भेज दिया!")
-              : t("Send reset link to email", "ईमेल पर लिंक भेजें")
-          }
-          color={resetSent ? "text-green-400" : "text-orange-400"}
-          onClick={resetSent ? undefined : handlePasswordReset}
-          right={
-            resetSent ? (
-              <CheckCircle size={16} className="text-green-400" />
-            ) : undefined
-          }
-        />
-      </GlassCard>
+        <div className="relative z-10 max-w-[720px] mx-auto px-4 pt-5 pb-10 space-y-4">
 
-      {/* Language */}
-      <GlassCard className="rounded-[2.5rem] p-2 border border-white/10">
-        <SettingRow
-          icon={<Languages size={18} />}
-          title={t("Language", "भाषा")}
-          desc={lang === "en" ? "English (Active)" : "हिंदी (सक्रिय)"}
-          color="text-purple-400"
-          onClick={toggleLang}
-          right={
-            <div className="flex items-center gap-2">
-              <span
-                className={`text-[10px] font-black ${lang === "en" ? "text-white" : "text-white/30"}`}
-              >
-                EN
-              </span>
-              <Toggle on={lang === "hi"} onToggle={toggleLang} />
-              <span
-                className={`text-[10px] font-black ${lang === "hi" ? "text-white" : "text-white/30"}`}
-              >
-                HI
-              </span>
+          {/* ── Page header ──────────────────────── */}
+          <div className="flex items-start justify-between mb-2">
+            <div>
+              <h1 className="text-[22px] font-black text-white tracking-tight leading-none">
+                {t("Settings", "सेटिंग्स")}
+              </h1>
+              <p className="text-[11px] text-white/35 font-medium mt-1.5">
+                {t("Manage your account & preferences", "खाता और प्राथमिकताएं")}
+              </p>
             </div>
-          }
-        />
-      </GlassCard>
+            <button
+              onClick={() => setActiveFeature("Fame")}
+              className="w-9 h-9 rounded-2xl flex items-center justify-center transition-all active:scale-90 shrink-0"
+              style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.09)" }}
+            >
+              <ArrowLeft size={16} className="text-white/50" />
+            </button>
+          </div>
 
-      {/* Privacy Controls */}
-      <GlassCard className="rounded-[2.5rem] p-2 border border-white/10">
-        <h2 className="text-[10px] font-black text-white/30 uppercase tracking-widest px-4 pt-3 pb-1 flex items-center gap-2">
-          <EyeOff size={12} /> {t("Privacy Controls", "गोपनीयता")}
-        </h2>
-        <SettingRow
-          icon={<Lock size={18} />}
-          title={t("Profile Lock", "प्रोफ़ाइल लॉक")}
-          desc={
-            profileLocked
-              ? t("Profile is locked", "लॉक है")
-              : t("Anyone can view your profile", "सभी देख सकते हैं")
-          }
-          color="text-yellow-400"
-          onClick={handleToggleProfileLock}
-          right={
-            <Toggle on={profileLocked} onToggle={handleToggleProfileLock} />
-          }
-        />
-        <SettingRow
-          icon={<EyeOff size={18} />}
-          title={t("Hide Profile", "प्रोफ़ाइल छुपाएं")}
-          desc={
-            profileHidden
-              ? t("Hidden from discovery", "खोज से छुपाया")
-              : t("Visible in search", "खोज में दिखता है")
-          }
-          color="text-red-400"
-          onClick={handleToggleProfileHidden}
-          right={
-            <Toggle on={profileHidden} onToggle={handleToggleProfileHidden} />
-          }
-        />
-      </GlassCard>
+          {/* ── Profile card ─────────────────────── */}
+          <motion.div
+            initial={{ opacity: 0, y: 14 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.38 }}
+            className="rounded-3xl overflow-hidden"
+            style={{
+              background: "linear-gradient(135deg, rgba(139,92,246,0.1) 0%, rgba(236,72,153,0.07) 55%, rgba(245,158,11,0.05) 100%)",
+              border: "1px solid rgba(255,255,255,0.09)",
+              backdropFilter: "blur(28px)",
+              WebkitBackdropFilter: "blur(28px)",
+            }}
+          >
+            {/* Gradient accent bar */}
+            <div className="h-[2px]" style={{ background: "linear-gradient(90deg,#8B5CF6,#EC4899,#F59E0B)" }} />
 
-      {/* Block List */}
-      <GlassCard className="rounded-[2.5rem] p-2 border border-white/10">
-        <SettingRow
-          icon={<Ban size={18} />}
-          title={t("Blocked Users", "अवरुद्ध उपयोगकर्ता")}
-          desc={t("Manage your block list", "ब्लॉक सूची प्रबंधित करें")}
-          color="text-slate-400"
-          onClick={() => setSettingsView("blocklist")}
-        />
-      </GlassCard>
+            <div className="p-5">
+              <div className="flex items-center gap-4">
+                {/* Avatar */}
+                <div className="relative shrink-0">
+                  <div
+                    className="w-[60px] h-[60px] rounded-2xl overflow-hidden flex items-center justify-center"
+                    style={{ border: "2px solid rgba(139,92,246,0.45)", boxShadow: "0 0 18px rgba(139,92,246,0.2)" }}
+                  >
+                    {profile.avatar_url ? (
+                      <img src={profile.avatar_url} className="w-full h-full object-cover" alt="" loading="lazy" decoding="async" />
+                    ) : (
+                      <div
+                        className="w-full h-full flex items-center justify-center text-xl font-black text-white"
+                        style={{ background: "linear-gradient(135deg,#8B5CF6,#EC4899)" }}
+                      >
+                        {(profile.full_name || userEmail || "U")[0].toUpperCase()}
+                      </div>
+                    )}
+                  </div>
+                  {/* Online dot */}
+                  <div
+                    className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-emerald-400"
+                    style={{ border: "2px solid #09090B", boxShadow: "0 0 6px rgba(52,211,153,0.5)" }}
+                  />
+                </div>
 
-      {/* Privacy Policy & Help */}
-      <GlassCard className="rounded-[2.5rem] p-2 border border-white/10">
-        <SettingRow
-          icon={<Shield size={18} />}
-          title={t("Privacy Policy", "गोपनीयता नीति")}
-          desc={t("How we protect your data", "डेटा सुरक्षा नीति")}
-          color="text-emerald-400"
-          onClick={() => setSettingsView("privacy")}
-        />
-        <SettingRow
-          icon={<LifeBuoy size={18} />}
-          title={t("Help & Support", "सहायता केंद्र")}
-          desc={t("FAQs, contact our team 24/7", "24/7 सहायता उपलब्ध")}
-          color="text-sky-400"
-          onClick={() => setSettingsView("help")}
-        />
-      </GlassCard>
+                {/* Name / username / bio */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="font-black text-white text-[15px] leading-tight truncate">
+                      {profile.full_name || t("Your Name", "आपका नाम")}
+                    </p>
+                    <span
+                      className="text-[9px] font-black shrink-0 px-1.5 py-[2px] rounded-full"
+                      style={{ color: "#F59E0B", background: "rgba(245,158,11,0.1)", border: "1px solid rgba(245,158,11,0.22)" }}
+                    >
+                      ✦ Member
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-white/35 font-medium mt-0.5">
+                    @{profile.username || userEmail.split("@")[0]}
+                  </p>
+                  {profile.bio ? (
+                    <p className="text-[10px] text-white/30 mt-1 line-clamp-1">{profile.bio}</p>
+                  ) : (
+                    <button
+                      onClick={() => setSettingsView("personal")}
+                      className="text-[10px] mt-1 font-semibold"
+                      style={{ color: "rgba(139,92,246,0.6)" }}
+                    >
+                      + {t("Add bio", "बायो जोड़ें")}
+                    </button>
+                  )}
+                </div>
 
-      {/* Danger Zone */}
-      <GlassCard className="rounded-[2.5rem] p-2 border border-red-500/20">
-        <h2 className="text-[10px] font-black text-red-400/70 uppercase tracking-widest px-4 pt-3 pb-1 flex items-center gap-2">
-          <AlertTriangle size={12} /> Danger Zone
-        </h2>
-        <SettingRow
-          icon={<Trash2 size={18} />}
-          title="Delete Account"
-          desc="Submit a request to permanently delete your account"
-          color="text-red-400"
-          onClick={() => { setDeleteSubmitted(false); setShowDeleteDialog(true); }}
-        />
-      </GlassCard>
+                {/* Edit profile button */}
+                <button
+                  onClick={() => setSettingsView("personal")}
+                  className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-all active:scale-90"
+                  style={{ background: "rgba(139,92,246,0.12)", border: "1px solid rgba(139,92,246,0.22)" }}
+                >
+                  <UserRound size={15} style={{ color: "#a78bfa" }} />
+                </button>
+              </div>
 
-      {/* Logout */}
-      <div className="px-0">
-        <button
-          onClick={handleLogout}
-          className="w-full py-4 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-2xl font-black text-xs uppercase tracking-widest border border-red-500/20 transition-all flex items-center justify-center gap-2 active:scale-95"
-        >
-          <LogOut size={16} /> {t("Sign Out", "साइन आउट")}
-        </button>
+              {/* Quick-action row */}
+              <div className="flex gap-2 mt-4">
+                {[
+                  { label: t("Edit Profile", "प्रोफ़ाइल"), emoji: "✏️", action: () => setSettingsView("personal") },
+                  { label: darkMode ? t("Light Mode", "लाइट") : t("Dark Mode", "डार्क"), emoji: darkMode ? "☀️" : "🌙", action: () => toggleDarkMode(!darkMode) },
+                  { label: lang === "en" ? "हिंदी" : "English", emoji: "🌐", action: toggleLang },
+                ].map((a) => (
+                  <button
+                    key={a.label}
+                    onClick={a.action}
+                    className="flex-1 flex flex-col items-center gap-1.5 py-3 rounded-2xl transition-all active:scale-95"
+                    style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}
+                  >
+                    <span className="text-[17px] leading-none">{a.emoji}</span>
+                    <span className="text-[9.5px] font-bold text-white/35 text-center leading-tight">{a.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </motion.div>
+
+          {/* ── 01 · Appearance ──────────────────── */}
+          <AuroraSection number="01" title={t("Appearance & Theme", "रूप और थीम")}>
+            <div className="flex gap-2.5 px-4 pb-1">
+              <button
+                onClick={() => toggleDarkMode(true)}
+                className="flex-1 h-[68px] rounded-2xl flex flex-col items-center justify-center gap-2 transition-all active:scale-95"
+                style={{
+                  background: darkMode ? "rgba(139,92,246,0.14)" : "rgba(255,255,255,0.04)",
+                  border: darkMode ? "1.5px solid rgba(139,92,246,0.4)" : "1px solid rgba(255,255,255,0.07)",
+                  boxShadow: darkMode ? "0 0 20px rgba(139,92,246,0.15)" : "none",
+                }}
+              >
+                <span className="text-xl">🌙</span>
+                <span className="text-[10px] font-black text-white/55 uppercase tracking-wider">{t("Dark", "डार्क")}</span>
+              </button>
+              <button
+                onClick={() => toggleDarkMode(false)}
+                className="flex-1 h-[68px] rounded-2xl flex flex-col items-center justify-center gap-2 transition-all active:scale-95"
+                style={{
+                  background: !darkMode ? "rgba(245,158,11,0.12)" : "rgba(255,255,255,0.04)",
+                  border: !darkMode ? "1.5px solid rgba(245,158,11,0.38)" : "1px solid rgba(255,255,255,0.07)",
+                  boxShadow: !darkMode ? "0 0 20px rgba(245,158,11,0.12)" : "none",
+                }}
+              >
+                <span className="text-xl">☀️</span>
+                <span className="text-[10px] font-black text-white/55 uppercase tracking-wider">{t("Light", "लाइट")}</span>
+              </button>
+            </div>
+          </AuroraSection>
+
+          {/* ── 02 · Account & Security ──────────── */}
+          <AuroraSection number="02" title={t("Account & Security", "खाता और सुरक्षा")}>
+            <SettingRow
+              icon={<User size={16} />}
+              title={t("Personal Info", "व्यक्तिगत जानकारी")}
+              desc={t("Name · Bio · School · Mobile", "नाम · परिचय · स्कूल · मोबाइल")}
+              color="violet"
+              onClick={() => setSettingsView("personal")}
+            />
+            <SettingRow
+              icon={<KeyRound size={16} />}
+              title={t("Reset Password", "पासवर्ड रीसेट")}
+              desc={resetSent ? t("Email sent! Check inbox", "ईमेल भेज दिया!") : t("Send reset link to email", "रीसेट लिंक भेजें")}
+              color={resetSent ? "emerald" : "amber"}
+              onClick={resetSent ? undefined : handlePasswordReset}
+              right={resetSent ? <CheckCircle size={15} className="text-emerald-400" /> : undefined}
+            />
+            <SettingRow
+              icon={<Languages size={16} />}
+              title={t("Language", "भाषा")}
+              desc={lang === "en" ? "English (Active)" : "हिंदी (सक्रिय)"}
+              color="sky"
+              onClick={toggleLang}
+              right={
+                <div className="flex items-center gap-2">
+                  <span className={`text-[10px] font-black ${lang === "en" ? "text-white" : "text-white/30"}`}>EN</span>
+                  <Toggle on={lang === "hi"} onToggle={toggleLang} />
+                  <span className={`text-[10px] font-black ${lang === "hi" ? "text-white" : "text-white/30"}`}>HI</span>
+                </div>
+              }
+            />
+          </AuroraSection>
+
+          {/* ── 03 · Personalization ──────────────── */}
+          <AuroraSection number="03" title={t("Personalization", "वैयक्तिकरण")}>
+            <SettingRow
+              icon={<Sparkles size={16} />}
+              title={t("Interests & Discovery", "रुचियां और खोज")}
+              desc={t("Manage interests · Local recs · New users", "रुचियां · स्थानीय सुझाव · नए लोग")}
+              color="violet"
+              onClick={() => setSettingsView("personalization")}
+            />
+          </AuroraSection>
+
+          {/* ── 04 · Privacy ─────────────────────── */}
+          <AuroraSection number="04" title={t("Privacy & Visibility", "गोपनीयता")}>
+            <SettingRow
+              icon={<Lock size={16} />}
+              title={t("Profile Lock", "प्रोफ़ाइल लॉक")}
+              desc={profileLocked ? t("Profile is locked", "लॉक है") : t("Anyone can view your profile", "सभी देख सकते हैं")}
+              color="amber"
+              onClick={handleToggleProfileLock}
+              right={<Toggle on={profileLocked} onToggle={handleToggleProfileLock} />}
+            />
+            <SettingRow
+              icon={<EyeOff size={16} />}
+              title={t("Hide Profile", "प्रोफ़ाइल छुपाएं")}
+              desc={profileHidden ? t("Hidden from discovery", "खोज से छुपाया") : t("Visible in search", "खोज में दिखता है")}
+              color="pink"
+              onClick={handleToggleProfileHidden}
+              right={<Toggle on={profileHidden} onToggle={handleToggleProfileHidden} />}
+            />
+            <SettingRow
+              icon={<Shield size={16} />}
+              title={t("Private Profile Mode", "निजी प्रोफ़ाइल")}
+              desc={isPrivateMode ? t("Only friends can view & interact", "केवल दोस्त") : t("Anyone can view your timeline", "सार्वजनिक")}
+              color="violet"
+              onClick={handleTogglePrivateMode}
+              right={<Toggle on={isPrivateMode} onToggle={handleTogglePrivateMode} />}
+            />
+            <SettingRow
+              icon={<Ban size={16} />}
+              title={t("Blocked Users", "अवरुद्ध उपयोगकर्ता")}
+              desc={t("Manage your block list", "ब्लॉक सूची प्रबंधित करें")}
+              color="slate"
+              onClick={() => setSettingsView("blocklist")}
+            />
+          </AuroraSection>
+
+          {/* ── 05 · Resources & Support ─────────── */}
+          <AuroraSection number="05" title={t("Resources & Support", "सहायता और जानकारी")}>
+            <SettingRow
+              icon={<Shield size={16} />}
+              title={t("Privacy Policy", "गोपनीयता नीति")}
+              desc={t("How we protect your data", "डेटा सुरक्षा नीति")}
+              color="emerald"
+              onClick={() => setSettingsView("privacy")}
+            />
+            <SettingRow
+              icon={<LifeBuoy size={16} />}
+              title={t("Help & Support", "सहायता केंद्र")}
+              desc={t("FAQs · Contact our team 24/7", "24/7 सहायता उपलब्ध")}
+              color="sky"
+              onClick={() => setSettingsView("help")}
+            />
+            <SettingRow
+              icon={<Info size={16} />}
+              title={t("About Us", "हमारे बारे में")}
+              desc={t("Our story, mission & values", "हमारी कहानी और मिशन")}
+              color="amber"
+              onClick={() => setSettingsView("about")}
+            />
+            <SettingRow
+              icon={<Mail size={16} />}
+              title={t("Contact Us", "संपर्क करें")}
+              desc={t("Email · Call · Feedback", "ईमेल · कॉल · फ़ीडबैक")}
+              color="pink"
+              onClick={() => setSettingsView("contact")}
+            />
+          </AuroraSection>
+
+          {/* ── 05 · Danger Zone ─────────────────── */}
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.15 }}
+            className="rounded-3xl overflow-hidden"
+            style={{
+              background: "rgba(239,68,68,0.04)",
+              border: "1px solid rgba(239,68,68,0.1)",
+              backdropFilter: "blur(24px)",
+              WebkitBackdropFilter: "blur(24px)",
+            }}
+          >
+            <div className="flex items-center gap-3 px-5 pt-4 pb-1">
+              <span className="text-[11px] font-black text-red-500/50">05</span>
+              <div className="h-px flex-1" style={{ background: "linear-gradient(90deg,rgba(239,68,68,0.2),transparent)" }} />
+              <div className="flex items-center gap-1.5">
+                <AlertTriangle size={9} className="text-red-400/40" />
+                <span className="text-[10px] font-black text-red-400/40 uppercase tracking-[0.12em]">Danger Zone</span>
+              </div>
+            </div>
+            {/* ── Share App ──────────────────────────────────────── */}
+            <div className="px-4 pb-3">
+              <button
+                onClick={() => {
+                  const shareText = "Flicks India par aao! India ka apna social platform 🇮🇳";
+                  if (navigator.share) {
+                    navigator.share({ title: "Flicks India", text: shareText, url: "https://flicksindia.online" });
+                  } else {
+                    navigator.clipboard.writeText(shareText + "\nhttps://flicksindia.online").then(() => toast.success("Link copied!"));
+                  }
+                }}
+                className="w-full flex items-center gap-3.5 p-4 rounded-2xl transition-all active:scale-[0.98] group"
+                style={{ background: "rgba(204,255,0,0.05)", border: "1px solid rgba(204,255,0,0.15)" }}
+              >
+                <div
+                  className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+                  style={{ background: "rgba(204,255,0,0.1)", border: "1px solid rgba(204,255,0,0.2)" }}
+                >
+                  <Share2 size={15} style={{ color: "#CCFF00" }} />
+                </div>
+                <div className="flex-1 text-left">
+                  <p className="text-[13px] font-semibold" style={{ color: "#CCFF00" }}>{t("Share App", "ऐप शेयर करें")}</p>
+                  <p className="text-[11px] text-white/35 mt-0.5">{t("Invite friends to Flicks India", "दोस्तों को Flicks India पर बुलाएं")}</p>
+                </div>
+                <ChevronRight size={15} className="text-white/20 group-hover:text-white/40 transition-colors shrink-0" />
+              </button>
+            </div>
+
+            <div className="px-4 pb-4">
+              <button
+                onClick={() => { setDeleteSubmitted(false); setShowDeleteDialog(true); }}
+                className="w-full flex items-center gap-3.5 p-4 rounded-2xl transition-all active:scale-[0.98] group"
+                style={{ background: "rgba(239,68,68,0.06)", border: "1px solid rgba(239,68,68,0.1)" }}
+              >
+                <div
+                  className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+                  style={{ background: "rgba(239,68,68,0.12)", border: "1px solid rgba(239,68,68,0.2)" }}
+                >
+                  <Trash2 size={15} className="text-red-400" />
+                </div>
+                <div className="flex-1 text-left">
+                  <p className="text-[13px] font-semibold text-red-400">{t("Delete Account", "खाता हटाएं")}</p>
+                  <p className="text-[11px] text-red-400/45 mt-0.5">{t("This action cannot be undone", "यह क्रिया पूर्ववत नहीं होगी")}</p>
+                </div>
+                <ChevronRight size={15} className="text-red-400/25 group-hover:text-red-400/50 transition-colors shrink-0" />
+              </button>
+            </div>
+          </motion.div>
+
+          {/* ── Sign Out ─────────────────────────── */}
+          <motion.button
+            whileTap={{ scale: 0.97 }}
+            onClick={handleLogout}
+            className="w-full py-4 rounded-2xl font-black text-[11px] uppercase tracking-[0.12em] flex items-center justify-center gap-2.5 transition-all"
+            style={{
+              background: "rgba(255,255,255,0.04)",
+              border: "1px solid rgba(255,255,255,0.08)",
+              color: "rgba(255,255,255,0.4)",
+            }}
+          >
+            <LogOut size={14} />
+            {t("Sign Out", "साइन आउट")}
+          </motion.button>
+
+          <p className="text-center text-[10px] pb-2" style={{ color: "rgba(255,255,255,0.12)" }}>
+            Flicks India © 2024–2025
+          </p>
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   // ── Render ─────────────────────────────────────────────────────────────────
+  // ── Profile error banner (only shown on genuine DB failures, never during normal load)
+  const ProfileBanner = () => {
+    if (profileError) {
+      return (
+        <div className="fixed top-0 left-0 right-0 z-[500] bg-amber-500/95 text-white text-xs font-bold text-center py-2 px-4 flex items-center justify-center gap-2">
+          <span className="inline-block w-3 h-3 rounded-full bg-white/30 animate-pulse" />
+          {profileError}
+          <button
+            onClick={fetchProfile}
+            className="ml-2 px-2 py-0.5 rounded bg-white/20 hover:bg-white/30 text-[10px] font-black uppercase tracking-wide"
+          >
+            Retry
+          </button>
+        </div>
+      );
+    }
+    return null;
+  };
+
   // ── Banned / Suspended screen ─────────────────────────────────────────────
   if (accountStatus === "suspended") {
     return (
       <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center px-6 text-center"
         style={{ background: "linear-gradient(160deg,#0a0018,#1a0008)" }}>
+        <Helmet>
+          <title>Account Suspended | Flicks India</title>
+          <meta name="robots" content="index, follow" />
+        </Helmet>
         <div className="text-7xl mb-6">🚫</div>
         <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4"
           style={{ background: "linear-gradient(135deg,#ef4444,#7f1d1d)" }}>
@@ -1866,8 +2972,31 @@ const Index = ({ session }: { session: Session }) => {
     <div
       className={`min-h-screen w-full transition-colors duration-500 relative overflow-x-hidden ${darkMode ? "bg-[#020617]" : "bg-slate-100 light-mode"}`}
     >
-      {/* Falling rose petals — fixed background layer, never blocks clicks */}
-      <GlobalRosePetals />
+      {/* Page-level Helmet — overrides the app-level default in App.tsx.
+          The home-feed branch explicitly resets title + description so that
+          navigating back from a post page cleanly reverts all <head> tags. */}
+      {(activeFeature === "Settings" || isChatOpen) ? (
+        <Helmet>
+          <title>{isChatOpen ? "Messages | Flicks India" : "Settings | Flicks India"}</title>
+          <meta name="description" content="No Fake News | New India Social App | Full Protected Security | 24 Hours Help Desk" />
+          <meta name="robots" content="index, follow" />
+        </Helmet>
+      ) : (
+        <Helmet>
+          <title>Flicks India | Your Social Hub</title>
+          <meta name="description" content="No Fake News | New India Social App | Full Protected Security | 24 Hours Help Desk" />
+          <meta property="og:title" content="Flicks India - Connect &amp; Share" />
+          <meta property="og:description" content="No Fake News | New India Social App | Full Protected Security | 24 Hours Help Desk" />
+          <meta property="og:image" content="https://i.ibb.co/HT7RvFxs/flicksindia.png" />
+          <meta property="og:url" content="https://flicksindia.online/" />
+          <meta name="twitter:title" content="Flicks India - Connect &amp; Share" />
+          <meta name="twitter:description" content="No Fake News | New India Social App | Full Protected Security | 24 Hours Help Desk" />
+          <meta name="twitter:image" content="https://i.ibb.co/HT7RvFxs/flicksindia.png" />
+          <meta name="robots" content="index, follow" />
+        </Helmet>
+      )}
+
+      <ProfileBanner />
 
       {/* ── Delete Account Modal ────────────────────────────────────────────── */}
       <AnimatePresence>
@@ -1964,12 +3093,14 @@ const Index = ({ session }: { session: Session }) => {
             transition={{ type: "spring", stiffness: 320, damping: 32 }}
             className="fixed inset-0 z-[9999] overflow-hidden overflow-y-auto bg-[#f0f2f5]"
           >
+            <Suspense fallback={<SectionLoader />}>
             <MagnetDashboard
               userId={userId}
               viewerUserId={userId}
               userName={profile?.full_name}
               onBack={() => setShowMagnetDashboard(false)}
             />
+            </Suspense>
           </motion.div>
         )}
       </AnimatePresence>
@@ -2028,7 +3159,9 @@ const Index = ({ session }: { session: Session }) => {
                   ✕ Close
                 </button>
               </div>
-              <ConnectionPanel />
+              <Suspense fallback={<SectionLoader />}>
+                <ConnectionPanel />
+              </Suspense>
               <div className="h-8" />
             </motion.div>
           </>
@@ -2040,14 +3173,16 @@ const Index = ({ session }: { session: Session }) => {
           onProfileClick={() => setActiveFeature("Face")}
           onHomeClick={() => setActiveFeature("Fame")}
           onSettingsClick={() => { setActiveFeature("Settings"); setSettingsView("main"); }}
+          onNavigateToFeature={(feature) => setActiveFeature(feature)}
+          onChatClick={(e) => { e?.stopPropagation(); e?.preventDefault(); setIsChatOpen(true); }}
+          chatBadge={chatBadgeCount}
           userId={userId}
         />
       )}
 
       <main
-        className={`relative z-10 transition-all duration-500 
-          ${activeFeature === "Flicks" ? "pt-0 pb-0" : "pt-0 pb-24"} 
-          ${activeFeature === "Flicks" ? "w-full" : "max-w-2xl mx-auto px-0 sm:px-0"}`}
+        className={`relative z-10 transition-all duration-500 w-full
+          ${activeFeature === "Flicks" ? "pt-0 pb-0" : "pt-0 pb-24"}`}
       >
         <AnimatePresence mode="wait">
           <motion.div
@@ -2059,7 +3194,104 @@ const Index = ({ session }: { session: Session }) => {
           >
             {/* 1. FAME ─────────────────────────────────────────────────────── */}
             {activeFeature === "Fame" && (
-              <div className="w-full overflow-y-auto bg-[#f0f2f5] min-h-screen">
+              <ErrorBoundary>
+              <Suspense fallback={<SectionLoader />}>
+              <div className="w-full bg-[#f0f2f5] min-h-screen">
+
+                {/* ── Desktop 3-column grid ─────────────────────────────────── */}
+                <div className="lg:grid lg:grid-cols-[260px_1fr_272px] lg:gap-4 lg:px-5 lg:pt-3 lg:items-start">
+
+                {/* ══ LEFT SIDEBAR — desktop only ══════════════════════════════ */}
+                <aside className="hidden lg:flex flex-col gap-3 self-start pb-6" style={{ position: 'sticky', top: '80px' }}>
+
+                  {/* Profile quick-card */}
+                  <div className="bg-white rounded-2xl overflow-hidden border border-gray-200 shadow-sm">
+                    <div className="h-12 bg-gradient-to-r from-violet-500 via-purple-500 to-indigo-500" />
+                    <div className="px-4 pb-4 -mt-7">
+                      <div className="w-14 h-14 rounded-full border-4 border-white shadow-md overflow-hidden bg-gray-200 shrink-0">
+                        {profile.avatar_url
+                          ? <img src={profile.avatar_url} loading="lazy" className="w-full h-full object-cover" alt=""  decoding="async"/>
+                          : <div className="w-full h-full flex items-center justify-center bg-violet-500 text-white font-black text-xl">{(profile?.full_name||"U")[0].toUpperCase()}</div>
+                        }
+                      </div>
+                      <p className="font-black text-gray-900 text-sm mt-2 leading-none">{profile?.full_name||"User"}</p>
+                      <p className="text-[11px] text-gray-400 font-semibold mt-0.5">@{profile?.username||"user"}</p>
+                      {profile?.bio && <p className="text-[11px] text-gray-500 mt-1.5 leading-snug line-clamp-2">{profile.bio}</p>}
+                      <div className="mt-2">
+                        <span className="text-[10px] font-black text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">⭐ {(profile as any)?.fame_points ?? 0} Fame</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* ── Invite Friends Card ─────────────────────────────── */}
+                  {session?.user?.id && (
+                    <InviteCard
+                      userId={session.user.id}
+                      username={profile?.username || session.user.email?.split("@")[0] || "user"}
+                    />
+                  )}
+
+                  {/* Navigation shortcuts */}
+                  <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-4 pt-3 pb-1">Explore</p>
+                    {([
+                      { label: "Fame Feed",    emoji: "🏠", feature: "Fame"         },
+                      { label: "Circles",      emoji: "🔵", feature: "Circle"       },
+                      { label: "Hook Pages",   emoji: "⚡", feature: "Hooks"        },
+                      { label: "Flicks",       emoji: "🎬", feature: "Flicks"       },
+                      { label: "Surveys",      emoji: "📊", feature: "Task"         },
+                      { label: "Quotes Maker", emoji: "💬", feature: "QuotesMaker"  },
+                    ] as const).map(({ label, emoji, feature }) => (
+                      <button
+                        key={feature}
+                        onClick={() => setActiveFeature(feature)}
+                        className="flex items-center gap-3 w-full px-4 py-2.5 text-sm font-bold text-gray-700 hover:bg-gray-50 transition-colors text-left border-t border-gray-100 first:border-0"
+                      >
+                        <span className="text-base leading-none">{emoji}</span>{label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* ── Trending Hook Pages — up to 10 (sticky left panel) ── */}
+                  <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                    <div className="flex items-center justify-between px-4 pt-3 pb-1">
+                      <p className="text-[11px] font-black text-gray-700 uppercase tracking-widest">⚡ Trending Hooks</p>
+                      <button
+                        onClick={() => { setInitialHookPageId(null); setActiveFeature("Hooks"); }}
+                        className="text-[10px] font-black text-orange-500 hover:underline"
+                      >See all</button>
+                    </div>
+                    {(homeHookPages.length > 0 ? homeHookPages : [
+                      { id: "lhp-1", name: "Bollywood Beats",  category: "Music",      cover_url: "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=200&q=70", hook_count: 0 },
+                      { id: "lhp-2", name: "Cricket Fever",    category: "Sports",     cover_url: "https://images.unsplash.com/photo-1540747913346-19e32dc3e97e?w=200&q=70", hook_count: 0 },
+                      { id: "lhp-3", name: "Fitness Zone",     category: "Health",     cover_url: "https://images.unsplash.com/photo-1517836357463-d25dfeac3438?w=200&q=70", hook_count: 0 },
+                      { id: "lhp-4", name: "Tech Talks India", category: "Technology", cover_url: "https://images.unsplash.com/photo-1518770660439-4636190af475?w=200&q=70", hook_count: 0 },
+                    ] as any[]).slice(0, 10).map((pg: any) => (
+                      <button
+                        key={pg.id}
+                        onClick={() => { setInitialHookPageId(pg.id ?? null); setActiveFeature("Hooks"); }}
+                        className="flex items-center gap-2.5 w-full px-4 py-2 hover:bg-gray-50 transition-colors text-left border-t border-gray-100"
+                      >
+                        <div className="w-8 h-8 rounded-lg overflow-hidden shrink-0 bg-gray-200">
+                          {pg.cover_url && <img src={pg.cover_url} className="w-full h-full object-cover" loading="lazy" alt=""  decoding="async"/>}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[11px] font-black text-gray-800 truncate leading-none">{pg.name}</p>
+                          <p className="text-[10px] text-gray-400 mt-0.5 font-medium">{pg.category || 'General'}</p>
+                        </div>
+                        {(pg.hook_count ?? 0) > 0 && (
+                          <span className="text-[9px] font-black text-orange-400 shrink-0">
+                            {pg.hook_count > 999 ? `${(pg.hook_count / 1000).toFixed(1)}K` : pg.hook_count}
+                          </span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+
+                </aside>
+
+                {/* ══ CENTER COLUMN ════════════════════════════════════════════ */}
+                <div className="min-w-0">
 
                 {/* ── Stories Strip ─────────────────────────────────────────── */}
                 <StoryBar userProfile={profile} />
@@ -2201,10 +3433,85 @@ const Index = ({ session }: { session: Session }) => {
                   </motion.button>
                 </div>
 
-                {/* ── Flicks Strip (real posts, 3× size, 3 visible) ────────── */}
+                {/* ── Hook Pages Discover Strip — mobile only (desktop → right sidebar) ── */}
+                <div className="lg:hidden">
+                {(() => {
+                  const DEMO_HP = [
+                    { id: "dhp-1", name: "Bollywood Beats", category: "Music", cover_url: "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&q=80", hook_count: 4200 },
+                    { id: "dhp-2", name: "Fitness Zone", category: "Health", cover_url: "https://images.unsplash.com/photo-1517836357463-d25dfeac3438?w=400&q=80", hook_count: 8100 },
+                    { id: "dhp-3", name: "Tech Talks India", category: "Technology", cover_url: "https://images.unsplash.com/photo-1518770660439-4636190af475?w=400&q=80", hook_count: 3500 },
+                    { id: "dhp-4", name: "Art Studio", category: "Art", cover_url: "https://images.unsplash.com/photo-1547826039-bfc35e0f1ea8?w=400&q=80", hook_count: 6700 },
+                    { id: "dhp-5", name: "Cricket Fever", category: "Sports", cover_url: "https://images.unsplash.com/photo-1540747913346-19e32dc3e97e?w=400&q=80", hook_count: 12000 },
+                  ];
+                  const pages: any[] = homeHookPages.length > 0 ? homeHookPages : DEMO_HP;
+                  return (
+                    <div className="pt-3 pb-1">
+                      <div className="flex items-center justify-between px-3 mb-2">
+                        <p className="text-[13px] font-black text-gray-700 tracking-wide">⚡ Hook Pages — Discover</p>
+                        <button
+                          onClick={() => { setInitialHookPageId(null); setActiveFeature("Hooks"); }}
+                          className="text-[10px] font-black text-orange-500 uppercase tracking-wider"
+                        >See All →</button>
+                      </div>
+                      <div className="flex gap-3 overflow-x-auto px-3 pb-2 no-scrollbar">
+                        {pages.map((pg: any) => (
+                          <motion.div
+                            key={pg.id}
+                            whileTap={{ scale: 0.96 }}
+                            onClick={() => { setInitialHookPageId(pg.id ?? null); setActiveFeature("Hooks"); }}
+                            className="flex-shrink-0 relative rounded-2xl overflow-hidden cursor-pointer select-none shadow-md"
+                            style={{ width: 168, height: 312, background: "#1f2937" }}
+                          >
+                            {/* Cover image — <img decoding="async"> not backgroundImage so Supabase URLs render */}
+                            {pg.cover_url ? (
+                              <img
+                                src={pg.cover_url}
+                                className="absolute inset-0 w-full h-full object-cover"
+                                loading="lazy"
+                                alt={pg.name}
+                               decoding="async"/>
+                            ) : (
+                              <div className="absolute inset-0 flex items-center justify-center">
+                                <span className="text-5xl opacity-20">⚡</span>
+                              </div>
+                            )}
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
+                            <div className="absolute top-2.5 left-2.5">
+                              <span className="bg-white/20 backdrop-blur-md border border-white/30 text-white text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
+                                ⚡ Page
+                              </span>
+                            </div>
+                            <div className="absolute top-2.5 right-2.5 bg-black/40 backdrop-blur-sm rounded-full px-2 py-0.5 border border-white/20">
+                              <span className="text-white text-[9px] font-bold">
+                                {((pg.hook_count || pg.follower_count || 0) >= 1000)
+                                  ? `${((pg.hook_count || pg.follower_count || 0) / 1000).toFixed(1)}K`
+                                  : (pg.hook_count || pg.follower_count || 0)}
+                              </span>
+                            </div>
+                            <div className="absolute bottom-0 left-0 right-0 px-3 py-3">
+                              <p className="text-white text-[13px] font-black leading-tight truncate drop-shadow-lg">{pg.name}</p>
+                              {pg.category && (
+                                <p className="text-white/70 text-[10px] font-medium mt-0.5 truncate">{pg.category}</p>
+                              )}
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setInitialHookPageId(pg.id ?? null); setActiveFeature("Hooks"); }}
+                                className="mt-2 w-full py-2 rounded-xl text-[11px] font-black active:scale-95 transition-all"
+                                style={{ background: "linear-gradient(135deg,#ff6b00,#ff9500)", color: "#fff", boxShadow: "0 0 12px rgba(255,107,0,0.45)" }}
+                              >⚡ HOOK</button>
+                            </div>
+                          </motion.div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
+                </div>{/* end lg:hidden hook pages */}
+
+                {/* ── Flicks Strip — mobile only (desktop → right sidebar) ──── */}
+                <div className="lg:hidden">
                 <div className="pt-2 pb-1">
-                  <p className="text-[12px] font-black text-gray-700 px-3 mb-2">Flicks</p>
-                  <div className="flex gap-3 overflow-x-auto px-3 pb-2 no-scrollbar">
+                  <p className="text-[14px] font-black text-gray-700 px-3 mb-2 tracking-wide">Flicks</p>
+                  <div className="flex gap-3.5 overflow-x-auto px-3 pb-2 no-scrollbar">
 
                     {/* Hidden video file input */}
                     <input
@@ -2221,20 +3528,19 @@ const Index = ({ session }: { session: Session }) => {
                       onClick={reelUploading ? undefined : handleReelCardClick}
                       className="flex-shrink-0 relative rounded-2xl overflow-hidden shadow-md cursor-pointer"
                       style={{
-                        width: "calc((100vw - 48px) / 3)",
-                        height: "calc((100vw - 48px) / 3 * 1.78)",
-                        maxWidth: "160px",
-                        maxHeight: "280px",
+                        width: "calc((100vw - 48px) / 2.4)",
+                        height: "calc((100vw - 48px) / 2.4 * 1.78)",
+                        maxWidth: "224px",
+                        maxHeight: "392px",
                         border: myReels.length > 0 ? "2.5px solid #3b82f6" : "2.5px dashed #6366f1",
                         background: "linear-gradient(160deg,#6366f1 0%,#1e1b4b 100%)",
                       }}
                     >
-                      {/* Case B: has reels → show latest thumbnail */}
+                      {/* Case B: has reels → show latest auto-playing muted video */}
                       {myReels.length > 0 && myReels[0].media_url && (
-                        <video
+                        <AutoPlayMutedVideo
                           src={myReels[0].media_url}
                           className="w-full h-full object-cover"
-                          muted playsInline preload="metadata"
                         />
                       )}
 
@@ -2242,10 +3548,10 @@ const Index = ({ session }: { session: Session }) => {
                       {myReels.length === 0 && !reelUploading && (
                         <>
                           {profile.avatar_url ? (
-                            <img src={profile.avatar_url} loading="lazy" className="w-full h-full object-cover opacity-60" />
+                            <img src={profile.avatar_url} loading="lazy" className="w-full h-full object-cover opacity-60"  decoding="async"/>
                           ) : (
                             <div className="w-full h-full flex items-center justify-center text-white/30 font-black text-4xl">
-                              {(profile.full_name || "Y")[0]}
+                              {(profile?.full_name || "Y")[0]?.toUpperCase() || "Y"}
                             </div>
                           )}
                           {/* Upload "+" badge */}
@@ -2298,24 +3604,27 @@ const Index = ({ session }: { session: Session }) => {
                       const GRAD = ["#ec4899","#f59e0b","#10b981","#3b82f6","#8b5cf6","#ef4444","#06b6d4","#84cc16","#f97316"];
                       return (
                         <div key={post.id}
-                          className="flex-shrink-0 relative rounded-2xl overflow-hidden border border-gray-200 shadow-sm"
-                          style={{ width: "calc((100vw - 48px) / 3)", height: "calc((100vw - 48px) / 3 * 1.78)", maxWidth: "160px", maxHeight: "280px", background: `linear-gradient(160deg,${GRAD[i % GRAD.length]} 0%,#1e1b4b 100%)` }}
+                          className="flex-shrink-0 relative rounded-2xl overflow-hidden border border-gray-200 shadow-md"
+                          style={{ width: "calc((100vw - 48px) / 2.4)", height: "calc((100vw - 48px) / 2.4 * 1.78)", maxWidth: "224px", maxHeight: "392px", background: `linear-gradient(160deg,${GRAD[i % GRAD.length]} 0%,#1e1b4b 100%)` }}
                           onClick={() => setActiveFeature("Flicks")}
                         >
-                          {thumb && !isVid ? (
-                            <img src={thumb} loading="lazy" className="w-full h-full object-cover" />
+                          {/* FB-style: video posts auto-play muted; tap → opens with sound */}
+                          {isVid && thumb ? (
+                            <AutoPlayMutedVideo src={thumb} className="w-full h-full object-cover" />
+                          ) : thumb ? (
+                            <img src={thumb} loading="lazy" className="w-full h-full object-cover"  decoding="async"/>
                           ) : (
                             <div className="w-full h-full flex items-center justify-center text-white/40">
                               <Video size={32} />
                             </div>
                           )}
                           {isVid && (
-                            <div className="absolute top-2 right-2 bg-black/50 rounded-full p-1">
-                              <Video size={10} className="text-white" />
+                            <div className="absolute top-2 right-2 bg-black/55 backdrop-blur-sm rounded-full p-1.5 border border-white/30">
+                              <VolumeX size={11} className="text-white" />
                             </div>
                           )}
-                          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent pt-6 pb-2 px-2">
-                            <p className="text-white text-[10px] font-black truncate">{post.author || "User"}</p>
+                          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/85 to-transparent pt-7 pb-2 px-2.5">
+                            <p className="text-white text-[11px] font-black truncate">{post.author || "User"}</p>
                           </div>
                         </div>
                       );
@@ -2324,28 +3633,200 @@ const Index = ({ session }: { session: Session }) => {
                     {/* Placeholder if no posts yet */}
                     {reelPosts.length === 0 && [0,1].map(i => (
                       <div key={i} className="flex-shrink-0 rounded-2xl bg-gray-200 border border-gray-200"
-                        style={{ width: "calc((100vw - 48px) / 3)", height: "calc((100vw - 48px) / 3 * 1.78)", maxWidth: "160px", maxHeight: "280px" }} />
+                        style={{ width: "calc((100vw - 48px) / 2.4)", height: "calc((100vw - 48px) / 2.4 * 1.78)", maxWidth: "224px", maxHeight: "392px" }} />
                     ))}
                   </div>
                 </div>
+                </div>{/* end lg:hidden flicks strip */}
+
+                {/* ── Trending Surveys strip ────────────────────────────────── */}
+                {trendingSurveys.length > 0 && (
+                  <div className="px-4 pb-1 pt-3 lg:hidden">
+                    <div className="flex items-center justify-between mb-2.5">
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-lg flex items-center justify-center"
+                          style={{ background: "linear-gradient(135deg,#6366f1,#8b5cf6)" }}>
+                          <span className="text-[11px]">📊</span>
+                        </div>
+                        <span className="text-gray-800 font-black text-[13px]">Trending Surveys</span>
+                      </div>
+                      <button onClick={() => setActiveFeature("Task")}
+                        className="text-indigo-600 font-black text-[11px] flex items-center gap-0.5">
+                        See all <ChevronRight size={12} />
+                      </button>
+                    </div>
+                    <div className="flex flex-col gap-2.5">
+                      {trendingSurveys.map((s, idx) => {
+                        const RANK_COLORS = ["#f59e0b","#6b7280","#b45309"];
+                        const RANK_BG = ["#fef3c7","#f3f4f6","#fef3c7"];
+                        return (
+                          <motion.div key={s.id}
+                            initial={{ opacity: 0, x: -12 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: idx * 0.06 }}
+                            whileTap={{ scale: 0.98 }}
+                            onClick={() => {
+                              setHighlightedSurveyId(s.id);
+                              setActiveFeature("Task");
+                            }}
+                            className="flex items-center gap-3 bg-white rounded-2xl p-3 border border-gray-100 shadow-sm cursor-pointer"
+                          >
+                            {/* Rank badge */}
+                            <div className="flex-shrink-0 w-7 h-7 rounded-xl flex items-center justify-center font-black text-[13px]"
+                              style={{ background: RANK_BG[idx], color: RANK_COLORS[idx] }}>
+                              {idx + 1}
+                            </div>
+
+                            {/* Survey thumbnail */}
+                            {s.image_url ? (
+                              <div className="flex-shrink-0 w-10 h-10 rounded-xl overflow-hidden border border-gray-100">
+                                <img src={s.image_url} loading="lazy" decoding="async"
+                                  className="w-full h-full object-cover" alt="" />
+                              </div>
+                            ) : (
+                              <div className="flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center text-[18px]"
+                                style={{ background: `linear-gradient(135deg,${["#6366f1","#8b5cf6","#ec4899"][idx]},${["#8b5cf6","#ec4899","#f59e0b"][idx]})` }}>
+                                📊
+                              </div>
+                            )}
+
+                            {/* Text */}
+                            <div className="flex-1 min-w-0">
+                              <p className="text-gray-900 font-bold text-[12px] leading-snug line-clamp-2">{s.question}</p>
+                              <p className="text-indigo-500 font-black text-[10px] mt-0.5">
+                                {s.total_votes} {s.total_votes === 1 ? "vote" : "votes"} · {(s.profiles as any)?.full_name || "FlicksIndia"}
+                              </p>
+                            </div>
+
+                            {/* CTA */}
+                            <div className="flex-shrink-0 px-3 py-1.5 rounded-full font-black text-[10px] text-white"
+                              style={{ background: "linear-gradient(135deg,#6366f1,#8b5cf6)" }}>
+                              Vote
+                            </div>
+                          </motion.div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
                 {/* ── What's on your mind + News Feed ─────────────────────── */}
                 <div className="mt-2">
-                  <FameFeed
-                    onPostClick={() => setIsPostOpen(true)}
-                    onImageSelect={(f) => setPendingFile(f)}
-                    userProfile={profile}
-                    suggestions={onlineUsers}
-                    onNavigateToCircles={() => setActiveFeature("Circle")}
-                    onNavigateToPages={() => setActiveFeature("Circle")}
-                    onNavigateToFlicks={() => setActiveFeature("Flicks")}
-                  />
+                  <PullToRefresh
+                    onRefresh={async () => {
+                      window.dispatchEvent(new CustomEvent("flicks-pull-refresh"));
+                      await new Promise(r => setTimeout(r, 600));
+                    }}
+                  >
+                    <FameFeed
+                      onPostClick={() => setIsPostOpen(true)}
+                      onImageSelect={(f) => setPendingFile(f)}
+                      userProfile={profile}
+                      suggestions={onlineUsers}
+                      onNavigateToCircles={() => setActiveFeature("Circle")}
+                      onNavigateToPages={() => setActiveFeature("Hooks")}
+                      onNavigateToFlicks={() => setActiveFeature("Flicks")}
+                      onNavigateToSurveys={() => setActiveFeature("Task")}
+                      isAdmin={isAppAdmin}
+                      localProfile={{
+                        state: personalForm.state || undefined,
+                        district: personalForm.district || undefined,
+                        city: personalForm.city || undefined,
+                        pincode: personalForm.pincode || undefined,
+                        interests: interests.length > 0 ? interests : undefined,
+                        rec_local_first: recLocalFirst,
+                        rec_people_nearby: recPeopleNearby,
+                        rec_interests: recInterestsPref,
+                        rec_new_users: recNewUsers,
+                      }}
+                    />
+                  </PullToRefresh>
                 </div>
+
+                </div>{/* ═══ end CENTER COLUMN ═══ */}
+
+                {/* ══ RIGHT SIDEBAR — desktop only ═════════════════════════════ */}
+                <aside className="hidden lg:flex flex-col gap-3 self-start pb-6" style={{ position: 'sticky', top: '80px' }}>
+
+                  {/* ── Active Circles — up to 10 (sticky right panel) ── */}
+                  <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                    <div className="flex items-center justify-between px-4 pt-3 pb-1">
+                      <p className="text-[11px] font-black text-gray-700 uppercase tracking-widest">🔵 Active Circles</p>
+                      <button
+                        onClick={() => setActiveFeature("Circle")}
+                        className="text-[10px] font-black text-blue-500 hover:underline"
+                      >See all</button>
+                    </div>
+                    {(sidebarCircles.length > 0 ? sidebarCircles : [
+                      { id: "dc-1",  name: "Bollywood Fans",     category: "Entertainment", cover_url: "https://images.unsplash.com/photo-1536240478700-b869ad10e2c7?w=200&q=70",  member_count: 0 },
+                      { id: "dc-2",  name: "Cricket Warriors",   category: "Sports",        cover_url: "https://images.unsplash.com/photo-1540747913346-19e32dc3e97e?w=200&q=70",  member_count: 0 },
+                      { id: "dc-3",  name: "Tech Geeks India",   category: "Technology",    cover_url: "https://images.unsplash.com/photo-1518770660439-4636190af475?w=200&q=70",  member_count: 0 },
+                      { id: "dc-4",  name: "Foodie Nation",      category: "Food",          cover_url: "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=200&q=70",  member_count: 0 },
+                      { id: "dc-5",  name: "Fitness Freaks",     category: "Health",        cover_url: "https://images.unsplash.com/photo-1517836357463-d25dfeac3438?w=200&q=70",  member_count: 0 },
+                      { id: "dc-6",  name: "Travel India",       category: "Travel",        cover_url: "https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=200&q=70",  member_count: 0 },
+                      { id: "dc-7",  name: "Music Lovers",       category: "Music",         cover_url: "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=200&q=70",  member_count: 0 },
+                      { id: "dc-8",  name: "Startup Talks",      category: "Business",      cover_url: "https://images.unsplash.com/photo-1497366216548-37526070297c?w=200&q=70",  member_count: 0 },
+                      { id: "dc-9",  name: "Desi Memes Club",    category: "Comedy",        cover_url: "https://images.unsplash.com/photo-1527224538127-2104bb71c51b?w=200&q=70",  member_count: 0 },
+                      { id: "dc-10", name: "Devotional Bhakti",  category: "Spiritual",     cover_url: "https://images.unsplash.com/photo-1518611012118-696072aa579a?w=200&q=70",  member_count: 0 },
+                    ] as any[]).slice(0, 10).map((c: any) => (
+                      <button
+                        key={c.id}
+                        onClick={() => setActiveFeature("Circle")}
+                        className="flex items-center gap-3 w-full px-4 py-2.5 hover:bg-gray-50 transition-colors text-left border-t border-gray-100"
+                      >
+                        <div className="w-10 h-10 rounded-xl overflow-hidden shrink-0 bg-gray-200">
+                          {c.cover_url && <img src={c.cover_url} className="w-full h-full object-cover" loading="lazy" alt=""  decoding="async"/>}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[12px] font-black text-gray-800 truncate leading-none">{c.name}</p>
+                          <p className="text-[10px] text-gray-400 mt-0.5 font-medium">{c.category || 'General'}</p>
+                        </div>
+                        {(c.member_count ?? 0) > 0 && (
+                          <span className="text-[9px] font-black text-blue-400 shrink-0">
+                            {c.member_count > 999 ? `${(c.member_count / 1000).toFixed(1)}K` : c.member_count} 👥
+                          </span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Flicks preview — 3-column thumbnail grid */}
+                  {reelPosts.length > 0 && (
+                    <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                      <div className="flex items-center justify-between px-4 pt-3 pb-2">
+                        <p className="text-[11px] font-black text-gray-700 uppercase tracking-widest">🎬 Flicks</p>
+                        <button onClick={() => setActiveFeature("Flicks")}
+                          className="text-[10px] font-black text-blue-500 hover:underline">Open all</button>
+                      </div>
+                      <div className="grid grid-cols-3 gap-0.5 px-3 pb-3">
+                        {reelPosts.slice(0, 6).map((post, i) => {
+                          const GRAD = ["#ec4899","#f59e0b","#10b981","#3b82f6","#8b5cf6","#ef4444"];
+                          return (
+                            <div key={post.id}
+                              className="relative rounded-lg overflow-hidden cursor-pointer"
+                              style={{ aspectRatio: "9/16", background: `linear-gradient(160deg,${GRAD[i%GRAD.length]},#1e1b4b)` }}
+                              onClick={() => setActiveFeature("Flicks")}
+                            >
+                              {post.media_url && <img src={post.media_url} className="w-full h-full object-cover" loading="lazy"  decoding="async"/>}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                </aside>
+
+                </div>{/* ═══ end desktop grid wrapper ═══ */}
+
               </div>
+              </Suspense>
+              </ErrorBoundary>
             )}
 
             {/* 2. FACE ─────────────────────────────────────────────────────── */}
             {activeFeature === "Face" && (
+              <ErrorBoundary>
               <div className="space-y-4">
                 <GlassCard className="sm:rounded-[3rem] p-6 overflow-hidden relative border-x-0 sm:border-x">
                   <div className="absolute top-0 left-0 w-full h-24 bg-gradient-to-r from-blue-600/40 to-purple-600/40" />
@@ -2355,7 +3836,7 @@ const Index = ({ session }: { session: Session }) => {
                         <img
                           src={profile.avatar_url}
                           className="w-full h-full object-cover rounded-[1.8rem]"
-                        />
+                         decoding="async"/>
                       ) : (
                         <div className="w-full h-full rounded-[1.8rem] bg-blue-600 flex items-center justify-center text-white font-black text-4xl">
                           {profile.full_name?.[0] || "U"}
@@ -2376,10 +3857,10 @@ const Index = ({ session }: { session: Session }) => {
                       </label>
                     </div>
                     <h2 className="text-2xl font-black text-white mt-4 tracking-tight">
-                      {profile.full_name || userEmail.split("@")[0]}
+                      {profile?.full_name || (userEmail || "").split("@")[0] || "User"}
                     </h2>
                     <p className="text-blue-400 font-bold text-[10px] uppercase tracking-widest">
-                      @{profile.username || userEmail.split("@")[0]}
+                      @{profile?.username || (userEmail || "").split("@")[0] || "user"}
                     </p>
                   </div>
 
@@ -2400,7 +3881,7 @@ const Index = ({ session }: { session: Session }) => {
                         Location
                       </p>
                       <p className="text-xs font-bold text-white truncate">
-                        {profile.location || "Not Set"}
+                        {[personalForm.city || (profile as any).city, personalForm.district || (profile as any).district, personalForm.state || (profile as any).state].filter(Boolean).join(", ") || profile.location || "Not Set"}
                       </p>
                     </div>
                   </GlassCard>
@@ -2494,42 +3975,96 @@ const Index = ({ session }: { session: Session }) => {
                   )}
                 </GlassCard>
               </div>
+              </ErrorBoundary>
             )}
 
             {/* 3. FLICKS ───────────────────────────────────────────────────── */}
             {activeFeature === "Flicks" && (
+              <ErrorBoundary>
+              <Suspense fallback={<SectionLoader />}>
               <div className="fixed inset-0 z-[300] bg-black">
-                <FlicksFeed onBack={() => setActiveFeature("Fame")} />
+                <FlicksFeed onBack={() => setActiveFeature("Fame")} isAdmin={isAppAdmin} currentUserEmail={userEmail} />
               </div>
+              </Suspense>
+              </ErrorBoundary>
             )}
 
             {/* 4. CIRCLE (Groups) ──────────────────────────────────────────── */}
             {activeFeature === "Circle" && (
+              <ErrorBoundary>
+              <Suspense fallback={<SectionLoader />}>
               <div className="min-h-screen bg-gray-50">
                 <CirclePage userProfile={profile} currentUserId={userId} />
               </div>
+              </Suspense>
+              </ErrorBoundary>
             )}
 
-            {/* 5. SNAPY ────────────────────────────────────────────────────── */}
+            {/* 5. SNAPY (legacy — kept for back-compat) ───────────────────── */}
             {activeFeature === "Snapy" && (
-              <SnapyStudio userId={userId} />
+              <ErrorBoundary>
+              <Suspense fallback={<SectionLoader />}>
+                <SnapyStudio userId={userId} />
+              </Suspense>
+              </ErrorBoundary>
+            )}
+
+            {/* 5. FAME · QUOTES MAKER ─────────────────────────────────────── */}
+            {activeFeature === "QuotesMaker" && (
+              <ErrorBoundary>
+              <Suspense fallback={<SectionLoader />}>
+              <QuotesMaker
+                userId={userId}
+                onClose={() => setActiveFeature("Fame")}
+              />
+              </Suspense>
+              </ErrorBoundary>
             )}
 
             {/* HOOKS ───────────────────────────────────────────────────────── */}
             {activeFeature === "Hooks" && (
-              <HooksHub userId={userId} />
+              <ErrorBoundary>
+              <Suspense fallback={<SectionLoader />}>
+                <HooksHub userId={userId} initialOpenPageId={initialHookPageId} />
+              </Suspense>
+              </ErrorBoundary>
             )}
 
-            {/* 5. TASK (Movie Game) ────────────────────────────────────────── */}
+            {/* 5. TASK (Survey Feed) ──────────────────────────────────────── */}
             {activeFeature === "Task" && (
-              <MovieGame
-                userId={userId}
-                userProfile={profile}
-              />
+              <ErrorBoundary>
+              <Suspense fallback={<SectionLoader />}>
+                <SurveyFeed userId={userId} highlightedSurveyId={highlightedSurveyId} />
+              </Suspense>
+              </ErrorBoundary>
+            )}
+
+            {/* 7. STUDIO (Verified Creator) ────────────────────────────────── */}
+            {activeFeature === "Studio" && (
+              <ErrorBoundary>
+              <Suspense fallback={<SectionLoader />}>
+                <FlicksStudio userId={userId} />
+              </Suspense>
+              </ErrorBoundary>
+            )}
+
+            {/* ANTAKSHARI ARENA ──────────────────────────────────────────────── */}
+            {activeFeature === "Antakshari" && (
+              <ErrorBoundary>
+              <Suspense fallback={<SectionLoader />}>
+                <AntakshariArena
+                  userId={userId}
+                  userProfile={profile}
+                  onBack={() => setActiveFeature("Fame")}
+                />
+              </Suspense>
+              </ErrorBoundary>
             )}
 
             {/* 6. SETTINGS ─────────────────────────────────────────────────── */}
             {activeFeature === "Settings" && (
+              <ErrorBoundary>
+              <div className="w-full min-h-screen pb-32" style={{ background: "#09090B" }}>
               <AnimatePresence mode="wait">
                 {settingsView === "main" && (
                   <motion.div
@@ -2559,6 +4094,29 @@ const Index = ({ session }: { session: Session }) => {
                       userId={userId}
                       currentAvatarUrl={profile.avatar_url}
                       onAvatarUpdated={(url) => setProfile(prev => ({ ...prev, avatar_url: url }))}
+                    />
+                  </motion.div>
+                )}
+                {settingsView === "personalization" && (
+                  <motion.div
+                    key="personalization"
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                  >
+                    <PersonalizationView
+                      lang={lang}
+                      setSettingsView={setSettingsView}
+                      interests={interests}
+                      onSaveInterests={handleSaveInterests}
+                      recLocalFirst={recLocalFirst}
+                      recPeopleNearby={recPeopleNearby}
+                      recInterestsPref={recInterestsPref}
+                      recNewUsers={recNewUsers}
+                      onToggleRecLocalFirst={handleToggleRecLocalFirst}
+                      onToggleRecPeopleNearby={handleToggleRecPeopleNearby}
+                      onToggleRecInterests={handleToggleRecInterests}
+                      onToggleRecNewUsers={handleToggleRecNewUsers}
                     />
                   </motion.div>
                 )}
@@ -2592,13 +4150,37 @@ const Index = ({ session }: { session: Session }) => {
                     <HelpSupportView setSettingsView={setSettingsView} lang={lang} />
                   </motion.div>
                 )}
+                {settingsView === "about" && (
+                  <motion.div
+                    key="about"
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                  >
+                    <AboutUsView setSettingsView={setSettingsView} />
+                  </motion.div>
+                )}
+                {settingsView === "contact" && (
+                  <motion.div
+                    key="contact"
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                  >
+                    <ContactUsView setSettingsView={setSettingsView} />
+                  </motion.div>
+                )}
               </AnimatePresence>
+              </div>
+              </ErrorBoundary>
             )}
           </motion.div>
         </AnimatePresence>
       </main>
 
       {/* Chat System ───────────────────────────────────────────────────────── */}
+      <ErrorBoundary onError={() => setIsChatOpen(false)}>
+      <Suspense fallback={null}>
       <ChatSystem
         isOpen={isChatOpen}
         onClose={() => setIsChatOpen(false)}
@@ -2607,41 +4189,55 @@ const Index = ({ session }: { session: Session }) => {
         onLogout={handleLogout}
         onUnreadCountChange={setChatBadgeCount}
       />
-
-      {/* Chat FAB ──────────────────────────────────────────────────────────── */}
-      <motion.button
-        animate={{
-          y: activeFeature !== "Flicks" && !isChatOpen ? 0 : 150,
-          opacity: isChatOpen ? 0 : 1,
-        }}
-        onClick={() => setIsChatOpen(true)}
-        className="fixed bottom-32 right-6 w-16 h-16 bg-blue-600 rounded-full shadow-2xl flex items-center justify-center z-[80] border-2 border-white/20 active:scale-90"
-      >
-        <MessageSquare size={28} fill="currentColor" />
-        {chatBadgeCount > 0 && (
-          <span className="absolute -top-1 -right-1 min-w-[24px] h-6 px-1 bg-red-500 rounded-full border-2 border-white text-[10px] font-black flex items-center justify-center animate-bounce">
-            {chatBadgeCount > 99 ? "99+" : chatBadgeCount}
-          </span>
-        )}
-      </motion.button>
+      </Suspense>
+      </ErrorBoundary>
 
       {/* Side DVD-Tray Nav ──────────────────────────────────────────────── */}
       <GolSlider
         activeFeature={activeFeature}
         hidden={isChatOpen}
+        isAdmin={isAppAdmin}
         onFeatureChange={(f) => {
+          if (f === "Admin") {
+            if (isAppAdmin) setIsAdminPanelOpen(true);
+            return;
+          }
+          if (f === "Antakshari") {
+            toast.info("🎤 Coming Soon: Antakshari — August 2026", {
+              description: "Sing-along battles with your friends are on the way!",
+              duration: 4000,
+            });
+            return;
+          }
           if (f === "Circle") { setActiveFeature("Circle"); return; }
           setActiveFeature(f);
           setSettingsView("main");
         }}
       />
 
+      {/* ── Admin Dashboard modal (gated by email) ──────────────────────── */}
+      <AnimatePresence>
+        {isAdminPanelOpen && isAppAdmin && (
+          <ErrorBoundary>
+          <Suspense fallback={null}>
+          <AdminDashboard
+            onClose={() => setIsAdminPanelOpen(false)}
+            currentUserId={userId}
+            currentUserEmail={userEmail}
+          />
+          </Suspense>
+          </ErrorBoundary>
+        )}
+      </AnimatePresence>
+
+      <Suspense fallback={null}>
       <CreatePost
         isOpen={isPostOpen}
         onClose={() => { setIsPostOpen(false); setPendingFile(null); }}
         userProfile={profile}
         initialFile={pendingFile}
       />
+      </Suspense>
     </div>
   );
 };

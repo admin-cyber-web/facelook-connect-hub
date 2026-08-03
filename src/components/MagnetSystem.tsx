@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "../lib/supabaseClient";
 import {
   X, AlertTriangle, MessageCircle, TrendingUp,
   Users, GitBranch, VolumeX, Skull, Check, Loader2,
-  Radio, Search, Zap, Globe, ArrowRight,
+  Radio, Search, Zap, Globe, ArrowRight, ArrowUpRight, ArrowDownLeft, Trophy, Lock,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -33,6 +34,8 @@ export interface MagnetVoice {
   status_text: string | null;
   is_warning: boolean;
   updated_at: string;
+  /** NULL = public voice (all chain members see it). UUID = private, only that user sees it. */
+  target_user_id?: string | null;
 }
 
 interface Friend {
@@ -58,30 +61,46 @@ export const AvatarPill = ({ url, name, size = 32 }: { url?: string | null; name
     className="rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white font-black shrink-0 overflow-hidden border-2 border-black"
     style={{ width: size, height: size, fontSize: size / 2.6 }}
   >
-    {url ? <img src={url} className="w-full h-full object-cover" alt="" /> : avatarChar(name)}
+    {url ? <img src={url} className="w-full h-full object-cover" alt=""  decoding="async"/> : avatarChar(name)}
   </div>
 );
 
 // ── Send notification helper ───────────────────────────────────────────────────
-
-async function sendNotification(userId: string, content: string, type = "magnet") {
+// NOTE: DB column is `notifier_id` (the recipient), NOT `user_id`. `actor_id` is the sender.
+async function sendNotification(
+  notifierId: string,
+  content: string,
+  type = "magnet",
+  actorId?: string,
+  entityId?: string,
+) {
   try {
-    await supabase.from("notifications").insert({ user_id: userId, content, type, is_read: false });
+    await supabase.from("notifications").insert({
+      notifier_id: notifierId,
+      actor_id: actorId ?? null,
+      type,
+      entity_id: entityId ?? null,
+      content,
+      is_read: false,
+    });
   } catch (_) {}
 }
 
 // ── useMagnet hook ─────────────────────────────────────────────────────────────
 
-export function useMagnet(postId: string, postType: string, currentUserId: string | null) {
+export function useMagnet(postId: string, postType: string, currentUserId: string | null, channelsActive = false) {
   const [reach, setReach]               = useState(0);
   const [myChainId, setMyChainId]       = useState<string | null>(null);
   const [voice, setVoice]               = useState<MagnetVoice | null>(null);   // backward compat (first active voice)
   const [voices, setVoices]             = useState<MagnetVoice[]>([]);
   const [chains, setChains]             = useState<MagnetChain[]>([]);
   const [firstMagneterId, setFirstMagneterId] = useState<string | null>(null);
+  const [lastLinker, setLastLinker]     = useState<{ full_name: string; avatar_url: string | null } | null>(null);
+  const [recentLinkers, setRecentLinkers] = useState<Array<{ full_name: string; avatar_url: string | null }>>([]);
   const [loading, setLoading]           = useState(true);
   const voiceChannelRef                 = useRef<any>(null);
   const reachChannelRef                 = useRef<any>(null);
+  const fetchAllRef                     = useRef<() => Promise<void>>(() => Promise.resolve());
 
   const fetchAll = useCallback(async () => {
     if (!postId) return;
@@ -107,13 +126,15 @@ export function useMagnet(postId: string, postType: string, currentUserId: strin
         setMyChainId(mine?.id ?? null);
       }
 
-      // All voices for this post
+      // All voices for this post — public (no target) + ones targeted at me
       const { data: vRows } = await supabase
         .from("post_magnet_voice")
-        .select("*")
+        .select("id,post_id,post_type,owner_id,status_text,is_warning,updated_at,target_user_id")
         .eq("post_id", postId)
         .eq("post_type", postType);
-      const activeVoices = (vRows || []).filter((v: MagnetVoice) => v.status_text);
+      const activeVoices = (vRows || []).filter((v: any) =>
+        v.status_text && (!v.target_user_id || v.target_user_id === currentUserId)
+      ) as MagnetVoice[];
       setVoices(activeVoices);
       setVoice(activeVoices[0] ?? null);  // backward compat
 
@@ -127,6 +148,20 @@ export function useMagnet(postId: string, postType: string, currentUserId: strin
         .limit(1)
         .maybeSingle();
       setFirstMagneterId(firstEntry?.user_id ?? null);
+
+      // Recent linkers — last 5 non-killed entries; [0] = most recent
+      const { data: recentEntries } = await supabase
+        .from("magnet_chains")
+        .select("user_id, profile:profiles!magnet_chains_user_id_fkey(full_name,avatar_url)")
+        .eq("post_id", postId)
+        .eq("post_type", postType)
+        .eq("is_killed", false)
+        .order("created_at", { ascending: false })
+        .limit(5);
+      const linkerProfiles = ((recentEntries || []) as any[])
+        .map((e: any) => e.profile).filter(Boolean);
+      setRecentLinkers(linkerProfiles);
+      setLastLinker(linkerProfiles[0] ?? null);
 
     } catch (_) {}
     setLoading(false);
@@ -148,20 +183,38 @@ export function useMagnet(postId: string, postType: string, currentUserId: strin
     setChains((data as MagnetChain[]) ?? []);
   }, [postId, postType]);
 
-  useEffect(() => {
-    fetchAll();
+  // Keep fetchAllRef in sync so channel callbacks always call the latest version
+  // without adding fetchAll to the channel useEffect's dependency array
+  useEffect(() => { fetchAllRef.current = fetchAll; }, [fetchAll]);
 
-    reachChannelRef.current = supabase
+  useEffect(() => {
+    if (!postId) return;
+    fetchAllRef.current();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [postId, postType, currentUserId]);
+
+  // Channels only open when the panel is visible — prevents 40+ idle channels
+  // in the feed. Gate on channelsActive so the button still shows reach count.
+  useEffect(() => {
+    if (!postId || !channelsActive) return;
+
+    const reachCh = supabase
       .channel(`magnet-reach-${postId}-${postType}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "magnet_chains", filter: `post_id=eq.${postId}` },
-        () => fetchAll())
+        () => fetchAllRef.current())
       .subscribe();
+    reachChannelRef.current = reachCh;
 
-    voiceChannelRef.current = supabase
+    const voiceCh = supabase
       .channel(`magnet-voice-${postId}-${postType}`)
       .on("broadcast", { event: "voice_update" }, ({ payload }: any) => {
+        // Only process if public (no target) or targeted specifically at me
+        const isForMe = !payload.target_user_id || payload.target_user_id === currentUserId;
+        if (!isForMe) return;
         setVoices(prev => {
-          const existing = prev.findIndex(v => v.owner_id === payload.owner_id);
+          const existing = prev.findIndex(
+            v => v.owner_id === payload.owner_id && (v.target_user_id ?? null) === (payload.target_user_id ?? null)
+          );
           if (existing >= 0) {
             const next = [...prev];
             next[existing] = payload as MagnetVoice;
@@ -169,20 +222,27 @@ export function useMagnet(postId: string, postType: string, currentUserId: strin
           }
           return payload.status_text ? [...prev, payload as MagnetVoice] : prev;
         });
-        setVoice(payload.status_text ? payload as MagnetVoice : null);
+        // Update backward-compat single voice (only for public voices)
+        if (!payload.target_user_id) {
+          setVoice(payload.status_text ? payload as MagnetVoice : null);
+        }
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "post_magnet_voice", filter: `post_id=eq.${postId}` },
-        () => fetchAll())
+        () => fetchAllRef.current())
       .subscribe();
+    voiceChannelRef.current = voiceCh;
 
     return () => {
-      supabase.removeChannel(reachChannelRef.current);
-      supabase.removeChannel(voiceChannelRef.current);
+      supabase.removeChannel(reachCh);
+      supabase.removeChannel(voiceCh);
+      reachChannelRef.current = null;
+      voiceChannelRef.current = null;
     };
-  }, [postId, postType, currentUserId, fetchAll]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [postId, postType, currentUserId, channelsActive]);
 
   return {
-    reach, myChainId, voice, voices, chains, firstMagneterId, loading,
+    reach, myChainId, voice, voices, chains, firstMagneterId, lastLinker, recentLinkers, loading,
     fetchAll, fetchChains,
     setVoice, setVoices, setReach, setChains,
   };
@@ -219,16 +279,13 @@ export function VoiceDisplay({
             boxShadow: "0 4px 20px rgba(220,38,38,0.4)",
           }}
         >
-          <motion.div
-            animate={{ scale: [1, 1.2, 1] }}
-            transition={{ repeat: Infinity, duration: 1.2 }}
-          >
+          <div style={{ animation: "magnet-pulse-scale 1.2s ease-in-out infinite" }}>
             <AlertTriangle size={16} className="text-yellow-300 shrink-0" />
-          </motion.div>
+          </div>
           <div className="flex-1 min-w-0">
             <p className="text-white font-black text-[13px] leading-snug">{v.status_text}</p>
             <p className="text-red-200 text-[9px] font-semibold uppercase tracking-widest mt-0.5">
-              {v.owner_id === postOwnerId ? "⚡ Post Owner Warning" : "🧲 Chain Alert"}
+              {v.owner_id === postOwnerId ? "⚡ Post Owner Warning" : "🔗 Chain Alert"}
             </p>
           </div>
         </motion.div>
@@ -249,15 +306,12 @@ export function VoiceDisplay({
                 border: "1px solid rgba(139,92,246,0.3)",
               }}
             >
-              <motion.div
-                animate={{ opacity: [1, 0.3, 1] }}
-                transition={{ repeat: Infinity, duration: 1.5 }}
-              >
+              <div style={{ animation: "magnet-pulse-opacity 1.5s ease-in-out infinite" }}>
                 <Radio size={10} className="text-purple-500 shrink-0" />
-              </motion.div>
+              </div>
               <span className="text-purple-700 text-[11px] font-bold truncate">{v.status_text}</span>
               <span className="text-purple-400 text-[8px] font-black shrink-0">
-                {v.owner_id === postOwnerId ? "Owner" : "1st🧲"}
+                {v.owner_id === postOwnerId ? "Owner" : "1st🔗"}
               </span>
             </motion.div>
           ))}
@@ -326,7 +380,7 @@ function ViralPath({ chains, postOwnerId }: { chains: MagnetChain[]; postOwnerId
       <div className="py-10 flex flex-col items-center text-center text-gray-400">
         <GitBranch size={32} className="mb-3 opacity-30" />
         <p className="font-black text-sm">No chain yet</p>
-        <p className="text-[11px] mt-1">Be the first to Magnet this post!</p>
+        <p className="text-[11px] mt-1">Be the first to Link this post!</p>
       </div>
     );
   }
@@ -342,9 +396,9 @@ function ViralPath({ chains, postOwnerId }: { chains: MagnetChain[]; postOwnerId
       {/* Chain Stats */}
       <div className="grid grid-cols-3 gap-2 mb-4">
         {[
-          { label: "Total Reach",    value: formatReach(activePeople.length), icon: "🧲" },
-          { label: "Viral Depth",    value: `Lv ${maxDepth}`,                  icon: "📡" },
-          { label: "Last Magneter",  value: lastPerson?.profile?.full_name?.split(" ")[0] || "—", icon: "👤" },
+          { label: "Total Reach",  value: formatReach(activePeople.length), icon: "🔗" },
+          { label: "Viral Depth",  value: `Lv ${maxDepth}`,                  icon: "📡" },
+          { label: "Last Linker",  value: lastPerson?.profile?.full_name?.split(" ")[0] || "—", icon: "👤" },
         ].map(s => (
           <div key={s.label} className="bg-purple-50 rounded-xl p-2 text-center border border-purple-100">
             <p className="text-lg mb-0.5">{s.icon}</p>
@@ -393,6 +447,327 @@ function ViralPath({ chains, postOwnerId }: { chains: MagnetChain[]; postOwnerId
   );
 }
 
+// ── MagnetDashboard ────────────────────────────────────────────────────────────
+
+interface DashboardEntry {
+  id: string;
+  post_id: string;
+  created_at: string;
+  profile?: { full_name: string; avatar_url: string | null };
+  inviter?: { full_name: string; avatar_url: string | null };
+}
+
+function formatTimeAgo(ts: string): string {
+  const diff = Date.now() - new Date(ts).getTime();
+  const mins = Math.floor(diff / 60_000);
+  if (mins < 60)  return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24)   return `${hrs}h ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
+}
+
+function MagnetDashboard({ currentUserId }: { currentUserId: string | null }) {
+  const [sent, setSent]         = useState<DashboardEntry[]>([]);
+  const [received, setReceived] = useState<DashboardEntry[]>([]);
+  const [loading, setLoading]   = useState(true);
+  const [dashTab, setDashTab]   = useState<"sent" | "received">("sent");
+  const [totalSent, setTotalSent]           = useState(0);
+  const [totalReceived, setTotalReceived]   = useState(0);
+
+  const fetchDashboardStats = useCallback(async () => {
+    if (!currentUserId) { setLoading(false); return; }
+    setLoading(true);
+    try {
+      const [sentRes, recvRes] = await Promise.all([
+        // SENT: from magnet_invites (who the current user invited)
+        supabase
+          .from("magnet_invites")
+          .select("id, post_id, created_at, profile:profiles!receiver_id(full_name,avatar_url)", { count: "exact" })
+          .eq("sender_id", currentUserId)
+          .order("created_at", { ascending: false })
+          .limit(50),
+        // RECEIVED: magnet_chains where I joined (any invite)
+        supabase
+          .from("magnet_chains")
+          .select("id, post_id, created_at, inviter:profiles!magnet_chains_invited_by_fkey(full_name,avatar_url)", { count: "exact" })
+          .eq("user_id", currentUserId)
+          .order("created_at", { ascending: false })
+          .limit(50),
+      ]);
+
+      // Gracefully handle case where magnet_invites table doesn't exist yet
+      if (sentRes.error) {
+        // Fall back to magnet_chains invited_by column
+        const { data: fbData, count: fbCount } = await supabase
+          .from("magnet_chains")
+          .select("id, post_id, created_at, profile:profiles!magnet_chains_user_id_fkey(full_name,avatar_url)", { count: "exact" })
+          .eq("invited_by", currentUserId)
+          .order("created_at", { ascending: false })
+          .limit(50);
+        setSent(fbData ?? []);
+        setTotalSent(fbCount ?? fbData?.length ?? 0);
+      } else {
+        setSent(sentRes.data ?? []);
+        setTotalSent(sentRes.count ?? sentRes.data?.length ?? 0);
+      }
+      setReceived(recvRes.data ?? []);
+      setTotalReceived(recvRes.count ?? recvRes.data?.length ?? 0);
+    } catch (_) {}
+    setLoading(false);
+  }, [currentUserId]);
+
+  useEffect(() => { fetchDashboardStats(); }, [fetchDashboardStats]);
+
+  const list = dashTab === "sent" ? sent : received;
+
+  return (
+    <div className="mt-4 pt-4 border-t border-gray-100">
+      {/* Stats header */}
+      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">📊 My Link Dashboard</p>
+      <div className="flex gap-2 mb-3">
+        {[
+          { label: "Total Sent",     value: formatReach(totalSent),     bg: "rgba(124,58,237,0.07)",  bd: "rgba(124,58,237,0.18)", tc: "text-purple-700", sc: "text-purple-400" },
+          { label: "Total Received", value: formatReach(totalReceived), bg: "rgba(219,39,119,0.07)", bd: "rgba(219,39,119,0.18)", tc: "text-pink-600",   sc: "text-pink-400"   },
+        ].map(s => (
+          <div key={s.label} className="flex-1 rounded-2xl p-3 text-center border" style={{ background: s.bg, borderColor: s.bd }}>
+            <p className={`${s.tc} font-black text-xl leading-none`}>{s.value}</p>
+            <p className={`${s.sc} text-[9px] font-black uppercase tracking-wide mt-1`}>{s.label}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Sub-tabs */}
+      <div className="flex gap-1 mb-3">
+        {(["sent", "received"] as const).map(t => (
+          <button
+            key={t}
+            onClick={e => { e.stopPropagation(); setDashTab(t); }}
+            className="flex-1 py-2 rounded-xl text-[11px] font-black uppercase tracking-wide transition-all"
+            style={
+              dashTab === t
+                ? { background: "linear-gradient(90deg,#7c3aed,#db2777)", color: "#fff" }
+                : { background: "#f3f4f6", color: "#6b7280" }
+            }
+          >
+            {t === "sent" ? `📤 Sent (${totalSent})` : `📥 Received (${totalReceived})`}
+          </button>
+        ))}
+      </div>
+
+      {/* List */}
+      {loading ? (
+        <div className="flex justify-center py-6">
+          <Loader2 size={20} className="animate-spin text-purple-400" />
+        </div>
+      ) : list.length === 0 ? (
+        <div className="py-8 flex flex-col items-center text-center text-gray-400">
+          <GitBranch size={28} className="mb-2 opacity-30" />
+          <p className="text-sm font-black">No connections yet</p>
+          <p className="text-[11px] mt-1">
+            {dashTab === "sent" ? "Link friends to grow your chain 🔗" : "No one has linked you into a chain yet"}
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-1.5">
+          {list.map((entry, i) => {
+            const person = dashTab === "sent" ? entry.profile : entry.inviter;
+            return (
+              <motion.div
+                key={entry.id}
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.03 }}
+                onClick={e => e.stopPropagation()}
+                className="flex items-center gap-3 px-3 py-2.5 rounded-2xl border border-gray-100 bg-gray-50/70 cursor-default"
+              >
+                <AvatarPill url={person?.avatar_url} name={person?.full_name} size={34} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-gray-900 font-bold text-sm leading-tight truncate">
+                    {person?.full_name || "User"}
+                  </p>
+                  <p className="text-gray-400 text-[10px] font-semibold flex items-center gap-1 mt-0.5">
+                    {dashTab === "sent"
+                      ? <ArrowUpRight size={9} className="text-purple-400" />
+                      : <ArrowDownLeft size={9} className="text-pink-400" />}
+                    {formatTimeAgo(entry.created_at)}
+                  </p>
+                </div>
+                <div
+                  className="w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-black shrink-0"
+                  style={dashTab === "sent"
+                    ? { background: "rgba(124,58,237,0.12)", color: "#7c3aed" }
+                    : { background: "rgba(219,39,119,0.12)", color: "#db2777" }}
+                >
+                  {dashTab === "sent" ? "↗" : "↙"}
+                </div>
+              </motion.div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── MagnetLeaderboard ─────────────────────────────────────────────────────────
+
+interface LeaderRow {
+  userId: string;
+  full_name: string;
+  avatar_url: string | null;
+  count: number;
+}
+
+const RANK_MEDAL = ["🥇", "🥈", "🥉"];
+const RANK_COLORS = [
+  { bg: "rgba(251,191,36,0.12)", bd: "rgba(251,191,36,0.30)", tc: "#b45309" },
+  { bg: "rgba(148,163,184,0.12)", bd: "rgba(148,163,184,0.30)", tc: "#475569" },
+  { bg: "rgba(180,120,80,0.12)",  bd: "rgba(180,120,80,0.30)",  tc: "#92400e" },
+];
+
+function MagnetLeaderboard({ currentUserId }: { currentUserId: string | null }) {
+  const [rows, setRows]         = useState<LeaderRow[]>([]);
+  const [loading, setLoading]   = useState(true);
+  const [myRank, setMyRank]     = useState<number | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        // Pull every non-root chain entry with the inviter's profile
+        const { data } = await supabase
+          .from("magnet_chains")
+          .select("invited_by, inviter:profiles!magnet_chains_invited_by_fkey(full_name,avatar_url)")
+          .not("invited_by", "is", null)
+          .limit(2000);
+
+        if (cancelled || !data) return;
+
+        // Group by invited_by and count
+        const map = new Map<string, { full_name: string; avatar_url: string | null; count: number }>();
+        for (const row of data) {
+          const uid = row.invited_by as string;
+          const p   = (row as any).inviter as { full_name: string; avatar_url: string | null } | null;
+          if (!uid || !p) continue;
+          if (map.has(uid)) {
+            map.get(uid)!.count++;
+          } else {
+            map.set(uid, { full_name: p.full_name || "User", avatar_url: p.avatar_url, count: 1 });
+          }
+        }
+
+        const sorted: LeaderRow[] = Array.from(map.entries())
+          .map(([userId, v]) => ({ userId, ...v }))
+          .sort((a, b) => b.count - a.count)
+          .slice(0, 50);
+
+        const rank = sorted.findIndex(r => r.userId === currentUserId);
+        setMyRank(rank >= 0 ? rank + 1 : null);
+        setRows(sorted);
+      } catch (_) {}
+      if (!cancelled) setLoading(false);
+    })();
+    return () => { cancelled = true; };
+  }, [currentUserId]);
+
+  return (
+    <div className="p-5">
+      {/* Header */}
+      <div className="flex items-center gap-2 mb-4">
+        <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: "linear-gradient(135deg,#f59e0b,#ec4899)" }}>
+          <Trophy size={15} className="text-white" />
+        </div>
+        <div>
+          <p className="text-gray-900 font-black text-sm leading-none">Chain Leaderboard</p>
+          <p className="text-gray-400 text-[10px] mt-0.5">Global ranking by total links sent</p>
+        </div>
+        {myRank && (
+          <div className="ml-auto px-3 py-1 rounded-full text-[10px] font-black" style={{ background: "rgba(124,58,237,0.10)", color: "#7c3aed" }}>
+            You #{myRank}
+          </div>
+        )}
+      </div>
+
+      {loading ? (
+        <div className="flex justify-center py-12">
+          <Loader2 size={22} className="animate-spin text-purple-400" />
+        </div>
+      ) : rows.length === 0 ? (
+        <div className="py-12 flex flex-col items-center text-center text-gray-400">
+          <Trophy size={32} className="mb-3 opacity-20" />
+          <p className="text-sm font-black">No data yet</p>
+          <p className="text-[11px] mt-1">Be the first to start linking!</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {rows.map((row, i) => {
+            const isMe    = row.userId === currentUserId;
+            const medal   = RANK_MEDAL[i];
+            const colors  = RANK_COLORS[i];
+            const isTop3  = i < 3;
+            return (
+              <motion.div
+                key={row.userId}
+                initial={{ opacity: 0, x: -8 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: i * 0.025 }}
+                onClick={e => e.stopPropagation()}
+                className="flex items-center gap-3 px-3 py-2.5 rounded-2xl border transition-all"
+                style={
+                  isMe
+                    ? { background: "rgba(124,58,237,0.10)", borderColor: "rgba(124,58,237,0.30)" }
+                    : isTop3
+                    ? { background: colors.bg, borderColor: colors.bd }
+                    : { background: "#f9f9fb", borderColor: "#ebebf0" }
+                }
+              >
+                {/* Rank */}
+                <div className="w-7 shrink-0 flex items-center justify-center">
+                  {medal ? (
+                    <span className="text-lg leading-none">{medal}</span>
+                  ) : (
+                    <span className="text-[11px] font-black text-gray-400">#{i + 1}</span>
+                  )}
+                </div>
+
+                <AvatarPill url={row.avatar_url} name={row.full_name} size={34} />
+
+                <div className="flex-1 min-w-0">
+                  <p className={`font-bold text-sm leading-tight truncate ${isMe ? "text-purple-800" : "text-gray-900"}`}>
+                    {row.full_name}{isMe && <span className="ml-1 text-[10px] font-black text-purple-500">YOU</span>}
+                  </p>
+                  <p className="text-gray-400 text-[10px] font-semibold flex items-center gap-1 mt-0.5">
+                    <ArrowUpRight size={9} />
+                    {row.count} {row.count === 1 ? "link" : "links"} sent
+                  </p>
+                </div>
+
+                {/* Bar */}
+                <div className="w-14 shrink-0">
+                  <div className="h-1.5 rounded-full bg-gray-200 overflow-hidden">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${Math.round((row.count / rows[0].count) * 100)}%` }}
+                      transition={{ delay: i * 0.025 + 0.15, duration: 0.5, ease: "easeOut" }}
+                      className="h-full rounded-full"
+                      style={{ background: isTop3 ? "linear-gradient(90deg,#7c3aed,#db2777)" : "#a78bfa" }}
+                    />
+                  </div>
+                  <p className={`text-right text-[10px] font-black mt-0.5 ${isTop3 && colors.tc ? "" : "text-purple-600"}`}
+                    style={isTop3 ? { color: colors.tc } : {}}>
+                    {formatReach(row.count)}
+                  </p>
+                </div>
+              </motion.div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── MagnetModal ───────────────────────────────────────────────────────────────
 
 interface MagnetModalProps {
@@ -427,7 +802,7 @@ export function MagnetModal({
 
   const myVoice = voices.find(v => v.owner_id === currentUserId);
 
-  const [tab, setTab]               = useState<"magnet" | "trace" | "voice">("magnet");
+  const [tab, setTab]               = useState<"magnet" | "trace" | "voice" | "leaderboard">("magnet");
   const [allUsers, setAllUsers]     = useState<Friend[]>([]);
   const [selected, setSelected]     = useState<Set<string>>(new Set());
   const [search, setSearch]         = useState("");
@@ -438,9 +813,32 @@ export function MagnetModal({
   const [voiceWarning, setVoiceWarning] = useState(myVoice?.is_warning || false);
   const [savingVoice, setSavingVoice] = useState(false);
   const [traceLoaded, setTraceLoaded] = useState(false);
+  const [traceShowAll, setTraceShowAll] = useState(false);
   const [userTab, setUserTab]       = useState<"friends" | "all">("friends");
   const [friends, setFriends]       = useState<Friend[]>([]);
+  // Targeted private voice state
+  const [targetUserId, setTargetUserId]         = useState("");
+  const [targetVoiceText, setTargetVoiceText]   = useState("");
+  const [savingTargetVoice, setSavingTargetVoice] = useState(false);
   const voiceChannelRef = useRef<any>(null);
+
+  // Initialise a broadcast-send-only channel — must be subscribed BEFORE
+  // saveVoice() runs so we never call .on() after .subscribe() on it.
+  // NOTE: name uses "-send" suffix to avoid topic collision with useMagnet's
+  // listener channel (same base name without "-send"). Supabase-js returns the
+  // existing subscribed channel when topics match — calling .on() on it after
+  // .subscribe() throws "cannot add postgres_changes callbacks after subscribe()".
+  useEffect(() => {
+    if (!postId || !postType) return;
+    const sendCh = supabase
+      .channel(`magnet-voice-send-${postId}-${postType}`)
+      .subscribe();
+    voiceChannelRef.current = sendCh;
+    return () => {
+      supabase.removeChannel(sendCh);
+      voiceChannelRef.current = null;
+    };
+  }, [postId, postType]);
 
   // Fetch friends + all users
   useEffect(() => {
@@ -481,19 +879,35 @@ export function MagnetModal({
 
   // Self-join chain (global access)
   const joinChain = async () => {
-    if (myChainId) { toast("You're already in this chain! 🧲"); return; }
+    if (myChainId) { toast("You're already in this chain! 🔗"); return; }
     setJoiningChain(true);
     try {
+      // Check if we were directly invited — use that as invited_by
+      let invitedBy: string | null = null;
+      let joinDepth = 0;
+      const { data: myInvite } = await supabase
+        .from("magnet_invites")
+        .select("sender_id")
+        .eq("receiver_id", currentUserId)
+        .eq("post_id", postId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (myInvite?.sender_id) { invitedBy = myInvite.sender_id; joinDepth = 1; }
+
       await supabase.from("magnet_chains").insert({
         post_id: postId, post_type: postType, user_id: currentUserId,
-        invited_by: null, depth: 0,
+        invited_by: invitedBy, depth: joinDepth,
       });
 
       // Notify post owner
       if (postOwnerId !== currentUserId) {
         await sendNotification(
           postOwnerId,
-          `Your post is going viral! ${myName} just magneted it.`
+          "joined your viral chain.",
+          "magnet_accepted",
+          currentUserId ?? undefined,
+          postId,
         );
       }
 
@@ -504,7 +918,7 @@ export function MagnetModal({
         // RPC might not exist — silent fail
       }
 
-      toast.success("🧲 You joined the Magnet chain!");
+      toast.success("🔗 You joined the Link chain!");
       onReachUpdate(reach + 1);
     } catch (err: any) {
       if (err.message?.includes("duplicate")) toast("Already in chain!");
@@ -539,16 +953,39 @@ export function MagnetModal({
 
       await supabase.from("magnet_chains").upsert(rows, { onConflict: "user_id,post_id,post_type", ignoreDuplicates: true });
 
-      // Notifications — notify each selected user
+      // ── Log in magnet_invites (sender_id, receiver_id, post_id) ───────────
+      // This powers the Trace panel and Dashboard "Sent" count.
+      const inviteRows = Array.from(selected).map(fid => ({
+        sender_id:   currentUserId,
+        receiver_id: fid,
+        post_id:     postId,
+      }));
+      supabase.from("magnet_invites").upsert(inviteRows, {
+        onConflict: "sender_id,receiver_id,post_id",
+        ignoreDuplicates: true,
+      }).then(({ error: ie }) => {
+        if (ie) console.warn("[Magnet] magnet_invites insert failed (run SQL migration):", ie.message);
+      });
+
+      // Notify each selected user (private — only they receive this)
       await Promise.all(Array.from(selected).map(uid =>
-        sendNotification(uid, `${myName} has sent you a Magnet for this post!`)
+        sendNotification(
+          uid,
+          "sent you a viral Link! Open the post to join the chain.",
+          "magnet_link",
+          currentUserId ?? undefined,
+          postId,
+        )
       ));
 
       // Notify post owner (if not self)
       if (postOwnerId !== currentUserId) {
         await sendNotification(
           postOwnerId,
-          `Your post is going viral! ${myName} just magneted it to ${selected.size} people.`
+          `linked ${selected.size} ${selected.size > 1 ? "people" : "person"} to your post.`,
+          "magnet_accepted",
+          currentUserId ?? undefined,
+          postId,
         );
       }
 
@@ -563,11 +1000,11 @@ export function MagnetModal({
         .eq("post_id", postId).eq("post_type", postType).eq("is_killed", false);
       onReachUpdate(count ?? reach + selected.size);
 
-      toast.success(`🧲 Magneted ${selected.size} ${selected.size > 1 ? "people" : "person"}!`);
+      toast.success(`🔗 Linked ${selected.size} ${selected.size > 1 ? "people" : "person"}!`);
       setSelected(new Set());
       onClose();
     } catch (err: any) {
-      toast.error("Magnet failed: " + (err.message || "try again"));
+      toast.error("Link failed: " + (err.message || "try again"));
     }
     setSending(false);
   };
@@ -603,13 +1040,12 @@ export function MagnetModal({
         if (saved.status_text) updated.push(saved as MagnetVoice);
         onVoicesUpdate(updated);
 
-        // Broadcast to all viewers
-        if (!voiceChannelRef.current) {
-          voiceChannelRef.current = supabase.channel(`magnet-voice-${postId}-${postType}`);
-          await voiceChannelRef.current.subscribe();
+        // Broadcast to all viewers via the already-subscribed voice channel.
+        // voiceChannelRef is initialised in a useEffect below — no lazy subscribe needed.
+        if (voiceChannelRef.current) {
+          voiceChannelRef.current.send({ type: "broadcast", event: "voice_update", payload: saved });
         }
-        voiceChannelRef.current.send({ type: "broadcast", event: "voice_update", payload: saved });
-        toast.success("Voice broadcast live!");
+        toast.success("Voice updated live!");
       }
     } catch (err: any) {
       toast.error("Voice save failed: " + err.message);
@@ -630,6 +1066,46 @@ export function MagnetModal({
     toast.success("Voice cleared.");
   };
 
+  // Save a private targeted voice to a specific chain participant
+  const saveTargetedVoice = async () => {
+    if (!targetUserId || !targetVoiceText.trim()) return;
+    setSavingTargetVoice(true);
+    try {
+      const payload = {
+        post_id: postId, post_type: postType, owner_id: currentUserId,
+        target_user_id: targetUserId,
+        status_text: targetVoiceText.trim(),
+        is_warning: false,
+        updated_at: new Date().toISOString(),
+      };
+
+      // Look for an existing targeted row for this exact recipient
+      const { data: existing } = await supabase
+        .from("post_magnet_voice").select("id")
+        .eq("post_id", postId).eq("post_type", postType)
+        .eq("owner_id", currentUserId).eq("target_user_id", targetUserId)
+        .maybeSingle();
+
+      if (existing?.id) {
+        await supabase.from("post_magnet_voice").update(payload).eq("id", existing.id);
+      } else {
+        await supabase.from("post_magnet_voice").insert(payload);
+      }
+
+      // Broadcast so the recipient sees it live (they filter by target_user_id)
+      if (voiceChannelRef.current) {
+        voiceChannelRef.current.send({ type: "broadcast", event: "voice_update", payload });
+      }
+
+      const recipientName = chains.find(c => c.user_id === targetUserId)?.profile?.full_name || "them";
+      toast.success(`🔒 Private message sent to ${recipientName}!`);
+      setTargetUserId(""); setTargetVoiceText("");
+    } catch (err: any) {
+      toast.error("Private send failed: " + err.message);
+    }
+    setSavingTargetVoice(false);
+  };
+
   const toggleBranch = async (chainId: string, field: "is_killed" | "is_muted", cur: boolean) => {
     await supabase.from("magnet_chains").update({ [field]: !cur }).eq("id", chainId);
     onChainsUpdate(chains.map(c => c.id === chainId ? { ...c, [field]: !cur } : c));
@@ -641,25 +1117,26 @@ export function MagnetModal({
     .filter(f => f.full_name?.toLowerCase().includes(search.toLowerCase()) || f.username?.toLowerCase().includes(search.toLowerCase()));
 
   const tabs = [
-    { key: "magnet", label: "🧲 Magnet" },
-    { key: "trace",  label: "🛤 Trace"  },
+    { key: "magnet",      label: "🔗 Link"  },
+    { key: "trace",       label: "🛤 Trace" },
+    { key: "leaderboard", label: "🏆 Board" },
     ...(canVoice ? [{ key: "voice", label: "📢 Voice" }] : []),
   ];
 
-  return (
+  return createPortal(
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[400] flex items-end justify-center bg-black/60 backdrop-blur-sm"
+      style={{ position: "fixed", inset: 0, zIndex: 99999, display: "flex", alignItems: "center", justifyContent: "center", padding: "calc(var(--cap-safe-top) + 16px) 16px calc(var(--cap-safe-bottom) + 16px) 16px", backdropFilter: "blur(4px)", background: "rgba(0,0,0,0.6)" }}
       onClick={onClose}
     >
       <motion.div
-        initial={{ y: "100%" }}
-        animate={{ y: 0 }}
-        exit={{ y: "100%" }}
-        transition={{ type: "spring", damping: 30, stiffness: 320 }}
-        className="w-full max-w-lg bg-white rounded-t-3xl overflow-hidden shadow-2xl max-h-[90vh] flex flex-col"
+        initial={{ opacity: 0, scale: 0.92 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.92 }}
+        transition={{ type: "spring", damping: 28, stiffness: 340 }}
+        className="w-full max-w-lg bg-white rounded-3xl overflow-hidden shadow-2xl max-h-[80vh] flex flex-col"
         onClick={e => e.stopPropagation()}
       >
         {/* ── Header ── */}
@@ -667,11 +1144,11 @@ export function MagnetModal({
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center">
-                <span className="text-xl">🧲</span>
+                <span className="text-xl">🔗</span>
               </div>
               <div>
                 <h2 className="text-white font-black text-base leading-none">VIRAL CHAIN ENGINE</h2>
-                <p className="text-white/70 text-[10px] font-semibold">Powered by Magnet System</p>
+                <p className="text-white/70 text-[10px] font-semibold">Powered by Link System</p>
               </div>
             </div>
             <div className="flex items-center gap-3">
@@ -733,7 +1210,7 @@ export function MagnetModal({
                   ) : (
                     <>
                       <p className="text-white font-black text-sm">Join This Viral Chain</p>
-                      <p className="text-white/70 text-[10px]">Anyone can magnet — no friends needed</p>
+                      <p className="text-white/70 text-[10px]">Anyone can link — no friends needed</p>
                     </>
                   )}
                 </div>
@@ -743,8 +1220,8 @@ export function MagnetModal({
                     disabled={joiningChain}
                     className="px-3 py-2 bg-white text-purple-700 rounded-xl text-[11px] font-black shrink-0 flex items-center gap-1 active:scale-95"
                   >
-                    {joiningChain ? <Loader2 size={12} className="animate-spin" /> : <span>🧲</span>}
-                    Magnet It!
+                    {joiningChain ? <Loader2 size={12} className="animate-spin" /> : <span>🔗</span>}
+                    Link It!
                   </button>
                 )}
               </motion.div>
@@ -819,7 +1296,7 @@ export function MagnetModal({
                         <div className="flex-1 text-left">
                           <p className="text-gray-900 font-bold text-sm leading-tight">{f.full_name || "User"}</p>
                           {f.username && <p className="text-gray-400 text-[11px]">@{f.username}</p>}
-                          {alreadyChained && <p className="text-purple-400 text-[10px] font-black">Already Magneted ✓</p>}
+                          {alreadyChained && <p className="text-purple-400 text-[10px] font-black">Already Linked ✓</p>}
                         </div>
                         <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${
                           isSelected ? "bg-purple-600 border-purple-600" : "border-gray-300"
@@ -840,10 +1317,62 @@ export function MagnetModal({
                   className="w-full py-4 rounded-2xl text-white font-black text-sm flex items-center justify-center gap-2 shadow-lg disabled:opacity-50"
                   style={{ background: "linear-gradient(90deg,#7c3aed,#db2777)" }}
                 >
-                  {sending ? <Loader2 size={16} className="animate-spin" /> : <span>🧲</span>}
+                  {sending ? <Loader2 size={16} className="animate-spin" /> : <span>🔗</span>}
                   {sending ? "Sending…" : `Forward to ${selected.size} ${selected.size > 1 ? "People" : "Person"}`}
                 </motion.button>
               )}
+
+              {/* ── My Link Stats Dashboard ──────────────────────────────────── */}
+              {chains.length > 0 && (() => {
+                const sentByMe      = chains.filter(c => c.invited_by === currentUserId);
+                const notForwarded  = sentByMe.filter(c =>
+                  !chains.some(c2 => c2.invited_by === c.user_id)
+                );
+                return (
+                  <div className="mt-5 pt-4 border-t border-gray-100">
+                    {/* Stats row */}
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">📊 My Link Stats</p>
+                    <div className="flex gap-2 mb-3">
+                      <div className="flex-1 bg-purple-50 rounded-2xl p-3 text-center border border-purple-100">
+                        <p className="text-purple-700 font-black text-lg leading-none">{sentByMe.length}</p>
+                        <p className="text-[9px] text-purple-400 font-black uppercase tracking-wide mt-0.5">Sent</p>
+                      </div>
+                      <div className="flex-1 bg-pink-50 rounded-2xl p-3 text-center border border-pink-100">
+                        <p className="text-pink-600 font-black text-lg leading-none">{reach}</p>
+                        <p className="text-[9px] text-pink-400 font-black uppercase tracking-wide mt-0.5">Total Reach</p>
+                      </div>
+                      <div className="flex-1 bg-amber-50 rounded-2xl p-3 text-center border border-amber-100">
+                        <p className="text-amber-600 font-black text-lg leading-none">{notForwarded.length}</p>
+                        <p className="text-[9px] text-amber-500 font-black uppercase tracking-wide mt-0.5">Idle</p>
+                      </div>
+                    </div>
+
+                    {/* Non-forwarder list with Resend */}
+                    {notForwarded.length > 0 && (
+                      <>
+                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Waiting — nudge them 👇</p>
+                        <div className="space-y-1.5">
+                          {notForwarded.slice(0, 8).map(c => (
+                            <div key={c.id} className="flex items-center gap-2.5 px-3 py-2 bg-amber-50/80 rounded-2xl border border-amber-100">
+                              <AvatarPill url={c.profile?.avatar_url} name={c.profile?.full_name} size={28} />
+                              <p className="text-gray-800 font-bold text-[12px] flex-1 truncate">{c.profile?.full_name || "User"}</p>
+                              <button
+                                onClick={async () => {
+                                  await sendNotification(c.user_id, "is reminding you to forward this viral post!", "magnet_link", currentUserId ?? undefined, postId);
+                                  toast.success("Nudge sent! 🎯");
+                                }}
+                                className="bg-pink-600 text-white text-xs px-3 py-1 rounded-md font-bold shrink-0 active:scale-95 transition-transform"
+                              >
+                                Resend
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           )}
 
@@ -851,16 +1380,36 @@ export function MagnetModal({
           {tab === "trace" && (
             <div className="p-5">
               {!traceLoaded ? (
-                <div className="flex justify-center py-10"><Loader2 size={24} className="animate-spin text-purple-400" /></div>
+                <div className="flex justify-center py-10">
+                  <Loader2 size={24} className="animate-spin text-purple-400" />
+                </div>
+              ) : !isOwner && !myChainId ? (
+                /* ── ACCESS GATE — only post owner or chain members can view ── */
+                <div className="flex flex-col items-center py-16 text-center">
+                  <div className="w-14 h-14 rounded-full flex items-center justify-center mb-4"
+                    style={{ background: "rgba(139,92,246,0.08)", border: "2px solid rgba(139,92,246,0.15)" }}>
+                    <Lock size={24} className="text-purple-300" />
+                  </div>
+                  <p className="font-black text-gray-800 text-base mb-1">Chain Network — Members Only</p>
+                  <p className="text-gray-400 text-[12px] max-w-[220px] leading-relaxed">
+                    Join the viral chain to unlock the full lineage and see who's in the network.
+                  </p>
+                  <button onClick={() => setTab("magnet")}
+                    className="mt-5 px-7 py-3 rounded-2xl text-white font-black text-sm flex items-center gap-2"
+                    style={{ background: "linear-gradient(90deg,#7c3aed,#db2777)" }}>
+                    <span>🔗</span> Join Chain to Unlock
+                  </button>
+                </div>
               ) : (
                 <>
+                  {/* ── Header row ── */}
                   <div className="flex items-center justify-between mb-4">
                     <p className="text-[11px] font-black text-gray-500 uppercase tracking-wide">
-                      Chain — {chains.length} people
+                      Chain — {chains.length} {chains.length === 1 ? "person" : "people"}
                     </p>
                     {lastPerson && (
                       <button
-                        onClick={() => { onBridgeChat(lastPerson.user_id, lastPerson.profile?.full_name || "User"); onClose(); }}
+                        onClick={e => { e.stopPropagation(); onBridgeChat(lastPerson.user_id, lastPerson.profile?.full_name || "User"); onClose(); }}
                         className="flex items-center gap-1 text-[11px] font-black text-purple-600 px-3 py-1.5 bg-purple-50 rounded-xl"
                       >
                         <MessageCircle size={11} /> Bridge Chat
@@ -868,24 +1417,135 @@ export function MagnetModal({
                     )}
                   </div>
 
+                  {/* ── RECENT JOINERS — top 10 + "More" ─────────────────────── */}
+                  {chains.length > 0 && (() => {
+                    const sorted = [...chains]
+                      .filter(c => !c.is_killed)
+                      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+                    const visible = traceShowAll ? sorted : sorted.slice(0, 10);
+                    return (
+                      <div className="mb-5">
+                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">
+                          🧑‍🤝‍🧑 Recent Joiners — {chains.filter(c => !c.is_killed).length} active
+                        </p>
+                        <div className="space-y-1.5">
+                          {visible.map((c, idx) => (
+                            <motion.div
+                              key={c.id}
+                              initial={{ opacity: 0, x: -8 }}
+                              animate={{ opacity: 1, x: 0 }}
+                              transition={{ delay: idx * 0.02 }}
+                              className="flex items-center gap-2.5 px-3 py-2 rounded-2xl border border-gray-100 bg-gray-50/70"
+                            >
+                              <AvatarPill url={c.profile?.avatar_url} name={c.profile?.full_name} size={30} />
+                              <div className="flex-1 min-w-0">
+                                <p className="text-gray-900 font-bold text-[12px] truncate">
+                                  {c.profile?.full_name || "User"}
+                                  {c.user_id === postOwnerId && <span className="ml-1 text-[9px] text-yellow-600 font-black">👑 Owner</span>}
+                                  {c.user_id === currentUserId && <span className="ml-1 text-[9px] text-purple-500 font-black">YOU</span>}
+                                </p>
+                                <p className="text-gray-400 text-[10px] flex items-center gap-1 mt-0.5">
+                                  {c.invited_by
+                                    ? <><ArrowRight size={8} className="text-pink-400" />
+                                        Linked by {c.inviter?.full_name || "someone"} · Lv{c.depth}</>
+                                    : <><Zap size={8} className="text-amber-400" /> Self-joined · Lv{c.depth}</>
+                                  }
+                                </p>
+                              </div>
+                              <div className="text-[9px] text-gray-400 shrink-0">
+                                {(() => {
+                                  const d = Date.now() - new Date(c.created_at).getTime();
+                                  const m = Math.floor(d / 60000);
+                                  if (m < 60) return `${m}m ago`;
+                                  const h = Math.floor(m / 60);
+                                  if (h < 24) return `${h}h ago`;
+                                  return `${Math.floor(h / 24)}d ago`;
+                                })()}
+                              </div>
+                            </motion.div>
+                          ))}
+                        </div>
+                        {sorted.length > 10 && (
+                          <button
+                            onClick={() => setTraceShowAll(v => !v)}
+                            className="w-full mt-2 py-2 rounded-xl text-[11px] font-black text-purple-600 bg-purple-50 border border-purple-100"
+                          >
+                            {traceShowAll ? "Show Less ↑" : `Show ${sorted.length - 10} More ↓`}
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })()}
+
+                  {/* ── LINEAGE TREE — who-forwarded-to-whom ──────────────────── */}
+                  {chains.length > 0 && (() => {
+                    // Build a map: userId → chain entry for quick lookup
+                    const byUser: Record<string, MagnetChain> = {};
+                    chains.forEach(c => { byUser[c.user_id] = c; });
+
+                    // Only show entries that have a clear inviter (depth > 0)
+                    const lineageRows = chains.filter(c => c.invited_by && c.depth > 0);
+
+                    if (!lineageRows.length) return null;
+
+                    return (
+                      <div className="mb-5">
+                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">
+                          🔗 Chain Lineage
+                        </p>
+                        <div className="space-y-0">
+                          {lineageRows.slice(0, 30).map((c, idx) => (
+                            <div key={c.id} className="flex items-center gap-2 py-1.5 border-b border-gray-50 last:border-0">
+                              {/* Depth indent */}
+                              <div style={{ width: Math.min(c.depth - 1, 5) * 14, flexShrink: 0 }} />
+                              {/* Inviter */}
+                              <AvatarPill url={c.inviter?.avatar_url} name={c.inviter?.full_name} size={20} />
+                              <span className="text-gray-500 font-bold text-[11px] truncate max-w-[70px]">
+                                {c.inviter?.full_name?.split(" ")[0] || "?"}
+                              </span>
+                              {/* Arrow */}
+                              <ArrowRight size={10} className="text-purple-300 shrink-0" />
+                              {/* Recipient */}
+                              <AvatarPill url={c.profile?.avatar_url} name={c.profile?.full_name} size={20} />
+                              <span className={`font-bold text-[11px] truncate flex-1 ${c.is_killed ? "line-through text-red-300" : "text-gray-700"}`}>
+                                {c.profile?.full_name || "User"}
+                                {c.user_id === currentUserId && <span className="text-purple-400"> (you)</span>}
+                              </span>
+                              {/* Depth badge */}
+                              <span className="text-[8px] font-black text-purple-400 shrink-0 bg-purple-50 px-1.5 py-0.5 rounded-full">
+                                Lv{c.depth}
+                              </span>
+                              {c.is_killed && <Skull size={10} className="text-red-300 shrink-0" />}
+                              {c.is_muted && <VolumeX size={10} className="text-gray-300 shrink-0" />}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* ── DEPTH TREE (visual) ─────────────────────────────────── */}
                   <ViralPath chains={chains} postOwnerId={postOwnerId} />
 
-                  {/* Kill/Mute controls for owner */}
+                  {/* ── Owner Controls — kill / mute ────────────────────────── */}
                   {isOwner && chains.length > 0 && (
                     <div className="mt-4 pt-4 border-t border-gray-100">
-                      <p className="text-[10px] font-black text-red-500 uppercase tracking-widest mb-2">Owner Controls</p>
+                      <p className="text-[10px] font-black text-red-500 uppercase tracking-widest mb-2">⚙️ Owner Controls</p>
                       <div className="space-y-1.5">
                         {chains.filter(c => c.depth > 0).slice(0, 20).map(c => (
-                          <div key={c.id} className="flex items-center gap-2 bg-gray-50 rounded-xl px-3 py-2">
+                          <div key={c.id} onClick={e => e.stopPropagation()}
+                            className="flex items-center gap-2 bg-gray-50 rounded-xl px-3 py-2">
                             <AvatarPill url={c.profile?.avatar_url} name={c.profile?.full_name} size={26} />
                             <span className="text-xs text-gray-700 font-bold flex-1 truncate">{c.profile?.full_name}</span>
                             <span className="text-[9px] text-gray-400">Lv{c.depth}</span>
-                            <button onClick={() => toggleBranch(c.id, "is_muted", c.is_muted)}
-                              className={`p-1 rounded-lg ${c.is_muted ? "bg-gray-300 text-gray-500" : "bg-gray-100 text-gray-400 hover:bg-gray-200"}`}>
+                            <button onClick={e => { e.stopPropagation(); toggleBranch(c.id, "is_muted", c.is_muted); }}
+                              className={`p-1 rounded-lg transition-all ${c.is_muted ? "bg-gray-300 text-gray-500" : "bg-gray-100 text-gray-400 hover:bg-gray-200"}`}
+                              title={c.is_muted ? "Unmute" : "Mute"}>
                               <VolumeX size={12} />
                             </button>
-                            <button onClick={() => toggleBranch(c.id, "is_killed", c.is_killed)}
-                              className={`p-1 rounded-lg ${c.is_killed ? "bg-red-500 text-white" : "bg-gray-100 text-gray-400 hover:bg-red-50 hover:text-red-400"}`}>
+                            <button onClick={e => { e.stopPropagation(); toggleBranch(c.id, "is_killed", c.is_killed); }}
+                              className={`p-1 rounded-lg transition-all ${c.is_killed ? "bg-red-500 text-white" : "bg-gray-100 text-gray-400 hover:bg-red-50 hover:text-red-400"}`}
+                              title={c.is_killed ? "Unkill" : "Kill"}>
                               <Skull size={12} />
                             </button>
                           </div>
@@ -893,9 +1553,17 @@ export function MagnetModal({
                       </div>
                     </div>
                   )}
+
+                  {/* ── My Link Dashboard ───────────────────────────────────── */}
+                  <MagnetDashboard currentUserId={currentUserId} />
                 </>
               )}
             </div>
+          )}
+
+          {/* ── LEADERBOARD TAB ── */}
+          {tab === "leaderboard" && (
+            <MagnetLeaderboard currentUserId={currentUserId} />
           )}
 
           {/* ── VOICE TAB (owner + first magneter) ── */}
@@ -905,12 +1573,12 @@ export function MagnetModal({
                 style={{ background: "linear-gradient(135deg,rgba(139,92,246,0.08),rgba(219,39,119,0.08))", borderColor: "rgba(139,92,246,0.2)" }}>
                 <p className="text-purple-700 font-black text-[12px] flex items-center gap-1.5 mb-1">
                   <Radio size={13} />
-                  {isOwner ? "Post Owner Voice" : "First Magneter Voice"}
+                  {isOwner ? "Post Owner Voice" : "First Linker Voice"}
                 </p>
                 <p className="text-gray-500 text-[11px]">
                   {isOwner
                     ? "Your message appears live on every screen viewing this post."
-                    : "As the first magneter, your voice appears alongside the owner's."}
+                    : "As the first linker, your voice appears alongside the owner's."}
                 </p>
               </div>
 
@@ -965,22 +1633,102 @@ export function MagnetModal({
                   Clear My Voice
                 </button>
               )}
+
+              {/* ── PRIVATE / TARGETED MESSAGE (owner only) ──────────────── */}
+              {isOwner && chains.filter(c => c.user_id !== currentUserId && !c.is_killed).length > 0 && (
+                <div className="mt-6 pt-5 border-t border-dashed border-gray-200">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="w-7 h-7 rounded-xl flex items-center justify-center shrink-0"
+                      style={{ background: "linear-gradient(135deg,rgba(139,92,246,0.15),rgba(219,39,119,0.15))" }}>
+                      <Lock size={13} className="text-purple-500" />
+                    </div>
+                    <div>
+                      <p className="text-[12px] font-black text-gray-800 leading-none">Private Message</p>
+                      <p className="text-[10px] text-gray-400 mt-0.5">
+                        Only the chosen person sees this — others keep seeing your public message above.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Participant selector */}
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-wide block mb-1.5">
+                    Send Privately To
+                  </label>
+                  <div className="relative mb-3">
+                    <select
+                      value={targetUserId}
+                      onChange={e => setTargetUserId(e.target.value)}
+                      className="w-full pl-3 pr-8 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-[13px] font-bold text-gray-700 outline-none focus:ring-2 focus:ring-purple-300/40 appearance-none"
+                    >
+                      <option value="">— Choose a chain member —</option>
+                      {chains
+                        .filter(c => c.user_id !== currentUserId && !c.is_killed)
+                        .map(c => (
+                          <option key={c.id} value={c.user_id}>
+                            {c.profile?.full_name || "User"} (Lv{c.depth})
+                          </option>
+                        ))
+                      }
+                    </select>
+                    <ArrowRight size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none rotate-90" />
+                  </div>
+
+                  {/* Private message textarea */}
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-wide block mb-1.5">
+                    Private Message
+                    {targetUserId && (
+                      <span className="ml-2 text-purple-500 normal-case font-bold text-[10px]">
+                        → {chains.find(c => c.user_id === targetUserId)?.profile?.full_name || "them"}
+                      </span>
+                    )}
+                  </label>
+                  <textarea
+                    value={targetVoiceText}
+                    onChange={e => setTargetVoiceText(e.target.value)}
+                    rows={2}
+                    maxLength={160}
+                    placeholder={targetUserId
+                      ? `Private message only for ${chains.find(c => c.user_id === targetUserId)?.profile?.full_name?.split(" ")[0] || "them"}…`
+                      : "Select a person above first…"
+                    }
+                    disabled={!targetUserId}
+                    className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-4 py-3 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-purple-400/30 resize-none mb-1 disabled:opacity-40"
+                  />
+                  <p className="text-[10px] text-gray-400 text-right mb-3">{targetVoiceText.length}/160</p>
+
+                  <button
+                    onClick={saveTargetedVoice}
+                    disabled={savingTargetVoice || !targetUserId || !targetVoiceText.trim()}
+                    className="w-full py-3 rounded-2xl text-white font-black text-[13px] flex items-center justify-center gap-2 disabled:opacity-40"
+                    style={{ background: "linear-gradient(90deg,#7c3aed,#db2777)" }}
+                  >
+                    {savingTargetVoice ? <Loader2 size={14} className="animate-spin" /> : <Lock size={14} />}
+                    {savingTargetVoice ? "Sending…" : "Send Private Message 🔒"}
+                  </button>
+
+                  <p className="text-center text-[10px] text-gray-400 mt-2">
+                    🔒 Only they will see this. Other viewers see your public message only.
+                  </p>
+                </div>
+              )}
             </div>
           )}
 
         </div>
       </motion.div>
     </motion.div>
-  );
+  , document.body);
 }
 
 // ── PostVoiceStrip — lightweight per-post voice fetcher for feed cards ────────
 // Fetches voices once on mount (no real-time subscription) — safe for many posts
 
-export function PostVoiceStrip({ postId, postType, postOwnerId }: {
+export function PostVoiceStrip({ postId, postType, postOwnerId, currentUserId = null }: {
   postId: string;
   postType: string;
   postOwnerId: string;
+  /** Pass the logged-in user's ID so targeted private messages are only shown to their recipient. */
+  currentUserId?: string | null;
 }) {
   const [voices, setVoices] = useState<MagnetVoice[]>([]);
   const [firstId, setFirstId] = useState<string | null>(null);
@@ -989,9 +1737,21 @@ export function PostVoiceStrip({ postId, postType, postOwnerId }: {
     let cancelled = false;
     (async () => {
       const { data: vRows } = await supabase
-        .from("post_magnet_voice").select("*")
+        .from("post_magnet_voice")
+        // Include target_user_id so we can enforce privacy client-side
+        .select("id,post_id,post_type,owner_id,status_text,is_warning,updated_at,target_user_id")
         .eq("post_id", postId).eq("post_type", postType);
-      if (!cancelled) setVoices((vRows || []).filter((v: MagnetVoice) => v.status_text));
+
+      if (!cancelled) {
+        const filtered = (vRows || []).filter((v: MagnetVoice) => {
+          if (!v.status_text) return false;
+          // Public voice (no target) → show to everyone
+          if (!v.target_user_id) return true;
+          // Private voice → only show to the recipient
+          return v.target_user_id === currentUserId;
+        });
+        setVoices(filtered as MagnetVoice[]);
+      }
 
       const { data: firstEntry } = await supabase
         .from("magnet_chains").select("user_id")
@@ -1000,7 +1760,7 @@ export function PostVoiceStrip({ postId, postType, postOwnerId }: {
       if (!cancelled) setFirstId(firstEntry?.user_id ?? null);
     })();
     return () => { cancelled = true; };
-  }, [postId, postType]);
+  }, [postId, postType, currentUserId]);
 
   if (!voices.length) return null;
   return <VoiceDisplay voices={voices} postOwnerId={postOwnerId} firstMagneterId={firstId} />;
@@ -1016,30 +1776,47 @@ interface MagnetButtonProps {
   onBridgeChat?: (userId: string, userName: string) => void;
   dark?: boolean;
   myName?: string;
+  onMagnetLoad?: (d: { linkers: Array<{ full_name: string; avatar_url: string | null }>; voices: MagnetVoice[] }) => void;
 }
 
 export function MagnetButton({
   postId, postType, postOwnerId, currentUserId, onBridgeChat, dark = true, myName = "Someone",
+  onMagnetLoad,
 }: MagnetButtonProps) {
-  const {
-    reach, myChainId, voice, voices, chains, firstMagneterId, loading,
-    fetchAll, fetchChains, setVoice, setVoices, setReach, setChains,
-  } = useMagnet(postId, postType, currentUserId);
   const [showModal, setShowModal] = useState(false);
+  const {
+    reach, myChainId, voice, voices, chains, firstMagneterId, lastLinker, recentLinkers, loading,
+    fetchAll, fetchChains, setVoice, setVoices, setReach, setChains,
+  } = useMagnet(postId, postType, currentUserId, showModal);
 
-  const textCls = dark ? "text-white" : "text-gray-700";
-  const bgCls   = dark ? "bg-white/10 hover:bg-white/20" : "bg-gray-100 hover:bg-gray-200";
+  // Keep a ref to onMagnetLoad so the effect below never needs it in its deps.
+  // Without this, the inline lambda in FameFeed (new reference every render) would
+  // either cause a stale-closure bug (if excluded) or an infinite update loop
+  // (setPostMagnetData → re-render → new lambda → effect re-fires → repeat).
+  const onMagnetLoadRef = useRef(onMagnetLoad);
+  useEffect(() => { onMagnetLoadRef.current = onMagnetLoad; }); // sync every render, no deps
+
+  // Fire callback whenever linkers or voices update so parent can render chain/voice row
+  useEffect(() => {
+    if (!loading && onMagnetLoadRef.current) {
+      onMagnetLoadRef.current({ linkers: recentLinkers, voices });
+    }
+  }, [recentLinkers, voices, loading]);
+
+  const textCls = dark ? "text-lime-400 font-black" : "text-gray-700";
+  const bgCls   = dark ? "bg-lime-400/10 hover:bg-lime-400/20 border border-lime-400/20" : "bg-gray-100 hover:bg-gray-200";
 
   return (
     <>
       <button
         onClick={e => {
           e.stopPropagation();
-          if (!currentUserId) { toast.error("Login to use Magnet!"); return; }
+          e.preventDefault();
+          if (!currentUserId) { toast.error("Login to use Link!"); return; }
           fetchChains();
           setShowModal(true);
         }}
-        className={`flex flex-col items-center gap-0.5 ${bgCls} rounded-2xl px-2 py-2 transition-all active:scale-90`}
+        className={`flex flex-row items-center gap-1.5 ${bgCls} rounded-2xl px-2.5 py-1.5 transition-all active:scale-90`}
         style={{ WebkitTapHighlightColor: "transparent" }}
       >
         <motion.span
@@ -1047,11 +1824,34 @@ export function MagnetButton({
           initial={{ scale: 1.4 }}
           animate={{ scale: 1 }}
           transition={{ type: "spring", stiffness: 400, damping: 15 }}
-          className="text-xl"
-        >🧲</motion.span>
+          className="text-base leading-none"
+        >🔗</motion.span>
         <span className={`text-[10px] font-black leading-none ${textCls}`}>
           {loading ? "…" : formatReach(reach)}
         </span>
+        {/* Last linker badge — inline avatar to the right of the count */}
+        <AnimatePresence>
+          {reach > 0 && lastLinker && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.7, x: -4 }}
+              animate={{ opacity: 1, scale: 1, x: 0 }}
+              exit={{ opacity: 0, scale: 0.7 }}
+              transition={{ type: "spring", stiffness: 400, damping: 20 }}
+              className="flex items-center gap-0.5"
+              title={`${lastLinker.full_name} linked`}
+            >
+              <div
+                className="w-[14px] h-[14px] rounded-full overflow-hidden border border-lime-400/60 bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center shrink-0"
+                style={{ fontSize: 6, color: "#fff", fontWeight: 900 }}
+              >
+                {lastLinker.avatar_url
+                  ? <img src={lastLinker.avatar_url} className="w-full h-full object-cover" alt="" decoding="async"/>
+                  : lastLinker.full_name?.[0]?.toUpperCase()}
+              </div>
+              <Check size={7} className="text-lime-400 shrink-0" />
+            </motion.div>
+          )}
+        </AnimatePresence>
       </button>
 
       <AnimatePresence>

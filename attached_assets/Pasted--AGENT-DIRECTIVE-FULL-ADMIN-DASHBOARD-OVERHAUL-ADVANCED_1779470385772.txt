@@ -1,0 +1,39 @@
+# AGENT DIRECTIVE: FULL ADMIN DASHBOARD OVERHAUL & ADVANCED GLOBAL SEARCH IMPLEMENTATION
+
+We need to completely rebuild the Admin Dashboard and the main screen's Header Search functionality to make them fully operational with real, dynamic database queries. Currently, multiple sections are either static, broken, or returning "no active user." Implement the following updates immediately:
+
+---
+
+## PART 1: REAL-TIME ADMIN DASHBOARD FIXES & METRICS
+
+### 1. Unified Dashboard Analytics & Counters
+- **Total Users & New Joins:** Implement live database aggregation queries to display the total count of registered users. Add a backend filter to calculate and display "New Users Joined" within specific timeframes (e.g., past 24 hours, last 7 days).
+- **Live Report Management System:** Fix the reporting pipeline. When a user flags/reports a post or profile, ensure it populates a global `reports` database collection. Render these dynamically in the Admin "Reports" section with functional "Dismiss" and "Take Action" (Delete/Warn) utilities.
+- **Banned Users Log:** Fix the ban execution mechanism. When an admin bans a user, update that user's status flag in the database (`isBanned: true`). Create a dedicated section in the admin panel to display all currently restricted accounts with a functioning "Unban" button.
+
+### 2. Admin User Search & Filtering Pipeline
+- **The Problem:** Searching for users inside the admin panel currently outputs "No active user" or fails to query correctly.
+- **The Fix:** Rewrite the user management search query. It must execute an inclusive partial-match search query against user records (matching fields like username, email, or full name) and display matching rows regardless of their online/active status.
+
+---
+
+## PART 2: FRONT-PAGE POWERFUL GLOBAL SEARCH ENGINE
+
+### 1. Privacy-Aware Public Profile Indexing
+- **Strict Filter:** The header search input on the main screen must specifically target only users whose profiles are marked as public. Hidden or private accounts must remain unindexed and excluded from global search results.
+
+### 2. Smart Name Suggestions & Fuzzy Matching (Facebook-Style)
+- As the user types into the search header, trigger an optimized debounce query to suggest matching profiles in real-time.
+- Implement partial string/fuzzy matching so that entering a name suggests similar variations (e.g., typing "Amit" returns "Amit Sharma", "Amit Verma", etc.).
+- **Strict Target Isolation:** Once the user presses Enter or clicks a suggested profile, isolate the view to display *only* that specific query target's context—filtering out unrelated feeds.
+
+### 3. Integrated Profile & Associated Posts Display
+- Modify the search results layout page to return a clean, split or consolidated feed view:
+  1. **Profiles Section:** Visual cards showing the matched public users with their avatar, name, and bio.
+  2. **Posts Section:** A dynamic feed displaying recent social posts authored specifically by those matched public profiles (ordered by latest timestamp).
+
+---
+
+## PART 3: PERFORMANCE & STABILITY
+- Optimize all search inputs with proper loading feedback spinners so it does not degrade application responsiveness.
+- Ensure proper state management so that searching, banning, or viewing reports updates the UI instantly without requiring a hard page reload.

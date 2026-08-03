@@ -1,12 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 
-const supabaseUrl =
-  import.meta.env.VITE_SUPABASE_URL ||
-  "https://yhcvbqeklahwvtytqtil.supabase.co";
-
-const supabaseKey =
-  import.meta.env.VITE_SUPABASE_ANON_KEY ||
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InloY3ZicWVrbGFod3Z0eXRxdGlsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ3ODc1MTIsImV4cCI6MjA5MDM2MzUxMn0.tihpQ1M8TzGxYseuov9iFm7Icb-WHNFahFnUX2lfhto";
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 
 const memStore = new Map<string, string>();
 const sessionMemStore = new Map<string, string>();
@@ -128,6 +123,42 @@ try {
   }
 }
 
+// ── Token validation ─────────────────────────────────────────────────────────
+/** Decode a JWT payload WITHOUT verification (safe, client-side). */
+function decodeJwtPayload(token: string): Record<string, unknown> | null {
+  try {
+    const payload = token.split(".")[1];
+    if (!payload) return null;
+    const decoded = atob(payload.replace(/-/g, "+").replace(/_/g, "/"));
+    return JSON.parse(decoded) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
+/** Returns true if the token is structurally valid and not expired. */
+export function isTokenValid(token: string | null): boolean {
+  if (!token || typeof token !== "string") return false;
+  const payload = decodeJwtPayload(token);
+  if (!payload || typeof payload.exp !== "number") return false;
+  return payload.exp * 1000 > Date.now() + 60_000; // 1-min grace
+}
+
+/** Wipe every Supabase-related key from storage so the next load starts clean. */
+export function flushSupabaseStorage(): void {
+  try {
+    safeStorage.removeItem("sb-" + supabaseUrl.split("//")[1].split(".")[0] + "-auth-token");
+  } catch {
+    void 0;
+  }
+  try {
+    safeStorage.clear();
+  } catch {
+    void 0;
+  }
+}
+
+// ── Safe client creation ────────────────────────────────────────────────────
 export const supabase = createClient(supabaseUrl, supabaseKey, {
   auth: {
     storage: safeStorage,

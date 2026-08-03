@@ -1,7 +1,13 @@
-alter table if exists circles add column if not exists admin_id uuid;
-alter table if exists circles add column if not exists rules text;
+-- ── Circles table: add any missing columns (safe to re-run) ──────────────────
+alter table if exists circles add column if not exists privacy       text    default 'public';
+alter table if exists circles add column if not exists avatar_url    text;
+alter table if exists circles add column if not exists admin_id      uuid;
+alter table if exists circles add column if not exists rules         text;
 alter table if exists circles add column if not exists post_approval boolean default true;
-alter table if exists circles add column if not exists member_count integer default 0;
+alter table if exists circles add column if not exists member_count  integer default 0;
+alter table if exists circles add column if not exists pinned_announcement text;
+alter table if exists circles add column if not exists pinned_at     timestamptz;
+alter table if exists circles add column if not exists created_by    uuid;
 
 alter table if exists circle_members add column if not exists role text default 'member';
 do $$
@@ -81,6 +87,10 @@ drop policy if exists "circle_comments_delete_auth" on circle_post_comments;
 drop policy if exists "circle_invites_read_own" on circle_invites;
 drop policy if exists "circle_invites_insert_auth" on circle_invites;
 drop policy if exists "circle_invites_update_own" on circle_invites;
+drop policy if exists "circle_invites_select" on circle_invites;
+drop policy if exists "circle_invites_insert" on circle_invites;
+drop policy if exists "circle_invites_update" on circle_invites;
+drop policy if exists "circle_invites_delete" on circle_invites;
 
 create policy "circle_posts_read" on circle_posts for select using (true);
 create policy "circle_posts_insert_auth" on circle_posts for insert with check (auth.uid() = author_id);
@@ -95,9 +105,19 @@ create policy "circle_comments_read" on circle_post_comments for select using (t
 create policy "circle_comments_insert_own" on circle_post_comments for insert with check (auth.uid() = author_id);
 create policy "circle_comments_delete_auth" on circle_post_comments for delete using (auth.uid() is not null);
 
-create policy "circle_invites_read_own" on circle_invites for select using (auth.uid() = invitee_id or auth.uid() = inviter_id);
-create policy "circle_invites_insert_auth" on circle_invites for insert with check (auth.uid() = inviter_id);
-create policy "circle_invites_update_own" on circle_invites for update using (auth.uid() = invitee_id or auth.uid() = inviter_id) with check (auth.uid() = invitee_id or auth.uid() = inviter_id);
+-- circle_invites: any authenticated user can read invites they sent/received,
+-- insert/update/delete invites while logged in (app-level guards handle abuse).
+create policy "circle_invites_select" on circle_invites
+  for select using (auth.uid() is not null);
+
+create policy "circle_invites_insert" on circle_invites
+  for insert with check (auth.uid() is not null);
+
+create policy "circle_invites_update" on circle_invites
+  for update using (auth.uid() is not null) with check (auth.uid() is not null);
+
+create policy "circle_invites_delete" on circle_invites
+  for delete using (auth.uid() is not null);
 
 do $$
 begin

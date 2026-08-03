@@ -1,0 +1,77 @@
+Let me read the full Header.tsx search section to understand the current structure.
+
+
+3 actions
+Let me see the SearchOverlay component props and full structure:
+
+
+3 actions
+Now I have the full picture. I need to:
+
+Add useProfileViewer import to open profiles
+Add personPosts state + fetch latest post per person in doSearch
+Render post card below each person result with like + post click handlers
+Add inline post lightbox for viewing a post inside the search overlay
+
+4 actions
+Now let me modify the SearchModal — add states, modify doSearch, and update the render:
+
+
+2 actions
+Now modify doSearch to fetch latest posts per person and add the like handler:
+
+
+2 actions
+Now replace the people section render to show profile + latest post with click handlers:
+
+
+2 actions
+Now add the inline post viewer modal at the end of the SearchModal return, before the closing tags:
+
+
+4 actions
+Now add the inline post viewer modal right before the closing tags of SearchModal:
+
+
+2 actions
+Now restart to verify clean compile:
+
+
+4 actions
+Clean compile, zero errors. Ye sab implement ho gaya:
+
+Search mein kya badla:
+
+1. Person row → Profile click
+
+Name ya avatar pe tap karo → profile viewer seedha khulta hai + search band ho jata hai
+Add Friend button alag se kaam karta hai (e.stopPropagation se conflict nahi)
+2. Latest post preview (har person ke niche)
+
+Har search result ke niche us user ka latest post automatically dikhega
+Image/video thumbnail agar post mein media hai
+Post text (2 lines, truncated)
+❤️ like count + like button (red ho jata hai agar liked)
+3. Post pe tap → Inline Post Viewer
+
+Post preview pe tap karo → ek smooth popup khulta hai search ke andar hi
+Dikhata hai: author avatar + name + time ago, full media (image/video), full text, like button
+Background pe tap karo → post band ho jata hai
+4. Like button
+
+Optimistic UI — seedha red ho jata hai
+DB mein post_likes table update hoti hai
+Pre-fetch bhi hota hai — already liked posts refresh pe bhi red rahenge
+Flow summary:
+
+Tap karo	Kya hoga
+Person ka naam/avatar	Profile opens, search closes
+Post preview card	Inline post viewer popup
+❤️ heart button (post card)	Like/unlike (optimistic)
+❤️ heart button (post viewer)	Like/unlike wahan bhi
+Viewer background	Post viewer closes
+
+Checkpoint made
+1 minute ago
+
+Worked fo

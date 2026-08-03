@@ -7,6 +7,112 @@
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
+/* ── Creator badge: smooth Royal Blue ↔ Metallic Gold pulse ── */
+@keyframes creator-badge-pulse {
+  0%, 40% {
+    color: #38bdf8;
+    background: rgba(8, 47, 73, 0.4);
+    border-color: rgba(14, 165, 233, 0.4);
+    box-shadow: 0 0 8px rgba(56, 189, 248, 0.3);
+  }
+  50%, 90% {
+    color: #fbbf24;
+    background: rgba(69, 26, 3, 0.4);
+    border-color: rgba(245, 158, 11, 0.4);
+    box-shadow: 0 0 8px rgba(251, 191, 36, 0.3);
+  }
+  100% {
+    color: #38bdf8;
+    background: rgba(8, 47, 73, 0.4);
+    border-color: rgba(14, 165, 233, 0.4);
+    box-shadow: 0 0 8px rgba(56, 189, 248, 0.3);
+  }
+}
+.creator-badge-pulse {
+  animation: creator-badge-pulse 2.8s ease-in-out infinite;
+  will-change: color, box-shadow;
+}
+
+/* ── Capacitor Android safe-area CSS variables ────────────────────────────
+   --cap-safe-top / --cap-safe-bottom are the single source of truth used
+   by all modal/header components that need status-bar clearance.
+
+   Web / iOS  : follows env(safe-area-inset-*) directly (0 on plain browser,
+                notch height on iPhone).
+   Android    : guarantees ≥ 24px (standard Android status-bar height in dp)
+                even when the WebView hasn't yet populated the env() variable.
+                The .cap-android class is added by main.tsx at startup via
+                window.Capacitor.getPlatform().
+   ──────────────────────────────────────────────────────────────────────── */
+:root {
+  --cap-safe-top:    env(safe-area-inset-top, 0px);
+  --cap-safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+.cap-android {
+  --cap-safe-top:    max(env(safe-area-inset-top, 24px), 24px);
+  --cap-safe-bottom: max(env(safe-area-inset-bottom, 0px),  0px);
+}
+
+/* ── Mobile safety ────────────────────────────────────────────────────────
+   1. Lock the viewport: no horizontal overflow, never wider than the screen
+   2. Honor iOS notches / Android nav bars with safe-area insets
+   3. Stop background scrolling when a modal/sheet is open (toggle .body-locked)
+   4. Prevent scroll-chaining from inner panes to the page below
+   ──────────────────────────────────────────────────────────────────────── */
+html, body, #root {
+  max-width: 100vw;
+  overflow-x: hidden;
+  overscroll-behavior-x: none;
+}
+
+html, body {
+  /* min-height (NOT height) so body can grow tall enough to scroll */
+  min-height: 100dvh;
+  height: auto;
+  overflow-y: auto;
+}
+
+#root {
+  min-height: 100dvh;
+  padding-left:  env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+  padding-top:    env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Applied to <body> by useBodyScrollLock when ANY overlay is open. */
+body.body-locked {
+  overflow: hidden !important;
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  touch-action: none;
+}
+
+/* All scroll-y panes inside the app should contain their overscroll, so a
+   chat / sheet / list scroll never bubbles up to the main feed. */
+.scroll-pane,
+[data-scroll-pane="true"] {
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Horizontal carousels: allow both horizontal pan (carousel scroll) and
+   vertical pan (page scroll). The browser picks the dominant axis per
+   gesture, so dragging up/down on the carousel scrolls the page. */
+[class*="overflow-x-auto"],
+.touch-content {
+  touch-action: pan-x pan-y;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Inline videos in the feed should never trap vertical scroll */
+.feed-reel,
+.feed-reel video {
+  touch-action: pan-y;
+}
+
 @layer base {
   :root {
     --background: 230 30% 97%;
@@ -113,4 +219,36 @@
     background: linear-gradient(90deg, hsl(var(--primary)), hsl(var(--secondary)));
     height: 2px;
   }
+}
+
+/* ── Magnet system: CSS animations replace Framer Motion infinite loops ── */
+/* These run on the compositor thread (no main-thread cost) */
+@keyframes invite-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(204,255,0,0.5); }
+  50%       { box-shadow: 0 0 0 6px rgba(204,255,0,0); }
+}
+
+@keyframes magnet-pulse-scale {
+  0%, 100% { transform: scale(1); }
+  50%       { transform: scale(1.2); }
+}
+@keyframes magnet-pulse-opacity {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.3; }
+}
+
+/* ── Live mini-ticker strip — pure CSS, compositor-only, zero JS cost ── */
+@keyframes live-ticker-scroll {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+.live-ticker-track {
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+  will-change: transform;
+  animation: live-ticker-scroll 28s linear infinite;
+}
+.live-ticker-track:hover {
+  animation-play-state: paused;
 }

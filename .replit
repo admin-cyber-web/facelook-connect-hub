@@ -1,11 +1,12 @@
-modules = ["nodejs-20", "web", "postgresql-16"]
+modules = ["nodejs-20", "web", "python-base-3.13"]
 
 [agent]
 expertMode = true
+stack = "BEST_EFFORT_FALLBACK"
 
 [nix]
 channel = "stable-25_05"
-packages = ["psmisc", "inshellisense"]
+packages = ["psmisc", "inshellisense", "zulu17"]
 
 [deployment]
 deploymentTarget = "autoscale"
@@ -16,15 +17,6 @@ run = ["npm", "run", "preview"]
 runButton = "Project"
 
 [[workflows.workflow]]
-name = "Project"
-mode = "parallel"
-author = "agent"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "Start application"
-
-[[workflows.workflow]]
 name = "Start application"
 author = "agent"
 
@@ -33,8 +25,49 @@ outputType = "webview"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "npm run dev"
+args = "fuser -k 5000/tcp 2>/dev/null; sleep 1; npm run dev"
 waitForPort = 5000
+
+[[workflows.workflow]]
+name = "Auto News Poster"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm run news"
+
+[workflows.workflow.metadata]
+outputType = "console"
+
+[[workflows.workflow]]
+name = "artifacts/mockup-sandbox: Component Preview Server"
+author = "agent"
+mode = "sequential"
+
+[workflows.workflow.metadata]
+outputType = "webview"
+artifactId = "artifacts/mockup-sandbox"
+isCanvasWorkflow = true
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm run dev"
+cwd = "./artifacts/mockup-sandbox"
+waitForPort = 23636
+router = "path"
+
+[workflows.workflow.tasks.env]
+PORT = "23636"
+BASE_PATH = "/__mockup/"
+
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Start application"
 
 [[ports]]
 localPort = 5000
@@ -45,9 +78,8 @@ localPort = 5001
 externalPort = 3000
 
 [[ports]]
-localPort = 5173
-externalPort = 5173
-
-[[ports]]
-localPort = 5174
+localPort = 23636
 externalPort = 3001
+
+[userenv]
+[userenv.shared]

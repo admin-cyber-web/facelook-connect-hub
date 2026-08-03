@@ -1,0 +1,22 @@
+PRIME DIRECTIVE: We need a complete structural refactor of the global layout constraints across the ENTIRE application (specifically checking src/App.tsx, src/layouts/MainLayout.tsx, and any root view containers). Currently, the entire app behaves like a restricted mobile frame on desktop, leaving ugly black empty screens on the left and right sides of laptop and desktop monitors. 
+
+We want the entire Flicks India web app to open in full screen on laptops/desktops, dynamically adapting every single section (Front Page, Feed, Reels, Circles, and Task sections) to utilize 100% of the screen width smoothly.
+
+Please apply the following design system overrides immediately:
+
+1. REMOVE GLOBAL MAX-WIDTH RESTRICTIONS:
+   - Identify the primary structural outer `div` elements or layout wrappers that enforce constraints like `max-w-md`, `max-w-lg`, or `max-w-screen-sm` globally.
+   - Remove these mobile-locking constraints from the root level so the application can expand to full window width (`w-full` or `w-screen`) on screens larger than mobile viewports.
+
+2. REFACTOR THE FRONT PAGE & ALL SECTIONS INTO A PREMIUM DESKTOP GRID:
+   - Change the layout on desktop viewports (`lg:` or `md:`) from a single compressed column to an immersive, full-width multi-column interface:
+     * Left Section (Global Navigation / User Profile Brief) -> Set to a fixed responsive sidebar column or span dynamically (`lg:col-span-3`).
+     * Center Core Section (Main Front Page Feed, Top Stories Strip, Create Post box, and Main Content Stream) -> Expand fluidly to occupy the main view (`lg:col-span-6` or optimized widescreen proportions).
+     * Right Section (Discover Hook Pages, Active Circles, or Widgets) -> Move from bottom stacking to a dedicated right-side panel (`lg:col-span-3`) to utilize the horizontal real estate completely.
+
+3. RESPONSIVE SCALE FOR DYNAMIC COMPONENTS:
+   - Ensure the Top Stories carousel strip automatically scales horizontally to match the new width of the center feed without overlapping elements.
+   - Adjust the Bottom Navigation Bar so that on desktop viewports, it either gracefully morphs into a clean desktop sidebar navigation or stretches beautifully with a balanced element spread.
+   - Ensure the post grids, media tiles, and card containers fluidly resize to eliminate any leftover empty gaps.
+
+Execute a comprehensive TypeScript build compilation to ensure that all screen sizes—from small smartphones to large desktop screens—render with zero horizontal breakdown, zero empty black side spaces, and seamless container flow!

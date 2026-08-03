@@ -16,11 +16,9 @@ import {
 } from "lucide-react";
 import AgoraRTC from "agora-rtc-sdk-ng";
 
-// --- 🔑 AGORA CREDENTIALS INSERTED HERE ---
-const APP_ID = "fc434988dc0545b49355a6ace8aaadd6";
-const TOKEN =
-  "007eJxTYJjIdUjct3rFtRcMzWuVEyIPl1a877GUt5t4RmxKilIV9zsFhrRkE2MTSwuLlGQDUxPTJBNLY1PTRLPE5FSLxMTElBSzM9ePZzYEMjJMyzNiZmSAQBCflyENqCgnPz9btyg1MYeBAQBAhSKt";
-const CHANNEL = "flicks-real";
+const APP_ID = import.meta.env.VITE_AGORA_APP_ID as string;
+const TOKEN = import.meta.env.VITE_AGORA_TOKEN as string;
+const CHANNEL = import.meta.env.VITE_AGORA_CHANNEL as string || "flicks-real";
 
 const ConnectionPanel = () => {
   const [inCall, setInCall] = useState(false);
@@ -176,7 +174,7 @@ const ConnectionPanel = () => {
               src="https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=300"
               className="w-full h-full object-cover grayscale group-hover:grayscale-0"
               alt="u1"
-            />
+             decoding="async"/>
           </div>
           <div className="flex flex-col items-center">
             <Zap className="text-yellow-500 animate-bounce" size={28} />
@@ -187,7 +185,7 @@ const ConnectionPanel = () => {
               src="https://images.unsplash.com/photo-1517841905240-472988babdf9?w=300"
               className="w-full h-full object-cover grayscale group-hover:grayscale-0"
               alt="u2"
-            />
+             decoding="async"/>
           </div>
         </div>
 

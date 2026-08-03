@@ -1,0 +1,50 @@
+{
+  "packageId": "com.flicksindia.app",
+  "host": "www.flicksindia.online",
+  "name": "Flicks India",
+  "launcherName": "Flicks",
+  "display": "standalone",
+  "themeColor": "#0F172A",
+  "themeColorDark": "#000000",
+  "navigationColor": "#000000",
+  "navigationColorDark": "#000000",
+  "navigationDividerColor": "#000000",
+  "navigationDividerColorDark": "#000000",
+  "backgroundColor": "#0F172A",
+  "enableNotifications": true,
+  "startUrl": "/",
+  "iconUrl": "https://www.flicksindia.online/logo.png",
+  "maskableIconUrl": "https://www.flicksindia.online/logo.png",
+  "monochromeIconUrl": "https://www.flicksindia.online/logo.png",
+  "splashScreenFadeOutDuration": 300,
+  "signingKey": {
+    "path": "/home/runner/workspace/android.keystore",
+    "alias": "flicks"
+  },
+  "appVersionName": "2",
+  "appVersionCode": 2,
+  "shortcuts": [],
+  "generatorApp": "bubblewrap-cli",
+  "webManifestUrl": "https://www.flicksindia.online/manifest.json",
+  "fallbackType": "customtabs",
+  "features": {},
+  "alphaDependencies": {
+    "enabled": false
+  },
+  "enableSiteSettingsShortcut": true,
+  "isChromeOSOnly": false,
+  "isMetaQuest": false,
+  "fullScopeUrl": "https://www.flicksindia.online/",
+  "minSdkVersion": 21,
+  "orientation": "portrait",
+  "fingerprints": [
+    "15:16:F2:A1:1F:81:DA:D6:19:53:0C:25:E7:1E:92:64:5A:C6:BE:6B:80:B9:21:08:53:17:3D:53:A4:A8:7E:90"
+  ],
+  "additionalTrustedOrigins": [],
+  "retainedBundles": [],
+  "protocolHandlers": [],
+  "fileHandlers": [],
+  "launchHandlerClientMode": "",
+  "displayOverride": [],
+  "appVersion": "2"
+}

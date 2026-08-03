@@ -1,0 +1,429 @@
+# FLICKS INDIA - Add New Chat Theme (Theme 3) - DO NOT MODIFY EXISTING THEMES
+
+## IMPORTANT
+
+This is **NOT** a redesign.
+
+This is **NOT** a replacement.
+
+This is **NOT** an update of existing themes.
+
+### Existing Themes
+
+Keep **Theme 1** exactly as it is.
+
+Keep **Theme 2** exactly as it is.
+
+Do NOT change any color, spacing, layout, animation or code of Theme 1 or Theme 2.
+
+Both themes must continue working exactly the same.
+
+---
+
+# Create a NEW Theme
+
+Create a completely separate selectable chat theme called:
+
+## Comic Pop Light
+
+This is the **third chat theme**.
+
+Users should be able to select it from Chat Theme settings without affecting the first two themes.
+
+Example:
+
+Theme 1 ✓
+
+Theme 2 ✓
+
+⭐ Theme 3 — Comic Pop Light (NEW)
+
+Only add this new theme.
+
+Do NOT delete anything.
+
+---
+
+# Overall Style
+
+The UI should look like a modern comic book mixed with a premium social media app.
+
+Think of:
+
+• Marvel comic pages
+
+• Pop Art
+
+• Modern Messenger
+
+• iMessage smoothness
+
+• Instagram premium UI
+
+Everything should feel clean, premium and playful.
+
+NOT childish.
+
+---
+
+# EXACT BACKGROUND
+
+The background should look almost identical to the provided reference.
+
+Do NOT replace it with plain white.
+
+Do NOT replace it with gradients only.
+
+Build the background using multiple layers.
+
+Layer 1
+
+Very light sky blue to white gradient
+
+Layer 2
+
+Large faded comic city skyline
+
+Opacity around 15%
+
+Layer 3
+
+Large glowing sun
+
+Upper left
+
+Very soft yellow
+
+Opacity around 30%
+
+Layer 4
+
+White fluffy comic clouds
+
+Layer 5
+
+Comic halftone dots
+
+Corners only
+
+Layer 6
+
+Comic BOOM
+
+Comic YEAH
+
+Very faded
+
+Opacity around 10%
+
+Layer 7
+
+Very soft comic rays behind the sun
+
+Layer 8
+
+Small stars
+
+Sparkles
+
+Tiny comic lines
+
+The background should feel alive but should NEVER reduce readability.
+
+---
+
+# HEADER
+
+White glass style.
+
+Very soft blur.
+
+Large avatar
+
+Green online dot
+
+Username
+
+Bold
+
+Black
+
+Verified badge
+
+Electric Lemon
+
+Icons
+
+Back
+
+Call
+
+Video
+
+Menu
+
+Minimal black icons.
+
+---
+
+# TODAY LABEL
+
+Comic speech sticker.
+
+Bright yellow.
+
+Black outline.
+
+Looks printed on a comic page.
+
+---
+
+# MESSAGE BUBBLE
+
+This is VERY IMPORTANT.
+
+DO NOT create a normal rounded rectangle.
+
+The outgoing message MUST be a comic speech bubble.
+
+Exactly like comic dialogue.
+
+Features:
+
+Rounded corners
+
+Black outline
+
+Blue gradient
+
+Halftone comic dots inside bubble
+
+Bottom-right comic tail (speech pointer)
+
+The speech pointer MUST stick out from the bubble.
+
+It should clearly look like a comic conversation bubble.
+
+Do NOT remove this.
+
+Do NOT simplify it.
+
+This comic tail is one of the most important parts of the theme.
+
+Shadow:
+
+Soft
+
+Floating
+
+Border:
+
+Black
+
+2px
+
+Gradient:
+
+Top
+
+#3399FF
+
+Bottom
+
+#0066FF
+
+Message text
+
+White
+
+18px
+
+Medium weight
+
+Perfect readability.
+
+Timestamp
+
+Bottom right
+
+Blue double tick
+
+---
+
+# SEEN STATUS
+
+Very important.
+
+DO NOT place the avatar inside the message bubble.
+
+DO NOT overlap the message.
+
+Instead:
+
+Place it BELOW the message.
+
+Right aligned.
+
+Layout:
+
+Seen by
+
+(Profile Photo)
+
+10:31 PM
+
+Avatar
+
+36px
+
+Circular
+
+High quality
+
+Thin Electric Lemon border
+
+Small green badge
+
+Small comic action lines around avatar.
+
+Spacing between bubble and avatar
+
+12px
+
+---
+
+# INPUT BAR
+
+Floating white glass panel.
+
+Rounded 32px.
+
+Very soft shadow.
+
+Blur background.
+
+Left
+
+Attachment button
+
+Middle
+
+Type a message...
+
+Right
+
+Emoji
+
+Large Electric Lemon Send button
+
+The send button should slightly overlap outside the input like the reference image.
+
+---
+
+# BOTTOM NAVIGATION
+
+White floating navigation.
+
+Rounded.
+
+Shadow.
+
+Active tab
+
+Electric Lemon.
+
+Others
+
+Gray.
+
+---
+
+# COMIC EFFECTS
+
+Use these effects throughout the UI.
+
+Comic halftone dots
+
+Speech bubble outlines
+
+Comic burst lines
+
+Tiny stars
+
+Sparkles
+
+Speed lines
+
+Comic shadows
+
+Soft stickers
+
+Hand drawn feeling
+
+Everything should still feel premium.
+
+Avoid making it look like a children's cartoon.
+
+---
+
+# TYPOGRAPHY
+
+Use Inter or SF Pro Display.
+
+Header
+
+20px
+
+Message
+
+18px
+
+Seen
+
+13px
+
+Timestamp
+
+12px
+
+All text must remain perfectly readable.
+
+No low contrast.
+
+No transparent text.
+
+---
+
+# RESPONSIVE
+
+Must look perfect on Android.
+
+Must look perfect on iPhone.
+
+No overflow.
+
+No clipping.
+
+---
+
+# IMPLEMENTATION
+
+Create this as a completely new theme component.
+
+Example:
+
+ComicPopLightTheme.tsx
+
+or
+
+theme-comic-light.ts
+
+Register it in the theme selector.
+
+Do NOT edit existing themes.
+
+Do NOT replace existing themes.
+
+Simply ADD this as Theme 3.
+
+The final UI should closely match the provided comic-style reference, including the layered city background, soft sun, comic clouds, speech-bubble message with a prominent comic tail, floating white input bar, and the separate "Seen by" avatar positioned below the outgoing message bubble.

@@ -1,7 +1,43 @@
 # Flicks - Social App
 
 ## Project Overview
-A social media and entertainment platform called "Flicks" built with React 18, Vite, TypeScript, Tailwind CSS, and Supabase. Features: Fame Feed, Flicks (TikTok-style reels), Chat Messenger Ecosystem, Movie Game (KBC Quiz), Snapy Studio, Flicks Frame (charity wall), and MAGNET viral chain system.
+A social media and entertainment platform called "Flicks" built with React 18, Vite, TypeScript, Tailwind CSS, and Supabase. Features: Fame Feed, Flicks (TikTok-style reels), Chat Messenger Ecosystem, Task Board (personal task manager), Snapy Studio, and MAGNET viral chain system.
+
+## Media URL Utility (src/lib/mediaUrl.ts)
+Global helper for resolving Supabase storage references to public URLs.
+- `resolveMediaUrl(raw, forceBucket?)` — if raw starts with `http(s)://` returns as-is; otherwise infers bucket from path prefix and calls `getPublicUrl`
+- `isVideoUrl(url)`, `isAudioUrl(url)`, `isYouTubeUrl(url)`, `getYouTubeEmbedUrl(url)` — type-detection helpers
+- Supported buckets: `posts`, `flicks`, `avatars`, `circles`, `hooks`, `chat-images`
+
+## Task Board (TaskBoard.tsx) — replaces MovieGame
+Personal task manager accessible from GolSlider → "Task" tab.
+- **CRUD**: Create tasks with title, description, priority (High/Medium/Low), due date → stored in `user_tasks` Supabase table
+- **Toggle done**: tap checkbox to mark complete/incomplete, optimistic UI update
+- **Delete**: red bin button with optimistic removal + DB sync
+- **Filters**: All / Pending / Done tabs with counts
+- **Overdue detection**: due dates in the past shown in red
+- **No-DB guidance**: if `user_tasks` table doesn't exist, shows the exact SQL to run in Supabase
+- **Requires Supabase table** (SQL appended to `supabase_master_migration.sql`):
+  ```sql
+  create table if not exists user_tasks (
+    id uuid primary key default gen_random_uuid(),
+    user_id uuid not null references profiles(id) on delete cascade,
+    title text not null, description text,
+    priority text not null default 'medium',
+    is_done boolean not null default false,
+    due_date date, created_at timestamptz not null default now()
+  );
+  alter table user_tasks enable row level security;
+  create policy "own tasks" on user_tasks for all using (auth.uid() = user_id);
+  ```
+
+## Storage Bucket Assignments (corrected)
+- `posts` — FameFeed post images/videos
+- `flicks` — Flicks (reels) videos
+- `avatars` — profile avatars only
+- `circles` — CirclePage: group covers, circle-chat media, group post media
+- `hooks` — HooksHub: hook page covers, hook page avatars, hook post media
+- `chat-images` — ChatSystem direct message attachments
 
 ## MAGNET System (MagnetSystem.tsx)
 Viral chain-reaction feature with infinite depth. Integrated on Flick posts, Hook page posts, and Circle posts.
@@ -128,6 +164,48 @@ Full-screen messenger with 6 modules:
 - **Admin dashboard**: Members tab becomes Admin view for Admin/Moderator users with member list, role controls, kick controls, and admin friend invite search
 - **Social actions**: Circle posts support real-time likes, comments, shares, muted comments, delete moderation, and sharing counters
 - **Invites**: Admin can invite profiles via `circle_invites`; invitees see accept/reject cards in the Circles dashboard and member count updates on acceptance
+
+## Stories — WhatsApp-style View/Like Tracking
+- **File**: `src/components/StoryBar.tsx`
+- **Tables**: `stories`, `story_views` (unique by story_id + viewer_id), `story_likes` (unique by story_id + user_id) — SQL in `supabase_stories_setup.sql` and `supabase_story_likes_setup.sql`
+- **View tracking**: On story open, upserts a `story_views` row (deduped via UNIQUE constraint, so each viewer counted only once)
+- **Like (Heart)**: Bottom-right Heart icon for non-owners. Toggle persists to `story_likes`. On like, inserts into `notifications` (`type='story_like'`) so the owner sees it in the bell. Includes pop animation + floating ❤️ burst
+- **Owner Eye + Viewer List**: Bottom-right Eye+count button for the story owner. Tap or swipe-up to open a draggable bottom sheet listing every unique viewer with avatar, name, time, and a red heart if they also liked
+- **Progress segments**: Top segmented bars (one per story in the user's group), animated fill of the current segment
+- **Tap navigation**: Left third = previous story / previous user, Right third = next; long-press anywhere pauses
+- **Mobile safe-area**: Viewer uses `env(safe-area-inset-top/bottom)` so close button stays below the notch and Like/Eye/Share/Download stay above the iOS home indicator and Android nav bar. `viewport-fit=cover` set in `index.html`
+
+## Admin Controls & Play Store Safety (NEW)
+- **Admin emails**: `tiwarijhumki@gmail.com`, `textilevikhyat@gmail.com` (defined in `src/components/AdminDashboard.tsx` as `ADMIN_EMAILS` + `isAdminEmail()`)
+- **3-dots menu — FameFeed**: Admin sees red "Delete Post (Admin)" + "Ban User (Admin)" branches alongside the standard Report/Hide/Block actions. Admin delete bypasses the `author_id=currentUserId` RLS scope (must be enforced via Supabase RLS policy allowing admin emails or service role)
+- **3-dots menu — FlicksFeed**: Added (was missing). Top-right floating button on each `FlickCard` with Report Video (all users → inserts into `reports` table) + admin-only Delete Video / Ban User. Local optimistic state removes deleted/banned content from feed
+- **Reports table**: schema `reports(reporter_id, reported_user_id, post_id, reason, status='pending', created_at)`. Visible in Admin Dashboard → Reports tab
+- **UserProfileModal**: Red gradient "Ban Account (Admin)" button shown only when `isAdmin` prop is true and not own profile. Toggles `profiles.account_status` between `'suspended'` ↔ `'active'` and writes `suspension_reason`. `ProfileViewerProvider` now accepts `currentUserEmail` to compute `isAdmin` and pass it to the modal
+- **AdminDashboard Users tab**: Search input filters by full_name / username / id. Avatar + name now click through to `openProfile(userId)` so admin can ban from the modal too. "Suspend" button relabeled to "Ban"
+- **Banned login block**: `Index.tsx` (line ~1909) already checks `accountStatus === "suspended"` and shows full-screen suspension screen with reason + sign-out button — required for Play Store policy compliance
+- **Field convention**: Uses existing `account_status='suspended'/'active'` + `suspension_reason` (NOT a new `is_banned` field) for consistency with prior infra
+
+## Long-Press Comment Actions (NEW)
+- **Files**: `src/components/FameFeed.tsx`, `src/components/CirclePage.tsx`
+- **SQL**: `supabase_comment_actions.sql` — run once to add `is_hidden`, `hidden_by_id`, `hidden_by_name` columns to `comments` and `circle_post_comments` tables
+- **Trigger**: Hold any comment for 600ms → haptic buzz → spring bottom-sheet slides up (z-[600] in FameFeed, z-[400] in Circles)
+- **Role-based options**:
+  - **Commenter** (own comment): ✏️ Edit, 🗑️ Delete, 🙈 Hide from Others
+  - **Post Owner / Moderator** (others' comments): 🗑️ Delete, 🙈 Hide Comment
+  - **Other users**: 🚩 Report Comment (inserts to `reports` table + sends `comment_report` notification to post owner)
+- **Hidden comment transparency**:
+  - Regular users: see italic `💬 Comment hidden by [Name]` (dashed border, gray background)
+  - Post owner / moderator: sees content struck-through in light gray + `🙈 Hidden by [Name]` label below
+- **Edit sheet**: spring bottom-sheet with textarea pre-filled; Save updates DB + local state instantly
+- **Font upgrades**: comment text bumped from 13px → 14px; creator names stay deep maroon (#800000) at 12px/900 weight
+- **State**: `feedCommentAction`, `editingFeedComment`, `longPressCommentTimer` ref in FameFeed; `circleCommentAction`, `editingCircleComment`, `longPressCommentTimer` ref in CirclePage
+
+## FB-Style Moderation + Relationships (latest)
+- **SQL setup**: `supabase_moderation_setup.sql` adds `reports.target_id` (nullable, references `auth.users`) and creates `user_blocks(blocker_id, blocked_id)` with RLS. Run once in Supabase SQL editor.
+- **UserProfileModal**: Now shows full FB-style action row — Add Friend / Requested / Friends, Message, Unfriend (when friends), Block/Unblock, Report. Report opens an in-modal sheet with preset reasons (Spam, Harassment, Hate speech, Inappropriate, Fake account, Other) writing to `reports(target_id, reporter_id, reason)`. Block also tears down any existing friendship.
+- **Message routing**: UserProfileModal "Message" button fires a global `flicks:open-chat` event (with `userId/full_name/avatar_url`). `Index.tsx` listens and opens the chat panel. `ChatSystem` listens, refreshes contacts, and routes the conversation: friends land in Inbox, non-friends are surfaced in Menu → Requests as "Message Requests" alongside friend requests.
+- **Block filter (global)**: Both directions (people I blocked + people who blocked me) are now hidden from FameFeed (existing), ChatSystem contacts/stories/search, StoryBar, and PeopleYouMayKnow. ChatSystem caches `blockedUserIds` after each `fetchContacts()` and reuses it in `fetchStories` and `handleSelectContact`.
+- **AdminDashboard Reports tab**: Now renders both post reports (amber) and user reports (rose). User reports show reporter, reported user (clickable to open profile), and a one-click "Ban &lt;User&gt;" button that prefills the suspend sheet with `Reported: <reason>`. User-only reports also have a "Dismiss" action.
 
 ## Migration Notes (Lovable → Replit)
 - Removed `lovable-tagger` plugin from `vite.config.ts` (Lovable-specific, not needed on Replit)

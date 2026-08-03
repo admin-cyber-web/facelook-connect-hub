@@ -45,18 +45,31 @@ export default function MagnetDashboard({ userId, viewerUserId, userName, onBack
   const loadDashboard = async () => {
     setLoading(true);
 
-    // SENT: chains where invited_by = userId (this user sent a magnet to others)
-    const { data: sentRaw, count: sentCount } = await supabase
-      .from("magnet_chains")
-      .select(`
-        id, post_id, post_type, depth, created_at, is_killed,
-        target:profiles!magnet_chains_user_id_fkey(full_name, avatar_url)
-      `, { count: "exact" })
-      .eq("invited_by", userId)
+    // SENT: from magnet_invites where sender_id = userId (I invited others)
+    let sentRaw: any[] = [];
+    let sentCount      = 0;
+    const sentRes = await supabase
+      .from("magnet_invites")
+      .select("id, post_id, created_at, target:profiles!receiver_id(full_name, avatar_url)", { count: "exact" })
+      .eq("sender_id", userId)
       .order("created_at", { ascending: false })
       .limit(50);
+    if (sentRes.error) {
+      // Fallback: magnet_chains invited_by column
+      const fb = await supabase
+        .from("magnet_chains")
+        .select("id, post_id, post_type, depth, created_at, is_killed, target:profiles!magnet_chains_user_id_fkey(full_name, avatar_url)", { count: "exact" })
+        .eq("invited_by", userId)
+        .order("created_at", { ascending: false })
+        .limit(50);
+      sentRaw   = fb.data   ?? [];
+      sentCount = fb.count  ?? 0;
+    } else {
+      sentRaw   = sentRes.data  ?? [];
+      sentCount = sentRes.count ?? 0;
+    }
 
-    // RECEIVED: chains where user_id = userId AND invited_by IS NOT NULL
+    // RECEIVED: magnet_chains where user_id = userId (I joined — any method)
     const { data: receivedRaw, count: receivedCount } = await supabase
       .from("magnet_chains")
       .select(`
@@ -64,17 +77,16 @@ export default function MagnetDashboard({ userId, viewerUserId, userName, onBack
         inviter:profiles!magnet_chains_invited_by_fkey(full_name, avatar_url)
       `, { count: "exact" })
       .eq("user_id", userId)
-      .not("invited_by", "is", null)
       .order("created_at", { ascending: false })
       .limit(50);
 
     // Compute max depth from all entries
-    const allDepths = [...(sentRaw || []), ...(receivedRaw || [])].map(e => e.depth ?? 0);
+    const allDepths = [...sentRaw, ...(receivedRaw || [])].map(e => e.depth ?? 0);
     setMaxDepth(allDepths.length ? Math.max(...allDepths) : 0);
 
     // Enrich with post content
     const postIds = [...new Set([
-      ...(sentRaw || []).map(e => e.post_id),
+      ...sentRaw.map(e => e.post_id),
       ...(receivedRaw || []).map(e => e.post_id),
     ])];
 
@@ -92,9 +104,9 @@ export default function MagnetDashboard({ userId, viewerUserId, userName, onBack
         post_author:  postMap[r.post_id]?.author,
       }));
 
-    setSent(enrich(sentRaw || []));
+    setSent(enrich(sentRaw));
     setReceived(enrich(receivedRaw || []));
-    setTotalSent(sentCount ?? 0);
+    setTotalSent(sentCount);
     setTotalReceived(receivedCount ?? 0);
     setLoading(false);
   };
@@ -128,7 +140,7 @@ export default function MagnetDashboard({ userId, viewerUserId, userName, onBack
             {person?.full_name || "Someone"}
           </p>
           <p className="text-gray-400 text-[10px] font-semibold mt-0.5">
-            {type === "sent" ? "Magneted to this person" : "Magneted to you"}
+            {type === "sent" ? "Linked to this person" : "Linked to you"}
             {" · "}Depth {entry.depth}
           </p>
           {entry.post_content && (
@@ -159,16 +171,16 @@ export default function MagnetDashboard({ userId, viewerUserId, userName, onBack
   return (
     <div className="min-h-screen bg-[#f0f2f5]">
       {/* Header */}
-      <div className="sticky top-0 z-50 px-4 py-3 flex items-center gap-3"
-        style={{ background: "linear-gradient(135deg,#7c3aed,#db2777)", boxShadow: "0 2px 16px rgba(124,58,237,0.3)" }}>
+      <div className="sticky top-0 z-50 px-4 pb-3 flex items-center gap-3"
+        style={{ paddingTop: "calc(var(--cap-safe-top) + 12px)", background: "linear-gradient(135deg,#7c3aed,#db2777)", boxShadow: "0 2px 16px rgba(124,58,237,0.3)" }}>
         <button onClick={onBack}
           className="p-2 bg-white/20 rounded-xl text-white hover:bg-white/30 transition-all">
           <ChevronLeft size={18} />
         </button>
         <div className="flex-1">
-          <h1 className="text-white font-black text-base leading-none">🧲 Magnet Dashboard</h1>
+          <h1 className="text-white font-black text-base leading-none">🔗 Link Hub</h1>
           <p className="text-white/70 text-[10px] mt-0.5">
-            {isOwnDashboard ? "Your viral activity" : `${userName || "User"}'s public magnets`}
+            {isOwnDashboard ? "Your viral link activity" : `${userName || "User"}'s public links`}
           </p>
         </div>
         <div className="flex items-center gap-1 bg-white/20 px-3 py-1.5 rounded-full">
@@ -180,9 +192,9 @@ export default function MagnetDashboard({ userId, viewerUserId, userName, onBack
       {/* Stats Bar */}
       <div className="grid grid-cols-3 gap-2 px-4 pt-4 pb-2">
         {[
-          { label: "Magnets Sent",     value: formatReach(totalSent),     icon: "📤", color: "#7c3aed" },
-          { label: "Magnets Received", value: formatReach(totalReceived), icon: "📥", color: "#db2777" },
-          { label: "Max Depth",        value: `Lv ${maxDepth}`,           icon: "📡", color: "#059669" },
+          { label: "Links Sent",     value: formatReach(totalSent),     icon: "📤", color: "#7c3aed" },
+          { label: "Links Received", value: formatReach(totalReceived), icon: "📥", color: "#db2777" },
+          { label: "Max Depth",      value: maxDepth > 0 ? `Lv ${maxDepth}` : "—", icon: "🔗", color: "#059669" },
         ].map(s => (
           <div key={s.label} className="bg-white rounded-2xl p-3 text-center border border-gray-100"
             style={{ boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
@@ -225,9 +237,9 @@ export default function MagnetDashboard({ userId, viewerUserId, userName, onBack
               <motion.div key="sent" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
                 {sent.length === 0 ? (
                   <div className="flex flex-col items-center py-20 text-gray-400">
-                    <span className="text-4xl mb-3">🧲</span>
-                    <p className="font-black text-sm">No magnets sent yet</p>
-                    <p className="text-xs mt-1">Open any post and click 🧲 to start a viral chain!</p>
+                    <span className="text-4xl mb-3">🔗</span>
+                    <p className="font-black text-sm">No links sent yet</p>
+                    <p className="text-xs mt-1">Open any post and click 🔗 to start a viral chain!</p>
                   </div>
                 ) : (
                   sent.map(e => <EntryCard key={e.id} entry={e} type="sent" />)
@@ -238,8 +250,8 @@ export default function MagnetDashboard({ userId, viewerUserId, userName, onBack
                 {received.length === 0 ? (
                   <div className="flex flex-col items-center py-20 text-gray-400">
                     <span className="text-4xl mb-3">📥</span>
-                    <p className="font-black text-sm">No magnets received yet</p>
-                    <p className="text-xs mt-1">When someone magnets a post to you, it appears here</p>
+                    <p className="font-black text-sm">No links received yet</p>
+                    <p className="text-xs mt-1">When someone links a post to you, it appears here</p>
                   </div>
                 ) : (
                   received.map(e => <EntryCard key={e.id} entry={e} type="received" />)
