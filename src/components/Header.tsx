@@ -2046,27 +2046,6 @@ const Header = ({
         </div>
         <div className="flex-1" />
         <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
-          {/* ── Invite Friends quick-access ── */}
-          <motion.button
-            whileTap={{ scale: 0.88 }}
-            onClick={() => { window.location.href = "/invite"; }}
-            title="Invite Friends"
-            className="p-1.5 sm:p-2 rounded-xl transition-all active:scale-90 flex-shrink-0 relative"
-            style={{
-              background: "rgba(204,255,0,0.09)",
-              border: "1.5px solid rgba(204,255,0,0.28)",
-            }}
-          >
-            <Share2 size={16} style={{ color: "#CCFF00" }} />
-            {/* Pulse dot */}
-            <span style={{
-              position:"absolute", top:3, right:3,
-              width:6, height:6, borderRadius:"50%",
-              background:"#CCFF00",
-              boxShadow:"0 0 0 0 rgba(204,255,0,0.5)",
-              animation:"invite-pulse 2s ease-in-out infinite",
-            }} />
-          </motion.button>
           <motion.button
             whileTap={{ scale: 0.88 }}
             onClick={onHomeClick}

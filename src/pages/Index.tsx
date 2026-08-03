@@ -2839,6 +2839,35 @@ const PersonalizationView = React.memo(({
                 <span className="text-[10px] font-black text-red-400/40 uppercase tracking-[0.12em]">Danger Zone</span>
               </div>
             </div>
+            {/* ── Share App ──────────────────────────────────────── */}
+            <div className="px-4 pb-3">
+              <button
+                onClick={() => {
+                  const shareText = "Flicks India par aao! India ka apna social platform 🇮🇳";
+                  if (navigator.share) {
+                    navigator.share({ title: "Flicks India", text: shareText, url: "https://flicksindia.online" });
+                  } else {
+                    navigator.clipboard.writeText(shareText + "
+https://flicksindia.online").then(() => toast.success("Link copied!"));
+                  }
+                }}
+                className="w-full flex items-center gap-3.5 p-4 rounded-2xl transition-all active:scale-[0.98] group"
+                style={{ background: "rgba(204,255,0,0.05)", border: "1px solid rgba(204,255,0,0.15)" }}
+              >
+                <div
+                  className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+                  style={{ background: "rgba(204,255,0,0.1)", border: "1px solid rgba(204,255,0,0.2)" }}
+                >
+                  <Share2 size={15} style={{ color: "#CCFF00" }} />
+                </div>
+                <div className="flex-1 text-left">
+                  <p className="text-[13px] font-semibold" style={{ color: "#CCFF00" }}>{t("Share App", "ऐप शेयर करें")}</p>
+                  <p className="text-[11px] text-white/35 mt-0.5">{t("Invite friends to Flicks India", "दोस्तों को Flicks India पर बुलाएं")}</p>
+                </div>
+                <ChevronRight size={15} className="text-white/20 group-hover:text-white/40 transition-colors shrink-0" />
+              </button>
+            </div>
+
             <div className="px-4 pb-4">
               <button
                 onClick={() => { setDeleteSubmitted(false); setShowDeleteDialog(true); }}
