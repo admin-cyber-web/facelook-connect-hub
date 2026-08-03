@@ -1816,7 +1816,7 @@ export function MagnetButton({
           fetchChains();
           setShowModal(true);
         }}
-        className={`flex flex-col items-center gap-0.5 ${bgCls} rounded-2xl px-2 py-1.5 transition-all active:scale-90`}
+        className={`flex flex-row items-center gap-1.5 ${bgCls} rounded-2xl px-2.5 py-1.5 transition-all active:scale-90`}
         style={{ WebkitTapHighlightColor: "transparent" }}
       >
         <motion.span
@@ -1824,20 +1824,20 @@ export function MagnetButton({
           initial={{ scale: 1.4 }}
           animate={{ scale: 1 }}
           transition={{ type: "spring", stiffness: 400, damping: 15 }}
-          className="text-xl leading-none"
+          className="text-base leading-none"
         >🔗</motion.span>
         <span className={`text-[10px] font-black leading-none ${textCls}`}>
           {loading ? "…" : formatReach(reach)}
         </span>
-        {/* Last linker badge — show who most recently accepted the link */}
+        {/* Last linker badge — inline avatar to the right of the count */}
         <AnimatePresence>
           {reach > 0 && lastLinker && (
             <motion.div
-              initial={{ opacity: 0, scale: 0.7, y: 4 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
+              initial={{ opacity: 0, scale: 0.7, x: -4 }}
+              animate={{ opacity: 1, scale: 1, x: 0 }}
               exit={{ opacity: 0, scale: 0.7 }}
               transition={{ type: "spring", stiffness: 400, damping: 20 }}
-              className="flex items-center gap-0.5 mt-0.5"
+              className="flex items-center gap-0.5"
               title={`${lastLinker.full_name} linked`}
             >
               <div
@@ -1845,7 +1845,7 @@ export function MagnetButton({
                 style={{ fontSize: 6, color: "#fff", fontWeight: 900 }}
               >
                 {lastLinker.avatar_url
-                  ? <img src={lastLinker.avatar_url} className="w-full h-full object-cover" alt=""  decoding="async"/>
+                  ? <img src={lastLinker.avatar_url} className="w-full h-full object-cover" alt="" decoding="async"/>
                   : lastLinker.full_name?.[0]?.toUpperCase()}
               </div>
               <Check size={7} className="text-lime-400 shrink-0" />
