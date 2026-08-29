@@ -65,7 +65,8 @@ const CommentDrawer = ({
         `,
         )
         .eq("post_id", post._raw_id)
-        .order("created_at", { ascending: true });
+        .order("created_at", { ascending: true })
+        .limit(100);
       if (!error) setComments(data || []);
     };
     fetchComments();

@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import AdminDashboard from "./AdminDashboard";
 import { isAdminEmail } from "../lib/adminConfig";
 import { resolveMediaUrl } from "../lib/mediaUrl";
+import { usePageVisibility } from "../hooks/usePageVisibility";
 import AdsterraAd from "./AdsterraAd";
 import {
   Search,
@@ -818,6 +819,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
 }) => {
   const isAdmin = isAdminEmail(userEmail);
   const { openProfile } = useProfileViewer();
+  const isPageVisible = usePageVisibility();
 
   // ── Message Reactions ─────────────────────────────────────────────────────
   const fetchMsgReactions = useCallback(
@@ -828,7 +830,9 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
           .select("id")
           .or(
             `and(sender_id.eq.${uid},receiver_id.eq.${otherId}),and(sender_id.eq.${otherId},receiver_id.eq.${uid})`,
-          );
+          )
+          .order("created_at", { ascending: false })
+          .limit(200);
         const msgIdsArr = (msgData || []).map((m: any) => m.id as string);
         if (msgIdsArr.length === 0) return;
         const { data } = await supabase
@@ -1744,7 +1748,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
 
   // ── Story viewer: 15s countdown timer ────────────────────────────────────
   useEffect(() => {
-    if (!storyViewerOpen || storyPaused || storyGroups.length === 0) return;
+    if (!isPageVisible || !storyViewerOpen || storyPaused || storyGroups.length === 0) return;
     storyTimerRef.current = setInterval(() => {
       setStoryElapsed((e) => {
         if (e + 0.1 >= 15) {
@@ -1774,6 +1778,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     viewerGroupIdx,
     viewerStoryIdx,
     storyGroups,
+    isPageVisible,
   ]);
 
   // ── Story viewer: reset elapsed on story change ───────────────────────────
@@ -1823,7 +1828,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
 
   // ── Presence: track who's actually online ─────────────────────────────────
   useEffect(() => {
-    if (!isOpen || !userId) return;
+    if (!isOpen || !userId || !isPageVisible) return;
     const ch = supabase.channel("cx-presence", {
       config: { presence: { key: userId } },
     });
@@ -1846,7 +1851,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       supabase.removeChannel(ch);
       presenceChannelRef.current = null;
     };
-  }, [isOpen, userId]);
+  }, [isOpen, userId, isPageVisible]);
 
   // ── When activeStatus toggles, update presence tracking ───────────────────
   useEffect(() => {
@@ -1861,12 +1866,12 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
 
   // ── Realtime: friendships ─────────────────────────────────────────────────
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || !isPageVisible) return;
     const ch = supabase
       .channel(`friendships-rt-${userId}`)
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "friendships" },
+        { event: "INSERT", schema: "public", table: "friendships", filter: `receiver_id=eq.${userId}` },
         (p) => {
           const row = p.new as any;
           if (row.receiver_id === userId || row.sender_id === userId) {
@@ -1878,7 +1883,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       )
       .on(
         "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "friendships" },
+        { event: "UPDATE", schema: "public", table: "friendships", filter: `receiver_id=eq.${userId}` },
         (p) => {
           const row = p.new as any;
           if (row.receiver_id === userId || row.sender_id === userId) {
@@ -1892,16 +1897,16 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     return () => {
       supabase.removeChannel(ch);
     };
-  }, [isOpen, userId, fetchFriendships, fetchPendingRequests, fetchContacts]);
+  }, [isOpen, userId, isPageVisible, fetchFriendships, fetchPendingRequests, fetchContacts]);
 
   // ── Realtime: new messages → alert ────────────────────────────────────────
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || !isPageVisible) return;
     const ch = supabase
       .channel(`alerts-rt-${userId}`)
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "messages" },
+         { event: "INSERT", schema: "public", table: "messages", filter: `receiver_id=eq.${userId}` },
         (p) => {
           const msg = p.new as Message;
           if (msg.receiver_id === userId) {
@@ -1932,7 +1937,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       supabase.removeChannel(ch);
     };
     // contacts/mutedChats accessed via refs — channel no longer tears down on every fetch
-  }, [isOpen, userId]);
+  }, [isOpen, userId, isPageVisible]);
 
   // ── Unseen message count (always-on, drives FAB badge) ────────────────────
   const fetchUnseenCount = useCallback(async () => {
@@ -1946,13 +1951,16 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   }, [userId]);
 
   useEffect(() => {
-    if (!userId) return;
+    if (!userId || !isPageVisible) {
+      setUnseenMsgCount(0);
+      return;
+    }
     fetchUnseenCount();
     const ch = supabase
       .channel(`unseen-count-${userId}`)
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "messages" },
+         { event: "INSERT", schema: "public", table: "messages", filter: `receiver_id=eq.${userId}` },
         (p) => {
           const msg = p.new as any;
           if (msg.receiver_id === userId && !msg.seen_at) {
@@ -1962,7 +1970,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       )
       .on(
         "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "messages" },
+         { event: "UPDATE", schema: "public", table: "messages", filter: `receiver_id=eq.${userId}` },
         (p) => {
           const msg = p.new as any;
           const old = p.old as any;
@@ -1977,7 +1985,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     return () => {
       supabase.removeChannel(ch);
     };
-  }, [userId, fetchUnseenCount]);
+  }, [userId, isPageVisible, fetchUnseenCount]);
 
   // ── Report total unread count to parent (for FAB badge) ──────────────────
   useEffect(() => {
@@ -2015,7 +2023,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
 
   // ── Messages for selected chat ────────────────────────────────────────────
   useEffect(() => {
-    if (!selectedUser) return;
+    if (!selectedUser || !isPageVisible) return;
     setIsOtherTyping(false);
     setShowChatMenu(false);
     setPanicMode(false);
@@ -2105,11 +2113,12 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     };
 
     // Retry once after 800 ms in case userId arrived slightly after selectedUser
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
     const runLoad = async () => {
       await load();
       // If still empty and userId exists, retry once (handles async auth init)
       if (!userId) {
-        setTimeout(() => load(), 800);
+        retryTimer = setTimeout(() => load(), 800);
       }
     };
     runLoad().then(() => fetchMsgReactions(userId, selectedUser.id));
@@ -2235,44 +2244,6 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
           }
         },
       )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "message_reactions" },
-        (p) => {
-          const row = (p.new ?? p.old) as {
-            message_id: string;
-            user_id: string;
-            emoji: string;
-          } | null;
-          if (!row) return;
-          setMsgReactions((prev) => {
-            const msgId = row.message_id;
-            const cur = { ...(prev[msgId] ?? {}) };
-            if (p.eventType === "DELETE") {
-              const old = p.old as {
-                message_id: string;
-                user_id: string;
-                emoji: string;
-              };
-              if (cur[old.emoji]) {
-                cur[old.emoji] = cur[old.emoji].filter(
-                  (u) => u !== old.user_id,
-                );
-                if (cur[old.emoji].length === 0) delete cur[old.emoji];
-              }
-            } else {
-              Object.keys(cur).forEach((e) => {
-                cur[e] = cur[e].filter((u) => u !== row.user_id);
-                if (cur[e].length === 0) delete cur[e];
-              });
-              if (!cur[row.emoji]) cur[row.emoji] = [];
-              if (!cur[row.emoji].includes(row.user_id))
-                cur[row.emoji].push(row.user_id);
-            }
-            return { ...prev, [msgId]: cur };
-          });
-        },
-      )
       .subscribe((status) => {
         if (status === "SUBSCRIBED") {
           realtimeHealthy = true;
@@ -2352,8 +2323,9 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       supabase.removeChannel(typingCh);
       typingChannelRef.current = null;
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      if (retryTimer) clearTimeout(retryTimer);
     };
-  }, [selectedUser, userId, fetchContacts, fetchMsgReactions]);
+  }, [selectedUser, userId, isPageVisible, fetchContacts, fetchMsgReactions]);
 
   // ── Friend actions ────────────────────────────────────────────────────────
   const sendFriendRequest = async (targetId: string) => {

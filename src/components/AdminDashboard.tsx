@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { useProfileViewer } from "../context/ProfileViewerContext";
 import { useOnlineUsers } from "../context/OnlineUsersContext";
+import { usePageVisibility } from "../hooks/usePageVisibility";
 
 export { ADMIN_EMAILS, isAdminEmail } from "../lib/adminConfig";
 import { ADMIN_EMAILS } from "../lib/adminConfig";
@@ -134,15 +135,18 @@ const AdminDashboard: React.FC<Props> = ({
   const [dismissingId, setDismissingId] = useState<string | null>(null);
   const [, setNowTick] = useState(0);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isPageVisible = usePageVisibility();
 
   useEffect(() => {
+    if (!isPageVisible) return;
     const id = setInterval(() => setNowTick((n) => n + 1), 30 * 1000);
     return () => clearInterval(id);
-  }, []);
+  }, [isPageVisible]);
 
   useEffect(() => {
+    if (!isPageVisible) return;
     fetchAll(false);
-  }, []);
+  }, [isPageVisible]);
 
   useEffect(() => {
     const q = userSearch.trim();
@@ -169,6 +173,7 @@ const AdminDashboard: React.FC<Props> = ({
   }, [userSearch]);
 
   useEffect(() => {
+    if (!isPageVisible) return;
     const ch = supabase
       .channel(`admin-dash-${Date.now()}`)
       .on(
@@ -204,7 +209,7 @@ const AdminDashboard: React.FC<Props> = ({
     return () => {
       supabase.removeChannel(ch);
     };
-  }, []);
+  }, [isPageVisible]);
 
   const fetchAll = async (force = false) => {
     const cKey = `adminDash_${currentUserId}`;
@@ -341,7 +346,9 @@ const AdminDashboard: React.FC<Props> = ({
       const { data: studioData } = await supabase
         .from("name_changes")
         .select("*")
-        .eq("status", "pending");
+        .eq("status", "pending")
+        .order("created_at", { ascending: false })
+        .limit(100);
       setStudioRequests((studioData as any[]) || []);
 
     } catch (err) {

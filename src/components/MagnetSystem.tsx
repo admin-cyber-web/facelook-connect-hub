@@ -127,9 +127,10 @@ export function useMagnet(postId: string, postType: string, currentUserId: strin
       // All voices for this post
       const { data: vRows } = await supabase
         .from("post_magnet_voice")
-        .select("*")
+        .select("id, post_id, post_type, owner_id, status_text, is_warning, created_at")
         .eq("post_id", postId)
-        .eq("post_type", postType);
+        .eq("post_type", postType)
+        .limit(20);
       const activeVoices = (vRows || []).filter((v: MagnetVoice) => v.status_text);
       setVoices(activeVoices);
       setVoice(activeVoices[0] ?? null);  // backward compat
@@ -1423,8 +1424,11 @@ export function PostVoiceStrip({ postId, postType, postOwnerId }: {
     let cancelled = false;
     (async () => {
       const { data: vRows } = await supabase
-        .from("post_magnet_voice").select("*")
-        .eq("post_id", postId).eq("post_type", postType);
+        .from("post_magnet_voice")
+        .select("id, post_id, post_type, owner_id, status_text, is_warning, created_at")
+        .eq("post_id", postId)
+        .eq("post_type", postType)
+        .limit(20);
       if (!cancelled) setVoices((vRows || []).filter((v: MagnetVoice) => v.status_text));
 
       const { data: firstEntry } = await supabase

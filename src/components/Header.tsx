@@ -32,6 +32,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import { useProfileViewer } from "@/context/ProfileViewerContext";
+import { usePageVisibility } from "../hooks/usePageVisibility";
 
 // ── Types ───────────────────────────────────────────────────────────────────────
 interface FriendEntry {
@@ -1398,6 +1399,7 @@ const Header = ({
   chatBadge?: number;
   userId?: string;
 }) => {
+  const isPageVisible = usePageVisibility();
   // ── Existing state ─────────────────────────────────────────────────────────
   const [notifications, setNotifications] = useState<any[]>([]);
   const [friendRequests, setFriendRequests] = useState<any[]>([]);
@@ -1470,7 +1472,7 @@ const Header = ({
     if (!userId) return;
     const { data, error } = await supabase
       .from("notifications")
-      .select("*")
+      .select("id, type, content, entity_id, actor_id, notifier_id, is_read, created_at")
       .eq("notifier_id", userId)
       .order("created_at", { ascending: false })
       .limit(40);
@@ -1520,10 +1522,11 @@ const Header = ({
     if (!userId) return;
     const { data } = await supabase
       .from("friendships")
-      .select("*")
+      .select("id, sender_id, receiver_id, status, created_at")
       .eq("receiver_id", userId)
       .eq("status", "pending")
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false })
+      .limit(50);
     if (data && data.length > 0) {
       const senderIds = [...new Set(data.map((r) => r.sender_id))];
       const { data: profiles } = await supabase
@@ -1893,7 +1896,7 @@ const Header = ({
   }, [fetchFriendRequests]);
 
   useEffect(() => {
-    if (!userId) return;
+    if (!userId || !isPageVisible) return;
     fetchProfile();
     fetchNotifsRef.current();
     fetchFriendReqsRef.current();
@@ -1902,7 +1905,7 @@ const Header = ({
       .channel(`notif-live-v2-${userId}`)
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "notifications" },
+         { event: "*", schema: "public", table: "notifications", filter: `notifier_id=eq.${userId}` },
         (payload) => {
           const row = (payload.new || payload.old) as any;
           if (row?.notifier_id !== userId) return;
@@ -1924,7 +1927,7 @@ const Header = ({
       .channel(`friend-live-v2-${userId}`)
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "friendships" },
+         { event: "*", schema: "public", table: "friendships", filter: `receiver_id=eq.${userId}` },
         (payload) => {
           const row = (payload.new || payload.old) as any;
           if (row?.receiver_id !== userId) return;
@@ -1938,15 +1941,15 @@ const Header = ({
       supabase.removeChannel(friendCh);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId]);
+  }, [userId, isPageVisible]);
 
   // ── Fetch dashboard stats when it opens ────────────────────────────────────
   useEffect(() => {
-    if (showDash) {
+    if (showDash && isPageVisible) {
       fetchDashStats();
       fetchDashFriends();
     }
-  }, [showDash, fetchDashStats, fetchDashFriends]);
+  }, [showDash, isPageVisible, fetchDashStats, fetchDashFriends]);
 
 
   // ── Live DP update from Settings > Personal Info ───────────────────────────
@@ -1968,7 +1971,7 @@ const Header = ({
 
   // ── Fetch tab-specific data on tab change ──────────────────────────────────
   useEffect(() => {
-    if (!showDash) return;
+    if (!showDash || !isPageVisible) return;
     if (dashTab === "friends") fetchDashFriends();
     if (dashTab === "posts") fetchDashPosts();
     if (dashTab === "hooks") fetchDashHooks();
@@ -1982,6 +1985,7 @@ const Header = ({
     fetchDashHooks,
     fetchDashCircles,
     fetchDashMagnets,
+    isPageVisible,
   ]);
 
   const unreadCount = notifications.filter((n) => !n.is_read).length;

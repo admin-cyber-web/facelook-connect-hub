@@ -7,6 +7,7 @@ import {
   type ReactNode,
 } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { usePageVisibility } from "@/hooks/usePageVisibility";
 
 // ── Context value ─────────────────────────────────────────────────────────────
 const OnlineUsersCtx = createContext<Set<string>>(new Set());
@@ -20,9 +21,13 @@ interface Props {
 export function OnlineUsersProvider({ userId, children }: Props) {
   const [onlineIds, setOnlineIds] = useState<Set<string>>(new Set());
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const isPageVisible = usePageVisibility();
 
   useEffect(() => {
-    if (!userId) return;
+    if (!userId || !isPageVisible) {
+      setOnlineIds(new Set());
+      return;
+    }
 
     const ch = supabase.channel("online-users", {
       config: { presence: { key: userId } },
@@ -52,7 +57,7 @@ export function OnlineUsersProvider({ userId, children }: Props) {
       });
       channelRef.current = null;
     };
-  }, [userId]);
+  }, [userId, isPageVisible]);
 
   return (
     <OnlineUsersCtx.Provider value={onlineIds}>

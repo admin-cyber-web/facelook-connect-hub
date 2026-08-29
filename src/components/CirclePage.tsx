@@ -5,6 +5,7 @@ import { useOnlineUsers } from "../context/OnlineUsersContext";
 import { memGet, memSet } from "../lib/memCache";
 import { useProfileViewer } from "../context/ProfileViewerContext";
 import { useDataCache } from "../context/DataCacheContext";
+import { usePageVisibility } from "../hooks/usePageVisibility";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { MagnetButton } from "./MagnetSystem";
@@ -342,6 +343,7 @@ type MemberRole = "admin" | "moderator" | "member";
 export default function CirclePage({ userProfile, currentUserId }: Props) {
   const { openProfile } = useProfileViewer();
   const dataCache = useDataCache();
+  const isPageVisible = usePageVisibility();
   const cachedGroups = dataCache.cacheRef.current.circleList;
   const [view, setView] = useState<"dashboard" | "group">("dashboard");
   const [groups, setGroups] = useState<Group[]>(() => cachedGroups?.data ?? []);
@@ -398,11 +400,12 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
   const [chatText, setChatText] = useState("");
   const [sendingChat, setSendingChat] = useState(false);
   const [chatLoaded, setChatLoaded] = useState(false);
-  const chatEndRef = useRef<HTMLDivElement>(null);
+    const chatEndRef = useRef<HTMLDivElement>(null);
   const chatSubRef = useRef<any>(null);
   const memberSubRef = useRef<any>(null);
   const postSubRef = useRef<any>(null);
   const commentSubRef = useRef<any>(null);
+  const wasPageHiddenRef = useRef(false);
   // Chat reactions
   const [msgReactions, setMsgReactions] = useState<Record<string, ChatReaction[]>>({});
   const [emojiBarMsgId, setEmojiBarMsgId] = useState<string | null>(null);
@@ -687,7 +690,8 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
     const { data } = await supabase
       .from("circle_members")
       .select("circle_id")
-      .eq("user_id", currentUserId);
+      .eq("user_id", currentUserId)
+      .limit(200);
     if (data) {
       const ids = data.map((r: any) => r.circle_id);
       setMyGroupIds(new Set(ids));
@@ -696,10 +700,11 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
   };
 
   useEffect(() => {
+    if (!isPageVisible) return;
     fetchGroups();
     fetchMyMemberships();
     fetchMyInvites();
-  }, [currentUserId]);
+  }, [currentUserId, isPageVisible]);
 
   // ── Invite notification chime (Web Audio API, zero deps) ─────────────────────
   const playInviteChime = () => {
@@ -724,7 +729,7 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
 
   // ── Realtime subscription for incoming Circle invites ────────────────────────
   useEffect(() => {
-    if (!currentUserId) return;
+    if (!currentUserId || !isPageVisible) return;
     if (inviteSubRef.current) supabase.removeChannel(inviteSubRef.current);
 
     const ch = supabase
@@ -750,7 +755,7 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
 
     inviteSubRef.current = ch;
     return () => { supabase.removeChannel(ch); };
-  }, [currentUserId, fetchMyInvites]);
+  }, [currentUserId, isPageVisible, fetchMyInvites]);
 
   // ── Cleanup realtime subscriptions on unmount ────────────────────────────────
   useEffect(() => {
@@ -866,9 +871,10 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
   const fetchCircleEvents = async (circleId: string) => {
     const { data: events } = await supabase
       .from("circle_events")
-      .select("*")
+      .select("id, circle_id, created_by, title, description, event_date, event_time, location, created_at")
       .eq("circle_id", circleId)
-      .order("event_date", { ascending: true });
+      .order("event_date", { ascending: true })
+      .limit(50);
     if (!events) return;
     setCircleEvents(events);
     if (events.length === 0) return;
@@ -1154,6 +1160,23 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
     memberSubRef.current = memberCh;
   };
 
+  // Disconnect group realtime channels while the tab is hidden, then
+  // rehydrate the currently open group when the user returns.
+  useEffect(() => {
+    if (!isPageVisible) {
+      wasPageHiddenRef.current = true;
+      if (chatSubRef.current) { supabase.removeChannel(chatSubRef.current); chatSubRef.current = null; }
+      if (memberSubRef.current) { supabase.removeChannel(memberSubRef.current); memberSubRef.current = null; }
+      if (postSubRef.current) { supabase.removeChannel(postSubRef.current); postSubRef.current = null; }
+      if (commentSubRef.current) { supabase.removeChannel(commentSubRef.current); commentSubRef.current = null; }
+      return;
+    }
+    if (!wasPageHiddenRef.current || !selectedGroup || view !== "group") return;
+    wasPageHiddenRef.current = false;
+    const previousTab = groupTab;
+    openGroup(selectedGroup).then(() => setGroupTab(previousTab));
+  }, [isPageVisible]);
+
   // ── Build reactions map from raw rows ────────────────────────────────────────
   const buildReactionMap = useCallback((rows: any[], uid: string | null) => {
     const map: Record<string, ChatReaction[]> = {};
@@ -1171,7 +1194,7 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
     setChatLoaded(false);
     const { data, error } = await supabase
       .from("group_messages")
-      .select("*")
+      .select("id, group_id, sender_id, sender_name, sender_avatar, content, media_url, reply_to_id, created_at")
       .eq("group_id", groupId)
       .order("created_at", { ascending: true })
       .limit(100);
@@ -1194,7 +1217,9 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
     }
     setChatLoaded(true);
 
-    // Subscribe to new messages + reaction changes
+      // Subscribe only to messages for this group. Reaction rows have no
+      // group_id, so subscribing to the entire reaction table would make every
+      // reaction anywhere trigger a full group re-fetch.
     if (chatSubRef.current) supabase.removeChannel(chatSubRef.current);
     const ch = supabase
       .channel(`chat-${groupId}`)
@@ -1208,19 +1233,6 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
           return [...prev, msg];
         });
         setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }), 80);
-      })
-      .on("postgres_changes", {
-        event: "*", schema: "public", table: "group_message_reactions",
-      }, async () => {
-        // Re-fetch reactions when any change happens
-        const { data: allMsgs } = await supabase
-          .from("group_messages").select("id").eq("group_id", groupId).limit(100);
-        if (!allMsgs) return;
-        const { data: rxns } = await supabase
-          .from("group_message_reactions")
-          .select("message_id, user_id, emoji")
-          .in("message_id", allMsgs.map((m: any) => m.id));
-        if (rxns) setMsgReactions(prev => ({ ...prev, ...buildReactionMap(rxns, currentUserId) }));
       })
       .subscribe();
     chatSubRef.current = ch;
@@ -1469,7 +1481,7 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
     setCommentLoading(true);
     const { data } = await supabase
       .from("circle_post_comments")
-      .select("*")
+      .select("id, post_id, author_id, author_name, author_avatar, content, created_at")
       .eq("post_id", post.id)
       .order("created_at", { ascending: true })
       .limit(100);

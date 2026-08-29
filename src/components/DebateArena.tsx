@@ -8,6 +8,7 @@ import {
 import { supabase } from "@/lib/supabaseClient";
 import { resolveMediaUrl } from "@/lib/mediaUrl";
 import { toast } from "sonner";
+import { usePageVisibility } from "../hooks/usePageVisibility";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface Profile { full_name: string; avatar_url: string | null; }
@@ -114,6 +115,7 @@ const DebateRoom: React.FC<{
   onEnd: () => Promise<void>;
   onMakePublic: () => Promise<void>;
 }> = ({ debate, messages, currentUserId, surveyQuestion, votes, onClose, onSend, onLike, onVote, onEnd, onMakePublic }) => {
+  const isPageVisible = usePageVisibility();
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [ending, setEnding] = useState(false);
@@ -132,7 +134,7 @@ const DebateRoom: React.FC<{
 
   // ── Typing broadcast ────────────────────────────────────────────────────────
   useEffect(() => {
-    if (debate.status !== "active") return;
+    if (debate.status !== "active" || !isPageVisible) return;
     const ch = supabase
       .channel(`debate-typing-${debate.id}`)
       .on("broadcast", { event: "typing" }, (payload) => {
@@ -148,7 +150,7 @@ const DebateRoom: React.FC<{
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
       supabase.removeChannel(ch);
     };
-  }, [debate.id, debate.status, currentUserId]);
+  }, [debate.id, debate.status, currentUserId, isPageVisible]);
 
   const broadcastTyping = useCallback(() => {
     typingChannelRef.current?.send({
@@ -637,7 +639,7 @@ const DebateResultModal: React.FC<{
 const QueueWaitModal: React.FC<{ onClose: () => void; estimatedFreeAt: Date | null }> = ({ onClose, estimatedFreeAt }) => {
   const [left, setLeft] = useState(0);
   useEffect(() => {
-    if (!estimatedFreeAt) return;
+    if (!estimatedFreeAt || document.hidden) return;
     const tick = () => setLeft(Math.max(0, estimatedFreeAt.getTime() - Date.now()));
     tick();
     const t = setInterval(tick, 1000);
@@ -691,6 +693,7 @@ export const DebateButton: React.FC<{
   currentUserId: string;
 }> = ({ surveyId, surveyQuestion, surveyOwnerId, currentUserId }) => {
   const isSelf = surveyOwnerId === currentUserId;
+  const isPageVisible = usePageVisibility();
 
   const [debate, setDebate]       = useState<DebateChallenge | null>(null);
   const [messages, setMessages]   = useState<DebateMessage[]>([]);
@@ -789,19 +792,21 @@ export const DebateButton: React.FC<{
   }, [surveyOwnerId]);
 
   // ── Realtime subscriptions ──────────────────────────────────────────────────
-  useEffect(() => { fetchDebate(); }, [fetchDebate]);
+  useEffect(() => {
+    if (isPageVisible) fetchDebate();
+  }, [fetchDebate, isPageVisible]);
 
   useEffect(() => {
-    if (!debate?.id) return;
+    if (!isPageVisible || !debate?.id) return;
     if (debate.status === "active" || debate.status === "finished") {
       fetchMessages(debate.id);
     }
-  }, [debate?.id, debate?.status, fetchMessages]);
+  }, [debate?.id, debate?.status, fetchMessages, isPageVisible]);
 
   // Re-fetch votes whenever messages change
   useEffect(() => {
-    if (messages.length) fetchVotes(messages.map(m => m.id));
-  }, [messages, fetchVotes]);
+    if (isPageVisible && messages.length) fetchVotes(messages.map(m => m.id));
+  }, [messages, fetchVotes, isPageVisible]);
 
   // Play jingle when arena becomes active and is opened
   useEffect(() => {
@@ -815,6 +820,7 @@ export const DebateButton: React.FC<{
   }, [showArena, debate?.status]);
 
   useEffect(() => {
+    if (!isPageVisible) return;
     const ch = supabase
       .channel(`debate-watch-${surveyId}-${currentUserId}`)
       .on("postgres_changes", {
@@ -844,10 +850,10 @@ export const DebateButton: React.FC<{
       .subscribe();
     channelRef.current = ch;
     return () => { supabase.removeChannel(ch); };
-  }, [surveyId, currentUserId, fetchDebate]);
+  }, [surveyId, currentUserId, fetchDebate, isPageVisible]);
 
   useEffect(() => {
-    if (!debate?.id || debate.status !== "active") return;
+    if (!isPageVisible || !debate?.id || debate.status !== "active") return;
     const debateId    = debate.id;
     const challenger  = debate.challenger;
     const responder   = debate.responder;
@@ -868,7 +874,7 @@ export const DebateButton: React.FC<{
       })
       .subscribe();
     return () => { supabase.removeChannel(ch); };
-  }, [debate?.id, debate?.status, debate?.challenger_id, debate?.challenger, debate?.responder]);
+  }, [debate?.id, debate?.status, debate?.challenger_id, debate?.challenger, debate?.responder, isPageVisible]);
 
   // ── Actions ─────────────────────────────────────────────────────────────────
   const handleChallenge = async () => {

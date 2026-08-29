@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { smartTime } from "@/lib/timeAgo";
 import { memGet, memSet } from "@/lib/memCache";
 import { MagnetButton } from "./MagnetSystem";
+import { usePageVisibility } from "../hooks/usePageVisibility";
 import {
   Anchor, Plus, ArrowLeft, X, Users, Heart, FileText,
   DollarSign, Send, CheckSquare, Square, Loader2, Star,
@@ -579,6 +580,7 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
   const [confirmDeletePost, setConfirmDeletePost] = useState<string | null>(null);
   const [showDeletePageConfirm, setShowDeletePageConfirm] = useState(false);
   const [deletingPage, setDeletingPage]       = useState(false);
+  const isPageVisible = usePageVisibility();
 
   const fetchPosts = async () => {
     setLoading(true);
@@ -632,6 +634,7 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
   };
 
   useEffect(() => {
+    if (!isPageVisible) return;
     fetchPosts();
     fetchFollowData();
     // Real-time: watch page_followers for this page
@@ -640,7 +643,7 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
         filter: `page_id=eq.${page.id}` }, () => fetchFollowData())
       .subscribe();
     return () => { supabase.removeChannel(ch); };
-  }, [page.id]);
+  }, [page.id, isPageVisible]);
 
   const toggleFollow = async () => {
     if (followLoading) return;
@@ -995,6 +998,7 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
 
 // ── Main HooksHub ──────────────────────────────────────────────────────────────
 const HooksHub = ({ userId, initialOpenPageId }: { userId: string; initialOpenPageId?: string | null }) => {
+  const isPageVisible = usePageVisibility();
   const [myPages, setMyPages]           = useState<HookPage[]>([]);
   const [suggested, setSuggested]       = useState<HookPage[]>([]);
   const [memberCounts, setMemberCounts] = useState<Record<string, number>>({});
@@ -1039,7 +1043,7 @@ const HooksHub = ({ userId, initialOpenPageId }: { userId: string; initialOpenPa
     setDbError(null);
     // Step 1 — fetch hook_pages without relational join (avoids PostgREST FK dependency)
     const [{ data: mine, error: mErr }, { data: all, error: aErr }] = await Promise.all([
-      supabase.from("hook_pages").select("id, name, description, category, cover_url, avatar_url, owner_id, hook_count, created_at").eq("owner_id", userId).order("created_at", { ascending: false }),
+      supabase.from("hook_pages").select("id, name, description, category, cover_url, avatar_url, owner_id, hook_count, created_at").eq("owner_id", userId).order("created_at", { ascending: false }).limit(20),
       supabase.from("hook_pages").select("id, name, description, category, cover_url, avatar_url, owner_id, hook_count, created_at").neq("owner_id", userId).order("hook_count", { ascending: false }).limit(12),
     ]);
     if (mErr || aErr) {
@@ -1141,13 +1145,14 @@ const HooksHub = ({ userId, initialOpenPageId }: { userId: string; initialOpenPa
   };
 
   useEffect(() => {
+    if (!isPageVisible) return;
     fetchPages();
     // Real-time: any follow/unfollow refreshes the listing
     const ch = supabase.channel("hub-page-followers")
       .on("postgres_changes", { event: "*", schema: "public", table: "page_followers" }, () => fetchPages())
       .subscribe();
     return () => { supabase.removeChannel(ch); };
-  }, [userId, fetchPages]);
+  }, [userId, fetchPages, isPageVisible]);
 
   if (activePage) {
     return (

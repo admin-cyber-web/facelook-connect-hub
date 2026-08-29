@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { memGet, memSet } from "../lib/memCache";
 import { resolveMediaUrl } from "../lib/mediaUrl";
+import { usePageVisibility } from "../hooks/usePageVisibility";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus, X, ChevronLeft, ChevronRight, Eye, Loader2, Music, Mic, Download, Share2, Heart, ChevronUp, MessageCircle, Send, Volume2, VolumeX } from "lucide-react";
@@ -385,7 +386,7 @@ const StoryViewer = ({
 
   // Timer tick — pauses when sheets are open or page is hidden (saves battery)
   useEffect(() => {
-    if (paused || showComments || showViewers) return;
+    if (!isPageVisible || paused || showComments || showViewers) return;
     const tick = () => {
       if (document.hidden) return; // don't fire when screen is off/app backgrounded
       setElapsed(e => {
@@ -395,7 +396,7 @@ const StoryViewer = ({
     };
     timerRef.current = setInterval(tick, 100);
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, [paused, goNext, storyIdx, groupIdx, showComments, showViewers]);
+  }, [paused, goNext, storyIdx, groupIdx, showComments, showViewers, isPageVisible]);
 
   // View tracking
   useEffect(() => {
@@ -1376,6 +1377,7 @@ const StoryBubble = ({
 
 // ── Main StoryBar export ───────────────────────────────────────────────────────
 export const StoryBar = ({ userProfile }: { userProfile?: any }) => {
+  const isPageVisible = usePageVisibility();
   const [groups, setGroups] = useState<StoryGroup[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [viewerState, setViewerState] = useState<{ groupIdx: number; storyIdx: number } | null>(null);
@@ -1406,7 +1408,8 @@ export const StoryBar = ({ userProfile }: { userProfile?: any }) => {
       .from("stories")
       .select("id, user_id, created_at, image_url, media_type, caption, music_url")
       .gte("created_at", since)
-      .order("created_at", { ascending: true });
+      .order("created_at", { ascending: true })
+      .limit(200);
 
     if (fetchError) {
       console.error("[StoryBar] fetch failed:", fetchError.message, "| code:", fetchError.code, "| details:", fetchError.details);
@@ -1419,7 +1422,8 @@ export const StoryBar = ({ userProfile }: { userProfile?: any }) => {
       const { data: blockRows } = await supabase
         .from("user_blocks")
         .select("blocker_id, blocked_id")
-        .or(`blocker_id.eq.${uid},blocked_id.eq.${uid}`);
+        .or(`blocker_id.eq.${uid},blocked_id.eq.${uid}`)
+        .limit(500);
       for (const b of blockRows || []) {
         if (b.blocker_id === uid) blockedSet.add(b.blocked_id);
         if (b.blocked_id === uid) blockedSet.add(b.blocker_id);
@@ -1450,7 +1454,8 @@ export const StoryBar = ({ userProfile }: { userProfile?: any }) => {
         .from("friendships")
         .select("requester_id, addressee_id")
         .eq("status", "accepted")
-        .or(`requester_id.eq.${uid},addressee_id.eq.${uid}`);
+        .or(`requester_id.eq.${uid},addressee_id.eq.${uid}`)
+        .limit(500);
       for (const f of friendRows || []) {
         friendSet.add(f.requester_id === uid ? f.addressee_id : f.requester_id);
       }
@@ -1493,13 +1498,14 @@ export const StoryBar = ({ userProfile }: { userProfile?: any }) => {
   }, []);
 
   useEffect(() => {
+    if (!isPageVisible) return;
     fetchStories();
     const ch = supabase
       .channel("story-bar-global")
       .on("postgres_changes", { event: "*", schema: "public", table: "stories" }, () => fetchStories(true))
       .subscribe();
     return () => { supabase.removeChannel(ch); };
-  }, [fetchStories]);
+  }, [fetchStories, isPageVisible]);
 
   // Listen for notification-click story opens
   useEffect(() => {

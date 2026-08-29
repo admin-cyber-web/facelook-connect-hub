@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, lazy, Suspense } from "react";
+import { usePageVisibility } from "../hooks/usePageVisibility";
 import { motion, AnimatePresence } from "framer-motion";
 import type { Session } from "@supabase/supabase-js";
 import {
@@ -221,8 +222,10 @@ function FrameModePage({ onBack, userProfile, userEmail }: { onBack: () => void;
   const [photoFile, setPhotoFile]         = useState<File | null>(null);
   const [photoPreview, setPhotoPreview]   = useState("");
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const isPageVisible = usePageVisibility();
 
   useEffect(() => {
+    if (!isPageVisible) return;
     fetchRequests();
     const ch = supabase
       .channel("frame-live")
@@ -236,8 +239,8 @@ function FrameModePage({ onBack, userProfile, userEmail }: { onBack: () => void;
         setRequests(prev => prev.filter(r => r.id !== (payload.old as any).id));
       })
       .subscribe();
-    return () => { ch.unsubscribe(); };
-  }, []);
+    return () => { supabase.removeChannel(ch); };
+  }, [isPageVisible]);
 
   const fetchRequests = async () => {
     try {
@@ -1427,7 +1430,7 @@ const Index = ({ session, initialAdminOpen }: { session: Session; initialAdminOp
 
   // Trending Surveys fetch — top 3 by total votes
   useEffect(() => {
-    if (!userId) return;
+    if (!userId || !isPageVisible) return;
     const cKey = "trendingSurveys_v1";
     const hit = memGet<any[]>(cKey);
     if (hit) { setTrendingSurveys(hit); return; }
@@ -1719,8 +1722,8 @@ const Index = ({ session, initialAdminOpen }: { session: Session; initialAdminOp
         setMyFrameRequests(prev => prev.map(r => r.id === (payload.new as FrameRequest).id ? { ...r, ...payload.new as FrameRequest } : r));
       })
       .subscribe();
-    return () => { myCh.unsubscribe(); };
-  }, [userId]);
+    return () => { supabase.removeChannel(myCh); };
+  }, [userId, isPageVisible]);
 
   // ── Fetch & Realtime (Updated for Auto-Refresh) ──────────────────────────────
   useEffect(() => {
@@ -1805,7 +1808,7 @@ const Index = ({ session, initialAdminOpen }: { session: Session; initialAdminOp
       // Step A: fetch existing profile (safe even if table missing)
       const { data, error: fetchErr } = await supabase
         .from("profiles")
-        .select("*")
+        .select("id, full_name, username, avatar_url, bio, school, mobile, location, updated_at, is_private_mode, is_verified, account_status")
         .eq("id", userId)
         .maybeSingle();
 

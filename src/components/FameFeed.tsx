@@ -18,6 +18,7 @@ import { RichCaption } from "./RichCaption";
 import AutoPlayMutedVideo from "./AutoPlayMutedVideo";
 import { maskProfanity, sanitizeText } from "../lib/profanityFilter";
 import { resolveMediaUrl } from "../lib/mediaUrl";
+import { usePageVisibility } from "../hooks/usePageVisibility";
 import {
   Send,
   Heart,
@@ -1981,6 +1982,7 @@ const FameFeed = ({
   const { openProfile } = useProfileViewer();
   const { playPop, playSwoosh } = useSoundEffects();
   const dataCache = useDataCache();
+  const isPageVisible = usePageVisibility();
   const cachedPosts = dataCache.cacheRef.current.famePosts;
   const cachedFlicks = dataCache.cacheRef.current.fameFlicks;
   const [posts, setPosts] = useState<any[]>(() => cachedPosts?.data ?? []);
@@ -2612,7 +2614,8 @@ const FameFeed = ({
             "id, content, author, user_id, parent_id, created_at, is_hidden, hidden_by_name, hidden_by_id",
           )
           .eq("post_id", postId)
-          .order("created_at");
+          .order("created_at")
+          .limit(100);
         if (error) {
           console.warn("[FameFeed] loadComments error:", error.message);
           return;
@@ -3012,12 +3015,13 @@ const FameFeed = ({
   // Pull-to-refresh listener — fired by <PullToRefresh> in Index.tsx.
   useEffect(() => {
     const handler = () => {
+      if (!isPageVisible) return;
       fetchPosts(true);
       fetchFlicks();
     };
     window.addEventListener("flicks-pull-refresh", handler);
     return () => window.removeEventListener("flicks-pull-refresh", handler);
-  }, []);
+  }, [isPageVisible]);
 
   // ── Derived state — must be declared BEFORE any useEffect that references them ──
   // Privacy + visibility filter:
@@ -3059,11 +3063,12 @@ const FameFeed = ({
   }, [fetchLatestCommentPreviews]);
 
   useEffect(() => {
-    if (!visiblePostIdsKey) return;
+    if (!isPageVisible || !visiblePostIdsKey) return;
     fetchCommentPreviewsFnRef.current(visiblePostIdsKey.split(","));
-  }, [visiblePostIdsKey]);
+  }, [visiblePostIdsKey, isPageVisible]);
 
   useEffect(() => {
+    if (!isPageVisible) return;
     // Cache-aware mount: restore from cache instantly, refetch silently if stale (>2min).
     if (posts.length === 0) fetchPosts(true);
     else if (dataCache.isStale("famePosts")) {
@@ -3113,7 +3118,7 @@ const FameFeed = ({
     return () => {
       supabase.removeChannel(sub);
     };
-  }, []);
+  }, [isPageVisible]);
 
   // ── Suggestions fetch — runs immediately on mount, NO auth gate needed ────
   // circles / hook_pages are public data; do NOT gate on currentUserId.

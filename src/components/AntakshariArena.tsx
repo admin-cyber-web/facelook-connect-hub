@@ -9,6 +9,7 @@ import {
   Flame, Music, Award, Loader2
 } from "lucide-react";
 import { useProfileViewer } from "../context/ProfileViewerContext";
+import { usePageVisibility } from "../hooks/usePageVisibility";
 
 /* ── Types ────────────────────────────────────────────────────────────────── */
 interface Profile {
@@ -154,6 +155,7 @@ export default function AntakshariArena({
   onBack: () => void;
 }) {
   const { openProfile } = useProfileViewer();
+  const isPageVisible = usePageVisibility();
 
   const [view, setView] = useState<"home" | "create" | "join" | "lobby" | "game" | "leaderboard">("home");
   const [room, setRoom] = useState<Room | null>(null);
@@ -192,10 +194,11 @@ export default function AntakshariArena({
   }, []);
 
   useEffect(() => {
+    if (!isPageVisible) return;
     fetchPublicRooms();
     const id = setInterval(fetchPublicRooms, 10000);
     return () => clearInterval(id);
-  }, [fetchPublicRooms]);
+  }, [fetchPublicRooms, isPageVisible]);
 
   /* ── Load leaderboard ────────────────────────────────────────────────────── */
   useEffect(() => {
@@ -301,7 +304,7 @@ export default function AntakshariArena({
 
   /* ── Realtime Room Sync ──────────────────────────────────────────────────── */
   useEffect(() => {
-    if (!room?.id || view !== "lobby") return;
+    if (!room?.id || view !== "lobby" || !isPageVisible) return;
 
     const channel = supabase
       .channel(`room-${room.id}`)
@@ -328,7 +331,7 @@ export default function AntakshariArena({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [room?.id, view]);
+  }, [room?.id, view, isPageVisible]);
 
   const fetchMembers = async () => {
     if (!room?.id) return;
