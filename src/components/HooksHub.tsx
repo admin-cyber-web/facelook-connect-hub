@@ -4,8 +4,8 @@ import { toast } from "sonner";
 import { supabase } from "@/lib/supabaseClient";
 import { smartTime } from "@/lib/timeAgo";
 import { memGet, memSet } from "@/lib/memCache";
+import { usePageVisibility } from "@/hooks/usePageVisibility";
 import { MagnetButton } from "./MagnetSystem";
-import { usePageVisibility } from "../hooks/usePageVisibility";
 import {
   Anchor, Plus, ArrowLeft, X, Users, Heart, FileText,
   DollarSign, Send, CheckSquare, Square, Loader2, Star,
@@ -561,6 +561,7 @@ const StatCard = ({ icon, label, value, color }: { icon: React.ReactNode; label:
 const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing = false, initialMemberCount = 0 }:
   { page: HookPage; userId: string; onBack: () => void; onPageUpdated: (p: HookPage) => void;
     initialIsFollowing?: boolean; initialMemberCount?: number }) => {
+  const pageVisible = usePageVisibility();
   const [posts, setPosts]         = useState<PagePost[]>([]);
   const [loading, setLoading]     = useState(true);
   const [hookModal, setHookModal] = useState(false);
@@ -580,7 +581,6 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
   const [confirmDeletePost, setConfirmDeletePost] = useState<string | null>(null);
   const [showDeletePageConfirm, setShowDeletePageConfirm] = useState(false);
   const [deletingPage, setDeletingPage]       = useState(false);
-  const isPageVisible = usePageVisibility();
 
   const fetchPosts = async () => {
     setLoading(true);
@@ -634,16 +634,27 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
   };
 
   useEffect(() => {
-    if (!isPageVisible) return;
+    if (!pageVisible) return;
     fetchPosts();
     fetchFollowData();
+    let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+    const scheduleFollowRefresh = () => {
+      if (refreshTimer) return;
+      refreshTimer = setTimeout(() => {
+        refreshTimer = null;
+        fetchFollowData();
+      }, 1000);
+    };
     // Real-time: watch page_followers for this page
     const ch = supabase.channel(`page-followers-${page.id}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "page_followers",
-        filter: `page_id=eq.${page.id}` }, () => fetchFollowData())
+        filter: `page_id=eq.${page.id}` }, scheduleFollowRefresh)
       .subscribe();
-    return () => { supabase.removeChannel(ch); };
-  }, [page.id, isPageVisible]);
+    return () => {
+      if (refreshTimer) clearTimeout(refreshTimer);
+      supabase.removeChannel(ch);
+    };
+  }, [page.id, pageVisible]);
 
   const toggleFollow = async () => {
     if (followLoading) return;
@@ -998,7 +1009,7 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
 
 // ── Main HooksHub ──────────────────────────────────────────────────────────────
 const HooksHub = ({ userId, initialOpenPageId }: { userId: string; initialOpenPageId?: string | null }) => {
-  const isPageVisible = usePageVisibility();
+  const pageVisible = usePageVisibility();
   const [myPages, setMyPages]           = useState<HookPage[]>([]);
   const [suggested, setSuggested]       = useState<HookPage[]>([]);
   const [memberCounts, setMemberCounts] = useState<Record<string, number>>({});
@@ -1043,7 +1054,7 @@ const HooksHub = ({ userId, initialOpenPageId }: { userId: string; initialOpenPa
     setDbError(null);
     // Step 1 — fetch hook_pages without relational join (avoids PostgREST FK dependency)
     const [{ data: mine, error: mErr }, { data: all, error: aErr }] = await Promise.all([
-      supabase.from("hook_pages").select("id, name, description, category, cover_url, avatar_url, owner_id, hook_count, created_at").eq("owner_id", userId).order("created_at", { ascending: false }).limit(20),
+       supabase.from("hook_pages").select("id, name, description, category, cover_url, avatar_url, owner_id, hook_count, created_at").eq("owner_id", userId).order("created_at", { ascending: false }).limit(50),
       supabase.from("hook_pages").select("id, name, description, category, cover_url, avatar_url, owner_id, hook_count, created_at").neq("owner_id", userId).order("hook_count", { ascending: false }).limit(12),
     ]);
     if (mErr || aErr) {
@@ -1145,14 +1156,25 @@ const HooksHub = ({ userId, initialOpenPageId }: { userId: string; initialOpenPa
   };
 
   useEffect(() => {
-    if (!isPageVisible) return;
+    if (!pageVisible) return;
     fetchPages();
+    let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+    const schedulePagesRefresh = () => {
+      if (refreshTimer) return;
+      refreshTimer = setTimeout(() => {
+        refreshTimer = null;
+        fetchPages();
+      }, 1000);
+    };
     // Real-time: any follow/unfollow refreshes the listing
     const ch = supabase.channel("hub-page-followers")
-      .on("postgres_changes", { event: "*", schema: "public", table: "page_followers" }, () => fetchPages())
+      .on("postgres_changes", { event: "*", schema: "public", table: "page_followers" }, schedulePagesRefresh)
       .subscribe();
-    return () => { supabase.removeChannel(ch); };
-  }, [userId, fetchPages, isPageVisible]);
+    return () => {
+      if (refreshTimer) clearTimeout(refreshTimer);
+      supabase.removeChannel(ch);
+    };
+  }, [userId, fetchPages, pageVisible]);
 
   if (activePage) {
     return (

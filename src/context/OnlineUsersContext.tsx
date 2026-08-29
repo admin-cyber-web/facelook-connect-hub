@@ -21,10 +21,10 @@ interface Props {
 export function OnlineUsersProvider({ userId, children }: Props) {
   const [onlineIds, setOnlineIds] = useState<Set<string>>(new Set());
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
-  const isPageVisible = usePageVisibility();
+  const pageVisible = usePageVisibility();
 
   useEffect(() => {
-    if (!userId || !isPageVisible) {
+    if (!userId || !pageVisible) {
       setOnlineIds(new Set());
       return;
     }
@@ -57,7 +57,7 @@ export function OnlineUsersProvider({ userId, children }: Props) {
       });
       channelRef.current = null;
     };
-  }, [userId, isPageVisible]);
+  }, [userId, pageVisible]);
 
   return (
     <OnlineUsersCtx.Provider value={onlineIds}>

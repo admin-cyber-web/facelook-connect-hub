@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/lib/supabaseClient";
+import { usePageVisibility } from "@/hooks/usePageVisibility";
 import { memGet, memSet } from "@/lib/memCache";
 import { toast } from "sonner";
 import {
@@ -25,7 +26,6 @@ import {
 } from "lucide-react";
 import { useProfileViewer } from "../context/ProfileViewerContext";
 import { useOnlineUsers } from "../context/OnlineUsersContext";
-import { usePageVisibility } from "../hooks/usePageVisibility";
 
 export { ADMIN_EMAILS, isAdminEmail } from "../lib/adminConfig";
 import { ADMIN_EMAILS } from "../lib/adminConfig";
@@ -107,6 +107,7 @@ const AdminDashboard: React.FC<Props> = ({
 }) => {
   const { openProfile } = useProfileViewer();
   const onlineUserIds = useOnlineUsers();
+  const pageVisible = usePageVisibility();
   const [tab, setTab] = useState<Tab>("stats");
   const [loading, setLoading] = useState(true);
   const [users, setUsers] = useState<UserRow[]>([]);
@@ -135,18 +136,16 @@ const AdminDashboard: React.FC<Props> = ({
   const [dismissingId, setDismissingId] = useState<string | null>(null);
   const [, setNowTick] = useState(0);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const isPageVisible = usePageVisibility();
 
   useEffect(() => {
-    if (!isPageVisible) return;
+    if (!pageVisible) return;
     const id = setInterval(() => setNowTick((n) => n + 1), 30 * 1000);
     return () => clearInterval(id);
-  }, [isPageVisible]);
+  }, [pageVisible]);
 
   useEffect(() => {
-    if (!isPageVisible) return;
     fetchAll(false);
-  }, [isPageVisible]);
+  }, []);
 
   useEffect(() => {
     const q = userSearch.trim();
@@ -173,7 +172,7 @@ const AdminDashboard: React.FC<Props> = ({
   }, [userSearch]);
 
   useEffect(() => {
-    if (!isPageVisible) return;
+    if (!pageVisible) return;
     const ch = supabase
       .channel(`admin-dash-${Date.now()}`)
       .on(
@@ -209,7 +208,7 @@ const AdminDashboard: React.FC<Props> = ({
     return () => {
       supabase.removeChannel(ch);
     };
-  }, [isPageVisible]);
+  }, [pageVisible]);
 
   const fetchAll = async (force = false) => {
     const cKey = `adminDash_${currentUserId}`;
@@ -346,9 +345,7 @@ const AdminDashboard: React.FC<Props> = ({
       const { data: studioData } = await supabase
         .from("name_changes")
         .select("*")
-        .eq("status", "pending")
-        .order("created_at", { ascending: false })
-        .limit(100);
+        .eq("status", "pending");
       setStudioRequests((studioData as any[]) || []);
 
     } catch (err) {

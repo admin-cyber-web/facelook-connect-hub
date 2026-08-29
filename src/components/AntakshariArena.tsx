@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "../lib/supabaseClient";
+import { usePageVisibility } from "../hooks/usePageVisibility";
 import {
   Mic2, ArrowLeft, Plus, Shuffle, Trophy, Gift, Calendar,
   Users, Lock, Globe, Clock, Crown, Star, Heart, MessageCircle,
@@ -9,7 +10,6 @@ import {
   Flame, Music, Award, Loader2
 } from "lucide-react";
 import { useProfileViewer } from "../context/ProfileViewerContext";
-import { usePageVisibility } from "../hooks/usePageVisibility";
 
 /* ── Types ────────────────────────────────────────────────────────────────── */
 interface Profile {
@@ -155,7 +155,7 @@ export default function AntakshariArena({
   onBack: () => void;
 }) {
   const { openProfile } = useProfileViewer();
-  const isPageVisible = usePageVisibility();
+  const pageVisible = usePageVisibility();
 
   const [view, setView] = useState<"home" | "create" | "join" | "lobby" | "game" | "leaderboard">("home");
   const [room, setRoom] = useState<Room | null>(null);
@@ -194,11 +194,11 @@ export default function AntakshariArena({
   }, []);
 
   useEffect(() => {
-    if (!isPageVisible) return;
+    if (!pageVisible) return;
     fetchPublicRooms();
     const id = setInterval(fetchPublicRooms, 10000);
     return () => clearInterval(id);
-  }, [fetchPublicRooms, isPageVisible]);
+  }, [fetchPublicRooms, pageVisible]);
 
   /* ── Load leaderboard ────────────────────────────────────────────────────── */
   useEffect(() => {
@@ -304,7 +304,7 @@ export default function AntakshariArena({
 
   /* ── Realtime Room Sync ──────────────────────────────────────────────────── */
   useEffect(() => {
-    if (!room?.id || view !== "lobby" || !isPageVisible) return;
+    if (!room?.id || view !== "lobby" || !pageVisible) return;
 
     const channel = supabase
       .channel(`room-${room.id}`)
@@ -331,7 +331,7 @@ export default function AntakshariArena({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [room?.id, view, isPageVisible]);
+  }, [room?.id, view, pageVisible]);
 
   const fetchMembers = async () => {
     if (!room?.id) return;

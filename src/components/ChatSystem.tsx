@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import { usePageVisibility } from "../hooks/usePageVisibility";
 import { ReactionBar, ReactionBubbles } from "./ReactionBar";
 import { useSoundEffects } from "../hooks/useSoundEffects";
 import { useProfileViewer } from "../context/ProfileViewerContext";
@@ -6,7 +7,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import AdminDashboard from "./AdminDashboard";
 import { isAdminEmail } from "../lib/adminConfig";
 import { resolveMediaUrl } from "../lib/mediaUrl";
-import { usePageVisibility } from "../hooks/usePageVisibility";
 import AdsterraAd from "./AdsterraAd";
 import {
   Search,
@@ -817,9 +817,9 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   onLogout,
   onUnreadCountChange,
 }) => {
+  const pageVisible = usePageVisibility();
   const isAdmin = isAdminEmail(userEmail);
   const { openProfile } = useProfileViewer();
-  const isPageVisible = usePageVisibility();
 
   // ── Message Reactions ─────────────────────────────────────────────────────
   const fetchMsgReactions = useCallback(
@@ -830,9 +830,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
           .select("id")
           .or(
             `and(sender_id.eq.${uid},receiver_id.eq.${otherId}),and(sender_id.eq.${otherId},receiver_id.eq.${uid})`,
-          )
-          .order("created_at", { ascending: false })
-          .limit(200);
+          );
         const msgIdsArr = (msgData || []).map((m: any) => m.id as string);
         if (msgIdsArr.length === 0) return;
         const { data } = await supabase
@@ -958,11 +956,12 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   const [loveProtectPartnerId, setLoveProtectPartnerId] = useState("");
   const [loveProtectInput, setLoveProtectInput] = useState("");
   const [savingLoveProtect, setSavingLoveProtect] = useState(false);
+  // Search-based partner lookup
   const [lpSearchQuery, setLpSearchQuery] = useState("");
   const [lpSearchResults, setLpSearchResults] = useState<{ id: string; full_name: string; username: string; avatar_url: string | null }[]>([]);
-  const [lpSelectedPartner, setLpSelectedPartner] = useState<{ id: string; full_name: string } | null>(null);
-  const [lpSearching, setLpSearching] = useState(false);
-  const [lpPartnerName, setLpPartnerName] = useState("");
+  const [lpSearchLoading, setLpSearchLoading] = useState(false);
+  const [lpSelectedName, setLpSelectedName] = useState("");
+  const lpSearchRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [suspiciousAlert, setSuspiciousAlert] = useState<{
     senderName: string;
   } | null>(null);
@@ -1174,23 +1173,42 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       .eq("user_id", userId)
       .eq("is_active", true)
       .maybeSingle()
-      .then(({ data }) => {
+      .then(async ({ data }) => {
         const row = data as { partner_id: string; is_active: boolean } | null;
         if (row?.partner_id) {
           setLoveProtectPartnerId(row.partner_id);
           setLoveProtectInput(row.partner_id);
           setLoveProtectEnabled(true);
           localStorage.setItem("cx_love_protect", "true");
+          // Also fetch partner's display name
+          const { data: prof } = await supabase
+            .from("profiles")
+            .select("full_name, username")
+            .eq("id", row.partner_id)
+            .maybeSingle();
+          if (prof) {
+            const name = prof.full_name || prof.username || "";
+            setLpSelectedName(name);
+            setLpSearchQuery(name);
+          }
         }
       });
   }, [userId]);
 
   // ── Auto-scroll ───────────────────────────────────────────────────────────
+  // Only trigger when the message COUNT grows (new message), not on seen_at /
+  // reaction / content updates — those patch existing rows and must NOT cause
+  // a forced-reflow scroll on every update.
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    if (messages.length > prevMsgCount.current) {
+    const countIncreased = messages.length > prevMsgCount.current;
+    if (countIncreased) {
       const last = messages[messages.length - 1];
       if (last?.sender_id !== userId && soundEnabled) playSound("receive");
+      // requestAnimationFrame defers the DOM read/write out of the React paint
+      // cycle, preventing a Forced Reflow that heats up the GPU on mobile.
+      requestAnimationFrame(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      });
     }
     prevMsgCount.current = messages.length;
   }, [messages, userId, soundEnabled]);
@@ -1680,7 +1698,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
 
   // ── Bootstrap ─────────────────────────────────────────────────────────────
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || !pageVisible) return;
     fetchFriendships();
     fetchPendingRequests();
     fetchContacts();
@@ -1688,6 +1706,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     fetchStories();
   }, [
     isOpen,
+    pageVisible,
     fetchFriendships,
     fetchPendingRequests,
     fetchContacts,
@@ -1748,7 +1767,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
 
   // ── Story viewer: 15s countdown timer ────────────────────────────────────
   useEffect(() => {
-    if (!isPageVisible || !storyViewerOpen || storyPaused || storyGroups.length === 0) return;
+    if (!storyViewerOpen || storyPaused || storyGroups.length === 0) return;
     storyTimerRef.current = setInterval(() => {
       setStoryElapsed((e) => {
         if (e + 0.1 >= 15) {
@@ -1778,7 +1797,6 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     viewerGroupIdx,
     viewerStoryIdx,
     storyGroups,
-    isPageVisible,
   ]);
 
   // ── Story viewer: reset elapsed on story change ───────────────────────────
@@ -1828,7 +1846,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
 
   // ── Presence: track who's actually online ─────────────────────────────────
   useEffect(() => {
-    if (!isOpen || !userId || !isPageVisible) return;
+    if (!isOpen || !userId || !pageVisible) return;
     const ch = supabase.channel("cx-presence", {
       config: { presence: { key: userId } },
     });
@@ -1851,7 +1869,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       supabase.removeChannel(ch);
       presenceChannelRef.current = null;
     };
-  }, [isOpen, userId, isPageVisible]);
+  }, [isOpen, userId, pageVisible]);
 
   // ── When activeStatus toggles, update presence tracking ───────────────────
   useEffect(() => {
@@ -1866,12 +1884,12 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
 
   // ── Realtime: friendships ─────────────────────────────────────────────────
   useEffect(() => {
-    if (!isOpen || !isPageVisible) return;
+    if (!isOpen || !pageVisible) return;
     const ch = supabase
       .channel(`friendships-rt-${userId}`)
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "friendships", filter: `receiver_id=eq.${userId}` },
+        { event: "INSERT", schema: "public", table: "friendships" },
         (p) => {
           const row = p.new as any;
           if (row.receiver_id === userId || row.sender_id === userId) {
@@ -1883,7 +1901,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       )
       .on(
         "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "friendships", filter: `receiver_id=eq.${userId}` },
+        { event: "UPDATE", schema: "public", table: "friendships" },
         (p) => {
           const row = p.new as any;
           if (row.receiver_id === userId || row.sender_id === userId) {
@@ -1897,16 +1915,16 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     return () => {
       supabase.removeChannel(ch);
     };
-  }, [isOpen, userId, isPageVisible, fetchFriendships, fetchPendingRequests, fetchContacts]);
+  }, [isOpen, userId, pageVisible, fetchFriendships, fetchPendingRequests, fetchContacts]);
 
   // ── Realtime: new messages → alert ────────────────────────────────────────
   useEffect(() => {
-    if (!isOpen || !isPageVisible) return;
+    if (!isOpen || !pageVisible) return;
     const ch = supabase
       .channel(`alerts-rt-${userId}`)
       .on(
         "postgres_changes",
-         { event: "INSERT", schema: "public", table: "messages", filter: `receiver_id=eq.${userId}` },
+        { event: "INSERT", schema: "public", table: "messages" },
         (p) => {
           const msg = p.new as Message;
           if (msg.receiver_id === userId) {
@@ -1937,7 +1955,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       supabase.removeChannel(ch);
     };
     // contacts/mutedChats accessed via refs — channel no longer tears down on every fetch
-  }, [isOpen, userId, isPageVisible]);
+  }, [isOpen, userId, pageVisible]);
 
   // ── Unseen message count (always-on, drives FAB badge) ────────────────────
   const fetchUnseenCount = useCallback(async () => {
@@ -1951,16 +1969,13 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   }, [userId]);
 
   useEffect(() => {
-    if (!userId || !isPageVisible) {
-      setUnseenMsgCount(0);
-      return;
-    }
+    if (!userId || !pageVisible) return;
     fetchUnseenCount();
     const ch = supabase
       .channel(`unseen-count-${userId}`)
       .on(
         "postgres_changes",
-         { event: "INSERT", schema: "public", table: "messages", filter: `receiver_id=eq.${userId}` },
+        { event: "INSERT", schema: "public", table: "messages" },
         (p) => {
           const msg = p.new as any;
           if (msg.receiver_id === userId && !msg.seen_at) {
@@ -1970,7 +1985,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       )
       .on(
         "postgres_changes",
-         { event: "UPDATE", schema: "public", table: "messages", filter: `receiver_id=eq.${userId}` },
+        { event: "UPDATE", schema: "public", table: "messages" },
         (p) => {
           const msg = p.new as any;
           const old = p.old as any;
@@ -1985,7 +2000,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     return () => {
       supabase.removeChannel(ch);
     };
-  }, [userId, isPageVisible, fetchUnseenCount]);
+  }, [userId, pageVisible, fetchUnseenCount]);
 
   // ── Report total unread count to parent (for FAB badge) ──────────────────
   useEffect(() => {
@@ -2023,7 +2038,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
 
   // ── Messages for selected chat ────────────────────────────────────────────
   useEffect(() => {
-    if (!selectedUser || !isPageVisible) return;
+    if (!selectedUser || !pageVisible) return;
     setIsOtherTyping(false);
     setShowChatMenu(false);
     setPanicMode(false);
@@ -2113,12 +2128,11 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     };
 
     // Retry once after 800 ms in case userId arrived slightly after selectedUser
-    let retryTimer: ReturnType<typeof setTimeout> | null = null;
     const runLoad = async () => {
       await load();
       // If still empty and userId exists, retry once (handles async auth init)
       if (!userId) {
-        retryTimer = setTimeout(() => load(), 800);
+        setTimeout(() => load(), 800);
       }
     };
     runLoad().then(() => fetchMsgReactions(userId, selectedUser.id));
@@ -2189,15 +2203,20 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
               }
             });
 
-            // ── Love Protect: check if partner sent love msgs to others ───
+            // ── Love Protect: check partner activity on every incoming message ──
+            // Keyword filter removed — we check on ANY message from partner so
+            // the mechanism is testable. checkLoveProtectViolation decides severity.
             if (
               loveProtectPartnerRef.current &&
-              sid === loveProtectPartnerRef.current &&
-              msg.content &&
-              hasLoveKeyword(msg.content)
+              sid === loveProtectPartnerRef.current
             ) {
+              console.log(
+                "[LoveProtect] Incoming message from partner — running violation check.",
+                { partnerId: loveProtectPartnerRef.current, msgId: msg.id }
+              );
               checkLoveProtectViolation(loveProtectPartnerRef.current).then(
                 (violated) => {
+                  console.log("[LoveProtect] Violation result:", violated);
                   if (violated) {
                     if (loveProtectTimerRef.current)
                       clearTimeout(loveProtectTimerRef.current);
@@ -2209,7 +2228,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                     );
                     loveProtectTimerRef.current = setTimeout(
                       () => setLoveProtectAlert(false),
-                      10000,
+                      15000,
                     );
                   }
                 },
@@ -2242,6 +2261,44 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
           if (deletedId) {
             setMessages((prev) => prev.filter((m) => m.id !== deletedId));
           }
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "message_reactions" },
+        (p) => {
+          const row = (p.new ?? p.old) as {
+            message_id: string;
+            user_id: string;
+            emoji: string;
+          } | null;
+          if (!row) return;
+          setMsgReactions((prev) => {
+            const msgId = row.message_id;
+            const cur = { ...(prev[msgId] ?? {}) };
+            if (p.eventType === "DELETE") {
+              const old = p.old as {
+                message_id: string;
+                user_id: string;
+                emoji: string;
+              };
+              if (cur[old.emoji]) {
+                cur[old.emoji] = cur[old.emoji].filter(
+                  (u) => u !== old.user_id,
+                );
+                if (cur[old.emoji].length === 0) delete cur[old.emoji];
+              }
+            } else {
+              Object.keys(cur).forEach((e) => {
+                cur[e] = cur[e].filter((u) => u !== row.user_id);
+                if (cur[e].length === 0) delete cur[e];
+              });
+              if (!cur[row.emoji]) cur[row.emoji] = [];
+              if (!cur[row.emoji].includes(row.user_id))
+                cur[row.emoji].push(row.user_id);
+            }
+            return { ...prev, [msgId]: cur };
+          });
         },
       )
       .subscribe((status) => {
@@ -2323,9 +2380,8 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       supabase.removeChannel(typingCh);
       typingChannelRef.current = null;
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-      if (retryTimer) clearTimeout(retryTimer);
     };
-  }, [selectedUser, userId, isPageVisible, fetchContacts, fetchMsgReactions]);
+  }, [selectedUser, userId, pageVisible, fetchContacts, fetchMsgReactions]);
 
   // ── Friend actions ────────────────────────────────────────────────────────
   const sendFriendRequest = async (targetId: string) => {
@@ -3293,7 +3349,8 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                 animate={{ y: 0, opacity: 1 }}
                 exit={{ y: -60, opacity: 0 }}
                 transition={{ type: "spring", stiffness: 300, damping: 26 }}
-                className="absolute top-16 left-3 right-3 z-[700] pointer-events-none"
+                className="absolute top-16 left-3 right-3 z-[700] pointer-events-auto"
+                style={{ display: "block" }}
               >
                 <div
                   className="rounded-2xl px-4 py-3 flex items-start gap-3 shadow-2xl border border-pink-500/40"
@@ -3303,7 +3360,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                   }}
                 >
                   <span className="text-2xl shrink-0 mt-0.5">💔</span>
-                  <div>
+                  <div className="flex-1">
                     <p className="text-white font-black text-sm tracking-wide">
                       Love Protect — System Alert
                     </p>
@@ -3313,6 +3370,13 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                       protect your privacy.
                     </p>
                   </div>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); setLoveProtectAlert(false); }}
+                    className="text-pink-300 hover:text-white mt-0.5 shrink-0"
+                  >
+                    <X size={15} />
+                  </button>
                 </div>
               </motion.div>
             )}
@@ -5720,134 +5784,165 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                             exit={{ height: 0, opacity: 0 }}
                             className="overflow-hidden"
                           >
-                            {/* Already linked banner */}
-                            {loveProtectPartnerId && lpPartnerName && (
-                              <div className="flex items-center justify-between rounded-xl px-3 py-2 mb-2 bg-pink-500/10 border border-pink-500/30">
-                                <div>
-                                  <p className={`text-xs font-black text-pink-400`}>✅ Linked to</p>
-                                  <p className={`text-sm font-black ${T.text1}`}>{lpPartnerName}</p>
-                                </div>
-                                <button
-                                  onClick={() => {
+                            <p className={`text-[10px] font-black uppercase tracking-wider mb-1.5 ${T.text3}`}>
+                              Search Partner by Name
+                            </p>
+
+                            {/* Search input */}
+                            <div className="relative mb-2">
+                              <input
+                                value={lpSearchQuery}
+                                onChange={(e) => {
+                                  const q = e.target.value;
+                                  setLpSearchQuery(q);
+                                  // Clear current selection if user edits
+                                  if (lpSelectedName && q !== lpSelectedName) {
                                     setLoveProtectPartnerId("");
+                                    setLpSelectedName("");
                                     loveProtectPartnerRef.current = "";
-                                    setLpSelectedPartner(null);
-                                    setLpPartnerName("");
+                                  }
+                                  // Debounced search
+                                  if (lpSearchRef.current) clearTimeout(lpSearchRef.current);
+                                  if (!q.trim()) { setLpSearchResults([]); return; }
+                                  setLpSearchLoading(true);
+                                  lpSearchRef.current = setTimeout(async () => {
+                                    const { data } = await supabase
+                                      .from("profiles")
+                                      .select("id, full_name, username, avatar_url")
+                                      .or(`full_name.ilike.%${q.trim()}%,username.ilike.%${q.trim()}%`)
+                                      .neq("id", userId ?? "")
+                                      .limit(6);
+                                    setLpSearchResults(data || []);
+                                    setLpSearchLoading(false);
+                                  }, 350);
+                                }}
+                                placeholder="Type your partner's name…"
+                                className={`w-full rounded-xl px-3 py-2.5 text-sm font-semibold outline-none border focus:ring-2 focus:ring-pink-500/30 ${T.searchBg}`}
+                              />
+                              {lpSearchLoading && (
+                                <Loader2 size={13} className="absolute right-3 top-3 animate-spin text-pink-400" />
+                              )}
+                            </div>
+
+                            {/* Search results dropdown */}
+                            {lpSearchResults.length > 0 && !loveProtectPartnerId && (
+                              <div className={`rounded-xl border ${T.divider} overflow-hidden mb-2`}>
+                                {lpSearchResults.map((p) => (
+                                  <button
+                                    key={p.id}
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setLoveProtectPartnerId(p.id);
+                                      loveProtectPartnerRef.current = p.id;
+                                      setLpSelectedName(p.full_name || p.username || "");
+                                      setLpSearchQuery(p.full_name || p.username || "");
+                                      setLpSearchResults([]);
+                                    }}
+                                    className={`w-full flex items-center gap-3 px-3 py-2.5 hover:bg-pink-500/10 text-left transition-all`}
+                                  >
+                                    {p.avatar_url ? (
+                                      <img src={p.avatar_url} alt="" className="w-8 h-8 rounded-full object-cover shrink-0" />
+                                    ) : (
+                                      <div className="w-8 h-8 rounded-full bg-pink-500/20 flex items-center justify-center text-[11px] font-black text-pink-400 shrink-0">
+                                        {(p.full_name || p.username || "?")[0].toUpperCase()}
+                                      </div>
+                                    )}
+                                    <div className="flex-1 min-w-0">
+                                      <p className={`text-sm font-black truncate ${T.text1}`}>{p.full_name || p.username}</p>
+                                      <p className={`text-[10px] truncate ${T.text3}`}>@{p.username}</p>
+                                    </div>
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+
+                            {/* Selected partner chip */}
+                            {loveProtectPartnerId && lpSelectedName && (
+                              <div className="flex items-center gap-2 mb-2 px-3 py-2 rounded-xl bg-pink-500/10 border border-pink-500/30">
+                                <span className="text-pink-400 text-sm">💕</span>
+                                <p className={`text-sm font-black flex-1 text-pink-300`}>{lpSelectedName}</p>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setLoveProtectPartnerId("");
+                                    setLpSelectedName("");
                                     setLpSearchQuery("");
                                     setLpSearchResults([]);
-                                    supabase.from("love_protect_links").update({ is_active: false }).eq("user_id", userId ?? "").then(() => {});
+                                    loveProtectPartnerRef.current = "";
                                   }}
-                                  className="text-[10px] text-red-400 font-black border border-red-400/30 rounded-lg px-2 py-1"
+                                  className="text-pink-400/60 hover:text-pink-400 transition-colors"
                                 >
-                                  Unlink
+                                  <X size={14} />
                                 </button>
                               </div>
                             )}
 
-                            {/* Search bar */}
-                            {!loveProtectPartnerId && (
-                              <>
-                                <p className={`text-[10px] font-black uppercase tracking-wider mb-1.5 ${T.text3}`}>
-                                  Search Partner by Name
-                                </p>
-                                <div className="relative mb-2">
-                                  <input
-                                    value={lpSearchQuery}
-                                    onChange={async (e) => {
-                                      const q = e.target.value;
-                                      setLpSearchQuery(q);
-                                      setLpSelectedPartner(null);
-                                      if (q.trim().length < 2) { setLpSearchResults([]); return; }
-                                      setLpSearching(true);
-                                      const { data } = await supabase
-                                        .from("profiles")
-                                        .select("id, full_name, username, avatar_url")
-                                        .ilike("full_name", `%${q.trim()}%`)
-                                        .neq("id", userId ?? "")
-                                        .limit(6);
-                                      setLpSearchResults(data ?? []);
-                                      setLpSearching(false);
-                                    }}
-                                    placeholder="Type partner's name…"
-                                    className={`w-full rounded-xl px-3 py-2.5 text-sm font-semibold outline-none border focus:ring-2 focus:ring-pink-500/30 ${T.searchBg}`}
-                                  />
-                                  {lpSearching && (
-                                    <Loader2 size={13} className="animate-spin absolute right-3 top-3 text-pink-400" />
-                                  )}
-                                </div>
-
-                                {/* Search results dropdown */}
-                                {lpSearchResults.length > 0 && !lpSelectedPartner && (
-                                  <div className={`rounded-xl border ${T.divider} overflow-hidden mb-2`}>
-                                    {lpSearchResults.map((p) => (
-                                      <button
-                                        key={p.id}
-                                        onClick={() => {
-                                          setLpSelectedPartner({ id: p.id, full_name: p.full_name });
-                                          setLpSearchQuery(p.full_name);
-                                          setLpSearchResults([]);
-                                        }}
-                                        className={`flex items-center gap-3 w-full px-3 py-2.5 hover:bg-white/10 transition-all border-b last:border-b-0 ${T.divider} text-left`}
-                                      >
-                                        <div className="w-8 h-8 rounded-full bg-pink-500/20 flex items-center justify-center text-xs font-black text-pink-300 shrink-0 overflow-hidden">
-                                          {p.avatar_url
-                                            ? <img src={p.avatar_url} className="w-full h-full object-cover" />
-                                            : p.full_name.charAt(0).toUpperCase()}
-                                        </div>
-                                        <div>
-                                          <p className={`text-sm font-black ${T.text1}`}>{p.full_name}</p>
-                                          <p className={`text-[10px] ${T.text3}`}>@{p.username}</p>
-                                        </div>
-                                      </button>
-                                    ))}
-                                  </div>
-                                )}
-
-                                {/* Selected partner chip */}
-                                {lpSelectedPartner && (
-                                  <div className="flex items-center justify-between rounded-xl px-3 py-2 mb-2 bg-pink-500/10 border border-pink-500/30">
-                                    <p className={`text-sm font-black ${T.text1}`}>
-                                      Selected: {lpSelectedPartner.full_name}
-                                    </p>
-                                    <button
-                                      onClick={() => { setLpSelectedPartner(null); setLpSearchQuery(""); }}
-                                      className={`text-[10px] ${T.text3}`}
-                                    >✕</button>
-                                  </div>
-                                )}
-
-                                {/* Link button — only enabled when a profile is selected (has UUID) */}
-                                <button
-                                  onClick={async () => {
-                                    if (!lpSelectedPartner || !userId) return;
-                                    setSavingLoveProtect(true);
-                                    const { error } = await supabase
-                                      .from("love_protect_links")
-                                      .upsert(
-                                        { user_id: userId, partner_id: lpSelectedPartner.id, is_active: true },
-                                        { onConflict: "user_id" },
-                                      );
-                                    if (error) {
-                                      toast.error("Failed to link. Try again.");
-                                    } else {
-                                      setLoveProtectPartnerId(lpSelectedPartner.id);
-                                      loveProtectPartnerRef.current = lpSelectedPartner.id;
-                                      setLpPartnerName(lpSelectedPartner.full_name);
-                                      toast.success("💕 Love Protect linked!");
-                                    }
-                                    setSavingLoveProtect(false);
-                                  }}
-                                  disabled={savingLoveProtect || !lpSelectedPartner}
-                                  className="w-full py-2.5 rounded-xl text-white font-black text-sm flex items-center justify-center gap-2 disabled:opacity-40"
-                                  style={{ background: "linear-gradient(135deg,#f43f5e,#be185d)" }}
-                                >
-                                  {savingLoveProtect
-                                    ? <><Loader2 size={13} className="animate-spin" /> Linking…</>
-                                    : "🔗 Link Partner"}
-                                </button>
-                              </>
+                            {/* Link button */}
+                            <button
+                              type="button"
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                e.preventDefault();
+                                const pid = loveProtectPartnerId.trim();
+                                if (!pid || !userId) {
+                                  toast.error("Please select a partner from the search results first.");
+                                  return;
+                                }
+                                setSavingLoveProtect(true);
+                                const { error } = await supabase
+                                  .from("love_protect_links")
+                                  .upsert(
+                                    { user_id: userId, partner_id: pid, is_active: true },
+                                    { onConflict: "user_id" },
+                                  );
+                                setSavingLoveProtect(false);
+                                if (error) {
+                                  toast.error("Failed to link partner. Please try again.");
+                                } else {
+                                  setLoveProtectInput(pid);
+                                  toast.success("💕 Love Protect linked!");
+                                }
+                              }}
+                              disabled={
+                                savingLoveProtect ||
+                                !loveProtectPartnerId.trim() ||
+                                loveProtectPartnerId.trim() === loveProtectInput
+                              }
+                              className="w-full py-2.5 rounded-xl text-white font-black text-sm flex items-center justify-center gap-2 disabled:opacity-50"
+                              style={{ background: "linear-gradient(135deg,#f43f5e,#be185d)" }}
+                            >
+                              {savingLoveProtect ? (
+                                <><Loader2 size={13} className="animate-spin" /> Linking…</>
+                              ) : loveProtectInput && loveProtectPartnerId === loveProtectInput ? (
+                                "✅ Linked"
+                              ) : (
+                                "🔗 Link Partner"
+                              )}
+                            </button>
+                            {/* ── Manual test button ── */}
+                            {loveProtectPartnerId && (
+                              <button
+                                type="button"
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  console.log("[LoveProtect] Manual test triggered for:", loveProtectPartnerId);
+                                  const violated = await checkLoveProtectViolation(loveProtectPartnerId);
+                                  console.log("[LoveProtect] Manual test result:", violated);
+                                  if (loveProtectTimerRef.current) clearTimeout(loveProtectTimerRef.current);
+                                  setLoveProtectAlert(true);
+                                  loveProtectTimerRef.current = setTimeout(() => setLoveProtectAlert(false), 15000);
+                                  toast.info(violated
+                                    ? "💔 Violation detected — alert is now visible!"
+                                    : "✅ No violation yet. Alert shown for UI test (check console for DB result)."
+                                  );
+                                }}
+                                className="w-full mt-2 py-2 rounded-xl border border-pink-500/40 text-pink-400 font-black text-xs flex items-center justify-center gap-1.5 hover:bg-pink-500/10 transition-all"
+                              >
+                                🧪 Test Alert Now
+                              </button>
                             )}
-
                             <p className={`text-[10px] mt-2 leading-relaxed ${T.text3}`}>
                               If your partner sends romantic messages to multiple people within 1 hour, you'll receive a private system alert — no chat content is revealed.
                             </p>
@@ -6278,4 +6373,6 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   );
 };
 
-export default ChatSystem;
+// React.memo prevents re-renders when parent (Index.tsx) state changes that
+// are unrelated to chat — e.g. active tab switches, profile edits, etc.
+export default React.memo(ChatSystem);

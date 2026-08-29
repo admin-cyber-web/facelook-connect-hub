@@ -1,28 +1,22 @@
 import { useEffect, useState } from "react";
 
 /**
- * Tracks whether the browser page is visible.
+ * True only while this document is visible to the user.
  *
- * Components that own realtime channels or background refreshes should use this
- * to stop network activity while the tab is hidden. The initial value is
- * visible so SSR and the first client render remain safe.
+ * Realtime channels and refresh work should use this as a lifecycle boundary:
+ * a hidden tab cannot benefit from live UI updates, but it can still consume
+ * Supabase bandwidth and keep the mobile radio/CPU awake.
  */
 export function usePageVisibility(): boolean {
-  const [isVisible, setIsVisible] = useState(
-    () => typeof document === "undefined" || document.visibilityState === "visible",
+  const [visible, setVisible] = useState(
+    () => typeof document === "undefined" || !document.hidden,
   );
 
   useEffect(() => {
-    const updateVisibility = () => {
-      setIsVisible(document.visibilityState === "visible");
-    };
-
-    updateVisibility();
-    document.addEventListener("visibilitychange", updateVisibility);
-    return () => {
-      document.removeEventListener("visibilitychange", updateVisibility);
-    };
+    const update = () => setVisible(!document.hidden);
+    document.addEventListener("visibilitychange", update);
+    return () => document.removeEventListener("visibilitychange", update);
   }, []);
 
-  return isVisible;
+  return visible;
 }

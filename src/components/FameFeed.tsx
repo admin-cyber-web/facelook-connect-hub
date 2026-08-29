@@ -11,6 +11,7 @@ import { MagnetButton, PostVoiceStrip, MagnetVoice } from "./MagnetSystem";
 import { useSoundEffects } from "../hooks/useSoundEffects";
 import { useProfileViewer } from "../context/ProfileViewerContext";
 import { useDataCache } from "../context/DataCacheContext";
+import { usePageVisibility } from "../hooks/usePageVisibility";
 import { isAdminEmail } from "../lib/adminConfig";
 import AdsterraAd from "./AdsterraAd";
 import { sharePost } from "../lib/sharePost";
@@ -18,7 +19,6 @@ import { RichCaption } from "./RichCaption";
 import AutoPlayMutedVideo from "./AutoPlayMutedVideo";
 import { maskProfanity, sanitizeText } from "../lib/profanityFilter";
 import { resolveMediaUrl } from "../lib/mediaUrl";
-import { usePageVisibility } from "../hooks/usePageVisibility";
 import {
   Send,
   Heart,
@@ -1982,7 +1982,7 @@ const FameFeed = ({
   const { openProfile } = useProfileViewer();
   const { playPop, playSwoosh } = useSoundEffects();
   const dataCache = useDataCache();
-  const isPageVisible = usePageVisibility();
+  const pageVisible = usePageVisibility();
   const cachedPosts = dataCache.cacheRef.current.famePosts;
   const cachedFlicks = dataCache.cacheRef.current.fameFlicks;
   const [posts, setPosts] = useState<any[]>(() => cachedPosts?.data ?? []);
@@ -2218,6 +2218,7 @@ const FameFeed = ({
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const pageRef = useRef(0);
+  const postsFetchInFlightRef = useRef(false);
 
   // ── On-demand comment cache ──────────────────────────────────────────────
   const [commentsMap, setCommentsMap] = useState<Record<string, any[]>>({});
@@ -2229,7 +2230,8 @@ const FameFeed = ({
       const { data, error } = await supabase
         .from("likes")
         .select("post_id, reaction_type")
-        .eq("user_id", uid);
+        .eq("user_id", uid)
+        .limit(500);
       if (error) {
         console.warn("[FameFeed] fetchLikedPostIds error:", error.message);
         return;
@@ -2614,8 +2616,7 @@ const FameFeed = ({
             "id, content, author, user_id, parent_id, created_at, is_hidden, hidden_by_name, hidden_by_id",
           )
           .eq("post_id", postId)
-          .order("created_at")
-          .limit(100);
+          .order("created_at");
         if (error) {
           console.warn("[FameFeed] loadComments error:", error.message);
           return;
@@ -2828,7 +2829,9 @@ const FameFeed = ({
   };
 
   const fetchPosts = async (reset = false) => {
+    if (postsFetchInFlightRef.current) return;
     if (!reset && (loadingMore || !hasMore)) return;
+    postsFetchInFlightRef.current = true;
     if (reset) {
       pageRef.current = 0;
       setHasMore(true);
@@ -2881,6 +2884,7 @@ const FameFeed = ({
       }
     } catch (e) {
       console.error("[FameFeed] fetchPosts exception:", e);
+      postsFetchInFlightRef.current = false;
       setLoading(false);
       setLoadingMore(false);
       return;
@@ -2929,6 +2933,7 @@ const FameFeed = ({
     setHasMore(rows.length === PAGE_SIZE);
     setLoading(false);
     setLoadingMore(false);
+    postsFetchInFlightRef.current = false;
     // Merge real like counts from likes table — fixes drift when posts.likes_count
     // can't be updated by the current user due to RLS restrictions.
     if (rows.length > 0) {
@@ -2937,6 +2942,7 @@ const FameFeed = ({
         .from("likes")
         .select("post_id")
         .in("post_id", pIds)
+        .limit(2000)
         .then(({ data: lRows }) => {
           if (!lRows || lRows.length === 0) return;
           const cm: Record<string, number> = {};
@@ -3015,13 +3021,13 @@ const FameFeed = ({
   // Pull-to-refresh listener — fired by <PullToRefresh> in Index.tsx.
   useEffect(() => {
     const handler = () => {
-      if (!isPageVisible) return;
+      if (document.hidden) return;
       fetchPosts(true);
       fetchFlicks();
     };
     window.addEventListener("flicks-pull-refresh", handler);
     return () => window.removeEventListener("flicks-pull-refresh", handler);
-  }, [isPageVisible]);
+  }, []);
 
   // ── Derived state — must be declared BEFORE any useEffect that references them ──
   // Privacy + visibility filter:
@@ -3063,12 +3069,12 @@ const FameFeed = ({
   }, [fetchLatestCommentPreviews]);
 
   useEffect(() => {
-    if (!isPageVisible || !visiblePostIdsKey) return;
+    if (!visiblePostIdsKey) return;
     fetchCommentPreviewsFnRef.current(visiblePostIdsKey.split(","));
-  }, [visiblePostIdsKey, isPageVisible]);
+  }, [visiblePostIdsKey]);
 
   useEffect(() => {
-    if (!isPageVisible) return;
+    if (!pageVisible) return;
     // Cache-aware mount: restore from cache instantly, refetch silently if stale (>2min).
     if (posts.length === 0) fetchPosts(true);
     else if (dataCache.isStale("famePosts")) {
@@ -3088,7 +3094,9 @@ const FameFeed = ({
           if (!newPost?.id) return;
           setPosts((prev) => {
             if (prev.some((p) => p.id === newPost.id)) return prev;
-            return [newPost, ...prev];
+            const next = [newPost, ...prev];
+            dataCache.setCache("famePosts", { data: next, fetchedAt: Date.now() });
+            return next;
           });
         },
       )
@@ -3098,31 +3106,39 @@ const FameFeed = ({
         (payload) => {
           const updId = (payload.new as any).id;
           if (deletingPostIdsRef.current.has(updId)) return; // guard: don't restore a post mid-delete
-          setPosts((prev) =>
-            prev.map((p) =>
+          setPosts((prev) => {
+            if (!prev.some((p) => p.id === updId)) return prev;
+            const next = prev.map((p) =>
               p.id === updId ? { ...p, ...(payload.new as any) } : p,
-            ),
-          );
+            );
+            dataCache.setCache("famePosts", { data: next, fetchedAt: Date.now() });
+            return next;
+          });
         },
       )
       .on(
         "postgres_changes",
         { event: "DELETE", schema: "public", table: "posts" },
         (payload) => {
-          setPosts((prev) =>
-            prev.filter((p) => p.id !== (payload.old as any).id),
-          );
+          const deletedId = (payload.old as any).id;
+          setPosts((prev) => {
+            if (!prev.some((p) => p.id === deletedId)) return prev;
+            const next = prev.filter((p) => p.id !== deletedId);
+            dataCache.setCache("famePosts", { data: next, fetchedAt: Date.now() });
+            return next;
+          });
         },
       )
       .subscribe();
     return () => {
       supabase.removeChannel(sub);
     };
-  }, [isPageVisible]);
+  }, [pageVisible]);
 
   // ── Suggestions fetch — runs immediately on mount, NO auth gate needed ────
   // circles / hook_pages are public data; do NOT gate on currentUserId.
   useEffect(() => {
+    if (!pageVisible || suggestionsLoaded) return;
     async function fetchSuggestions() {
 
       // ── 1. Circles (direct table, public) ─────────────────────────────────
@@ -3178,7 +3194,8 @@ const FameFeed = ({
         const { data: memberRows, error: memberErr } = await supabase
           .from("circle_members")
           .select("circle_id")
-          .in("circle_id", cIds);
+      .in("circle_id", cIds)
+      .limit(2000);
         if (memberErr) {
           console.error("[FameFeed] circle_members error →", memberErr.message);
         } else {
@@ -3200,7 +3217,8 @@ const FameFeed = ({
         const { data: ownerProfiles } = await supabase
           .from("profiles")
           .select("id, full_name, username")
-          .in("id", uniqueOwnerIds);
+          .in("id", uniqueOwnerIds)
+          .limit(100);
         if (ownerProfiles) {
           const map: Record<string, string> = {};
           ownerProfiles.forEach((p: any) => {
@@ -3213,7 +3231,7 @@ const FameFeed = ({
       setSuggestionsLoaded(true);
     }
     fetchSuggestions();
-  }, []); // ← [] = run once on mount; public data, no auth needed
+  }, [pageVisible]); // public data; defer the request while the tab is hidden
 
   const handleInFeedAction = async (item: any) => {
     const isGroup = item.type === "group" || item.type === "circle";
