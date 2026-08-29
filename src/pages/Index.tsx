@@ -224,19 +224,6 @@ function FrameModePage({ onBack, userProfile, userEmail }: { onBack: () => void;
 
   useEffect(() => {
     fetchRequests();
-    const ch = supabase
-      .channel("frame-live")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "frame_requests" }, (payload) => {
-        setRequests(prev => [payload.new as FrameRequest, ...prev]);
-      })
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "frame_requests" }, (payload) => {
-        setRequests(prev => prev.map(r => r.id === (payload.new as FrameRequest).id ? { ...r, ...payload.new as FrameRequest } : r));
-      })
-      .on("postgres_changes", { event: "DELETE", schema: "public", table: "frame_requests" }, (payload) => {
-        setRequests(prev => prev.filter(r => r.id !== (payload.old as any).id));
-      })
-      .subscribe();
-     return () => { supabase.removeChannel(ch); };
   }, []);
 
   const fetchRequests = async () => {
@@ -1701,6 +1688,7 @@ const Index = ({ session, initialAdminOpen }: { session: Session; initialAdminOp
     supabase
       .from("frame_requests")
       .select("id, request_code, user_id, user_name, user_avatar, needy_name, needy_photo_url, address, category, mobile, description, collected_amount, target_amount, delivery_charge, support_count, status, is_priority, created_at")
+        .eq("user_id", userId)
       .order("created_at", { ascending: false })
       .limit(30)
       .then(({ data }) => {
@@ -1712,10 +1700,10 @@ const Index = ({ session, initialAdminOpen }: { session: Session; initialAdminOp
 
     const myCh = supabase
       .channel(`my-frame-requests-${userId}`)
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "frame_requests" }, (payload) => {
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "frame_requests", filter: `user_id=eq.${userId}` }, (payload) => {
         setMyFrameRequests(prev => [payload.new as FrameRequest, ...prev]);
       })
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "frame_requests" }, (payload) => {
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "frame_requests", filter: `user_id=eq.${userId}` }, (payload) => {
         setMyFrameRequests(prev => prev.map(r => r.id === (payload.new as FrameRequest).id ? { ...r, ...payload.new as FrameRequest } : r));
       })
       .subscribe();
@@ -1765,7 +1753,11 @@ const Index = ({ session, initialAdminOpen }: { session: Session; initialAdminOp
   //    Wrapped in try/catch so a missing table never crashes the tab.
   useEffect(() => {
     if (!userId) return;
-    const ping = () => {
+    const lastPingAt = { current: 0 };
+    const ping = (force = false) => {
+      const now = Date.now();
+      if (!force && now - lastPingAt.current < 60 * 1000) return;
+      lastPingAt.current = now;
       try {
         supabase.from("profiles")
           .update({ last_seen: new Date().toISOString() })
@@ -1775,15 +1767,35 @@ const Index = ({ session, initialAdminOpen }: { session: Session; initialAdminOp
         void 0;
       }
     };
-    ping(); // immediate
-    const id = setInterval(() => {
+
+    let lastActivityAt = Date.now();
+    const markActive = () => {
+      lastActivityAt = Date.now();
       if (document.visibilityState === "visible") ping();
-    }, 60 * 1000); // every minute while tab is visible
-    const onVis = () => { if (document.visibilityState === "visible") ping(); };
+    };
+    const activityEvents = ["pointerdown", "keydown", "touchstart", "scroll"] as const;
+    activityEvents.forEach((event) => {
+      window.addEventListener(event, markActive, { passive: true });
+    });
+
+    ping(true); // immediate
+    const id = setInterval(() => {
+      const recentlyActive = Date.now() - lastActivityAt < 5 * 60 * 1000;
+      if (document.visibilityState === "visible" && recentlyActive) ping();
+    }, 60 * 1000); // only while visible and recently active
+    const onVis = () => {
+      if (document.visibilityState === "visible") {
+        lastActivityAt = Date.now();
+        ping(true);
+      }
+    };
     document.addEventListener("visibilitychange", onVis);
     return () => {
       clearInterval(id);
       document.removeEventListener("visibilitychange", onVis);
+      activityEvents.forEach((event) => {
+        window.removeEventListener(event, markActive);
+      });
     };
   }, [userId]);
 
@@ -1870,9 +1882,6 @@ const Index = ({ session, initialAdminOpen }: { session: Session; initialAdminOp
         setSuspensionReason(data.suspension_reason || "");
         dataCache.setCache("profile", { data: merged, fetchedAt: Date.now() });
         memSet(profileCacheKey, merged);
-
-        // Update last_seen on every profile fetch so the DB stays fresh (fire-and-forget)
-        supabase.from("profiles").update({ last_seen: new Date().toISOString() }).eq("id", userId).then(() => {});
 
         // Silently patch missing avatar/name into DB (fire-and-forget)
         if (!data.avatar_url || !data.full_name) {

@@ -2211,7 +2211,6 @@ const FameFeed = ({
     // batchFetchAvatars is useCallback([]) — stable reference, safe single dep
   }, [batchFetchAvatars]);
   // Unique channel ID per mount — prevents "cannot add callbacks after subscribe()" error
-  const channelId = useRef(`fame-rt-${Date.now()}`);
 
   // ── Pagination ───────────────────────────────────────────────────────────
   const PAGE_SIZE = 10;
@@ -3069,9 +3068,9 @@ const FameFeed = ({
   }, [fetchLatestCommentPreviews]);
 
   useEffect(() => {
-    if (!visiblePostIdsKey) return;
+    if (!pageVisible || !visiblePostIdsKey) return;
     fetchCommentPreviewsFnRef.current(visiblePostIdsKey.split(","));
-  }, [visiblePostIdsKey]);
+  }, [pageVisible, visiblePostIdsKey]);
 
   useEffect(() => {
     if (!pageVisible) return;
@@ -3084,55 +3083,6 @@ const FameFeed = ({
     }
     if (!flicksLoaded) fetchFlicks();
     else if (dataCache.isStale("fameFlicks")) fetchFlicks();
-    const sub = supabase
-      .channel(channelId.current)
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "posts" },
-        (payload) => {
-          const newPost = payload.new as any;
-          if (!newPost?.id) return;
-          setPosts((prev) => {
-            if (prev.some((p) => p.id === newPost.id)) return prev;
-            const next = [newPost, ...prev];
-            dataCache.setCache("famePosts", { data: next, fetchedAt: Date.now() });
-            return next;
-          });
-        },
-      )
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "posts" },
-        (payload) => {
-          const updId = (payload.new as any).id;
-          if (deletingPostIdsRef.current.has(updId)) return; // guard: don't restore a post mid-delete
-          setPosts((prev) => {
-            if (!prev.some((p) => p.id === updId)) return prev;
-            const next = prev.map((p) =>
-              p.id === updId ? { ...p, ...(payload.new as any) } : p,
-            );
-            dataCache.setCache("famePosts", { data: next, fetchedAt: Date.now() });
-            return next;
-          });
-        },
-      )
-      .on(
-        "postgres_changes",
-        { event: "DELETE", schema: "public", table: "posts" },
-        (payload) => {
-          const deletedId = (payload.old as any).id;
-          setPosts((prev) => {
-            if (!prev.some((p) => p.id === deletedId)) return prev;
-            const next = prev.filter((p) => p.id !== deletedId);
-            dataCache.setCache("famePosts", { data: next, fetchedAt: Date.now() });
-            return next;
-          });
-        },
-      )
-      .subscribe();
-    return () => {
-      supabase.removeChannel(sub);
-    };
   }, [pageVisible]);
 
   // ── Suggestions fetch — runs immediately on mount, NO auth gate needed ────

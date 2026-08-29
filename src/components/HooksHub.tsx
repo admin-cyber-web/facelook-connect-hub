@@ -1158,22 +1158,6 @@ const HooksHub = ({ userId, initialOpenPageId }: { userId: string; initialOpenPa
   useEffect(() => {
     if (!pageVisible) return;
     fetchPages();
-    let refreshTimer: ReturnType<typeof setTimeout> | null = null;
-    const schedulePagesRefresh = () => {
-      if (refreshTimer) return;
-      refreshTimer = setTimeout(() => {
-        refreshTimer = null;
-        fetchPages();
-      }, 1000);
-    };
-    // Real-time: any follow/unfollow refreshes the listing
-    const ch = supabase.channel("hub-page-followers")
-      .on("postgres_changes", { event: "*", schema: "public", table: "page_followers" }, schedulePagesRefresh)
-      .subscribe();
-    return () => {
-      if (refreshTimer) clearTimeout(refreshTimer);
-      supabase.removeChannel(ch);
-    };
   }, [userId, fetchPages, pageVisible]);
 
   if (activePage) {

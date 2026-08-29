@@ -196,12 +196,30 @@ export default function AntakshariArena({
   useEffect(() => {
     if (!pageVisible) return;
     fetchPublicRooms();
-    const id = setInterval(fetchPublicRooms, 10000);
-    return () => clearInterval(id);
+    let lastActivityAt = 0;
+    const markActive = () => {
+      lastActivityAt = Date.now();
+    };
+    const activityEvents = ["pointerdown", "keydown", "touchstart", "scroll"] as const;
+    activityEvents.forEach((event) => {
+      window.addEventListener(event, markActive, { passive: true });
+    });
+    const id = setInterval(() => {
+      if (Date.now() - lastActivityAt < 2 * 60 * 1000) {
+        fetchPublicRooms();
+      }
+    }, 10000);
+    return () => {
+      clearInterval(id);
+      activityEvents.forEach((event) => {
+        window.removeEventListener(event, markActive);
+      });
+    };
   }, [fetchPublicRooms, pageVisible]);
 
   /* ── Load leaderboard ────────────────────────────────────────────────────── */
   useEffect(() => {
+    if (!pageVisible) return;
     supabase
       .from("antakshari_leaderboard")
       .select("user_id, score, wins, matches, profiles(id, full_name, avatar_url, antakshari_level)")
@@ -211,7 +229,7 @@ export default function AntakshariArena({
       .then(({ data }) => {
         if (data) setLeaderboard(data as any);
       });
-  }, []);
+  }, [pageVisible]);
 
   /* ── Create Room ─────────────────────────────────────────────────────────── */
   const handleCreateRoom = async (roomData: {

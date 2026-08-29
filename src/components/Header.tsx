@@ -1904,7 +1904,12 @@ const Header = ({
       .channel(`notif-live-v2-${userId}`)
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "notifications" },
+        {
+          event: "*",
+          schema: "public",
+          table: "notifications",
+          filter: `notifier_id=eq.${userId}`,
+        },
         (payload) => {
           const row = (payload.new || payload.old) as any;
           if (row?.notifier_id !== userId) return;
@@ -1926,7 +1931,12 @@ const Header = ({
       .channel(`friend-live-v2-${userId}`)
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "friendships" },
+        {
+          event: "*",
+          schema: "public",
+          table: "friendships",
+          filter: `receiver_id=eq.${userId}`,
+        },
         (payload) => {
           const row = (payload.new || payload.old) as any;
           if (row?.receiver_id !== userId) return;

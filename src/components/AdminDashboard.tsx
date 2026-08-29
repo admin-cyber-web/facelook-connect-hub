@@ -144,8 +144,8 @@ const AdminDashboard: React.FC<Props> = ({
   }, [pageVisible]);
 
   useEffect(() => {
-    fetchAll(false);
-  }, []);
+    if (pageVisible) fetchAll(false);
+  }, [pageVisible]);
 
   useEffect(() => {
     const q = userSearch.trim();
@@ -170,45 +170,6 @@ const AdminDashboard: React.FC<Props> = ({
       if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
     };
   }, [userSearch]);
-
-  useEffect(() => {
-    if (!pageVisible) return;
-    const ch = supabase
-      .channel(`admin-dash-${Date.now()}`)
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "profiles" },
-        (payload) => {
-          if (payload.new?.id) {
-            setUsers((prev) => [payload.new as UserRow, ...prev]);
-          }
-        },
-      )
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "profiles" },
-        () => fetchAll(true),
-      )
-      .on(
-        "postgres_changes",
-        { event: "DELETE", schema: "public", table: "profiles" },
-        () => fetchAll(true),
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "posts" },
-        () => fetchAll(true),
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "reports" },
-        () => fetchAll(true),
-      )
-      .subscribe();
-    return () => {
-      supabase.removeChannel(ch);
-    };
-  }, [pageVisible]);
 
   const fetchAll = async (force = false) => {
     const cKey = `adminDash_${currentUserId}`;
@@ -809,6 +770,13 @@ const AdminDashboard: React.FC<Props> = ({
             {currentUserEmail}
           </p>
         </div>
+        <button
+          onClick={() => fetchAll(true)}
+          disabled={loading}
+          className="px-3 h-9 rounded-full bg-white/10 text-white/70 text-[10px] font-black border border-white/15 disabled:opacity-40 shrink-0"
+        >
+          Refresh
+        </button>
         <button
           onClick={onClose}
           className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center border border-white/15 shrink-0"

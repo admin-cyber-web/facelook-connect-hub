@@ -1889,7 +1889,12 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       .channel(`friendships-rt-${userId}`)
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "friendships" },
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "friendships",
+          filter: `receiver_id=eq.${userId}`,
+        },
         (p) => {
           const row = p.new as any;
           if (row.receiver_id === userId || row.sender_id === userId) {
@@ -1901,7 +1906,12 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       )
       .on(
         "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "friendships" },
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "friendships",
+          filter: `receiver_id=eq.${userId}`,
+        },
         (p) => {
           const row = p.new as any;
           if (row.receiver_id === userId || row.sender_id === userId) {
@@ -1924,7 +1934,12 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       .channel(`alerts-rt-${userId}`)
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "messages" },
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "messages",
+          filter: `receiver_id=eq.${userId}`,
+        },
         (p) => {
           const msg = p.new as Message;
           if (msg.receiver_id === userId) {
@@ -1975,7 +1990,12 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       .channel(`unseen-count-${userId}`)
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "messages" },
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "messages",
+          filter: `receiver_id=eq.${userId}`,
+        },
         (p) => {
           const msg = p.new as any;
           if (msg.receiver_id === userId && !msg.seen_at) {
@@ -1985,7 +2005,12 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       )
       .on(
         "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "messages" },
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "messages",
+          filter: `receiver_id=eq.${userId}`,
+        },
         (p) => {
           const msg = p.new as any;
           const old = p.old as any;
@@ -2148,7 +2173,12 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       .channel(`conv-${convKey}`)
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "messages" },
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "messages",
+          filter: `sender_id=eq.${selectedUser.id}`,
+        },
         (p) => {
           const msg = p.new as Message;
           const sid = String(msg.sender_id || "").trim();
@@ -2239,7 +2269,12 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       )
       .on(
         "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "messages" },
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "messages",
+          filter: `sender_id=eq.${selectedUser.id}`,
+        },
         (p) => {
           const msg = p.new as Message;
           const relevant =
@@ -2255,50 +2290,17 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       )
       .on(
         "postgres_changes",
-        { event: "DELETE", schema: "public", table: "messages" },
+        {
+          event: "DELETE",
+          schema: "public",
+          table: "messages",
+          filter: `sender_id=eq.${selectedUser.id}`,
+        },
         (p) => {
           const deletedId = (p.old as { id: string })?.id;
           if (deletedId) {
             setMessages((prev) => prev.filter((m) => m.id !== deletedId));
           }
-        },
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "message_reactions" },
-        (p) => {
-          const row = (p.new ?? p.old) as {
-            message_id: string;
-            user_id: string;
-            emoji: string;
-          } | null;
-          if (!row) return;
-          setMsgReactions((prev) => {
-            const msgId = row.message_id;
-            const cur = { ...(prev[msgId] ?? {}) };
-            if (p.eventType === "DELETE") {
-              const old = p.old as {
-                message_id: string;
-                user_id: string;
-                emoji: string;
-              };
-              if (cur[old.emoji]) {
-                cur[old.emoji] = cur[old.emoji].filter(
-                  (u) => u !== old.user_id,
-                );
-                if (cur[old.emoji].length === 0) delete cur[old.emoji];
-              }
-            } else {
-              Object.keys(cur).forEach((e) => {
-                cur[e] = cur[e].filter((u) => u !== row.user_id);
-                if (cur[e].length === 0) delete cur[e];
-              });
-              if (!cur[row.emoji]) cur[row.emoji] = [];
-              if (!cur[row.emoji].includes(row.user_id))
-                cur[row.emoji].push(row.user_id);
-            }
-            return { ...prev, [msgId]: cur };
-          });
         },
       )
       .subscribe((status) => {
@@ -2311,11 +2313,21 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       });
 
     // ── Polling fallback — only fires when realtime is broken or backgrounded ──
+    let lastActivityAt = Date.now();
+    const markChatActive = () => {
+      lastActivityAt = Date.now();
+    };
+    const activityEvents = ["pointerdown", "keydown", "touchstart", "scroll"] as const;
+    activityEvents.forEach((event) => {
+      window.addEventListener(event, markChatActive, { passive: true });
+    });
     const fallbackInterval = setInterval(async () => {
       // Skip entirely when the app/tab is hidden — no need to wake the radio
       if (document.hidden) return;
       // Skip when realtime is healthy — avoid double-fetching on every message
       if (realtimeHealthy) return;
+      // Realtime recovery is only useful while the conversation is active.
+      if (Date.now() - lastActivityAt >= 5 * 60 * 1000) return;
 
       const myId = String(userId || "").trim();
       const partnerId = String(selectedUser.id || "").trim();
@@ -2356,7 +2368,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       // This does a complete replace of setMsgReactions, not a partial merge,
       // so additions AND removals are always reflected correctly.
       await fetchMsgReactions(userId, selectedUser.id);
-    }, 3_000);
+    }, 10_000);
 
     // Typing presence channel
     const typingKey = [userId, selectedUser.id].sort().join("-");
@@ -2376,6 +2388,9 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
 
     return () => {
       clearInterval(fallbackInterval);
+      activityEvents.forEach((event) => {
+        window.removeEventListener(event, markChatActive);
+      });
       supabase.removeChannel(ch);
       supabase.removeChannel(typingCh);
       typingChannelRef.current = null;

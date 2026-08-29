@@ -1500,24 +1500,6 @@ export const StoryBar = ({ userProfile }: { userProfile?: any }) => {
   useEffect(() => {
     if (!pageVisible) return;
     fetchStories();
-    let refreshTimer: ReturnType<typeof setTimeout> | null = null;
-    const scheduleRefresh = () => {
-      // A burst of story writes should produce one refresh, not one full
-      // stories + profiles + privacy query per realtime event.
-      if (refreshTimer) return;
-      refreshTimer = setTimeout(() => {
-        refreshTimer = null;
-        fetchStories(true);
-      }, 1000);
-    };
-    const ch = supabase
-      .channel("story-bar-global")
-      .on("postgres_changes", { event: "*", schema: "public", table: "stories" }, scheduleRefresh)
-      .subscribe();
-    return () => {
-      if (refreshTimer) clearTimeout(refreshTimer);
-      supabase.removeChannel(ch);
-    };
   }, [fetchStories, pageVisible]);
 
   // Listen for notification-click story opens
