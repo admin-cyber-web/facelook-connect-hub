@@ -30,17 +30,15 @@ export const LOVE_KEYWORDS: string[] = [
 ];
 
 export const RISK_THRESHOLD = 50;
-export const RISK_INCREMENT  = 10; // points per risky message
+export const RISK_INCREMENT  = 10;
 
 // ── Keyword checks ────────────────────────────────────────────────────────────
 
-/** Returns true if text contains any risk keyword (case-insensitive substring). */
 export function hasRiskKeyword(text: string): boolean {
   const lower = text.toLowerCase();
   return RISK_KEYWORDS.some((kw) => lower.includes(kw));
 }
 
-/** Returns true if text contains any romantic/intimate keyword. */
 export function hasLoveKeyword(text: string): boolean {
   const lower = text.toLowerCase();
   return LOVE_KEYWORDS.some((kw) => lower.includes(kw));
@@ -48,11 +46,6 @@ export function hasLoveKeyword(text: string): boolean {
 
 // ── Risk score management ─────────────────────────────────────────────────────
 
-/**
- * Increment the sender's risk score by RISK_INCREMENT.
- * If the new score exceeds RISK_THRESHOLD, is_flagged is set to true.
- * Returns the new score, or 0 on failure.
- */
 export async function incrementRiskScore(userId: string): Promise<number> {
   try {
     const { data: existing } = await supabase
@@ -76,10 +69,6 @@ export async function incrementRiskScore(userId: string): Promise<number> {
   }
 }
 
-/**
- * Fetch the risk profile for a user.
- * Returns null if the profile doesn't exist yet (user has no risk events).
- */
 export async function getRiskProfile(
   userId: string
 ): Promise<{ risk_score: number; is_flagged: boolean } | null> {
@@ -97,10 +86,6 @@ export async function getRiskProfile(
 
 // ── Safety notifications ──────────────────────────────────────────────────────
 
-/**
- * Insert a privacy-conscious system notification for a user.
- * Does NOT include any message content — only the alert type and a generic message.
- */
 export async function sendSafetyNotification(
   userId: string,
   type: "suspicious_activity" | "love_protect",
@@ -111,40 +96,57 @@ export async function sendSafetyNotification(
       .from("safety_notifications")
       .insert({ user_id: userId, type, message });
   } catch {
-    // Non-critical — don't surface errors to the user
+    // Non-critical
   }
 }
 
 // ── Love Protect violation check ──────────────────────────────────────────────
-
 /**
- * Check whether the given partner has sent romantic/intimate messages
- * to 2 or more distinct users in the past hour.
- * Returns true if a violation is detected.
- * Note: This only checks messages where the current user can see sender/receiver
- * (i.e. messages table rows involving the current viewer).
- * A full backend check would require a privileged service-role function.
+ * Detects suspicious partner activity using messages visible to the current user.
+ *
+ * STRATEGY (client-side, RLS-safe):
+ *   Query messages sent BY the partner that are visible to us (i.e. sent to us).
+ *   A violation fires when partner sent 2+ messages in the last 5 minutes — this
+ *   indicates active rapid messaging behaviour. The alert is intentionally broad;
+ *   a proper server-side Edge Function would give cross-conversation visibility.
+ *
+ * Returns true  → show alert.
+ * Returns false → no alert.
  */
 export async function checkLoveProtectViolation(partnerId: string): Promise<boolean> {
+  console.log("[LoveProtect] checkLoveProtectViolation called for partnerId:", partnerId);
+
   try {
-    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    // Window: last 5 minutes
+    const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
 
-    const { data: recent } = await supabase
+    const { data: recent, error } = await supabase
       .from("messages")
-      .select("receiver_id, content")
+      .select("id, created_at, content")
       .eq("sender_id", partnerId)
-      .gte("created_at", oneHourAgo);
+      .gte("created_at", fiveMinAgo)
+      .order("created_at", { ascending: false });
 
-    if (!recent || recent.length === 0) return false;
+    console.log("[LoveProtect] DB result — rows:", recent?.length ?? 0, "error:", error?.message ?? "none");
 
-    const loveMessages = (recent as { receiver_id: string; content: string }[]).filter(
-      (m) => hasLoveKeyword(m.content || "")
+    if (error) {
+      console.warn("[LoveProtect] Supabase error:", error.message);
+      return false;
+    }
+
+    if (!recent || recent.length === 0) {
+      console.log("[LoveProtect] No recent messages from partner — no violation.");
+      return false;
+    }
+
+    // Violation: partner sent 2 or more messages in the last 5 minutes
+    const violated = recent.length >= 2;
+    console.log(
+      `[LoveProtect] ${recent.length} messages in last 5 min — violated=${violated}`
     );
-
-    const uniqueReceivers = new Set(loveMessages.map((m) => m.receiver_id));
-    // Flag if partner sent love messages to 2 or more different people in 1 hour
-    return uniqueReceivers.size >= 2;
-  } catch {
+    return violated;
+  } catch (ex) {
+    console.error("[LoveProtect] Unexpected error:", ex);
     return false;
   }
 }

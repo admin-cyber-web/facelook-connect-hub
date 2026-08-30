@@ -7,6 +7,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { supabase } from "@/lib/supabaseClient";
 import type { Session } from "@supabase/supabase-js";
+import { registerPushPlayer } from "@/lib/oneSignalPush";
 import { Plus } from "lucide-react";
 import AdminPostPanel from "./components/AdminPostPanel";
 import CurvedEdgeOverlay from "./components/CurvedEdgeOverlay";
@@ -15,14 +16,15 @@ import { DataCacheProvider } from "./context/DataCacheContext";
 import { OnlineUsersProvider } from "./context/OnlineUsersContext";
 import { HelmetProvider, Helmet } from "react-helmet-async";
 
-const Index        = lazy(() => import("./pages/Index"));
-const Privacy      = lazy(() => import("./pages/Privacy"));
-const Terms        = lazy(() => import("./pages/Terms"));
-const DataInfo     = lazy(() => import("./pages/DataInfo"));
-const NotFound     = lazy(() => import("./pages/NotFound"));
-const LoginScreen  = lazy(() => import("./components/LoginScreen"));
-const PostDetail   = lazy(() => import("./pages/PostDetail"));
-const SurveyDetail = lazy(() => import("./pages/SurveyDetail"));
+const Index         = lazy(() => import("./pages/Index"));
+const Privacy       = lazy(() => import("./pages/Privacy"));
+const Terms         = lazy(() => import("./pages/Terms"));
+const DataInfo      = lazy(() => import("./pages/DataInfo"));
+const NotFound      = lazy(() => import("./pages/NotFound"));
+const LoginScreen   = lazy(() => import("./components/LoginScreen"));
+const PostDetail    = lazy(() => import("./pages/PostDetail"));
+const SurveyDetail  = lazy(() => import("./pages/SurveyDetail"));
+const InviteLanding = lazy(() => import("./pages/InviteLanding"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -63,8 +65,32 @@ const App = () => {
 
     const { data: listener } = supabase.auth.onAuthStateChange((event, s) => {
       console.log(`[Auth] onAuthStateChange → event=${event}  user=${s?.user?.email ?? "none"}`);
-      if (event === "INITIAL_SESSION") return;
+      // INITIAL_SESSION is handled by getSession() above.
+      // TOKEN_REFRESHED fires silently every ~hour — skipping it prevents a full
+      // app-tree re-render / re-mount that causes overheating on mobile.
+      if (
+        event === "INITIAL_SESSION" ||
+        event === "TOKEN_REFRESHED" ||
+        event === "MFA_CHALLENGE_VERIFIED"
+      ) return;
       setSession(s);
+      // Register OneSignal push subscription whenever a user signs in
+      if (event === "SIGNED_IN" && s?.user?.id) {
+        registerPushPlayer(s.user.id);
+        // ── Referral tracking — log invite chain when user joined via /invite?ref= ──
+        const referrerId = localStorage.getItem("flicks_referrer");
+        if (referrerId && referrerId !== s.user.id) {
+          supabase.from("magnet_chains").upsert({
+            post_id:    `referral_${referrerId}`,
+            post_type:  "referral",
+            user_id:    s.user.id,
+            invited_by: referrerId,
+            depth:      1,
+          }, { onConflict: "user_id,post_id,post_type", ignoreDuplicates: true })
+            .then(() => localStorage.removeItem("flicks_referrer"))
+            .catch(() => {});
+        }
+      }
     });
 
     return () => listener.subscription.unsubscribe();
@@ -131,6 +157,7 @@ const App = () => {
                         <Route path="/terms"       element={<Terms />} />
                         <Route path="/data-info"   element={<DataInfo />} />
                         <Route path="/survey/:id"  element={<SurveyDetail />} />
+                        <Route path="/invite"      element={<InviteLanding />} />
                         <Route path="*"            element={<LoginScreen />} />
                       </Routes>
                     ) : (
@@ -141,6 +168,7 @@ const App = () => {
                         <Route path="/data-info"   element={<DataInfo />} />
                         <Route path="/post/:id"    element={<PostDetail />} />
                         <Route path="/survey/:id"  element={<SurveyDetail />} />
+                        <Route path="/invite"      element={<InviteLanding />} />
                         <Route
                           path="/admin"
                           element={

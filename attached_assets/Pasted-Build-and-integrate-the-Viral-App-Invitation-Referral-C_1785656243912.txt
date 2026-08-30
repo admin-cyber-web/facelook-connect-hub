@@ -1,0 +1,19 @@
+Build and integrate the Viral App Invitation & Referral Card system with an animated UI banner into the Flicks India project. 
+
+CRITICAL ASSET INSTRUCTION: DO NOT use any old, legacy, or default placeholder images from previous components. Build a brand-new, fresh visual layout matching the exact design specs below.
+
+1. Visual & UI Design Requirements (Invite Card Component):
+   - Design a gorgeous promotional invite card component using deep midnight maroon background and vibrant electric lemon yellow accents.
+   - Include a sleek mobile app preview graphic in the center displaying a vibrant social feed, surrounded by floating badges/icons representing core features ("No Fake News", "Full Protected Security", "Real Connections").
+   - Display bold professional typography at the bottom: "Join Flicks India - Update Everywhere, Every Time".
+   - Include a prominent, glowing electric lemon yellow "Join Now" button featuring a smooth CSS pulse/glow animation effect to attract user attention.
+
+2. Exact UI Placement Locations:
+   - **Power Dashboard / Profile Section:** Integrate this new invite card prominently so users can view their referral link, copy it instantly, and share via WhatsApp/Social buttons.
+   - **Viral Chain Hub / Magnet Chains View:** Place the invite card/trigger right inside the viral chain interface.
+   - **Quick Floating / Header Navigation Action:** Provide a quick-access "Invite" button or icon in the main header/navigation bar.
+
+3. Functional Logic & Routing:
+   - Generate unique referral links (e.g., `flicksindia.online/invite?ref=USERNAME_OR_ID`).
+   - Setup dynamic Open Graph (`og:image`, `og:title`, `og:description`) meta tags on the invite route so shared links on WhatsApp and social platforms display this gorgeous card preview.
+   - Create a dedicated landing page (`/invite`) showcasing the new promotional card with the animated "Join Now" button. Clicking "Join Now" smoothly routes the user to the Login/Signup page while saving the referrer ID to log the connection in the `magnet_chains` database.

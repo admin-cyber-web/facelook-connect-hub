@@ -3,6 +3,39 @@ import App from "./App.tsx";
 import "./index.css";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 
+// ── Capacitor Android: tag <html> so CSS can apply platform-aware safe-area
+//    minimums. Must run before React renders so the CSS variable is live.
+(function detectCapacitorPlatform() {
+  try {
+    const cap = (window as any).Capacitor;
+    if (!cap?.isNativePlatform?.()) return;
+    document.documentElement.classList.add("cap-native");
+    if (cap.getPlatform?.() === "android") {
+      document.documentElement.classList.add("cap-android");
+    }
+  } catch {
+    // non-Capacitor environment — safe to ignore
+  }
+})();
+
+// OneSignal is loaded via CDN script in index.html.
+// Only initialise on the production domain — skip silently on Replit dev / localhost.
+const ONESIGNAL_DOMAIN = "flicksindia.online";
+if (window.location.hostname === ONESIGNAL_DOMAIN) {
+  window.OneSignalDeferred = window.OneSignalDeferred || [];
+  window.OneSignalDeferred.push(async (OneSignal: any) => {
+    try {
+      await OneSignal.init({
+        appId: "cee03105-9658-4f06-98fa-70957cb0e1cf",
+        serviceWorkerPath: "/OneSignalSDKWorker.js",
+        notifyButton: { enable: false },
+      });
+    } catch (err) {
+      console.warn("[OneSignal] init error:", err);
+    }
+  });
+}
+
 createRoot(document.getElementById("root")!).render(
   <ErrorBoundary
     fallback={

@@ -122,6 +122,41 @@ function sitemapPlugin(): Plugin {
   };
 }
 
+// ── APK download middleware plugin ────────────────────────────────────────────
+// Serves /download/apk → app-release-signed.apk (or public/app.apk fallback)
+// with correct Content-Type and Content-Disposition so browsers trigger a save.
+// The binary is gitignored so this only runs in the Replit dev environment.
+function apkDownloadPlugin(): Plugin {
+  const candidates = [
+    path.resolve(__dirname, "app-release-signed.apk"),
+    path.resolve(__dirname, "public", "app.apk"),
+  ];
+
+  function attachApkHandler(middlewares: any) {
+    middlewares.use("/download/apk", (req: any, res: any, next: any) => {
+      const apkPath = candidates.find(fs.existsSync);
+      if (!apkPath) {
+        res.statusCode = 404;
+        res.end("APK not found on disk.");
+        return;
+      }
+      const stat = fs.statSync(apkPath);
+      res.setHeader("Content-Type", "application/vnd.android.package-archive");
+      res.setHeader("Content-Disposition", 'attachment; filename="FlicksIndia.apk"');
+      res.setHeader("Content-Length", stat.size);
+      res.setHeader("Cache-Control", "no-store");
+      res.statusCode = 200;
+      fs.createReadStream(apkPath).pipe(res);
+    });
+  }
+
+  return {
+    name: "flicks-apk-download",
+    configureServer(server) { attachApkHandler(server.middlewares); },
+    configurePreviewServer(server) { attachApkHandler(server.middlewares); },
+  };
+}
+
 export default defineConfig({
   base: "/",
 
@@ -143,7 +178,7 @@ export default defineConfig({
     allowedHosts: true,
   },
 
-  plugins: [react(), sitemapPlugin()],
+  plugins: [react(), sitemapPlugin(), apkDownloadPlugin()],
 
   resolve: {
     alias: { "@": path.resolve(__dirname, "./src") },
@@ -158,7 +193,7 @@ export default defineConfig({
   build: {
     chunkSizeWarningLimit: 600,
     rollupOptions: {
-      external: ["onnxruntime-web", "onnxruntime-web/webgpu", "@imgly/background-removal"],
+      external: ["onnxruntime-web", "onnxruntime-web/webgpu", "@imgly/background-removal", "@google/generative-ai"],
       onwarn(warning, warn) {
         if (warning.code === "CIRCULAR_DEPENDENCY") {
           console.error("🔴 CIRCULAR:", warning.message);

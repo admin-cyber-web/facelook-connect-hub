@@ -1,4 +1,4 @@
-modules = ["nodejs-20", "web", "python-3.11"]
+modules = ["nodejs-20", "web", "python-base-3.13"]
 
 [agent]
 expertMode = true
@@ -6,7 +6,7 @@ stack = "BEST_EFFORT_FALLBACK"
 
 [nix]
 channel = "stable-25_05"
-packages = ["psmisc", "inshellisense"]
+packages = ["psmisc", "inshellisense", "zulu17"]
 
 [deployment]
 deploymentTarget = "autoscale"
@@ -20,13 +20,13 @@ runButton = "Project"
 name = "Start application"
 author = "agent"
 
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "npm run dev"
-waitForPort = 5000
-
 [workflows.workflow.metadata]
 outputType = "webview"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "fuser -k 5000/tcp 2>/dev/null; sleep 1; npm run dev"
+waitForPort = 5000
 
 [[workflows.workflow]]
 name = "Auto News Poster"
@@ -60,25 +60,26 @@ router = "path"
 PORT = "23636"
 BASE_PATH = "/__mockup/"
 
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Start application"
+
 [[ports]]
 localPort = 5000
 externalPort = 80
 
 [[ports]]
 localPort = 5001
-externalPort = 3002
-
-[[ports]]
-localPort = 5173
-externalPort = 5173
-
-[[ports]]
-localPort = 5174
-externalPort = 3001
+externalPort = 3000
 
 [[ports]]
 localPort = 23636
-externalPort = 4200
+externalPort = 3001
 
 [userenv]
 [userenv.shared]

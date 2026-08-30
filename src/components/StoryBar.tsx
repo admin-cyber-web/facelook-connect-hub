@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { memGet, memSet } from "../lib/memCache";
-import { usePageVisibility } from "../hooks/usePageVisibility";
 import { resolveMediaUrl } from "../lib/mediaUrl";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
@@ -552,7 +551,7 @@ const StoryViewer = ({
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         className="fixed inset-0 z-[999] bg-black flex flex-col touch-none overflow-x-hidden"
-        style={{ paddingTop: "env(safe-area-inset-top)", maxWidth: "100vw", width: "100%" }}
+        style={{ paddingTop: "var(--cap-safe-top)", maxWidth: "100vw", width: "100%" }}
         onPointerDown={() => setPaused(true)}
         onPointerUp={() => setPaused(false)}
         onPointerLeave={() => setPaused(false)}
@@ -561,7 +560,7 @@ const StoryViewer = ({
         <ProgressSegments total={totalInGroup} current={storyIdx} elapsed={elapsed} duration={DURATION} />
 
         {/* Close button — top-right, always on top */}
-        <div className="absolute top-4 right-4 z-[100]">
+        <div className="absolute right-4 z-[100]" style={{ top: "calc(var(--cap-safe-top) + 16px)" }}>
           <button
             className="w-10 h-10 rounded-full bg-black/70 backdrop-blur-md flex items-center justify-center border border-white/40 shadow-xl active:scale-90 transition-transform"
             onPointerDown={e => e.stopPropagation()} onPointerUp={e => e.stopPropagation()}
@@ -928,33 +927,28 @@ const ViewerListSheet = ({
   storyId: string;
   onClose: () => void;
 }) => {
-  const [viewers, setViewers] = useState<Array<{ id: string; viewed_at: string; profile: { full_name: string; avatar_url?: string } }>>([]);
+  const [viewers, setViewers] = useState<Array<{ id: string; viewed_at: string; full_name: string; username?: string; avatar_url?: string }>>([]);
   const [likedSet, setLikedSet] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
       setLoading(true);
-      const { data: rows } = await supabase
-        .from("story_views")
-        .select("viewer_id, viewed_at")
-        .eq("story_id", storyId)
-        .order("viewed_at", { ascending: false });
-      const ids = [...new Set((rows || []).map((r: any) => r.viewer_id))];
-      let pmap: Record<string, any> = {};
-      if (ids.length) {
-        const { data: profs } = await supabase
-          .from("profiles").select("id, full_name, avatar_url").in("id", ids);
-        (profs || []).forEach((p: any) => { pmap[p.id] = p; });
-      }
-      const { data: likes } = await supabase
-        .from("story_likes").select("user_id").eq("story_id", storyId);
+      const [{ data: rows }, { data: likes }] = await Promise.all([
+        // Use RPC to get a flat, reliable join of story_views + profiles
+        supabase.rpc("get_story_viewers_list", { p_story_id: storyId }),
+        supabase.from("story_likes").select("user_id").eq("story_id", storyId),
+      ]);
       setLikedSet(new Set((likes || []).map((l: any) => l.user_id)));
-      setViewers((rows || []).map((r: any) => ({
-        id: r.viewer_id,
-        viewed_at: r.viewed_at,
-        profile: pmap[r.viewer_id] || { full_name: "User" },
-      })));
+      setViewers(
+        (rows || []).map((r: any) => ({
+          id: r.viewer_id,
+          viewed_at: r.viewed_at,
+          full_name: r.full_name || "User",
+          username: r.username,
+          avatar_url: r.avatar_url,
+        }))
+      );
       setLoading(false);
     })();
   }, [storyId]);
@@ -999,18 +993,21 @@ const ViewerListSheet = ({
           ) : (
             viewers.map(v => (
               <div key={v.id} className="flex items-center gap-3 px-3 py-2.5 hover:bg-[#c4e8d4] rounded-xl">
-                {v.profile.avatar_url ? (
-                  <img src={v.profile.avatar_url} className="w-11 h-11 rounded-full object-cover" loading="lazy" crossOrigin="anonymous" referrerPolicy="no-referrer" decoding="async"/>
+                {v.avatar_url ? (
+                  <img src={v.avatar_url} className="w-11 h-11 rounded-full object-cover" loading="lazy" crossOrigin="anonymous" referrerPolicy="no-referrer" decoding="async"/>
                 ) : (
                   <div
                     className="w-11 h-11 rounded-full flex items-center justify-center text-white font-black"
                     style={{ background: gradFor(v.id) }}
                   >
-                    {v.profile.full_name?.[0] || "U"}
+                    {v.full_name?.[0] || "U"}
                   </div>
                 )}
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold text-gray-900 truncate">{v.profile.full_name}</p>
+                  <p className="text-sm font-bold text-gray-900 truncate">{v.full_name}</p>
+                  {v.username && (
+                    <p className="text-[11px] text-gray-400 truncate">@{v.username}</p>
+                  )}
                   <p className="text-[11px] text-gray-400">
                     {new Date(v.viewed_at).toLocaleString(undefined, { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "short" })}
                   </p>
@@ -1377,7 +1374,6 @@ const StoryBubble = ({
 
 // ── Main StoryBar export ───────────────────────────────────────────────────────
 export const StoryBar = ({ userProfile }: { userProfile?: any }) => {
-  const pageVisible = usePageVisibility();
   const [groups, setGroups] = useState<StoryGroup[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [viewerState, setViewerState] = useState<{ groupIdx: number; storyIdx: number } | null>(null);
@@ -1409,7 +1405,7 @@ export const StoryBar = ({ userProfile }: { userProfile?: any }) => {
       .select("id, user_id, created_at, image_url, media_type, caption, music_url")
       .gte("created_at", since)
       .order("created_at", { ascending: true })
-      .limit(100);
+      .limit(300);
 
     if (fetchError) {
       console.error("[StoryBar] fetch failed:", fetchError.message, "| code:", fetchError.code, "| details:", fetchError.details);
@@ -1498,9 +1494,22 @@ export const StoryBar = ({ userProfile }: { userProfile?: any }) => {
   }, []);
 
   useEffect(() => {
-    if (!pageVisible) return;
     fetchStories();
-  }, [fetchStories, pageVisible]);
+    // Debounced refetch — prevents burst of DB reads when many story events fire at once
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    const debouncedFetch = () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => fetchStories(true), 3000);
+    };
+    const ch = supabase
+      .channel("story-bar-global")
+      .on("postgres_changes", { event: "*", schema: "public", table: "stories" }, debouncedFetch)
+      .subscribe();
+    return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      supabase.removeChannel(ch);
+    };
+  }, [fetchStories]);
 
   // Listen for notification-click story opens
   useEffect(() => {

@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { usePageVisibility } from "../hooks/usePageVisibility";
 import {
   Bell,
   Search,
@@ -28,6 +27,7 @@ import {
   Trash2,
   Share2,
   Reply,
+  Anchor,
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { toast } from "sonner";
@@ -201,6 +201,21 @@ const NOTIF_META: Record<
     color: "bg-teal-500/20 text-teal-400",
     label: "sent you a link.",
   },
+  hook_invite: {
+    icon: <Anchor size={13} />,
+    color: "bg-blue-500/20 text-blue-400",
+    label: "sent you a hook invitation.",
+  },
+  hook_follow: {
+    icon: <Anchor size={13} />,
+    color: "bg-indigo-500/20 text-indigo-400",
+    label: "started following your hook page.",
+  },
+  hook_invite_accepted: {
+    icon: <Anchor size={13} />,
+    color: "bg-green-500/20 text-green-400",
+    label: "accepted your hook invitation — you can now post!",
+  },
 };
 
 // ── Extract quoted comment text from content (handles both new "comment" and old hindi "ne ... \"text\"") ──
@@ -254,6 +269,14 @@ function formatNotifAction(
   if (["share", "circle_share", "hook_share"].includes(type)) {
     const rich = parseRichShare(content);
     return { text: rich?.text ?? meta?.label ?? "shared your content." };
+  }
+  // Hook page follow — show the page name dynamically
+  if (type === "hook_follow") {
+    return { text: content ? `started following your "${content}" page.` : "started following your hook page." };
+  }
+  // Hook invite — show which page they were invited to
+  if (type === "hook_invite") {
+    return { text: content ? `invited you to join "${content}".` : "sent you a hook invitation." };
   }
   if (meta) return { text: meta.label };
   // Fallback: try to clean any legacy hindi content
@@ -1399,7 +1422,8 @@ const Header = ({
   chatBadge?: number;
   userId?: string;
 }) => {
-  const pageVisible = usePageVisibility();
+  // ── Profile viewer (for routing follow notifications) ──────────────────────
+  const { openProfile } = useProfileViewer();
   // ── Existing state ─────────────────────────────────────────────────────────
   const [notifications, setNotifications] = useState<any[]>([]);
   const [friendRequests, setFriendRequests] = useState<any[]>([]);
@@ -1522,10 +1546,11 @@ const Header = ({
     if (!userId) return;
     const { data } = await supabase
       .from("friendships")
-      .select("*")
+      .select("id, sender_id, receiver_id, status, created_at")
       .eq("receiver_id", userId)
       .eq("status", "pending")
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false })
+      .limit(20);
     if (data && data.length > 0) {
       const senderIds = [...new Set(data.map((r) => r.sender_id))];
       const { data: profiles } = await supabase
@@ -1829,8 +1854,13 @@ const Header = ({
       return;
     }
 
-    // Follow / Friend accepted → open DM with that person
-    if (["follow", "friend_accepted"].includes(n.type) && n.actor_id) {
+    // Follow → open follower's profile; friend_accepted → open DM
+    if (n.type === "follow" && n.actor_id) {
+      setShowNotif(false);
+      openProfile(n.actor_id);
+      return;
+    }
+    if (n.type === "friend_accepted" && n.actor_id) {
       setShowNotif(false);
       window.dispatchEvent(new CustomEvent("flicks:open-chat", {
         detail: {
@@ -1851,8 +1881,9 @@ const Header = ({
       return;
     }
 
-    // Hook / page notifications → switch to Hooks feature
-    if (["hook_post_like", "hook_post_comment", "hook_share"].includes(n.type) && n.entity_id) {
+    // Hook / page notifications → navigate to that hook page
+    if (["hook_post_like", "hook_post_comment", "hook_share",
+         "hook_invite", "hook_follow", "hook_invite_accepted"].includes(n.type) && n.entity_id) {
       setShowNotif(false);
       window.dispatchEvent(new CustomEvent("flicks:open-hook", {
         detail: { hookId: n.entity_id },
@@ -1895,7 +1926,7 @@ const Header = ({
   }, [fetchFriendRequests]);
 
   useEffect(() => {
-    if (!userId || !pageVisible) return;
+    if (!userId) return;
     fetchProfile();
     fetchNotifsRef.current();
     fetchFriendReqsRef.current();
@@ -1904,12 +1935,7 @@ const Header = ({
       .channel(`notif-live-v2-${userId}`)
       .on(
         "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "notifications",
-          filter: `notifier_id=eq.${userId}`,
-        },
+        { event: "*", schema: "public", table: "notifications" },
         (payload) => {
           const row = (payload.new || payload.old) as any;
           if (row?.notifier_id !== userId) return;
@@ -1931,12 +1957,7 @@ const Header = ({
       .channel(`friend-live-v2-${userId}`)
       .on(
         "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "friendships",
-          filter: `receiver_id=eq.${userId}`,
-        },
+        { event: "*", schema: "public", table: "friendships" },
         (payload) => {
           const row = (payload.new || payload.old) as any;
           if (row?.receiver_id !== userId) return;
@@ -1950,7 +1971,7 @@ const Header = ({
       supabase.removeChannel(friendCh);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId, pageVisible]);
+  }, [userId]);
 
   // ── Fetch dashboard stats when it opens ────────────────────────────────────
   useEffect(() => {
@@ -2130,6 +2151,9 @@ const Header = ({
           <motion.div
             whileTap={{ scale: 0.88 }}
             onClick={() => {
+              setDashMagnetFetched(false); // always re-fetch counts on open
+              setDashMagnetSent(0);
+              setDashMagnetReceived(0);
               setShowDash(true);
               setDashFriends([]);
             }}
@@ -2190,11 +2214,12 @@ const Header = ({
                   New notification
                 </p>
                 <p className="text-white text-[13px] font-semibold leading-snug line-clamp-2">
-                  {newNotifPreview.content
-                    ? (newNotifPreview.content.startsWith("{")
-                      ? (() => { try { return JSON.parse(newNotifPreview.content)?.text || "New activity"; } catch { return "New activity"; } })()
-                      : newNotifPreview.content)
-                    : (NOTIF_META[newNotifPreview.type]?.label || "New activity")}
+                  {(() => {
+                    const actorName = newNotifPreview.actor?.full_name;
+                    const action = formatNotifAction(newNotifPreview.type, newNotifPreview.content);
+                    if (actorName) return `${actorName} ${action.text}`;
+                    return action.text || "New activity";
+                  })()}
                 </p>
               </div>
               {/* Dismiss */}
@@ -2504,8 +2529,9 @@ const Header = ({
             >
               {/* ── Dashboard Header ─────────────────────────────────────── */}
               <div
-                className="relative px-5 pt-5 pb-4 shrink-0"
+                className="relative px-5 pb-4 shrink-0"
                 style={{
+                  paddingTop: "calc(var(--cap-safe-top) + 20px)",
                   background:
                     "linear-gradient(135deg, rgba(37,99,235,0.25) 0%, rgba(79,70,229,0.15) 100%)",
                   borderBottom: "1px solid rgba(255,255,255,0.07)",
@@ -2518,7 +2544,8 @@ const Header = ({
                     setKickTarget(null);
                     setDashFriends([]);
                   }}
-                  className="absolute top-4 right-4 p-1.5 hover:bg-white/10 rounded-full text-white/40 hover:text-white transition-all"
+                  className="absolute right-4 p-1.5 hover:bg-white/10 rounded-full text-white/40 hover:text-white transition-all"
+                  style={{ top: "calc(var(--cap-safe-top) + 16px)" }}
                 >
                   <X size={18} />
                 </button>

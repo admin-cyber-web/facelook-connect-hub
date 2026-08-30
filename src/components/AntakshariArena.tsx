@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "../lib/supabaseClient";
-import { usePageVisibility } from "../hooks/usePageVisibility";
 import {
   Mic2, ArrowLeft, Plus, Shuffle, Trophy, Gift, Calendar,
   Users, Lock, Globe, Clock, Crown, Star, Heart, MessageCircle,
@@ -155,7 +154,6 @@ export default function AntakshariArena({
   onBack: () => void;
 }) {
   const { openProfile } = useProfileViewer();
-  const pageVisible = usePageVisibility();
 
   const [view, setView] = useState<"home" | "create" | "join" | "lobby" | "game" | "leaderboard">("home");
   const [room, setRoom] = useState<Room | null>(null);
@@ -185,7 +183,7 @@ export default function AntakshariArena({
   const fetchPublicRooms = useCallback(async () => {
     const { data } = await supabase
       .from("antakshari_rooms")
-      .select("*")
+      .select("id,code,name,theme,max_players,host_id,is_public,status,current_word,current_singer_id,round_number,created_at")
       .eq("is_public", true)
       .eq("status", "waiting")
       .order("created_at", { ascending: false })
@@ -193,33 +191,20 @@ export default function AntakshariArena({
     if (data) setPublicRooms(data);
   }, []);
 
+  // Replace 10-second polling with a realtime subscription — zero egress between room changes
   useEffect(() => {
-    if (!pageVisible) return;
     fetchPublicRooms();
-    let lastActivityAt = 0;
-    const markActive = () => {
-      lastActivityAt = Date.now();
-    };
-    const activityEvents = ["pointerdown", "keydown", "touchstart", "scroll"] as const;
-    activityEvents.forEach((event) => {
-      window.addEventListener(event, markActive, { passive: true });
-    });
-    const id = setInterval(() => {
-      if (Date.now() - lastActivityAt < 2 * 60 * 1000) {
+    const ch = supabase
+      .channel("antakshari-rooms-rt")
+      .on("postgres_changes", { event: "*", schema: "public", table: "antakshari_rooms" }, () => {
         fetchPublicRooms();
-      }
-    }, 10000);
-    return () => {
-      clearInterval(id);
-      activityEvents.forEach((event) => {
-        window.removeEventListener(event, markActive);
-      });
-    };
-  }, [fetchPublicRooms, pageVisible]);
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [fetchPublicRooms]);
 
   /* ── Load leaderboard ────────────────────────────────────────────────────── */
   useEffect(() => {
-    if (!pageVisible) return;
     supabase
       .from("antakshari_leaderboard")
       .select("user_id, score, wins, matches, profiles(id, full_name, avatar_url, antakshari_level)")
@@ -229,7 +214,7 @@ export default function AntakshariArena({
       .then(({ data }) => {
         if (data) setLeaderboard(data as any);
       });
-  }, [pageVisible]);
+  }, []);
 
   /* ── Create Room ─────────────────────────────────────────────────────────── */
   const handleCreateRoom = async (roomData: {
@@ -283,7 +268,7 @@ export default function AntakshariArena({
     try {
       const { data: roomRow } = await supabase
         .from("antakshari_rooms")
-        .select("*")
+        .select("id,code,name,theme,max_players,host_id,is_public,status,current_word,current_singer_id,round_number,created_at")
         .eq("code", code.toUpperCase())
         .single();
 
@@ -322,7 +307,7 @@ export default function AntakshariArena({
 
   /* ── Realtime Room Sync ──────────────────────────────────────────────────── */
   useEffect(() => {
-    if (!room?.id || view !== "lobby" || !pageVisible) return;
+    if (!room?.id || view !== "lobby") return;
 
     const channel = supabase
       .channel(`room-${room.id}`)
@@ -349,7 +334,7 @@ export default function AntakshariArena({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [room?.id, view, pageVisible]);
+  }, [room?.id, view]);
 
   const fetchMembers = async () => {
     if (!room?.id) return;

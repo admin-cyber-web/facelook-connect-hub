@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/lib/supabaseClient";
-import { usePageVisibility } from "@/hooks/usePageVisibility";
 import { memGet, memSet } from "@/lib/memCache";
 import { toast } from "sonner";
 import {
@@ -107,7 +106,6 @@ const AdminDashboard: React.FC<Props> = ({
 }) => {
   const { openProfile } = useProfileViewer();
   const onlineUserIds = useOnlineUsers();
-  const pageVisible = usePageVisibility();
   const [tab, setTab] = useState<Tab>("stats");
   const [loading, setLoading] = useState(true);
   const [users, setUsers] = useState<UserRow[]>([]);
@@ -138,14 +136,13 @@ const AdminDashboard: React.FC<Props> = ({
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    if (!pageVisible) return;
     const id = setInterval(() => setNowTick((n) => n + 1), 30 * 1000);
     return () => clearInterval(id);
-  }, [pageVisible]);
+  }, []);
 
   useEffect(() => {
-    if (pageVisible) fetchAll(false);
-  }, [pageVisible]);
+    fetchAll(false);
+  }, []);
 
   useEffect(() => {
     const q = userSearch.trim();
@@ -170,6 +167,44 @@ const AdminDashboard: React.FC<Props> = ({
       if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
     };
   }, [userSearch]);
+
+  useEffect(() => {
+    const ch = supabase
+      .channel(`admin-dash-stable`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "profiles" },
+        (payload) => {
+          if (payload.new?.id) {
+            setUsers((prev) => [payload.new as UserRow, ...prev]);
+          }
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "profiles" },
+        () => fetchAll(true),
+      )
+      .on(
+        "postgres_changes",
+        { event: "DELETE", schema: "public", table: "profiles" },
+        () => fetchAll(true),
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "posts" },
+        () => fetchAll(true),
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "reports" },
+        () => fetchAll(true),
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(ch);
+    };
+  }, []);
 
   const fetchAll = async (force = false) => {
     const cKey = `adminDash_${currentUserId}`;
@@ -770,13 +805,6 @@ const AdminDashboard: React.FC<Props> = ({
             {currentUserEmail}
           </p>
         </div>
-        <button
-          onClick={() => fetchAll(true)}
-          disabled={loading}
-          className="px-3 h-9 rounded-full bg-white/10 text-white/70 text-[10px] font-black border border-white/15 disabled:opacity-40 shrink-0"
-        >
-          Refresh
-        </button>
         <button
           onClick={onClose}
           className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center border border-white/15 shrink-0"
