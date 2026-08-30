@@ -12,7 +12,7 @@ import { useSoundEffects } from "../hooks/useSoundEffects";
 import { useProfileViewer } from "../context/ProfileViewerContext";
 import { useDataCache } from "../context/DataCacheContext";
 import { isAdminEmail } from "../lib/adminConfig";
-import AdsterraAd from "./AdsterraAd";
+import { MarketplaceFeedCard, AdminMarketplacePanel, type MarketplaceItem } from "./AdminMarketplace";
 import PeopleYouMayKnow from "./PeopleYouMayKnow";
 import NewInYourArea from "./NewInYourArea";
 import type { LocalProfile } from "../lib/recommendationEngine";
@@ -21,6 +21,7 @@ import { RichCaption } from "./RichCaption";
 import AutoPlayMutedVideo from "./AutoPlayMutedVideo";
 import { maskProfanity, sanitizeText } from "../lib/profanityFilter";
 import { resolveMediaUrl } from "../lib/mediaUrl";
+import { subscribeWhileVisible } from "../lib/realtimeVisibility";
 import {
   Send,
   Heart,
@@ -46,6 +47,7 @@ import {
   Check,
   Link2,
   TrendingUp,
+  Store,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import SharePopup, { type SharePostData, type ShareAnchor, type ShareMode } from "./SharePopup";
@@ -2093,6 +2095,9 @@ const FameFeed = ({
   } | null>(null);
   const [reportSubmitting, setReportSubmitting] = useState(false);
   const [showHiddenArchive, setShowHiddenArchive] = useState(false);
+  // ── Admin Marketplace ──────────────────────────────────────────────────────
+  const [marketplaceItems, setMarketplaceItems] = useState<MarketplaceItem[]>([]);
+  const [showMarketplacePanel, setShowMarketplacePanel] = useState(false);
   const [pageSuggestions, setPageSuggestions] = useState<any[]>([]);
   const [groupSuggestions, setGroupSuggestions] = useState<any[]>([]);
   const [suggestionsLoaded, setSuggestionsLoaded] = useState(false);
@@ -2202,6 +2207,30 @@ const FameFeed = ({
   useEffect(() => { authorAvatarsRef.current = authorAvatars; }, [authorAvatars]);
   // Keep postsRef in sync so incrementView can read current counts synchronously
   useEffect(() => { postsRef.current = posts; }, [posts]);
+
+  // ── Admin Marketplace: fetch active items + live updates ──────────────────
+  useEffect(() => {
+    const fetchMarketplace = async () => {
+      const { data } = await supabase
+        .from("marketplace_items")
+        .select("id, title, description, price, image_url, link_url, badge, is_active, created_at, sizes, colors")
+        .eq("is_active", true)
+        .order("created_at", { ascending: false });
+        // Marketplace is a curated strip, not an unbounded catalog query.
+        const bounded = (data ?? []).slice(0, 30);
+      setMarketplaceItems(bounded);
+    };
+    fetchMarketplace();
+    // Realtime — when admin toggles/adds/removes items the feed card updates live
+    return subscribeWhileVisible(() =>
+      supabase
+        .channel("marketplace-feed-items")
+        .on("postgres_changes", { event: "*", schema: "public", table: "marketplace_items" }, () => {
+          if (!document.hidden) fetchMarketplace();
+        })
+        .subscribe(),
+    { onVisible: fetchMarketplace });
+  }, []);
 
   useEffect(() => {
     const handler = () => {
@@ -3191,45 +3220,48 @@ const FameFeed = ({
     }
     if (!flicksLoaded) fetchFlicks();
     else if (dataCache.isStale("fameFlicks")) fetchFlicks();
-    const sub = supabase
-      .channel(channelId.current)
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "posts" },
-        (payload) => {
-          const newPost = payload.new as any;
-          if (!newPost?.id) return;
-          setPosts((prev) => {
-            if (prev.some((p) => p.id === newPost.id)) return prev;
-            return [newPost, ...prev];
-          });
-        },
-      )
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "posts" },
-        (payload) => {
-          const updId = (payload.new as any).id;
-          if (deletingPostIdsRef.current.has(updId)) return; // guard: don't restore a post mid-delete
-          setPosts((prev) =>
-            prev.map((p) =>
-              p.id === updId ? { ...p, ...(payload.new as any) } : p,
-            ),
-          );
-        },
-      )
-      .on(
-        "postgres_changes",
-        { event: "DELETE", schema: "public", table: "posts" },
-        (payload) => {
-          setPosts((prev) =>
-            prev.filter((p) => p.id !== (payload.old as any).id),
-          );
-        },
-      )
-      .subscribe();
+    const cleanupFeedChannel = subscribeWhileVisible(() =>
+      supabase
+        .channel(channelId.current)
+        .on(
+          "postgres_changes",
+          { event: "INSERT", schema: "public", table: "posts" },
+          (payload) => {
+            const newPost = payload.new as any;
+            if (!newPost?.id) return;
+            setPosts((prev) => {
+              if (prev.some((p) => p.id === newPost.id)) return prev;
+              return [newPost, ...prev];
+            });
+          },
+        )
+        .on(
+          "postgres_changes",
+          { event: "UPDATE", schema: "public", table: "posts" },
+          (payload) => {
+            const updId = (payload.new as any).id;
+            if (deletingPostIdsRef.current.has(updId)) return; // guard: don't restore a post mid-delete
+            setPosts((prev) =>
+              prev.map((p) =>
+                p.id === updId ? { ...p, ...(payload.new as any) } : p,
+              ),
+            );
+          },
+        )
+        .on(
+          "postgres_changes",
+          { event: "DELETE", schema: "public", table: "posts" },
+          (payload) => {
+            setPosts((prev) =>
+              prev.filter((p) => p.id !== (payload.old as any).id),
+            );
+          },
+        )
+        .subscribe(),
+      { onVisible: () => { void fetchPosts(true); } },
+    );
     return () => {
-      supabase.removeChannel(sub);
+      cleanupFeedChannel();
     };
   }, []);
 
@@ -5782,10 +5814,8 @@ const FameFeed = ({
             >
               {renderPost(bPost)}
               <FeedDivider />
-              {showAd && (
-                <div className="px-4">
-                  <AdsterraAd />
-                </div>
+              {showAd && marketplaceItems.length > 0 && (
+                <MarketplaceFeedCard items={marketplaceItems} />
               )}
             </ErrorBoundary>
           );
@@ -6516,6 +6546,25 @@ const FameFeed = ({
           />
         )}
       </AnimatePresence>
+
+      {/* ── Admin Marketplace Manager — visible to admins only ──────────── */}
+      {isAdmin && (
+        <>
+          <button
+            onClick={() => setShowMarketplacePanel(true)}
+            className="fixed bottom-24 right-4 z-50 flex items-center gap-1.5 px-3.5 py-2.5 rounded-2xl text-black text-[12px] font-black shadow-2xl active:scale-95 transition-transform"
+            style={{ background: "linear-gradient(135deg,#00F0FF,#2563eb)", boxShadow: "0 4px 24px rgba(0,240,255,0.35)" }}
+          >
+            <Store size={13} />
+            Marketplace
+          </button>
+          <AnimatePresence>
+            {showMarketplacePanel && (
+              <AdminMarketplacePanel onClose={() => setShowMarketplacePanel(false)} />
+            )}
+          </AnimatePresence>
+        </>
+      )}
     </div>
   );
 };

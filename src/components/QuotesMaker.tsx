@@ -141,12 +141,29 @@ function drawWrappedText(
 // ── Props ─────────────────────────────────────────────────────────────────────
 interface Props {
   userId: string;
+  userName?: string;           // author's display name — passed from Index.tsx
   onClose?: () => void;
   onPostSuccess?: () => void;
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
-const QuotesMaker: React.FC<Props> = ({ userId, onClose, onPostSuccess }) => {
+const QuotesMaker: React.FC<Props> = ({ userId, userName = "", onClose, onPostSuccess }) => {
+  // Resolved author display name (prop takes priority; fallback fetched from DB)
+  const [resolvedAuthor, setResolvedAuthor] = useState(userName);
+
+  useEffect(() => {
+    if (userName) { setResolvedAuthor(userName); return; }
+    // Fetch from profiles if prop wasn't provided or was empty
+    supabase
+      .from("profiles")
+      .select("full_name")
+      .eq("id", userId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data?.full_name) setResolvedAuthor(data.full_name);
+      });
+  }, [userId, userName]);
+
   // Quote state
   const [category, setCategory]   = useState<QuoteCategory>("Motivational");
   const [lang, setLang]           = useState<QuoteLang>("hindi");
@@ -305,21 +322,29 @@ const QuotesMaker: React.FC<Props> = ({ userId, onClose, onPostSuccess }) => {
       if (upErr) throw upErr;
 
       const { data: urlData } = supabase.storage.from("posts").getPublicUrl(fileName);
-      const { error: dbErr }  = await supabase.from("posts").insert({
+
+      const payload = {
         author_id:  userId,
+        author:     resolvedAuthor || null,
         content:    displayText,
         media_url:  urlData.publicUrl,
-        image_url:  urlData.publicUrl,
         type:       "image",
         media_type: "image",
         post_type:  "quote",
-      });
-      if (dbErr) throw dbErr;
+        visibility: "public",
+      };
+
+      const { error: dbErr } = await supabase.from("posts").insert(payload);
+      if (dbErr) {
+        console.error("[QuotesMaker] posts insert failed — payload:", payload, "error:", dbErr);
+        throw dbErr;
+      }
 
       toast.success("🎉 FameFeed pe post ho gaya!");
       onPostSuccess?.();
       onClose?.();
     } catch (err: any) {
+      console.error("[QuotesMaker] handlePost error:", err);
       toast.error(err?.message ?? "Post nahi ho saka. Try again!");
     } finally {
       setPosting(false);

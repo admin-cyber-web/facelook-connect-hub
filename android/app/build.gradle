@@ -7,14 +7,32 @@ android {
         applicationId "com.flicks.hub"
         minSdk rootProject.ext.minSdkVersion
         targetSdk rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode 6
+        versionName "2.0.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+    }
+    signingConfigs {
+        release {
+            def keystorePath = System.getenv("KEYSTORE_PATH")
+            def keystorePass = System.getenv("KEYSTORE_PASS")
+            def keyAlias_    = System.getenv("KEY_ALIAS")
+            def keyPass      = System.getenv("KEY_PASS")
+            if (!keystorePath || !keystorePass || !keyAlias_ || !keyPass) {
+                throw new GradleException(
+                    "Missing signing env vars. Set KEYSTORE_PATH, KEYSTORE_PASS, KEY_ALIAS, KEY_PASS."
+                )
+            }
+            storeFile     file(keystorePath)
+            storePassword keystorePass
+            keyAlias      keyAlias_
+            keyPassword   keyPass
+        }
     }
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            signingConfig signingConfigs.release
         }
     }
 }

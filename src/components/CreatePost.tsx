@@ -362,35 +362,80 @@ const CreatePost = ({
       setLoadingMsg("Optimizing SEO & Posting…");
       const seo = await generatePostSEO(cleanContent);
 
-      const { data: inserted, error: insertError } = await supabase
+      const postPayload = {
+        author_id: user?.id || userProfile?.id,
+        content: cleanContent,
+        media_url: finalMediaUrl,
+        author: authorName,
+        type: mediaType,
+        post_type: "fame",
+        visibility,
+        is_admin_post: user?.email === ADMIN_EMAIL,
+        meta_title: seo.meta_title,
+        meta_description: seo.meta_description,
+        seo_keywords: seo.seo_keywords,
+        metadata: {
+          is_youtube: isYoutube,
+          mentions: resolvedMentions,
+          has_pin: hasPin,
+          has_team: hasTeam,
+          // SEO also stored inside metadata as fallback in case columns aren't migrated yet
+          meta_title: seo.meta_title,
+          meta_description: seo.meta_description,
+          seo_keywords: seo.seo_keywords,
+          author_avatar:
+            userProfile?.avatar_url ||
+            (user as any)?.user_metadata?.picture ||
+            (user as any)?.user_metadata?.avatar_url ||
+            "",
+        },
+      };
+
+      // Try full payload first; if schema cache rejects extra columns, fall back
+      // to the safe minimal payload so the post always goes through.
+      let inserted: any = null;
+      let insertError: any = null;
+
+      ({ data: inserted, error: insertError } = await supabase
         .from("posts")
-        .insert([
-          {
-            author_id: user?.id || userProfile?.id,
-            content: cleanContent,
-            media_url: finalMediaUrl,
-            author: authorName,
-            type: mediaType,
-            visibility,
-            is_admin_post: user?.email === ADMIN_EMAIL,
-            meta_title: seo.meta_title,
-            meta_description: seo.meta_description,
-            seo_keywords: seo.seo_keywords,
-            metadata: {
-              is_youtube: isYoutube,
-              mentions: resolvedMentions,
-              has_pin: hasPin,
-              has_team: hasTeam,
-              author_avatar:
-                userProfile?.avatar_url ||
-                (user as any)?.user_metadata?.picture ||
-                (user as any)?.user_metadata?.avatar_url ||
-                "",
-            },
-          },
-        ])
+        .insert([postPayload])
         .select("id")
-        .maybeSingle();
+        .maybeSingle());
+
+      if (insertError) {
+        const isColumnMismatch =
+          insertError.code === "PGRST204" ||
+          insertError.code === "42703" ||
+          insertError.message?.toLowerCase().includes("column") ||
+          insertError.message?.toLowerCase().includes("schema cache");
+
+        if (isColumnMismatch) {
+          console.warn(
+            "[CreatePost] Column mismatch — retrying with safe payload. Error:",
+            insertError.message,
+            "Full payload was:",
+            postPayload,
+          );
+          // Minimal safe payload — only columns guaranteed to exist
+          const safePayload = {
+            author_id: postPayload.author_id,
+            content:   postPayload.content,
+            media_url: postPayload.media_url,
+            author:    postPayload.author,
+            type:      postPayload.type,
+            visibility: postPayload.visibility,
+            is_admin_post: postPayload.is_admin_post,
+            metadata:  postPayload.metadata,
+          };
+          ({ data: inserted, error: insertError } = await supabase
+            .from("posts")
+            .insert([safePayload])
+            .select("id")
+            .maybeSingle());
+        } else {
+          console.error("[CreatePost] posts insert failed — payload:", postPayload, "error:", insertError);
+        }
+      }
 
       if (insertError) throw insertError;
 

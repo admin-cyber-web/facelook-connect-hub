@@ -9,3 +9,4 @@ android.keystore
 *.aab
 *.idsig
 dist/
+local.properties

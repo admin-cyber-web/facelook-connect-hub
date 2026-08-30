@@ -1,0 +1,28 @@
+Please fix the mobile UI layout bugs in the Admin Marketplace panel and implement the full e-commerce checkout, PhonePe payment, and order management system:
+
+1. Fix Mobile Admin Panel Layout & Overlapping Button:
+   - Fix the mobile view for the Admin Marketplace panel so that it is fully scrollable from top to bottom.
+   - The bottom "Add Product" or action button is currently getting cut off or overlapping due to sticky/fixed positioning on mobile screens. Ensure proper bottom padding (e.g., pb-24 or safe-area-inset) and relative/flex scrolling so the button stays fully visible at the bottom of the form without overlapping content.
+
+2. Direct PhonePe QR Code Integration:
+   - Hardcode/embed the official PhonePe QR code image (showing "manoj kumar") directly into the checkout drawer component.
+   - When a user selects "Online Payment / PhonePe UPI", display the PhonePe QR code prominently along with a "Copy UPI ID" button and an input field for the user to enter their UPI Transaction ID / UTR reference number after payment.
+
+3. Complete Order Placement & Supabase Tracking:
+   - When the user clicks "Place Order" (for both COD or PhonePe UPI), save the order details to a Supabase table named "marketplace_orders" containing:
+     * User details (User Email / Name from auth)
+     * Product Title, Selected Size, Selected Color, Price Paid
+     * Payment Method (COD vs PhonePe UPI) & UTR Transaction ID
+     * Unique Order Tracking Code (e.g., #FLICKS-XXXXX)
+     * Order Timestamp & Status (Pending / Confirmed)
+
+4. Order Success & Confirmation Modal:
+   - Pop up a gorgeous Success Screen immediately after order placement showing:
+     * "Thank you for your order on Flicks India!" message
+     * Unique Order Tracking Code (#FLICKS-XXXXX)
+     * Complete product and pricing summary
+     * "Track Order" or "Return to Feed" buttons
+
+5. Admin Orders Dashboard & Product Management:
+   - Add an "Orders Received" tab inside the Admin Marketplace panel where admins can view all incoming orders, user details, chosen size/color, payment method, UTR ID, and tracking codes.
+   - Ensure products can be successfully added, edited, and saved without form submission breaking on mobile devices.

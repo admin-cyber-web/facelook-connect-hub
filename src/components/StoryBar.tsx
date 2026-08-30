@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "../lib/supabaseClient";
+import { subscribeWhileVisible } from "../lib/realtimeVisibility";
 import { memGet, memSet } from "../lib/memCache";
 import { resolveMediaUrl } from "../lib/mediaUrl";
 import { toast } from "sonner";
@@ -1501,13 +1502,18 @@ export const StoryBar = ({ userProfile }: { userProfile?: any }) => {
       if (debounceTimer) clearTimeout(debounceTimer);
       debounceTimer = setTimeout(() => fetchStories(true), 3000);
     };
-    const ch = supabase
-      .channel("story-bar-global")
-      .on("postgres_changes", { event: "*", schema: "public", table: "stories" }, debouncedFetch)
-      .subscribe();
+    const cleanupChannel = subscribeWhileVisible(
+      () => supabase
+        .channel("story-bar-global")
+        .on("postgres_changes", { event: "*", schema: "public", table: "stories" }, () => {
+          if (!document.hidden) debouncedFetch();
+        })
+        .subscribe(),
+      { onVisible: () => { void fetchStories(true); } },
+    );
     return () => {
       if (debounceTimer) clearTimeout(debounceTimer);
-      supabase.removeChannel(ch);
+      cleanupChannel();
     };
   }, [fetchStories]);
 

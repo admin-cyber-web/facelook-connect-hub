@@ -508,6 +508,8 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
   const postsScrollRef = useRef<HTMLDivElement>(null);
   // Menu dropdown
   const [showMenuDropdown, setShowMenuDropdown] = useState(false);
+  // Description expand
+  const [descExpanded, setDescExpanded] = useState(false);
 
   // Post Reach (views)
   const [viewCounts, setViewCounts] = useState<Record<string, number>>({});
@@ -1956,33 +1958,67 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
               </span>
             )}
           </div>
-          <div className="flex items-center gap-2 mt-1.5">
-            {selectedGroup.privacy === "private" ? <Lock size={11} className="text-gray-500" /> : <Globe size={11} className="text-gray-500" />}
-            <span className="text-[12px] text-gray-400 font-semibold capitalize">
-              {selectedGroup.privacy} · {selectedGroup.member_count ?? groupMembers.length} Members
-            </span>
+          {/* Member avatars + count */}
+          <div className="flex items-center gap-2 mt-2">
+            {/* Avatar stack — up to 6 DPs */}
+            {groupMembers.length > 0 && (
+              <div className="flex items-center">
+                {groupMembers.slice(0, 6).map((m: any, i: number) => (
+                  <div
+                    key={m.id ?? i}
+                    className="w-7 h-7 rounded-full border-2 overflow-hidden flex items-center justify-center text-white font-black text-[10px] shrink-0"
+                    style={{
+                      marginLeft: i === 0 ? 0 : -8,
+                      zIndex: 6 - i,
+                      borderColor: "#090a0f",
+                      background: "linear-gradient(135deg,#1e3a8a,#2563eb)",
+                      position: "relative",
+                    }}
+                  >
+                    {m.profiles?.avatar_url
+                      ? <img src={m.profiles.avatar_url} className="w-full h-full object-cover" alt="" loading="lazy" decoding="async" />
+                      : (m.profiles?.full_name || "?")[0].toUpperCase()}
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="flex items-center gap-1">
+              {selectedGroup.privacy === "private" ? <Lock size={10} className="text-gray-500" /> : <Globe size={10} className="text-gray-500" />}
+              <span className="text-[12px] text-gray-400 font-semibold">
+                {selectedGroup.member_count ?? groupMembers.length} Members
+              </span>
+            </div>
           </div>
+
+          {/* Description — truncated with "More" expand */}
           {selectedGroup.description && (
-            <p className="text-[12px] text-gray-500 mt-2 text-center leading-relaxed max-w-xs line-clamp-2">{selectedGroup.description}</p>
+            <div className="mt-2 max-w-xs text-center">
+              <p className={`text-[12px] text-gray-500 leading-relaxed ${descExpanded ? "" : "line-clamp-2"}`}>
+                {selectedGroup.description}
+              </p>
+              {selectedGroup.description.length > 80 && (
+                <button
+                  onClick={() => setDescExpanded(v => !v)}
+                  className="text-[11px] font-black text-[#00F0FF] mt-0.5 active:opacity-70"
+                >
+                  {descExpanded ? "Less" : "More"}
+                </button>
+              )}
+            </div>
           )}
-          <div className="flex items-center gap-2 mt-3">
-            <button
-              onClick={() => shareCircle(selectedGroup)}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-full border border-white/15 text-[12px] font-black text-white active:scale-95 transition-transform"
-              style={{ background: "rgba(255,255,255,0.08)", backdropFilter: "blur(12px)" }}
-            >
-              <Share2 size={13} /> Share
-            </button>
-            {!isMember && (
+
+          {/* Join button for non-members */}
+          {!isMember && (
+            <div className="mt-3">
               <button
                 onClick={() => handleJoin(selectedGroup.id)}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-full border border-[#00F0FF]/30 text-[12px] font-black text-[#00F0FF] active:scale-95 transition-transform"
+                className="flex items-center gap-1.5 px-5 py-2 rounded-full border border-[#00F0FF]/30 text-[12px] font-black text-[#00F0FF] active:scale-95 transition-transform"
                 style={{ background: "rgba(0,240,255,0.08)", backdropFilter: "blur(12px)" }}
               >
-                <Users size={13} /> Join
+                <Users size={13} /> Join Circle
               </button>
-            )}
-          </div>
+            </div>
+          )}
         </div>
 
         {/* ── COMPACT NAV BAR ─────────────────────────────────────────── */}
@@ -2335,11 +2371,8 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
             )}
 
             {/* About */}
-            {(selectedGroup.description || selectedGroup.rules) && (
+            {selectedGroup.rules && (
               <div className="bg-[#d4f0e2] border-b border-gray-100 px-4 py-3">
-                {selectedGroup.description && (
-                  <p className="text-[13px] text-gray-700 mb-2">{selectedGroup.description}</p>
-                )}
                 {selectedGroup.rules && (
                   <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
                     <div className="flex items-center gap-2 mb-1">
@@ -2998,15 +3031,10 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
             {/* ── Group Info Card ────────────────────────────────────────── */}
             <div className="mx-3 mt-3 rounded-3xl border border-white/[0.08] px-4 py-4"
               style={{ background: "rgba(255,255,255,0.03)", backdropFilter: "blur(20px)", boxShadow: "0 8px 32px rgba(0,0,0,0.35)" }}>
-              <div className="flex items-center gap-2 mb-2">
+              <div className="flex items-center gap-2 mb-3">
                 {selectedGroup.privacy === "private" ? <Lock size={13} className="text-white/40" /> : <Globe size={13} className="text-[#00F0FF]" />}
                 <span className="text-[12px] font-black text-white/70 capitalize">{selectedGroup.privacy} Group</span>
               </div>
-              {selectedGroup.description ? (
-                <p className="text-[13px] text-white/60 leading-relaxed mb-3">{selectedGroup.description}</p>
-              ) : (
-                <p className="text-[12px] text-white/25 italic mb-3">No description added yet.</p>
-              )}
               <div className="flex flex-wrap gap-2">
                 <div className="flex items-center gap-1.5 rounded-xl px-3 py-1.5 border border-[#00F0FF]/20"
                   style={{ background: "rgba(0,240,255,0.07)" }}>

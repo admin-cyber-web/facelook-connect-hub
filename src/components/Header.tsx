@@ -30,6 +30,7 @@ import {
   Anchor,
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
+import { subscribeWhileVisible } from "@/lib/realtimeVisibility";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import { useProfileViewer } from "@/context/ProfileViewerContext";
@@ -1931,44 +1932,49 @@ const Header = ({
     fetchNotifsRef.current();
     fetchFriendReqsRef.current();
 
-    const notifCh = supabase
-      .channel(`notif-live-v2-${userId}`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "notifications" },
-        (payload) => {
-          const row = (payload.new || payload.old) as any;
-          if (row?.notifier_id !== userId) return;
-          if (payload.eventType === "INSERT") {
-            playNotifSound();
-            setHasNewNotif(true);
-            setNewNotifPreview(row);
-            if (newNotifTimerRef.current) clearTimeout(newNotifTimerRef.current);
-            newNotifTimerRef.current = setTimeout(() => {
-              setNewNotifPreview(null);
-            }, 4500);
-          }
-          fetchNotifsRef.current();
-        },
-      )
-      .subscribe();
-
-    const friendCh = supabase
-      .channel(`friend-live-v2-${userId}`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "friendships" },
-        (payload) => {
-          const row = (payload.new || payload.old) as any;
-          if (row?.receiver_id !== userId) return;
-          fetchFriendReqsRef.current();
-        },
-      )
-      .subscribe();
-
+    const cleanupChannels = [
+      subscribeWhileVisible(() =>
+        supabase
+          .channel(`notif-live-v2-${userId}`)
+          .on(
+            "postgres_changes",
+            { event: "*", schema: "public", table: "notifications", filter: `notifier_id=eq.${userId}` },
+            (payload) => {
+              const row = (payload.new || payload.old) as any;
+              if (row?.notifier_id !== userId) return;
+              if (payload.eventType === "INSERT") {
+                playNotifSound();
+                setHasNewNotif(true);
+                setNewNotifPreview(row);
+                if (newNotifTimerRef.current) clearTimeout(newNotifTimerRef.current);
+                newNotifTimerRef.current = setTimeout(() => {
+                  setNewNotifPreview(null);
+                }, 4500);
+              }
+              fetchNotifsRef.current();
+            },
+          )
+          .subscribe(),
+        { onVisible: () => { void fetchNotifsRef.current(); } },
+      ),
+      subscribeWhileVisible(() =>
+        supabase
+          .channel(`friend-live-v2-${userId}`)
+          .on(
+            "postgres_changes",
+            { event: "*", schema: "public", table: "friendships", filter: `receiver_id=eq.${userId}` },
+            (payload) => {
+              const row = (payload.new || payload.old) as any;
+              if (row?.receiver_id !== userId) return;
+              fetchFriendReqsRef.current();
+            },
+          )
+          .subscribe(),
+        { onVisible: () => { void fetchFriendReqsRef.current(); } },
+      ),
+    ];
     return () => {
-      supabase.removeChannel(notifCh);
-      supabase.removeChannel(friendCh);
+      cleanupChannels.forEach((cleanup) => cleanup());
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);

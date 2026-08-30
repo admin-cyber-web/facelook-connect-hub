@@ -173,3 +173,16 @@ export const supabase = createClient(supabaseUrl, supabaseKey, {
     },
   },
 });
+
+// A hidden mobile WebView should not keep receiving the project's entire
+// realtime stream. Channels reconnect automatically when the app returns.
+if (typeof document !== "undefined") {
+  const handleVisibilityChange = () => {
+    if (document.visibilityState === "hidden") {
+      supabase.realtime.disconnect();
+    } else {
+      supabase.realtime.connect();
+    }
+  };
+  document.addEventListener("visibilitychange", handleVisibilityChange);
+}

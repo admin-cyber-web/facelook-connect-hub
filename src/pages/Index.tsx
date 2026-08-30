@@ -49,6 +49,7 @@ import {
 
 // DHAYAN DEIN: Sirf ye ek supabase import rehna chahiye
 import { supabase } from "@/lib/supabaseClient";
+import { subscribeWhileVisible } from "@/lib/realtimeVisibility";
 import { memGet, memSet, memClear, memDel } from "@/lib/memCache";
 import { Helmet } from "react-helmet-async";
 import { toast } from "sonner";
@@ -259,19 +260,21 @@ function FrameModePage({ onBack, userProfile, userEmail }: { onBack: () => void;
 
   useEffect(() => {
     fetchRequests();
-    const ch = supabase
-      .channel("frame-live")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "frame_requests" }, (payload) => {
-        setRequests(prev => [payload.new as FrameRequest, ...prev]);
-      })
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "frame_requests" }, (payload) => {
-        setRequests(prev => prev.map(r => r.id === (payload.new as FrameRequest).id ? { ...r, ...payload.new as FrameRequest } : r));
-      })
-      .on("postgres_changes", { event: "DELETE", schema: "public", table: "frame_requests" }, (payload) => {
-        setRequests(prev => prev.filter(r => r.id !== (payload.old as any).id));
-      })
-      .subscribe();
-    return () => { supabase.removeChannel(ch); };
+    return subscribeWhileVisible(() =>
+      supabase
+        .channel("frame-live")
+        .on("postgres_changes", { event: "INSERT", schema: "public", table: "frame_requests" }, (payload) => {
+          setRequests(prev => [payload.new as FrameRequest, ...prev]);
+        })
+        .on("postgres_changes", { event: "UPDATE", schema: "public", table: "frame_requests" }, (payload) => {
+          setRequests(prev => prev.map(r => r.id === (payload.new as FrameRequest).id ? { ...r, ...payload.new as FrameRequest } : r));
+        })
+        .on("postgres_changes", { event: "DELETE", schema: "public", table: "frame_requests" }, (payload) => {
+          setRequests(prev => prev.filter(r => r.id !== (payload.old as any).id));
+        })
+        .subscribe(),
+      { onVisible: () => { void fetchRequests(); } },
+    );
   }, []);
 
   const fetchRequests = async () => {
@@ -1789,16 +1792,26 @@ const Index = ({ session, initialAdminOpen, isGuest = false }: { session: Sessio
         }
       });
 
-    const myCh = supabase
-      .channel(`my-frame-requests-${userId}`)
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "frame_requests" }, (payload) => {
-        setMyFrameRequests(prev => [payload.new as FrameRequest, ...prev]);
-      })
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "frame_requests" }, (payload) => {
-        setMyFrameRequests(prev => prev.map(r => r.id === (payload.new as FrameRequest).id ? { ...r, ...payload.new as FrameRequest } : r));
-      })
-      .subscribe();
-    return () => { supabase.removeChannel(myCh); };
+    return subscribeWhileVisible(() =>
+      supabase
+        .channel(`my-frame-requests-${userId}`)
+        .on("postgres_changes", { event: "INSERT", schema: "public", table: "frame_requests" }, (payload) => {
+          setMyFrameRequests(prev => [payload.new as FrameRequest, ...prev]);
+        })
+        .on("postgres_changes", { event: "UPDATE", schema: "public", table: "frame_requests" }, (payload) => {
+          setMyFrameRequests(prev => prev.map(r => r.id === (payload.new as FrameRequest).id ? { ...r, ...payload.new as FrameRequest } : r));
+        })
+        .subscribe(),
+      { onVisible: () => {
+        void supabase
+          .from("frame_requests")
+          .select("id, request_code, user_id, user_name, user_avatar, needy_name, needy_photo_url, address, category, mobile, description, collected_amount, target_amount, delivery_charge, support_count, status, is_priority, created_at")
+          .eq("user_id", userId)
+          .order("created_at", { ascending: false })
+          .limit(30)
+          .then(({ data }) => { if (data) setMyFrameRequests(data as FrameRequest[]); });
+      } },
+    );
   }, [userId]);
 
   // ── Fetch & Realtime (Updated for Auto-Refresh) ──────────────────────────────
@@ -4015,7 +4028,13 @@ const PersonalizationView = React.memo(({
               <Suspense fallback={<SectionLoader />}>
               <QuotesMaker
                 userId={userId}
+                userName={profile.full_name || ""}
                 onClose={() => setActiveFeature("Fame")}
+                onPostSuccess={() => {
+                  // Trigger FameFeed to refetch so the new quote appears immediately
+                  window.dispatchEvent(new CustomEvent("flicks-pull-refresh"));
+                  setActiveFeature("Fame");
+                }}
               />
               </Suspense>
               </ErrorBoundary>

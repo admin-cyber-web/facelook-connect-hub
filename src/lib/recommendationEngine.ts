@@ -142,12 +142,14 @@ export async function fetchRecommendedPeople(
     supabase
       .from("user_blocks")
       .select("blocker_id,blocked_id")
-      .or(`blocker_id.eq.${currentUserId},blocked_id.eq.${currentUserId}`),
+      .or(`blocker_id.eq.${currentUserId},blocked_id.eq.${currentUserId}`)
+      .limit(500),
     supabase
       .from("friend_requests")
       .select("receiver_id,sender_id")
       .or(`sender_id.eq.${currentUserId},receiver_id.eq.${currentUserId}`)
-      .eq("status", "accepted"),
+      .eq("status", "accepted")
+      .limit(500),
   ]);
 
   // Build exclusion sets
@@ -169,7 +171,8 @@ export async function fetchRecommendedPeople(
       .from("friend_requests")
       .select("sender_id,receiver_id")
       .or(`sender_id.in.(${friendsList.join(",")}),receiver_id.in.(${friendsList.join(",")})`)
-      .eq("status", "accepted");
+      .eq("status", "accepted")
+      .limit(1000);
     for (const row of fofRows ?? []) {
       const isFromFriend = friends.has(row.sender_id);
       const other        = isFromFriend ? row.receiver_id : row.sender_id;
@@ -242,7 +245,8 @@ export async function fetchNewInYourArea(
     supabase
       .from("user_blocks")
       .select("blocker_id,blocked_id")
-      .or(`blocker_id.eq.${currentUserId},blocked_id.eq.${currentUserId}`),
+      .or(`blocker_id.eq.${currentUserId},blocked_id.eq.${currentUserId}`)
+      .limit(500),
   ]);
 
   const blocked = new Set<string>();

@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { usePageVisibility } from "../hooks/usePageVisibility";
 import { ReactionBar, ReactionBubbles } from "./ReactionBar";
 import { useSoundEffects } from "../hooks/useSoundEffects";
 import { useProfileViewer } from "../context/ProfileViewerContext";
@@ -7,7 +6,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import AdminDashboard from "./AdminDashboard";
 import { isAdminEmail } from "../lib/adminConfig";
 import { resolveMediaUrl } from "../lib/mediaUrl";
-import AdsterraAd from "./AdsterraAd";
 import {
   Search,
   X,
@@ -52,6 +50,7 @@ import {
   Phone,
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
+import { subscribeWhileVisible } from "@/lib/realtimeVisibility";
 import { toast } from "sonner";
 import { parseMessage } from "../lib/messageParser";
 import { ChatSticker } from "./ChatSticker";
@@ -817,7 +816,6 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   onLogout,
   onUnreadCountChange,
 }) => {
-  const pageVisible = usePageVisibility();
   const isAdmin = isAdminEmail(userEmail);
   const { openProfile } = useProfileViewer();
 
@@ -1234,7 +1232,8 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     const { data } = await supabase
       .from("friendships")
       .select("id, sender_id, receiver_id, status")
-      .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`);
+      .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
+      .limit(500);
     if (!data) return;
     const map = new Map<string, FriendshipInfo>();
     for (const row of data) {
@@ -1256,7 +1255,8 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       .select("id, sender_id, created_at")
       .eq("receiver_id", userId)
       .eq("status", "pending")
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false })
+      .limit(100);
     if (!data || data.length === 0) {
       setPendingRequests([]);
       setPendingCount(0);
@@ -1266,7 +1266,8 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     const { data: profiles } = await supabase
       .from("profiles")
       .select("id, full_name, username, avatar_url")
-      .in("id", senderIds);
+      .in("id", senderIds)
+      .limit(100);
     const profileMap = new Map((profiles || []).map((p) => [p.id, p]));
     const reqs: FriendRequest[] = data.map((r) => ({
       id: r.id,
@@ -1308,7 +1309,8 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
         .from("friendships")
         .select("sender_id, receiver_id")
         .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
-        .eq("status", "accepted");
+        .eq("status", "accepted")
+        .limit(500);
       const friendIds = (friendRows || []).map((r) =>
         r.sender_id === userId ? r.receiver_id : r.sender_id,
       );
@@ -1318,7 +1320,8 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       const { data: blockRows } = await supabase
         .from("user_blocks")
         .select("blocker_id, blocked_id")
-        .or(`blocker_id.eq.${userId},blocked_id.eq.${userId}`);
+        .or(`blocker_id.eq.${userId},blocked_id.eq.${userId}`)
+        .limit(500);
       const blockedSet = new Set<string>();
       for (const b of blockRows || []) {
         if (b.blocker_id === userId) blockedSet.add(b.blocked_id);
@@ -1346,7 +1349,8 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
         .from("messages")
         .select("sender_id, receiver_id, content, media_type, created_at")
         .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .limit(500);
 
       const contactMap = new Map<
         string,
@@ -1376,7 +1380,8 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
         .from("messages")
         .select("sender_id")
         .eq("receiver_id", userId)
-        .is("seen_at", null);
+        .is("seen_at", null)
+        .limit(500);
       const unreadMap = new Map<string, number>();
       for (const row of unreadRows || []) {
         if (blockedSet.has(row.sender_id)) continue;
@@ -1699,7 +1704,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
 
   // ── Bootstrap ─────────────────────────────────────────────────────────────
   useEffect(() => {
-    if (!isOpen || !pageVisible) return;
+    if (!isOpen) return;
     fetchFriendships();
     fetchPendingRequests();
     fetchContacts();
@@ -1707,7 +1712,6 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     fetchStories();
   }, [
     isOpen,
-    pageVisible,
     fetchFriendships,
     fetchPendingRequests,
     fetchContacts,
@@ -1847,30 +1851,33 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
 
   // ── Presence: track who's actually online ─────────────────────────────────
   useEffect(() => {
-    if (!isOpen || !userId || !pageVisible) return;
-    const ch = supabase.channel("cx-presence", {
-      config: { presence: { key: userId } },
-    });
-    ch.on("presence", { event: "sync" }, () => {
-      const state = ch.presenceState<{ user_id: string }>();
-      const ids = new Set<string>();
-      Object.values(state)
-        .flat()
-        .forEach((p: any) => {
-          if (p.user_id) ids.add(p.user_id);
-        });
-      setOnlineUsers(ids);
-    }).subscribe(async (status) => {
-      if (status === "SUBSCRIBED" && activeStatus) {
-        await ch.track({ user_id: userId });
-      }
-    });
-    presenceChannelRef.current = ch;
+    if (!isOpen || !userId) return;
+    const cleanup = subscribeWhileVisible(() => {
+      const ch = supabase.channel("cx-presence", {
+        config: { presence: { key: userId } },
+      });
+      ch.on("presence", { event: "sync" }, () => {
+        const state = ch.presenceState<{ user_id: string }>();
+        const ids = new Set<string>();
+        Object.values(state)
+          .flat()
+          .forEach((p: any) => {
+            if (p.user_id) ids.add(p.user_id);
+          });
+        setOnlineUsers(ids);
+      }).subscribe(async (status) => {
+        if (status === "SUBSCRIBED" && activeStatus) {
+          await ch.track({ user_id: userId });
+        }
+      });
+      presenceChannelRef.current = ch;
+      return ch;
+    }, { onVisible: () => setOnlineUsers(new Set()) });
     return () => {
-      supabase.removeChannel(ch);
+      cleanup();
       presenceChannelRef.current = null;
     };
-  }, [isOpen, userId, pageVisible]);
+  }, [isOpen, userId]);
 
   // ── When activeStatus toggles, update presence tracking ───────────────────
   useEffect(() => {
@@ -1885,93 +1892,87 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
 
   // ── Realtime: friendships ─────────────────────────────────────────────────
   useEffect(() => {
-    if (!isOpen || !pageVisible) return;
-    const ch = supabase
-      .channel(`friendships-rt-${userId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "friendships",
-          filter: `receiver_id=eq.${userId}`,
-        },
-        (p) => {
-          const row = p.new as any;
-          if (row.receiver_id === userId || row.sender_id === userId) {
-            fetchFriendships();
-            if (row.receiver_id === userId && row.status === "pending")
+    if (!isOpen) return;
+    const cleanup = subscribeWhileVisible(() =>
+      supabase
+        .channel(`friendships-rt-${userId}`)
+        .on(
+          "postgres_changes",
+          { event: "INSERT", schema: "public", table: "friendships", filter: `receiver_id=eq.${userId}` },
+          (p) => {
+            const row = p.new as any;
+            if (row.receiver_id === userId || row.sender_id === userId) {
+              fetchFriendships();
+              if (row.receiver_id === userId && row.status === "pending")
+                fetchPendingRequests();
+            }
+          },
+        )
+        .on(
+          "postgres_changes",
+          { event: "UPDATE", schema: "public", table: "friendships", filter: `receiver_id=eq.${userId}` },
+          (p) => {
+            const row = p.new as any;
+            if (row.receiver_id === userId || row.sender_id === userId) {
+              fetchFriendships();
               fetchPendingRequests();
-          }
-        },
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "friendships",
-          filter: `receiver_id=eq.${userId}`,
-        },
-        (p) => {
-          const row = p.new as any;
-          if (row.receiver_id === userId || row.sender_id === userId) {
-            fetchFriendships();
-            fetchPendingRequests();
-            if (row.status === "accepted") fetchContacts();
-          }
-        },
-      )
-      .subscribe();
+              if (row.status === "accepted") fetchContacts();
+            }
+          },
+        )
+        .subscribe(),
+      { onVisible: () => {
+        void fetchFriendships();
+        void fetchPendingRequests();
+        void fetchContacts();
+      } },
+    );
     return () => {
-      supabase.removeChannel(ch);
+      cleanup();
     };
-  }, [isOpen, userId, pageVisible, fetchFriendships, fetchPendingRequests, fetchContacts]);
+  }, [isOpen, userId, fetchFriendships, fetchPendingRequests, fetchContacts]);
 
   // ── Realtime: new messages → alert ────────────────────────────────────────
   useEffect(() => {
-    if (!isOpen || !pageVisible) return;
-    const ch = supabase
-      .channel(`alerts-rt-${userId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "messages",
-          filter: `receiver_id=eq.${userId}`,
-        },
-        (p) => {
-          const msg = p.new as Message;
-          if (msg.receiver_id === userId) {
-            const sender = contactsRef.current.find(
-              (c) => c.id === msg.sender_id,
-            );
-            if (sender && !mutedChatsRef.current.has(msg.sender_id)) {
-              setAlerts((prev) =>
-                [
-                  {
-                    id: `msg-${msg.id}`,
-                    text: `${sender.full_name}: ${msg.content || "📎 Media"}`,
-                    time: new Date().toLocaleTimeString([], {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    }),
-                    read: false,
-                  },
-                  ...prev,
-                ].slice(0, 50),
+    if (!isOpen) return;
+    const cleanup = subscribeWhileVisible(() =>
+      supabase
+        .channel(`alerts-rt-${userId}`)
+        .on(
+          "postgres_changes",
+          { event: "INSERT", schema: "public", table: "messages", filter: `receiver_id=eq.${userId}` },
+          (p) => {
+            const msg = p.new as Message;
+            if (msg.receiver_id === userId) {
+              const sender = contactsRef.current.find(
+                (c) => c.id === msg.sender_id,
               );
+              if (sender && !mutedChatsRef.current.has(msg.sender_id)) {
+                setAlerts((prev) =>
+                  [
+                    {
+                      id: `msg-${msg.id}`,
+                      text: `${sender.full_name}: ${msg.content || "📎 Media"}`,
+                      time: new Date().toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      }),
+                      read: false,
+                    },
+                    ...prev,
+                  ].slice(0, 50),
+                );
+              }
             }
-          }
-        },
-      )
-      .subscribe();
+          },
+        )
+        .subscribe(),
+    );
     return () => {
-      supabase.removeChannel(ch);
+      cleanup();
     };
     // contacts/mutedChats accessed via refs — channel no longer tears down on every fetch
-  }, [isOpen, userId, pageVisible]);
+  }, [isOpen, userId]);
 
   // ── Unseen message count (always-on, drives FAB badge) ────────────────────
   const fetchUnseenCount = useCallback(async () => {
@@ -1985,48 +1986,36 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   }, [userId]);
 
   useEffect(() => {
-    if (!userId || !pageVisible) return;
+    if (!userId) return;
     fetchUnseenCount();
-    const ch = supabase
-      .channel(`unseen-count-${userId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "messages",
-          filter: `receiver_id=eq.${userId}`,
-        },
-        (p) => {
-          const msg = p.new as any;
-          if (msg.receiver_id === userId && !msg.seen_at) {
-            setUnseenMsgCount((prev) => prev + 1);
-          }
-        },
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "messages",
-          filter: `receiver_id=eq.${userId}`,
-        },
-        (p) => {
-          const msg = p.new as any;
-          const old = p.old as any;
-          // Only decrement when a message was just marked as seen — avoids a full
-          // DB round-trip on every single message update event
-          if (msg.receiver_id === userId && msg.seen_at && !old?.seen_at) {
-            setUnseenMsgCount((prev) => Math.max(0, prev - 1));
-          }
-        },
-      )
-      .subscribe();
-    return () => {
-      supabase.removeChannel(ch);
-    };
-  }, [userId, pageVisible, fetchUnseenCount]);
+    return subscribeWhileVisible(() =>
+      supabase
+        .channel(`unseen-count-${userId}`)
+        .on(
+          "postgres_changes",
+          { event: "INSERT", schema: "public", table: "messages", filter: `receiver_id=eq.${userId}` },
+          (p) => {
+            const msg = p.new as any;
+            if (msg.receiver_id === userId && !msg.seen_at) {
+              setUnseenMsgCount((prev) => prev + 1);
+            }
+          },
+        )
+        .on(
+          "postgres_changes",
+          { event: "UPDATE", schema: "public", table: "messages", filter: `receiver_id=eq.${userId}` },
+          (p) => {
+            const msg = p.new as any;
+            const old = p.old as any;
+            if (msg.receiver_id === userId && msg.seen_at && !old?.seen_at) {
+              setUnseenMsgCount((prev) => Math.max(0, prev - 1));
+            }
+          },
+        )
+        .subscribe(),
+      { onVisible: () => { void fetchUnseenCount(); } },
+    );
+  }, [userId, fetchUnseenCount]);
 
   // ── Report total unread count to parent (for FAB badge) ──────────────────
   useEffect(() => {
@@ -2064,7 +2053,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
 
   // ── Messages for selected chat ────────────────────────────────────────────
   useEffect(() => {
-    if (!selectedUser || !pageVisible) return;
+    if (!isOpen || !selectedUser) return;
     setIsOtherTyping(false);
     setShowChatMenu(false);
     setPanicMode(false);
@@ -2170,16 +2159,11 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     let realtimeHealthy = false;
 
     const convKey = [userId, selectedUser.id].sort().join("-");
-    const ch = supabase
+    const createConversationChannel = () => supabase
       .channel(`conv-${convKey}`)
       .on(
         "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "messages",
-          filter: `sender_id=eq.${selectedUser.id}`,
-        },
+        { event: "INSERT", schema: "public", table: "messages", filter: `receiver_id=eq.${myId}` },
         (p) => {
           const msg = p.new as Message;
           const sid = String(msg.sender_id || "").trim();
@@ -2270,12 +2254,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       )
       .on(
         "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "messages",
-          filter: `sender_id=eq.${selectedUser.id}`,
-        },
+        { event: "UPDATE", schema: "public", table: "messages", filter: `receiver_id=eq.${myId}` },
         (p) => {
           const msg = p.new as Message;
           const relevant =
@@ -2291,17 +2270,50 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       )
       .on(
         "postgres_changes",
-        {
-          event: "DELETE",
-          schema: "public",
-          table: "messages",
-          filter: `sender_id=eq.${selectedUser.id}`,
-        },
+        { event: "DELETE", schema: "public", table: "messages", filter: `receiver_id=eq.${myId}` },
         (p) => {
           const deletedId = (p.old as { id: string })?.id;
           if (deletedId) {
             setMessages((prev) => prev.filter((m) => m.id !== deletedId));
           }
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "message_reactions" },
+        (p) => {
+          const row = (p.new ?? p.old) as {
+            message_id: string;
+            user_id: string;
+            emoji: string;
+          } | null;
+          if (!row) return;
+          setMsgReactions((prev) => {
+            const msgId = row.message_id;
+            const cur = { ...(prev[msgId] ?? {}) };
+            if (p.eventType === "DELETE") {
+              const old = p.old as {
+                message_id: string;
+                user_id: string;
+                emoji: string;
+              };
+              if (cur[old.emoji]) {
+                cur[old.emoji] = cur[old.emoji].filter(
+                  (u) => u !== old.user_id,
+                );
+                if (cur[old.emoji].length === 0) delete cur[old.emoji];
+              }
+            } else {
+              Object.keys(cur).forEach((e) => {
+                cur[e] = cur[e].filter((u) => u !== row.user_id);
+                if (cur[e].length === 0) delete cur[e];
+              });
+              if (!cur[row.emoji]) cur[row.emoji] = [];
+              if (!cur[row.emoji].includes(row.user_id))
+                cur[row.emoji].push(row.user_id);
+            }
+            return { ...prev, [msgId]: cur };
+          });
         },
       )
       .subscribe((status) => {
@@ -2312,92 +2324,89 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
           void 0; // realtime error — polling fallback handles it silently;
         }
       });
+    const cleanupConversationChannel = subscribeWhileVisible(
+      createConversationChannel,
+      { onVisible: () => { realtimeHealthy = false; void load(); } },
+    );
 
     // ── Polling fallback — only fires when realtime is broken or backgrounded ──
-    let lastActivityAt = Date.now();
-    const markChatActive = () => {
-      lastActivityAt = Date.now();
-    };
-    const activityEvents = ["pointerdown", "keydown", "touchstart", "scroll"] as const;
-    activityEvents.forEach((event) => {
-      window.addEventListener(event, markChatActive, { passive: true });
-    });
+    let pollingInFlight = false;
     const fallbackInterval = setInterval(async () => {
       // Skip entirely when the app/tab is hidden — no need to wake the radio
-      if (document.hidden) return;
+      if (!isOpen || document.hidden || pollingInFlight) return;
       // Skip when realtime is healthy — avoid double-fetching on every message
       if (realtimeHealthy) return;
-      // Realtime recovery is only useful while the conversation is active.
-      if (Date.now() - lastActivityAt >= 5 * 60 * 1000) return;
 
       const myId = String(userId || "").trim();
       const partnerId = String(selectedUser.id || "").trim();
       if (!myId || !partnerId) return;
+      pollingInFlight = true;
 
-      // ① Messages — use .in() on both columns (avoids compound OR parsing issues)
-      const { data: freshMsgs } = await supabase
-        .from("messages")
-        .select(
-          "id, sender_id, receiver_id, content, media_url, media_type, created_at, seen_at, reply_to_id",
-        )
-        .in("sender_id", [myId, partnerId])
-        .in("receiver_id", [myId, partnerId])
-        .order("created_at", { ascending: true })
-        .limit(200);
+      try {
+        // ① Messages — use .in() on both columns (avoids compound OR parsing issues)
+        const { data: freshMsgs } = await supabase
+          .from("messages")
+          .select(
+            "id, sender_id, receiver_id, content, media_url, media_type, created_at, seen_at, reply_to_id",
+          )
+          .in("sender_id", [myId, partnerId])
+          .in("receiver_id", [myId, partnerId])
+          .order("created_at", { ascending: true })
+          .limit(200);
 
-      if (freshMsgs) {
-        const freshIds = new Set((freshMsgs as Message[]).map((m) => m.id));
-        setMessages((prev) => {
-          const prevIds = new Set(prev.map((m) => m.id));
-          // Add messages that arrived while offline — but never re-add ones deleted for me
-          const toAdd = (freshMsgs as Message[]).filter(
-            (m) => !prevIds.has(m.id) && !deletedForMeIdsRef.current.has(m.id),
-          );
-          // Remove messages that were deleted on the DB side
-          const surviving = prev.filter(
-            (m) => m.id.startsWith("temp-") || freshIds.has(m.id),
-          );
-          if (toAdd.length === 0 && surviving.length === prev.length)
-            return prev;
-          return [...surviving, ...toAdd].sort((a, b) =>
-            a.created_at.localeCompare(b.created_at),
-          );
-        });
+        if (freshMsgs) {
+          const freshIds = new Set((freshMsgs as Message[]).map((m) => m.id));
+          setMessages((prev) => {
+            const prevIds = new Set(prev.map((m) => m.id));
+            const toAdd = (freshMsgs as Message[]).filter(
+              (m) => !prevIds.has(m.id) && !deletedForMeIdsRef.current.has(m.id),
+            );
+            const surviving = prev.filter(
+              (m) => m.id.startsWith("temp-") || freshIds.has(m.id),
+            );
+            if (toAdd.length === 0 && surviving.length === prev.length)
+              return prev;
+            return [...surviving, ...toAdd].sort((a, b) =>
+              a.created_at.localeCompare(b.created_at),
+            );
+          });
+        }
+
+        // ② Reactions — full re-sync using the proven fetchMsgReactions path
+        await fetchMsgReactions(userId, selectedUser.id);
+      } finally {
+        pollingInFlight = false;
       }
-
-      // ② Reactions — full re-sync using the proven fetchMsgReactions path
-      // This does a complete replace of setMsgReactions, not a partial merge,
-      // so additions AND removals are always reflected correctly.
-      await fetchMsgReactions(userId, selectedUser.id);
-    }, 10_000);
+    }, 30_000);
 
     // Typing presence channel
     const typingKey = [userId, selectedUser.id].sort().join("-");
-    const typingCh = supabase.channel(`typing-${typingKey}`, {
-      config: { presence: { key: userId } },
-    });
-    typingCh
-      .on("presence", { event: "sync" }, () => {
-        const state = typingCh.presenceState<{ is_typing?: boolean }>();
-        const other = (state[selectedUser.id] || [])[0] as
-          | { is_typing?: boolean }
-          | undefined;
-        setIsOtherTyping(other?.is_typing === true);
-      })
-      .subscribe();
-    typingChannelRef.current = typingCh;
+    const createTypingChannel = () => {
+      const typingCh = supabase.channel(`typing-${typingKey}`, {
+        config: { presence: { key: userId } },
+      });
+      typingCh
+        .on("presence", { event: "sync" }, () => {
+          const state = typingCh.presenceState<{ is_typing?: boolean }>();
+          const other = (state[selectedUser.id] || [])[0] as
+            | { is_typing?: boolean }
+            | undefined;
+          setIsOtherTyping(other?.is_typing === true);
+        })
+        .subscribe();
+      typingChannelRef.current = typingCh;
+      return typingCh;
+    };
+    const cleanupTypingChannel = subscribeWhileVisible(createTypingChannel);
 
     return () => {
       clearInterval(fallbackInterval);
-      activityEvents.forEach((event) => {
-        window.removeEventListener(event, markChatActive);
-      });
-      supabase.removeChannel(ch);
-      supabase.removeChannel(typingCh);
+      cleanupConversationChannel();
+      cleanupTypingChannel();
       typingChannelRef.current = null;
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     };
-  }, [selectedUser, userId, pageVisible, fetchContacts, fetchMsgReactions]);
+  }, [isOpen, selectedUser, userId, fetchContacts, fetchMsgReactions]);
 
   // ── Friend actions ────────────────────────────────────────────────────────
   const sendFriendRequest = async (targetId: string) => {
@@ -4385,12 +4394,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                           >
                             Recent Chats
                           </p>
-                          {(() => {
-                            let contactCount = 0;
-                            return visibleContacts.map((c) => {
-                              contactCount++;
-                              const showAd = contactCount % 5 === 0;
-                              return (
+                          {visibleContacts.map((c) => (
                             <div key={c.id}>
                             <motion.div
                               initial={{ opacity: 0, x: -8 }}
@@ -4510,15 +4514,8 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                 )}
                               </AnimatePresence>
                             </motion.div>
-                            {showAd && (
-                              <div className="px-4">
-                                <AdsterraAd />
-                              </div>
-                            )}
                             </div>
-                          );
-                        });
-                      })()}
+                          ))}
                     </>
                       )}
                     </>

@@ -6,7 +6,6 @@ import { useProfileViewer } from "../context/ProfileViewerContext";
 import { useDataCache } from "../context/DataCacheContext";
 import { isAdminEmail } from "../lib/adminConfig";
 import { useSoundEffects } from "../hooks/useSoundEffects";
-import AdsterraAd from "./AdsterraAd";
 import {
   Heart, MessageCircle, Share2, Plus, X, Send,
   BadgeCheck, Loader2, Flag, Trash2, Ban, Pencil, MoreVertical,
@@ -803,11 +802,6 @@ export default function FlicksApp({ onBack, onBridgeChat, isAdmin: isAdminProp =
                   onPostDeleted={(rawId: string) => setFlicks(prev => prev.filter(x => x._raw_id !== rawId))}
                   onUserBanned={(authorId: string) => setFlicks(prev => prev.filter(x => x.author_id !== authorId))}
                 />
-                {(i + 1) % 3 === 0 && (
-                  <div className="w-full bg-black snap-start shrink-0 relative" style={{ height: "100dvh" }}>
-                    <div className="absolute inset-0 flex items-center justify-center px-4"><AdsterraAd /></div>
-                  </div>
-                )}
               </React.Fragment>
             );
           })

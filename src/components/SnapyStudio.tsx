@@ -4,6 +4,7 @@ import React, {
   useState,
   useCallback,
 } from "react";
+import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Camera,
@@ -357,16 +358,26 @@ const SnapyStudio: React.FC<SnapyStudioProps> = ({ userId }) => {
         .from("posts")
         .getPublicUrl(fileName);
 
-      await supabase.from("posts").insert({
-        user_id: userId,
-        image_url: urlData.publicUrl,
-        caption: "📸 Shot with Snapy Studio",
-      });
+      const snapPayload = {
+        author_id: userId,
+        media_url: urlData.publicUrl,
+        content:   "📸 Shot with Snapy Studio",
+        type:      "image",
+        media_type: "image",
+        post_type:  "snap",
+      };
+
+      const { error: snapErr } = await supabase.from("posts").insert(snapPayload);
+      if (snapErr) {
+        console.error("[SnapyStudio] posts insert failed — payload:", snapPayload, "error:", snapErr);
+        throw snapErr;
+      }
 
       setUploadDone(true);
       setTimeout(() => setState("done"), 800);
-    } catch (e) {
-      console.error("Save failed:", e);
+    } catch (e: any) {
+      console.error("[SnapyStudio] Save failed:", e);
+      toast.error(e?.message ?? "Post save nahi hua. Try again!");
     } finally {
       setUploading(false);
     }

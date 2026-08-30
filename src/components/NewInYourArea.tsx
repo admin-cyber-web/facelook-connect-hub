@@ -11,6 +11,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { MapPin, X, UserPlus, Sparkles } from "lucide-react";
 import { fetchNewInYourArea, type LocalProfile, type RecommendedUser } from "@/lib/recommendationEngine";
 import { supabase } from "@/lib/supabaseClient";
+import { subscribeWhileVisible } from "@/lib/realtimeVisibility";
 
 const POPUP_KEY = "flicks_new_in_area_popup_v1";
 
@@ -62,19 +63,22 @@ export default function NewInYourArea({ currentUserId, localProfile, onProfileCl
     if (!areaKey || !currentUserId) return;
 
     const channelName = `new-user-${areaKey.toLowerCase().replace(/\s+/g, "-")}`;
-    const channel = (supabase as any)
-      .channel(channelName)
-      .on("broadcast", { event: "new_user_joined" }, () => {
-        // Re-fetch silently; update strip without showing popup again
-        fetchNewInYourArea(currentUserId, localProfile, 8)
+    return subscribeWhileVisible(() =>
+      (supabase as any)
+        .channel(channelName)
+        .on("broadcast", { event: "new_user_joined" }, () => {
+          // Re-fetch silently; update strip without showing popup again
+          fetchNewInYourArea(currentUserId, localProfile, 8)
+            .then(results => { if (results.length > 0) setUsers(results); })
+            .catch(() => {});
+        })
+        .subscribe(),
+      { onVisible: () => {
+        void fetchNewInYourArea(currentUserId, localProfile, 8)
           .then(results => { if (results.length > 0) setUsers(results); })
           .catch(() => {});
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+      } },
+    );
   }, [currentUserId, localProfile.district, localProfile.city, localProfile.state]);
 
   const dismissPopup = () => {

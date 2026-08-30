@@ -7,7 +7,7 @@ import {
   type ReactNode,
 } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { usePageVisibility } from "@/hooks/usePageVisibility";
+import { subscribeWhileVisible } from "@/lib/realtimeVisibility";
 
 // ── Context value ─────────────────────────────────────────────────────────────
 const OnlineUsersCtx = createContext<Set<string>>(new Set());
@@ -21,43 +21,41 @@ interface Props {
 export function OnlineUsersProvider({ userId, children }: Props) {
   const [onlineIds, setOnlineIds] = useState<Set<string>>(new Set());
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
-  const pageVisible = usePageVisibility();
 
   useEffect(() => {
-    if (!userId || !pageVisible) {
-      setOnlineIds(new Set());
-      return;
-    }
+    if (!userId) return;
 
-    const ch = supabase.channel("online-users", {
-      config: { presence: { key: userId } },
+    const cleanup = subscribeWhileVisible(() => {
+      const ch = supabase.channel("online-users", {
+        config: { presence: { key: userId } },
+      });
+
+      ch.on("presence", { event: "sync" }, () => {
+        const state = ch.presenceState<{ userId: string }>();
+        const ids = new Set<string>(
+          Object.values(state).flatMap((arr: any[]) =>
+            arr.map((p: any) => p.userId).filter(Boolean)
+          )
+        );
+        setOnlineIds(ids);
+      });
+
+      ch.subscribe(async (status) => {
+        if (status === "SUBSCRIBED") {
+          await ch.track({ userId, online_at: new Date().toISOString() });
+        }
+      });
+      channelRef.current = ch;
+      return ch;
+    }, {
+      onVisible: () => setOnlineIds(new Set()),
     });
-
-    ch.on("presence", { event: "sync" }, () => {
-      const state = ch.presenceState<{ userId: string }>();
-      const ids = new Set<string>(
-        Object.values(state).flatMap((arr: any[]) =>
-          arr.map((p: any) => p.userId).filter(Boolean)
-        )
-      );
-      setOnlineIds(ids);
-    });
-
-    ch.subscribe(async (status) => {
-      if (status === "SUBSCRIBED") {
-        await ch.track({ userId, online_at: new Date().toISOString() });
-      }
-    });
-
-    channelRef.current = ch;
 
     return () => {
-      ch.untrack().finally(() => {
-        supabase.removeChannel(ch);
-      });
+      cleanup();
       channelRef.current = null;
     };
-  }, [userId, pageVisible]);
+  }, [userId]);
 
   return (
     <OnlineUsersCtx.Provider value={onlineIds}>
