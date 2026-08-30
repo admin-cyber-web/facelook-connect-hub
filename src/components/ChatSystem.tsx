@@ -51,6 +51,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { subscribeWhileVisible } from "@/lib/realtimeVisibility";
+import { usePageVisibility } from "../hooks/usePageVisibility";
 import { toast } from "sonner";
 import { parseMessage } from "../lib/messageParser";
 import { ChatSticker } from "./ChatSticker";
@@ -804,7 +805,9 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
           .select("id")
           .or(
             `and(sender_id.eq.${uid},receiver_id.eq.${otherId}),and(sender_id.eq.${otherId},receiver_id.eq.${uid})`,
-          );
+          )
+          .order("created_at", { ascending: false })
+          .limit(200);
         const msgIdsArr = (msgData || []).map((m: any) => m.id as string);
         if (msgIdsArr.length === 0) return;
         const { data } = await supabase
@@ -2036,7 +2039,11 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
 
   // ── Messages for selected chat ────────────────────────────────────────────
   useEffect(() => {
-    if (!isOpen || !selectedUser) return;
+    if (!isOpen || !selectedUser || !userId) return;
+    const myId = String(userId).trim();
+    const partnerId = String(selectedUser.id || "").trim();
+    if (!myId || !partnerId) return;
+
     setIsOtherTyping(false);
     setShowChatMenu(false);
     setPanicMode(false);
@@ -2050,9 +2057,6 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       setLoadingMessages(true);
 
       // Normalise IDs — trim whitespace to guard against subtle format differences
-      const myId = (userId || "").trim();
-      const partnerId = (selectedUser.id || "").trim();
-
       // Guard: abort if either ID is missing (can happen on first mount)
       if (!myId || !partnerId) {
         setLoadingMessages(false);
@@ -2125,10 +2129,10 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
         .is("seen_at", null);
     };
 
-    load().then(() => fetchMsgReactions(userId, selectedUser.id));
+    load().then(() => fetchMsgReactions(myId, partnerId));
 
     // ── Chat Realtime via custom-all-channel ─────────────────────────────────
-    const convKey = [userId, selectedUser.id].sort().join("-");
+    const convKey = [myId, partnerId].sort().join("-");
     const createConversationChannel = () => supabase
       .channel(`conv-${convKey}`)
       .on(
@@ -2138,8 +2142,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
           const msg = p.new as Message;
           const sid = String(msg.sender_id || "").trim();
           const rid = String(msg.receiver_id || "").trim();
-          const myId = String(userId || "").trim();
-          const pid = String(selectedUser.id || "").trim();
+          const pid = partnerId;
           const relevant =
             (sid === myId && rid === pid) || (sid === pid && rid === myId);
 
@@ -2226,7 +2229,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
         (p) => {
           const msg = p.new as Message;
           const relevant =
-            msg.sender_id === userId || msg.receiver_id === userId;
+            msg.sender_id === myId || msg.receiver_id === myId;
           if (relevant) {
             // Merge ALL updated fields (content, seen_at, any future fields)
             setMessages((prev) =>
@@ -2252,10 +2255,10 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     );
 
     // Typing presence channel
-    const typingKey = [userId, selectedUser.id].sort().join("-");
+    const typingKey = [myId, partnerId].sort().join("-");
     const createTypingChannel = () => {
       const typingCh = supabase.channel(`typing-${typingKey}`, {
-        config: { presence: { key: userId } },
+        config: { presence: { key: myId } },
       });
       typingCh
         .on("presence", { event: "sync" }, () => {
