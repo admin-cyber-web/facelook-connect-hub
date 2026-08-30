@@ -6,7 +6,7 @@ import {
   Users, Lock, Globe, Clock, Crown, Star, Heart, MessageCircle,
   UserPlus, Check, X, Radio, Search,
   Copy, Share2, ChevronRight, Sparkles, Zap, Target,
-  Flame, Music, Award, Loader2
+  Flame, Music, Award, Loader2, RefreshCw
 } from "lucide-react";
 import { useProfileViewer } from "../context/ProfileViewerContext";
 
@@ -194,13 +194,6 @@ export default function AntakshariArena({
   // Replace 10-second polling with a realtime subscription — zero egress between room changes
   useEffect(() => {
     fetchPublicRooms();
-    const ch = supabase
-      .channel("antakshari-rooms-rt")
-      .on("postgres_changes", { event: "*", schema: "public", table: "antakshari_rooms" }, () => {
-        fetchPublicRooms();
-      })
-      .subscribe();
-    return () => { supabase.removeChannel(ch); };
   }, [fetchPublicRooms]);
 
   /* ── Load leaderboard ────────────────────────────────────────────────────── */
@@ -433,6 +426,7 @@ export default function AntakshariArena({
             onJoin={() => setView("join")}
             onLeaderboard={() => setView("leaderboard")}
             onJoinPublic={(code) => handleJoinRoom(code)}
+            onRefresh={fetchPublicRooms}
           />
         )}
         {view === "create" && (
@@ -492,6 +486,7 @@ function HomeView({
   onJoin,
   onLeaderboard,
   onJoinPublic,
+  onRefresh,
 }: {
   myProfile: Profile | null;
   publicRooms: Room[];
@@ -500,6 +495,7 @@ function HomeView({
   onJoin: () => void;
   onLeaderboard: () => void;
   onJoinPublic: (code: string) => void;
+  onRefresh: () => void;
 }) {
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="px-4 pb-8 space-y-5">
@@ -546,9 +542,19 @@ function HomeView({
       {/* Public Rooms */}
       {publicRooms.length > 0 && (
         <div>
-          <h3 className="text-white/50 text-xs font-black tracking-wider uppercase mb-3 flex items-center gap-2">
-            <Globe size={12} /> Public Rooms
-          </h3>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-white/50 text-xs font-black tracking-wider uppercase flex items-center gap-2">
+                <Globe size={12} /> Public Rooms
+              </h3>
+              <button
+                type="button"
+                onClick={onRefresh}
+                className="text-white/40 hover:text-white/80 transition-colors"
+                aria-label="Refresh public rooms"
+              >
+                <RefreshCw size={13} />
+              </button>
+            </div>
           <div className="space-y-2">
             {publicRooms.slice(0, 5).map((r) => (
               <GlassCard key={r.id} className="p-3" onClick={() => onJoinPublic(r.code)}>

@@ -1496,25 +1496,6 @@ export const StoryBar = ({ userProfile }: { userProfile?: any }) => {
 
   useEffect(() => {
     fetchStories();
-    // Debounced refetch — prevents burst of DB reads when many story events fire at once
-    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
-    const debouncedFetch = () => {
-      if (debounceTimer) clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(() => fetchStories(true), 3000);
-    };
-    const cleanupChannel = subscribeWhileVisible(
-      () => supabase
-        .channel("story-bar-global")
-        .on("postgres_changes", { event: "*", schema: "public", table: "stories" }, () => {
-          if (!document.hidden) debouncedFetch();
-        })
-        .subscribe(),
-      { onVisible: () => { void fetchStories(true); } },
-    );
-    return () => {
-      if (debounceTimer) clearTimeout(debounceTimer);
-      cleanupChannel();
-    };
   }, [fetchStories]);
 
   // Listen for notification-click story opens

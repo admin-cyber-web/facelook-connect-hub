@@ -168,44 +168,6 @@ const AdminDashboard: React.FC<Props> = ({
     };
   }, [userSearch]);
 
-  useEffect(() => {
-    const ch = supabase
-      .channel(`admin-dash-stable`)
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "profiles" },
-        (payload) => {
-          if (payload.new?.id) {
-            setUsers((prev) => [payload.new as UserRow, ...prev]);
-          }
-        },
-      )
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "profiles" },
-        () => fetchAll(true),
-      )
-      .on(
-        "postgres_changes",
-        { event: "DELETE", schema: "public", table: "profiles" },
-        () => fetchAll(true),
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "posts" },
-        () => fetchAll(true),
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "reports" },
-        () => fetchAll(true),
-      )
-      .subscribe();
-    return () => {
-      supabase.removeChannel(ch);
-    };
-  }, []);
-
   const fetchAll = async (force = false) => {
     const cKey = `adminDash_${currentUserId}`;
     if (!force) {
@@ -340,7 +302,7 @@ const AdminDashboard: React.FC<Props> = ({
       // Pending Studio Name change requests
       const { data: studioData } = await supabase
         .from("name_changes")
-        .select("*")
+        .select("id, profile_id, creator_id, current_name, requested_name, reason, status, created_at")
         .eq("status", "pending");
       setStudioRequests((studioData as any[]) || []);
 

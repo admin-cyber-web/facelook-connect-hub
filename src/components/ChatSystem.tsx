@@ -2142,22 +2142,9 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
         .is("seen_at", null);
     };
 
-    // Retry once after 800 ms in case userId arrived slightly after selectedUser
-    const runLoad = async () => {
-      await load();
-      // If still empty and userId exists, retry once (handles async auth init)
-      if (!userId) {
-        setTimeout(() => load(), 800);
-      }
-    };
-    runLoad().then(() => fetchMsgReactions(userId, selectedUser.id));
+    load().then(() => fetchMsgReactions(userId, selectedUser.id));
 
     // ── Chat Realtime via custom-all-channel ─────────────────────────────────
-    // Track when realtime last delivered a message (for the manual-fetch fallback)
-    let lastRtReceived = Date.now();
-    // Only run the polling fallback when realtime is confirmed broken
-    let realtimeHealthy = false;
-
     const convKey = [userId, selectedUser.id].sort().join("-");
     const createConversationChannel = () => supabase
       .channel(`conv-${convKey}`)
@@ -2177,8 +2164,6 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
 
           // Skip messages the user deleted for themselves — don't let realtime bounce them back
           if (deletedForMeIdsRef.current.has(msg.id)) return;
-
-          lastRtReceived = Date.now();
 
           // Safely append — skip if already in list (optimistic duplicate guard)
           setMessages((prev) =>
@@ -2260,7 +2245,6 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
           const relevant =
             msg.sender_id === userId || msg.receiver_id === userId;
           if (relevant) {
-            lastRtReceived = Date.now();
             // Merge ALL updated fields (content, seen_at, any future fields)
             setMessages((prev) =>
               prev.map((m) => (m.id === msg.id ? { ...m, ...msg } : m)),
@@ -2278,106 +2262,11 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
           }
         },
       )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "message_reactions" },
-        (p) => {
-          const row = (p.new ?? p.old) as {
-            message_id: string;
-            user_id: string;
-            emoji: string;
-          } | null;
-          if (!row) return;
-          setMsgReactions((prev) => {
-            const msgId = row.message_id;
-            const cur = { ...(prev[msgId] ?? {}) };
-            if (p.eventType === "DELETE") {
-              const old = p.old as {
-                message_id: string;
-                user_id: string;
-                emoji: string;
-              };
-              if (cur[old.emoji]) {
-                cur[old.emoji] = cur[old.emoji].filter(
-                  (u) => u !== old.user_id,
-                );
-                if (cur[old.emoji].length === 0) delete cur[old.emoji];
-              }
-            } else {
-              Object.keys(cur).forEach((e) => {
-                cur[e] = cur[e].filter((u) => u !== row.user_id);
-                if (cur[e].length === 0) delete cur[e];
-              });
-              if (!cur[row.emoji]) cur[row.emoji] = [];
-              if (!cur[row.emoji].includes(row.user_id))
-                cur[row.emoji].push(row.user_id);
-            }
-            return { ...prev, [msgId]: cur };
-          });
-        },
-      )
-      .subscribe((status) => {
-        if (status === "SUBSCRIBED") {
-          realtimeHealthy = true;
-        } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
-          realtimeHealthy = false;
-          void 0; // realtime error — polling fallback handles it silently;
-        }
-      });
+      .subscribe();
     const cleanupConversationChannel = subscribeWhileVisible(
       createConversationChannel,
       { onVisible: () => { realtimeHealthy = false; void load(); } },
     );
-
-    // ── Polling fallback — only fires when realtime is broken or backgrounded ──
-    let pollingInFlight = false;
-    const fallbackInterval = setInterval(async () => {
-      // Skip entirely when the app/tab is hidden — no need to wake the radio
-      if (!isOpen || document.hidden || pollingInFlight) return;
-      // Skip when realtime is healthy — avoid double-fetching on every message
-      if (realtimeHealthy) return;
-
-      const myId = String(userId || "").trim();
-      const partnerId = String(selectedUser.id || "").trim();
-      if (!myId || !partnerId) return;
-      pollingInFlight = true;
-
-      try {
-        // ① Messages — use .in() on both columns (avoids compound OR parsing issues)
-        const { data: freshMsgs } = await supabase
-          .from("messages")
-          .select(
-            "id, sender_id, receiver_id, content, media_url, media_type, created_at, seen_at, reply_to_id",
-          )
-          .in("sender_id", [myId, partnerId])
-          .in("receiver_id", [myId, partnerId])
-          .order("created_at", { ascending: true })
-          .limit(200);
-
-        if (freshMsgs) {
-          const freshIds = new Set((freshMsgs as Message[]).map((m) => m.id));
-          setMessages((prev) => {
-            const prevIds = new Set(prev.map((m) => m.id));
-            const toAdd = (freshMsgs as Message[]).filter(
-              (m) => !prevIds.has(m.id) && !deletedForMeIdsRef.current.has(m.id),
-            );
-            const surviving = prev.filter(
-              (m) => m.id.startsWith("temp-") || freshIds.has(m.id),
-            );
-            if (toAdd.length === 0 && surviving.length === prev.length)
-              return prev;
-            return [...surviving, ...toAdd].sort((a, b) =>
-              a.created_at.localeCompare(b.created_at),
-            );
-          });
-        }
-
-        // ② Reactions — full re-sync using the proven fetchMsgReactions path
-        await fetchMsgReactions(userId, selectedUser.id);
-      } finally {
-        pollingInFlight = false;
-      }
-    }, 30_000);
 
     // Typing presence channel
     const typingKey = [userId, selectedUser.id].sort().join("-");
@@ -2400,7 +2289,6 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     const cleanupTypingChannel = subscribeWhileVisible(createTypingChannel);
 
     return () => {
-      clearInterval(fallbackInterval);
       cleanupConversationChannel();
       cleanupTypingChannel();
       typingChannelRef.current = null;

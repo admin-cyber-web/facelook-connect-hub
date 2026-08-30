@@ -1990,11 +1990,6 @@ const HooksHub = ({ userId, initialOpenPageId }: { userId: string; initialOpenPa
 
   useEffect(() => {
     fetchPages();
-    // Real-time: any follow/unfollow refreshes the listing
-    const ch = supabase.channel("hub-page-followers")
-      .on("postgres_changes", { event: "*", schema: "public", table: "page_followers" }, () => fetchPages())
-      .subscribe();
-    return () => { supabase.removeChannel(ch); };
   }, [userId, fetchPages]);
 
   if (activePage) {

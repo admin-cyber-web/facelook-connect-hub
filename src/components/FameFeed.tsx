@@ -3220,49 +3220,6 @@ const FameFeed = ({
     }
     if (!flicksLoaded) fetchFlicks();
     else if (dataCache.isStale("fameFlicks")) fetchFlicks();
-    const cleanupFeedChannel = subscribeWhileVisible(() =>
-      supabase
-        .channel(channelId.current)
-        .on(
-          "postgres_changes",
-          { event: "INSERT", schema: "public", table: "posts" },
-          (payload) => {
-            const newPost = payload.new as any;
-            if (!newPost?.id) return;
-            setPosts((prev) => {
-              if (prev.some((p) => p.id === newPost.id)) return prev;
-              return [newPost, ...prev];
-            });
-          },
-        )
-        .on(
-          "postgres_changes",
-          { event: "UPDATE", schema: "public", table: "posts" },
-          (payload) => {
-            const updId = (payload.new as any).id;
-            if (deletingPostIdsRef.current.has(updId)) return; // guard: don't restore a post mid-delete
-            setPosts((prev) =>
-              prev.map((p) =>
-                p.id === updId ? { ...p, ...(payload.new as any) } : p,
-              ),
-            );
-          },
-        )
-        .on(
-          "postgres_changes",
-          { event: "DELETE", schema: "public", table: "posts" },
-          (payload) => {
-            setPosts((prev) =>
-              prev.filter((p) => p.id !== (payload.old as any).id),
-            );
-          },
-        )
-        .subscribe(),
-      { onVisible: () => { void fetchPosts(true); } },
-    );
-    return () => {
-      cleanupFeedChannel();
-    };
   }, []);
 
   // ── Suggestions fetch — runs immediately on mount, NO auth gate needed ────

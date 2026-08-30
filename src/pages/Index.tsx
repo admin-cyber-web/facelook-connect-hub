@@ -260,21 +260,6 @@ function FrameModePage({ onBack, userProfile, userEmail }: { onBack: () => void;
 
   useEffect(() => {
     fetchRequests();
-    return subscribeWhileVisible(() =>
-      supabase
-        .channel("frame-live")
-        .on("postgres_changes", { event: "INSERT", schema: "public", table: "frame_requests" }, (payload) => {
-          setRequests(prev => [payload.new as FrameRequest, ...prev]);
-        })
-        .on("postgres_changes", { event: "UPDATE", schema: "public", table: "frame_requests" }, (payload) => {
-          setRequests(prev => prev.map(r => r.id === (payload.new as FrameRequest).id ? { ...r, ...payload.new as FrameRequest } : r));
-        })
-        .on("postgres_changes", { event: "DELETE", schema: "public", table: "frame_requests" }, (payload) => {
-          setRequests(prev => prev.filter(r => r.id !== (payload.old as any).id));
-        })
-        .subscribe(),
-      { onVisible: () => { void fetchRequests(); } },
-    );
   }, []);
 
   const fetchRequests = async () => {
@@ -1783,6 +1768,7 @@ const Index = ({ session, initialAdminOpen, isGuest = false }: { session: Sessio
     supabase
       .from("frame_requests")
       .select("id, request_code, user_id, user_name, user_avatar, needy_name, needy_photo_url, address, category, mobile, description, collected_amount, target_amount, delivery_charge, support_count, status, is_priority, created_at")
+        .eq("user_id", userId)
       .order("created_at", { ascending: false })
       .limit(30)
       .then(({ data }) => {
@@ -1795,10 +1781,10 @@ const Index = ({ session, initialAdminOpen, isGuest = false }: { session: Sessio
     return subscribeWhileVisible(() =>
       supabase
         .channel(`my-frame-requests-${userId}`)
-        .on("postgres_changes", { event: "INSERT", schema: "public", table: "frame_requests" }, (payload) => {
+        .on("postgres_changes", { event: "INSERT", schema: "public", table: "frame_requests", filter: `user_id=eq.${userId}` }, (payload) => {
           setMyFrameRequests(prev => [payload.new as FrameRequest, ...prev]);
         })
-        .on("postgres_changes", { event: "UPDATE", schema: "public", table: "frame_requests" }, (payload) => {
+        .on("postgres_changes", { event: "UPDATE", schema: "public", table: "frame_requests", filter: `user_id=eq.${userId}` }, (payload) => {
           setMyFrameRequests(prev => prev.map(r => r.id === (payload.new as FrameRequest).id ? { ...r, ...payload.new as FrameRequest } : r));
         })
         .subscribe(),
