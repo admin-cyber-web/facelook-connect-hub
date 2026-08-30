@@ -56,20 +56,15 @@ const gradFor = (id: string) => {
 const RainOverlay = () => (
   <div className="absolute inset-0 pointer-events-none overflow-hidden z-10">
     {Array.from({ length: 22 }).map((_, i) => (
-      <motion.div
+      <div
         key={i}
-        className="absolute w-px bg-blue-300/40 rounded-full"
+        className="perf-rain absolute w-px bg-blue-300/40 rounded-full"
         style={{
           left: `${(i / 22) * 100}%`,
-          height: `${30 + Math.random() * 50}px`,
+          height: `${30 + (i % 5) * 10}px`,
           top: "-10%",
-        }}
-        animate={{ y: ["0%", "130%"], opacity: [0.7, 0] }}
-        transition={{
-          duration: 0.8 + Math.random() * 0.6,
-          repeat: Infinity,
-          delay: Math.random() * 1.5,
-          ease: "linear",
+          "--perf-duration": `${0.8 + (i % 4) * 0.15}s`,
+          "--perf-delay": `${(i % 6) * 0.2}s`,
         }}
       />
     ))}
@@ -78,34 +73,17 @@ const RainOverlay = () => (
 
 // ── Neon glow overlay for party mood ──────────────────────────────────────────
 const NeonOverlay = () => (
-  <motion.div
-    className="absolute inset-0 pointer-events-none z-10"
-    animate={{
-      background: [
-        "radial-gradient(circle at 30% 40%, rgba(236,72,153,0.25) 0%, transparent 60%)",
-        "radial-gradient(circle at 70% 60%, rgba(99,102,241,0.25) 0%, transparent 60%)",
-        "radial-gradient(circle at 50% 20%, rgba(245,158,11,0.25) 0%, transparent 60%)",
-        "radial-gradient(circle at 30% 40%, rgba(236,72,153,0.25) 0%, transparent 60%)",
-      ],
-    }}
-    transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-  />
+  <div className="perf-neon absolute inset-0 pointer-events-none z-10" />
 );
 
 // ── Audio Wave animation for voice stories ────────────────────────────────────
 const AudioWave = () => (
   <div className="flex items-center gap-1 justify-center">
     {Array.from({ length: 7 }).map((_, i) => (
-      <motion.div
+      <div
         key={i}
-        className="w-1.5 rounded-full bg-white/80"
-        animate={{ height: ["8px", `${16 + i * 4}px`, "8px"] }}
-        transition={{
-          duration: 0.7,
-          repeat: Infinity,
-          delay: i * 0.1,
-          ease: "easeInOut",
-        }}
+        className="perf-wave w-1.5 h-5 rounded-full bg-white/80"
+        style={{ "--perf-delay": `${i * 0.1}s` }}
       />
     ))}
   </div>
@@ -113,14 +91,13 @@ const AudioWave = () => (
 
 // ── HELP sticker ──────────────────────────────────────────────────────────────
 const HelpSticker = () => (
-  <motion.div
-    className="absolute top-20 left-1/2 -translate-x-1/2 z-30 px-5 py-2 rounded-full select-none"
+  <div
+    className="perf-pulse absolute top-20 left-1/2 -translate-x-1/2 z-30 px-5 py-2 rounded-full select-none"
     style={{ background: "linear-gradient(135deg, #f97316, #ef4444)" }}
-    animate={{ scale: [1, 1.08, 1], rotate: [-2, 2, -2] }}
-    transition={{ duration: 1.1, repeat: Infinity }}
+    style={{ background: "linear-gradient(135deg, #f97316, #ef4444)", "--perf-duration": "1.1s", "--perf-scale": "1.08" } as React.CSSProperties}
   >
     <span className="text-white font-black text-lg tracking-widest drop-shadow">🆘 MADAD</span>
-  </motion.div>
+  </div>
 );
 
 // ── Progress segments bar ──────────────────────────────────────────────────────
@@ -389,11 +366,11 @@ const StoryViewer = ({
     const tick = () => {
       if (document.hidden) return; // don't fire when screen is off/app backgrounded
       setElapsed(e => {
-        if (e + 0.1 >= DURATION) { goNext(); return 0; }
-        return e + 0.1;
+      if (e + 0.25 >= DURATION) { goNext(); return 0; }
+        return e + 0.25;
       });
     };
-    timerRef.current = setInterval(tick, 100);
+    timerRef.current = setInterval(tick, 250);
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [paused, goNext, storyIdx, groupIdx, showComments, showViewers]);
 
@@ -608,9 +585,7 @@ const StoryViewer = ({
                   <audio src={storyPublicUrl} autoPlay loop style={{ display: "none" }} />
 
                   {/* Rotating music disc / visualizer */}
-                  <motion.div className="w-32 h-32 rounded-full border-4 border-white/30 overflow-hidden shadow-2xl flex items-center justify-center relative"
-                    animate={{ rotate: 360 }}
-                    transition={{ duration: 6, repeat: Infinity, ease: "linear" }}>
+                  <div className="perf-spin w-32 h-32 rounded-full border-4 border-white/30 overflow-hidden shadow-2xl flex items-center justify-center relative">
                     <div className="absolute inset-0 rounded-full" style={{ background: `conic-gradient(from 0deg, transparent 0%, rgba(255,255,255,0.08) 50%, transparent 100%)` }} />
                     {avatarUrl ? (
                       <img src={avatarUrl} className="w-full h-full object-cover" loading="lazy" crossOrigin="anonymous" referrerPolicy="no-referrer" decoding="async" />
@@ -619,7 +594,7 @@ const StoryViewer = ({
                         {profileName[0]}
                       </div>
                     )}
-                  </motion.div>
+                  </div>
 
                   {/* Audio wave bars */}
                   <AudioWave />
@@ -1093,6 +1068,12 @@ const StoryUploader = ({
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const previewUrlsRef = useRef<string[]>([]);
+
+  useEffect(() => () => {
+    previewUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+    previewUrlsRef.current = [];
+  }, []);
 
   const MOODS = [
     { key: "", label: "✨ None" },
@@ -1113,8 +1094,10 @@ const StoryUploader = ({
     const arr = Array.from(selected).slice(0, 10);
     const oversized = arr.find(f => f.type.startsWith("video/") && f.size > 30 * 1024 * 1024);
     if (oversized) { toast.error("Please shorten your file under 30MB"); return; }
-    setFiles(arr);
+    previewUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
     const urls = arr.map(f => URL.createObjectURL(f));
+    previewUrlsRef.current = urls;
+    setFiles(arr);
     setPreviews(urls);
   };
 

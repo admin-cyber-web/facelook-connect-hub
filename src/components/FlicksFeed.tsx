@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, memo } from "react";
+import React, { useState, useRef, useEffect, useCallback, memo } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "../lib/supabaseClient";
@@ -697,6 +697,8 @@ export default function FlicksApp({ onBack, onBridgeChat, isAdmin: isAdminProp =
   const [fetchedEmail,  setFetchedEmail]  = useState<string | null>(null);
   const isAdmin = isAdminProp || isAdminEmail(currentUserEmailProp) || isAdminEmail(fetchedEmail);
   const containerRef = useRef<HTMLDivElement>(null);
+  const currentIndexRef = useRef(0);
+  const scrollRafRef = useRef<number>(0);
 
   // Inject CSS keyframes once on mount
   useEffect(() => { injectFlicksStyles(); }, []);
@@ -750,17 +752,27 @@ export default function FlicksApp({ onBack, onBridgeChat, isAdmin: isAdminProp =
 
   // RAF-throttled scroll → update active index
   const scrollTicking = useRef(false);
-  const onScroll = () => {
+  const onScroll = useCallback(() => {
     if (scrollTicking.current) return;
     scrollTicking.current = true;
-    requestAnimationFrame(() => {
+    scrollRafRef.current = requestAnimationFrame(() => {
       if (containerRef.current) {
         const idx = Math.round(containerRef.current.scrollTop / containerRef.current.clientHeight);
-        if (idx !== currentIndex) setCurrentIndex(idx);
+        if (idx !== currentIndexRef.current) {
+          currentIndexRef.current = idx;
+          setCurrentIndex(idx);
+        }
       }
       scrollTicking.current = false;
+      scrollRafRef.current = 0;
     });
-  };
+  }, []);
+
+  useEffect(() => () => {
+    cancelAnimationFrame(scrollRafRef.current);
+    scrollRafRef.current = 0;
+    scrollTicking.current = false;
+  }, []);
 
   if (loading)
     return (

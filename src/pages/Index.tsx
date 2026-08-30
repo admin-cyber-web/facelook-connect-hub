@@ -1818,11 +1818,13 @@ const Index = ({ session, initialAdminOpen, isGuest = false }: { session: Sessio
     //    and the React setState never happen in the same layout frame,
     //    avoiding a Forced Reflow that causes overheating on mobile.
     let rafPending = false;
+    let rafId = 0;
     const handleScroll = () => {
       if (rafPending) return;
       rafPending = true;
-      requestAnimationFrame(() => {
+      rafId = requestAnimationFrame(() => {
         rafPending = false;
+        rafId = 0;
         if (window.scrollY > lastScrollY.current && window.scrollY > 100)
           setShowNav(false);
         else setShowNav(true);
@@ -1834,6 +1836,8 @@ const Index = ({ session, initialAdminOpen, isGuest = false }: { session: Sessio
 
     return () => {
       window.removeEventListener("scroll", handleScroll);
+      if (rafId) cancelAnimationFrame(rafId);
+      rafPending = false;
       subscription.unsubscribe(); // Subscription band karna zaroori hai
     };
   }, [userId]);
@@ -1859,7 +1863,7 @@ const Index = ({ session, initialAdminOpen, isGuest = false }: { session: Sessio
       }
     };
     ping();
-    const activityEvents = ["pointerdown", "keydown", "touchstart", "scroll"] as const;
+    const activityEvents = ["pointerdown", "keydown", "touchstart"] as const;
     activityEvents.forEach((event) => {
       window.addEventListener(event, ping, { passive: true });
     });
@@ -2226,6 +2230,11 @@ const Index = ({ session, initialAdminOpen, isGuest = false }: { session: Sessio
 
   // ── Labels (language) ────────────────────────────────────────────────────
   const t = (en: string, hi: string) => (lang === "hi" ? hi : en);
+
+  const handleFeedRefresh = React.useCallback(async () => {
+    window.dispatchEvent(new CustomEvent("flicks-pull-refresh"));
+    await new Promise((resolve) => setTimeout(resolve, 600));
+  }, []);
 
 
   // ── Settings: Block List sub-view ─────────────────────────────────────────
@@ -3322,21 +3331,18 @@ const PersonalizationView = React.memo(({
 
                     {/* Emoji row */}
                     <div className="flex items-center justify-center gap-1 py-2 w-full">
-                      <motion.span
-                        className="text-[22px] leading-none"
-                        animate={{ y: [0, -4, 0] }}
-                        transition={{ duration: 1.6, repeat: Infinity, delay: 0 }}
-                      >😊</motion.span>
-                      <motion.span
-                        className="text-[18px] leading-none"
-                        animate={{ y: [0, -5, 0] }}
-                        transition={{ duration: 1.4, repeat: Infinity, delay: 0.3 }}
-                      >🎉</motion.span>
-                      <motion.span
-                        className="text-[20px] leading-none"
-                        animate={{ y: [0, -4, 0] }}
-                        transition={{ duration: 1.8, repeat: Infinity, delay: 0.6 }}
-                      >✨</motion.span>
+                      <span
+                        className="perf-float text-[22px] leading-none"
+                        style={{ "--perf-duration": "1.6s" } as React.CSSProperties}
+                      >😊</span>
+                      <span
+                        className="perf-float text-[18px] leading-none"
+                        style={{ "--perf-duration": "1.4s", "--perf-delay": "0.3s", "--perf-y": "-5px" } as React.CSSProperties}
+                      >🎉</span>
+                      <span
+                        className="perf-float text-[20px] leading-none"
+                        style={{ "--perf-duration": "1.8s", "--perf-delay": "0.6s" } as React.CSSProperties}
+                      >✨</span>
                     </div>
 
                     {/* Buttons */}
@@ -3719,10 +3725,7 @@ const PersonalizationView = React.memo(({
                 {/* ── What's on your mind + News Feed ─────────────────────── */}
                 <div className="mt-2">
                   <PullToRefresh
-                    onRefresh={async () => {
-                      window.dispatchEvent(new CustomEvent("flicks-pull-refresh"));
-                      await new Promise(r => setTimeout(r, 600));
-                    }}
+                    onRefresh={handleFeedRefresh}
                   >
                     <FameFeed
                       onPostClick={() => setIsPostOpen(true)}

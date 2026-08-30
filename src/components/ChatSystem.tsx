@@ -633,20 +633,15 @@ const STORY_MOOD_FILTER: Record<string, string> = {
 const StoryRainOverlay = () => (
   <div className="absolute inset-0 pointer-events-none overflow-hidden z-10">
     {Array.from({ length: 20 }).map((_, i) => (
-      <motion.div
+      <div
         key={i}
-        className="absolute w-px bg-blue-300/40 rounded-full"
+        className="perf-rain absolute w-px bg-blue-300/40 rounded-full"
         style={{
           left: `${(i / 20) * 100}%`,
-          height: `${28 + Math.random() * 44}px`,
+          height: `${28 + (i % 5) * 9}px`,
           top: "-10%",
-        }}
-        animate={{ y: ["0%", "130%"], opacity: [0.7, 0] }}
-        transition={{
-          duration: 0.8 + Math.random() * 0.5,
-          repeat: Infinity,
-          delay: Math.random() * 1.4,
-          ease: "linear",
+          "--perf-duration": `${0.8 + (i % 4) * 0.15}s`,
+          "--perf-delay": `${(i % 6) * 0.2}s`,
         }}
       />
     ))}
@@ -655,34 +650,17 @@ const StoryRainOverlay = () => (
 
 // ── Neon overlay ──────────────────────────────────────────────────────────────
 const StoryNeonOverlay = () => (
-  <motion.div
-    className="absolute inset-0 pointer-events-none z-10"
-    animate={{
-      background: [
-        "radial-gradient(circle at 30% 40%, rgba(236,72,153,0.25) 0%, transparent 60%)",
-        "radial-gradient(circle at 70% 60%, rgba(99,102,241,0.25) 0%, transparent 60%)",
-        "radial-gradient(circle at 50% 20%, rgba(245,158,11,0.25) 0%, transparent 60%)",
-        "radial-gradient(circle at 30% 40%, rgba(236,72,153,0.25) 0%, transparent 60%)",
-      ],
-    }}
-    transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-  />
+  <div className="perf-neon absolute inset-0 pointer-events-none z-10" />
 );
 
 // ── Audio wave ────────────────────────────────────────────────────────────────
 const StoryAudioWave = () => (
   <div className="flex items-center gap-1 justify-center">
     {Array.from({ length: 7 }).map((_, i) => (
-      <motion.div
+      <div
         key={i}
-        className="w-1.5 rounded-full bg-white/80"
-        animate={{ height: ["8px", `${16 + i * 4}px`, "8px"] }}
-        transition={{
-          duration: 0.7,
-          repeat: Infinity,
-          delay: i * 0.1,
-          ease: "easeInOut",
-        }}
+        className="perf-wave w-1.5 h-5 rounded-full bg-white/80"
+        style={{ "--perf-delay": `${i * 0.1}s` }}
       />
     ))}
   </div>
@@ -690,16 +668,14 @@ const StoryAudioWave = () => (
 
 // ── Help sticker ──────────────────────────────────────────────────────────────
 const StoryHelpSticker = () => (
-  <motion.div
-    className="absolute top-16 left-1/2 -translate-x-1/2 z-30 px-5 py-2 rounded-full select-none"
-    style={{ background: "linear-gradient(135deg,#f97316,#ef4444)" }}
-    animate={{ scale: [1, 1.08, 1], rotate: [-2, 2, -2] }}
-    transition={{ duration: 1.1, repeat: Infinity }}
+  <div
+    className="perf-pulse absolute top-16 left-1/2 -translate-x-1/2 z-30 px-5 py-2 rounded-full select-none"
+    style={{ background: "linear-gradient(135deg,#f97316,#ef4444)", "--perf-duration": "1.1s", "--perf-scale": "1.08" } as React.CSSProperties}
   >
     <span className="text-white font-black text-base tracking-widest drop-shadow">
       🆘 MADAD
     </span>
-  </motion.div>
+  </div>
 );
 
 // ── Progress segments ─────────────────────────────────────────────────────────
@@ -1124,6 +1100,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const prevMsgCount = useRef(0);
+  const autoScrollRafRef = useRef<number>(0);
   const typingChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(
     null,
   );
@@ -1134,6 +1111,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   }>({ count: 0, timer: null });
   const recognitionRef = useRef<any>(null);
   const voiceTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const voiceTimeoutsRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
   const voiceActiveRef = useRef(false);
   const pendingFileRef = useRef<File | null>(null);
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1198,19 +1176,24 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   // Only trigger when the message COUNT grows (new message), not on seen_at /
   // reaction / content updates — those patch existing rows and must NOT cause
   // a forced-reflow scroll on every update.
+  const messageCount = messages.length;
+  const lastMessageId = messages[messages.length - 1]?.id;
   useEffect(() => {
-    const countIncreased = messages.length > prevMsgCount.current;
+    const countIncreased = messageCount > prevMsgCount.current;
     if (countIncreased) {
       const last = messages[messages.length - 1];
       if (last?.sender_id !== userId && soundEnabled) playSound("receive");
       // requestAnimationFrame defers the DOM read/write out of the React paint
       // cycle, preventing a Forced Reflow that heats up the GPU on mobile.
-      requestAnimationFrame(() => {
+      cancelAnimationFrame(autoScrollRafRef.current);
+      autoScrollRafRef.current = requestAnimationFrame(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+        autoScrollRafRef.current = 0;
       });
     }
-    prevMsgCount.current = messages.length;
-  }, [messages, userId, soundEnabled]);
+    prevMsgCount.current = messageCount;
+    return () => cancelAnimationFrame(autoScrollRafRef.current);
+  }, [messageCount, lastMessageId, userId, soundEnabled]);
 
   // ── Fetch my profile ──────────────────────────────────────────────────────
   const fetchMyProfile = useCallback(async () => {
@@ -1792,7 +1775,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
         }
         return e + 0.1;
       });
-    }, 100);
+    }, 250);
     return () => {
       if (storyTimerRef.current) clearInterval(storyTimerRef.current);
     };
@@ -2733,6 +2716,8 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       clearInterval(voiceTimerRef.current);
       voiceTimerRef.current = null;
     }
+    voiceTimeoutsRef.current.forEach((timer) => clearTimeout(timer));
+    voiceTimeoutsRef.current.clear();
     if (recognitionRef.current) {
       try {
         recognitionRef.current.stop();
@@ -2743,6 +2728,29 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     setVoiceSecondsLeft(300);
     setVoiceStatus("listening");
   };
+
+  const scheduleVoiceTimeout = (callback: () => void, delay: number) => {
+    const timer = setTimeout(() => {
+      voiceTimeoutsRef.current.delete(timer);
+      if (voiceActiveRef.current) callback();
+    }, delay);
+    voiceTimeoutsRef.current.add(timer);
+  };
+
+  useEffect(() => {
+    if (!isOpen) stopVoiceMode();
+    return () => {
+      stopVoiceMode();
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+        typingTimeoutRef.current = null;
+      }
+      if (panicClickRef.current.timer) {
+        clearTimeout(panicClickRef.current.timer);
+        panicClickRef.current.timer = null;
+      }
+    };
+  }, [isOpen]);
 
   const startVoiceMode = () => {
     const SpeechRecognition =
@@ -2776,6 +2784,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       rec.lang = "hi-IN";
 
       rec.onresult = (e: any) => {
+        if (!voiceActiveRef.current) return;
         setVoiceStatus("processing");
 
         // Grab only the latest spoken segment (not the full accumulated list)
@@ -2807,7 +2816,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
             sendMessage(prev);
             return prev;
           });
-          setTimeout(() => setVoiceStatus("listening"), 600);
+          scheduleVoiceTimeout(() => setVoiceStatus("listening"), 600);
           return;
         }
 
@@ -2820,14 +2829,14 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
           messages.forEach((m) => deletedForMeIdsRef.current.add(m.id));
           setMessages([]);
           toast.success("🧹 Chat cleared!");
-          setTimeout(() => setVoiceStatus("listening"), 600);
+          scheduleVoiceTimeout(() => setVoiceStatus("listening"), 600);
           return;
         }
 
         // ── PANIC MODE ────────────────────────────────────────────────────
         if (/^(panic|panic mode|emergency|पैनिक|पैनिक मोड)$/.test(raw)) {
           setPanicMode(true);
-          setTimeout(() => setVoiceStatus("listening"), 600);
+          scheduleVoiceTimeout(() => setVoiceStatus("listening"), 600);
           return;
         }
 
@@ -2850,23 +2859,23 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
           const msg = writeMatch[1].trim();
           setNewMessage(msg);
           toast.success(`✍️ "${msg}"`);
-          setTimeout(() => setVoiceStatus("listening"), 600);
+          scheduleVoiceTimeout(() => setVoiceStatus("listening"), 600);
           return;
         }
 
         // ── FALLBACK: only if no command matched → append to input ────────
         setNewMessage((prev) => (prev ? prev + " " + raw : raw));
-        setTimeout(() => setVoiceStatus("listening"), 600);
+        scheduleVoiceTimeout(() => setVoiceStatus("listening"), 600);
       };
 
       rec.onerror = () => {
-        setTimeout(() => setVoiceStatus("listening"), 500);
+        scheduleVoiceTimeout(() => setVoiceStatus("listening"), 500);
       };
 
       rec.onend = () => {
         // Auto-restart if still in voice mode
         if (voiceActiveRef.current) {
-          setTimeout(() => {
+          scheduleVoiceTimeout(() => {
             if (voiceActiveRef.current) {
               try {
                 rec.start();

@@ -342,6 +342,11 @@ const FlicksLogo = () => {
 
   useEffect(() => {
     const timers: ReturnType<typeof setTimeout>[] = [];
+    const schedule = (callback: () => void, delay: number) => {
+      const timer = setTimeout(callback, delay);
+      timers.push(timer);
+      return timer;
+    };
     WORD.forEach((finalChar, idx) => {
       const start = idx * STAGGER_MS;
       for (let step = 0; step <= SCRAMBLE_STEPS; step++) {
@@ -356,9 +361,9 @@ const FlicksLogo = () => {
               return next;
             });
             if (idx === WORD.length - 1 && step === SCRAMBLE_STEPS) {
-              setTimeout(() => {
+              schedule(() => {
                 setShowBullet(true);
-                setTimeout(() => setShowBullet(false), 700);
+                schedule(() => setShowBullet(false), 700);
               }, 40);
             }
           },
@@ -420,14 +425,8 @@ const FlicksLogo = () => {
 };
 
 const TirangaFlag = () => (
-  <motion.span
-    animate={{ rotate: [0, -5, 5, -3, 3, -1, 1, 0] }}
-    transition={{
-      duration: 1.8,
-      repeat: Infinity,
-      repeatDelay: 1.2,
-      ease: "easeInOut",
-    }}
+  <span
+    className="perf-flag"
     style={{
       display: "inline-block",
       transformOrigin: "50% 100%",
@@ -437,7 +436,7 @@ const TirangaFlag = () => (
     className="select-none"
   >
     🇮🇳
-  </motion.span>
+  </span>
 );
 
 const CIRCLE_GRADS = [
@@ -1433,6 +1432,9 @@ const Header = ({
   const [hasNewNotif, setHasNewNotif] = useState(false);
   const [newNotifPreview, setNewNotifPreview] = useState<any | null>(null);
   const newNotifTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (newNotifTimerRef.current) clearTimeout(newNotifTimerRef.current);
+  }, []);
   const notifAudioRef    = useRef<HTMLAudioElement | null>(null);
   // ── Post thumbnail cache (entity_id → post media) ──────────────────────────
   const [postPreviewMap, setPostPreviewMap] = useState<Record<string, { media_url?: string; image_url?: string; cover_url?: string; type?: string }>>({});
@@ -2035,18 +2037,11 @@ const Header = ({
         style={{ background: "rgba(10,10,20,0.95)" }}
       >
         <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0 min-w-0">
-          <motion.div
-            animate={{ rotate: [0, -8, 8, -4, 4, 0] }}
-            transition={{
-              duration: 3.5,
-              repeat: Infinity,
-              repeatDelay: 4,
-              ease: "easeInOut",
-            }}
-            className="w-7 h-7 rounded-lg bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center shadow-lg shadow-blue-500/30 flex-shrink-0"
+          <div
+            className="perf-flag w-7 h-7 rounded-lg bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center shadow-lg shadow-blue-500/30 flex-shrink-0"
           >
             <span className="text-white font-black text-[12px] italic">F</span>
-          </motion.div>
+          </div>
           <FlicksLogo />
           <TirangaFlag />
         </div>
@@ -2088,32 +2083,20 @@ const Header = ({
             {/* Pulse glow ring — only when new notification */}
             <AnimatePresence>
               {hasNewNotif && (
-                <motion.span
+                <span
                   key="notif-pulse"
-                  initial={{ scale: 1, opacity: 0.7 }}
-                  animate={{ scale: 1.9, opacity: 0 }}
-                  transition={{ duration: 1.1, repeat: Infinity, ease: "easeOut" }}
-                  className="absolute inset-0 rounded-2xl pointer-events-none"
+                  className="perf-notif-pulse absolute inset-0 rounded-2xl pointer-events-none"
                   style={{ background: "rgba(239,68,68,0.35)", border: "1.5px solid rgba(239,68,68,0.55)" }}
                 />
               )}
             </AnimatePresence>
             {/* Bell icon — rings on new notif */}
-            <motion.div
-              animate={hasNewNotif
-                ? { rotate: [0, -18, 18, -13, 13, -8, 8, -4, 4, 0] }
-                : { rotate: 0 }
-              }
-              transition={hasNewNotif
-                ? { duration: 0.75, repeat: Infinity, repeatDelay: 2.5, ease: "easeInOut" }
-                : {}
-              }
-            >
+            <div className={hasNewNotif ? "perf-bell" : undefined}>
               <Bell
                 size={18}
                 className={hasNewNotif ? "text-red-400 drop-shadow-md" : "text-lime-400 drop-shadow-md"}
               />
-            </motion.div>
+            </div>
             {totalBadge > 0 && (
               <motion.span
                 key={totalBadge}
@@ -3147,17 +3130,12 @@ const Header = ({
                       </p>
                     </div>
                     <div className="flex flex-col items-center justify-center py-8 mb-4">
-                      <motion.div
-                        animate={{ scale: [1, 1.08, 1] }}
-                        transition={{
-                          duration: 2,
-                          repeat: Infinity,
-                          ease: "easeInOut",
-                        }}
-                        className="text-6xl mb-3"
+                      <div
+                        className="perf-pulse text-6xl mb-3"
+                        style={{ "--perf-duration": "2s", "--perf-scale": "1.08" } as React.CSSProperties}
                       >
                         ❤️
-                      </motion.div>
+                      </div>
                       <p
                         className="text-white font-black text-[48px] leading-none"
                         style={{ textShadow: "0 0 30px rgba(244,63,94,0.6)" }}
@@ -3226,26 +3204,26 @@ const Header = ({
                     </div>
                     <div className="grid grid-cols-2 gap-3">
                       <div className="rounded-2xl p-4 border border-teal-500/20" style={{ background: "rgba(20,184,166,0.10)" }}>
-                        <motion.p
-                          animate={{ scale: [1, 1.06, 1] }}
-                          transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
+                        <p
+                          className="perf-pulse"
+                          style={{ "--perf-duration": "2.5s", "--perf-scale": "1.06" } as React.CSSProperties}
                           className="text-teal-300 font-black text-[36px] leading-none"
                           style={{ textShadow: "0 0 24px rgba(20,184,166,0.5)" }}
                         >
                           {dashMagnetSent}
-                        </motion.p>
+                        </p>
                         <p className="text-white/45 text-[11px] font-bold uppercase tracking-wide mt-2">Links Sent</p>
                         <p className="text-white/25 text-[10px] mt-0.5">people you linked to a post</p>
                       </div>
                       <div className="rounded-2xl p-4 border border-purple-500/20" style={{ background: "rgba(124,58,237,0.10)" }}>
-                        <motion.p
-                          animate={{ scale: [1, 1.06, 1] }}
-                          transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut", delay: 0.4 }}
+                        <p
+                          className="perf-pulse"
+                          style={{ "--perf-duration": "2.5s", "--perf-scale": "1.06", "--perf-delay": "0.4s" } as React.CSSProperties}
                           className="text-purple-300 font-black text-[36px] leading-none"
                           style={{ textShadow: "0 0 24px rgba(124,58,237,0.5)" }}
                         >
                           {dashMagnetReceived}
-                        </motion.p>
+                        </p>
                         <p className="text-white/45 text-[11px] font-bold uppercase tracking-wide mt-2">Links Received</p>
                         <p className="text-white/25 text-[10px] mt-0.5">times you were linked in</p>
                       </div>

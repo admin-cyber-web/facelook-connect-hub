@@ -17,7 +17,22 @@ export default function PullToRefresh({
   const [pullY, setPullY] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const startY = useRef<number | null>(null);
+  const pullYRef = useRef(0);
+  const refreshingRef = useRef(false);
+  const onRefreshRef = useRef(onRefresh);
   const wrapperRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    onRefreshRef.current = onRefresh;
+  }, [onRefresh]);
+
+  useEffect(() => {
+    pullYRef.current = pullY;
+  }, [pullY]);
+
+  useEffect(() => {
+    refreshingRef.current = refreshing;
+  }, [refreshing]);
 
   useEffect(() => {
     if (disabled) return;
@@ -43,7 +58,7 @@ export default function PullToRefresh({
     };
 
     const onTouchMove = (e: TouchEvent) => {
-      if (startY.current == null || refreshing) return;
+      if (startY.current == null || refreshingRef.current) return;
       // If the user scrolled down since touchstart, disarm immediately.
       if (getScrollTop() > 4) { startY.current = null; setPullY(0); return; }
       const dy = e.touches[0].clientY - startY.current;
@@ -56,11 +71,14 @@ export default function PullToRefresh({
     const onTouchEnd = async () => {
       if (startY.current == null) return;
       startY.current = null;
-      if (pullY >= threshold && !refreshing) {
+      if (pullYRef.current >= threshold && !refreshingRef.current) {
         setRefreshing(true);
+        refreshingRef.current = true;
         setPullY(threshold);
-        try { await onRefresh(); } finally {
+        try { await onRefreshRef.current(); } finally {
           setRefreshing(false);
+          refreshingRef.current = false;
+          pullYRef.current = 0;
           setPullY(0);
         }
       } else {
@@ -76,7 +94,7 @@ export default function PullToRefresh({
       el.removeEventListener("touchmove",  onTouchMove);
       el.removeEventListener("touchend",   onTouchEnd);
     };
-  }, [pullY, refreshing, threshold, disabled, onRefresh]);
+  }, [threshold, disabled]);
 
   const progress = Math.min(pullY / threshold, 1);
 

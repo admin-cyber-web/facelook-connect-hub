@@ -128,7 +128,10 @@ const SnapyStudio: React.FC<SnapyStudioProps> = ({ userId }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const liveCanvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef<number>(0);
+  const adjustmentRafRef = useRef<number>(0);
+  const previewEncodeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const cameraRequestRef = useRef(0);
 
   // Captured image
   const rawDataRef = useRef<ImageData | null>(null); // untouched raw pixels
@@ -155,20 +158,31 @@ const SnapyStudio: React.FC<SnapyStudioProps> = ({ userId }) => {
 
   // Grain canvas cache
   const grainRef = useRef<HTMLCanvasElement | null>(null);
+  const capturedGrainRef = useRef<{ key: string; canvas: HTMLCanvasElement } | null>(null);
 
   const currentLut = LUTS.find((l) => l.id === selectedLut)!;
 
   // ── Start camera ──────────────────────────────────────────────────────────
   const startCamera = useCallback(async () => {
+    const requestId = ++cameraRequestRef.current;
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
     }
     setCameraError("");
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode, width: { ideal: 1920 }, height: { ideal: 1080 } },
+        video: {
+          facingMode,
+          width: { ideal: 1280, max: 1280 },
+          height: { ideal: 720, max: 720 },
+        },
         audio: false,
       });
+      if (requestId !== cameraRequestRef.current) {
+        stream.getTracks().forEach((t) => t.stop());
+        return;
+      }
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
@@ -182,8 +196,14 @@ const SnapyStudio: React.FC<SnapyStudioProps> = ({ userId }) => {
   useEffect(() => {
     startCamera();
     return () => {
+      cameraRequestRef.current += 1;
       cancelAnimationFrame(rafRef.current);
+      cancelAnimationFrame(adjustmentRafRef.current);
+      if (previewEncodeTimerRef.current) clearTimeout(previewEncodeTimerRef.current);
+      videoRef.current?.pause();
+      if (videoRef.current) videoRef.current.srcObject = null;
       streamRef.current?.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
     };
   }, [startCamera]);
 
@@ -199,30 +219,52 @@ const SnapyStudio: React.FC<SnapyStudioProps> = ({ userId }) => {
     // Regenerate grain canvas when lut changes
     grainRef.current = null;
 
-    const render = () => {
-      if (!canvas || !video || video.readyState < 2) {
+    let lastFrameAt = 0;
+    const schedule = () => {
+      if (!document.hidden && state === "camera") {
         rafRef.current = requestAnimationFrame(render);
+      } else {
+        rafRef.current = 0;
+      }
+    };
+    const render = (timestamp: number) => {
+      if (!canvas || !video || document.hidden || state !== "camera") {
+        rafRef.current = 0;
+        return;
+      }
+      if (timestamp - lastFrameAt < 33) {
+        schedule();
+        return;
+      }
+      lastFrameAt = timestamp;
+      if (video.readyState < 2) {
+        schedule();
         return;
       }
 
       const vw = video.videoWidth || 640;
       const vh = video.videoHeight || 480;
-      if (canvas.width !== vw || canvas.height !== vh) {
-        canvas.width = vw;
-        canvas.height = vh;
+      const maxPreviewWidth = 960;
+      const previewScale = Math.min(1, maxPreviewWidth / vw);
+      const previewWidth = Math.max(1, Math.round(vw * previewScale));
+      const previewHeight = Math.max(1, Math.round(vh * previewScale));
+      if (canvas.width !== previewWidth || canvas.height !== previewHeight) {
+        canvas.width = previewWidth;
+        canvas.height = previewHeight;
+        grainRef.current = null;
       }
 
       const ctx = canvas.getContext("2d")!;
 
       // Apply filter + draw video
       ctx.filter = buildFilter(lut, beautyMode, exposure, saturation, warmth);
-      ctx.drawImage(video, 0, 0, vw, vh);
+      ctx.drawImage(video, 0, 0, previewWidth, previewHeight);
       ctx.filter = "none";
 
       // Grain overlay
       if (lut.grain > 0) {
         if (!grainRef.current) {
-          grainRef.current = makeGrainCanvas(vw, vh, lut.grain);
+          grainRef.current = makeGrainCanvas(previewWidth, previewHeight, lut.grain);
         }
         ctx.globalCompositeOperation = "overlay";
         ctx.globalAlpha = 0.4;
@@ -231,11 +273,23 @@ const SnapyStudio: React.FC<SnapyStudioProps> = ({ userId }) => {
         ctx.globalAlpha = 1;
       }
 
-      rafRef.current = requestAnimationFrame(render);
+      schedule();
     };
 
-    rafRef.current = requestAnimationFrame(render);
-    return () => cancelAnimationFrame(rafRef.current);
+    const resume = () => {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = 0;
+      schedule();
+    };
+    video.addEventListener("canplay", resume);
+    document.addEventListener("visibilitychange", resume);
+    schedule();
+    return () => {
+      video.removeEventListener("canplay", resume);
+      document.removeEventListener("visibilitychange", resume);
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = 0;
+    };
   }, [state, selectedLut, beautyMode, exposure, saturation, warmth]);
 
   // ── Re-render captured photo when adjustments change ──────────────────────
@@ -245,31 +299,50 @@ const SnapyStudio: React.FC<SnapyStudioProps> = ({ userId }) => {
     const cap = capturedCanvasRef.current;
     if (!raw || !cap) return;
 
-    const ctx = cap.getContext("2d")!;
-    ctx.putImageData(raw, 0, 0); // restore raw pixels
+    cancelAnimationFrame(adjustmentRafRef.current);
+    if (previewEncodeTimerRef.current) clearTimeout(previewEncodeTimerRef.current);
+    adjustmentRafRef.current = requestAnimationFrame(() => {
+      const ctx = cap.getContext("2d")!;
+      ctx.putImageData(raw, 0, 0); // restore raw pixels
 
-    // Apply filter by drawing to a temp canvas and reading back
-    const tmp = document.createElement("canvas");
-    tmp.width = cap.width;
-    tmp.height = cap.height;
-    const tx = tmp.getContext("2d")!;
-    tx.filter = buildFilter(currentLut, false, exposure, saturation, warmth);
-    tx.drawImage(cap, 0, 0);
-    tx.filter = "none";
+      const tmp = document.createElement("canvas");
+      tmp.width = cap.width;
+      tmp.height = cap.height;
+      const tx = tmp.getContext("2d")!;
+      tx.filter = buildFilter(currentLut, false, exposure, saturation, warmth);
+      tx.drawImage(cap, 0, 0);
+      tx.filter = "none";
 
-    if (currentLut.grain > 0) {
-      const grain = makeGrainCanvas(cap.width, cap.height, currentLut.grain);
-      tx.globalCompositeOperation = "overlay";
-      tx.globalAlpha = 0.4;
-      tx.drawImage(grain, 0, 0);
-      tx.globalCompositeOperation = "source-over";
-      tx.globalAlpha = 1;
-    }
+      if (currentLut.grain > 0) {
+        const grainKey = `${currentLut.id}:${cap.width}x${cap.height}`;
+        if (!capturedGrainRef.current || capturedGrainRef.current.key !== grainKey) {
+          capturedGrainRef.current = {
+            key: grainKey,
+            canvas: makeGrainCanvas(cap.width, cap.height, currentLut.grain),
+          };
+        }
+        tx.globalCompositeOperation = "overlay";
+        tx.globalAlpha = 0.4;
+        tx.drawImage(capturedGrainRef.current.canvas, 0, 0);
+        tx.globalCompositeOperation = "source-over";
+        tx.globalAlpha = 1;
+      }
 
-    ctx.clearRect(0, 0, cap.width, cap.height);
-    ctx.drawImage(tmp, 0, 0);
-    setRemovedBgUrl(""); // reset BG removal if adjustments change
-    setCapturedUrl(cap.toDataURL("image/jpeg", 0.95));
+      ctx.clearRect(0, 0, cap.width, cap.height);
+      ctx.drawImage(tmp, 0, 0);
+      setRemovedBgUrl(""); // reset BG removal if adjustments change
+      previewEncodeTimerRef.current = setTimeout(() => {
+        if (capturedCanvasRef.current === cap) {
+          setCapturedUrl(cap.toDataURL("image/jpeg", 0.95));
+        }
+        previewEncodeTimerRef.current = null;
+      }, 120);
+      adjustmentRafRef.current = 0;
+    });
+    return () => {
+      cancelAnimationFrame(adjustmentRafRef.current);
+      if (previewEncodeTimerRef.current) clearTimeout(previewEncodeTimerRef.current);
+    };
   }, [state, exposure, saturation, warmth, selectedLut]);
 
   // ── Capture ───────────────────────────────────────────────────────────────
