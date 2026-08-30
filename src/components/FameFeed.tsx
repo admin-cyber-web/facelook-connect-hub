@@ -21,7 +21,6 @@ import { RichCaption } from "./RichCaption";
 import AutoPlayMutedVideo from "./AutoPlayMutedVideo";
 import { maskProfanity, sanitizeText } from "../lib/profanityFilter";
 import { resolveMediaUrl } from "../lib/mediaUrl";
-import { subscribeWhileVisible } from "../lib/realtimeVisibility";
 import {
   Send,
   Heart,
@@ -2215,21 +2214,12 @@ const FameFeed = ({
         .from("marketplace_items")
         .select("id, title, description, price, image_url, link_url, badge, is_active, created_at, sizes, colors")
         .eq("is_active", true)
-        .order("created_at", { ascending: false });
-        // Marketplace is a curated strip, not an unbounded catalog query.
-        const bounded = (data ?? []).slice(0, 30);
+        .order("created_at", { ascending: false })
+        .limit(30);
+      const bounded = data ?? [];
       setMarketplaceItems(bounded);
     };
     fetchMarketplace();
-    // Realtime — when admin toggles/adds/removes items the feed card updates live
-    return subscribeWhileVisible(() =>
-      supabase
-        .channel("marketplace-feed-items")
-        .on("postgres_changes", { event: "*", schema: "public", table: "marketplace_items" }, () => {
-          if (!document.hidden) fetchMarketplace();
-        })
-        .subscribe(),
-    { onVisible: fetchMarketplace });
   }, []);
 
   useEffect(() => {
@@ -2251,9 +2241,6 @@ const FameFeed = ({
     };
     // batchFetchAvatars is useCallback([]) — stable reference, safe single dep
   }, [batchFetchAvatars]);
-  // Unique channel ID per mount — prevents "cannot add callbacks after subscribe()" error
-  const channelId = useRef(`fame-rt-${Date.now()}`);
-
   // ── Pagination ───────────────────────────────────────────────────────────
   const PAGE_SIZE = 10;
   const [hasMore, setHasMore] = useState(true);
@@ -3393,7 +3380,7 @@ const FameFeed = ({
       // Fetch ground-truth count from likes table — avoids drift from concurrent likes
       const { count: unlikeCount } = await supabase
         .from("likes")
-        .select("*", { count: "exact", head: true })
+        .select("id", { count: "exact", head: true })
         .eq("post_id", post.id);
       const realUnlikeCount = unlikeCount ?? Math.max((snapCount || 1) - 1, 0);
       setPosts((prev) =>
@@ -3491,7 +3478,7 @@ const FameFeed = ({
       // multiple users like simultaneously.
       const { count: likeCount } = await supabase
         .from("likes")
-        .select("*", { count: "exact", head: true })
+        .select("id", { count: "exact", head: true })
         .eq("post_id", post.id);
       const realLikeCount = likeCount ?? (snapCount || 0) + (wasLiked ? 0 : 1);
       setPosts((prev) =>

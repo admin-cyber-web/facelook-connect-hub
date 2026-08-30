@@ -3,3 +3,4 @@
 - [Magnet channel collision](magnet-channel-collision.md) — MagnetModal send-only channel must use `-send` suffix to avoid Supabase topic collision with useMagnet listener channel.
 - [MagnetButton callback stability](magnet-callback-ref.md) — onMagnetLoad must be wrapped in useRef inside MagnetButton to prevent infinite update cascade from inline lambda reference churn.
 - [Supabase storage URL helper pitfall](supabase-storage-url-pitfall.md) — resolveMediaUrl's bucket-prefix-stripping breaks when the object key's subfolder name matches the bucket name.
+- [Supabase bandwidth guardrails](supabase-bandwidth-guardrails.md) — public feeds stay bounded/manual; realtime is limited to scoped live state and disconnects while hidden.

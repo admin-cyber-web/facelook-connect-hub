@@ -1027,10 +1027,12 @@ export function MagnetModal({
 
       let saved;
       if (existing?.id) {
-        const { data } = await supabase.from("post_magnet_voice").update(payload).eq("id", existing.id).select("*").single();
+        const { data } = await supabase.from("post_magnet_voice").update(payload).eq("id", existing.id)
+          .select("id, post_id, post_type, owner_id, status_text, is_warning, updated_at, target_user_id").single();
         saved = data;
       } else {
-        const { data } = await supabase.from("post_magnet_voice").insert(payload).select("*").single();
+        const { data } = await supabase.from("post_magnet_voice").insert(payload)
+          .select("id, post_id, post_type, owner_id, status_text, is_warning, updated_at, target_user_id").single();
         saved = data;
       }
 

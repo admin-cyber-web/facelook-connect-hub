@@ -162,7 +162,7 @@ const AdminDashboard: React.FC<Props> = ({
         .limit(30);
       setSearchResults((data as UserRow[]) || []);
       setSearchLoading(false);
-    }, 350);
+    }, 500);
     return () => {
       if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
     };
@@ -302,8 +302,10 @@ const AdminDashboard: React.FC<Props> = ({
       // Pending Studio Name change requests
       const { data: studioData } = await supabase
         .from("name_changes")
-        .select("id, profile_id, creator_id, current_name, requested_name, reason, status, created_at")
-        .eq("status", "pending");
+        .select("id, profile_id, current_name, requested_name, reason, status, created_at")
+        .eq("status", "pending")
+        .order("created_at", { ascending: false })
+        .limit(100);
       setStudioRequests((studioData as any[]) || []);
 
     } catch (err) {

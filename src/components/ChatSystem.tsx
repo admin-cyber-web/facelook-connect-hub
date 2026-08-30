@@ -2048,7 +2048,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
         })),
       );
       setIsSearching(false);
-    }, 300);
+    }, 500);
   }, [searchQuery, userId]);
 
   // ── Messages for selected chat ────────────────────────────────────────────
@@ -2265,7 +2265,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       .subscribe();
     const cleanupConversationChannel = subscribeWhileVisible(
       createConversationChannel,
-      { onVisible: () => { realtimeHealthy = false; void load(); } },
+      { onVisible: () => { void load(); } },
     );
 
     // Typing presence channel

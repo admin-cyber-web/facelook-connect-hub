@@ -967,7 +967,7 @@ export const DebateButton: React.FC<{
       await supabase.from("debate_message_likes").insert({ message_id: msgId, user_id: currentUserId });
     }
     const { count } = await supabase.from("debate_message_likes")
-      .select("*", { count: "exact", head: true }).eq("message_id", msgId);
+      .select("id", { count: "exact", head: true }).eq("message_id", msgId);
     await supabase.from("debate_messages").update({ likes_count: count ?? 0 }).eq("id", msgId);
     setMessages(prev => prev.map(m => m.id === msgId
       ? { ...m, likes_count: count || 0, user_liked: !liked } : m));

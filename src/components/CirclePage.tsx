@@ -1239,19 +1239,6 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
         });
         setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }), 80);
       })
-      .on("postgres_changes", {
-        event: "*", schema: "public", table: "group_message_reactions",
-      }, async () => {
-        // Re-fetch reactions when any change happens
-        const { data: allMsgs } = await supabase
-          .from("group_messages").select("id").eq("group_id", groupId).limit(100);
-        if (!allMsgs) return;
-        const { data: rxns } = await supabase
-          .from("group_message_reactions")
-          .select("message_id, user_id, emoji")
-          .in("message_id", allMsgs.map((m: any) => m.id));
-        if (rxns) setMsgReactions(prev => ({ ...prev, ...buildReactionMap(rxns, currentUserId) }));
-      })
       .subscribe();
     chatSubRef.current = ch;
   }, [currentUserId, buildReactionMap]);

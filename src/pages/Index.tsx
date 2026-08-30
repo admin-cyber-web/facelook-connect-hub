@@ -1843,7 +1843,12 @@ const Index = ({ session, initialAdminOpen, isGuest = false }: { session: Sessio
   //    Wrapped in try/catch so a missing table never crashes the tab.
   useEffect(() => {
     if (!userId) return;
+    let lastPingAt = 0;
     const ping = () => {
+      if (document.visibilityState !== "visible") return;
+      const now = Date.now();
+      if (now - lastPingAt < 60 * 1000) return;
+      lastPingAt = now;
       try {
         supabase.from("profiles")
           .update({ last_seen: new Date().toISOString() })
@@ -1853,15 +1858,17 @@ const Index = ({ session, initialAdminOpen, isGuest = false }: { session: Sessio
         void 0;
       }
     };
-    ping(); // immediate
-    const id = setInterval(() => {
-      if (document.visibilityState === "visible") ping();
-    }, 60 * 1000); // every minute while tab is visible
-    const onVis = () => { if (document.visibilityState === "visible") ping(); };
-    document.addEventListener("visibilitychange", onVis);
+    ping();
+    const activityEvents = ["pointerdown", "keydown", "touchstart", "scroll"] as const;
+    activityEvents.forEach((event) => {
+      window.addEventListener(event, ping, { passive: true });
+    });
+    document.addEventListener("visibilitychange", ping);
     return () => {
-      clearInterval(id);
-      document.removeEventListener("visibilitychange", onVis);
+      activityEvents.forEach((event) => {
+        window.removeEventListener(event, ping);
+      });
+      document.removeEventListener("visibilitychange", ping);
     };
   }, [userId]);
 

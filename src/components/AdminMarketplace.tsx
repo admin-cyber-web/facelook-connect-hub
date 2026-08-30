@@ -719,8 +719,9 @@ export function AdminMarketplacePanel({ onClose }: AdminMarketplacePanelProps) {
     setLoadingItems(true);
     const { data } = await supabase
       .from("marketplace_items")
-      .select("*")
-      .order("created_at", { ascending: false });
+      .select("id, title, description, price, image_url, link_url, badge, is_active, created_at, sizes, colors")
+      .order("created_at", { ascending: false })
+      .limit(100);
     setItems(data ?? []);
     setLoadingItems(false);
   };
@@ -729,7 +730,7 @@ export function AdminMarketplacePanel({ onClose }: AdminMarketplacePanelProps) {
     setLoadingOrders(true);
     const { data } = await supabase
       .from("marketplace_orders")
-      .select("*")
+      .select("id, tracking_code, user_id, user_email, user_name, phone, address, item_id, item_title, item_price, selected_size, selected_color, payment_method, utr_id, status, created_at")
       .order("created_at", { ascending: false })
       .limit(200);
     setOrders(data ?? []);

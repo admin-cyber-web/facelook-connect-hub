@@ -701,7 +701,7 @@ const SearchModal = ({
   };
 
   useEffect(() => {
-    const t = setTimeout(() => doSearch(query), 300);
+    const t = setTimeout(() => doSearch(query), 500);
     return () => clearTimeout(t);
   }, [query, doSearch]);
 
@@ -1497,7 +1497,7 @@ const Header = ({
     if (!userId) return;
     const { data, error } = await supabase
       .from("notifications")
-      .select("*")
+      .select("id, notifier_id, actor_id, type, entity_id, content, is_read, created_at")
       .eq("notifier_id", userId)
       .order("created_at", { ascending: false })
       .limit(40);
