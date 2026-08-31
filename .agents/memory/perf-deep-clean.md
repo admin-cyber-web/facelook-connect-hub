@@ -35,3 +35,10 @@ All addEventListener in codebase have matching removeEventListener. No leaks as 
 
 ### 9. React.lazy — already applied everywhere in Index.tsx
 ### 10. ChatSystem search — already has built-in debounce via searchDebounceRef setTimeout
+
+### 11. Shared caches — bounded and request-deduplicated
+Custom in-memory caches must have both a maximum entry count and a maximum list payload size. Expired entries should be pruned opportunistically, without a cleanup interval, and concurrent cache misses for the same key should share one request.
+
+**Why:** A five-minute TTL alone does not bound memory or Supabase traffic: remounts can create duplicate requests, and long sessions can retain large feed arrays indefinitely.
+
+**How to apply:** Keep cache data process-local, clear it on logout, protect it from repopulation by pre-logout requests, and cap persisted ID lists as well as in-memory feed data.

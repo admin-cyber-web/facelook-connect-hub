@@ -7,6 +7,8 @@ import React, { createContext, useContext, useCallback, useRef } from "react";
 // ═══════════════════════════════════════════════════════════════════════════
 
 const STALE_MS = 1000 * 60 * 5; // 5 minutes
+const MAX_LIST_ITEMS = 250;
+const MAX_CIRCLE_ENTRIES = 8;
 
 export type CacheEntry<T> = {
   data: T;
@@ -44,6 +46,23 @@ const initialState: DataCacheState = {
   frameRequests: null,
   profile: null,
 };
+
+function boundEntry<T>(entry: CacheEntry<T>): CacheEntry<T> {
+  const data = Array.isArray(entry.data)
+    ? entry.data.slice(0, MAX_LIST_ITEMS)
+    : entry.data;
+  return { ...entry, data: data as T };
+}
+
+function pruneCircleEntries(
+  entries: Record<string, CacheEntry<any>>,
+): Record<string, CacheEntry<any>> {
+  const keys = Object.keys(entries);
+  if (keys.length <= MAX_CIRCLE_ENTRIES) return entries;
+  return Object.fromEntries(
+    keys.slice(-MAX_CIRCLE_ENTRIES).map((key) => [key, entries[key]]),
+  );
+}
 
 interface DataCacheCtx {
   /** Direct ref — read without triggering re-renders */
@@ -95,27 +114,44 @@ export const DataCacheProvider = ({ children }: { children: React.ReactNode }) =
   const cacheRef = useRef<DataCacheState>({ ...initialState });
 
   const setCache = useCallback(<K extends keyof DataCacheState>(key: K, value: any) => {
-    cacheRef.current = { ...cacheRef.current, [key]: value };
+    const isEntry =
+      value !== null &&
+      typeof value === "object" &&
+      "data" in value &&
+      "fetchedAt" in value;
+    cacheRef.current = {
+      ...cacheRef.current,
+      [key]: isEntry ? boundEntry(value) : value,
+    };
   }, []);
 
   const setCirclePosts = useCallback((circleId: string, entry: CacheEntry<any[]>) => {
     cacheRef.current = {
       ...cacheRef.current,
-      circlePosts: { ...cacheRef.current.circlePosts, [circleId]: entry },
+      circlePosts: pruneCircleEntries({
+        ...cacheRef.current.circlePosts,
+        [circleId]: boundEntry(entry),
+      }),
     };
   }, []);
 
   const setCirclePending = useCallback((circleId: string, entry: CacheEntry<any[]>) => {
     cacheRef.current = {
       ...cacheRef.current,
-      circlePending: { ...cacheRef.current.circlePending, [circleId]: entry },
+      circlePending: pruneCircleEntries({
+        ...cacheRef.current.circlePending,
+        [circleId]: boundEntry(entry),
+      }),
     };
   }, []);
 
   const setCircleMembers = useCallback((circleId: string, entry: CacheEntry<any[]>) => {
     cacheRef.current = {
       ...cacheRef.current,
-      circleMembers: { ...cacheRef.current.circleMembers, [circleId]: entry },
+      circleMembers: pruneCircleEntries({
+        ...cacheRef.current.circleMembers,
+        [circleId]: boundEntry(entry),
+      }),
     };
   }, []);
 
@@ -129,7 +165,15 @@ export const DataCacheProvider = ({ children }: { children: React.ReactNode }) =
       const raw = cache[key] as any;
       if (raw && "fetchedAt" in raw) entry = raw;
     }
-    return !entry || Date.now() - entry.fetchedAt > STALE_MS;
+    if (!entry) return true;
+    if (Date.now() - entry.fetchedAt > STALE_MS) {
+      if (key === "circlePosts" && circleId) delete cache.circlePosts[circleId];
+      else if (key === "circlePending" && circleId) delete cache.circlePending[circleId];
+      else if (key === "circleMembers" && circleId) delete cache.circleMembers[circleId];
+      else (cache as any)[key] = null;
+      return true;
+    }
+    return false;
   }, []);
 
   const hasData = useCallback((key: keyof DataCacheState, circleId?: string) => {

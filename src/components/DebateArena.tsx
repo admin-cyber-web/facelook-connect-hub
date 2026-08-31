@@ -8,6 +8,7 @@ import {
 import { supabase } from "@/lib/supabaseClient";
 import { resolveMediaUrl } from "@/lib/mediaUrl";
 import { toast } from "sonner";
+import { usePageVisibility } from "../hooks/usePageVisibility";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface Profile { full_name: string; avatar_url: string | null; }
@@ -46,13 +47,14 @@ type VoteMap = Record<string, VoteEntry>;
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function useCountdown(expiresAt: string | null) {
   const [left, setLeft] = useState(0);
+  const isPageVisible = usePageVisibility();
   useEffect(() => {
-    if (!expiresAt) return;
+    if (!expiresAt || !isPageVisible) return;
     const tick = () => setLeft(Math.max(0, new Date(expiresAt).getTime() - Date.now()));
     tick();
     const t = setInterval(tick, 1000);
     return () => clearInterval(t);
-  }, [expiresAt]);
+  }, [expiresAt, isPageVisible]);
   const h = Math.floor(left / 3600000);
   const m = Math.floor((left % 3600000) / 60000);
   const s = Math.floor((left % 60000) / 1000);
@@ -636,13 +638,14 @@ const DebateResultModal: React.FC<{
 // ── Queue Wait Modal ──────────────────────────────────────────────────────────
 const QueueWaitModal: React.FC<{ onClose: () => void; estimatedFreeAt: Date | null }> = ({ onClose, estimatedFreeAt }) => {
   const [left, setLeft] = useState(0);
+  const isPageVisible = usePageVisibility();
   useEffect(() => {
-    if (!estimatedFreeAt) return;
+    if (!estimatedFreeAt || !isPageVisible) return;
     const tick = () => setLeft(Math.max(0, estimatedFreeAt.getTime() - Date.now()));
     tick();
     const t = setInterval(tick, 1000);
     return () => clearInterval(t);
-  }, [estimatedFreeAt]);
+  }, [estimatedFreeAt, isPageVisible]);
 
   const m = Math.floor(left / 60000);
   const s = Math.floor((left % 60000) / 1000);

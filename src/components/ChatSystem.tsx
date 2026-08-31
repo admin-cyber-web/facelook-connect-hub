@@ -65,6 +65,26 @@ import {
   RISK_THRESHOLD,
 } from "../lib/safetyEngine";
 
+const MAX_PERSISTED_CHAT_IDS = 100;
+
+function readPersistedChatIds(key: string): Set<string> {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(key) || "[]");
+    if (!Array.isArray(parsed)) return new Set();
+    return new Set(
+      parsed
+        .filter((id): id is string => typeof id === "string")
+        .slice(-MAX_PERSISTED_CHAT_IDS),
+    );
+  } catch {
+    return new Set();
+  }
+}
+
+function capChatIds(ids: Set<string>): string[] {
+  return [...ids].slice(-MAX_PERSISTED_CHAT_IDS);
+}
+
 // ── Storage bucket (must match the bucket created in Supabase dashboard) ───────
 const CHAT_BUCKET = "chat-images";
 
@@ -947,18 +967,10 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   const suspiciousTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const loveProtectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [mutedChats, setMutedChats] = useState<Set<string>>(() => {
-    try {
-      return new Set(JSON.parse(localStorage.getItem("cx_muted") || "[]"));
-    } catch {
-      return new Set();
-    }
+    return readPersistedChatIds("cx_muted");
   });
   const [archivedChats, setArchivedChats] = useState<Set<string>>(() => {
-    try {
-      return new Set(JSON.parse(localStorage.getItem("cx_archived") || "[]"));
-    } catch {
-      return new Set();
-    }
+    return readPersistedChatIds("cx_archived");
   });
 
   // ── Online users via Supabase Presence ────────────────────────────────────
@@ -1134,10 +1146,10 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     localStorage.setItem("cx_sound", String(soundEnabled));
   }, [soundEnabled]);
   useEffect(() => {
-    localStorage.setItem("cx_muted", JSON.stringify([...mutedChats]));
+    localStorage.setItem("cx_muted", JSON.stringify(capChatIds(mutedChats)));
   }, [mutedChats]);
   useEffect(() => {
-    localStorage.setItem("cx_archived", JSON.stringify([...archivedChats]));
+    localStorage.setItem("cx_archived", JSON.stringify(capChatIds(archivedChats)));
   }, [archivedChats]);
 
   // ── Love Protect: sync partner ref + load from DB on mount ────────────────
@@ -1758,7 +1770,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
 
   // ── Story viewer: 15s countdown timer ────────────────────────────────────
   useEffect(() => {
-    if (!storyViewerOpen || storyPaused || storyGroups.length === 0) return;
+    if (!isPageVisible || !storyViewerOpen || storyPaused || storyGroups.length === 0) return;
     storyTimerRef.current = setInterval(() => {
       setStoryElapsed((e) => {
         if (e + 0.1 >= 15) {
@@ -1788,6 +1800,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     viewerGroupIdx,
     viewerStoryIdx,
     storyGroups,
+    isPageVisible,
   ]);
 
   // ── Story viewer: reset elapsed on story change ───────────────────────────
@@ -2703,13 +2716,13 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     setMutedChats((prev) => {
       const n = new Set(prev);
       n.has(id) ? n.delete(id) : n.add(id);
-      return n;
+      return new Set(capChatIds(n));
     });
   const toggleArchive = (id: string) =>
     setArchivedChats((prev) => {
       const n = new Set(prev);
       n.has(id) ? n.delete(id) : n.add(id);
-      return n;
+      return new Set(capChatIds(n));
     });
 
   // ── Voice Mode ────────────────────────────────────────────────────────────

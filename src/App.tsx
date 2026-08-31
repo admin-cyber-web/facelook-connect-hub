@@ -29,12 +29,18 @@ const InviteLanding = lazy(() => import("./pages/InviteLanding"));
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 60 * 5,
-      gcTime:    1000 * 60 * 60 * 24,
+      // This app uses explicit Supabase fetches rather than query observers.
+      // Keep React Query conservative if a screen adds a query later.
+      staleTime: Infinity,
+      gcTime:    1000 * 60 * 10,
+      refetchInterval: false,
+      refetchIntervalInBackground: false,
       refetchOnWindowFocus: false,
-      refetchOnReconnect: true,
-      retry: 2,
+      refetchOnReconnect: false,
+      refetchOnMount: false,
+      retry: 0,
     },
+    mutations: { retry: 0 },
   },
 });
 
