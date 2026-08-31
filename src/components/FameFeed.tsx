@@ -1520,10 +1520,19 @@ const SuggestionPlaceholder = ({
 );
 
 // ── Single Full-Width Vertical Reel ───────────────────────────────────────────
-const SingleReelBlock = ({ post }: { post: any }) => {
+const SingleReelBlock = ({
+  post,
+  liked,
+  likeCount,
+  onToggleLike,
+}: {
+  post: any;
+  liked: boolean;
+  likeCount: number;
+  onToggleLike: (post: any) => void;
+}) => {
   const ref = useRef<HTMLVideoElement>(null);
   const [muted, setMuted] = useState(true);
-  const [liked, setLiked] = useState(false);
 
   useEffect(() => {
     const el = ref.current;
@@ -1598,8 +1607,9 @@ const SingleReelBlock = ({ post }: { post: any }) => {
       </div>
       <div className="absolute right-3 bottom-16 flex flex-col items-center gap-4">
         <button
-          onClick={() => setLiked(!liked)}
+          onClick={() => onToggleLike(post)}
           className="flex flex-col items-center"
+          aria-label={liked ? "Unlike reel" : "Like reel"}
         >
           <Heart
             size={26}
@@ -1607,7 +1617,7 @@ const SingleReelBlock = ({ post }: { post: any }) => {
             className={liked ? "text-[#ff2d55]" : "text-white"}
           />
           <span className="text-white text-[10px] font-bold mt-1">
-            {post.likes_count || 0}
+            {likeCount}
           </span>
         </button>
         <button
@@ -2211,6 +2221,7 @@ const FameFeed = ({
   const [userReactions, setUserReactions] = useState<{
     [postId: string]: string;
   }>({});
+  const reelLikeInFlightRef = useRef<Set<string>>(new Set());
   const [reactionBarPostId, setReactionBarPostId] = useState<string | null>(
     null,
   );
@@ -3650,6 +3661,126 @@ const FameFeed = ({
       });
     }
   };
+
+  // Reels-only like path. This intentionally does not call handleReact:
+  // normal post reactions keep their existing behavior, while reel likes use
+  // one authenticated, idempotent toggle and a database-backed final count.
+  const handleReelLike = useCallback(
+    async (post: any) => {
+      const postId = post?.id;
+      if (!currentUserId || !postId) return;
+      if (reelLikeInFlightRef.current.has(postId)) return;
+
+      reelLikeInFlightRef.current.add(postId);
+      const wasLiked = likedIds.has(postId);
+      const previousIds = new Set(likedIds);
+      const previousReactions = { ...userReactions };
+      const previousPost = postsRef.current.find((p) => p.id === postId);
+      const previousCount = previousPost?.likes_count ?? post.likes_count ?? 0;
+      const optimisticCount = Math.max(previousCount + (wasLiked ? -1 : 1), 0);
+
+      const setReelState = (isLiked: boolean, count: number) => {
+        setLikedIds((prev) => {
+          const next = new Set(prev);
+          if (isLiked) next.add(postId);
+          else next.delete(postId);
+          return next;
+        });
+        setUserReactions((prev) => {
+          const next = { ...prev };
+          if (isLiked) next[postId] = "like";
+          else delete next[postId];
+          return next;
+        });
+        setPosts((prev) => {
+          const next = prev.map((p) =>
+            p.id === postId ? { ...p, likes_count: Math.max(count, 0) } : p,
+          );
+          dataCache.setCache("famePosts", {
+            data: next,
+            fetchedAt: Date.now(),
+          });
+          return next;
+        });
+      };
+
+      // Give the reel immediate feedback while the single server operation runs.
+      setReelState(!wasLiked, optimisticCount);
+
+      try {
+        let finalLiked = !wasLiked;
+        let finalCount = optimisticCount;
+
+        // Preferred path: this RPC performs the toggle, unique-conflict
+        // protection, recount, and posts.likes_count update in one transaction.
+        const { data: rpcData, error: rpcError } = await supabase
+          .rpc("toggle_reel_like", { p_post_id: postId })
+          .maybeSingle();
+
+        const rpcMissing =
+          rpcError?.code === "PGRST202" ||
+          /toggle_reel_like|function .* does not exist/i.test(
+            rpcError?.message || "",
+          );
+
+        if (!rpcError) {
+          const result = Array.isArray(rpcData) ? rpcData[0] : rpcData;
+          if (result) {
+            finalLiked = Boolean(result.liked);
+            finalCount = Number(result.likes_count ?? optimisticCount);
+          }
+        } else if (rpcMissing) {
+          // Backward-compatible fallback for environments where the migration
+          // has not been applied yet. The existing likes unique constraint
+          // makes this insert idempotent for (post_id, user_id).
+          if (finalLiked) {
+            const { error } = await supabase.from("likes").upsert(
+              { post_id: postId, user_id: currentUserId },
+              { onConflict: "post_id,user_id", ignoreDuplicates: true },
+            );
+            if (error) throw error;
+          } else {
+            const { error } = await supabase
+              .from("likes")
+              .delete()
+              .eq("post_id", postId)
+              .eq("user_id", currentUserId);
+            if (error) throw error;
+          }
+
+          const { count, error: countError } = await supabase
+            .from("likes")
+            .select("id", { count: "exact", head: true })
+            .eq("post_id", postId);
+          if (!countError && count !== null) finalCount = count;
+
+          // RLS may reject this fallback count write for non-authors. The RPC
+          // migration is the authoritative path and avoids that limitation.
+          await supabase
+            .from("posts")
+            .update({ likes_count: finalCount })
+            .eq("id", postId);
+        } else {
+          throw rpcError;
+        }
+
+        setReelState(finalLiked, finalCount);
+      } catch (error: any) {
+        console.error("[FameFeed] reel like toggle failed:", error?.message || error);
+        setLikedIds(previousIds);
+        setUserReactions(previousReactions);
+        setPosts((prev) =>
+          prev.map((p) =>
+            p.id === postId ? { ...p, likes_count: previousCount } : p,
+          ),
+        );
+        toast.error("Reel like save nahi ho saka. Try again.");
+      } finally {
+        reelLikeInFlightRef.current.delete(postId);
+      }
+    },
+    [currentUserId, likedIds, userReactions, dataCache],
+  );
 
   const handleShare = (post: any, e: React.MouseEvent<HTMLButtonElement>) => {
     e.stopPropagation();
@@ -6119,7 +6250,12 @@ const FameFeed = ({
         if (block.type === "single-reel" && block.post) {
           return (
             <div key={block.key}>
-              <SingleReelBlock post={block.post} />
+              <SingleReelBlock
+                post={block.post}
+                liked={likedIds.has(block.post.id)}
+                likeCount={block.post.likes_count || 0}
+                onToggleLike={handleReelLike}
+              />
               <FeedDivider />
             </div>
           );
