@@ -94,7 +94,7 @@ const CHAT_BUCKET = "chat-images";
 // which breaks the URL. This helper preserves the full path instead.
 const SUPABASE_STORAGE_BASE = "https://rxwvvhvretostbiknuek.supabase.co/storage/v1/object/public";
 const getStoryMediaUrl = (url: string): string => {
-  if (!url || !url.trim()) return "";
+  if (typeof url !== "string" || !url.trim()) return "";
   if (url.startsWith("http://") || url.startsWith("https://")) return url;
   if (url.startsWith("data:")) return url;
   const cleanPath = url.startsWith("/") ? url.substring(1) : url;
@@ -193,6 +193,54 @@ interface ChatSystemProps {
   onLogout?: () => void;
   onUnreadCountChange?: (count: number) => void;
 }
+
+const asTrimmedString = (value: unknown): string =>
+  typeof value === "string" ? value.trim() : value == null ? "" : String(value).trim();
+
+const asNullableString = (value: unknown): string | undefined => {
+  const normalized = asTrimmedString(value);
+  return normalized || undefined;
+};
+
+const normalizeProfile = (value: any, fallbackId = ""): Profile => ({
+  id: asTrimmedString(value?.id ?? fallbackId),
+  full_name: asTrimmedString(value?.full_name) || asTrimmedString(value?.username) || "Unknown",
+  username: asTrimmedString(value?.username),
+  avatar_url: asTrimmedString(value?.avatar_url),
+  bio: asNullableString(value?.bio),
+  school: asNullableString(value?.school),
+  location: asNullableString(value?.location),
+  last_seen: asNullableString(value?.last_seen),
+});
+
+const normalizeMessage = (value: any): Message => ({
+  id: asTrimmedString(value?.id),
+  sender_id: asTrimmedString(value?.sender_id),
+  receiver_id: asTrimmedString(value?.receiver_id),
+  content: typeof value?.content === "string" ? value.content : "",
+  media_url: asNullableString(value?.media_url),
+  media_type: asNullableString(value?.media_type),
+  created_at: asTrimmedString(value?.created_at),
+  seen_at: asNullableString(value?.seen_at),
+  reply_to_id: asNullableString(value?.reply_to_id),
+  reply_preview: asNullableString(value?.reply_preview),
+  reactions: value?.reactions && typeof value.reactions === "object" ? value.reactions : undefined,
+  is_edited: value?.is_edited === true,
+});
+
+const normalizeStory = (value: any): Story => ({
+  id: asTrimmedString(value?.id),
+  user_id: asTrimmedString(value?.user_id),
+  image_url: asTrimmedString(value?.image_url),
+  caption: asNullableString(value?.caption),
+  emoji: asNullableString(value?.emoji),
+  mood: asNullableString(value?.mood),
+  media_type: asNullableString(value?.media_type),
+  is_help_request: value?.is_help_request === true,
+  music_url: asNullableString(value?.music_url),
+  created_at: asTrimmedString(value?.created_at),
+  profile: value?.profile ? normalizeProfile(value.profile) : undefined,
+});
 
 // ── Inject global keyframes once ───────────────────────────────────────────────
 const STYLE_ID = "cx-keyframes";
@@ -789,11 +837,20 @@ const StoryCircle = ({
 const StoryViewCount = ({ storyId }: { storyId: string }) => {
   const [count, setCount] = React.useState<number | null>(null);
   React.useEffect(() => {
-    supabase
+    let active = true;
+    void supabase
       .from("story_views")
       .select("id", { count: "exact", head: true })
       .eq("story_id", storyId)
-      .then(({ count: c }) => setCount(c ?? 0));
+      .then(({ count: c }) => {
+        if (active) setCount(c ?? 0);
+      })
+      .catch(() => {
+        if (active) setCount(0);
+      });
+    return () => {
+      active = false;
+    };
   }, [storyId]);
   if (count === null) return null;
   return (
@@ -816,6 +873,18 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   const isAdmin = isAdminEmail(userEmail);
   const { openProfile } = useProfileViewer();
 
+  const mountedRef = useRef(true);
+  const searchRequestRef = useRef(0);
+  const messageRequestRef = useRef(0);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      searchRequestRef.current += 1;
+      messageRequestRef.current += 1;
+    };
+  }, []);
+
   // ── Message Reactions ─────────────────────────────────────────────────────
   const fetchMsgReactions = useCallback(
     async (uid: string, otherId: string) => {
@@ -828,7 +897,9 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
           )
           .order("created_at", { ascending: false })
           .limit(200);
-        const msgIdsArr = (msgData || []).map((m: any) => m.id as string);
+        const msgIdsArr = (msgData || [])
+          .map((m: any) => asTrimmedString(m?.id))
+          .filter(Boolean);
         if (msgIdsArr.length === 0) return;
         const { data } = await supabase
           .from("message_reactions")
@@ -842,18 +913,25 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
             map[row.message_id][row.emoji] = [];
           map[row.message_id][row.emoji].push(row.user_id);
         }
-        setMsgReactions(map);
-      } catch (_) {}
+        if (mountedRef.current) setMsgReactions(map);
+      } catch (error) {
+        console.warn("[Chat] message reactions fetch failed:", error);
+      }
     },
     [],
   );
 
   const handleMsgReact = async (msgId: string, emoji: string) => {
     // ── Step 1: get real auth user ID directly from Supabase session ──────────
-    const {
-      data: { user: authUser },
-    } = await supabase.auth.getUser();
-    const reactingUserId = authUser?.id ?? userId;
+    let reactingUserId = asTrimmedString(userId);
+    try {
+      const {
+        data: { user: authUser },
+      } = await supabase.auth.getUser();
+      reactingUserId = asTrimmedString(authUser?.id) || reactingUserId;
+    } catch (error) {
+      console.warn("[Reaction] auth lookup failed:", error);
+    }
 
     if (!reactingUserId) {
       console.error("[Reaction] ❌ No user ID — aborting");
@@ -886,6 +964,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     }
 
     // ── Step 3: apply optimistic UI immediately ───────────────────────────────
+    if (!mountedRef.current) return;
     setMsgReactions((r) => ({ ...r, [msgId]: updated }));
 
     // ── Step 4: write to DB with full error logging ───────────────────────────
@@ -916,12 +995,14 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
         err,
       );
       // Rollback optimistic update on failure
-      setMsgReactions((r) => ({ ...r, [msgId]: prev }));
+      if (mountedRef.current) setMsgReactions((r) => ({ ...r, [msgId]: prev }));
       return;
     }
 
     // ── Step 5: re-fetch to sync both users (after successful DB write) ───────
-    if (selectedUser) await fetchMsgReactions(reactingUserId, selectedUser.id);
+    if (mountedRef.current && selectedUser) {
+      await fetchMsgReactions(reactingUserId, selectedUser.id);
+    }
   };
 
   useEffect(() => {
@@ -959,6 +1040,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   const [lpSearchLoading, setLpSearchLoading] = useState(false);
   const [lpSelectedName, setLpSelectedName] = useState("");
   const lpSearchRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lpSearchRequestRef = useRef(0);
   const [suspiciousAlert, setSuspiciousAlert] = useState<{
     senderName: string;
   } | null>(null);
@@ -1159,32 +1241,35 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
 
   useEffect(() => {
     if (!userId) return;
-    supabase
-      .from("love_protect_links")
-      .select("partner_id, is_active")
-      .eq("user_id", userId)
-      .eq("is_active", true)
-      .maybeSingle()
-      .then(async ({ data }) => {
-        const row = data as { partner_id: string; is_active: boolean } | null;
-        if (row?.partner_id) {
-          setLoveProtectPartnerId(row.partner_id);
-          setLoveProtectInput(row.partner_id);
-          setLoveProtectEnabled(true);
-          localStorage.setItem("cx_love_protect", "true");
-          // Also fetch partner's display name
-          const { data: prof } = await supabase
-            .from("profiles")
-            .select("full_name, username")
-            .eq("id", row.partner_id)
-            .maybeSingle();
-          if (prof) {
-            const name = prof.full_name || prof.username || "";
-            setLpSelectedName(name);
-            setLpSearchQuery(name);
-          }
+    void (async () => {
+      try {
+        const { data, error } = await supabase
+          .from("love_protect_links")
+          .select("partner_id, is_active")
+          .eq("user_id", userId)
+          .eq("is_active", true)
+          .maybeSingle();
+        if (error || !data || !mountedRef.current) return;
+        const partnerId = asTrimmedString((data as any).partner_id);
+        if (!partnerId) return;
+        setLoveProtectPartnerId(partnerId);
+        setLoveProtectInput(partnerId);
+        setLoveProtectEnabled(true);
+        localStorage.setItem("cx_love_protect", "true");
+        const { data: prof } = await supabase
+          .from("profiles")
+          .select("full_name, username")
+          .eq("id", partnerId)
+          .maybeSingle();
+        if (prof && mountedRef.current) {
+          const name = asTrimmedString((prof as any).full_name) || asTrimmedString((prof as any).username);
+          setLpSelectedName(name);
+          setLpSearchQuery(name);
         }
-      });
+      } catch (error) {
+        console.warn("[Chat] Love Protect load failed:", error);
+      }
+    })();
   }, [userId]);
 
   // ── Auto-scroll ───────────────────────────────────────────────────────────
@@ -1212,118 +1297,154 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
 
   // ── Fetch my profile ──────────────────────────────────────────────────────
   const fetchMyProfile = useCallback(async () => {
-    const { data } = await supabase
-      .from("profiles")
-      .select("id, full_name, username, avatar_url, bio, school, location")
-      .eq("id", userId)
-      .single();
-    if (data) {
-      setMyProfile(data as Profile);
-      setEditBio(data.bio || "");
-      setEditSchool(data.school || "");
-      setEditLocation(data.location || "");
+    if (!userId) return;
+    try {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, full_name, username, avatar_url, bio, school, location")
+        .eq("id", userId)
+        .single();
+      if (error) throw error;
+      if (data && mountedRef.current) {
+        const profile = normalizeProfile(data, userId);
+        setMyProfile(profile);
+        setEditBio(profile.bio || "");
+        setEditSchool(profile.school || "");
+        setEditLocation(profile.location || "");
+      }
+    } catch (error) {
+      console.warn("[Chat] profile load failed:", error);
     }
   }, [userId]);
 
   // ── Fetch friendships ─────────────────────────────────────────────────────
   const fetchFriendships = useCallback(async () => {
-    const { data } = await supabase
-      .from("friendships")
-      .select("id, sender_id, receiver_id, status")
-      .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
-      .limit(500);
-    if (!data) return;
-    const map = new Map<string, FriendshipInfo>();
-    for (const row of data) {
-      const otherId =
-        row.sender_id === userId ? row.receiver_id : row.sender_id;
-      map.set(otherId, {
-        id: row.id,
-        status: row.status,
-        direction: row.sender_id === userId ? "sent" : "received",
-      });
+    if (!userId) return;
+    try {
+      const { data, error } = await supabase
+        .from("friendships")
+        .select("id, sender_id, receiver_id, status")
+        .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
+        .limit(500);
+      if (error) throw error;
+      if (!data || !mountedRef.current) return;
+      const map = new Map<string, FriendshipInfo>();
+      for (const row of data) {
+        const senderId = asTrimmedString((row as any).sender_id);
+        const receiverId = asTrimmedString((row as any).receiver_id);
+        const otherId = senderId === userId ? receiverId : senderId;
+        if (!otherId) continue;
+        map.set(otherId, {
+          id: asTrimmedString((row as any).id),
+          status: (row as any).status,
+          direction: senderId === userId ? "sent" : "received",
+        });
+      }
+      setFriendshipMap(map);
+    } catch (error) {
+      console.warn("[Chat] friendships load failed:", error);
     }
-    setFriendshipMap(map);
   }, [userId]);
 
   // ── Fetch pending requests ────────────────────────────────────────────────
   const fetchPendingRequests = useCallback(async () => {
-    const { data } = await supabase
-      .from("friendships")
-      .select("id, sender_id, created_at")
-      .eq("receiver_id", userId)
-      .eq("status", "pending")
-      .order("created_at", { ascending: false })
-      .limit(100);
-    if (!data || data.length === 0) {
-      setPendingRequests([]);
-      setPendingCount(0);
-      return;
-    }
-    const senderIds = data.map((r) => r.sender_id);
-    const { data: profiles } = await supabase
-      .from("profiles")
-      .select("id, full_name, username, avatar_url")
-      .in("id", senderIds)
-      .limit(100);
-    const profileMap = new Map((profiles || []).map((p) => [p.id, p]));
-    const reqs: FriendRequest[] = data.map((r) => ({
-      id: r.id,
-      sender_id: r.sender_id,
-      created_at: r.created_at,
-      profile: profileMap.get(r.sender_id) || {
-        id: r.sender_id,
-        full_name: "Unknown",
-        username: "",
-        avatar_url: "",
-      },
-    }));
-    setPendingRequests(reqs);
-    setPendingCount(reqs.length);
-    if (reqs.length > 0) {
-      setAlerts((prev) => {
-        const newAlerts = reqs
-          .filter((r) => !prev.find((a) => a.id === `req-${r.id}`))
-          .map((r) => ({
-            id: `req-${r.id}`,
-            text: `${r.profile.full_name} sent you a friend request`,
-            time: new Date(r.created_at).toLocaleTimeString([], {
-              hour: "2-digit",
-              minute: "2-digit",
-            }),
-            read: false,
-          }));
-        return [...newAlerts, ...prev].slice(0, 50);
-      });
+    if (!userId) return;
+    try {
+      const { data, error } = await supabase
+        .from("friendships")
+        .select("id, sender_id, created_at")
+        .eq("receiver_id", userId)
+        .eq("status", "pending")
+        .order("created_at", { ascending: false })
+        .limit(100);
+      if (error) throw error;
+      if (!data || data.length === 0) {
+        if (mountedRef.current) {
+          setPendingRequests([]);
+          setPendingCount(0);
+        }
+        return;
+      }
+      const senderIds = data.map((r: any) => asTrimmedString(r?.sender_id)).filter(Boolean);
+      const { data: profiles, error: profileError } = await supabase
+        .from("profiles")
+        .select("id, full_name, username, avatar_url")
+        .in("id", senderIds)
+        .limit(100);
+      if (profileError) throw profileError;
+      const profileMap = new Map(
+        (profiles || []).map((p: any) => [asTrimmedString(p?.id), normalizeProfile(p)]),
+      );
+      const reqs: FriendRequest[] = data
+        .map((r: any) => {
+          const senderId = asTrimmedString(r?.sender_id);
+          return {
+            id: asTrimmedString(r?.id),
+            sender_id: senderId,
+            created_at: asTrimmedString(r?.created_at),
+            profile: profileMap.get(senderId) || normalizeProfile(null, senderId),
+          };
+        })
+        .filter((r) => Boolean(r.id && r.sender_id));
+      if (!mountedRef.current) return;
+      setPendingRequests(reqs);
+      setPendingCount(reqs.length);
+      if (reqs.length > 0) {
+        setAlerts((prev) => {
+          const newAlerts = reqs
+            .filter((r) => !prev.find((a) => a.id === `req-${r.id}`))
+            .map((r) => ({
+              id: `req-${r.id}`,
+              text: `${r.profile?.full_name || "Someone"} sent you a friend request`,
+              time: new Date(r.created_at || Date.now()).toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit",
+              }),
+              read: false,
+            }));
+          return [...newAlerts, ...prev].slice(0, 50);
+        });
+      }
+    } catch (error) {
+      console.warn("[Chat] pending requests load failed:", error);
     }
   }, [userId]);
 
   // ── Fetch contacts ────────────────────────────────────────────────────────
   const fetchContacts = useCallback(async () => {
+    if (!userId) return;
     setLoadingContacts(true);
     try {
       // 1. Friends list
-      const { data: friendRows } = await supabase
+      const { data: friendRows, error: friendError } = await supabase
         .from("friendships")
         .select("sender_id, receiver_id")
         .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
         .eq("status", "accepted")
         .limit(500);
-      const friendIds = (friendRows || []).map((r) =>
-        r.sender_id === userId ? r.receiver_id : r.sender_id,
-      );
+      if (friendError) throw friendError;
+      const friendIds = (friendRows || [])
+        .map((r: any) =>
+          asTrimmedString(r?.sender_id) === userId
+            ? asTrimmedString(r?.receiver_id)
+            : asTrimmedString(r?.sender_id),
+        )
+        .filter(Boolean);
       const friendIdSet = new Set(friendIds);
 
       // 2. Block lists (both directions — hide blockers and blocked)
-      const { data: blockRows } = await supabase
+      const { data: blockRows, error: blockError } = await supabase
         .from("user_blocks")
         .select("blocker_id, blocked_id")
         .or(`blocker_id.eq.${userId},blocked_id.eq.${userId}`)
         .limit(500);
+      if (blockError) throw blockError;
       const blockedSet = new Set<string>();
       for (const b of blockRows || []) {
-        if (b.blocker_id === userId) blockedSet.add(b.blocked_id);
-        if (b.blocked_id === userId) blockedSet.add(b.blocker_id);
+        const blockerId = asTrimmedString((b as any)?.blocker_id);
+        const blockedId = asTrimmedString((b as any)?.blocked_id);
+        if (blockerId === userId && blockedId) blockedSet.add(blockedId);
+        if (blockedId === userId && blockerId) blockedSet.add(blockerId);
       }
       blockedUserIdsRef.current = blockedSet;
       // Only push a new state object when the membership actually changed,
@@ -1343,12 +1464,13 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       });
 
       // 3. Every message conversation (last message per partner)
-      const { data: msgs } = await supabase
+      const { data: msgs, error: messageError } = await supabase
         .from("messages")
         .select("sender_id, receiver_id, content, media_type, created_at")
         .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
         .order("created_at", { ascending: false })
         .limit(500);
+      if (messageError) throw messageError;
 
       const contactMap = new Map<
         string,
@@ -1360,30 +1482,33 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       >();
       const partnerIds = new Set<string>();
       for (const msg of msgs || []) {
-        const otherId =
-          msg.sender_id === userId ? msg.receiver_id : msg.sender_id;
+        const senderId = asTrimmedString((msg as any)?.sender_id);
+        const receiverId = asTrimmedString((msg as any)?.receiver_id);
+        const otherId = senderId === userId ? receiverId : senderId;
         if (!otherId || blockedSet.has(otherId)) continue;
         partnerIds.add(otherId);
         if (!contactMap.has(otherId)) {
           contactMap.set(otherId, {
-            last_message: msg.content || "",
-            last_message_at: msg.created_at,
-            last_media_type: msg.media_type,
+            last_message: typeof (msg as any)?.content === "string" ? (msg as any).content : "",
+            last_message_at: asTrimmedString((msg as any)?.created_at),
+            last_media_type: asNullableString((msg as any)?.media_type),
           });
         }
       }
 
       // 4. Per-sender unread count
-      const { data: unreadRows } = await supabase
+      const { data: unreadRows, error: unreadError } = await supabase
         .from("messages")
         .select("sender_id")
         .eq("receiver_id", userId)
         .is("seen_at", null)
         .limit(500);
+      if (unreadError) throw unreadError;
       const unreadMap = new Map<string, number>();
       for (const row of unreadRows || []) {
-        if (blockedSet.has(row.sender_id)) continue;
-        unreadMap.set(row.sender_id, (unreadMap.get(row.sender_id) || 0) + 1);
+        const senderId = asTrimmedString((row as any)?.sender_id);
+        if (!senderId || blockedSet.has(senderId)) continue;
+        unreadMap.set(senderId, (unreadMap.get(senderId) || 0) + 1);
       }
 
       // 5. Resolve every profile we need (friends + chat partners)
@@ -1393,28 +1518,27 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       });
       let profiles: any[] = [];
       if (allIds.size > 0) {
-        const { data } = await supabase
+        const { data, error: profileError } = await supabase
           .from("profiles")
           .select("id, full_name, username, avatar_url, last_seen")
           .in("id", [...allIds]);
+        if (profileError) throw profileError;
         profiles = data || [];
       }
 
       const friendsResult: ChatContact[] = [];
       const requestsResult: ChatContact[] = [];
       for (const p of profiles) {
-        if (blockedSet.has(p.id)) continue;
+        const profile = normalizeProfile(p);
+        if (!profile.id || blockedSet.has(profile.id)) continue;
         const c: ChatContact = {
-          id: p.id,
-          full_name: p.full_name || p.username || "Unknown",
-          username: p.username || "",
-          avatar_url: p.avatar_url || "",
-          ...(contactMap.get(p.id) || {}),
-          unread_count: unreadMap.get(p.id) || 0,
+          ...profile,
+          ...(contactMap.get(profile.id) || {}),
+          unread_count: unreadMap.get(profile.id) || 0,
         };
-        if (friendIdSet.has(p.id)) {
+        if (friendIdSet.has(profile.id)) {
           friendsResult.push(c);
-        } else if (partnerIds.has(p.id)) {
+        } else if (partnerIds.has(profile.id)) {
           // Non-friend you've exchanged messages with → message request
           requestsResult.push(c);
         }
@@ -1423,10 +1547,14 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
         (b.last_message_at || "") > (a.last_message_at || "") ? 1 : -1;
       friendsResult.sort(byRecency);
       requestsResult.sort(byRecency);
-      setContacts(friendsResult);
-      setMessageRequests(requestsResult);
+      if (mountedRef.current) {
+        setContacts(friendsResult);
+        setMessageRequests(requestsResult);
+      }
+    } catch (error) {
+      console.warn("[Chat] contacts load failed:", error);
     } finally {
-      setLoadingContacts(false);
+      if (mountedRef.current) setLoadingContacts(false);
     }
   }, [userId]);
 
@@ -1435,7 +1563,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     setLoadingStories(true);
     try {
       const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("stories")
         .select(
           "id, user_id, image_url, caption, emoji, mood, media_type, is_help_request, music_url, created_at, profiles(id, full_name, username, avatar_url)",
@@ -1443,14 +1571,18 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
         .gte("created_at", cutoff)
         .order("created_at", { ascending: true })
         .limit(100);
+      if (error) throw error;
       if (data) {
         const blocked = blockedUserIdsRef.current;
         const mapped: Story[] = data
-          .map((s: any) => ({
-            ...s,
-            profile: Array.isArray(s.profiles) ? s.profiles[0] : s.profiles,
-          }))
-          .filter((s: Story) => !blocked.has(s.user_id));
+          .map((s: any) =>
+            normalizeStory({
+              ...s,
+              profile: Array.isArray(s.profiles) ? s.profiles[0] : s.profiles,
+            }),
+          )
+          .filter((s: Story) => Boolean(s.id && s.user_id) && !blocked.has(s.user_id));
+        if (!mountedRef.current) return;
         setStories(mapped);
         // Build groups keyed by user_id
         const map = new Map<string, StoryGroup>();
@@ -1464,13 +1596,15 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
           }
           map.get(s.user_id)!.stories.push(s);
         }
-        setStoryGroups(Array.from(map.values()));
+        setStoryGroups(Array.from(map.values()).filter((group) => Boolean(group.profile?.id)));
       }
     } catch (_) {
-      setStories([]);
-      setStoryGroups([]);
+      if (mountedRef.current) {
+        setStories([]);
+        setStoryGroups([]);
+      }
     } finally {
-      setLoadingStories(false);
+      if (mountedRef.current) setLoadingStories(false);
     }
   }, []);
 
@@ -1595,41 +1729,43 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     const group = storyGroups[viewerGroupIdx];
     const story = group?.stories[viewerStoryIdx];
     if (!story) return;
-    const { error } = await supabase
-      .from("stories")
-      .delete()
-      .eq("id", story.id)
-      .eq("user_id", userId);
-    if (error) {
-      toast.error("Could not delete story");
-      return;
+    try {
+      const { error } = await supabase
+        .from("stories")
+        .delete()
+        .eq("id", story.id)
+        .eq("user_id", userId);
+      if (error) throw error;
+      if (!mountedRef.current) return;
+      toast.success("Story deleted ✓");
+      // Rebuild storyGroups without this story
+      const newGroups = storyGroups
+        .map((g, gi) =>
+          gi === viewerGroupIdx
+            ? {
+                ...g,
+                stories: g.stories.filter((_, si) => si !== viewerStoryIdx),
+              }
+            : g,
+        )
+        .filter((g) => g.stories.length > 0);
+      setStoryGroups(newGroups);
+      if (newGroups.length === 0) {
+        setStoryViewerOpen(false);
+        setViewingStory(null);
+        return;
+      }
+      const newGroupIdx = Math.min(viewerGroupIdx, newGroups.length - 1);
+      const newStoryIdx = Math.min(
+        viewerStoryIdx,
+        newGroups[newGroupIdx].stories.length - 1,
+      );
+      setViewerGroupIdx(newGroupIdx);
+      setViewerStoryIdx(newStoryIdx);
+      setStoryElapsed(0);
+    } catch (error: any) {
+      if (mountedRef.current) toast.error("Could not delete story: " + (error?.message || "Unknown error"));
     }
-    toast.success("Story deleted ✓");
-    // Rebuild storyGroups without this story
-    const newGroups = storyGroups
-      .map((g, gi) =>
-        gi === viewerGroupIdx
-          ? {
-              ...g,
-              stories: g.stories.filter((_, si) => si !== viewerStoryIdx),
-            }
-          : g,
-      )
-      .filter((g) => g.stories.length > 0);
-    setStoryGroups(newGroups);
-    if (newGroups.length === 0) {
-      setStoryViewerOpen(false);
-      setViewingStory(null);
-      return;
-    }
-    const newGroupIdx = Math.min(viewerGroupIdx, newGroups.length - 1);
-    const newStoryIdx = Math.min(
-      viewerStoryIdx,
-      newGroups[newGroupIdx].stories.length - 1,
-    );
-    setViewerGroupIdx(newGroupIdx);
-    setViewerStoryIdx(newStoryIdx);
-    setStoryElapsed(0);
   };
 
   // ── Save caption/mood edit from viewer ────────────────────────────────────
@@ -1637,35 +1773,37 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     const group = storyGroups[viewerGroupIdx];
     const story = group?.stories[viewerStoryIdx];
     if (!story) return;
-    const { error } = await supabase
-      .from("stories")
-      .update({ caption: viewerEditCaption, mood: viewerEditMood || null })
-      .eq("id", story.id)
-      .eq("user_id", userId);
-    if (error) {
-      toast.error("Could not save changes");
-      return;
+    try {
+      const { error } = await supabase
+        .from("stories")
+        .update({ caption: viewerEditCaption, mood: viewerEditMood || null })
+        .eq("id", story.id)
+        .eq("user_id", userId);
+      if (error) throw error;
+      if (!mountedRef.current) return;
+      // Update local state
+      const newGroups = storyGroups.map((g, gi) =>
+        gi === viewerGroupIdx
+          ? {
+              ...g,
+              stories: g.stories.map((s, si) =>
+                si === viewerStoryIdx
+                  ? {
+                      ...s,
+                      caption: viewerEditCaption,
+                      mood: viewerEditMood || null,
+                    }
+                  : s,
+              ),
+            }
+          : g,
+      );
+      setStoryGroups(newGroups);
+      setViewerEditing(false);
+      toast.success("Story updated ✨");
+    } catch (error: any) {
+      if (mountedRef.current) toast.error("Could not save changes: " + (error?.message || "Unknown error"));
     }
-    // Update local state
-    const newGroups = storyGroups.map((g, gi) =>
-      gi === viewerGroupIdx
-        ? {
-            ...g,
-            stories: g.stories.map((s, si) =>
-              si === viewerStoryIdx
-                ? {
-                    ...s,
-                    caption: viewerEditCaption,
-                    mood: viewerEditMood || null,
-                  }
-                : s,
-            ),
-          }
-        : g,
-    );
-    setStoryGroups(newGroups);
-    setViewerEditing(false);
-    toast.success("Story updated ✨");
   };
 
   // ── Update story (caption + emoji only) ───────────────────────────────────
@@ -1748,7 +1886,12 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       if (!detail?.userId || detail.userId === userId) return;
 
       // Refresh contacts so block list / requests are current
-      await fetchContacts();
+      try {
+        await fetchContacts();
+      } catch (error) {
+        console.warn("[Chat] open-chat refresh failed:", error);
+      }
+      if (!mountedRef.current) return;
 
       const existing =
         contactsRef.current.find((c) => c.id === detail.userId) ||
@@ -1866,7 +2009,11 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
         setOnlineUsers(ids);
       }).subscribe(async (status) => {
         if (status === "SUBSCRIBED" && activeStatus) {
-          await ch.track({ user_id: userId });
+          try {
+            await ch.track({ user_id: userId });
+          } catch (error) {
+            console.warn("[Chat] presence tracking failed:", error);
+          }
         }
       });
       presenceChannelRef.current = ch;
@@ -1883,9 +2030,13 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     const ch = presenceChannelRef.current;
     if (!ch) return;
     if (activeStatus) {
-      ch.track({ user_id: userId });
+      void ch.track({ user_id: userId }).catch((error) =>
+        console.warn("[Chat] presence tracking failed:", error),
+      );
     } else {
-      ch.untrack();
+      void ch.untrack().catch((error) =>
+        console.warn("[Chat] presence untracking failed:", error),
+      );
     }
   }, [activeStatus, userId]);
 
@@ -1900,10 +2051,12 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
           { event: "INSERT", schema: "public", table: "friendships", filter: `receiver_id=eq.${userId}` },
           (p) => {
             const row = p.new as any;
-            if (row.receiver_id === userId || row.sender_id === userId) {
-              fetchFriendships();
-              if (row.receiver_id === userId && row.status === "pending")
-                fetchPendingRequests();
+            const receiverId = asTrimmedString(row?.receiver_id);
+            const senderId = asTrimmedString(row?.sender_id);
+            if (receiverId === userId || senderId === userId) {
+              void fetchFriendships().catch((error) => console.warn("[Chat] friendship refresh failed:", error));
+              if (receiverId === userId && row?.status === "pending")
+                void fetchPendingRequests().catch((error) => console.warn("[Chat] request refresh failed:", error));
             }
           },
         )
@@ -1912,10 +2065,14 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
           { event: "UPDATE", schema: "public", table: "friendships", filter: `receiver_id=eq.${userId}` },
           (p) => {
             const row = p.new as any;
-            if (row.receiver_id === userId || row.sender_id === userId) {
-              fetchFriendships();
-              fetchPendingRequests();
-              if (row.status === "accepted") fetchContacts();
+            const receiverId = asTrimmedString(row?.receiver_id);
+            const senderId = asTrimmedString(row?.sender_id);
+            if (receiverId === userId || senderId === userId) {
+              void fetchFriendships().catch((error) => console.warn("[Chat] friendship refresh failed:", error));
+              void fetchPendingRequests().catch((error) => console.warn("[Chat] request refresh failed:", error));
+              if (row?.status === "accepted") {
+                void fetchContacts().catch((error) => console.warn("[Chat] contacts refresh failed:", error));
+              }
             }
           },
         )
@@ -1941,8 +2098,8 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
           "postgres_changes",
           { event: "INSERT", schema: "public", table: "messages", filter: `receiver_id=eq.${userId}` },
           (p) => {
-            const msg = p.new as Message;
-            if (msg.receiver_id === userId) {
+            const msg = normalizeMessage(p.new);
+            if (msg.receiver_id === userId && mountedRef.current) {
               const sender = contactsRef.current.find(
                 (c) => c.id === msg.sender_id,
               );
@@ -1976,12 +2133,17 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   // ── Unseen message count (always-on, drives FAB badge) ────────────────────
   const fetchUnseenCount = useCallback(async () => {
     if (!userId) return;
-    const { count } = await supabase
-      .from("messages")
-      .select("id", { count: "exact", head: true })
-      .eq("receiver_id", userId)
-      .is("seen_at", null);
-    setUnseenMsgCount(count ?? 0);
+    try {
+      const { count, error } = await supabase
+        .from("messages")
+        .select("id", { count: "exact", head: true })
+        .eq("receiver_id", userId)
+        .is("seen_at", null);
+      if (error) throw error;
+      if (mountedRef.current) setUnseenMsgCount(count ?? 0);
+    } catch (error) {
+      console.warn("[Chat] unread count load failed:", error);
+    }
   }, [userId]);
 
   useEffect(() => {
@@ -1994,8 +2156,8 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
           "postgres_changes",
           { event: "INSERT", schema: "public", table: "messages", filter: `receiver_id=eq.${userId}` },
           (p) => {
-            const msg = p.new as any;
-            if (msg.receiver_id === userId && !msg.seen_at) {
+            const msg = normalizeMessage(p.new);
+            if (msg.receiver_id === userId && !msg.seen_at && mountedRef.current) {
               setUnseenMsgCount((prev) => prev + 1);
             }
           },
@@ -2004,9 +2166,9 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
           "postgres_changes",
           { event: "UPDATE", schema: "public", table: "messages", filter: `receiver_id=eq.${userId}` },
           (p) => {
-            const msg = p.new as any;
-            const old = p.old as any;
-            if (msg.receiver_id === userId && msg.seen_at && !old?.seen_at) {
+            const msg = normalizeMessage(p.new);
+            const old = normalizeMessage(p.old);
+            if (msg.receiver_id === userId && msg.seen_at && !old.seen_at && mountedRef.current) {
               setUnseenMsgCount((prev) => Math.max(0, prev - 1));
             }
           },
@@ -2024,6 +2186,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   // ── Search debounce ───────────────────────────────────────────────────────
   useEffect(() => {
     if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    const requestId = ++searchRequestRef.current;
     if (!searchQuery.trim()) {
       setSearchResults([]);
       setIsSearching(false);
@@ -2032,29 +2195,39 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     setIsSearching(true);
     searchDebounceRef.current = setTimeout(async () => {
       const q = searchQuery.trim();
-      const { data } = await supabase
-        .from("profiles")
-        .select("id, full_name, username, avatar_url")
-        .neq("id", userId)
-        .or(`full_name.ilike.%${q}%,username.ilike.%${q}%`)
-        .limit(20);
-      setSearchResults(
-        (data || []).map((p) => ({
-          id: p.id,
-          full_name: p.full_name || p.username || "Unknown",
-          username: p.username || "",
-          avatar_url: p.avatar_url || "",
-        })),
-      );
-      setIsSearching(false);
+      try {
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("id, full_name, username, avatar_url")
+          .neq("id", userId)
+          .or(`full_name.ilike.%${q}%,username.ilike.%${q}%`)
+          .limit(20);
+        if (error) throw error;
+        if (requestId !== searchRequestRef.current || !mountedRef.current) return;
+        setSearchResults((data || []).map((p: any) => normalizeProfile(p)));
+      } catch (error) {
+        if (requestId === searchRequestRef.current && mountedRef.current) {
+          console.warn("[Chat] profile search failed:", error);
+          setSearchResults([]);
+        }
+      } finally {
+        if (requestId === searchRequestRef.current && mountedRef.current) {
+          setIsSearching(false);
+        }
+      }
     }, 500);
+    return () => {
+      if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    };
   }, [searchQuery, userId]);
 
   // ── Messages for selected chat ────────────────────────────────────────────
   useEffect(() => {
     if (!isOpen || !selectedUser || !userId) return;
-    const myId = String(userId).trim();
-    const partnerId = String(selectedUser.id || "").trim();
+    const requestId = ++messageRequestRef.current;
+    let active = true;
+    const myId = asTrimmedString(userId);
+    const partnerId = asTrimmedString(selectedUser.id);
     if (!myId || !partnerId) return;
 
     setIsOtherTyping(false);
@@ -2067,82 +2240,81 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     setMessages([]);
 
     const load = async () => {
+      if (!active || requestId !== messageRequestRef.current || !mountedRef.current) return;
       setLoadingMessages(true);
-
-      // Normalise IDs — trim whitespace to guard against subtle format differences
-      // Guard: abort if either ID is missing (can happen on first mount)
-      if (!myId || !partnerId) {
-        setLoadingMessages(false);
-        return;
-      }
-
-      // ── Primary fetch: select only columns guaranteed to exist ───────────
-      // Using .in() on both columns is equivalent to
-      //   (sender_id IN (me,partner) AND receiver_id IN (me,partner))
-      // which matches exactly the messages between these two users.
-      let { data, error } = await supabase
-        .from("messages")
-        .select(
-          "id, sender_id, receiver_id, content, media_url, media_type, created_at, seen_at, reply_to_id",
-        )
-        .in("sender_id", [myId, partnerId])
-        .in("receiver_id", [myId, partnerId])
-        .order("created_at", { ascending: true })
-        .limit(200);
-
-      // ── Fallback: if above fails (e.g. RLS or column issue) try simpler query
-      if (error) {
-        console.error("[Chat] fetchMessages primary error:", error.message);
-        const fallback = await supabase
+      try {
+        // ── Primary fetch: select only columns guaranteed to exist ─────────
+        let { data, error } = await supabase
           .from("messages")
           .select(
-            "id, sender_id, receiver_id, content, created_at, seen_at, reply_to_id",
+            "id, sender_id, receiver_id, content, media_url, media_type, created_at, seen_at, reply_to_id",
           )
-          .or(`sender_id.eq.${myId},receiver_id.eq.${myId}`)
+          .in("sender_id", [myId, partnerId])
+          .in("receiver_id", [myId, partnerId])
           .order("created_at", { ascending: true })
           .limit(200);
 
-        if (!fallback.error && fallback.data) {
-          // Filter to this conversation only on the JS side
-          data = fallback.data.filter(
-            (m: any) =>
-              (m.sender_id.trim() === myId &&
-                m.receiver_id.trim() === partnerId) ||
-              (m.sender_id.trim() === partnerId &&
-                m.receiver_id.trim() === myId),
-          ) as any;
-        } else {
-          console.error(
-            "[Chat] fetchMessages fallback error:",
-            fallback.error?.message,
-          );
+        // ── Fallback: normalize before filtering; database IDs may be null.
+        if (error) {
+          console.error("[Chat] fetchMessages primary error:", error.message);
+          const fallback = await supabase
+            .from("messages")
+            .select(
+              "id, sender_id, receiver_id, content, created_at, seen_at, reply_to_id",
+            )
+            .or(`sender_id.eq.${myId},receiver_id.eq.${myId}`)
+            .order("created_at", { ascending: true })
+            .limit(200);
+
+          if (!fallback.error && fallback.data) {
+            data = fallback.data.filter((m: any) => {
+              const senderId = asTrimmedString(m?.sender_id);
+              const receiverId = asTrimmedString(m?.receiver_id);
+              return (
+                (senderId === myId && receiverId === partnerId) ||
+                (senderId === partnerId && receiverId === myId)
+              );
+            }) as any;
+          } else {
+            throw fallback.error || new Error("Unable to load messages");
+          }
+        }
+
+        const rows = (data || [])
+          .map(normalizeMessage)
+          .filter((m) => Boolean(m.id && m.sender_id && m.receiver_id));
+        if (!active || requestId !== messageRequestRef.current || !mountedRef.current) return;
+        setMessages(rows);
+
+        // Mark all received messages as seen, without allowing a failed update
+        // to reject the loader.
+        const { error: seenError } = await supabase
+          .from("messages")
+          .update({ seen_at: new Date().toISOString() })
+          .eq("receiver_id", myId)
+          .eq("sender_id", partnerId)
+          .is("seen_at", null);
+        if (seenError) console.warn("[Chat] mark-seen failed:", seenError.message);
+      } catch (error) {
+        if (active && requestId === messageRequestRef.current && mountedRef.current) {
+          console.error("[Chat] message load failed:", error);
+          setMessages([]);
+        }
+      } finally {
+        if (active && requestId === messageRequestRef.current && mountedRef.current) {
           setLoadingMessages(false);
-          return;
         }
       }
-
-      // Normalise every row so comparisons are reliable
-      const rows: Message[] = (data || []).map((m: any) => ({
-        ...m,
-        id: String(m.id || "").trim(),
-        sender_id: String(m.sender_id || "").trim(),
-        receiver_id: String(m.receiver_id || "").trim(),
-        content: m.content ?? "",
-      }));
-
-      setMessages(rows);
-      setLoadingMessages(false);
-
-      // Mark all received messages as seen
-      await supabase
-        .from("messages")
-        .update({ seen_at: new Date().toISOString() })
-        .eq("receiver_id", myId)
-        .eq("sender_id", partnerId)
-        .is("seen_at", null);
     };
 
-    load().then(() => fetchMsgReactions(myId, partnerId));
+    void load()
+      .then(() => {
+        if (active && requestId === messageRequestRef.current) {
+          return fetchMsgReactions(myId, partnerId);
+        }
+        return undefined;
+      })
+      .catch((error) => console.warn("[Chat] post-load sync failed:", error));
 
     // ── Chat Realtime via custom-all-channel ─────────────────────────────────
     const convKey = [myId, partnerId].sort().join("-");
@@ -2152,14 +2324,16 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "messages", filter: `receiver_id=eq.${myId}` },
         (p) => {
-          const msg = p.new as Message;
-          const sid = String(msg.sender_id || "").trim();
-          const rid = String(msg.receiver_id || "").trim();
+          const msg = normalizeMessage(p.new);
+          const sid = msg.sender_id;
+          const rid = msg.receiver_id;
           const pid = partnerId;
           const relevant =
             (sid === myId && rid === pid) || (sid === pid && rid === myId);
 
           if (!relevant) return;
+
+          if (!active || requestId !== messageRequestRef.current || !mountedRef.current) return;
 
           // Skip messages the user deleted for themselves — don't let realtime bounce them back
           if (deletedForMeIdsRef.current.has(msg.id)) return;
@@ -2168,15 +2342,20 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
           setMessages((prev) =>
             prev.find((m) => m.id === msg.id) ? prev : [...prev, msg],
           );
-          fetchContacts();
+          void fetchContacts().catch((error) =>
+            console.warn("[Chat] realtime contacts refresh failed:", error),
+          );
 
           // Auto-mark as seen when the message is addressed to us
           if (rid === myId && sid === pid) {
-            supabase
+            void supabase
               .from("messages")
               .update({ seen_at: new Date().toISOString() })
               .eq("id", msg.id)
-              .then(() => {});
+              .then(({ error }) => {
+                if (error) console.warn("[Chat] realtime mark-seen failed:", error.message);
+              })
+              .catch((error) => console.warn("[Chat] realtime mark-seen failed:", error));
 
             // ── Sync effect blast to receiver side ────────────────────────
             if (msg.content) {
@@ -2187,7 +2366,8 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
             }
 
             // ── Safety: check sender's risk profile ───────────────────────
-            getRiskProfile(sid).then((profile) => {
+            void getRiskProfile(sid).then((profile) => {
+              if (!active || !mountedRef.current) return;
               if (profile?.is_flagged) {
                 const senderName =
                   contactsRef.current.find((c) => c.id === sid)?.full_name ||
@@ -2200,7 +2380,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                   8000,
                 );
               }
-            });
+            }).catch((error) => console.warn("[Chat] risk profile check failed:", error));
 
             // ── Love Protect: check partner activity on every incoming message ──
             // Keyword filter removed — we check on ANY message from partner so
@@ -2213,25 +2393,26 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                 "[LoveProtect] Incoming message from partner — running violation check.",
                 { partnerId: loveProtectPartnerRef.current, msgId: msg.id }
               );
-              checkLoveProtectViolation(loveProtectPartnerRef.current).then(
+              void checkLoveProtectViolation(loveProtectPartnerRef.current).then(
                 (violated) => {
+                  if (!active || !mountedRef.current) return;
                   console.log("[LoveProtect] Violation result:", violated);
                   if (violated) {
                     if (loveProtectTimerRef.current)
                       clearTimeout(loveProtectTimerRef.current);
                     setLoveProtectAlert(true);
-                    sendSafetyNotification(
+                    void sendSafetyNotification(
                       myId,
                       "love_protect",
                       "Warning: Your partner's communication pattern shows suspicious inconsistencies.",
-                    );
+                    ).catch((error) => console.warn("[Chat] safety notification failed:", error));
                     loveProtectTimerRef.current = setTimeout(
                       () => setLoveProtectAlert(false),
                       15000,
                     );
                   }
                 },
-              );
+              ).catch((error) => console.warn("[Chat] Love Protect check failed:", error));
             }
           }
         },
@@ -2240,10 +2421,11 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "messages", filter: `receiver_id=eq.${myId}` },
         (p) => {
-          const msg = p.new as Message;
+          const msg = normalizeMessage(p.new);
           const relevant =
-            msg.sender_id === myId || msg.receiver_id === myId;
-          if (relevant) {
+            (msg.sender_id === myId && msg.receiver_id === partnerId) ||
+            (msg.sender_id === partnerId && msg.receiver_id === myId);
+          if (relevant && active && requestId === messageRequestRef.current && mountedRef.current) {
             // Merge ALL updated fields (content, seen_at, any future fields)
             setMessages((prev) =>
               prev.map((m) => (m.id === msg.id ? { ...m, ...msg } : m)),
@@ -2255,8 +2437,8 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
         "postgres_changes",
         { event: "DELETE", schema: "public", table: "messages", filter: `receiver_id=eq.${myId}` },
         (p) => {
-          const deletedId = (p.old as { id: string })?.id;
-          if (deletedId) {
+          const deletedId = asTrimmedString((p.old as any)?.id);
+          if (deletedId && active && requestId === messageRequestRef.current && mountedRef.current) {
             setMessages((prev) => prev.filter((m) => m.id !== deletedId));
           }
         },
@@ -2276,10 +2458,10 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       typingCh
         .on("presence", { event: "sync" }, () => {
           const state = typingCh.presenceState<{ is_typing?: boolean }>();
-          const other = (state[selectedUser.id] || [])[0] as
+          const other = (state[partnerId] || [])[0] as
             | { is_typing?: boolean }
             | undefined;
-          setIsOtherTyping(other?.is_typing === true);
+          if (active && mountedRef.current) setIsOtherTyping(other?.is_typing === true);
         })
         .subscribe();
       typingChannelRef.current = typingCh;
@@ -2288,6 +2470,8 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     const cleanupTypingChannel = subscribeWhileVisible(createTypingChannel);
 
     return () => {
+      active = false;
+      messageRequestRef.current += 1;
       cleanupConversationChannel();
       cleanupTypingChannel();
       typingChannelRef.current = null;
@@ -2337,6 +2521,8 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
         fetchPendingRequests(),
         fetchContacts(),
       ]);
+    } catch (error: any) {
+      toast.error(`Error: ${error?.message || "Could not accept request"}`);
     } finally {
       setActionLoading("");
     }
@@ -2344,11 +2530,14 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   const rejectRequest = async (req: FriendRequest) => {
     setActionLoading(req.id);
     try {
-      await supabase
+      const { error } = await supabase
         .from("friendships")
         .update({ status: "rejected" })
         .eq("id", req.id);
+      if (error) throw error;
       await Promise.all([fetchFriendships(), fetchPendingRequests()]);
+    } catch (error: any) {
+      toast.error(`Error: ${error?.message || "Could not reject request"}`);
     } finally {
       setActionLoading("");
     }
@@ -2425,11 +2614,23 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     setReplyTo(null);
     if (soundEnabled) playSound("send");
 
-    // Always use the authenticated user ID to satisfy RLS policies
-    const {
-      data: { user: authUser },
-    } = await supabase.auth.getUser();
-    const realSenderId = authUser?.id ?? userId;
+    // Always use the authenticated user ID to satisfy RLS policies. Auth
+    // lookup is inside the guarded send path so it cannot create an
+    // unhandled promise rejection.
+    let realSenderId = asTrimmedString(userId);
+    try {
+      const {
+        data: { user: authUser },
+      } = await supabase.auth.getUser();
+      realSenderId = asTrimmedString(authUser?.id) || realSenderId;
+    } catch (error: any) {
+      console.warn("[ChatSystem] auth lookup failed while sending:", error);
+    }
+    if (!realSenderId) {
+      setIsSending(false);
+      toast.error("Please sign in again before sending a message.");
+      return;
+    }
 
     const tempId = `temp-${Date.now()}`;
     const tempMsg: Message = {
@@ -2517,16 +2718,22 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     if (!editingMsg) return;
     const { id, text } = editingMsg;
     if (!text.trim()) return;
-    await supabase
-      .from("messages")
-      .update({ content: text.trim() })
-      .eq("id", id);
-    setMessages((prev) =>
-      prev.map((m) =>
-        m.id === id ? { ...m, content: text.trim(), is_edited: true } : m,
-      ),
-    );
-    setEditingMsg(null);
+    try {
+      const { error } = await supabase
+        .from("messages")
+        .update({ content: text.trim() })
+        .eq("id", id);
+      if (error) throw error;
+      if (!mountedRef.current) return;
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === id ? { ...m, content: text.trim(), is_edited: true } : m,
+        ),
+      );
+      setEditingMsg(null);
+    } catch (error: any) {
+      toast.error("Edit failed: " + (error?.message || "Unknown error"));
+    }
   };
 
   // ── Delete message (for everyone) ─────────────────────────────────────────
@@ -2546,15 +2753,18 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
         y: rect.top + rect.height / 2,
       },
     ]);
-    const { error } = await supabase.from("messages").delete().eq("id", msg.id);
-    if (error) {
-      toast.error("Delete failed: " + error.message);
-      // Restore the message if DB delete failed
-      setMessages((prev) =>
-        [...prev, msg].sort((a, b) => a.created_at.localeCompare(b.created_at)),
-      );
-    } else {
+    try {
+      const { error } = await supabase.from("messages").delete().eq("id", msg.id);
+      if (error) throw error;
       toast.success("Message deleted for everyone 🗑️");
+    } catch (error: any) {
+      toast.error("Delete failed: " + (error?.message || "Unknown error"));
+      if (mountedRef.current) {
+        // Restore the message if DB delete failed
+        setMessages((prev) =>
+          [...prev, msg].sort((a, b) => a.created_at.localeCompare(b.created_at)),
+        );
+      }
     }
   };
 
@@ -2565,14 +2775,17 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     if (soundEnabled) playSound("delete");
     const newId = ++smokeIdRef.current;
     setSmokeParticles((prev) => [...prev, { id: newId, x, y }]);
-    const { error } = await supabase.from("messages").delete().eq("id", msg.id);
-    if (error) {
-      toast.error("Delete failed: " + error.message);
-      setMessages((prev) =>
-        [...prev, msg].sort((a, b) => a.created_at.localeCompare(b.created_at)),
-      );
-    } else {
+    try {
+      const { error } = await supabase.from("messages").delete().eq("id", msg.id);
+      if (error) throw error;
       toast.success("Message deleted for everyone 🗑️");
+    } catch (error: any) {
+      toast.error("Delete failed: " + (error?.message || "Unknown error"));
+      if (mountedRef.current) {
+        setMessages((prev) =>
+          [...prev, msg].sort((a, b) => a.created_at.localeCompare(b.created_at)),
+        );
+      }
     }
   };
 
@@ -2663,34 +2876,45 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       }
 
       if (data) {
-        setMessages((prev) =>
-          prev.find((m) => m.id === (data as Message).id)
-            ? prev
-            : [...prev, data as Message],
-        );
-        fetchContacts();
-        if (soundEnabled) playSound("send");
+        const message = normalizeMessage(data);
+        if (mountedRef.current && message.id) {
+          setMessages((prev) =>
+            prev.find((m) => m.id === message.id)
+              ? prev
+              : [...prev, message],
+          );
+          void fetchContacts().catch((error) =>
+            console.warn("[Chat] media contacts refresh failed:", error),
+          );
+          if (soundEnabled) playSound("send");
+        }
       }
     } catch (err: any) {
       console.error("Unexpected media upload error:", err);
-      toast.error(`Upload failed: ${err?.message || "Unknown error"}`);
+      if (mountedRef.current) {
+        toast.error(`Upload failed: ${err?.message || "Unknown error"}`);
+      }
     } finally {
-      setIsUploadingMedia(false);
+      if (mountedRef.current) setIsUploadingMedia(false);
     }
   };
 
   // ── Save profile ──────────────────────────────────────────────────────────
   const saveProfileSettings = async () => {
     setSavingProfile(true);
-    const { error } = await supabase
-      .from("profiles")
-      .update({ bio: editBio, school: editSchool, location: editLocation })
-      .eq("id", userId);
-    setSavingProfile(false);
-    if (error) toast.error("Save failed: " + error.message);
-    else {
+    try {
+      const { error } = await supabase
+        .from("profiles")
+        .update({ bio: editBio, school: editSchool, location: editLocation })
+        .eq("id", userId);
+      if (error) throw error;
+      if (!mountedRef.current) return;
       toast.success("Profile updated!");
-      fetchMyProfile();
+      void fetchMyProfile();
+    } catch (error: any) {
+      if (mountedRef.current) toast.error("Save failed: " + (error?.message || "Unknown error"));
+    } finally {
+      if (mountedRef.current) setSavingProfile(false);
     }
   };
 
@@ -5763,6 +5987,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                 value={lpSearchQuery}
                                 onChange={(e) => {
                                   const q = e.target.value;
+                                  const requestId = ++lpSearchRequestRef.current;
                                   setLpSearchQuery(q);
                                   // Clear current selection if user edits
                                   if (lpSelectedName && q !== lpSelectedName) {
@@ -5775,14 +6000,29 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                   if (!q.trim()) { setLpSearchResults([]); return; }
                                   setLpSearchLoading(true);
                                   lpSearchRef.current = setTimeout(async () => {
-                                    const { data } = await supabase
-                                      .from("profiles")
-                                      .select("id, full_name, username, avatar_url")
-                                      .or(`full_name.ilike.%${q.trim()}%,username.ilike.%${q.trim()}%`)
-                                      .neq("id", userId ?? "")
-                                      .limit(6);
-                                    setLpSearchResults(data || []);
-                                    setLpSearchLoading(false);
+                                    try {
+                                      const { data, error } = await supabase
+                                        .from("profiles")
+                                        .select("id, full_name, username, avatar_url")
+                                        .or(`full_name.ilike.%${q.trim()}%,username.ilike.%${q.trim()}%`)
+                                        .neq("id", userId ?? "")
+                                        .limit(6);
+                                      if (error) throw error;
+                                      if (!mountedRef.current || requestId !== lpSearchRequestRef.current) return;
+                                      setLpSearchResults(
+                                        (data || []).map((p: any) => ({
+                                          id: asTrimmedString(p?.id),
+                                          full_name: asTrimmedString(p?.full_name),
+                                          username: asTrimmedString(p?.username),
+                                          avatar_url: asNullableString(p?.avatar_url) || null,
+                                        })).filter((p) => Boolean(p.id)),
+                                      );
+                                    } catch (error) {
+                                      console.warn("[Chat] Love Protect search failed:", error);
+                                      if (mountedRef.current && requestId === lpSearchRequestRef.current) setLpSearchResults([]);
+                                    } finally {
+                                      if (mountedRef.current && requestId === lpSearchRequestRef.current) setLpSearchLoading(false);
+                                    }
                                   }, 350);
                                 }}
                                 placeholder="Type your partner's name…"
@@ -5854,30 +6094,35 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                               onClick={async (e) => {
                                 e.stopPropagation();
                                 e.preventDefault();
-                                const pid = loveProtectPartnerId.trim();
+                                const pid = asTrimmedString(loveProtectPartnerId);
                                 if (!pid || !userId) {
                                   toast.error("Please select a partner from the search results first.");
                                   return;
                                 }
                                 setSavingLoveProtect(true);
-                                const { error } = await supabase
-                                  .from("love_protect_links")
-                                  .upsert(
-                                    { user_id: userId, partner_id: pid, is_active: true },
-                                    { onConflict: "user_id" },
-                                  );
-                                setSavingLoveProtect(false);
-                                if (error) {
-                                  toast.error("Failed to link partner. Please try again.");
-                                } else {
+                                try {
+                                  const { error } = await supabase
+                                    .from("love_protect_links")
+                                    .upsert(
+                                      { user_id: userId, partner_id: pid, is_active: true },
+                                      { onConflict: "user_id" },
+                                    );
+                                  if (error) throw error;
+                                  if (!mountedRef.current) return;
                                   setLoveProtectInput(pid);
                                   toast.success("💕 Love Protect linked!");
+                                } catch (error: any) {
+                                  if (mountedRef.current) {
+                                    toast.error("Failed to link partner: " + (error?.message || "Please try again."));
+                                  }
+                                } finally {
+                                  if (mountedRef.current) setSavingLoveProtect(false);
                                 }
                               }}
                               disabled={
                                 savingLoveProtect ||
-                                !loveProtectPartnerId.trim() ||
-                                loveProtectPartnerId.trim() === loveProtectInput
+                                !asTrimmedString(loveProtectPartnerId) ||
+                                asTrimmedString(loveProtectPartnerId) === loveProtectInput
                               }
                               className="w-full py-2.5 rounded-xl text-white font-black text-sm flex items-center justify-center gap-2 disabled:opacity-50"
                               style={{ background: "linear-gradient(135deg,#f43f5e,#be185d)" }}
@@ -5896,16 +6141,25 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                 type="button"
                                 onClick={async (e) => {
                                   e.stopPropagation();
-                                  console.log("[LoveProtect] Manual test triggered for:", loveProtectPartnerId);
-                                  const violated = await checkLoveProtectViolation(loveProtectPartnerId);
-                                  console.log("[LoveProtect] Manual test result:", violated);
-                                  if (loveProtectTimerRef.current) clearTimeout(loveProtectTimerRef.current);
-                                  setLoveProtectAlert(true);
-                                  loveProtectTimerRef.current = setTimeout(() => setLoveProtectAlert(false), 15000);
-                                  toast.info(violated
-                                    ? "💔 Violation detected — alert is now visible!"
-                                    : "✅ No violation yet. Alert shown for UI test (check console for DB result)."
-                                  );
+                                  try {
+                                    const partnerId = asTrimmedString(loveProtectPartnerId);
+                                    console.log("[LoveProtect] Manual test triggered for:", partnerId);
+                                    const violated = await checkLoveProtectViolation(partnerId);
+                                    console.log("[LoveProtect] Manual test result:", violated);
+                                    if (!mountedRef.current) return;
+                                    if (loveProtectTimerRef.current) clearTimeout(loveProtectTimerRef.current);
+                                    setLoveProtectAlert(true);
+                                    loveProtectTimerRef.current = setTimeout(() => {
+                                      if (mountedRef.current) setLoveProtectAlert(false);
+                                    }, 15000);
+                                    toast.info(violated
+                                      ? "💔 Violation detected — alert is now visible!"
+                                      : "✅ No violation yet. Alert shown for UI test (check console for DB result)."
+                                    );
+                                  } catch (error) {
+                                    console.warn("[Chat] Love Protect manual test failed:", error);
+                                    if (mountedRef.current) toast.error("Could not run the Love Protect test.");
+                                  }
                                 }}
                                 className="w-full mt-2 py-2 rounded-xl border border-pink-500/40 text-pink-400 font-black text-xs flex items-center justify-center gap-1.5 hover:bg-pink-500/10 transition-all"
                               >

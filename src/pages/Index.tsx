@@ -4195,7 +4195,16 @@ const PersonalizationView = React.memo(({
 
       {/* Chat System ───────────────────────────────────────────────────────── */}
       <ErrorBoundary onError={() => setIsChatOpen(false)}>
-      <Suspense fallback={null}>
+      <Suspense
+        fallback={
+          <div className="fixed inset-0 z-[150] flex items-center justify-center bg-[#050505] text-white">
+            <div className="flex items-center gap-2 text-sm font-bold text-white/60">
+              <Loader2 size={18} className="animate-spin" />
+              Loading chat…
+            </div>
+          </div>
+        }
+      >
       <ChatSystem
         isOpen={isChatOpen}
         onClose={() => setIsChatOpen(false)}
