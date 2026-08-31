@@ -68,6 +68,74 @@ create table if not exists circle_invites (
 create index if not exists circle_posts_circle_status_idx on circle_posts(circle_id, status, created_at desc);
 create index if not exists circle_post_comments_post_idx on circle_post_comments(post_id, created_at asc);
 create index if not exists circle_invites_invitee_idx on circle_invites(invitee_id, status, created_at desc);
+create unique index if not exists circle_post_likes_post_user_idx on circle_post_likes(post_id, user_id);
+
+-- Keep denormalized counters authoritative and concurrency-safe. Client code
+-- mutates only the unique like/comment rows; these triggers recount the
+-- affected post inside the same database transaction.
+create or replace function public.recount_circle_post_likes()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  target_post_id uuid;
+begin
+  target_post_id := case when tg_op = 'DELETE' then old.post_id else new.post_id end;
+  update public.circle_posts
+     set likes_count = (
+       select count(*)::integer
+       from public.circle_post_likes
+       where post_id = target_post_id
+     )
+   where id = target_post_id;
+  return null;
+end;
+$$;
+
+create or replace function public.recount_circle_post_comments()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  target_post_id uuid;
+begin
+  target_post_id := case when tg_op = 'DELETE' then old.post_id else new.post_id end;
+  update public.circle_posts
+     set comments_count = (
+       select count(*)::integer
+       from public.circle_post_comments
+       where post_id = target_post_id
+     )
+   where id = target_post_id;
+  return null;
+end;
+$$;
+
+drop trigger if exists trg_circle_post_likes_count on circle_post_likes;
+create trigger trg_circle_post_likes_count
+after insert or delete on circle_post_likes
+for each row execute function public.recount_circle_post_likes();
+
+drop trigger if exists trg_circle_post_comments_count on circle_post_comments;
+create trigger trg_circle_post_comments_count
+after insert or delete on circle_post_comments
+for each row execute function public.recount_circle_post_comments();
+
+update public.circle_posts p
+   set likes_count = (
+     select count(*)::integer
+     from public.circle_post_likes l
+     where l.post_id = p.id
+   ),
+       comments_count = (
+     select count(*)::integer
+     from public.circle_post_comments c
+     where c.post_id = p.id
+   );
 
 alter table circle_posts enable row level security;
 alter table circle_post_likes enable row level security;

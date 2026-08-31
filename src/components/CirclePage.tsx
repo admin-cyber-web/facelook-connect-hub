@@ -5,6 +5,8 @@ import { useOnlineUsers } from "../context/OnlineUsersContext";
 import { memGet, memSet } from "../lib/memCache";
 import { useProfileViewer } from "../context/ProfileViewerContext";
 import { useDataCache } from "../context/DataCacheContext";
+import { usePageVisibility } from "../hooks/usePageVisibility";
+import { subscribeWhileVisible } from "../lib/realtimeVisibility";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { MagnetButton } from "./MagnetSystem";
@@ -60,6 +62,9 @@ interface CircleComment {
   author_avatar?: string | null;
   content: string;
   created_at: string;
+  is_hidden?: boolean;
+  hidden_by_name?: string | null;
+  hidden_by_id?: string | null;
 }
 
 interface CircleEvent {
@@ -168,6 +173,7 @@ interface PostCardProps {
   canModerate: boolean;
   canAdmin: boolean;
   likedPostIds: Set<string>;
+  likingPostIds: Set<string>;
   viewCounts: Record<string, number>;
   groupOwnerId: string;
   latestComment?: CircleComment | null;
@@ -190,7 +196,7 @@ function OnlineDot({ authorId }: { authorId: string }) {
 
 const CirclePostCard = memo(({
   post, currentUserId, canModerate, canAdmin,
-  likedPostIds, viewCounts, groupOwnerId, latestComment,
+  likedPostIds, likingPostIds, viewCounts, groupOwnerId, latestComment,
   onLike, onComment, onShare, onOptions, onReview, onViewers,
 }: PostCardProps) => {
   const canEdit = post.author_id === currentUserId || canModerate;
@@ -274,7 +280,12 @@ const CirclePostCard = memo(({
 
       {/* Actions */}
       <div className="flex items-center gap-4 px-4 py-3 border-t border-white/[0.06]">
-        <button onClick={() => { haptic(); onLike(post); }} className="flex items-center gap-1.5 active:scale-90 transition-transform">
+        <button
+          onClick={() => { haptic(); onLike(post); }}
+          disabled={likingPostIds.has(post.id)}
+          aria-label={likedPostIds.has(post.id) ? "Unlike post" : "Like post"}
+          className="flex items-center gap-1.5 active:scale-90 transition-transform disabled:opacity-60"
+        >
           <Heart size={19} className={likedPostIds.has(post.id) ? "fill-red-500 text-red-500" : "text-gray-600"} />
           <span className="text-xs font-bold text-gray-500">{post.likes_count || 0}</span>
         </button>
@@ -339,6 +350,7 @@ const CirclePostCard = memo(({
 }, (prev, next) =>
   prev.post === next.post &&
   prev.likedPostIds.has(prev.post.id) === next.likedPostIds.has(next.post.id) &&
+  prev.likingPostIds.has(prev.post.id) === next.likingPostIds.has(next.post.id) &&
   prev.viewCounts[prev.post.id] === next.viewCounts[next.post.id] &&
   prev.canModerate === next.canModerate &&
   prev.canAdmin === next.canAdmin
@@ -356,6 +368,7 @@ type MemberRole = "admin" | "moderator" | "member";
 export default function CirclePage({ userProfile, currentUserId }: Props) {
   const { openProfile } = useProfileViewer();
   const dataCache = useDataCache();
+  const isPageVisible = usePageVisibility();
   const cachedGroups = dataCache.cacheRef.current.circleList;
   const [view, setView] = useState<"dashboard" | "group">("dashboard");
   const [groups, setGroups] = useState<Group[]>(() => cachedGroups?.data ?? []);
@@ -374,7 +387,7 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
   const [postsLoading, setPostsLoading] = useState(false);
   const [myInvites, setMyInvites] = useState<CircleInvite[]>([]);
   const [newInviteCount, setNewInviteCount] = useState(0);
-  const inviteSubRef = useRef<any>(null);
+  const inviteSubRef = useRef<(() => void) | null>(null);
 
   // Create group form
   const [showCreate, setShowCreate] = useState(false);
@@ -396,6 +409,7 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
   const [commentPostId, setCommentPostId] = useState<string | null>(null);
   const [postComments, setPostComments] = useState<CircleComment[]>([]);
   const [latestCircleComments, setLatestCircleComments] = useState<Record<string, CircleComment | null>>({});
+  const [likingPostIds, setLikingPostIds] = useState<Set<string>>(new Set());
   const [circleCommentAction, setCircleCommentAction] = useState<{ comment: CircleComment; postId: string; x: number; y: number } | null>(null);
   const [editingCircleComment, setEditingCircleComment] = useState<{ id: string; text: string } | null>(null);
   const longPressCommentTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -418,7 +432,14 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
   const chatSubRef = useRef<any>(null);
   const memberSubRef = useRef<any>(null);
   const postSubRef = useRef<any>(null);
-  const commentSubRef = useRef<any>(null);
+  const commentSubRef = useRef<(() => void) | null>(null);
+  const postSubCleanupRef = useRef<(() => void) | null>(null);
+  const memberSubCleanupRef = useRef<(() => void) | null>(null);
+  const chatSubCleanupRef = useRef<(() => void) | null>(null);
+  const selectedGroupIdRef = useRef<string | null>(null);
+  const commentRequestRef = useRef(0);
+  const commentIdsRef = useRef<Set<string>>(new Set());
+  const likingPostIdsRef = useRef<Set<string>>(new Set());
   // Chat reactions
   const [msgReactions, setMsgReactions] = useState<Record<string, ChatReaction[]>>({});
   const [emojiBarMsgId, setEmojiBarMsgId] = useState<string | null>(null);
@@ -538,6 +559,7 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
   };
 
   const fetchCirclePosts = useCallback(async (circleId: string, reviewer = canModerate) => {
+    if (!isPageVisible) return;
     setPostsLoading(true);
     let query = supabase
       .from("circle_posts")
@@ -559,6 +581,11 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
       toast.error("Circle posts are unavailable. Please run the circle_posts setup SQL.");
       setGroupPosts([]);
       setPendingPosts([]);
+      setPostsLoading(false);
+      return;
+    }
+    if (selectedGroupIdRef.current && selectedGroupIdRef.current !== circleId) {
+      setPostsLoading(false);
       return;
     }
     const rows = ((data as GroupPost[]) ?? []).map(post => ({
@@ -600,14 +627,19 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
         .select("id, post_id, author_id, author_name, author_avatar, content, created_at")
         .in("post_id", ids)
         .order("created_at", { ascending: false })
-        .limit(200)
+        .limit(100)
         .then(({ data }) => {
-          if (!data) return;
+          if (!data || selectedGroupIdRef.current !== circleId) return;
           const map: Record<string, CircleComment | null> = {};
           for (const row of data as CircleComment[]) {
             if (!map[row.post_id]) map[row.post_id] = row;
           }
-          setLatestCircleComments(prev => ({ ...prev, ...map }));
+          setLatestCircleComments(prev => {
+            const next = { ...prev, ...map };
+            return Object.fromEntries(
+              Object.entries(next).filter(([postId]) => ids.includes(postId)).slice(-50),
+            );
+          });
         });
     }
 
@@ -625,14 +657,15 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
       const { data: viewRows } = await supabase
         .from("circle_post_views")
         .select("post_id")
-        .in("post_id", rows.map(p => p.id));
+        .in("post_id", rows.map(p => p.id))
+        .limit(500);
       if (viewRows) {
         const counts: Record<string, number> = {};
         for (const row of viewRows as any[]) counts[row.post_id] = (counts[row.post_id] || 0) + 1;
         setViewCounts(counts);
       }
     }
-  }, [canModerate, currentUserId]);
+  }, [canModerate, currentUserId, isPageVisible]);
 
   const fetchMyInvites = useCallback(async () => {
     if (!currentUserId) return;
@@ -672,7 +705,8 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
         const { data: memberRows } = await supabase
           .from("circle_members")
           .select("circle_id")
-          .in("circle_id", ids);
+          .in("circle_id", ids)
+          .limit(1000);
         if (memberRows) {
           const counts: Record<string, number> = {};
           for (const row of memberRows as any[]) {
@@ -709,7 +743,8 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
     const { data } = await supabase
       .from("circle_members")
       .select("circle_id")
-      .eq("user_id", currentUserId);
+      .eq("user_id", currentUserId)
+      .limit(100);
     if (data) {
       const ids = data.map((r: any) => r.circle_id);
       setMyGroupIds(new Set(ids));
@@ -747,41 +782,43 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
   // ── Realtime subscription for incoming Circle invites ────────────────────────
   useEffect(() => {
     if (!currentUserId) return;
-    if (inviteSubRef.current) supabase.removeChannel(inviteSubRef.current);
-
-    const ch = supabase
-      .channel(`circle-invites-${currentUserId}`)
-      .on("postgres_changes", {
-        event: "INSERT",
-        schema: "public",
-        table: "circle_invites",
-        filter: `invitee_id=eq.${currentUserId}`,
-      }, async () => {
-        // Refresh invite list
-        await fetchMyInvites();
-        // Badge + sound
-        setNewInviteCount(c => c + 1);
-        playInviteChime();
-        haptic(18);
-        toast("📨 You have a new Circle invite!", {
-          duration: 4000,
-          action: { label: "View", onClick: () => setView("dashboard") },
-        });
-      })
-      .subscribe();
-
-    inviteSubRef.current = ch;
-    return () => { supabase.removeChannel(ch); };
+    inviteSubRef.current?.();
+    const cleanup = subscribeWhileVisible(
+      () => supabase
+        .channel(`circle-invites-${currentUserId}`)
+        .on("postgres_changes", {
+          event: "INSERT",
+          schema: "public",
+          table: "circle_invites",
+          filter: `invitee_id=eq.${currentUserId}`,
+        }, async () => {
+          await fetchMyInvites();
+          setNewInviteCount(c => c + 1);
+          playInviteChime();
+          haptic(18);
+          toast("📨 You have a new Circle invite!", {
+            duration: 4000,
+            action: { label: "View", onClick: () => setView("dashboard") },
+          });
+        })
+        .subscribe(),
+      { onVisible: () => void fetchMyInvites() },
+    );
+    inviteSubRef.current = cleanup;
+    return () => {
+      cleanup();
+      if (inviteSubRef.current === cleanup) inviteSubRef.current = null;
+    };
   }, [currentUserId, fetchMyInvites]);
 
   // ── Cleanup realtime subscriptions on unmount ────────────────────────────────
   useEffect(() => {
     return () => {
-      if (chatSubRef.current) supabase.removeChannel(chatSubRef.current);
-      if (memberSubRef.current) supabase.removeChannel(memberSubRef.current);
-      if (postSubRef.current) supabase.removeChannel(postSubRef.current);
-      if (commentSubRef.current) supabase.removeChannel(commentSubRef.current);
-      if (inviteSubRef.current) supabase.removeChannel(inviteSubRef.current);
+      chatSubCleanupRef.current?.();
+      memberSubCleanupRef.current?.();
+      postSubCleanupRef.current?.();
+      commentSubRef.current?.();
+      inviteSubRef.current?.();
     };
   }, []);
 
@@ -879,6 +916,10 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
     if (view === "group") {
       setView("dashboard");
       setSelectedGroup(null);
+      selectedGroupIdRef.current = null;
+      commentRequestRef.current += 1;
+      commentSubRef.current?.();
+      commentSubRef.current = null;
       fetchGroups();
     }
     toast.success("You have left the Circle. 👋");
@@ -886,18 +927,22 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
 
   // ── Circle Events ────────────────────────────────────────────────────────────
   const fetchCircleEvents = async (circleId: string) => {
+    if (!isPageVisible) return;
     const { data: events } = await supabase
       .from("circle_events")
       .select("id,circle_id,created_by,title,description,event_date,event_time,location,created_at")
       .eq("circle_id", circleId)
-      .order("event_date", { ascending: true });
-    if (!events) return;
+      .order("event_date", { ascending: true })
+      .limit(50);
+    if (!events || selectedGroupIdRef.current !== circleId) return;
     setCircleEvents(events);
     if (events.length === 0) return;
     const { data: rsvps } = await supabase
       .from("circle_event_rsvps")
       .select("event_id, user_id, status")
-      .in("event_id", events.map(e => e.id));
+        .in("event_id", events.map(e => e.id))
+        .limit(500);
+    if (selectedGroupIdRef.current !== circleId) return;
     if (rsvps) {
       const counts: Record<string, { going: number; maybe: number; not_going: number }> = {};
       const mine: Record<string, string> = {};
@@ -1068,11 +1113,25 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
 
   // ── Open Group Profile ───────────────────────────────────────────────────────
   const openGroup = async (group: Group) => {
+    selectedGroupIdRef.current = group.id;
+    commentRequestRef.current += 1;
+    postSubCleanupRef.current?.();
+    memberSubCleanupRef.current?.();
+    postSubCleanupRef.current = null;
+    memberSubCleanupRef.current = null;
+    postSubRef.current = null;
+    memberSubRef.current = null;
+    commentSubRef.current?.();
+    commentSubRef.current = null;
     setSelectedGroup(group);
     setView("group");
     setGroupTab("posts");
     setChatLoaded(false);
     setNewMemberCount(0);
+    setCommentPostId(null);
+    setPostComments([]);
+    commentIdsRef.current.clear();
+    setLatestCircleComments({});
 
     // Restore per-circle cache instantly if available
     const cachedPosts = dataCache.cacheRef.current.circlePosts[group.id];
@@ -1092,6 +1151,7 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
     setMembersLoading(true);
     const members = await fetchMembersWithProfiles(group.id);
     setMembersLoading(false);
+    if (selectedGroupIdRef.current !== group.id) return;
 
     const realCount = members.length;
     setGroupMembers(members);
@@ -1107,8 +1167,9 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
     await fetchCirclePosts(group.id, role === "admin" || role === "moderator");
     fetchCircleEvents(group.id);
 
-    if (postSubRef.current) supabase.removeChannel(postSubRef.current);
-    const postCh = supabase
+    postSubCleanupRef.current?.();
+    const postCleanup = subscribeWhileVisible(() => {
+      const postCh = supabase
       .channel(`circle-posts-${group.id}`)
       .on("postgres_changes", {
         event: "INSERT",
@@ -1132,11 +1193,15 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
             shares_count: newPost.shares_count ?? 0,
           };
           setGroupPosts(prev =>
-            prev.some(p => p.id === normalized.id) ? prev : [normalized, ...prev],
+              prev.some(p => p.id === normalized.id)
+                ? prev
+                : [normalized, ...prev].slice(0, 50),
           );
           if (isReviewer && normalized.status === "pending") {
             setPendingPosts(prev =>
-              prev.some(p => p.id === normalized.id) ? prev : [normalized, ...prev],
+                prev.some(p => p.id === normalized.id)
+                  ? prev
+                  : [normalized, ...prev].slice(0, 50),
             );
           }
         }
@@ -1154,13 +1219,23 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
         }
       })
       .subscribe();
-    postSubRef.current = postCh;
+      postSubRef.current = postCh;
+      return postCh;
+    }, {
+      onVisible: () => {
+        if (selectedGroupIdRef.current === group.id) {
+          void fetchCirclePosts(group.id, role === "admin" || role === "moderator");
+        }
+      },
+    });
+    postSubCleanupRef.current = postCleanup;
 
     // Real-time member subscription (for owner new-member notifications)
-    if (memberSubRef.current) supabase.removeChannel(memberSubRef.current);
+    memberSubCleanupRef.current?.();
     // Debounce member refetch — avoid burst DB reads when multiple members join/leave at once
     let memberDebounceTimer: ReturnType<typeof setTimeout> | null = null;
-    const memberCh = supabase
+    const memberCleanup = subscribeWhileVisible(() => {
+      const memberCh = supabase
       .channel(`members-${group.id}`)
       .on("postgres_changes", {
         event: "*",
@@ -1175,13 +1250,28 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
         // Debounce full profile refetch — max one refetch per 4 seconds
         if (memberDebounceTimer) clearTimeout(memberDebounceTimer);
         memberDebounceTimer = setTimeout(async () => {
+          if (selectedGroupIdRef.current !== group.id) return;
           const refreshed = await fetchMembersWithProfiles(group.id);
           setGroupMembers(refreshed);
           setSelectedGroup(prev => prev ? { ...prev, member_count: refreshed.length } : prev);
         }, 4000);
       })
       .subscribe();
-    memberSubRef.current = memberCh;
+      memberSubRef.current = memberCh;
+      return memberCh;
+    }, {
+      onVisible: () => {
+        if (selectedGroupIdRef.current !== group.id) return;
+        void fetchMembersWithProfiles(group.id).then(refreshed => {
+          setGroupMembers(refreshed);
+          setSelectedGroup(prev => prev ? { ...prev, member_count: refreshed.length } : prev);
+        });
+      },
+    });
+    memberSubCleanupRef.current = () => {
+      if (memberDebounceTimer) clearTimeout(memberDebounceTimer);
+      memberCleanup();
+    };
   };
 
   // ── Build reactions map from raw rows ────────────────────────────────────────
@@ -1198,6 +1288,9 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
 
   // ── Load chat messages + subscribe ──────────────────────────────────────────
   const loadChat = useCallback(async (groupId: string) => {
+    chatSubCleanupRef.current?.();
+    chatSubCleanupRef.current = null;
+    chatSubRef.current = null;
     setChatLoaded(false);
     const { data, error } = await supabase
       .from("group_messages")
@@ -1219,14 +1312,15 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
       const { data: rxns } = await supabase
         .from("group_message_reactions")
         .select("message_id, user_id, emoji")
-        .in("message_id", msgs.map(m => m.id));
+        .in("message_id", msgs.map(m => m.id))
+        .limit(500);
       if (rxns) setMsgReactions(buildReactionMap(rxns, currentUserId));
     }
     setChatLoaded(true);
 
-    // Subscribe to new messages + reaction changes
-    if (chatSubRef.current) supabase.removeChannel(chatSubRef.current);
-    const ch = supabase
+    // Subscribe to new messages + reaction changes only while visible.
+    const chatCleanup = subscribeWhileVisible(() => {
+      const ch = supabase
       .channel(`chat-${groupId}`)
       .on("postgres_changes", {
         event: "INSERT", schema: "public", table: "group_messages",
@@ -1235,12 +1329,15 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
         setChatMessages(prev => {
           const msg = payload.new as GroupMessage;
           if (prev.some(m => m.id === msg.id)) return prev;
-          return [...prev, msg];
+          return [...prev, msg].slice(-100);
         });
         setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }), 80);
       })
       .subscribe();
-    chatSubRef.current = ch;
+      chatSubRef.current = ch;
+      return ch;
+    }, { onVisible: () => void loadChat(groupId) });
+    chatSubCleanupRef.current = chatCleanup;
   }, [currentUserId, buildReactionMap]);
 
   useEffect(() => {
@@ -1248,8 +1345,9 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
       loadChat(selectedGroup.id);
     }
     // Cleanup chat subscription when leaving chat tab
-    if (groupTab !== "chat" && chatSubRef.current) {
-      supabase.removeChannel(chatSubRef.current);
+    if (groupTab !== "chat") {
+      chatSubCleanupRef.current?.();
+      chatSubCleanupRef.current = null;
       chatSubRef.current = null;
     }
   }, [groupTab, selectedGroup]);
@@ -1385,57 +1483,59 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
 
   // ── Like Post ─────────────────────────────────────────────────────────────────
   const handleLikePost = async (post: GroupPost) => {
-    if (!currentUserId) return;
-    const liked = likedPostIds.has(post.id);
+    if (!currentUserId || likingPostIdsRef.current.has(post.id)) return;
 
-    // Optimistic update
-    setLikedPostIds(prev => {
-      const next = new Set(prev);
-      liked ? next.delete(post.id) : next.add(post.id);
-      return next;
-    });
-    setGroupPosts(prev =>
-      prev.map(p =>
-        p.id === post.id
-          ? { ...p, likes_count: Math.max((p.likes_count || 0) + (liked ? -1 : 1), 0) }
-          : p
-      )
-    );
+    // Serialize this post's toggle. Rapid taps must never issue two mutations
+    // from the same stale likedPostIds snapshot.
+    likingPostIdsRef.current.add(post.id);
+    setLikingPostIds(prev => new Set(prev).add(post.id));
+    const wasLiked = likedPostIds.has(post.id);
 
-    if (liked) {
-      const { error } = await supabase
+    try {
+      const mutation = wasLiked
+        ? await supabase
+            .from("circle_post_likes")
+            .delete()
+            .eq("post_id", post.id)
+            .eq("user_id", currentUserId)
+        : await supabase
+            .from("circle_post_likes")
+            .upsert(
+              { post_id: post.id, user_id: currentUserId },
+              { onConflict: "post_id,user_id", ignoreDuplicates: true },
+            );
+
+      if (mutation.error) throw mutation.error;
+
+      // The unique (post_id, user_id) row is the source of truth. Read only
+      // this post's count; never derive a new count from stale card state.
+      const { count, error: countError } = await supabase
         .from("circle_post_likes")
-        .delete()
-        .eq("post_id", post.id)
-        .eq("user_id", currentUserId);
-      if (error) {
-        // Revert optimistic unlike
-        console.error("[CirclePage] unlike failed:", error.message);
-        setLikedPostIds(prev => { const next = new Set(prev); next.add(post.id); return next; });
-        setGroupPosts(prev => prev.map(p => p.id === post.id ? { ...p, likes_count: (p.likes_count || 0) + 1 } : p));
-        toast.error("Failed to unlike — please try again.");
-        return;
-      }
-      await supabase
-        .from("circle_posts")
-        .update({ likes_count: Math.max((post.likes_count || 1) - 1, 0) })
-        .eq("id", post.id);
-    } else {
-      const { error } = await supabase
-        .from("circle_post_likes")
-        .upsert({ post_id: post.id, user_id: currentUserId }, { onConflict: "post_id,user_id" });
-      if (error) {
-        // Revert optimistic like
-        console.error("[CirclePage] like failed:", error.message);
-        setLikedPostIds(prev => { const next = new Set(prev); next.delete(post.id); return next; });
-        setGroupPosts(prev => prev.map(p => p.id === post.id ? { ...p, likes_count: Math.max((p.likes_count || 0) - 1, 0) } : p));
-        toast.error("Failed to like — please try again.");
-        return;
-      }
-      await supabase
-        .from("circle_posts")
-        .update({ likes_count: (post.likes_count || 0) + 1 })
-        .eq("id", post.id);
+        .select("post_id", { count: "exact", head: true })
+        .eq("post_id", post.id);
+      if (countError) throw countError;
+
+      const nextCount = count ?? 0;
+      setLikedPostIds(prev => {
+        const next = new Set(prev);
+        if (wasLiked) next.delete(post.id);
+        else next.add(post.id);
+        return next;
+      });
+      setGroupPosts(prev => prev.map(p =>
+        p.id === post.id ? { ...p, likes_count: nextCount } : p,
+      ));
+
+    } catch (error: any) {
+      toast.error(`Could not ${wasLiked ? "unlike" : "like"} this post.`);
+      console.warn("[CirclePage] like toggle failed:", error?.message || error);
+    } finally {
+      likingPostIdsRef.current.delete(post.id);
+      setLikingPostIds(prev => {
+        const next = new Set(prev);
+        next.delete(post.id);
+        return next;
+      });
     }
   };
 
@@ -1481,80 +1581,160 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
     toast.success(next ? "Comments muted for this post." : "Comments unmuted.");
   };
 
-  const openComments = async (post: GroupPost) => {
-    setCommentPostId(post.id);
-    setCommentLoading(true);
-    const { data } = await supabase
+  const syncCircleCommentCount = async (postId: string): Promise<number | null> => {
+    const { count, error: countError } = await supabase
       .from("circle_post_comments")
-      .select("id,post_id,author_id,author_name,author_avatar,content,created_at")
-      .eq("post_id", post.id)
-      .order("created_at", { ascending: true })
-      .limit(100);
-    setPostComments((data as CircleComment[]) ?? []);
-    setCommentLoading(false);
+      .select("id", { count: "exact", head: true })
+      .eq("post_id", postId);
+    if (countError) {
+      console.warn("[CirclePage] comment count fetch failed:", countError.message);
+      return null;
+    }
 
-    if (commentSubRef.current) supabase.removeChannel(commentSubRef.current);
-    const ch = supabase
-      .channel(`circle-comments-${post.id}`)
-      .on("postgres_changes", {
-        event: "INSERT",
-        schema: "public",
-        table: "circle_post_comments",
-        filter: `post_id=eq.${post.id}`,
-      }, (payload) => {
-        const row = payload.new as CircleComment;
-        setPostComments(prev => prev.some(c => c.id === row.id) ? prev : [...prev, row]);
-      })
-      .subscribe();
-    commentSubRef.current = ch;
+    const nextCount = count ?? 0;
+    setGroupPosts(prev => prev.map(p =>
+      p.id === postId ? { ...p, comments_count: nextCount } : p,
+    ));
+    return nextCount;
+  };
+
+  const closeComments = () => {
+    commentRequestRef.current += 1;
+    setCommentPostId(null);
+    setPostComments([]);
+    commentIdsRef.current.clear();
+    setCommentLoading(false);
+    commentSubRef.current?.();
+    commentSubRef.current = null;
+  };
+
+  const openComments = (post: GroupPost) => {
+    if (!isPageVisible) return;
+    const requestId = ++commentRequestRef.current;
+    commentSubRef.current?.();
+    commentSubRef.current = null;
+    commentIdsRef.current.clear();
+    setCommentPostId(post.id);
+    setCommentText("");
+    setCommentLoading(true);
+
+    const loadComments = async () => {
+      const { data, count, error } = await supabase
+        .from("circle_post_comments")
+        .select(
+          "id,post_id,author_id,author_name,author_avatar,content,created_at,is_hidden,hidden_by_name,hidden_by_id",
+          { count: "exact" },
+        )
+        .eq("post_id", post.id)
+        .order("created_at", { ascending: true })
+        .limit(100);
+      if (requestId !== commentRequestRef.current) return;
+      if (error) {
+        setPostComments([]);
+        setCommentLoading(false);
+        toast.error("Comments are unavailable right now.");
+        return;
+      }
+
+      const comments = ((data as CircleComment[]) ?? []).slice(-100);
+      commentIdsRef.current = new Set(comments.map(comment => comment.id));
+      setPostComments(comments);
+      setGroupPosts(prev => prev.map(p =>
+        p.id === post.id
+          ? { ...p, comments_count: count ?? comments.length }
+          : p,
+      ));
+      setLatestCircleComments(prev => ({
+        ...prev,
+        [post.id]: comments[comments.length - 1] ?? null,
+      }));
+      setCommentLoading(false);
+    };
+
+    void loadComments();
+    commentSubRef.current = subscribeWhileVisible(
+      () => supabase
+        .channel(`circle-comments-${post.id}`)
+        .on("postgres_changes", {
+          event: "INSERT",
+          schema: "public",
+          table: "circle_post_comments",
+          filter: `post_id=eq.${post.id}`,
+        }, (payload) => {
+          if (requestId !== commentRequestRef.current) return;
+          const row = payload.new as CircleComment;
+          if (!row.id || commentIdsRef.current.has(row.id)) return;
+          commentIdsRef.current.add(row.id);
+          setPostComments(prev => [...prev, row].slice(-100));
+          setLatestCircleComments(prev => ({ ...prev, [post.id]: row }));
+          setGroupPosts(prev => prev.map(p =>
+            p.id === post.id
+              ? { ...p, comments_count: (p.comments_count || 0) + 1 }
+              : p,
+          ));
+        })
+        .subscribe(),
+      { onVisible: () => void loadComments() },
+    );
   };
 
   const sendComment = async () => {
     const post = groupPosts.find(p => p.id === commentPostId);
     if (!commentText.trim() || !currentUserId || !commentPostId || !post || post.comments_muted) return;
     setCommenting(true);
-    // ── Profanity filter on circle comment ─────────────────────────────
-    const { cleaned: cleanContent, hadProfanity } = sanitizeText(commentText.trim());
-    if (hadProfanity) {
-      toast.warning("Offensive words detected and masked automatically.");
-    }
-    const { data, error } = await supabase.from("circle_post_comments").insert({
-      post_id: commentPostId,
-      author_id: currentUserId,
-      author_name: userProfile?.full_name || "Member",
-      author_avatar: userProfile?.avatar_url || null,
-      content: cleanContent,
-    }).select().single();
-    if (!error) {
+    try {
+      // ── Profanity filter on circle comment ─────────────────────────────
+      const { cleaned: cleanContent, hadProfanity } = sanitizeText(commentText.trim());
+      if (hadProfanity) {
+        toast.warning("Offensive words detected and masked automatically.");
+      }
+      const { data, error } = await supabase
+        .from("circle_post_comments")
+        .insert({
+          post_id: commentPostId,
+          author_id: currentUserId,
+          author_name: userProfile?.full_name || "Member",
+          author_avatar: userProfile?.avatar_url || null,
+          content: cleanContent,
+        })
+        .select("id,post_id,author_id,author_name,author_avatar,content,created_at")
+        .single();
+      if (error) throw error;
+
       setCommentText("");
       if (data) {
-        setPostComments(prev => prev.some(c => c.id === data.id) ? prev : [...prev, data as CircleComment]);
-        // Update latest comment preview immediately
-        setLatestCircleComments(prev => ({ ...prev, [commentPostId]: data as CircleComment }));
+        const newComment = data as CircleComment;
+        commentIdsRef.current.add(newComment.id);
+        setPostComments(prev => [...prev, newComment].slice(-100));
+        setLatestCircleComments(prev => ({ ...prev, [commentPostId]: newComment }));
       }
-      const nextCount = (post.comments_count || 0) + 1;
-      await supabase.from("circle_posts").update({ comments_count: nextCount }).eq("id", commentPostId);
-      setGroupPosts(prev => prev.map(p => p.id === commentPostId ? { ...p, comments_count: nextCount } : p));
-    } else {
-      toast.error(`Comment failed: ${error.message}`);
+      // Reconcile from the comments table instead of incrementing a stale
+      // denormalized counter. No post-list refetch is needed.
+      await syncCircleCommentCount(commentPostId);
+    } catch (error: any) {
+      toast.error(`Comment failed: ${error?.message || "Please try again."}`);
+    } finally {
+      setCommenting(false);
     }
-    setCommenting(false);
   };
 
   const handleCircleCommentDelete = async (commentId: string, postId: string) => {
-    await supabase.from("circle_post_comments").delete().eq("id", commentId);
+    const { error } = await supabase
+      .from("circle_post_comments")
+      .delete()
+      .eq("id", commentId);
+    if (error) {
+      toast.error(`Comment delete failed: ${error.message}`);
+      return;
+    }
+    commentIdsRef.current.delete(commentId);
     setPostComments(prev => {
       const next = prev.filter(c => c.id !== commentId);
       const latest = [...next].reverse()[0] || null;
       setLatestCircleComments(lc => ({ ...lc, [postId]: latest }));
       return next;
     });
-    const post = groupPosts.find(p => p.id === postId);
-    if (post) {
-      const nextCount = Math.max((post.comments_count || 1) - 1, 0);
-      await supabase.from("circle_posts").update({ comments_count: nextCount }).eq("id", postId);
-      setGroupPosts(prev => prev.map(p => p.id === postId ? { ...p, comments_count: nextCount } : p));
-    }
+    await syncCircleCommentCount(postId);
     setCircleCommentAction(null);
     toast.success("Comment deleted.");
   };
@@ -1868,9 +2048,20 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
             onClick={() => {
               setView("dashboard");
               setSelectedGroup(null);
+              selectedGroupIdRef.current = null;
+              commentRequestRef.current += 1;
+              commentSubRef.current?.();
+              commentSubRef.current = null;
               setNewMemberCount(0);
-              if (chatSubRef.current) { supabase.removeChannel(chatSubRef.current); chatSubRef.current = null; }
-              if (memberSubRef.current) { supabase.removeChannel(memberSubRef.current); memberSubRef.current = null; }
+              chatSubCleanupRef.current?.();
+              memberSubCleanupRef.current?.();
+              postSubCleanupRef.current?.();
+              chatSubCleanupRef.current = null;
+              memberSubCleanupRef.current = null;
+              postSubCleanupRef.current = null;
+              chatSubRef.current = null;
+              memberSubRef.current = null;
+              postSubRef.current = null;
             }}
             className="absolute top-4 left-4 w-10 h-10 rounded-full flex items-center justify-center border border-white/20 z-10 active:scale-90 transition-transform"
             style={{ background: "rgba(255,255,255,0.1)", backdropFilter: "blur(12px)" }}
@@ -2448,6 +2639,7 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
                     canModerate={canModerate}
                     canAdmin={canAdmin}
                     likedPostIds={likedPostIds}
+                    likingPostIds={likingPostIds}
                     viewCounts={viewCounts}
                     groupOwnerId={selectedGroup?.created_by || selectedGroup?.admin_id || ""}
                     latestComment={latestCircleComments[post.id] ?? null}
@@ -3745,14 +3937,14 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
           {commentPostId && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               className="fixed inset-0 z-[300] flex items-end justify-center bg-black/50 backdrop-blur-sm"
-              onClick={() => { setCommentPostId(null); setPostComments([]); if (commentSubRef.current) { supabase.removeChannel(commentSubRef.current); commentSubRef.current = null; } }}>
+              onClick={closeComments}>
               <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
                 transition={{ type: "spring", damping: 28, stiffness: 300 }}
                 className="w-full max-w-lg bg-[#d4f0e2] rounded-t-3xl max-h-[75vh] flex flex-col"
                 onClick={e => e.stopPropagation()}>
                 <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
                   <h3 className="font-black text-gray-900 text-base flex items-center gap-2"><MessageCircle size={17} className="text-blue-600" /> Comments</h3>
-                  <button onClick={() => setCommentPostId(null)} className="p-1.5 rounded-full bg-gray-100"><X size={18} className="text-gray-500" /></button>
+                  <button onClick={closeComments} className="p-1.5 rounded-full bg-gray-100"><X size={18} className="text-gray-500" /></button>
                 </div>
                 <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
                   {commentLoading ? (

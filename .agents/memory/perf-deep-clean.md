@@ -42,3 +42,10 @@ Custom in-memory caches must have both a maximum entry count and a maximum list 
 **Why:** A five-minute TTL alone does not bound memory or Supabase traffic: remounts can create duplicate requests, and long sessions can retain large feed arrays indefinitely.
 
 **How to apply:** Keep cache data process-local, clear it on logout, protect it from repopulation by pre-logout requests, and cap persisted ID lists as well as in-memory feed data.
+
+### 12. Engagement counters — source rows first
+For per-user likes and comments, mutate the source rows only: serialize same-item UI mutations, rely on unique constraints/RLS, and maintain denormalized counters with database triggers rather than client-calculated increments.
+
+**Why:** Rapid taps and concurrent users can otherwise overwrite counters derived from stale card state, even when the visible UI appears optimistic and correct.
+
+**How to apply:** Read a bounded exact count only to reconcile local UI after a successful mutation; never write that client-side count back over the authoritative trigger-managed counter.
