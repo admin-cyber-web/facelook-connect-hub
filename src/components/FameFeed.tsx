@@ -1975,6 +1975,149 @@ type FeedCommentMenuItem = {
   danger?: boolean;
 };
 
+type FeedCommentAction = {
+  comment: any;
+  postId: string;
+};
+
+const FeedCommentActionSheet = memo(
+  ({
+    action,
+    currentUserId,
+    post,
+    onClose,
+    onEdit,
+    onDelete,
+    onHide,
+    onReport,
+  }: {
+    action: FeedCommentAction;
+    currentUserId: string | null;
+    post?: any;
+    onClose: () => void;
+    onEdit: (comment: any) => void;
+    onDelete: (commentId: string, postId: string) => void;
+    onHide: (commentId: string, postId: string) => void;
+    onReport: (comment: any, postId: string) => void;
+  }) => {
+    const { comment, postId } = action;
+    const isCommenter =
+      (comment.user_id ?? comment.author_id) === currentUserId;
+    const isPostOwner =
+      post?.author_id === currentUserId || post?.user_id === currentUserId;
+
+    const items: FeedCommentMenuItem[] = [];
+    if (isCommenter) {
+      items.push({
+        icon: "✏️",
+        label: "Edit",
+        action: () => onEdit(comment),
+      });
+      items.push({
+        icon: "🗑️",
+        label: "Delete",
+        action: () => onDelete(comment.id, postId),
+        danger: true,
+      });
+      if (!comment.is_hidden) {
+        items.push({
+          icon: "🙈",
+          label: "Hide from Others",
+          action: () => onHide(comment.id, postId),
+        });
+      }
+    } else if (isPostOwner) {
+      items.push({
+        icon: "🗑️",
+        label: "Delete",
+        action: () => onDelete(comment.id, postId),
+        danger: true,
+      });
+      if (!comment.is_hidden) {
+        items.push({
+          icon: "🙈",
+          label: "Hide Comment",
+          action: () => onHide(comment.id, postId),
+        });
+      }
+    } else {
+      items.push({
+        icon: "🚩",
+        label: "Report",
+        action: () => onReport(comment, postId),
+        danger: true,
+      });
+    }
+
+    useEffect(() => {
+      const handleKeyDown = (event: KeyboardEvent) => {
+        if (event.key === "Escape") onClose();
+      };
+      window.addEventListener("keydown", handleKeyDown);
+      return () => window.removeEventListener("keydown", handleKeyDown);
+    }, [onClose]);
+
+    return createPortal(
+      <AnimatePresence>
+        <motion.div
+          key="feed-comment-action-backdrop"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-[1000] flex items-end justify-center bg-black/60 p-0 backdrop-blur-sm"
+          role="presentation"
+          onPointerDown={onClose}
+        >
+          <motion.div
+            initial={{ y: "100%" }}
+            animate={{ y: 0 }}
+            exit={{ y: "100%" }}
+            transition={{ type: "spring", damping: 28, stiffness: 340 }}
+            className="w-full max-w-lg overflow-hidden rounded-t-3xl border-t border-white/10 shadow-2xl"
+            style={{
+              maxHeight: "min(78vh, 520px)",
+              paddingBottom: "env(safe-area-inset-bottom)",
+              background: "rgba(20,5,30,0.98)",
+            }}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Comment actions"
+            onPointerDown={(event) => event.stopPropagation()}
+          >
+            <div className="flex justify-center pt-3 pb-1">
+              <div className="h-1 w-10 rounded-full bg-white/20" />
+            </div>
+            <div className="border-b border-white/10 px-4 py-3">
+              <p className="truncate text-[12px] font-black text-pink-300">
+                {comment.author || comment.author_name || "Comment"}
+              </p>
+              <p className="mt-0.5 truncate text-[13px] leading-snug text-white/50">
+                {(comment.content || "").slice(0, 100)}
+              </p>
+            </div>
+            <div className="max-h-[calc(78vh-92px)] overflow-y-auto overscroll-contain">
+              {items.map((item, index) => (
+                <button
+                  key={item.label}
+                  type="button"
+                  onClick={item.action}
+                  className={`flex min-h-[52px] w-full items-center gap-3 px-4 text-left text-[15px] font-semibold transition-colors hover:bg-white/10 active:bg-white/15 ${
+                    item.danger ? "text-red-400" : "text-white/85"
+                  } ${index > 0 ? "border-t border-white/8" : ""}`}
+                >
+                  <span className="text-[18px] leading-none">{item.icon}</span>
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          </motion.div>
+        </motion.div>
+      </AnimatePresence>,
+      document.body,
+    );
+  },
+);
+
 type FeedBlock = { type: string; post?: any; key: string; seed?: number };
 
 const FameFeed = ({
@@ -2029,12 +2172,8 @@ const FameFeed = ({
     return () => { stop(); document.removeEventListener("visibilitychange", onViz); };
   }, []);
 
-  const [feedCommentAction, setFeedCommentAction] = useState<{
-    comment: any;
-    postId: string;
-    x: number;
-    y: number;
-  } | null>(null);
+  const [feedCommentAction, setFeedCommentAction] =
+    useState<FeedCommentAction | null>(null);
   const [editingFeedComment, setEditingFeedComment] = useState<{
     id: string;
     text: string;
@@ -2047,6 +2186,14 @@ const FameFeed = ({
     null,
   );
   const longPressCommentPos = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const longPressTriggered = useRef(false);
+  const clearLongPressCommentTimer = useCallback(() => {
+    if (longPressCommentTimer.current) {
+      clearTimeout(longPressCommentTimer.current);
+      longPressCommentTimer.current = null;
+    }
+  }, []);
+  useEffect(() => clearLongPressCommentTimer, [clearLongPressCommentTimer]);
   const [commentText, setCommentText] = useState("");
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
@@ -5211,36 +5358,70 @@ const FameFeed = ({
                               <div
                                 key={c.id}
                                 onPointerDown={(e) => {
+                                  clearLongPressCommentTimer();
+                                  longPressTriggered.current = false;
                                   longPressCommentPos.current = {
                                     x: e.clientX,
                                     y: e.clientY,
                                   };
                                   longPressCommentTimer.current = setTimeout(
                                     () => {
+                                      longPressTriggered.current = true;
                                       try {
                                         navigator.vibrate?.(8);
                                       } catch (_) {}
                                       setFeedCommentAction({
                                         comment: c,
                                         postId: post.id,
-                                        x: longPressCommentPos.current.x,
-                                        y: longPressCommentPos.current.y,
                                       });
-                                    },
-                                    600,
+                                    }, 600,
                                   );
                                 }}
-                                onPointerUp={() => {
-                                  if (longPressCommentTimer.current) {
-                                    clearTimeout(longPressCommentTimer.current);
-                                    longPressCommentTimer.current = null;
+                                onPointerMove={(e) => {
+                                  if (
+                                    longPressCommentTimer.current &&
+                                    Math.hypot(
+                                      e.clientX - longPressCommentPos.current.x,
+                                      e.clientY - longPressCommentPos.current.y,
+                                    ) > 10
+                                  ) {
+                                    clearLongPressCommentTimer();
                                   }
                                 }}
+                                onPointerUp={() => {
+                                  clearLongPressCommentTimer();
+                                }}
                                 onPointerCancel={() => {
-                                  if (longPressCommentTimer.current) {
-                                    clearTimeout(longPressCommentTimer.current);
-                                    longPressCommentTimer.current = null;
+                                  clearLongPressCommentTimer();
+                                  longPressTriggered.current = false;
+                                }}
+                                onContextMenu={(e) => {
+                                  e.preventDefault();
+                                  clearLongPressCommentTimer();
+                                  longPressTriggered.current = true;
+                                  setFeedCommentAction({
+                                    comment: c,
+                                    postId: post.id,
+                                  });
+                                }}
+                                onClick={(e) => {
+                                  // Keep profile, reply, and reaction controls independent
+                                  // from the comment action sheet.
+                                  if (
+                                    (e.target as HTMLElement).closest(
+                                      "button, a, input, textarea",
+                                    )
+                                  ) {
+                                    return;
                                   }
+                                  if (longPressTriggered.current) {
+                                    longPressTriggered.current = false;
+                                    return;
+                                  }
+                                  setFeedCommentAction({
+                                    comment: c,
+                                    postId: post.id,
+                                  });
                                 }}
                                 className={`rounded-xl transition-colors select-none ${isLongPressed ? "bg-white/5" : ""}`}
                               >
@@ -6274,132 +6455,24 @@ const FameFeed = ({
         document.body,
       )}
 
-      {/* ── Feed Comment Floating Context Menu (long-press) ─────────── */}
-      <AnimatePresence>
-        {feedCommentAction &&
-          (() => {
-            const ac = feedCommentAction.comment;
-            const postId = feedCommentAction.postId;
-            const { x, y } = feedCommentAction;
-            const isCommenter = (ac.user_id ?? ac.author_id) === currentUserId;
-            const sheetPost = visiblePosts.find((p: any) => p.id === postId);
-            const isPostOwner =
-              sheetPost?.author_id === currentUserId ||
-              sheetPost?.user_id === currentUserId;
-
-            const items: FeedCommentMenuItem[] = [];
-            if (isCommenter) {
-              items.push({
-                icon: "✏️",
-                label: "Edit",
-                action: () => {
-                  setEditingFeedComment({ id: ac.id, text: ac.content });
-                  setFeedCommentAction(null);
-                },
-              });
-              items.push({
-                icon: "🗑️",
-                label: "Delete",
-                action: () => handleFeedCommentDelete(ac.id, postId),
-                danger: true,
-              });
-              if (!ac.is_hidden)
-                items.push({
-                  icon: "🙈",
-                  label: "Hide from Others",
-                  action: () => handleFeedCommentHide(ac.id, postId),
-                });
-            }
-            if (isPostOwner && !isCommenter) {
-              items.push({
-                icon: "🗑️",
-                label: "Delete",
-                action: () => handleFeedCommentDelete(ac.id, postId),
-                danger: true,
-              });
-              if (!ac.is_hidden)
-                items.push({
-                  icon: "🙈",
-                  label: "Hide Comment",
-                  action: () => handleFeedCommentHide(ac.id, postId),
-                });
-            }
-            if (!isCommenter && !isPostOwner) {
-              items.push({
-                icon: "🚩",
-                label: "Report",
-                action: () => handleFeedCommentReport(ac, postId),
-                danger: true,
-              });
-            }
-
-            const menuW = 210;
-            const rowH = 46;
-            const headerH = 52;
-            const menuH = headerH + items.length * rowH;
-            const vw = window.innerWidth;
-            const vh = window.innerHeight;
-            const left = Math.min(Math.max(x - menuW / 2, 8), vw - menuW - 8);
-            const showAbove = y + menuH + 16 > vh;
-            const top = showAbove ? Math.max(y - menuH - 12, 8) : y + 12;
-
-            return (
-              <>
-                <div
-                  className="fixed inset-0 z-[600]"
-                  onPointerDown={() => setFeedCommentAction(null)}
-                />
-                <motion.div
-                  key="feed-ca-float"
-                  initial={{ opacity: 0, scale: 0.82 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.82 }}
-                  transition={{ type: "spring", damping: 22, stiffness: 400 }}
-                  className="fixed z-[601] rounded-2xl shadow-2xl overflow-hidden border border-white/10"
-                  style={{
-                    top,
-                    left,
-                    width: menuW,
-                    transformOrigin: showAbove ? "bottom center" : "top center",
-                    background: "rgba(20,5,30,0.97)",
-                  }}
-                  onPointerDown={(e) => e.stopPropagation()}
-                >
-                  <div
-                    className="px-3.5 py-2.5 border-b border-white/10"
-                    style={{ background: "rgba(255,255,255,0.05)" }}
-                  >
-                    <p
-                      style={{
-                        color: "#f9a8d4",
-                        fontSize: 11,
-                        fontWeight: 900,
-                      }}
-                      className="truncate"
-                    >
-                      {ac.author || ac.author_name}
-                    </p>
-                    <p className="text-[11px] text-white/40 truncate leading-snug mt-0.5">
-                      {(ac.content || "").slice(0, 55)}
-                    </p>
-                  </div>
-                  {items.map((item, i) => (
-                    <button
-                      key={i}
-                      onClick={item.action}
-                      className={`w-full flex items-center gap-2.5 px-3.5 py-[11px] text-left text-[14px] font-semibold hover:bg-white/10 transition-colors ${item.danger ? "text-red-400" : "text-white/80"} ${i > 0 ? "border-t border-white/8" : ""}`}
-                    >
-                      <span className="text-[17px] leading-none">
-                        {item.icon}
-                      </span>
-                      {item.label}
-                    </button>
-                  ))}
-                </motion.div>
-              </>
-            );
-          })()}
-      </AnimatePresence>
+      {/* ── Feed Comment Action Sheet (portal-backed and viewport anchored) ── */}
+      {feedCommentAction && (
+        <FeedCommentActionSheet
+          action={feedCommentAction}
+          currentUserId={currentUserId}
+          post={visiblePosts.find(
+            (post: any) => post.id === feedCommentAction.postId,
+          )}
+          onClose={() => setFeedCommentAction(null)}
+          onEdit={(comment) => {
+            setEditingFeedComment({ id: comment.id, text: comment.content });
+            setFeedCommentAction(null);
+          }}
+          onDelete={handleFeedCommentDelete}
+          onHide={handleFeedCommentHide}
+          onReport={handleFeedCommentReport}
+        />
+      )}
 
       {/* ── Share Popup (context-aware, anchored to button) ────────── */}
       {sharePopupData &&
