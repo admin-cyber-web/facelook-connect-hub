@@ -1,0 +1,95 @@
+## LANDING PAGE — SAFETY VERIFICATION ONLY
+
+The landing page implementation is complete.
+
+DO NOT redesign it.
+DO NOT add new animations.
+DO NOT change the existing performance architecture.
+DO NOT modify Supabase logic.
+DO NOT modify Chat, Feed, Realtime, Camera, Video, or Authentication implementation.
+
+I only want a safety verification.
+
+### 1. ROUTING
+
+Verify the exact behavior:
+
+Logged OUT user:
+`/` → Public Landing Page
+
+Logged IN user:
+`/` → Existing authenticated Feed/Application
+
+Verify that login/logout does not create redirect loops.
+
+### 2. AUTHENTICATED APP
+
+Confirm that the previous authenticated application remains intact and existing routes/features were not replaced by the landing page.
+
+### 3. LANDING PAGE PERFORMANCE
+
+Static-audit the new LandingPage component for:
+
+* setInterval
+* setTimeout loops
+* requestAnimationFrame loops
+* continuous animation loops
+* event listeners without cleanup
+* unnecessary polling
+* Supabase requests
+* Realtime subscriptions
+* video/audio
+* repeated state updates
+
+The landing page must NOT make unnecessary Supabase requests for an unauthenticated visitor.
+
+### 4. MOBILE PERFORMANCE
+
+Check whether the landing page's:
+
+* floating orbs
+* glow effects
+* animated gradients
+* grid effects
+* motion transitions
+
+run continuously in a way that could cause significant CPU/GPU usage on mobile.
+
+Do NOT remove them automatically.
+
+If there is a clearly excessive animation loop, REPORT it first.
+
+### 5. BUILD
+
+Run:
+
+`npm run build`
+
+and:
+
+`git diff --check`
+
+### 6. IMPORTANT
+
+This is a verification-only pass.
+
+Do not modify application code unless there is an actual build-breaking issue.
+
+Do not make speculative performance changes.
+
+### FINAL REPORT
+
+Return:
+
+1. Root routing status
+2. Logged-out behavior
+3. Logged-in behavior
+4. Supabase requests from LandingPage
+5. Continuous timers/animations
+6. Mobile performance risks
+7. Build status
+8. Whether existing authenticated app remains protected
+
+If everything is safe, say:
+
+`Landing page verified — no application changes made.`
