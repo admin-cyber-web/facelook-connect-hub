@@ -19,6 +19,7 @@ import {
   Zap,
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
+import { revokeObjectUrl } from "@/lib/objectUrl";
 
 // ── LUT Definitions ────────────────────────────────────────────────────────────
 const LUTS = [
@@ -138,6 +139,10 @@ const SnapyStudio: React.FC<SnapyStudioProps> = ({ userId }) => {
   const capturedCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const [capturedUrl, setCapturedUrl] = useState<string>("");
   const [removedBgUrl, setRemovedBgUrl] = useState<string>("");
+
+  useEffect(() => {
+    return () => revokeObjectUrl(removedBgUrl);
+  }, [removedBgUrl]);
 
   // UI state
   const [state, setState] = useState<StudioState>("camera");

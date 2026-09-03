@@ -51,6 +51,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { subscribeWhileVisible } from "@/lib/realtimeVisibility";
+import { revokeObjectUrl } from "@/lib/objectUrl";
 import { usePageVisibility } from "../hooks/usePageVisibility";
 import { toast } from "sonner";
 import { parseMessage } from "../lib/messageParser";
@@ -975,6 +976,9 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     null,
   );
   const [loadingMessages, setLoadingMessages] = useState(false);
+  useEffect(() => {
+    return () => revokeObjectUrl(pendingFilePreview);
+  }, [pendingFilePreview]);
   const [chatSearch, setChatSearch] = useState("");
   const [showChatSearch, setShowChatSearch] = useState(false);
   const [msgMenuId, setMsgMenuId] = useState<string | null>(null);
@@ -1015,6 +1019,12 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   const [storyFiles, setStoryFiles] = useState<File[]>([]);
   const [storyPreviews, setStoryPreviews] = useState<string[]>([]);
   const [storyPreviewUrl, setStoryPreviewUrl] = useState("");
+  useEffect(() => {
+    return () => storyPreviews.forEach(revokeObjectUrl);
+  }, [storyPreviews]);
+  useEffect(() => {
+    return () => revokeObjectUrl(storyPreviewUrl);
+  }, [storyPreviewUrl]);
   const [storyCaption, setStoryCaption] = useState("");
   const [storyEmoji, setStoryEmoji] = useState("");
   const [storyMood, setStoryMood] = useState("");
@@ -1685,6 +1695,8 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   // mutedChatsRef: stable ref so the alerts channel doesn't teardown on every
   // contacts-fetch (removing contacts/mutedChats from the dep array below)
   const mutedChatsRef = useRef<Set<string>>(new Set());
+  const selectedUserRef = useRef<ChatContact | null>(null);
+  const isOpenRef = useRef(isOpen);
   useEffect(() => {
     contactsRef.current = contacts;
   }, [contacts]);
@@ -1694,6 +1706,10 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   useEffect(() => {
     mutedChatsRef.current = mutedChats;
   }, [mutedChats]);
+  useEffect(() => {
+    selectedUserRef.current = selectedUser;
+    isOpenRef.current = isOpen;
+  }, [selectedUser, isOpen]);
 
   useEffect(() => {
     const handler = async (e: Event) => {
@@ -1860,64 +1876,57 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     }
   }, [activeStatus, userId]);
 
-  // ── Realtime: friendships ─────────────────────────────────────────────────
+  // ── Friendship updates are delivered by Header's single user-scoped channel.
+  // This keeps ChatSystem from opening a duplicate subscription for the same
+  // receiver_id filter while preserving live contact/request refreshes.
   useEffect(() => {
     if (!isOpen) return;
-    const cleanup = subscribeWhileVisible(() =>
-      supabase
-        .channel(`friendships-rt-${userId}`)
-        .on(
-          "postgres_changes",
-          { event: "INSERT", schema: "public", table: "friendships", filter: `receiver_id=eq.${userId}` },
-          (p) => {
-            const row = p.new as any;
-            if (row.receiver_id === userId || row.sender_id === userId) {
-              fetchFriendships();
-              if (row.receiver_id === userId && row.status === "pending")
-                fetchPendingRequests();
-            }
-          },
-        )
-        .on(
-          "postgres_changes",
-          { event: "UPDATE", schema: "public", table: "friendships", filter: `receiver_id=eq.${userId}` },
-          (p) => {
-            const row = p.new as any;
-            if (row.receiver_id === userId || row.sender_id === userId) {
-              fetchFriendships();
-              fetchPendingRequests();
-              if (row.status === "accepted") fetchContacts();
-            }
-          },
-        )
-        .subscribe(),
-      { onVisible: () => {
-        void fetchFriendships();
-        void fetchPendingRequests();
-        void fetchContacts();
-      } },
-    );
+    const handleFriendshipChanged = () => {
+      void fetchFriendships();
+      void fetchPendingRequests();
+      void fetchContacts();
+    };
+    window.addEventListener("flicks-friendship-changed", handleFriendshipChanged);
     return () => {
-      cleanup();
+      window.removeEventListener("flicks-friendship-changed", handleFriendshipChanged);
     };
   }, [isOpen, userId, fetchFriendships, fetchPendingRequests, fetchContacts]);
 
-  // ── Realtime: new messages → alert ────────────────────────────────────────
+  // ── User-scoped message stream: alerts, badge, and active chat updates ────
+  // One channel handles all receiver-side message work. The selected chat no
+  // longer opens a second channel for the same messages table/filter.
+  const fetchUnseenCount = useCallback(async () => {
+    if (!userId) return;
+    const { count } = await supabase
+      .from("messages")
+      .select("id", { count: "exact", head: true })
+      .eq("receiver_id", userId)
+      .is("seen_at", null);
+    setUnseenMsgCount(count ?? 0);
+  }, [userId]);
+
   useEffect(() => {
-    if (!isOpen) return;
-    const cleanup = subscribeWhileVisible(() =>
+    if (!userId) return;
+    void fetchUnseenCount();
+    return subscribeWhileVisible(() =>
       supabase
-        .channel(`alerts-rt-${userId}`)
+        .channel(`messages-rt-${userId}`)
         .on(
           "postgres_changes",
           { event: "INSERT", schema: "public", table: "messages", filter: `receiver_id=eq.${userId}` },
           (p) => {
             const msg = p.new as Message;
-            if (msg.receiver_id === userId) {
-              const sender = contactsRef.current.find(
-                (c) => c.id === msg.sender_id,
-              );
-              if (sender && !mutedChatsRef.current.has(msg.sender_id)) {
+            const sid = String(msg.sender_id || "").trim();
+            const rid = String(msg.receiver_id || "").trim();
+            if (rid !== userId) return;
+
+            if (!msg.seen_at) {
+              setUnseenMsgCount((prev) => prev + 1);
+            }
+
+            if (isOpenRef.current) {
+              const sender = contactsRef.current.find((c) => c.id === sid);
+              if (sender && !mutedChatsRef.current.has(sid)) {
                 setAlerts((prev) =>
                   [
                     {
@@ -1934,40 +1943,69 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                 );
               }
             }
-          },
-        )
-        .subscribe(),
-    );
-    return () => {
-      cleanup();
-    };
-    // contacts/mutedChats accessed via refs — channel no longer tears down on every fetch
-  }, [isOpen, userId]);
 
-  // ── Unseen message count (always-on, drives FAB badge) ────────────────────
-  const fetchUnseenCount = useCallback(async () => {
-    if (!userId) return;
-    const { count } = await supabase
-      .from("messages")
-      .select("id", { count: "exact", head: true })
-      .eq("receiver_id", userId)
-      .is("seen_at", null);
-    setUnseenMsgCount(count ?? 0);
-  }, [userId]);
+            const selected = selectedUserRef.current;
+            const pid = String(selected?.id || "").trim();
+            if (!selected || sid !== pid || deletedForMeIdsRef.current.has(msg.id)) {
+              return;
+            }
 
-  useEffect(() => {
-    if (!userId) return;
-    fetchUnseenCount();
-    return subscribeWhileVisible(() =>
-      supabase
-        .channel(`unseen-count-${userId}`)
-        .on(
-          "postgres_changes",
-          { event: "INSERT", schema: "public", table: "messages", filter: `receiver_id=eq.${userId}` },
-          (p) => {
-            const msg = p.new as any;
-            if (msg.receiver_id === userId && !msg.seen_at) {
-              setUnseenMsgCount((prev) => prev + 1);
+            setMessages((prev) =>
+              prev.find((m) => m.id === msg.id) ? prev : [...prev, msg],
+            );
+            void fetchContacts();
+
+            // Auto-mark as seen when the message is addressed to the open chat.
+            supabase
+              .from("messages")
+              .update({ seen_at: new Date().toISOString() })
+              .eq("id", msg.id)
+              .then(() => {});
+
+            if (msg.content) {
+              const kwEmoji = getKeywordEmoji(msg.content);
+              if (kwEmoji) {
+                setEmojiBlast({ id: ++blastIdRef.current, emoji: kwEmoji });
+              }
+            }
+
+            getRiskProfile(sid).then((profile) => {
+              if (profile?.is_flagged) {
+                const senderName =
+                  contactsRef.current.find((c) => c.id === sid)?.full_name ||
+                  "Unknown";
+                if (suspiciousTimerRef.current)
+                  clearTimeout(suspiciousTimerRef.current);
+                setSuspiciousAlert({ senderName });
+                suspiciousTimerRef.current = setTimeout(
+                  () => setSuspiciousAlert(null),
+                  8000,
+                );
+              }
+            });
+
+            if (
+              loveProtectPartnerRef.current &&
+              sid === loveProtectPartnerRef.current
+            ) {
+              checkLoveProtectViolation(loveProtectPartnerRef.current).then(
+                (violated) => {
+                  if (violated) {
+                    if (loveProtectTimerRef.current)
+                      clearTimeout(loveProtectTimerRef.current);
+                    setLoveProtectAlert(true);
+                    sendSafetyNotification(
+                      userId,
+                      "love_protect",
+                      "Warning: Your partner's communication pattern shows suspicious inconsistencies.",
+                    );
+                    loveProtectTimerRef.current = setTimeout(
+                      () => setLoveProtectAlert(false),
+                      15000,
+                    );
+                  }
+                },
+              );
             }
           },
         )
@@ -1975,10 +2013,31 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
           "postgres_changes",
           { event: "UPDATE", schema: "public", table: "messages", filter: `receiver_id=eq.${userId}` },
           (p) => {
-            const msg = p.new as any;
-            const old = p.old as any;
-            if (msg.receiver_id === userId && msg.seen_at && !old?.seen_at) {
+            const msg = p.new as Message;
+            const old = p.old as Partial<Message>;
+            if (msg.receiver_id !== userId) return;
+            if (msg.seen_at && !old?.seen_at) {
               setUnseenMsgCount((prev) => Math.max(0, prev - 1));
+            }
+
+            const selected = selectedUserRef.current;
+            if (
+              selected &&
+              String(msg.sender_id || "").trim() === String(selected.id).trim()
+            ) {
+              setMessages((prev) =>
+                prev.map((m) => (m.id === msg.id ? { ...m, ...msg } : m)),
+              );
+            }
+          },
+        )
+        .on(
+          "postgres_changes",
+          { event: "DELETE", schema: "public", table: "messages", filter: `receiver_id=eq.${userId}` },
+          (p) => {
+            const deletedId = (p.old as { id?: string })?.id;
+            if (deletedId) {
+              setMessages((prev) => prev.filter((m) => m.id !== deletedId));
             }
           },
         )
@@ -2115,128 +2174,13 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
 
     load().then(() => fetchMsgReactions(myId, partnerId));
 
-    // ── Chat Realtime via custom-all-channel ─────────────────────────────────
-    const convKey = [myId, partnerId].sort().join("-");
-    const createConversationChannel = () => supabase
-      .channel(`conv-${convKey}`)
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "messages", filter: `receiver_id=eq.${myId}` },
-        (p) => {
-          const msg = p.new as Message;
-          const sid = String(msg.sender_id || "").trim();
-          const rid = String(msg.receiver_id || "").trim();
-          const pid = partnerId;
-          const relevant =
-            (sid === myId && rid === pid) || (sid === pid && rid === myId);
-
-          if (!relevant) return;
-
-          // Skip messages the user deleted for themselves — don't let realtime bounce them back
-          if (deletedForMeIdsRef.current.has(msg.id)) return;
-
-          // Safely append — skip if already in list (optimistic duplicate guard)
-          setMessages((prev) =>
-            prev.find((m) => m.id === msg.id) ? prev : [...prev, msg],
-          );
-          fetchContacts();
-
-          // Auto-mark as seen when the message is addressed to us
-          if (rid === myId && sid === pid) {
-            supabase
-              .from("messages")
-              .update({ seen_at: new Date().toISOString() })
-              .eq("id", msg.id)
-              .then(() => {});
-
-            // ── Sync effect blast to receiver side ────────────────────────
-            if (msg.content) {
-              const kwEmoji = getKeywordEmoji(msg.content);
-              if (kwEmoji) {
-                setEmojiBlast({ id: ++blastIdRef.current, emoji: kwEmoji });
-              }
-            }
-
-            // ── Safety: check sender's risk profile ───────────────────────
-            getRiskProfile(sid).then((profile) => {
-              if (profile?.is_flagged) {
-                const senderName =
-                  contactsRef.current.find((c) => c.id === sid)?.full_name ||
-                  "Unknown";
-                if (suspiciousTimerRef.current)
-                  clearTimeout(suspiciousTimerRef.current);
-                setSuspiciousAlert({ senderName });
-                suspiciousTimerRef.current = setTimeout(
-                  () => setSuspiciousAlert(null),
-                  8000,
-                );
-              }
-            });
-
-            // ── Love Protect: check partner activity on every incoming message ──
-            // Keyword filter removed — we check on ANY message from partner so
-            // the mechanism is testable. checkLoveProtectViolation decides severity.
-            if (
-              loveProtectPartnerRef.current &&
-              sid === loveProtectPartnerRef.current
-            ) {
-              console.log(
-                "[LoveProtect] Incoming message from partner — running violation check.",
-                { partnerId: loveProtectPartnerRef.current, msgId: msg.id }
-              );
-              checkLoveProtectViolation(loveProtectPartnerRef.current).then(
-                (violated) => {
-                  console.log("[LoveProtect] Violation result:", violated);
-                  if (violated) {
-                    if (loveProtectTimerRef.current)
-                      clearTimeout(loveProtectTimerRef.current);
-                    setLoveProtectAlert(true);
-                    sendSafetyNotification(
-                      myId,
-                      "love_protect",
-                      "Warning: Your partner's communication pattern shows suspicious inconsistencies.",
-                    );
-                    loveProtectTimerRef.current = setTimeout(
-                      () => setLoveProtectAlert(false),
-                      15000,
-                    );
-                  }
-                },
-              );
-            }
-          }
-        },
-      )
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "messages", filter: `receiver_id=eq.${myId}` },
-        (p) => {
-          const msg = p.new as Message;
-          const relevant =
-            msg.sender_id === myId || msg.receiver_id === myId;
-          if (relevant) {
-            // Merge ALL updated fields (content, seen_at, any future fields)
-            setMessages((prev) =>
-              prev.map((m) => (m.id === msg.id ? { ...m, ...msg } : m)),
-            );
-          }
-        },
-      )
-      .on(
-        "postgres_changes",
-        { event: "DELETE", schema: "public", table: "messages", filter: `receiver_id=eq.${myId}` },
-        (p) => {
-          const deletedId = (p.old as { id: string })?.id;
-          if (deletedId) {
-            setMessages((prev) => prev.filter((m) => m.id !== deletedId));
-          }
-        },
-      )
-      .subscribe();
-    const cleanupConversationChannel = subscribeWhileVisible(
-      createConversationChannel,
-      { onVisible: () => { void load(); } },
-    );
+    // The user-scoped message channel above owns realtime inserts, updates, and
+    // deletes. Refresh the selected conversation on resume without opening a
+    // second postgres_changes channel for the same messages table.
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") void load();
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     // Typing presence channel
     const typingKey = [myId, partnerId].sort().join("-");
@@ -2259,7 +2203,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     const cleanupTypingChannel = subscribeWhileVisible(createTypingChannel);
 
     return () => {
-      cleanupConversationChannel();
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
       cleanupTypingChannel();
       typingChannelRef.current = null;
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
@@ -2578,7 +2522,6 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   };
 
   const clearPendingFile = () => {
-    if (pendingFilePreview) URL.revokeObjectURL(pendingFilePreview);
     setPendingFile(null);
     setPendingFilePreview(null);
     pendingFileRef.current = null;
@@ -3100,13 +3043,15 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
           if (files.length === 1) {
             setStoryFile(files[0]);
             setStoryFiles([files[0]]);
-            setStoryPreviews([URL.createObjectURL(files[0])]);
-            setStoryPreviewUrl(URL.createObjectURL(files[0]));
+            const previewUrl = URL.createObjectURL(files[0]);
+            setStoryPreviews([previewUrl]);
+            setStoryPreviewUrl(previewUrl);
           } else {
             setStoryFiles(files);
-            setStoryPreviews(files.map((f) => URL.createObjectURL(f)));
+            const previewUrls = files.map((f) => URL.createObjectURL(f));
+            setStoryPreviews(previewUrls);
             setStoryFile(files[0]);
-            setStoryPreviewUrl(URL.createObjectURL(files[0]));
+            setStoryPreviewUrl(previewUrls[0]);
           }
           setShowStoryEditor(true);
           e.target.value = "";
@@ -5290,12 +5235,13 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                         return;
                       }
                       const files = allFiles;
-                      setStoryFiles(files);
-                      setStoryPreviews(
-                        files.map((f) => URL.createObjectURL(f)),
+                      const previewUrls = files.map((f) =>
+                        URL.createObjectURL(f),
                       );
+                      setStoryFiles(files);
+                      setStoryPreviews(previewUrls);
                       setStoryFile(files[0]);
-                      setStoryPreviewUrl(URL.createObjectURL(files[0]));
+                      setStoryPreviewUrl(previewUrls[0]);
                       setShowStoryEditor(true);
                       e.target.value = "";
                     }}

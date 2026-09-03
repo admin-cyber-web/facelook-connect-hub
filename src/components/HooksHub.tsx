@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { supabase } from "@/lib/supabaseClient";
 import { smartTime } from "@/lib/timeAgo";
 import { memGet, memSet } from "@/lib/memCache";
+import { revokeObjectUrl } from "@/lib/objectUrl";
 import { MagnetButton } from "./MagnetSystem";
 import {
   Anchor, Plus, ArrowLeft, X, Users, Heart, FileText,
@@ -189,6 +190,14 @@ const EditPageModal = ({ page, userId, onClose, onSaved }:
   const [avatarPrev, setAvatarPrev] = useState(page.avatar_url || "");
   const [saving, setSaving]   = useState(false);
   const [err, setErr]         = useState("");
+
+  useEffect(() => {
+    return () => revokeObjectUrl(coverPrev);
+  }, [coverPrev]);
+
+  useEffect(() => {
+    return () => revokeObjectUrl(avatarPrev);
+  }, [avatarPrev]);
 
   const save = async () => {
     if (!form.name.trim()) { setErr("Page ka naam zaroori hai"); return; }
@@ -435,6 +444,10 @@ const AddPostModal = ({ pageId, userId, isOwner, pageName, onClose, onPosted }:
   const imgRef  = useRef<HTMLInputElement>(null);
   const vidRef  = useRef<HTMLInputElement>(null);
 
+  useEffect(() => {
+    return () => revokeObjectUrl(mediaPreview);
+  }, [mediaPreview]);
+
   const pickFile = (file: File, type: "image" | "video") => {
     setMediaFile(file); setMediaType(type);
     setMediaPreview(URL.createObjectURL(file));
@@ -563,6 +576,10 @@ const CreatePageModal = ({ userId, onClose, onCreated }:
   const [ownerProfile, setOwnerProfile] = useState<{ avatar_url: string | null; full_name: string | null } | null>(null);
   const [saving, setSaving]         = useState(false);
   const [err, setErr]               = useState("");
+
+  useEffect(() => {
+    return () => revokeObjectUrl(coverPrev);
+  }, [coverPrev]);
 
   // Auto-load creator's profile on mount — cached 5 min
   useEffect(() => {

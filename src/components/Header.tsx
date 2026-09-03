@@ -1969,10 +1969,16 @@ const Header = ({
               const row = (payload.new || payload.old) as any;
               if (row?.receiver_id !== userId) return;
               fetchFriendReqsRef.current();
+               window.dispatchEvent(new Event("flicks-friendship-changed"));
             },
           )
           .subscribe(),
-        { onVisible: () => { void fetchFriendReqsRef.current(); } },
+        {
+          onVisible: () => {
+            void fetchFriendReqsRef.current();
+            window.dispatchEvent(new Event("flicks-friendship-changed"));
+          },
+        },
       ),
     ];
     return () => {
@@ -1985,9 +1991,8 @@ const Header = ({
   useEffect(() => {
     if (showDash) {
       fetchDashStats();
-      fetchDashFriends();
     }
-  }, [showDash, fetchDashStats, fetchDashFriends]);
+  }, [showDash, fetchDashStats]);
 
 
   // ── Live DP update from Settings > Personal Info ───────────────────────────

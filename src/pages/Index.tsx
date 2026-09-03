@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, lazy, Suspense } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { Session } from "@supabase/supabase-js";
+import { revokeObjectUrl } from "../lib/objectUrl";
 import {
   Camera,
   Loader2,
@@ -257,6 +258,10 @@ function FrameModePage({ onBack, userProfile, userEmail }: { onBack: () => void;
   const [photoFile, setPhotoFile]         = useState<File | null>(null);
   const [photoPreview, setPhotoPreview]   = useState("");
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+
+  useEffect(() => {
+    return () => revokeObjectUrl(photoPreview);
+  }, [photoPreview]);
 
   useEffect(() => {
     fetchRequests();
@@ -1291,6 +1296,10 @@ const PersonalInfoView = React.memo(({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [avatarPreview, setAvatarPreview] = useState<string>(currentAvatarUrl);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+
+  useEffect(() => {
+    return () => revokeObjectUrl(avatarPreview);
+  }, [avatarPreview]);
 
   const handleAvatarFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

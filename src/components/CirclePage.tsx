@@ -7,6 +7,7 @@ import { useProfileViewer } from "../context/ProfileViewerContext";
 import { useDataCache } from "../context/DataCacheContext";
 import { usePageVisibility } from "../hooks/usePageVisibility";
 import { subscribeWhileVisible } from "../lib/realtimeVisibility";
+import { revokeObjectUrl } from "../lib/objectUrl";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { MagnetButton } from "./MagnetSystem";
@@ -440,6 +441,10 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
   const [coverPreview, setCoverPreview] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
 
+  useEffect(() => {
+    return () => revokeObjectUrl(coverPreview);
+  }, [coverPreview]);
+
   // Group settings (admin)
   const [showSettings, setShowSettings] = useState(false);
   const [settingsForm, setSettingsForm] = useState({ rules: "", post_approval: false });
@@ -518,6 +523,10 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
   const chatMediaRef = useRef<HTMLInputElement>(null);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  useEffect(() => {
+    return () => revokeObjectUrl(chatMediaPreview);
+  }, [chatMediaPreview]);
+
   const coverInputRef = useRef<HTMLInputElement>(null);
   const mediaInputRef = useRef<HTMLInputElement>(null);
 
@@ -534,6 +543,10 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
   const [editGroupSaving, setEditGroupSaving]   = useState(false);
   const [confirmDeleteGroup, setConfirmDeleteGroup] = useState(false);
   const [deletingGroup, setDeletingGroup]       = useState(false);
+
+  useEffect(() => {
+    return () => revokeObjectUrl(editGroupCoverPrev);
+  }, [editGroupCoverPrev]);
 
   // Circle Events
   const [circleEvents, setCircleEvents]       = useState<CircleEvent[]>([]);
@@ -1352,11 +1365,10 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
     return map;
   }, []);
 
-  // ── Load chat messages + subscribe ──────────────────────────────────────────
-  const loadChat = useCallback(async (groupId: string) => {
-    chatSubCleanupRef.current?.();
-    chatSubCleanupRef.current = null;
-    chatSubRef.current = null;
+  // ── Load chat messages ─────────────────────────────────────────────────────
+  // Kept separate from subscription setup so visibility resume can rehydrate
+  // missed messages without tearing down and recreating the active channel.
+  const loadChatMessages = useCallback(async (groupId: string): Promise<boolean> => {
     setChatLoaded(false);
     const { data, error } = await supabase
       .from("group_messages")
@@ -1368,7 +1380,7 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
     if (error) {
       toast.error("Chat unavailable — table may not exist yet.");
       setChatLoaded(true);
-      return;
+      return false;
     }
     const msgs = (data as GroupMessage[]) ?? [];
     setChatMessages(msgs);
@@ -1383,6 +1395,17 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
       if (rxns) setMsgReactions(buildReactionMap(rxns, currentUserId));
     }
     setChatLoaded(true);
+    return true;
+  }, [currentUserId, buildReactionMap]);
+
+  // ── Load chat messages + subscribe ──────────────────────────────────────────
+  const loadChat = useCallback(async (groupId: string) => {
+    chatSubCleanupRef.current?.();
+    chatSubCleanupRef.current = null;
+    chatSubRef.current = null;
+
+    const loaded = await loadChatMessages(groupId);
+    if (!loaded || selectedGroupIdRef.current !== groupId) return;
 
     // Subscribe to new messages + reaction changes only while visible.
     const chatCleanup = subscribeWhileVisible(() => {
@@ -1402,9 +1425,9 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
       .subscribe();
       chatSubRef.current = ch;
       return ch;
-    }, { onVisible: () => void loadChat(groupId) });
+    }, { onVisible: () => void loadChatMessages(groupId) });
     chatSubCleanupRef.current = chatCleanup;
-  }, [currentUserId, buildReactionMap]);
+  }, [loadChatMessages]);
 
   useEffect(() => {
     if (groupTab === "chat" && selectedGroup) {
@@ -1416,7 +1439,7 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
       chatSubCleanupRef.current = null;
       chatSubRef.current = null;
     }
-  }, [groupTab, selectedGroup]);
+  }, [groupTab, selectedGroup, loadChat]);
 
   // Auto scroll chat to bottom
   useEffect(() => {
