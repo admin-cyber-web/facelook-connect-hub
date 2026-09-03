@@ -1,3 +1,5 @@
+import { shareViaCapacitor } from "./capacitorMediaShare";
+
 // ── Universal post sharing util ────────────────────────────────────────────────
 // Goal: when sharing to WhatsApp / Instagram / etc., the receiver sees the post
 // IMAGE *plus* the caption text together (FB-style).
@@ -259,6 +261,21 @@ export async function sharePost(opts: SharePostOptions): Promise<"shared" | "cop
   parts.push(PROMO_FOOTER);
   parts.push(`${credit}\n${postUrl}`);
   const shareText = parts.join("\n\n");
+
+  // On Android, use a cache-backed native URI first so image and video posts
+  // show their actual media preview in the OS share sheet.
+  const capacitorOutcome = await shareViaCapacitor({
+    title: headline,
+    text: shareText,
+    url: postUrl,
+    mediaUrl,
+    type: mediaType?.startsWith("video") ? "reel" : "post",
+    appendPromoFooter: false,
+  });
+  if (capacitorOutcome === "shared-with-file" || capacitorOutcome === "shared-url-only") {
+    return "shared";
+  }
+  if (capacitorOutcome === "cancelled") return "cancelled";
 
   const hasImage = !!mediaUrl && isImageMedia(mediaUrl, mediaType);
 

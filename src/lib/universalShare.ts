@@ -1,3 +1,5 @@
+import { shareViaCapacitor } from "./capacitorMediaShare";
+
 /**
  * universalShare.ts
  * ─────────────────────────────────────────────────────────────────────────────
@@ -165,6 +167,21 @@ export async function universalShare(
 
   // Always include the promo footer in the share text — lightweight string op.
   const text = buildShareText(input.text);
+
+  // Capacitor Android needs a native content URI. WebView navigator.share()
+  // accepts Files inconsistently and often shares only the raw URL.
+  const capacitorOutcome = mediaUrl
+    ? await shareViaCapacitor({
+        title,
+        text: input.text,
+        url,
+        mediaUrl,
+        type,
+      })
+    : "unsupported";
+  if (capacitorOutcome !== "unsupported" && capacitorOutcome !== "error") {
+    return capacitorOutcome;
+  }
 
   // ── Step 1: Build a File object ───────────────────────────────────────────
   let file: File | null = null;

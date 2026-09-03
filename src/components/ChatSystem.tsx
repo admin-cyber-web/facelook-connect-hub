@@ -4181,7 +4181,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                 {!searchQuery.trim() && <StoryRow />}
 
                 {/* List */}
-                <div className="flex-1 overflow-y-auto">
+                <div className="flex-1 overflow-y-auto scroll-pane" data-scroll-pane="true">
                   {searchQuery.trim() ? (
                     <>
                       <p
@@ -4667,7 +4667,13 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
 
                 {/* Messages */}
                 <div
-                  className="flex-1 overflow-y-auto px-4 pt-20 pb-4 space-y-2"
+                  className="flex-1 overflow-y-auto scroll-pane px-4 pt-20 pb-4 space-y-2"
+                  data-scroll-pane="true"
+                  style={{
+                    touchAction: "pan-y",
+                    overscrollBehaviorY: "contain",
+                    WebkitOverflowScrolling: "touch",
+                  }}
                   onClick={() => {
                     setMsgMenuId(null);
                     setShowEmojiGrid(false);

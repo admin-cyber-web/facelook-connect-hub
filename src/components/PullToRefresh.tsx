@@ -17,6 +17,7 @@ export default function PullToRefresh({
   const [pullY, setPullY] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const startY = useRef<number | null>(null);
+  const ignoreTouch = useRef(false);
   const pullYRef = useRef(0);
   const refreshingRef = useRef(false);
   const onRefreshRef = useRef(onRefresh);
@@ -52,12 +53,24 @@ export default function PullToRefresh({
     };
 
     const onTouchStart = (e: TouchEvent) => {
+      // Inner chat/sheet panes own their vertical gesture. Do not let the
+      // feed-level pull-to-refresh listener treat those gestures as a reload.
+      const target = e.target;
+      ignoreTouch.current =
+        target instanceof Element &&
+        !!target.closest('[data-scroll-pane="true"]');
+      if (ignoreTouch.current) {
+        startY.current = null;
+        return;
+      }
+
       // Only arm the puller when the feed is truly at the top.
       if (getScrollTop() > 4) { startY.current = null; return; }
       startY.current = e.touches[0].clientY;
     };
 
     const onTouchMove = (e: TouchEvent) => {
+      if (ignoreTouch.current) return;
       if (startY.current == null || refreshingRef.current) return;
       // If the user scrolled down since touchstart, disarm immediately.
       if (getScrollTop() > 4) { startY.current = null; setPullY(0); return; }
@@ -69,6 +82,11 @@ export default function PullToRefresh({
     };
 
     const onTouchEnd = async () => {
+      if (ignoreTouch.current) {
+        ignoreTouch.current = false;
+        startY.current = null;
+        return;
+      }
       if (startY.current == null) return;
       startY.current = null;
       if (pullYRef.current >= threshold && !refreshingRef.current) {
