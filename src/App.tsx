@@ -20,6 +20,7 @@ const Index         = lazy(() => import("./pages/Index"));
 const Privacy       = lazy(() => import("./pages/Privacy"));
 const Terms         = lazy(() => import("./pages/Terms"));
 const DataInfo      = lazy(() => import("./pages/DataInfo"));
+const LandingPage   = lazy(() => import("./pages/LandingPage"));
 const NotFound      = lazy(() => import("./pages/NotFound"));
 const LoginScreen   = lazy(() => import("./components/LoginScreen"));
 const PostDetail    = lazy(() => import("./pages/PostDetail"));
@@ -159,6 +160,8 @@ const App = () => {
                   <Suspense fallback={<PageLoader />}>
                     {!session ? (
                       <Routes>
+                        <Route path="/"            element={<LandingPage />} />
+                        <Route path="/login"        element={<LoginScreen />} />
                         <Route path="/privacy"     element={<Privacy />} />
                         <Route path="/terms"       element={<Terms />} />
                         <Route path="/data-info"   element={<DataInfo />} />
