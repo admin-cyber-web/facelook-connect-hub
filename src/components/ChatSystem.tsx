@@ -1618,6 +1618,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
 
   // ── Fetch stories ─────────────────────────────────────────────────────────
   const fetchStories = useCallback(async () => {
+    if (!mountedRef.current) return false;
     setLoadingStories(true);
     try {
       const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
@@ -1671,6 +1672,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
 
   // ── Upload stories (batch multi-file) ────────────────────────────────────
   const uploadStory = async () => {
+    if (!mountedRef.current) return;
     const filesToUpload =
       storyFiles.length > 0 ? storyFiles : storyFile ? [storyFile] : [];
     if (filesToUpload.length === 0) return;
@@ -1692,11 +1694,14 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
             .getPublicUrl(mName);
           musicPublicUrl = mUrl.publicUrl;
         }
-      } catch (_) {}
+      } catch (error) {
+        console.warn("[Chat] story music upload failed:", error);
+      }
     }
 
     let done = 0;
     for (const file of filesToUpload) {
+      if (!mountedRef.current) return;
       try {
         const ext = file.name.split(".").pop() || "jpg";
         const fileName = `stories/${userId}-${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
@@ -1720,12 +1725,15 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
         });
         if (dbErr) {
           console.error("[ChatSystem upload] DB insert failed:", dbErr.message);
-          toast.error("Story save failed: " + dbErr.message);
-          setUploadingStory(false);
+          if (mountedRef.current) {
+            toast.error("Story save failed: " + dbErr.message);
+            setUploadingStory(false);
+          }
           return;
         }
       } catch (e: any) {
         const msg = e?.message || "";
+        if (!mountedRef.current) return;
         if (msg.includes("does not exist") || msg.includes("relation")) {
           toast.error(
             "Stories table missing. Run the stories SQL setup first.",
@@ -1741,8 +1749,11 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
         }
       }
       done++;
-      setStoryUploadProgress(Math.round((done / filesToUpload.length) * 100));
+      if (mountedRef.current) {
+        setStoryUploadProgress(Math.round((done / filesToUpload.length) * 100));
+      }
     }
+    if (!mountedRef.current) return;
     toast.success(
       filesToUpload.length > 1
         ? `${filesToUpload.length} stories posted! 🌟`
@@ -1761,12 +1772,15 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     setSelectedMusic(null);
     setSelectedMusicName("");
     setMuteStoryVideo(false);
-    fetchStories();
+    void fetchStories().catch((error) =>
+      console.warn("[Chat] story refresh after upload failed:", error),
+    );
     setUploadingStory(false);
   };
 
   // ── Delete story ───────────────────────────────────────────────────────────
   const deleteStory = async (story: Story) => {
+    if (!mountedRef.current) return;
     setDeletingStory(true);
     try {
       const { error } = await supabase
@@ -1775,13 +1789,17 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
         .eq("id", story.id)
         .eq("user_id", userId);
       if (error) throw error;
-      setStories((prev) => prev.filter((s) => s.id !== story.id));
-      setViewingStory(null);
-      toast.success("Story deleted ✓");
+      if (mountedRef.current) {
+        setStories((prev) => prev.filter((s) => s.id !== story.id));
+        setViewingStory(null);
+        toast.success("Story deleted ✓");
+      }
     } catch (e: any) {
-      toast.error("Could not delete story: " + (e?.message || "Unknown error"));
+      if (mountedRef.current) {
+        toast.error("Could not delete story: " + (e?.message || "Unknown error"));
+      }
     } finally {
-      setDeletingStory(false);
+      if (mountedRef.current) setDeletingStory(false);
     }
   };
 
@@ -1869,7 +1887,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
 
   // ── Update story (caption + emoji only) ───────────────────────────────────
   const updateStory = async () => {
-    if (!editingStory) return;
+    if (!editingStory || !mountedRef.current) return;
     setUploadingStory(true);
     try {
       const { error } = await supabase
@@ -1878,6 +1896,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
         .eq("id", editingStory.id)
         .eq("user_id", userId);
       if (error) throw error;
+      if (!mountedRef.current) return;
       setStories((prev) =>
         prev.map((s) =>
           s.id === editingStory.id
@@ -1893,9 +1912,11 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       setStoryPreviewUrl("");
       setStoryFile(null);
     } catch (e: any) {
-      toast.error("Update failed: " + (e?.message || "Unknown error"));
+      if (mountedRef.current) {
+        toast.error("Update failed: " + (e?.message || "Unknown error"));
+      }
     } finally {
-      setUploadingStory(false);
+      if (mountedRef.current) setUploadingStory(false);
     }
   };
 
@@ -2578,7 +2599,13 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     const cleanupConversationChannel = safeSubscribeWhileVisible(
       "conversation",
       createConversationChannel,
-      { onVisible: () => { void load(); } },
+      {
+        onVisible: () => {
+          void load().catch((error) =>
+            console.warn("[Chat] visible message refresh failed:", error),
+          );
+        },
+      },
     );
 
     // Typing presence channel
@@ -3455,26 +3482,31 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
           <div className="flex items-center justify-center w-14 h-14">
             <Loader2 size={16} className={`animate-spin ${T.text3}`} />
           </div>
-        ) : storyGroups.length === 0 ? (
+        ) : storyGroups.length === 0 ||
+          !storyGroups.some((group) => Boolean(group?.stories?.[0])) ? (
           <div
             className={`flex items-center gap-2 text-xs font-bold ${T.text3} italic px-2`}
           >
             No stories yet. Start the fire! 🔥
           </div>
         ) : (
-          storyGroups.slice(0, 6).map((group, gi) => (
-            <StoryCircle
-              key={group.user_id}
-              story={group.stories[0]}
-              onClick={() => {
-                setViewerGroupIdx(gi);
-                setViewerStoryIdx(0);
-                setStoryElapsed(0);
-                storyViewedRef.current.clear();
-                setStoryViewerOpen(true);
-              }}
-            />
-          ))
+          storyGroups.slice(0, 6).map((group, gi) => {
+            const story = group?.stories?.[0];
+            if (!story) return null;
+            return (
+              <StoryCircle
+                key={group.user_id}
+                story={story}
+                onClick={() => {
+                  setViewerGroupIdx(gi);
+                  setViewerStoryIdx(0);
+                  setStoryElapsed(0);
+                  storyViewedRef.current.clear();
+                  setStoryViewerOpen(true);
+                }}
+              />
+            );
+          })
         )}
       </div>
       <input
@@ -3542,7 +3574,9 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                   type="button"
                   onClick={() => {
                     setRealtimeError(null);
-                    void bootstrapChat();
+                    void bootstrapChat().catch((error) =>
+                      console.warn("[Chat] retry initialization failed:", error),
+                    );
                   }}
                   disabled={initializingChat}
                   className="shrink-0 rounded-xl bg-amber-300 px-3 py-2 text-xs font-black text-amber-950 disabled:opacity-50"
@@ -4170,13 +4204,28 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                               onClick={(e) => {
                                 e.stopPropagation();
                                 const url = getStoryMediaUrl(story.image_url);
-                                if (navigator.share) {
-                                  navigator
+                                if (!url) {
+                                  toast.error("Story link is unavailable.");
+                                  return;
+                                }
+                                if (typeof navigator.share === "function") {
+                                  void navigator
                                     .share({ title: "Flicks Story", url })
-                                    .catch(() => {});
+                                    .catch((error) => {
+                                      if ((error as DOMException)?.name !== "AbortError") {
+                                        console.warn("[Chat] story share failed:", error);
+                                      }
+                                    });
+                                } else if (typeof navigator.clipboard?.writeText === "function") {
+                                  void navigator.clipboard
+                                    .writeText(url)
+                                    .then(() => toast.success("Link copied!"))
+                                    .catch((error) => {
+                                      console.warn("[Chat] story clipboard copy failed:", error);
+                                      toast.error("Could not copy the story link.");
+                                    });
                                 } else {
-                                  navigator.clipboard.writeText(url);
-                                  toast.success("Link copied!");
+                                  toast.error("Sharing is not available in this browser.");
                                 }
                               }}
                               className="w-9 h-9 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center border border-white/20"
@@ -4810,18 +4859,30 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                     </button>
                                     <button
                                       onClick={async () => {
-                                        const fs = friendshipMap.get(c.id);
-                                        if (!fs) return;
-                                        await supabase
-                                          .from("friendships")
-                                          .delete()
-                                          .eq("id", fs.id);
-                                        await Promise.all([
-                                          fetchFriendships(),
-                                          fetchContacts(),
-                                        ]);
-                                        setMsgMenuId(null);
-                                        toast.success(`${c.full_name} blocked`);
+                                        try {
+                                          const fs = friendshipMap.get(c.id);
+                                          if (!fs) return;
+                                          const { error } = await supabase
+                                            .from("friendships")
+                                            .delete()
+                                            .eq("id", fs.id);
+                                          if (error) throw error;
+                                          await Promise.all([
+                                            fetchFriendships(),
+                                            fetchContacts(),
+                                          ]);
+                                          if (!mountedRef.current) return;
+                                          setMsgMenuId(null);
+                                          toast.success(`${c.full_name} blocked`);
+                                        } catch (error: any) {
+                                          console.warn("[Chat] block contact failed:", error);
+                                          if (mountedRef.current) {
+                                            toast.error(
+                                              "Could not block contact: " +
+                                                (error?.message || "Unknown error"),
+                                            );
+                                          }
+                                        }
                                       }}
                                       className="flex items-center gap-2 w-full px-4 py-3 text-sm font-bold text-red-400 hover:bg-red-500/10"
                                     >
@@ -5732,7 +5793,8 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                         className={`animate-spin ${T.text3}`}
                       />
                     </div>
-                  ) : storyGroups.length === 0 ? (
+                  ) : storyGroups.length === 0 ||
+                    !storyGroups.some((group) => Boolean(group?.stories?.[0])) ? (
                     <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
                       <p className="text-5xl">🔥</p>
                       <p className={`text-base font-black ${T.text3}`}>
@@ -5745,7 +5807,8 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                   ) : (
                     <div className="grid grid-cols-2 gap-3">
                       {storyGroups.map((group, gi) => {
-                        const story = group.stories[0];
+                        const story = group?.stories?.[0];
+                        if (!story) return null;
                         const pName = group.profile?.full_name || "User";
                         const aUrl = group.profile?.avatar_url;
                         return (
@@ -6156,7 +6219,14 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                 .from("love_protect_links")
                                 .update({ is_active: false })
                                 .eq("user_id", userId ?? "")
-                                .then(() => {});
+                                .then(({ error }) => {
+                                  if (error) {
+                                    console.warn("[Chat] Love Protect disable failed:", error);
+                                  }
+                                })
+                                .catch((error) =>
+                                  console.warn("[Chat] Love Protect disable failed:", error),
+                                );
                             }
                           }}
                           className={`relative w-12 h-6 rounded-full transition-all border ${loveProtectEnabled ? "bg-pink-500 border-pink-400" : "bg-gray-500 border-gray-400"}`}
