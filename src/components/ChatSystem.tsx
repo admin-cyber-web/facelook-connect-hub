@@ -65,26 +65,6 @@ import {
   RISK_THRESHOLD,
 } from "../lib/safetyEngine";
 
-const MAX_PERSISTED_CHAT_IDS = 100;
-
-function readPersistedChatIds(key: string): Set<string> {
-  try {
-    const parsed = JSON.parse(localStorage.getItem(key) || "[]");
-    if (!Array.isArray(parsed)) return new Set();
-    return new Set(
-      parsed
-        .filter((id): id is string => typeof id === "string")
-        .slice(-MAX_PERSISTED_CHAT_IDS),
-    );
-  } catch {
-    return new Set();
-  }
-}
-
-function capChatIds(ids: Set<string>): string[] {
-  return [...ids].slice(-MAX_PERSISTED_CHAT_IDS);
-}
-
 // ── Storage bucket (must match the bucket created in Supabase dashboard) ───────
 const CHAT_BUCKET = "chat-images";
 
@@ -94,7 +74,7 @@ const CHAT_BUCKET = "chat-images";
 // which breaks the URL. This helper preserves the full path instead.
 const SUPABASE_STORAGE_BASE = "https://rxwvvhvretostbiknuek.supabase.co/storage/v1/object/public";
 const getStoryMediaUrl = (url: string): string => {
-  if (typeof url !== "string" || !url.trim()) return "";
+  if (!url || !url.trim()) return "";
   if (url.startsWith("http://") || url.startsWith("https://")) return url;
   if (url.startsWith("data:")) return url;
   const cleanPath = url.startsWith("/") ? url.substring(1) : url;
@@ -193,54 +173,6 @@ interface ChatSystemProps {
   onLogout?: () => void;
   onUnreadCountChange?: (count: number) => void;
 }
-
-const asTrimmedString = (value: unknown): string =>
-  typeof value === "string" ? value.trim() : value == null ? "" : String(value).trim();
-
-const asNullableString = (value: unknown): string | undefined => {
-  const normalized = asTrimmedString(value);
-  return normalized || undefined;
-};
-
-const normalizeProfile = (value: any, fallbackId = ""): Profile => ({
-  id: asTrimmedString(value?.id ?? fallbackId),
-  full_name: asTrimmedString(value?.full_name) || asTrimmedString(value?.username) || "Unknown",
-  username: asTrimmedString(value?.username),
-  avatar_url: asTrimmedString(value?.avatar_url),
-  bio: asNullableString(value?.bio),
-  school: asNullableString(value?.school),
-  location: asNullableString(value?.location),
-  last_seen: asNullableString(value?.last_seen),
-});
-
-const normalizeMessage = (value: any): Message => ({
-  id: asTrimmedString(value?.id),
-  sender_id: asTrimmedString(value?.sender_id),
-  receiver_id: asTrimmedString(value?.receiver_id),
-  content: typeof value?.content === "string" ? value.content : "",
-  media_url: asNullableString(value?.media_url),
-  media_type: asNullableString(value?.media_type),
-  created_at: asTrimmedString(value?.created_at),
-  seen_at: asNullableString(value?.seen_at),
-  reply_to_id: asNullableString(value?.reply_to_id),
-  reply_preview: asNullableString(value?.reply_preview),
-  reactions: value?.reactions && typeof value.reactions === "object" ? value.reactions : undefined,
-  is_edited: value?.is_edited === true,
-});
-
-const normalizeStory = (value: any): Story => ({
-  id: asTrimmedString(value?.id),
-  user_id: asTrimmedString(value?.user_id),
-  image_url: asTrimmedString(value?.image_url),
-  caption: asNullableString(value?.caption),
-  emoji: asNullableString(value?.emoji),
-  mood: asNullableString(value?.mood),
-  media_type: asNullableString(value?.media_type),
-  is_help_request: value?.is_help_request === true,
-  music_url: asNullableString(value?.music_url),
-  created_at: asTrimmedString(value?.created_at),
-  profile: value?.profile ? normalizeProfile(value.profile) : undefined,
-});
 
 // ── Inject global keyframes once ───────────────────────────────────────────────
 const STYLE_ID = "cx-keyframes";
@@ -479,25 +411,22 @@ const Avatar = ({
 // ── MediaBubble (memoized to prevent re-renders during scroll) ───────────────
 const MediaBubble = React.memo(
   ({ url, type }: { url: string; type: string }) => {
-    const safeUrl = asTrimmedString(url);
-    const safeType = asTrimmedString(type);
-    if (!safeUrl) return null;
-    if (safeType.startsWith("image/")) {
+    if (type.startsWith("image/")) {
       return (
         <img
-          src={safeUrl}
+          src={url}
           className="max-w-[220px] rounded-2xl object-cover cursor-pointer shadow-lg"
-          onClick={() => window.open(safeUrl, "_blank")}
+          onClick={() => window.open(url, "_blank")}
           decoding="async"
           crossOrigin="anonymous"
         />
       );
     }
 
-    if (safeType.startsWith("video/")) {
+    if (type.startsWith("video/")) {
       return (
         <video
-          src={safeUrl}
+          src={url}
           controls
           preload="metadata"
           playsInline
@@ -507,7 +436,7 @@ const MediaBubble = React.memo(
       );
     }
 
-    if (safeType.startsWith("audio/")) {
+    if (type.startsWith("audio/")) {
       return (
         <div className="flex items-center gap-2 bg-white/10 px-3 py-2 rounded-2xl min-w-[200px]">
           <Music size={16} className="text-blue-400 shrink-0" />
@@ -516,7 +445,7 @@ const MediaBubble = React.memo(
               Audio message
             </span>
             <audio
-              src={safeUrl}
+              src={url}
               controls
               className="w-full h-8"
               style={{ accentColor: "#60a5fa" }}
@@ -528,7 +457,7 @@ const MediaBubble = React.memo(
 
     return (
       <a
-        href={safeUrl}
+        href={url}
         target="_blank"
         rel="noreferrer"
         className="text-blue-400 underline text-xs"
@@ -678,7 +607,7 @@ const KEYWORD_EMOJI_MAP: { keywords: string[]; emoji: string }[] = [
 
 /** Returns the first matching emoji for a message text, or null. Case-insensitive. */
 const getKeywordEmoji = (text: string): string | null => {
-  const lower = asTrimmedString(text).toLowerCase();
+  const lower = text.toLowerCase();
   for (const { keywords, emoji } of KEYWORD_EMOJI_MAP) {
     if (keywords.some((kw) => lower.includes(kw.toLowerCase()))) {
       return emoji;
@@ -793,9 +722,8 @@ const _SGRADS = [
   "#06b6d4",
 ];
 const _sgradFor = (id: string) => {
-  const safeId = asTrimmedString(id);
   let h = 0;
-  for (let i = 0; i < safeId.length; i++) h = ((h << 5) + h) ^ safeId.charCodeAt(i);
+  for (let i = 0; i < id.length; i++) h = ((h << 5) + h) ^ id.charCodeAt(i);
   return _SGRADS[Math.abs(h) % _SGRADS.length];
 };
 
@@ -804,60 +732,48 @@ const StoryCircle = ({
   story,
   onClick,
 }: {
-  story?: Story;
+  story: Story;
   onClick: () => void;
-}) => {
-  if (!story) return null;
-  return (
-    <button
-      onClick={onClick}
-      className="flex flex-col items-center gap-1.5 shrink-0"
-    >
-      <div className="w-14 h-14 rounded-full p-0.5 bg-gradient-to-br from-rose-400 via-pink-500 to-red-400">
-        <div className="w-full h-full rounded-full overflow-hidden border-2 border-white/10">
-          {story.media_type === "voice" ? (
-            <div
-              className="w-full h-full flex items-center justify-center"
-              style={{ background: _sgradFor(story.user_id) }}
-            >
-              <Mic size={18} className="text-white/80" />
-            </div>
-          ) : (
-            <img
-              src={getStoryMediaUrl(story.image_url)}
-              className="w-full h-full object-cover"
-              decoding="async"
-              crossOrigin="anonymous"
-              onError={onStoryMediaError}
-            />
-          )}
-        </div>
+}) => (
+  <button
+    onClick={onClick}
+    className="flex flex-col items-center gap-1.5 shrink-0"
+  >
+    <div className="w-14 h-14 rounded-full p-0.5 bg-gradient-to-br from-rose-400 via-pink-500 to-red-400">
+      <div className="w-full h-full rounded-full overflow-hidden border-2 border-white/10">
+        {story.media_type === "voice" ? (
+          <div
+            className="w-full h-full flex items-center justify-center"
+            style={{ background: _sgradFor(story.user_id) }}
+          >
+            <Mic size={18} className="text-white/80" />
+          </div>
+        ) : (
+          <img
+            src={getStoryMediaUrl(story.image_url)}
+            className="w-full h-full object-cover"
+            decoding="async"
+            crossOrigin="anonymous"
+            onError={onStoryMediaError}
+          />
+        )}
       </div>
-      <span className="text-[9px] font-black text-white/60 max-w-[52px] truncate">
-        {story.profile?.full_name?.split(" ")[0] || "Story"}
-      </span>
-    </button>
-  );
-};
+    </div>
+    <span className="text-[9px] font-black text-white/60 max-w-[52px] truncate">
+      {story.profile?.full_name?.split(" ")[0] || "Story"}
+    </span>
+  </button>
+);
 
 // ── Story view count (shown to story owner only) ──────────────────────────────
 const StoryViewCount = ({ storyId }: { storyId: string }) => {
   const [count, setCount] = React.useState<number | null>(null);
   React.useEffect(() => {
-    let active = true;
-    void supabase
+    supabase
       .from("story_views")
       .select("id", { count: "exact", head: true })
       .eq("story_id", storyId)
-      .then(({ count: c }) => {
-        if (active) setCount(c ?? 0);
-      })
-      .catch(() => {
-        if (active) setCount(0);
-      });
-    return () => {
-      active = false;
-    };
+      .then(({ count: c }) => setCount(c ?? 0));
   }, [storyId]);
   if (count === null) return null;
   return (
@@ -880,18 +796,6 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   const isAdmin = isAdminEmail(userEmail);
   const { openProfile } = useProfileViewer();
 
-  const mountedRef = useRef(true);
-  const searchRequestRef = useRef(0);
-  const messageRequestRef = useRef(0);
-  useEffect(() => {
-    mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
-      searchRequestRef.current += 1;
-      messageRequestRef.current += 1;
-    };
-  }, []);
-
   // ── Message Reactions ─────────────────────────────────────────────────────
   const fetchMsgReactions = useCallback(
     async (uid: string, otherId: string) => {
@@ -904,44 +808,32 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
           )
           .order("created_at", { ascending: false })
           .limit(200);
-        const msgIdsArr = (msgData || [])
-          .map((m: any) => asTrimmedString(m?.id))
-          .filter(Boolean);
+        const msgIdsArr = (msgData || []).map((m: any) => m.id as string);
         if (msgIdsArr.length === 0) return;
         const { data } = await supabase
           .from("message_reactions")
           .select("message_id, user_id, emoji")
           .in("message_id", msgIdsArr);
-        if (!Array.isArray(data)) return;
+        if (!data) return;
         const map: Record<string, Record<string, string[]>> = {};
-        for (const row of data as any[]) {
-          const messageId = asTrimmedString(row?.message_id);
-          const emojiValue = asTrimmedString(row?.emoji);
-          const reactionUserId = asTrimmedString(row?.user_id);
-          if (!messageId || !emojiValue || !reactionUserId) continue;
-          if (!map[messageId]) map[messageId] = {};
-          if (!map[messageId][emojiValue]) map[messageId][emojiValue] = [];
-          map[messageId][emojiValue].push(reactionUserId);
+        for (const row of data) {
+          if (!map[row.message_id]) map[row.message_id] = {};
+          if (!map[row.message_id][row.emoji])
+            map[row.message_id][row.emoji] = [];
+          map[row.message_id][row.emoji].push(row.user_id);
         }
-        if (mountedRef.current) setMsgReactions(map);
-      } catch (error) {
-        console.warn("[Chat] message reactions fetch failed:", error);
-      }
+        setMsgReactions(map);
+      } catch (_) {}
     },
     [],
   );
 
   const handleMsgReact = async (msgId: string, emoji: string) => {
     // ── Step 1: get real auth user ID directly from Supabase session ──────────
-    let reactingUserId = asTrimmedString(userId);
-    try {
-      const {
-        data: { user: authUser },
-      } = await supabase.auth.getUser();
-      reactingUserId = asTrimmedString(authUser?.id) || reactingUserId;
-    } catch (error) {
-      console.warn("[Reaction] auth lookup failed:", error);
-    }
+    const {
+      data: { user: authUser },
+    } = await supabase.auth.getUser();
+    const reactingUserId = authUser?.id ?? userId;
 
     if (!reactingUserId) {
       console.error("[Reaction] ❌ No user ID — aborting");
@@ -974,7 +866,6 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     }
 
     // ── Step 3: apply optimistic UI immediately ───────────────────────────────
-    if (!mountedRef.current) return;
     setMsgReactions((r) => ({ ...r, [msgId]: updated }));
 
     // ── Step 4: write to DB with full error logging ───────────────────────────
@@ -1005,15 +896,12 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
         err,
       );
       // Rollback optimistic update on failure
-      if (mountedRef.current) setMsgReactions((r) => ({ ...r, [msgId]: prev }));
+      setMsgReactions((r) => ({ ...r, [msgId]: prev }));
       return;
     }
 
     // ── Step 5: re-fetch to sync both users (after successful DB write) ───────
-    const partnerId = asTrimmedString(selectedUser?.id);
-    if (mountedRef.current && partnerId) {
-      await fetchMsgReactions(reactingUserId, partnerId);
-    }
+    if (selectedUser) await fetchMsgReactions(reactingUserId, selectedUser.id);
   };
 
   useEffect(() => {
@@ -1051,7 +939,6 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   const [lpSearchLoading, setLpSearchLoading] = useState(false);
   const [lpSelectedName, setLpSelectedName] = useState("");
   const lpSearchRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lpSearchRequestRef = useRef(0);
   const [suspiciousAlert, setSuspiciousAlert] = useState<{
     senderName: string;
   } | null>(null);
@@ -1060,10 +947,18 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   const suspiciousTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const loveProtectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [mutedChats, setMutedChats] = useState<Set<string>>(() => {
-    return readPersistedChatIds("cx_muted");
+    try {
+      return new Set(JSON.parse(localStorage.getItem("cx_muted") || "[]"));
+    } catch {
+      return new Set();
+    }
   });
   const [archivedChats, setArchivedChats] = useState<Set<string>>(() => {
-    return readPersistedChatIds("cx_archived");
+    try {
+      return new Set(JSON.parse(localStorage.getItem("cx_archived") || "[]"));
+    } catch {
+      return new Set();
+    }
   });
 
   // ── Online users via Supabase Presence ────────────────────────────────────
@@ -1087,8 +982,6 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   const [contacts, setContacts] = useState<ChatContact[]>([]);
   const [messageRequests, setMessageRequests] = useState<ChatContact[]>([]);
   const [loadingContacts, setLoadingContacts] = useState(false);
-  const [initializingChat, setInitializingChat] = useState(false);
-  const [initializationError, setInitializationError] = useState<string | null>(null);
   const [blockedUserIds, setBlockedUserIds] = useState<Set<string>>(new Set());
   // Mirror of blockedUserIds — read by callbacks without adding the state to
   // their deps (otherwise fetchContacts → setBlockedUserIds → fetchStories
@@ -1100,6 +993,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<Profile[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [showListSearch, setShowListSearch] = useState(false);
 
   // ── Active chat ───────────────────────────────────────────────────────────
   const [selectedUser, setSelectedUser] = useState<ChatContact | null>(null);
@@ -1112,13 +1006,10 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     null,
   );
   const [loadingMessages, setLoadingMessages] = useState(false);
-  const [messageLoadError, setMessageLoadError] = useState<string | null>(null);
-  const [messageRetryKey, setMessageRetryKey] = useState(0);
   const [chatSearch, setChatSearch] = useState("");
   const [showChatSearch, setShowChatSearch] = useState(false);
   const [msgMenuId, setMsgMenuId] = useState<string | null>(null);
   const [replyTo, setReplyTo] = useState<Message | null>(null);
-  const [realtimeError, setRealtimeError] = useState<string | null>(null);
 
   // ── Fun ───────────────────────────────────────────────────────────────────
   const [smokeParticles, setSmokeParticles] = useState<
@@ -1232,40 +1123,6 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
 
   const T = THEME_CFG[theme];
   const { playPop, playSwoosh } = useSoundEffects();
-  const reportRealtimeError = useCallback((scope: string, error?: unknown) => {
-    const detail =
-      error instanceof Error
-        ? error.message
-        : typeof error === "string"
-          ? error
-          : "";
-    console.warn(`[Chat] ${scope} realtime unavailable`, detail);
-    if (mountedRef.current) {
-      setRealtimeError("Live updates are temporarily unavailable. Chat still works; retry to reconnect.");
-    }
-  }, []);
-  const safeSubscribeWhileVisible = useCallback(
-    (
-      scope: string,
-      createChannel: () => ReturnType<typeof supabase.channel>,
-      options: { onVisible?: () => void } = {},
-    ) => {
-      try {
-        return subscribeWhileVisible(() => {
-          try {
-            return createChannel();
-          } catch (error) {
-            reportRealtimeError(scope, error);
-            throw error;
-          }
-        }, options);
-      } catch (error) {
-        reportRealtimeError(scope, error);
-        return () => {};
-      }
-    },
-    [reportRealtimeError],
-  );
 
   // ── Persist ───────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -1278,10 +1135,10 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     localStorage.setItem("cx_sound", String(soundEnabled));
   }, [soundEnabled]);
   useEffect(() => {
-    localStorage.setItem("cx_muted", JSON.stringify(capChatIds(mutedChats)));
+    localStorage.setItem("cx_muted", JSON.stringify([...mutedChats]));
   }, [mutedChats]);
   useEffect(() => {
-    localStorage.setItem("cx_archived", JSON.stringify(capChatIds(archivedChats)));
+    localStorage.setItem("cx_archived", JSON.stringify([...archivedChats]));
   }, [archivedChats]);
 
   // ── Love Protect: sync partner ref + load from DB on mount ────────────────
@@ -1291,35 +1148,32 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
 
   useEffect(() => {
     if (!userId) return;
-    void (async () => {
-      try {
-        const { data, error } = await supabase
-          .from("love_protect_links")
-          .select("partner_id, is_active")
-          .eq("user_id", userId)
-          .eq("is_active", true)
-          .maybeSingle();
-        if (error || !data || !mountedRef.current) return;
-        const partnerId = asTrimmedString((data as any).partner_id);
-        if (!partnerId) return;
-        setLoveProtectPartnerId(partnerId);
-        setLoveProtectInput(partnerId);
-        setLoveProtectEnabled(true);
-        localStorage.setItem("cx_love_protect", "true");
-        const { data: prof } = await supabase
-          .from("profiles")
-          .select("full_name, username")
-          .eq("id", partnerId)
-          .maybeSingle();
-        if (prof && mountedRef.current) {
-          const name = asTrimmedString((prof as any).full_name) || asTrimmedString((prof as any).username);
-          setLpSelectedName(name);
-          setLpSearchQuery(name);
+    supabase
+      .from("love_protect_links")
+      .select("partner_id, is_active")
+      .eq("user_id", userId)
+      .eq("is_active", true)
+      .maybeSingle()
+      .then(async ({ data }) => {
+        const row = data as { partner_id: string; is_active: boolean } | null;
+        if (row?.partner_id) {
+          setLoveProtectPartnerId(row.partner_id);
+          setLoveProtectInput(row.partner_id);
+          setLoveProtectEnabled(true);
+          localStorage.setItem("cx_love_protect", "true");
+          // Also fetch partner's display name
+          const { data: prof } = await supabase
+            .from("profiles")
+            .select("full_name, username")
+            .eq("id", row.partner_id)
+            .maybeSingle();
+          if (prof) {
+            const name = prof.full_name || prof.username || "";
+            setLpSelectedName(name);
+            setLpSearchQuery(name);
+          }
         }
-      } catch (error) {
-        console.warn("[Chat] Love Protect load failed:", error);
-      }
-    })();
+      });
   }, [userId]);
 
   // ── Auto-scroll ───────────────────────────────────────────────────────────
@@ -1347,160 +1201,118 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
 
   // ── Fetch my profile ──────────────────────────────────────────────────────
   const fetchMyProfile = useCallback(async () => {
-    if (!userId) return false;
-    try {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("id, full_name, username, avatar_url, bio, school, location")
-        .eq("id", userId)
-        .single();
-      if (error) throw error;
-      if (data && mountedRef.current) {
-        const profile = normalizeProfile(data, userId);
-        setMyProfile(profile);
-        setEditBio(profile.bio || "");
-        setEditSchool(profile.school || "");
-        setEditLocation(profile.location || "");
-      }
-      return true;
-    } catch (error) {
-      console.warn("[Chat] profile load failed:", error);
-      return false;
+    const { data } = await supabase
+      .from("profiles")
+      .select("id, full_name, username, avatar_url, bio, school, location")
+      .eq("id", userId)
+      .single();
+    if (data) {
+      setMyProfile(data as Profile);
+      setEditBio(data.bio || "");
+      setEditSchool(data.school || "");
+      setEditLocation(data.location || "");
     }
   }, [userId]);
 
   // ── Fetch friendships ─────────────────────────────────────────────────────
   const fetchFriendships = useCallback(async () => {
-    if (!userId) return false;
-    try {
-      const { data, error } = await supabase
-        .from("friendships")
-        .select("id, sender_id, receiver_id, status")
-        .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
-        .limit(500);
-      if (error) throw error;
-      if (!data || !mountedRef.current) return !mountedRef.current ? false : true;
-      const map = new Map<string, FriendshipInfo>();
-      for (const row of data) {
-        const senderId = asTrimmedString((row as any).sender_id);
-        const receiverId = asTrimmedString((row as any).receiver_id);
-        const otherId = senderId === userId ? receiverId : senderId;
-        if (!otherId) continue;
-        map.set(otherId, {
-          id: asTrimmedString((row as any).id),
-          status: (row as any).status,
-          direction: senderId === userId ? "sent" : "received",
-        });
-      }
-      setFriendshipMap(map);
-      return true;
-    } catch (error) {
-      console.warn("[Chat] friendships load failed:", error);
-      return false;
+    const { data } = await supabase
+      .from("friendships")
+      .select("id, sender_id, receiver_id, status")
+      .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
+      .limit(500);
+    if (!data) return;
+    const map = new Map<string, FriendshipInfo>();
+    for (const row of data) {
+      const otherId =
+        row.sender_id === userId ? row.receiver_id : row.sender_id;
+      map.set(otherId, {
+        id: row.id,
+        status: row.status,
+        direction: row.sender_id === userId ? "sent" : "received",
+      });
     }
+    setFriendshipMap(map);
   }, [userId]);
 
   // ── Fetch pending requests ────────────────────────────────────────────────
   const fetchPendingRequests = useCallback(async () => {
-    if (!userId) return false;
-    try {
-      const { data, error } = await supabase
-        .from("friendships")
-        .select("id, sender_id, created_at")
-        .eq("receiver_id", userId)
-        .eq("status", "pending")
-        .order("created_at", { ascending: false })
-        .limit(100);
-      if (error) throw error;
-      if (!data || data.length === 0) {
-        if (mountedRef.current) {
-          setPendingRequests([]);
-          setPendingCount(0);
-        }
-        return true;
-      }
-      const senderIds = data.map((r: any) => asTrimmedString(r?.sender_id)).filter(Boolean);
-      const { data: profiles, error: profileError } = await supabase
-        .from("profiles")
-        .select("id, full_name, username, avatar_url")
-        .in("id", senderIds)
-        .limit(100);
-      if (profileError) throw profileError;
-      const profileMap = new Map(
-        (profiles || []).map((p: any) => [asTrimmedString(p?.id), normalizeProfile(p)]),
-      );
-      const reqs: FriendRequest[] = data
-        .map((r: any) => {
-          const senderId = asTrimmedString(r?.sender_id);
-          return {
-            id: asTrimmedString(r?.id),
-            sender_id: senderId,
-            created_at: asTrimmedString(r?.created_at),
-            profile: profileMap.get(senderId) || normalizeProfile(null, senderId),
-          };
-        })
-        .filter((r) => Boolean(r.id && r.sender_id));
-      if (!mountedRef.current) return;
-      setPendingRequests(reqs);
-      setPendingCount(reqs.length);
-      if (reqs.length > 0) {
-        setAlerts((prev) => {
-          const newAlerts = reqs
-            .filter((r) => !prev.find((a) => a.id === `req-${r.id}`))
-            .map((r) => ({
-              id: `req-${r.id}`,
-              text: `${r.profile?.full_name || "Someone"} sent you a friend request`,
-              time: new Date(r.created_at || Date.now()).toLocaleTimeString([], {
-                hour: "2-digit",
-                minute: "2-digit",
-              }),
-              read: false,
-            }));
-          return [...newAlerts, ...prev].slice(0, 50);
-        });
-      }
-      return true;
-    } catch (error) {
-      console.warn("[Chat] pending requests load failed:", error);
-      return false;
+    const { data } = await supabase
+      .from("friendships")
+      .select("id, sender_id, created_at")
+      .eq("receiver_id", userId)
+      .eq("status", "pending")
+      .order("created_at", { ascending: false })
+      .limit(100);
+    if (!data || data.length === 0) {
+      setPendingRequests([]);
+      setPendingCount(0);
+      return;
+    }
+    const senderIds = data.map((r) => r.sender_id);
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("id, full_name, username, avatar_url")
+      .in("id", senderIds)
+      .limit(100);
+    const profileMap = new Map((profiles || []).map((p) => [p.id, p]));
+    const reqs: FriendRequest[] = data.map((r) => ({
+      id: r.id,
+      sender_id: r.sender_id,
+      created_at: r.created_at,
+      profile: profileMap.get(r.sender_id) || {
+        id: r.sender_id,
+        full_name: "Unknown",
+        username: "",
+        avatar_url: "",
+      },
+    }));
+    setPendingRequests(reqs);
+    setPendingCount(reqs.length);
+    if (reqs.length > 0) {
+      setAlerts((prev) => {
+        const newAlerts = reqs
+          .filter((r) => !prev.find((a) => a.id === `req-${r.id}`))
+          .map((r) => ({
+            id: `req-${r.id}`,
+            text: `${r.profile.full_name} sent you a friend request`,
+            time: new Date(r.created_at).toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+            }),
+            read: false,
+          }));
+        return [...newAlerts, ...prev].slice(0, 50);
+      });
     }
   }, [userId]);
 
   // ── Fetch contacts ────────────────────────────────────────────────────────
   const fetchContacts = useCallback(async () => {
-    if (!userId) return false;
     setLoadingContacts(true);
     try {
       // 1. Friends list
-      const { data: friendRows, error: friendError } = await supabase
+      const { data: friendRows } = await supabase
         .from("friendships")
         .select("sender_id, receiver_id")
         .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
         .eq("status", "accepted")
         .limit(500);
-      if (friendError) throw friendError;
-      const friendIds = (friendRows || [])
-        .map((r: any) =>
-          asTrimmedString(r?.sender_id) === userId
-            ? asTrimmedString(r?.receiver_id)
-            : asTrimmedString(r?.sender_id),
-        )
-        .filter(Boolean);
+      const friendIds = (friendRows || []).map((r) =>
+        r.sender_id === userId ? r.receiver_id : r.sender_id,
+      );
       const friendIdSet = new Set(friendIds);
 
       // 2. Block lists (both directions — hide blockers and blocked)
-      const { data: blockRows, error: blockError } = await supabase
+      const { data: blockRows } = await supabase
         .from("user_blocks")
         .select("blocker_id, blocked_id")
         .or(`blocker_id.eq.${userId},blocked_id.eq.${userId}`)
         .limit(500);
-      if (blockError) throw blockError;
       const blockedSet = new Set<string>();
       for (const b of blockRows || []) {
-        const blockerId = asTrimmedString((b as any)?.blocker_id);
-        const blockedId = asTrimmedString((b as any)?.blocked_id);
-        if (blockerId === userId && blockedId) blockedSet.add(blockedId);
-        if (blockedId === userId && blockerId) blockedSet.add(blockerId);
+        if (b.blocker_id === userId) blockedSet.add(b.blocked_id);
+        if (b.blocked_id === userId) blockedSet.add(b.blocker_id);
       }
       blockedUserIdsRef.current = blockedSet;
       // Only push a new state object when the membership actually changed,
@@ -1520,13 +1332,12 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       });
 
       // 3. Every message conversation (last message per partner)
-      const { data: msgs, error: messageError } = await supabase
+      const { data: msgs } = await supabase
         .from("messages")
         .select("sender_id, receiver_id, content, media_type, created_at")
         .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
         .order("created_at", { ascending: false })
         .limit(500);
-      if (messageError) throw messageError;
 
       const contactMap = new Map<
         string,
@@ -1538,33 +1349,30 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       >();
       const partnerIds = new Set<string>();
       for (const msg of msgs || []) {
-        const senderId = asTrimmedString((msg as any)?.sender_id);
-        const receiverId = asTrimmedString((msg as any)?.receiver_id);
-        const otherId = senderId === userId ? receiverId : senderId;
+        const otherId =
+          msg.sender_id === userId ? msg.receiver_id : msg.sender_id;
         if (!otherId || blockedSet.has(otherId)) continue;
         partnerIds.add(otherId);
         if (!contactMap.has(otherId)) {
           contactMap.set(otherId, {
-            last_message: typeof (msg as any)?.content === "string" ? (msg as any).content : "",
-            last_message_at: asTrimmedString((msg as any)?.created_at),
-            last_media_type: asNullableString((msg as any)?.media_type),
+            last_message: msg.content || "",
+            last_message_at: msg.created_at,
+            last_media_type: msg.media_type,
           });
         }
       }
 
       // 4. Per-sender unread count
-      const { data: unreadRows, error: unreadError } = await supabase
+      const { data: unreadRows } = await supabase
         .from("messages")
         .select("sender_id")
         .eq("receiver_id", userId)
         .is("seen_at", null)
         .limit(500);
-      if (unreadError) throw unreadError;
       const unreadMap = new Map<string, number>();
       for (const row of unreadRows || []) {
-        const senderId = asTrimmedString((row as any)?.sender_id);
-        if (!senderId || blockedSet.has(senderId)) continue;
-        unreadMap.set(senderId, (unreadMap.get(senderId) || 0) + 1);
+        if (blockedSet.has(row.sender_id)) continue;
+        unreadMap.set(row.sender_id, (unreadMap.get(row.sender_id) || 0) + 1);
       }
 
       // 5. Resolve every profile we need (friends + chat partners)
@@ -1574,27 +1382,28 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       });
       let profiles: any[] = [];
       if (allIds.size > 0) {
-        const { data, error: profileError } = await supabase
+        const { data } = await supabase
           .from("profiles")
           .select("id, full_name, username, avatar_url, last_seen")
           .in("id", [...allIds]);
-        if (profileError) throw profileError;
         profiles = data || [];
       }
 
       const friendsResult: ChatContact[] = [];
       const requestsResult: ChatContact[] = [];
       for (const p of profiles) {
-        const profile = normalizeProfile(p);
-        if (!profile.id || blockedSet.has(profile.id)) continue;
+        if (blockedSet.has(p.id)) continue;
         const c: ChatContact = {
-          ...profile,
-          ...(contactMap.get(profile.id) || {}),
-          unread_count: unreadMap.get(profile.id) || 0,
+          id: p.id,
+          full_name: p.full_name || p.username || "Unknown",
+          username: p.username || "",
+          avatar_url: p.avatar_url || "",
+          ...(contactMap.get(p.id) || {}),
+          unread_count: unreadMap.get(p.id) || 0,
         };
-        if (friendIdSet.has(profile.id)) {
+        if (friendIdSet.has(p.id)) {
           friendsResult.push(c);
-        } else if (partnerIds.has(profile.id)) {
+        } else if (partnerIds.has(p.id)) {
           // Non-friend you've exchanged messages with → message request
           requestsResult.push(c);
         }
@@ -1603,26 +1412,19 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
         (b.last_message_at || "") > (a.last_message_at || "") ? 1 : -1;
       friendsResult.sort(byRecency);
       requestsResult.sort(byRecency);
-      if (mountedRef.current) {
-        setContacts(friendsResult);
-        setMessageRequests(requestsResult);
-      }
-      return true;
-    } catch (error) {
-      console.warn("[Chat] contacts load failed:", error);
-      return false;
+      setContacts(friendsResult);
+      setMessageRequests(requestsResult);
     } finally {
-      if (mountedRef.current) setLoadingContacts(false);
+      setLoadingContacts(false);
     }
   }, [userId]);
 
   // ── Fetch stories ─────────────────────────────────────────────────────────
   const fetchStories = useCallback(async () => {
-    if (!mountedRef.current) return false;
     setLoadingStories(true);
     try {
       const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from("stories")
         .select(
           "id, user_id, image_url, caption, emoji, mood, media_type, is_help_request, music_url, created_at, profiles(id, full_name, username, avatar_url)",
@@ -1630,18 +1432,14 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
         .gte("created_at", cutoff)
         .order("created_at", { ascending: true })
         .limit(100);
-      if (error) throw error;
       if (data) {
         const blocked = blockedUserIdsRef.current;
         const mapped: Story[] = data
-          .map((s: any) =>
-            normalizeStory({
-              ...s,
-              profile: Array.isArray(s.profiles) ? s.profiles[0] : s.profiles,
-            }),
-          )
-          .filter((s: Story) => Boolean(s.id && s.user_id) && !blocked.has(s.user_id));
-        if (!mountedRef.current) return;
+          .map((s: any) => ({
+            ...s,
+            profile: Array.isArray(s.profiles) ? s.profiles[0] : s.profiles,
+          }))
+          .filter((s: Story) => !blocked.has(s.user_id));
         setStories(mapped);
         // Build groups keyed by user_id
         const map = new Map<string, StoryGroup>();
@@ -1655,24 +1453,18 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
           }
           map.get(s.user_id)!.stories.push(s);
         }
-        setStoryGroups(Array.from(map.values()).filter((group) => Boolean(group.profile?.id)));
+        setStoryGroups(Array.from(map.values()));
       }
-      return true;
-    } catch (error) {
-      console.warn("[Chat] stories load failed:", error);
-      if (mountedRef.current) {
-        setStories([]);
-        setStoryGroups([]);
-      }
-      return false;
+    } catch (_) {
+      setStories([]);
+      setStoryGroups([]);
     } finally {
-      if (mountedRef.current) setLoadingStories(false);
+      setLoadingStories(false);
     }
   }, []);
 
   // ── Upload stories (batch multi-file) ────────────────────────────────────
   const uploadStory = async () => {
-    if (!mountedRef.current) return;
     const filesToUpload =
       storyFiles.length > 0 ? storyFiles : storyFile ? [storyFile] : [];
     if (filesToUpload.length === 0) return;
@@ -1694,14 +1486,11 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
             .getPublicUrl(mName);
           musicPublicUrl = mUrl.publicUrl;
         }
-      } catch (error) {
-        console.warn("[Chat] story music upload failed:", error);
-      }
+      } catch (_) {}
     }
 
     let done = 0;
     for (const file of filesToUpload) {
-      if (!mountedRef.current) return;
       try {
         const ext = file.name.split(".").pop() || "jpg";
         const fileName = `stories/${userId}-${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
@@ -1725,15 +1514,12 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
         });
         if (dbErr) {
           console.error("[ChatSystem upload] DB insert failed:", dbErr.message);
-          if (mountedRef.current) {
-            toast.error("Story save failed: " + dbErr.message);
-            setUploadingStory(false);
-          }
+          toast.error("Story save failed: " + dbErr.message);
+          setUploadingStory(false);
           return;
         }
       } catch (e: any) {
         const msg = e?.message || "";
-        if (!mountedRef.current) return;
         if (msg.includes("does not exist") || msg.includes("relation")) {
           toast.error(
             "Stories table missing. Run the stories SQL setup first.",
@@ -1749,11 +1535,8 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
         }
       }
       done++;
-      if (mountedRef.current) {
-        setStoryUploadProgress(Math.round((done / filesToUpload.length) * 100));
-      }
+      setStoryUploadProgress(Math.round((done / filesToUpload.length) * 100));
     }
-    if (!mountedRef.current) return;
     toast.success(
       filesToUpload.length > 1
         ? `${filesToUpload.length} stories posted! 🌟`
@@ -1772,15 +1555,12 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     setSelectedMusic(null);
     setSelectedMusicName("");
     setMuteStoryVideo(false);
-    void fetchStories().catch((error) =>
-      console.warn("[Chat] story refresh after upload failed:", error),
-    );
+    fetchStories();
     setUploadingStory(false);
   };
 
   // ── Delete story ───────────────────────────────────────────────────────────
   const deleteStory = async (story: Story) => {
-    if (!mountedRef.current) return;
     setDeletingStory(true);
     try {
       const { error } = await supabase
@@ -1789,17 +1569,13 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
         .eq("id", story.id)
         .eq("user_id", userId);
       if (error) throw error;
-      if (mountedRef.current) {
-        setStories((prev) => prev.filter((s) => s.id !== story.id));
-        setViewingStory(null);
-        toast.success("Story deleted ✓");
-      }
+      setStories((prev) => prev.filter((s) => s.id !== story.id));
+      setViewingStory(null);
+      toast.success("Story deleted ✓");
     } catch (e: any) {
-      if (mountedRef.current) {
-        toast.error("Could not delete story: " + (e?.message || "Unknown error"));
-      }
+      toast.error("Could not delete story: " + (e?.message || "Unknown error"));
     } finally {
-      if (mountedRef.current) setDeletingStory(false);
+      setDeletingStory(false);
     }
   };
 
@@ -1808,43 +1584,41 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     const group = storyGroups[viewerGroupIdx];
     const story = group?.stories[viewerStoryIdx];
     if (!story) return;
-    try {
-      const { error } = await supabase
-        .from("stories")
-        .delete()
-        .eq("id", story.id)
-        .eq("user_id", userId);
-      if (error) throw error;
-      if (!mountedRef.current) return;
-      toast.success("Story deleted ✓");
-      // Rebuild storyGroups without this story
-      const newGroups = storyGroups
-        .map((g, gi) =>
-          gi === viewerGroupIdx
-            ? {
-                ...g,
-                stories: g.stories.filter((_, si) => si !== viewerStoryIdx),
-              }
-            : g,
-        )
-        .filter((g) => g.stories.length > 0);
-      setStoryGroups(newGroups);
-      if (newGroups.length === 0) {
-        setStoryViewerOpen(false);
-        setViewingStory(null);
-        return;
-      }
-      const newGroupIdx = Math.min(viewerGroupIdx, newGroups.length - 1);
-      const newStoryIdx = Math.min(
-        viewerStoryIdx,
-        newGroups[newGroupIdx].stories.length - 1,
-      );
-      setViewerGroupIdx(newGroupIdx);
-      setViewerStoryIdx(newStoryIdx);
-      setStoryElapsed(0);
-    } catch (error: any) {
-      if (mountedRef.current) toast.error("Could not delete story: " + (error?.message || "Unknown error"));
+    const { error } = await supabase
+      .from("stories")
+      .delete()
+      .eq("id", story.id)
+      .eq("user_id", userId);
+    if (error) {
+      toast.error("Could not delete story");
+      return;
     }
+    toast.success("Story deleted ✓");
+    // Rebuild storyGroups without this story
+    const newGroups = storyGroups
+      .map((g, gi) =>
+        gi === viewerGroupIdx
+          ? {
+              ...g,
+              stories: g.stories.filter((_, si) => si !== viewerStoryIdx),
+            }
+          : g,
+      )
+      .filter((g) => g.stories.length > 0);
+    setStoryGroups(newGroups);
+    if (newGroups.length === 0) {
+      setStoryViewerOpen(false);
+      setViewingStory(null);
+      return;
+    }
+    const newGroupIdx = Math.min(viewerGroupIdx, newGroups.length - 1);
+    const newStoryIdx = Math.min(
+      viewerStoryIdx,
+      newGroups[newGroupIdx].stories.length - 1,
+    );
+    setViewerGroupIdx(newGroupIdx);
+    setViewerStoryIdx(newStoryIdx);
+    setStoryElapsed(0);
   };
 
   // ── Save caption/mood edit from viewer ────────────────────────────────────
@@ -1852,42 +1626,40 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     const group = storyGroups[viewerGroupIdx];
     const story = group?.stories[viewerStoryIdx];
     if (!story) return;
-    try {
-      const { error } = await supabase
-        .from("stories")
-        .update({ caption: viewerEditCaption, mood: viewerEditMood || null })
-        .eq("id", story.id)
-        .eq("user_id", userId);
-      if (error) throw error;
-      if (!mountedRef.current) return;
-      // Update local state
-      const newGroups = storyGroups.map((g, gi) =>
-        gi === viewerGroupIdx
-          ? {
-              ...g,
-              stories: g.stories.map((s, si) =>
-                si === viewerStoryIdx
-                  ? {
-                      ...s,
-                      caption: viewerEditCaption,
-                      mood: viewerEditMood || null,
-                    }
-                  : s,
-              ),
-            }
-          : g,
-      );
-      setStoryGroups(newGroups);
-      setViewerEditing(false);
-      toast.success("Story updated ✨");
-    } catch (error: any) {
-      if (mountedRef.current) toast.error("Could not save changes: " + (error?.message || "Unknown error"));
+    const { error } = await supabase
+      .from("stories")
+      .update({ caption: viewerEditCaption, mood: viewerEditMood || null })
+      .eq("id", story.id)
+      .eq("user_id", userId);
+    if (error) {
+      toast.error("Could not save changes");
+      return;
     }
+    // Update local state
+    const newGroups = storyGroups.map((g, gi) =>
+      gi === viewerGroupIdx
+        ? {
+            ...g,
+            stories: g.stories.map((s, si) =>
+              si === viewerStoryIdx
+                ? {
+                    ...s,
+                    caption: viewerEditCaption,
+                    mood: viewerEditMood || null,
+                  }
+                : s,
+            ),
+          }
+        : g,
+    );
+    setStoryGroups(newGroups);
+    setViewerEditing(false);
+    toast.success("Story updated ✨");
   };
 
   // ── Update story (caption + emoji only) ───────────────────────────────────
   const updateStory = async () => {
-    if (!editingStory || !mountedRef.current) return;
+    if (!editingStory) return;
     setUploadingStory(true);
     try {
       const { error } = await supabase
@@ -1896,7 +1668,6 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
         .eq("id", editingStory.id)
         .eq("user_id", userId);
       if (error) throw error;
-      if (!mountedRef.current) return;
       setStories((prev) =>
         prev.map((s) =>
           s.id === editingStory.id
@@ -1912,60 +1683,27 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       setStoryPreviewUrl("");
       setStoryFile(null);
     } catch (e: any) {
-      if (mountedRef.current) {
-        toast.error("Update failed: " + (e?.message || "Unknown error"));
-      }
+      toast.error("Update failed: " + (e?.message || "Unknown error"));
     } finally {
-      if (mountedRef.current) setUploadingStory(false);
+      setUploadingStory(false);
     }
   };
 
   // ── Bootstrap ─────────────────────────────────────────────────────────────
-  const bootstrapChat = useCallback(async () => {
-    if (!isOpen || !userId || !mountedRef.current) return;
-    setInitializingChat(true);
-    setInitializationError(null);
-    const results = await Promise.allSettled([
-      fetchFriendships(),
-      fetchPendingRequests(),
-      fetchContacts(),
-      fetchMyProfile(),
-      fetchStories(),
-    ]);
-    if (!mountedRef.current) return;
-    const failed = results.some(
-      (result) =>
-        result.status === "rejected" ||
-        (result.status === "fulfilled" && result.value === false),
-    );
-    if (failed) {
-      setInitializationError(
-        "Some chat data could not be loaded. You can retry without closing the chat.",
-      );
-    }
-    setInitializingChat(false);
+  useEffect(() => {
+    if (!isOpen) return;
+    fetchFriendships();
+    fetchPendingRequests();
+    fetchContacts();
+    fetchMyProfile();
+    fetchStories();
   }, [
     isOpen,
-    userId,
     fetchFriendships,
     fetchPendingRequests,
     fetchContacts,
     fetchMyProfile,
     fetchStories,
-  ]);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    void bootstrapChat().catch((error) => {
-      console.error("[Chat] initialization failed:", error);
-      if (mountedRef.current) {
-        setInitializationError("Chat could not be initialized. Please try again.");
-        setInitializingChat(false);
-      }
-    });
-  }, [
-    isOpen,
-    bootstrapChat,
   ]);
 
   // ── External "Open chat with this user" trigger (from UserProfileModal) ──
@@ -1999,12 +1737,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       if (!detail?.userId || detail.userId === userId) return;
 
       // Refresh contacts so block list / requests are current
-      try {
-        await fetchContacts();
-      } catch (error) {
-        console.warn("[Chat] open-chat refresh failed:", error);
-      }
-      if (!mountedRef.current) return;
+      await fetchContacts();
 
       const existing =
         contactsRef.current.find((c) => c.id === detail.userId) ||
@@ -2026,7 +1759,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
 
   // ── Story viewer: 15s countdown timer ────────────────────────────────────
   useEffect(() => {
-    if (!isPageVisible || !storyViewerOpen || storyPaused || storyGroups.length === 0) return;
+    if (!storyViewerOpen || storyPaused || storyGroups.length === 0) return;
     storyTimerRef.current = setInterval(() => {
       setStoryElapsed((e) => {
         if (e + 0.1 >= 15) {
@@ -2056,7 +1789,6 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     viewerGroupIdx,
     viewerStoryIdx,
     storyGroups,
-    isPageVisible,
   ]);
 
   // ── Story viewer: reset elapsed on story change ───────────────────────────
@@ -2098,43 +1830,31 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     const story = group?.stories[viewerStoryIdx];
     if (!story || storyViewedRef.current.has(story.id)) return;
     storyViewedRef.current.add(story.id);
-    void supabase
+    supabase
       .from("story_views")
       .insert({ story_id: story.id, viewer_id: userId })
-      .then(({ error }) => {
-        if (error) console.warn("[Chat] story view tracking failed:", error.message);
-      })
-      .catch((error) => console.warn("[Chat] story view tracking failed:", error));
+      .then(() => {});
   }, [storyViewerOpen, viewerGroupIdx, viewerStoryIdx, storyGroups, userId]);
 
   // ── Presence: track who's actually online ─────────────────────────────────
   useEffect(() => {
     if (!isOpen || !userId) return;
-    const cleanup = safeSubscribeWhileVisible("presence", () => {
+    const cleanup = subscribeWhileVisible(() => {
       const ch = supabase.channel("cx-presence", {
         config: { presence: { key: userId } },
       });
       ch.on("presence", { event: "sync" }, () => {
-        const state = ch.presenceState<{ user_id?: string }>() ?? {};
+        const state = ch.presenceState<{ user_id: string }>();
         const ids = new Set<string>();
         Object.values(state)
           .flat()
           .forEach((p: any) => {
-            const presenceUserId = asTrimmedString(p?.user_id);
-            if (presenceUserId) ids.add(presenceUserId);
+            if (p.user_id) ids.add(p.user_id);
           });
         setOnlineUsers(ids);
-      }).subscribe(async (status, error) => {
-        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
-          reportRealtimeError("presence", error || status);
-          return;
-        }
+      }).subscribe(async (status) => {
         if (status === "SUBSCRIBED" && activeStatus) {
-          try {
-            await ch.track({ user_id: userId });
-          } catch (error) {
-            console.warn("[Chat] presence tracking failed:", error);
-          }
+          await ch.track({ user_id: userId });
         }
       });
       presenceChannelRef.current = ch;
@@ -2144,27 +1864,23 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       cleanup();
       presenceChannelRef.current = null;
     };
-  }, [isOpen, userId, safeSubscribeWhileVisible, reportRealtimeError]);
+  }, [isOpen, userId]);
 
   // ── When activeStatus toggles, update presence tracking ───────────────────
   useEffect(() => {
     const ch = presenceChannelRef.current;
     if (!ch) return;
     if (activeStatus) {
-      void ch.track({ user_id: userId }).catch((error) =>
-        console.warn("[Chat] presence tracking failed:", error),
-      );
+      ch.track({ user_id: userId });
     } else {
-      void ch.untrack().catch((error) =>
-        console.warn("[Chat] presence untracking failed:", error),
-      );
+      ch.untrack();
     }
   }, [activeStatus, userId]);
 
   // ── Realtime: friendships ─────────────────────────────────────────────────
   useEffect(() => {
     if (!isOpen) return;
-    const cleanup = safeSubscribeWhileVisible("friendships", () =>
+    const cleanup = subscribeWhileVisible(() =>
       supabase
         .channel(`friendships-rt-${userId}`)
         .on(
@@ -2172,12 +1888,10 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
           { event: "INSERT", schema: "public", table: "friendships", filter: `receiver_id=eq.${userId}` },
           (p) => {
             const row = p.new as any;
-            const receiverId = asTrimmedString(row?.receiver_id);
-            const senderId = asTrimmedString(row?.sender_id);
-            if (receiverId === userId || senderId === userId) {
-              void fetchFriendships().catch((error) => console.warn("[Chat] friendship refresh failed:", error));
-              if (receiverId === userId && row?.status === "pending")
-                void fetchPendingRequests().catch((error) => console.warn("[Chat] request refresh failed:", error));
+            if (row.receiver_id === userId || row.sender_id === userId) {
+              fetchFriendships();
+              if (row.receiver_id === userId && row.status === "pending")
+                fetchPendingRequests();
             }
           },
         )
@@ -2186,51 +1900,37 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
           { event: "UPDATE", schema: "public", table: "friendships", filter: `receiver_id=eq.${userId}` },
           (p) => {
             const row = p.new as any;
-            const receiverId = asTrimmedString(row?.receiver_id);
-            const senderId = asTrimmedString(row?.sender_id);
-            if (receiverId === userId || senderId === userId) {
-              void fetchFriendships().catch((error) => console.warn("[Chat] friendship refresh failed:", error));
-              void fetchPendingRequests().catch((error) => console.warn("[Chat] request refresh failed:", error));
-              if (row?.status === "accepted") {
-                void fetchContacts().catch((error) => console.warn("[Chat] contacts refresh failed:", error));
-              }
+            if (row.receiver_id === userId || row.sender_id === userId) {
+              fetchFriendships();
+              fetchPendingRequests();
+              if (row.status === "accepted") fetchContacts();
             }
           },
         )
-        .subscribe((status, error) => {
-          if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
-            reportRealtimeError("friendships", error || status);
-          }
-        }),
+        .subscribe(),
       { onVisible: () => {
-        void fetchFriendships().catch((error) =>
-          console.warn("[Chat] visible friendship refresh failed:", error),
-        );
-        void fetchPendingRequests().catch((error) =>
-          console.warn("[Chat] visible request refresh failed:", error),
-        );
-        void fetchContacts().catch((error) =>
-          console.warn("[Chat] visible contacts refresh failed:", error),
-        );
+        void fetchFriendships();
+        void fetchPendingRequests();
+        void fetchContacts();
       } },
     );
     return () => {
       cleanup();
     };
-  }, [isOpen, userId, fetchFriendships, fetchPendingRequests, fetchContacts, safeSubscribeWhileVisible, reportRealtimeError]);
+  }, [isOpen, userId, fetchFriendships, fetchPendingRequests, fetchContacts]);
 
   // ── Realtime: new messages → alert ────────────────────────────────────────
   useEffect(() => {
     if (!isOpen) return;
-    const cleanup = safeSubscribeWhileVisible("message alerts", () =>
+    const cleanup = subscribeWhileVisible(() =>
       supabase
         .channel(`alerts-rt-${userId}`)
         .on(
           "postgres_changes",
           { event: "INSERT", schema: "public", table: "messages", filter: `receiver_id=eq.${userId}` },
           (p) => {
-            const msg = normalizeMessage(p.new);
-            if (msg.receiver_id === userId && mountedRef.current) {
+            const msg = p.new as Message;
+            if (msg.receiver_id === userId) {
               const sender = contactsRef.current.find(
                 (c) => c.id === msg.sender_id,
               );
@@ -2253,48 +1953,37 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
             }
           },
         )
-        .subscribe((status, error) => {
-          if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
-            reportRealtimeError("message alerts", error || status);
-          }
-        }),
+        .subscribe(),
     );
     return () => {
       cleanup();
     };
     // contacts/mutedChats accessed via refs — channel no longer tears down on every fetch
-  }, [isOpen, userId, safeSubscribeWhileVisible, reportRealtimeError]);
+  }, [isOpen, userId]);
 
   // ── Unseen message count (always-on, drives FAB badge) ────────────────────
   const fetchUnseenCount = useCallback(async () => {
     if (!userId) return;
-    try {
-      const { count, error } = await supabase
-        .from("messages")
-        .select("id", { count: "exact", head: true })
-        .eq("receiver_id", userId)
-        .is("seen_at", null);
-      if (error) throw error;
-      if (mountedRef.current) setUnseenMsgCount(count ?? 0);
-    } catch (error) {
-      console.warn("[Chat] unread count load failed:", error);
-    }
+    const { count } = await supabase
+      .from("messages")
+      .select("id", { count: "exact", head: true })
+      .eq("receiver_id", userId)
+      .is("seen_at", null);
+    setUnseenMsgCount(count ?? 0);
   }, [userId]);
 
   useEffect(() => {
     if (!userId) return;
-    void fetchUnseenCount().catch((error) =>
-      console.warn("[Chat] unread count refresh failed:", error),
-    );
-    return safeSubscribeWhileVisible("unread count", () =>
+    fetchUnseenCount();
+    return subscribeWhileVisible(() =>
       supabase
         .channel(`unseen-count-${userId}`)
         .on(
           "postgres_changes",
           { event: "INSERT", schema: "public", table: "messages", filter: `receiver_id=eq.${userId}` },
           (p) => {
-            const msg = normalizeMessage(p.new);
-            if (msg.receiver_id === userId && !msg.seen_at && mountedRef.current) {
+            const msg = p.new as any;
+            if (msg.receiver_id === userId && !msg.seen_at) {
               setUnseenMsgCount((prev) => prev + 1);
             }
           },
@@ -2303,25 +1992,17 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
           "postgres_changes",
           { event: "UPDATE", schema: "public", table: "messages", filter: `receiver_id=eq.${userId}` },
           (p) => {
-            const msg = normalizeMessage(p.new);
-            const old = normalizeMessage(p.old);
-            if (msg.receiver_id === userId && msg.seen_at && !old.seen_at && mountedRef.current) {
+            const msg = p.new as any;
+            const old = p.old as any;
+            if (msg.receiver_id === userId && msg.seen_at && !old?.seen_at) {
               setUnseenMsgCount((prev) => Math.max(0, prev - 1));
             }
           },
         )
-        .subscribe((status, error) => {
-          if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
-            reportRealtimeError("unread count", error || status);
-          }
-        }),
-      { onVisible: () => {
-        void fetchUnseenCount().catch((error) =>
-          console.warn("[Chat] visible unread refresh failed:", error),
-        );
-      } },
+        .subscribe(),
+      { onVisible: () => { void fetchUnseenCount(); } },
     );
-  }, [userId, fetchUnseenCount, safeSubscribeWhileVisible, reportRealtimeError]);
+  }, [userId, fetchUnseenCount]);
 
   // ── Report total unread count to parent (for FAB badge) ──────────────────
   useEffect(() => {
@@ -2331,7 +2012,6 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   // ── Search debounce ───────────────────────────────────────────────────────
   useEffect(() => {
     if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
-    const requestId = ++searchRequestRef.current;
     if (!searchQuery.trim()) {
       setSearchResults([]);
       setIsSearching(false);
@@ -2340,39 +2020,29 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     setIsSearching(true);
     searchDebounceRef.current = setTimeout(async () => {
       const q = searchQuery.trim();
-      try {
-        const { data, error } = await supabase
-          .from("profiles")
-          .select("id, full_name, username, avatar_url")
-          .neq("id", userId)
-          .or(`full_name.ilike.%${q}%,username.ilike.%${q}%`)
-          .limit(20);
-        if (error) throw error;
-        if (requestId !== searchRequestRef.current || !mountedRef.current) return;
-        setSearchResults((data || []).map((p: any) => normalizeProfile(p)));
-      } catch (error) {
-        if (requestId === searchRequestRef.current && mountedRef.current) {
-          console.warn("[Chat] profile search failed:", error);
-          setSearchResults([]);
-        }
-      } finally {
-        if (requestId === searchRequestRef.current && mountedRef.current) {
-          setIsSearching(false);
-        }
-      }
+      const { data } = await supabase
+        .from("profiles")
+        .select("id, full_name, username, avatar_url")
+        .neq("id", userId)
+        .or(`full_name.ilike.%${q}%,username.ilike.%${q}%`)
+        .limit(20);
+      setSearchResults(
+        (data || []).map((p) => ({
+          id: p.id,
+          full_name: p.full_name || p.username || "Unknown",
+          username: p.username || "",
+          avatar_url: p.avatar_url || "",
+        })),
+      );
+      setIsSearching(false);
     }, 500);
-    return () => {
-      if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
-    };
   }, [searchQuery, userId]);
 
   // ── Messages for selected chat ────────────────────────────────────────────
   useEffect(() => {
     if (!isOpen || !selectedUser || !userId) return;
-    const requestId = ++messageRequestRef.current;
-    let active = true;
-    const myId = asTrimmedString(userId);
-    const partnerId = asTrimmedString(selectedUser.id);
+    const myId = String(userId).trim();
+    const partnerId = String(selectedUser.id || "").trim();
     if (!myId || !partnerId) return;
 
     setIsOtherTyping(false);
@@ -2383,86 +2053,84 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
 
     // Clear stale messages immediately so old chat doesn't flash on screen
     setMessages([]);
-    setMessageLoadError(null);
 
     const load = async () => {
-      if (!active || requestId !== messageRequestRef.current || !mountedRef.current) return;
       setLoadingMessages(true);
-      try {
-        // ── Primary fetch: select only columns guaranteed to exist ─────────
-        let { data, error } = await supabase
+
+      // Normalise IDs — trim whitespace to guard against subtle format differences
+      // Guard: abort if either ID is missing (can happen on first mount)
+      if (!myId || !partnerId) {
+        setLoadingMessages(false);
+        return;
+      }
+
+      // ── Primary fetch: select only columns guaranteed to exist ───────────
+      // Using .in() on both columns is equivalent to
+      //   (sender_id IN (me,partner) AND receiver_id IN (me,partner))
+      // which matches exactly the messages between these two users.
+      let { data, error } = await supabase
+        .from("messages")
+        .select(
+          "id, sender_id, receiver_id, content, media_url, media_type, created_at, seen_at, reply_to_id",
+        )
+        .in("sender_id", [myId, partnerId])
+        .in("receiver_id", [myId, partnerId])
+        .order("created_at", { ascending: true })
+        .limit(200);
+
+      // ── Fallback: if above fails (e.g. RLS or column issue) try simpler query
+      if (error) {
+        console.error("[Chat] fetchMessages primary error:", error.message);
+        const fallback = await supabase
           .from("messages")
           .select(
-            "id, sender_id, receiver_id, content, media_url, media_type, created_at, seen_at, reply_to_id",
+            "id, sender_id, receiver_id, content, created_at, seen_at, reply_to_id",
           )
-          .in("sender_id", [myId, partnerId])
-          .in("receiver_id", [myId, partnerId])
+          .or(`sender_id.eq.${myId},receiver_id.eq.${myId}`)
           .order("created_at", { ascending: true })
           .limit(200);
 
-        // ── Fallback: normalize before filtering; database IDs may be null.
-        if (error) {
-          console.error("[Chat] fetchMessages primary error:", error.message);
-          const fallback = await supabase
-            .from("messages")
-            .select(
-              "id, sender_id, receiver_id, content, created_at, seen_at, reply_to_id",
-            )
-            .or(`sender_id.eq.${myId},receiver_id.eq.${myId}`)
-            .order("created_at", { ascending: true })
-            .limit(200);
-
-          if (!fallback.error && fallback.data) {
-            data = fallback.data.filter((m: any) => {
-              const senderId = asTrimmedString(m?.sender_id);
-              const receiverId = asTrimmedString(m?.receiver_id);
-              return (
-                (senderId === myId && receiverId === partnerId) ||
-                (senderId === partnerId && receiverId === myId)
-              );
-            }) as any;
-          } else {
-            throw fallback.error || new Error("Unable to load messages");
-          }
-        }
-
-        const rows = (data || [])
-          .map(normalizeMessage)
-          .filter((m) => Boolean(m.id && m.sender_id && m.receiver_id));
-        if (!active || requestId !== messageRequestRef.current || !mountedRef.current) return;
-        setMessageLoadError(null);
-        setMessages(rows);
-
-        // Mark all received messages as seen, without allowing a failed update
-        // to reject the loader.
-        const { error: seenError } = await supabase
-          .from("messages")
-          .update({ seen_at: new Date().toISOString() })
-          .eq("receiver_id", myId)
-          .eq("sender_id", partnerId)
-          .is("seen_at", null);
-        if (seenError) console.warn("[Chat] mark-seen failed:", seenError.message);
-      } catch (error) {
-        if (active && requestId === messageRequestRef.current && mountedRef.current) {
-          console.error("[Chat] message load failed:", error);
-          setMessages([]);
-          setMessageLoadError("Messages could not be loaded. Check your connection and retry.");
-        }
-      } finally {
-        if (active && requestId === messageRequestRef.current && mountedRef.current) {
+        if (!fallback.error && fallback.data) {
+          // Filter to this conversation only on the JS side
+          data = fallback.data.filter(
+            (m: any) =>
+              (m.sender_id.trim() === myId &&
+                m.receiver_id.trim() === partnerId) ||
+              (m.sender_id.trim() === partnerId &&
+                m.receiver_id.trim() === myId),
+          ) as any;
+        } else {
+          console.error(
+            "[Chat] fetchMessages fallback error:",
+            fallback.error?.message,
+          );
           setLoadingMessages(false);
+          return;
         }
       }
+
+      // Normalise every row so comparisons are reliable
+      const rows: Message[] = (data || []).map((m: any) => ({
+        ...m,
+        id: String(m.id || "").trim(),
+        sender_id: String(m.sender_id || "").trim(),
+        receiver_id: String(m.receiver_id || "").trim(),
+        content: m.content ?? "",
+      }));
+
+      setMessages(rows);
+      setLoadingMessages(false);
+
+      // Mark all received messages as seen
+      await supabase
+        .from("messages")
+        .update({ seen_at: new Date().toISOString() })
+        .eq("receiver_id", myId)
+        .eq("sender_id", partnerId)
+        .is("seen_at", null);
     };
 
-    void load()
-      .then(() => {
-        if (active && requestId === messageRequestRef.current) {
-          return fetchMsgReactions(myId, partnerId);
-        }
-        return undefined;
-      })
-      .catch((error) => console.warn("[Chat] post-load sync failed:", error));
+    load().then(() => fetchMsgReactions(myId, partnerId));
 
     // ── Chat Realtime via custom-all-channel ─────────────────────────────────
     const convKey = [myId, partnerId].sort().join("-");
@@ -2472,16 +2140,14 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "messages", filter: `receiver_id=eq.${myId}` },
         (p) => {
-          const msg = normalizeMessage(p.new);
-          const sid = msg.sender_id;
-          const rid = msg.receiver_id;
+          const msg = p.new as Message;
+          const sid = String(msg.sender_id || "").trim();
+          const rid = String(msg.receiver_id || "").trim();
           const pid = partnerId;
           const relevant =
             (sid === myId && rid === pid) || (sid === pid && rid === myId);
 
           if (!relevant) return;
-
-          if (!active || requestId !== messageRequestRef.current || !mountedRef.current) return;
 
           // Skip messages the user deleted for themselves — don't let realtime bounce them back
           if (deletedForMeIdsRef.current.has(msg.id)) return;
@@ -2490,20 +2156,15 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
           setMessages((prev) =>
             prev.find((m) => m.id === msg.id) ? prev : [...prev, msg],
           );
-          void fetchContacts().catch((error) =>
-            console.warn("[Chat] realtime contacts refresh failed:", error),
-          );
+          fetchContacts();
 
           // Auto-mark as seen when the message is addressed to us
           if (rid === myId && sid === pid) {
-            void supabase
+            supabase
               .from("messages")
               .update({ seen_at: new Date().toISOString() })
               .eq("id", msg.id)
-              .then(({ error }) => {
-                if (error) console.warn("[Chat] realtime mark-seen failed:", error.message);
-              })
-              .catch((error) => console.warn("[Chat] realtime mark-seen failed:", error));
+              .then(() => {});
 
             // ── Sync effect blast to receiver side ────────────────────────
             if (msg.content) {
@@ -2514,8 +2175,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
             }
 
             // ── Safety: check sender's risk profile ───────────────────────
-            void getRiskProfile(sid).then((profile) => {
-              if (!active || !mountedRef.current) return;
+            getRiskProfile(sid).then((profile) => {
               if (profile?.is_flagged) {
                 const senderName =
                   contactsRef.current.find((c) => c.id === sid)?.full_name ||
@@ -2528,7 +2188,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                   8000,
                 );
               }
-            }).catch((error) => console.warn("[Chat] risk profile check failed:", error));
+            });
 
             // ── Love Protect: check partner activity on every incoming message ──
             // Keyword filter removed — we check on ANY message from partner so
@@ -2541,26 +2201,25 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                 "[LoveProtect] Incoming message from partner — running violation check.",
                 { partnerId: loveProtectPartnerRef.current, msgId: msg.id }
               );
-              void checkLoveProtectViolation(loveProtectPartnerRef.current).then(
+              checkLoveProtectViolation(loveProtectPartnerRef.current).then(
                 (violated) => {
-                  if (!active || !mountedRef.current) return;
                   console.log("[LoveProtect] Violation result:", violated);
                   if (violated) {
                     if (loveProtectTimerRef.current)
                       clearTimeout(loveProtectTimerRef.current);
                     setLoveProtectAlert(true);
-                    void sendSafetyNotification(
+                    sendSafetyNotification(
                       myId,
                       "love_protect",
                       "Warning: Your partner's communication pattern shows suspicious inconsistencies.",
-                    ).catch((error) => console.warn("[Chat] safety notification failed:", error));
+                    );
                     loveProtectTimerRef.current = setTimeout(
                       () => setLoveProtectAlert(false),
                       15000,
                     );
                   }
                 },
-              ).catch((error) => console.warn("[Chat] Love Protect check failed:", error));
+              );
             }
           }
         },
@@ -2569,11 +2228,10 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "messages", filter: `receiver_id=eq.${myId}` },
         (p) => {
-          const msg = normalizeMessage(p.new);
+          const msg = p.new as Message;
           const relevant =
-            (msg.sender_id === myId && msg.receiver_id === partnerId) ||
-            (msg.sender_id === partnerId && msg.receiver_id === myId);
-          if (relevant && active && requestId === messageRequestRef.current && mountedRef.current) {
+            msg.sender_id === myId || msg.receiver_id === myId;
+          if (relevant) {
             // Merge ALL updated fields (content, seen_at, any future fields)
             setMessages((prev) =>
               prev.map((m) => (m.id === msg.id ? { ...m, ...msg } : m)),
@@ -2585,27 +2243,16 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
         "postgres_changes",
         { event: "DELETE", schema: "public", table: "messages", filter: `receiver_id=eq.${myId}` },
         (p) => {
-          const deletedId = asTrimmedString((p.old as any)?.id);
-          if (deletedId && active && requestId === messageRequestRef.current && mountedRef.current) {
+          const deletedId = (p.old as { id: string })?.id;
+          if (deletedId) {
             setMessages((prev) => prev.filter((m) => m.id !== deletedId));
           }
         },
       )
-      .subscribe((status, error) => {
-        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
-          reportRealtimeError("conversation", error || status);
-        }
-      });
-    const cleanupConversationChannel = safeSubscribeWhileVisible(
-      "conversation",
+      .subscribe();
+    const cleanupConversationChannel = subscribeWhileVisible(
       createConversationChannel,
-      {
-        onVisible: () => {
-          void load().catch((error) =>
-            console.warn("[Chat] visible message refresh failed:", error),
-          );
-        },
-      },
+      { onVisible: () => { void load(); } },
     );
 
     // Typing presence channel
@@ -2617,30 +2264,24 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       typingCh
         .on("presence", { event: "sync" }, () => {
           const state = typingCh.presenceState<{ is_typing?: boolean }>();
-          const other = (state[partnerId] || [])[0] as
+          const other = (state[selectedUser.id] || [])[0] as
             | { is_typing?: boolean }
             | undefined;
-          if (active && mountedRef.current) setIsOtherTyping(other?.is_typing === true);
+          setIsOtherTyping(other?.is_typing === true);
         })
-        .subscribe((status, error) => {
-          if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
-            reportRealtimeError("typing", error || status);
-          }
-        });
+        .subscribe();
       typingChannelRef.current = typingCh;
       return typingCh;
     };
-    const cleanupTypingChannel = safeSubscribeWhileVisible("typing", createTypingChannel);
+    const cleanupTypingChannel = subscribeWhileVisible(createTypingChannel);
 
     return () => {
-      active = false;
-      messageRequestRef.current += 1;
       cleanupConversationChannel();
       cleanupTypingChannel();
       typingChannelRef.current = null;
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     };
-  }, [isOpen, selectedUser, userId, fetchContacts, fetchMsgReactions, safeSubscribeWhileVisible, reportRealtimeError, messageRetryKey]);
+  }, [isOpen, selectedUser, userId, fetchContacts, fetchMsgReactions]);
 
   // ── Friend actions ────────────────────────────────────────────────────────
   const sendFriendRequest = async (targetId: string) => {
@@ -2684,8 +2325,6 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
         fetchPendingRequests(),
         fetchContacts(),
       ]);
-    } catch (error: any) {
-      toast.error(`Error: ${error?.message || "Could not accept request"}`);
     } finally {
       setActionLoading("");
     }
@@ -2693,14 +2332,11 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   const rejectRequest = async (req: FriendRequest) => {
     setActionLoading(req.id);
     try {
-      const { error } = await supabase
+      await supabase
         .from("friendships")
         .update({ status: "rejected" })
         .eq("id", req.id);
-      if (error) throw error;
       await Promise.all([fetchFriendships(), fetchPendingRequests()]);
-    } catch (error: any) {
-      toast.error(`Error: ${error?.message || "Could not reject request"}`);
     } finally {
       setActionLoading("");
     }
@@ -2777,23 +2413,11 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     setReplyTo(null);
     if (soundEnabled) playSound("send");
 
-    // Always use the authenticated user ID to satisfy RLS policies. Auth
-    // lookup is inside the guarded send path so it cannot create an
-    // unhandled promise rejection.
-    let realSenderId = asTrimmedString(userId);
-    try {
-      const {
-        data: { user: authUser },
-      } = await supabase.auth.getUser();
-      realSenderId = asTrimmedString(authUser?.id) || realSenderId;
-    } catch (error: any) {
-      console.warn("[ChatSystem] auth lookup failed while sending:", error);
-    }
-    if (!realSenderId) {
-      setIsSending(false);
-      toast.error("Please sign in again before sending a message.");
-      return;
-    }
+    // Always use the authenticated user ID to satisfy RLS policies
+    const {
+      data: { user: authUser },
+    } = await supabase.auth.getUser();
+    const realSenderId = authUser?.id ?? userId;
 
     const tempId = `temp-${Date.now()}`;
     const tempMsg: Message = {
@@ -2836,9 +2460,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
         setMessages((prev) =>
           prev.map((m) => (m.id === tempId ? (data as Message) : m)),
         );
-                                   void fetchContacts().catch((error) =>
-                                     console.warn("[Chat] post-send contacts refresh failed:", error),
-                                   );
+        fetchContacts();
       } else if (error) {
         setMessages((prev) => prev.filter((m) => m.id !== tempId));
         console.error("[ChatSystem] sendMessage Supabase error:", error);
@@ -2883,22 +2505,16 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     if (!editingMsg) return;
     const { id, text } = editingMsg;
     if (!text.trim()) return;
-    try {
-      const { error } = await supabase
-        .from("messages")
-        .update({ content: text.trim() })
-        .eq("id", id);
-      if (error) throw error;
-      if (!mountedRef.current) return;
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === id ? { ...m, content: text.trim(), is_edited: true } : m,
-        ),
-      );
-      setEditingMsg(null);
-    } catch (error: any) {
-      toast.error("Edit failed: " + (error?.message || "Unknown error"));
-    }
+    await supabase
+      .from("messages")
+      .update({ content: text.trim() })
+      .eq("id", id);
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.id === id ? { ...m, content: text.trim(), is_edited: true } : m,
+      ),
+    );
+    setEditingMsg(null);
   };
 
   // ── Delete message (for everyone) ─────────────────────────────────────────
@@ -2918,18 +2534,15 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
         y: rect.top + rect.height / 2,
       },
     ]);
-    try {
-      const { error } = await supabase.from("messages").delete().eq("id", msg.id);
-      if (error) throw error;
+    const { error } = await supabase.from("messages").delete().eq("id", msg.id);
+    if (error) {
+      toast.error("Delete failed: " + error.message);
+      // Restore the message if DB delete failed
+      setMessages((prev) =>
+        [...prev, msg].sort((a, b) => a.created_at.localeCompare(b.created_at)),
+      );
+    } else {
       toast.success("Message deleted for everyone 🗑️");
-    } catch (error: any) {
-      toast.error("Delete failed: " + (error?.message || "Unknown error"));
-      if (mountedRef.current) {
-        // Restore the message if DB delete failed
-        setMessages((prev) =>
-          [...prev, msg].sort((a, b) => a.created_at.localeCompare(b.created_at)),
-        );
-      }
     }
   };
 
@@ -2940,17 +2553,14 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     if (soundEnabled) playSound("delete");
     const newId = ++smokeIdRef.current;
     setSmokeParticles((prev) => [...prev, { id: newId, x, y }]);
-    try {
-      const { error } = await supabase.from("messages").delete().eq("id", msg.id);
-      if (error) throw error;
+    const { error } = await supabase.from("messages").delete().eq("id", msg.id);
+    if (error) {
+      toast.error("Delete failed: " + error.message);
+      setMessages((prev) =>
+        [...prev, msg].sort((a, b) => a.created_at.localeCompare(b.created_at)),
+      );
+    } else {
       toast.success("Message deleted for everyone 🗑️");
-    } catch (error: any) {
-      toast.error("Delete failed: " + (error?.message || "Unknown error"));
-      if (mountedRef.current) {
-        setMessages((prev) =>
-          [...prev, msg].sort((a, b) => a.created_at.localeCompare(b.created_at)),
-        );
-      }
     }
   };
 
@@ -2992,11 +2602,10 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   };
 
   const uploadAndSendFile = async (file: File): Promise<void> => {
-    const contactId = asTrimmedString(selectedUser?.id);
-    if (!contactId || !file) return;
+    if (!selectedUser) return;
     setIsUploadingMedia(true);
     try {
-      const ext = file.name?.split(".").pop() || "bin";
+      const ext = file.name.split(".").pop();
       const fileName = `${userId}-${Date.now()}.${ext}`;
 
       // ── Step 1: Upload to storage ────────────────────────────────────────
@@ -3021,7 +2630,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       // ── Step 3: Insert message row ───────────────────────────────────────
       const insertPayload = {
         sender_id: userId,
-        receiver_id: contactId,
+        receiver_id: selectedUser.id,
         content: "",
         media_url: publicUrl,
         media_type: file.type,
@@ -3042,47 +2651,34 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       }
 
       if (data) {
-        const message = normalizeMessage(data);
-        if (mountedRef.current && message.id) {
-          setMessages((prev) =>
-            prev.find((m) => m.id === message.id)
-              ? prev
-              : [...prev, message],
-          );
-          void fetchContacts().catch((error) =>
-            console.warn("[Chat] media contacts refresh failed:", error),
-          );
-          if (soundEnabled) playSound("send");
-        }
+        setMessages((prev) =>
+          prev.find((m) => m.id === (data as Message).id)
+            ? prev
+            : [...prev, data as Message],
+        );
+        fetchContacts();
+        if (soundEnabled) playSound("send");
       }
     } catch (err: any) {
       console.error("Unexpected media upload error:", err);
-      if (mountedRef.current) {
-        toast.error(`Upload failed: ${err?.message || "Unknown error"}`);
-      }
+      toast.error(`Upload failed: ${err?.message || "Unknown error"}`);
     } finally {
-      if (mountedRef.current) setIsUploadingMedia(false);
+      setIsUploadingMedia(false);
     }
   };
 
   // ── Save profile ──────────────────────────────────────────────────────────
   const saveProfileSettings = async () => {
     setSavingProfile(true);
-    try {
-      const { error } = await supabase
-        .from("profiles")
-        .update({ bio: editBio, school: editSchool, location: editLocation })
-        .eq("id", userId);
-      if (error) throw error;
-      if (!mountedRef.current) return;
+    const { error } = await supabase
+      .from("profiles")
+      .update({ bio: editBio, school: editSchool, location: editLocation })
+      .eq("id", userId);
+    setSavingProfile(false);
+    if (error) toast.error("Save failed: " + error.message);
+    else {
       toast.success("Profile updated!");
-      void fetchMyProfile().catch((error) =>
-        console.warn("[Chat] profile refresh after save failed:", error),
-      );
-    } catch (error: any) {
-      if (mountedRef.current) toast.error("Save failed: " + (error?.message || "Unknown error"));
-    } finally {
-      if (mountedRef.current) setSavingProfile(false);
+      fetchMyProfile();
     }
   };
 
@@ -3108,13 +2704,13 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     setMutedChats((prev) => {
       const n = new Set(prev);
       n.has(id) ? n.delete(id) : n.add(id);
-      return new Set(capChatIds(n));
+      return n;
     });
   const toggleArchive = (id: string) =>
     setArchivedChats((prev) => {
       const n = new Set(prev);
       n.has(id) ? n.delete(id) : n.add(id);
-      return new Set(capChatIds(n));
+      return n;
     });
 
   // ── Voice Mode ────────────────────────────────────────────────────────────
@@ -3310,14 +2906,10 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   const handleTyping = () => {
     const ch = typingChannelRef.current;
     if (!ch) return;
-    void ch.track({ is_typing: true }).catch((error) =>
-      console.warn("[Chat] typing status update failed:", error),
-    );
+    ch.track({ is_typing: true });
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     typingTimeoutRef.current = setTimeout(() => {
-      void ch.track({ is_typing: false }).catch((error) =>
-        console.warn("[Chat] typing status reset failed:", error),
-      );
+      ch.track({ is_typing: false });
     }, 2000);
   };
 
@@ -3482,31 +3074,26 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
           <div className="flex items-center justify-center w-14 h-14">
             <Loader2 size={16} className={`animate-spin ${T.text3}`} />
           </div>
-        ) : storyGroups.length === 0 ||
-          !storyGroups.some((group) => Boolean(group?.stories?.[0])) ? (
+        ) : storyGroups.length === 0 ? (
           <div
             className={`flex items-center gap-2 text-xs font-bold ${T.text3} italic px-2`}
           >
             No stories yet. Start the fire! 🔥
           </div>
         ) : (
-          storyGroups.slice(0, 6).map((group, gi) => {
-            const story = group?.stories?.[0];
-            if (!story) return null;
-            return (
-              <StoryCircle
-                key={group.user_id}
-                story={story}
-                onClick={() => {
-                  setViewerGroupIdx(gi);
-                  setViewerStoryIdx(0);
-                  setStoryElapsed(0);
-                  storyViewedRef.current.clear();
-                  setStoryViewerOpen(true);
-                }}
-              />
-            );
-          })
+          storyGroups.slice(0, 6).map((group, gi) => (
+            <StoryCircle
+              key={group.user_id}
+              story={group.stories[0]}
+              onClick={() => {
+                setViewerGroupIdx(gi);
+                setViewerStoryIdx(0);
+                setStoryElapsed(0);
+                storyViewedRef.current.clear();
+                setStoryViewerOpen(true);
+              }}
+            />
+          ))
         )}
       </div>
       <input
@@ -3560,43 +3147,6 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
           onClick={(e) => e.stopPropagation()}
           onPointerDown={(e) => e.stopPropagation()}
         >
-          {(initializationError || realtimeError) && (
-            <div
-              role="alert"
-              className="absolute top-3 left-3 right-3 z-[1000] rounded-2xl border border-amber-400/30 bg-amber-950/90 px-4 py-3 text-amber-50 shadow-xl backdrop-blur-sm"
-            >
-              <div className="flex items-center gap-3">
-                <Info size={18} className="shrink-0 text-amber-300" />
-                <p className="flex-1 text-xs font-semibold">
-                  {initializationError || realtimeError}
-                </p>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setRealtimeError(null);
-                    void bootstrapChat().catch((error) =>
-                      console.warn("[Chat] retry initialization failed:", error),
-                    );
-                  }}
-                  disabled={initializingChat}
-                  className="shrink-0 rounded-xl bg-amber-300 px-3 py-2 text-xs font-black text-amber-950 disabled:opacity-50"
-                >
-                  {initializingChat ? "Retrying…" : "Retry"}
-                </button>
-                <button
-                  type="button"
-                  aria-label="Dismiss chat warning"
-                  onClick={() => {
-                    setInitializationError(null);
-                    setRealtimeError(null);
-                  }}
-                  className="shrink-0 rounded-full p-1 text-amber-200/70 hover:bg-white/10"
-                >
-                  <X size={15} />
-                </button>
-              </div>
-            </div>
-          )}
           {/* ── PANIC MODE OVERLAY ───────────────────────────────────────── */}
           <AnimatePresence>
             {panicMode && (
@@ -4204,28 +3754,13 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                               onClick={(e) => {
                                 e.stopPropagation();
                                 const url = getStoryMediaUrl(story.image_url);
-                                if (!url) {
-                                  toast.error("Story link is unavailable.");
-                                  return;
-                                }
-                                if (typeof navigator.share === "function") {
-                                  void navigator
+                                if (navigator.share) {
+                                  navigator
                                     .share({ title: "Flicks Story", url })
-                                    .catch((error) => {
-                                      if ((error as DOMException)?.name !== "AbortError") {
-                                        console.warn("[Chat] story share failed:", error);
-                                      }
-                                    });
-                                } else if (typeof navigator.clipboard?.writeText === "function") {
-                                  void navigator.clipboard
-                                    .writeText(url)
-                                    .then(() => toast.success("Link copied!"))
-                                    .catch((error) => {
-                                      console.warn("[Chat] story clipboard copy failed:", error);
-                                      toast.error("Could not copy the story link.");
-                                    });
+                                    .catch(() => {});
                                 } else {
-                                  toast.error("Sharing is not available in this browser.");
+                                  navigator.clipboard.writeText(url);
+                                  toast.success("Link copied!");
                                 }
                               }}
                               className="w-9 h-9 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center border border-white/20"
@@ -4633,54 +4168,85 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
               <div className={`flex flex-col flex-1 overflow-hidden`}>
                 {/* Header */}
                 <div
-                  className={`flex items-center justify-between px-5 pt-5 pb-3 border-b ${T.divider} shrink-0`}
+                  className={`flex items-center justify-between gap-4 px-4 pt-4 pb-3 border-b ${T.divider} shrink-0`}
                 >
                   <div>
                     <p
-                      className={`text-xl font-black tracking-tight ${T.text1}`}
+                      className={`text-lg font-black tracking-tight ${T.text1}`}
                     >
                       Messages
                     </p>
-                    <p className={`text-xs font-semibold ${T.text3}`}>
+                    <p className={`text-[11px] font-semibold ${T.text3}`}>
                       {visibleContacts.length} conversations
                     </p>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5 shrink-0">
                     {/* Theme switcher moved to Settings → Chat Theme */}
                     <button
-                      onClick={onClose}
-                      className={`w-8 h-8 rounded-xl bg-white/10 border ${T.divider} flex items-center justify-center ${T.text3}`}
+                      type="button"
+                      aria-label="Search friends or messages"
+                      aria-expanded={showListSearch}
+                      onClick={() => {
+                        setShowListSearch((open) => {
+                          if (open) setSearchQuery("");
+                          return !open;
+                        });
+                      }}
+                      className={`w-9 h-9 rounded-2xl border flex items-center justify-center transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40 ${
+                        showListSearch
+                          ? `${T.accent} ${T.sendBtnText} border-transparent shadow-lg`
+                          : `bg-white/5 ${T.divider} ${T.text2} hover:bg-white/10 hover:border-white/20`
+                      }`}
                     >
-                      <X size={15} />
+                      <Search size={16} strokeWidth={2.4} />
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Close chat"
+                      onClick={onClose}
+                      className={`w-9 h-9 rounded-2xl bg-white/5 border ${T.divider} flex items-center justify-center ${T.text3} transition-all duration-200 hover:bg-white/10 hover:text-white hover:border-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40`}
+                    >
+                      <X size={16} strokeWidth={2.4} />
                     </button>
                   </div>
                 </div>
 
-                {/* Full-width Search Bar */}
-                <div className={`px-4 py-3 border-b ${T.divider} shrink-0`}>
-                  <div className="relative">
-                    <Search
-                      size={16}
-                      className={`absolute left-4 top-1/2 -translate-y-1/2 ${T.text3}`}
-                    />
-                    <input
-                      type="text"
-                      placeholder="Search friends or messages..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className={`w-full rounded-3xl pl-11 pr-10 py-3 text-sm font-semibold outline-none border-2 focus:ring-0 transition-all ${T.searchBg}`}
-                      style={{ fontSize: 15 }}
-                    />
-                    {searchQuery && (
-                      <button
-                        onClick={() => setSearchQuery("")}
-                        className={`absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-white/10 flex items-center justify-center ${T.text3}`}
-                      >
-                        <X size={12} />
-                      </button>
-                    )}
-                  </div>
-                </div>
+                <AnimatePresence initial={false}>
+                  {showListSearch && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0, y: -4 }}
+                      animate={{ height: "auto", opacity: 1, y: 0 }}
+                      exit={{ height: 0, opacity: 0, y: -4 }}
+                      transition={{ duration: 0.18, ease: "easeOut" }}
+                      className={`px-4 pt-1.5 pb-3 border-b ${T.divider} shrink-0 overflow-hidden`}
+                    >
+                      <div className="relative">
+                        <Search
+                          size={15}
+                          className={`absolute left-3.5 top-1/2 -translate-y-1/2 ${T.text3}`}
+                        />
+                        <input
+                          autoFocus
+                          type="text"
+                          placeholder="Search friends or messages"
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                          className={`w-full rounded-2xl pl-10 pr-10 py-2.5 text-sm font-semibold outline-none border transition-all focus:ring-2 focus:ring-white/10 ${T.searchBg}`}
+                        />
+                        {searchQuery && (
+                          <button
+                            type="button"
+                            aria-label="Clear search"
+                            onClick={() => setSearchQuery("")}
+                            className={`absolute right-2.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-white/10 flex items-center justify-center ${T.text3} transition-colors hover:bg-white/20 hover:text-white`}
+                          >
+                            <X size={12} />
+                          </button>
+                        )}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
 
                 {/* Story Row (only when not searching) */}
                 {!searchQuery.trim() && <StoryRow />}
@@ -4859,30 +4425,18 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                     </button>
                                     <button
                                       onClick={async () => {
-                                        try {
-                                          const fs = friendshipMap.get(c.id);
-                                          if (!fs) return;
-                                          const { error } = await supabase
-                                            .from("friendships")
-                                            .delete()
-                                            .eq("id", fs.id);
-                                          if (error) throw error;
-                                          await Promise.all([
-                                            fetchFriendships(),
-                                            fetchContacts(),
-                                          ]);
-                                          if (!mountedRef.current) return;
-                                          setMsgMenuId(null);
-                                          toast.success(`${c.full_name} blocked`);
-                                        } catch (error: any) {
-                                          console.warn("[Chat] block contact failed:", error);
-                                          if (mountedRef.current) {
-                                            toast.error(
-                                              "Could not block contact: " +
-                                                (error?.message || "Unknown error"),
-                                            );
-                                          }
-                                        }
+                                        const fs = friendshipMap.get(c.id);
+                                        if (!fs) return;
+                                        await supabase
+                                          .from("friendships")
+                                          .delete()
+                                          .eq("id", fs.id);
+                                        await Promise.all([
+                                          fetchFriendships(),
+                                          fetchContacts(),
+                                        ]);
+                                        setMsgMenuId(null);
+                                        toast.success(`${c.full_name} blocked`);
                                       }}
                                       className="flex items-center gap-2 w-full px-4 py-3 text-sm font-bold text-red-400 hover:bg-red-500/10"
                                     >
@@ -5197,25 +4751,6 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                         size={20}
                         className={`animate-spin ${T.text3}`}
                       />
-                    </div>
-                  ) : messageLoadError ? (
-                    <div className="flex flex-col items-center justify-center py-16 gap-3 px-6 text-center">
-                      <div className={`w-14 h-14 rounded-2xl bg-white/5 border ${T.divider} flex items-center justify-center`}>
-                        <MessageSquare size={24} className={T.text3} />
-                      </div>
-                      <p className={`text-sm font-black ${T.text1}`}>
-                        Messages unavailable
-                      </p>
-                      <p className={`text-xs ${T.text3}`}>
-                        {messageLoadError}
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => setMessageRetryKey((key) => key + 1)}
-                        className="rounded-xl bg-red-500/20 px-4 py-2 text-xs font-black text-red-300 border border-red-500/30"
-                      >
-                        Retry messages
-                      </button>
                     </div>
                   ) : filteredMessages.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
@@ -5793,8 +5328,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                         className={`animate-spin ${T.text3}`}
                       />
                     </div>
-                  ) : storyGroups.length === 0 ||
-                    !storyGroups.some((group) => Boolean(group?.stories?.[0])) ? (
+                  ) : storyGroups.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
                       <p className="text-5xl">🔥</p>
                       <p className={`text-base font-black ${T.text3}`}>
@@ -5807,8 +5341,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                   ) : (
                     <div className="grid grid-cols-2 gap-3">
                       {storyGroups.map((group, gi) => {
-                        const story = group?.stories?.[0];
-                        if (!story) return null;
+                        const story = group.stories[0];
                         const pName = group.profile?.full_name || "User";
                         const aUrl = group.profile?.avatar_url;
                         return (
@@ -6219,14 +5752,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                 .from("love_protect_links")
                                 .update({ is_active: false })
                                 .eq("user_id", userId ?? "")
-                                .then(({ error }) => {
-                                  if (error) {
-                                    console.warn("[Chat] Love Protect disable failed:", error);
-                                  }
-                                })
-                                .catch((error) =>
-                                  console.warn("[Chat] Love Protect disable failed:", error),
-                                );
+                                .then(() => {});
                             }
                           }}
                           className={`relative w-12 h-6 rounded-full transition-all border ${loveProtectEnabled ? "bg-pink-500 border-pink-400" : "bg-gray-500 border-gray-400"}`}
@@ -6256,7 +5782,6 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                 value={lpSearchQuery}
                                 onChange={(e) => {
                                   const q = e.target.value;
-                                  const requestId = ++lpSearchRequestRef.current;
                                   setLpSearchQuery(q);
                                   // Clear current selection if user edits
                                   if (lpSelectedName && q !== lpSelectedName) {
@@ -6269,29 +5794,14 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                   if (!q.trim()) { setLpSearchResults([]); return; }
                                   setLpSearchLoading(true);
                                   lpSearchRef.current = setTimeout(async () => {
-                                    try {
-                                      const { data, error } = await supabase
-                                        .from("profiles")
-                                        .select("id, full_name, username, avatar_url")
-                                        .or(`full_name.ilike.%${q.trim()}%,username.ilike.%${q.trim()}%`)
-                                        .neq("id", userId ?? "")
-                                        .limit(6);
-                                      if (error) throw error;
-                                      if (!mountedRef.current || requestId !== lpSearchRequestRef.current) return;
-                                      setLpSearchResults(
-                                        (data || []).map((p: any) => ({
-                                          id: asTrimmedString(p?.id),
-                                          full_name: asTrimmedString(p?.full_name),
-                                          username: asTrimmedString(p?.username),
-                                          avatar_url: asNullableString(p?.avatar_url) || null,
-                                        })).filter((p) => Boolean(p.id)),
-                                      );
-                                    } catch (error) {
-                                      console.warn("[Chat] Love Protect search failed:", error);
-                                      if (mountedRef.current && requestId === lpSearchRequestRef.current) setLpSearchResults([]);
-                                    } finally {
-                                      if (mountedRef.current && requestId === lpSearchRequestRef.current) setLpSearchLoading(false);
-                                    }
+                                    const { data } = await supabase
+                                      .from("profiles")
+                                      .select("id, full_name, username, avatar_url")
+                                      .or(`full_name.ilike.%${q.trim()}%,username.ilike.%${q.trim()}%`)
+                                      .neq("id", userId ?? "")
+                                      .limit(6);
+                                    setLpSearchResults(data || []);
+                                    setLpSearchLoading(false);
                                   }, 350);
                                 }}
                                 placeholder="Type your partner's name…"
@@ -6363,35 +5873,30 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                               onClick={async (e) => {
                                 e.stopPropagation();
                                 e.preventDefault();
-                                const pid = asTrimmedString(loveProtectPartnerId);
+                                const pid = loveProtectPartnerId.trim();
                                 if (!pid || !userId) {
                                   toast.error("Please select a partner from the search results first.");
                                   return;
                                 }
                                 setSavingLoveProtect(true);
-                                try {
-                                  const { error } = await supabase
-                                    .from("love_protect_links")
-                                    .upsert(
-                                      { user_id: userId, partner_id: pid, is_active: true },
-                                      { onConflict: "user_id" },
-                                    );
-                                  if (error) throw error;
-                                  if (!mountedRef.current) return;
+                                const { error } = await supabase
+                                  .from("love_protect_links")
+                                  .upsert(
+                                    { user_id: userId, partner_id: pid, is_active: true },
+                                    { onConflict: "user_id" },
+                                  );
+                                setSavingLoveProtect(false);
+                                if (error) {
+                                  toast.error("Failed to link partner. Please try again.");
+                                } else {
                                   setLoveProtectInput(pid);
                                   toast.success("💕 Love Protect linked!");
-                                } catch (error: any) {
-                                  if (mountedRef.current) {
-                                    toast.error("Failed to link partner: " + (error?.message || "Please try again."));
-                                  }
-                                } finally {
-                                  if (mountedRef.current) setSavingLoveProtect(false);
                                 }
                               }}
                               disabled={
                                 savingLoveProtect ||
-                                !asTrimmedString(loveProtectPartnerId) ||
-                                asTrimmedString(loveProtectPartnerId) === loveProtectInput
+                                !loveProtectPartnerId.trim() ||
+                                loveProtectPartnerId.trim() === loveProtectInput
                               }
                               className="w-full py-2.5 rounded-xl text-white font-black text-sm flex items-center justify-center gap-2 disabled:opacity-50"
                               style={{ background: "linear-gradient(135deg,#f43f5e,#be185d)" }}
@@ -6410,25 +5915,16 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                 type="button"
                                 onClick={async (e) => {
                                   e.stopPropagation();
-                                  try {
-                                    const partnerId = asTrimmedString(loveProtectPartnerId);
-                                    console.log("[LoveProtect] Manual test triggered for:", partnerId);
-                                    const violated = await checkLoveProtectViolation(partnerId);
-                                    console.log("[LoveProtect] Manual test result:", violated);
-                                    if (!mountedRef.current) return;
-                                    if (loveProtectTimerRef.current) clearTimeout(loveProtectTimerRef.current);
-                                    setLoveProtectAlert(true);
-                                    loveProtectTimerRef.current = setTimeout(() => {
-                                      if (mountedRef.current) setLoveProtectAlert(false);
-                                    }, 15000);
-                                    toast.info(violated
-                                      ? "💔 Violation detected — alert is now visible!"
-                                      : "✅ No violation yet. Alert shown for UI test (check console for DB result)."
-                                    );
-                                  } catch (error) {
-                                    console.warn("[Chat] Love Protect manual test failed:", error);
-                                    if (mountedRef.current) toast.error("Could not run the Love Protect test.");
-                                  }
+                                  console.log("[LoveProtect] Manual test triggered for:", loveProtectPartnerId);
+                                  const violated = await checkLoveProtectViolation(loveProtectPartnerId);
+                                  console.log("[LoveProtect] Manual test result:", violated);
+                                  if (loveProtectTimerRef.current) clearTimeout(loveProtectTimerRef.current);
+                                  setLoveProtectAlert(true);
+                                  loveProtectTimerRef.current = setTimeout(() => setLoveProtectAlert(false), 15000);
+                                  toast.info(violated
+                                    ? "💔 Violation detected — alert is now visible!"
+                                    : "✅ No violation yet. Alert shown for UI test (check console for DB result)."
+                                  );
                                 }}
                                 className="w-full mt-2 py-2 rounded-xl border border-pink-500/40 text-pink-400 font-black text-xs flex items-center justify-center gap-1.5 hover:bg-pink-500/10 transition-all"
                               >
