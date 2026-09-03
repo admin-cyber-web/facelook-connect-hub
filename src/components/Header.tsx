@@ -1418,7 +1418,7 @@ const Header = ({
   onHomeClick?: () => void;
   onSettingsClick?: () => void;
   onNavigateToFeature?: (feature: string) => void;
-  onChatClick?: (e: React.MouseEvent) => void;
+  onChatClick?: () => void;
   chatBadge?: number;
   userId?: string;
 }) => {
@@ -2110,11 +2110,12 @@ const Header = ({
           </motion.button>
           {/* Chat — opens full-screen messenger */}
           <motion.button
+            type="button"
             whileTap={{ scale: 0.88 }}
             onClick={(e) => {
               e.stopPropagation();
               e.preventDefault();
-              onChatClick?.(e);
+              onChatClick?.();
             }}
             className="p-2 rounded-xl transition-all active:scale-90 flex-shrink-0 border border-lime-400/25 hover:bg-lime-400/10 relative"
             style={{ background: "rgba(163,230,53,0.08)" }}

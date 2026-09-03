@@ -1520,6 +1520,7 @@ const Index = ({ session, initialAdminOpen, isGuest = false }: { session: Sessio
   // Chat
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [chatBadgeCount, setChatBadgeCount] = useState(0);
+  const openChat = useCallback(() => setIsChatOpen(true), []);
 
   // Allow other components (e.g. UserProfileModal "Message" button) to open
   // the chat panel via a global event. ChatSystem itself listens for the
@@ -3189,7 +3190,7 @@ const PersonalizationView = React.memo(({
           onHomeClick={() => setActiveFeature("Fame")}
           onSettingsClick={() => { setActiveFeature("Settings"); setSettingsView("main"); }}
           onNavigateToFeature={(feature) => setActiveFeature(feature)}
-          onChatClick={(e) => { e?.stopPropagation(); e?.preventDefault(); setIsChatOpen(true); }}
+          onChatClick={openChat}
           chatBadge={chatBadgeCount}
           userId={userId}
         />
@@ -4194,7 +4195,29 @@ const PersonalizationView = React.memo(({
       </main>
 
       {/* Chat System ───────────────────────────────────────────────────────── */}
-      <ErrorBoundary onError={() => setIsChatOpen(false)}>
+      <ErrorBoundary
+        key={isChatOpen ? "chat-open" : "chat-closed"}
+        fallback={
+          <div
+            role="alert"
+            className="fixed inset-0 z-[160] flex items-center justify-center bg-[#050505] px-6 text-white"
+          >
+            <div className="w-full max-w-sm rounded-2xl border border-red-400/20 bg-red-950/80 p-5 text-center shadow-2xl">
+              <p className="mb-2 text-sm font-black">Chat is temporarily unavailable</p>
+              <p className="mb-4 text-xs text-white/60">
+                Close this message and try opening chat again.
+              </p>
+              <button
+                type="button"
+                onClick={() => setIsChatOpen(false)}
+                className="rounded-xl bg-white/10 px-4 py-2 text-xs font-bold text-white"
+              >
+                Close and retry
+              </button>
+            </div>
+          </div>
+        }
+      >
       <Suspense
         fallback={
           <div className="fixed inset-0 z-[150] flex items-center justify-center bg-[#050505] text-white">
