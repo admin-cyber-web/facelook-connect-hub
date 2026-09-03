@@ -426,14 +426,13 @@ const FlicksLogo = () => {
 
 const TirangaFlag = () => (
   <span
-    className="perf-flag"
+    className="perf-flag select-none"
     style={{
       display: "inline-block",
       transformOrigin: "50% 100%",
       fontSize: "20px",
       lineHeight: 1,
     }}
-    className="select-none"
   >
     🇮🇳
   </span>
@@ -3213,10 +3212,12 @@ const Header = ({
                     <div className="grid grid-cols-2 gap-3">
                       <div className="rounded-2xl p-4 border border-teal-500/20" style={{ background: "rgba(20,184,166,0.10)" }}>
                         <p
-                          className="perf-pulse"
-                          style={{ "--perf-duration": "2.5s", "--perf-scale": "1.06" } as React.CSSProperties}
-                          className="text-teal-300 font-black text-[36px] leading-none"
-                          style={{ textShadow: "0 0 24px rgba(20,184,166,0.5)" }}
+                          className="perf-pulse text-teal-300 font-black text-[36px] leading-none"
+                          style={{
+                            "--perf-duration": "2.5s",
+                            "--perf-scale": "1.06",
+                            textShadow: "0 0 24px rgba(20,184,166,0.5)",
+                          } as React.CSSProperties}
                         >
                           {dashMagnetSent}
                         </p>
@@ -3225,10 +3226,13 @@ const Header = ({
                       </div>
                       <div className="rounded-2xl p-4 border border-purple-500/20" style={{ background: "rgba(124,58,237,0.10)" }}>
                         <p
-                          className="perf-pulse"
-                          style={{ "--perf-duration": "2.5s", "--perf-scale": "1.06", "--perf-delay": "0.4s" } as React.CSSProperties}
-                          className="text-purple-300 font-black text-[36px] leading-none"
-                          style={{ textShadow: "0 0 24px rgba(124,58,237,0.5)" }}
+                          className="perf-pulse text-purple-300 font-black text-[36px] leading-none"
+                          style={{
+                            "--perf-duration": "2.5s",
+                            "--perf-scale": "1.06",
+                            "--perf-delay": "0.4s",
+                            textShadow: "0 0 24px rgba(124,58,237,0.5)",
+                          } as React.CSSProperties}
                         >
                           {dashMagnetReceived}
                         </p>
