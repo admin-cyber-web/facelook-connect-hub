@@ -4259,7 +4259,7 @@ const PersonalizationView = React.memo(({
             return;
           }
           if (f === "Antakshari") {
-            toast.info("🎤 Coming Soon: Antakshari — August 2026", {
+            toast.info("Coming Soon", {
               description: "Sing-along battles with your friends are on the way!",
               duration: 4000,
             });
