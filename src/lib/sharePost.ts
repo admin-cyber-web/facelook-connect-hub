@@ -13,6 +13,8 @@
 //   2. If the post is video / has no image → fall back to text-only share.
 //   3. Final fallback → copy text to clipboard.
 
+import { nativeMediaShare } from "./nativeMediaShare";
+
 export interface SharePostOptions {
   postId: string;
   caption?: string | null;
@@ -261,6 +263,23 @@ export async function sharePost(opts: SharePostOptions): Promise<"shared" | "cop
   const shareText = parts.join("\n\n");
 
   const hasImage = !!mediaUrl && isImageMedia(mediaUrl, mediaType);
+
+  // Android uses a content URI from Capacitor's cache directory. This avoids
+  // relying on Web Share's File support inside the Android WebView.
+  const nativeOutcome = await nativeMediaShare({
+    title: headline || "Flicks India",
+    text: shareText,
+    url: postUrl,
+    mediaUrl,
+    appendPromoFooter: false,
+  });
+  if (
+    nativeOutcome === "shared-with-file" ||
+    nativeOutcome === "shared-url-only"
+  ) {
+    return "shared";
+  }
+  if (nativeOutcome === "cancelled") return "cancelled";
 
   // ── 1. Image post → composed share-card (image + caption baked together) ──
   if (hasImage && typeof navigator !== "undefined" && (navigator as any).canShare) {

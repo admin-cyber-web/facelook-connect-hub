@@ -8,6 +8,7 @@ import {
   type PostType,
   type ShareOutcome,
 } from "../lib/universalShare";
+import { nativeMediaShare } from "../lib/nativeMediaShare";
 
 // ── Public types ──────────────────────────────────────────────────────────────
 
@@ -213,17 +214,35 @@ const SharePopup: React.FC<SharePopupProps> = ({
     setMediaSharing(true);
     setMediaOutcome(null);
 
-    const outcome = await universalShare({
+    const nativeOutcome = await nativeMediaShare({
       title:
         post.meta_title ||
         post.content?.slice(0, 60) ||
         "Check this out on Flicks!",
       text: post.content || "",
       url: shareUrl,
-      mediaUrl,
-      canvas: canvas ?? undefined,
-      type: (post.type as PostType) || "post",
+      mediaUrl: mediaUrl || undefined,
     });
+    let outcome: ShareOutcome;
+    if (
+      nativeOutcome === "shared-with-file" ||
+      nativeOutcome === "shared-url-only" ||
+      nativeOutcome === "cancelled"
+    ) {
+      outcome = nativeOutcome;
+    } else {
+      outcome = await universalShare({
+        title:
+          post.meta_title ||
+          post.content?.slice(0, 60) ||
+          "Check this out on Flicks!",
+        text: post.content || "",
+        url: shareUrl,
+        mediaUrl,
+        canvas: canvas ?? undefined,
+        type: (post.type as PostType) || "post",
+      });
+    }
 
     setMediaSharing(false);
     setMediaOutcome(outcome);

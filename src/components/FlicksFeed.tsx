@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { MagnetButton } from "./MagnetSystem";
 import { toast } from "sonner";
+import { nativeMediaShare } from "../lib/nativeMediaShare";
 
 // ── Module-level sound preference (persists across card remounts) ─────────────
 let globalSoundEnabled = false;
@@ -296,17 +297,33 @@ const FlickCard = memo(({ post, isActive, currentUserId, onBridgeChat, isAdmin, 
     e.stopPropagation();
     const mediaUrl = post.cover_url || post.media_url || post.video_url;
     const postUrl  = `${window.location.origin}/?post=${post._raw_id || post.id}`;
-    const { universalShare } = await import("../lib/universalShare");
     const titleLine = post.meta_title || post.content?.slice(0, 72) || "Watch this Flick!";
     const bodyLine  = post.meta_description
       || (post.content && post.content.length > 72 ? post.content.slice(72, 220) : "")
       || "";
     const captionText = [titleLine, bodyLine].filter(Boolean).join("\n");
-    const outcome = await universalShare({
+    const nativeOutcome = await nativeMediaShare({
       title: titleLine,
       text: captionText,
-      url: postUrl, mediaUrl, type: "reel",
+      url: postUrl,
+      mediaUrl,
     });
+    const outcome = (
+      nativeOutcome === "shared-with-file" ||
+      nativeOutcome === "shared-url-only" ||
+      nativeOutcome === "cancelled"
+    )
+      ? nativeOutcome
+      : await (async () => {
+          const { universalShare } = await import("../lib/universalShare");
+          return universalShare({
+            title: titleLine,
+            text: captionText,
+            url: postUrl,
+            mediaUrl,
+            type: "reel",
+          });
+        })();
     if (outcome === "copied") toast.success("Link copied!");
     if (["shared-with-file", "shared-url-only", "copied"].includes(outcome || "")) {
       const pid = post._raw_id || post.id;

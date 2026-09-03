@@ -8,6 +8,7 @@ import { useDataCache } from "../context/DataCacheContext";
 import { usePageVisibility } from "../hooks/usePageVisibility";
 import { subscribeWhileVisible } from "../lib/realtimeVisibility";
 import { revokeObjectUrl } from "../lib/objectUrl";
+import { nativeMediaShare } from "../lib/nativeMediaShare";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { MagnetButton } from "./MagnetSystem";
@@ -1122,14 +1123,28 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
       : `Join the "${group.name}" circle and connect with the community on Flicks.`;
     const mediaUrl = (group as any).cover_url || (group as any).avatar_url || "";
     try {
-      const { universalShare } = await import("../lib/universalShare");
-      const result = await universalShare({
+      const nativeResult = await nativeMediaShare({
         title: titleLine,
         text: `${titleLine}\n${bodyLine}`,
         url: link,
         mediaUrl: mediaUrl || undefined,
-        type: "circle",
       });
+      const result = (
+        nativeResult === "shared-with-file" ||
+        nativeResult === "shared-url-only" ||
+        nativeResult === "cancelled"
+      )
+        ? nativeResult
+        : await (async () => {
+            const { universalShare } = await import("../lib/universalShare");
+            return universalShare({
+              title: titleLine,
+              text: `${titleLine}\n${bodyLine}`,
+              url: link,
+              mediaUrl: mediaUrl || undefined,
+              type: "circle",
+            });
+          })();
       if (result === "copied") toast.success("Link copied to clipboard");
     } catch {
       navigator.clipboard.writeText(link).catch(() => {});
@@ -1868,14 +1883,29 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
     const bodyLine  = post.content
       ? post.content.slice(0, 160)
       : `New post from "${circleName}" — check it out on Flicks.`;
-    const { universalShare } = await import("../lib/universalShare");
-    const outcome = await universalShare({
+    const mediaUrl = post.media_url || (selectedGroup as any)?.cover_url;
+    const nativeOutcome = await nativeMediaShare({
       title: titleLine,
       text: `${titleLine}\n${bodyLine}`,
       url,
-      mediaUrl: post.media_url || (selectedGroup as any)?.cover_url,
-      type: "circle",
+      mediaUrl,
     });
+    const outcome = (
+      nativeOutcome === "shared-with-file" ||
+      nativeOutcome === "shared-url-only" ||
+      nativeOutcome === "cancelled"
+    )
+      ? nativeOutcome
+      : await (async () => {
+          const { universalShare } = await import("../lib/universalShare");
+          return universalShare({
+            title: titleLine,
+            text: `${titleLine}\n${bodyLine}`,
+            url,
+            mediaUrl,
+            type: "circle",
+          });
+        })();
     if (outcome === "copied") toast.success("Link copied to clipboard");
     const nextCount = (post.shares_count || 0) + 1;
     await supabase.from("circle_posts").update({ shares_count: nextCount }).eq("id", post.id);
