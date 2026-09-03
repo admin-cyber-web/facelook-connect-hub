@@ -1,0 +1,524 @@
+# STRICT PERFORMANCE VALIDATION — DO NOT BREAK EXISTING FIXES
+
+IMPORTANT: This is a **VALIDATION AND PROFILING PASS ONLY**.
+
+The previous performance deep-clean has ALREADY been implemented successfully.
+
+You must treat the current codebase as a **working optimized baseline**.
+
+## ABSOLUTE RULE
+
+### DO NOT MODIFY EXISTING APPLICATION CODE DURING THIS PASS.
+
+Do NOT:
+
+* refactor components
+* rewrite queries
+* change Supabase logic
+* change Realtime subscriptions
+* change timers
+* change video logic
+* change audio logic
+* change camera logic
+* change authentication
+* change UI
+* remove features
+* add libraries
+* change database schema
+* change RLS
+* change storage configuration
+* undo or replace any previous optimization
+
+The purpose of this pass is ONLY to determine whether the previous fixes are working and whether any remaining resource leak exists.
+
+---
+
+# PROTECT THE PREVIOUS FIXES
+
+The previous agent already implemented important fixes including:
+
+* shared Web Audio context
+* audio idle suspension
+* Agora call cleanup
+* background call termination
+* camera background shutdown/restart
+* story timer/background handling
+* story music/video pause
+* one-video story decoder
+* Circle viewport-controlled video playback
+* object URL cleanup
+* Magnet request identity guards
+* DebugHelper recipient-scoped realtime listener
+* bounded comments/admin queries
+* Magnet leaderboard reduction
+* explicit database projections
+* Survey duplicate-read consolidation
+* safety-engine limit
+* various `select("*")` removals
+
+### THESE FIXES ARE NOW THE BASELINE.
+
+Do not replace them with alternative implementations.
+
+Do not "optimize" already-fixed code unless a clear, reproducible regression is discovered.
+
+---
+
+# STEP 1 — READ-ONLY CODE AUDIT
+
+First inspect the current codebase.
+
+Search for:
+
+```text
+setInterval
+setTimeout
+fetch(
+supabase.from(
+.rpc(
+.channel(
+.subscribe(
+getSession(
+getUser(
+navigator.geolocation
+watchPosition
+select('*')
+select("*")
+```
+
+Also inspect:
+
+* Realtime subscriptions
+* event listeners
+* timers
+* video elements
+* audio contexts
+* camera/microphone tracks
+* object URLs
+* storage requests
+* feed loading
+* chat loading
+* notification loading
+* authentication listeners
+
+### DO NOT CHANGE ANYTHING.
+
+Only report what you find.
+
+---
+
+# STEP 2 — CHECK FOR REGRESSIONS
+
+Compare the current implementation with the previous performance fixes.
+
+Determine whether any previous fix was accidentally broken.
+
+Examples:
+
+* Is shared audio still shared?
+* Is AudioContext suspended when idle?
+* Are camera tracks stopped in background?
+* Are story videos paused?
+* Is Circle video viewport-gated?
+* Are object URLs revoked?
+* Are realtime listeners cleaned up?
+* Are queries bounded?
+* Are wildcard projections removed?
+* Is DebugHelper recipient-scoped?
+
+If everything is intact, explicitly say:
+
+`Previous optimization preserved.`
+
+---
+
+# STEP 3 — AUTHENTICATED TEST
+
+Use an existing safe authenticated test session if the environment supports it.
+
+DO NOT request or print passwords, tokens, cookies, service-role keys, or credentials.
+
+If authenticated testing is impossible, do not pretend that it happened.
+
+Say exactly:
+
+`Authenticated profiling could not be performed in this environment.`
+
+---
+
+# STEP 4 — IDLE TEST
+
+If authenticated testing is available:
+
+Open Home and leave the application completely idle.
+
+Measure approximately 10 minutes.
+
+Record:
+
+* Supabase requests
+* database requests
+* Realtime events
+* Realtime channel count
+* network traffic
+* active timers
+* active videos
+* active audio
+* CPU indicators if available
+
+DO NOT change code to improve the result.
+
+This is measurement only.
+
+---
+
+# STEP 5 — NAVIGATION LEAK TEST
+
+Perform:
+
+```text
+Home
+→ Profile
+→ Home
+→ Chat
+→ Home
+→ Circle
+→ Home
+```
+
+Repeat approximately 5 times.
+
+Measure:
+
+* Realtime channels before
+* Realtime channels after
+* timers before/after
+* listeners before/after
+* duplicate requests
+* network activity
+
+If the numbers increase continuously, REPORT the leak.
+
+Do NOT fix it during this pass.
+
+---
+
+# STEP 6 — CHAT TEST
+
+Open Chat.
+
+Leave it idle.
+
+Measure:
+
+* requests
+* Realtime events
+* active channels
+* polling
+* repeated conversation queries
+
+Send one test message only if a safe test account/session is available.
+
+Determine whether one logical message produces unnecessary full-feed/full-chat refetches.
+
+Again:
+
+### REPORT ONLY. DO NOT PATCH.
+
+---
+
+# STEP 7 — FEED TEST
+
+Open Home.
+
+Leave it idle.
+
+Determine whether:
+
+* feed repeatedly refetches
+* notifications repeatedly fetch
+* profile repeatedly fetches
+* media repeatedly downloads
+* Realtime creates duplicates
+* timers continuously execute
+
+Do not change the feed implementation.
+
+---
+
+# STEP 8 — VIDEO TEST
+
+Inspect/test:
+
+* Flicks/Reels
+* Circle
+* Story viewer
+
+Verify:
+
+* visible video plays
+* offscreen video pauses
+* background pauses video
+* navigating away stops playback
+* multiple unnecessary decoders are not active
+* temporary object URLs are released
+
+Do not modify video code.
+
+---
+
+# STEP 9 — BACKGROUND TEST
+
+If mobile/device testing is actually available:
+
+1. Open app.
+2. Leave idle.
+3. Background/lock device.
+4. Wait several minutes.
+5. Return.
+
+Check:
+
+* camera
+* microphone
+* audio
+* video
+* timers
+* polling
+* network activity
+
+Do not make fixes during this test.
+
+---
+
+# STEP 10 — SUPABASE USAGE
+
+If Supabase dashboard/logs are accessible, identify the largest traffic sources.
+
+Categorize:
+
+```text
+Database
+Realtime
+Storage
+Images
+Videos
+Auth
+Other
+```
+
+Find the highest-frequency operations.
+
+For each provide:
+
+```text
+Request:
+Source:
+Frequency:
+Estimated data volume:
+Necessary?:
+Potential issue?:
+```
+
+### NEVER INVENT USAGE NUMBERS.
+
+If exact Supabase usage is unavailable, write:
+
+`Exact Supabase usage could not be measured from this environment.`
+
+---
+
+# STEP 11 — CRITICAL DISTINCTION
+
+Do NOT confuse:
+
+### Supabase database usage
+
+with:
+
+### Browser/network/media traffic.
+
+The original "1GB/day" may be caused by:
+
+* database responses
+* Realtime payloads
+* Storage downloads
+* video downloads
+* image downloads
+* repeated requests
+
+Identify which category is actually responsible before making any conclusion.
+
+---
+
+# STEP 12 — CPU / BATTERY
+
+Do not claim exact phone temperature or battery drain unless it was measured on a physical device.
+
+If physical testing is unavailable:
+
+```text
+Phone temperature:
+NOT MEASURED
+
+Battery drain:
+NOT MEASURED
+```
+
+Browser CPU/network observations can still be reported separately.
+
+---
+
+# STEP 13 — NO AUTOMATIC FIXES
+
+This rule is extremely important.
+
+### DO NOT make code changes merely because you find something suspicious.
+
+Only report it.
+
+If you discover a genuine remaining issue, provide:
+
+```text
+Issue:
+Evidence:
+Affected file:
+Affected component:
+Why it matters:
+Suggested fix:
+Risk of changing it:
+```
+
+But DO NOT implement the suggested fix.
+
+---
+
+# STEP 14 — NO "OPTIMIZATION FOR OPTIMIZATION'S SAKE"
+
+Do not:
+
+* add arbitrary `useMemo`
+* add arbitrary `useCallback`
+* add caching everywhere
+* increase cache durations
+* add debouncing without evidence
+* disable Realtime
+* reduce functionality
+* remove features
+* reduce media quality
+* remove polling that is genuinely required
+* rewrite working components
+
+We need evidence, not speculative optimization.
+
+---
+
+# STEP 15 — FINAL REPORT
+
+Return EXACTLY:
+
+## A. AUTHENTICATED IDLE TEST
+
+Requests:
+Realtime:
+Network:
+CPU:
+Timers:
+Media:
+
+## B. NAVIGATION LEAK TEST
+
+Channels before:
+Channels after:
+Timers before:
+Timers after:
+Duplicate requests:
+Leaks found:
+
+## C. CHAT TEST
+
+Requests:
+Realtime:
+Polling:
+Duplicate fetches:
+Leaks:
+
+## D. FEED TEST
+
+Requests:
+Duplicate requests:
+Realtime:
+Media:
+
+## E. VIDEO TEST
+
+Flicks:
+Circle:
+Stories:
+Background behavior:
+Network:
+
+## F. SUPABASE TOP USAGE SOURCES
+
+1.
+2.
+3.
+4.
+5.
+
+## G. PREVIOUS FIXES STATUS
+
+For each previous optimization:
+
+* Preserved
+* Working
+* Regression found
+* Not testable
+
+## H. REMAINING PROBLEMS
+
+Only list issues supported by actual code evidence or measurements.
+
+## I. SUGGESTED NEXT FIXES
+
+Suggestions ONLY.
+
+Do NOT implement them.
+
+## J. BEFORE/AFTER
+
+Only provide numbers that were actually measured.
+
+## K. FINAL VERDICT
+
+Choose exactly one:
+
+`PERFORMANCE ISSUE RESOLVED`
+
+or
+
+`MAJOR IMPROVEMENT — MORE PROFILING REQUIRED`
+
+or
+
+`SIGNIFICANT RESOURCE LEAK STILL EXISTS`
+
+Explain the evidence.
+
+---
+
+# FINAL SAFETY INSTRUCTION
+
+The previous performance work is valuable and must be preserved.
+
+This pass must behave like a **QA/performance auditor**, NOT like a developer doing another refactor.
+
+### FIRST:
+
+Inspect → Measure → Compare → Report.
+
+### DO NOT:
+
+Inspect → Guess → Modify.
+
+No application code should be changed unless I explicitly give a separate instruction to implement a specific confirmed issue after reviewing your report.
