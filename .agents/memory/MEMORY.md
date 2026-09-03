@@ -7,3 +7,4 @@
 - [Chat async lifecycle](chat-async-lifecycle.md) — normalize nullable realtime rows and invalidate request callbacks when chat selection or component lifetime changes.
 - [Post-merge workflow reconciliation](post-merge-workflow-reconciliation.md) — setup can pass while platform reconciliation fails on an injected missing skill path.
 - [Authenticated performance profiling](authenticated-performance-profiling.md) — mobile profiling needs an explicit Playwright auth state; never report guest-gated runs as authenticated.
+- [Native package declarations](native-package-declarations.md) — locally present Capacitor plugins must also be direct manifest and lockfile dependencies for clean publish installs.
