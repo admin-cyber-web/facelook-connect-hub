@@ -2268,8 +2268,8 @@ const Header = ({
             >
               {/* Header Section */}
               <div
-                className="px-4 pb-3 flex items-center justify-between border-b border-white/10 bg-white/5 shrink-0"
-                style={{ paddingTop: "calc(0.75rem + env(safe-area-inset-top, 0px))" }}
+                className="px-4 pt-12 pb-3 flex items-center justify-between border-b border-white/10 bg-white/5 shrink-0"
+                style={{ paddingTop: "max(3rem, env(safe-area-inset-top, 0px))" }}
               >
                 <div className="flex items-center gap-2">
                   <Bell size={15} className="text-white/70" />

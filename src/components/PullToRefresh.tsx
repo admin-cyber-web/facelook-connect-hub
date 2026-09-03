@@ -52,12 +52,28 @@ export default function PullToRefresh({
     };
 
     const onTouchStart = (e: TouchEvent) => {
+      if (
+        e.target instanceof Element &&
+        e.target.closest('[data-no-pull-to-refresh="true"]')
+      ) {
+        startY.current = null;
+        return;
+      }
       // Only arm the puller when the feed is truly at the top.
       if (getScrollTop() > 4) { startY.current = null; return; }
       startY.current = e.touches[0].clientY;
     };
 
     const onTouchMove = (e: TouchEvent) => {
+      if (
+        e.target instanceof Element &&
+        e.target.closest('[data-no-pull-to-refresh="true"]')
+      ) {
+        startY.current = null;
+        pullYRef.current = 0;
+        setPullY(0);
+        return;
+      }
       if (startY.current == null || refreshingRef.current) return;
       // If the user scrolled down since touchstart, disarm immediately.
       if (getScrollTop() > 4) { startY.current = null; setPullY(0); return; }

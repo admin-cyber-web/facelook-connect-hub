@@ -3072,6 +3072,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
           exit={{ y: "100%" }}
           transition={{ type: "spring", stiffness: 300, damping: 30 }}
           className={`fixed inset-0 z-[150] flex flex-col ${T.wrap} overflow-hidden`}
+          data-no-pull-to-refresh={bottomTab === "chat" ? "true" : undefined}
           onClick={(e) => e.stopPropagation()}
           onPointerDown={(e) => e.stopPropagation()}
         >
@@ -4181,7 +4182,14 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                 {!searchQuery.trim() && <StoryRow />}
 
                 {/* List */}
-                <div className="flex-1 overflow-y-auto">
+                <div
+                  className="flex-1 overflow-y-auto"
+                  style={{
+                    touchAction: "pan-y",
+                    overscrollBehaviorY: "contain",
+                    WebkitOverflowScrolling: "touch",
+                  }}
+                >
                   {searchQuery.trim() ? (
                     <>
                       <p
@@ -4667,7 +4675,12 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
 
                 {/* Messages */}
                 <div
-                  className="flex-1 overflow-y-auto px-4 pt-20 pb-4 space-y-2"
+                  className="flex-1 overflow-y-auto overscroll-contain px-4 pt-20 pb-4 space-y-2"
+                  style={{
+                    touchAction: "pan-y",
+                    overscrollBehaviorY: "contain",
+                    WebkitOverflowScrolling: "touch",
+                  }}
                   onClick={() => {
                     setMsgMenuId(null);
                     setShowEmojiGrid(false);
