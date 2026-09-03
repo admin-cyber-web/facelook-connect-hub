@@ -479,22 +479,25 @@ const Avatar = ({
 // ── MediaBubble (memoized to prevent re-renders during scroll) ───────────────
 const MediaBubble = React.memo(
   ({ url, type }: { url: string; type: string }) => {
-    if (type.startsWith("image/")) {
+    const safeUrl = asTrimmedString(url);
+    const safeType = asTrimmedString(type);
+    if (!safeUrl) return null;
+    if (safeType.startsWith("image/")) {
       return (
         <img
-          src={url}
+          src={safeUrl}
           className="max-w-[220px] rounded-2xl object-cover cursor-pointer shadow-lg"
-          onClick={() => window.open(url, "_blank")}
+          onClick={() => window.open(safeUrl, "_blank")}
           decoding="async"
           crossOrigin="anonymous"
         />
       );
     }
 
-    if (type.startsWith("video/")) {
+    if (safeType.startsWith("video/")) {
       return (
         <video
-          src={url}
+          src={safeUrl}
           controls
           preload="metadata"
           playsInline
@@ -504,7 +507,7 @@ const MediaBubble = React.memo(
       );
     }
 
-    if (type.startsWith("audio/")) {
+    if (safeType.startsWith("audio/")) {
       return (
         <div className="flex items-center gap-2 bg-white/10 px-3 py-2 rounded-2xl min-w-[200px]">
           <Music size={16} className="text-blue-400 shrink-0" />
@@ -513,7 +516,7 @@ const MediaBubble = React.memo(
               Audio message
             </span>
             <audio
-              src={url}
+              src={safeUrl}
               controls
               className="w-full h-8"
               style={{ accentColor: "#60a5fa" }}
@@ -525,7 +528,7 @@ const MediaBubble = React.memo(
 
     return (
       <a
-        href={url}
+        href={safeUrl}
         target="_blank"
         rel="noreferrer"
         className="text-blue-400 underline text-xs"
@@ -675,7 +678,7 @@ const KEYWORD_EMOJI_MAP: { keywords: string[]; emoji: string }[] = [
 
 /** Returns the first matching emoji for a message text, or null. Case-insensitive. */
 const getKeywordEmoji = (text: string): string | null => {
-  const lower = text.toLowerCase();
+  const lower = asTrimmedString(text).toLowerCase();
   for (const { keywords, emoji } of KEYWORD_EMOJI_MAP) {
     if (keywords.some((kw) => lower.includes(kw.toLowerCase()))) {
       return emoji;
@@ -790,8 +793,9 @@ const _SGRADS = [
   "#06b6d4",
 ];
 const _sgradFor = (id: string) => {
+  const safeId = asTrimmedString(id);
   let h = 0;
-  for (let i = 0; i < id.length; i++) h = ((h << 5) + h) ^ id.charCodeAt(i);
+  for (let i = 0; i < safeId.length; i++) h = ((h << 5) + h) ^ safeId.charCodeAt(i);
   return _SGRADS[Math.abs(h) % _SGRADS.length];
 };
 
@@ -800,38 +804,41 @@ const StoryCircle = ({
   story,
   onClick,
 }: {
-  story: Story;
+  story?: Story;
   onClick: () => void;
-}) => (
-  <button
-    onClick={onClick}
-    className="flex flex-col items-center gap-1.5 shrink-0"
-  >
-    <div className="w-14 h-14 rounded-full p-0.5 bg-gradient-to-br from-rose-400 via-pink-500 to-red-400">
-      <div className="w-full h-full rounded-full overflow-hidden border-2 border-white/10">
-        {story.media_type === "voice" ? (
-          <div
-            className="w-full h-full flex items-center justify-center"
-            style={{ background: _sgradFor(story.user_id) }}
-          >
-            <Mic size={18} className="text-white/80" />
-          </div>
-        ) : (
-          <img
-            src={getStoryMediaUrl(story.image_url)}
-            className="w-full h-full object-cover"
-            decoding="async"
-            crossOrigin="anonymous"
-            onError={onStoryMediaError}
-          />
-        )}
+}) => {
+  if (!story) return null;
+  return (
+    <button
+      onClick={onClick}
+      className="flex flex-col items-center gap-1.5 shrink-0"
+    >
+      <div className="w-14 h-14 rounded-full p-0.5 bg-gradient-to-br from-rose-400 via-pink-500 to-red-400">
+        <div className="w-full h-full rounded-full overflow-hidden border-2 border-white/10">
+          {story.media_type === "voice" ? (
+            <div
+              className="w-full h-full flex items-center justify-center"
+              style={{ background: _sgradFor(story.user_id) }}
+            >
+              <Mic size={18} className="text-white/80" />
+            </div>
+          ) : (
+            <img
+              src={getStoryMediaUrl(story.image_url)}
+              className="w-full h-full object-cover"
+              decoding="async"
+              crossOrigin="anonymous"
+              onError={onStoryMediaError}
+            />
+          )}
+        </div>
       </div>
-    </div>
-    <span className="text-[9px] font-black text-white/60 max-w-[52px] truncate">
-      {story.profile?.full_name?.split(" ")[0] || "Story"}
-    </span>
-  </button>
-);
+      <span className="text-[9px] font-black text-white/60 max-w-[52px] truncate">
+        {story.profile?.full_name?.split(" ")[0] || "Story"}
+      </span>
+    </button>
+  );
+};
 
 // ── Story view count (shown to story owner only) ──────────────────────────────
 const StoryViewCount = ({ storyId }: { storyId: string }) => {
@@ -905,13 +912,16 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
           .from("message_reactions")
           .select("message_id, user_id, emoji")
           .in("message_id", msgIdsArr);
-        if (!data) return;
+        if (!Array.isArray(data)) return;
         const map: Record<string, Record<string, string[]>> = {};
-        for (const row of data) {
-          if (!map[row.message_id]) map[row.message_id] = {};
-          if (!map[row.message_id][row.emoji])
-            map[row.message_id][row.emoji] = [];
-          map[row.message_id][row.emoji].push(row.user_id);
+        for (const row of data as any[]) {
+          const messageId = asTrimmedString(row?.message_id);
+          const emojiValue = asTrimmedString(row?.emoji);
+          const reactionUserId = asTrimmedString(row?.user_id);
+          if (!messageId || !emojiValue || !reactionUserId) continue;
+          if (!map[messageId]) map[messageId] = {};
+          if (!map[messageId][emojiValue]) map[messageId][emojiValue] = [];
+          map[messageId][emojiValue].push(reactionUserId);
         }
         if (mountedRef.current) setMsgReactions(map);
       } catch (error) {
@@ -1000,8 +1010,9 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     }
 
     // ── Step 5: re-fetch to sync both users (after successful DB write) ───────
-    if (mountedRef.current && selectedUser) {
-      await fetchMsgReactions(reactingUserId, selectedUser.id);
+    const partnerId = asTrimmedString(selectedUser?.id);
+    if (mountedRef.current && partnerId) {
+      await fetchMsgReactions(reactingUserId, partnerId);
     }
   };
 
@@ -2083,12 +2094,13 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
         config: { presence: { key: userId } },
       });
       ch.on("presence", { event: "sync" }, () => {
-        const state = ch.presenceState<{ user_id: string }>();
+        const state = ch.presenceState<{ user_id?: string }>() ?? {};
         const ids = new Set<string>();
         Object.values(state)
           .flat()
           .forEach((p: any) => {
-            if (p.user_id) ids.add(p.user_id);
+            const presenceUserId = asTrimmedString(p?.user_id);
+            if (presenceUserId) ids.add(presenceUserId);
           });
         setOnlineUsers(ids);
       }).subscribe(async (status, error) => {
@@ -2170,9 +2182,15 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
           }
         }),
       { onVisible: () => {
-        void fetchFriendships();
-        void fetchPendingRequests();
-        void fetchContacts();
+        void fetchFriendships().catch((error) =>
+          console.warn("[Chat] visible friendship refresh failed:", error),
+        );
+        void fetchPendingRequests().catch((error) =>
+          console.warn("[Chat] visible request refresh failed:", error),
+        );
+        void fetchContacts().catch((error) =>
+          console.warn("[Chat] visible contacts refresh failed:", error),
+        );
       } },
     );
     return () => {
@@ -2244,7 +2262,9 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
 
   useEffect(() => {
     if (!userId) return;
-    fetchUnseenCount();
+    void fetchUnseenCount().catch((error) =>
+      console.warn("[Chat] unread count refresh failed:", error),
+    );
     return safeSubscribeWhileVisible("unread count", () =>
       supabase
         .channel(`unseen-count-${userId}`)
@@ -2274,7 +2294,11 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
             reportRealtimeError("unread count", error || status);
           }
         }),
-      { onVisible: () => { void fetchUnseenCount(); } },
+      { onVisible: () => {
+        void fetchUnseenCount().catch((error) =>
+          console.warn("[Chat] visible unread refresh failed:", error),
+        );
+      } },
     );
   }, [userId, fetchUnseenCount, safeSubscribeWhileVisible, reportRealtimeError]);
 
@@ -2785,7 +2809,9 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
         setMessages((prev) =>
           prev.map((m) => (m.id === tempId ? (data as Message) : m)),
         );
-        fetchContacts();
+                                   void fetchContacts().catch((error) =>
+                                     console.warn("[Chat] post-send contacts refresh failed:", error),
+                                   );
       } else if (error) {
         setMessages((prev) => prev.filter((m) => m.id !== tempId));
         console.error("[ChatSystem] sendMessage Supabase error:", error);
@@ -2939,10 +2965,11 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   };
 
   const uploadAndSendFile = async (file: File): Promise<void> => {
-    if (!selectedUser) return;
+    const contactId = asTrimmedString(selectedUser?.id);
+    if (!contactId || !file) return;
     setIsUploadingMedia(true);
     try {
-      const ext = file.name.split(".").pop();
+      const ext = file.name?.split(".").pop() || "bin";
       const fileName = `${userId}-${Date.now()}.${ext}`;
 
       // ── Step 1: Upload to storage ────────────────────────────────────────
@@ -2967,7 +2994,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       // ── Step 3: Insert message row ───────────────────────────────────────
       const insertPayload = {
         sender_id: userId,
-        receiver_id: selectedUser.id,
+        receiver_id: contactId,
         content: "",
         media_url: publicUrl,
         media_type: file.type,
@@ -3022,7 +3049,9 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       if (error) throw error;
       if (!mountedRef.current) return;
       toast.success("Profile updated!");
-      void fetchMyProfile();
+      void fetchMyProfile().catch((error) =>
+        console.warn("[Chat] profile refresh after save failed:", error),
+      );
     } catch (error: any) {
       if (mountedRef.current) toast.error("Save failed: " + (error?.message || "Unknown error"));
     } finally {
@@ -3254,10 +3283,14 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   const handleTyping = () => {
     const ch = typingChannelRef.current;
     if (!ch) return;
-    ch.track({ is_typing: true });
+    void ch.track({ is_typing: true }).catch((error) =>
+      console.warn("[Chat] typing status update failed:", error),
+    );
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     typingTimeoutRef.current = setTimeout(() => {
-      ch.track({ is_typing: false });
+      void ch.track({ is_typing: false }).catch((error) =>
+        console.warn("[Chat] typing status reset failed:", error),
+      );
     }, 2000);
   };
 
