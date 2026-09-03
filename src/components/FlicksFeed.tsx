@@ -110,12 +110,17 @@ const CommentDrawer = ({ post, currentUserId, onClose, onCommentAdded }: any) =>
 
   useEffect(() => {
     if (!post?._raw_id) return;
+    let active = true;
     supabase
       .from("comments")
-      .select("*, profiles:author_id (username, avatar_url)")
+      .select("id, post_id, author_id, author, content, created_at, profiles:author_id (username, avatar_url)")
       .eq("post_id", post._raw_id)
       .order("created_at", { ascending: true })
-      .then(({ data }) => setComments(data || []));
+      .limit(100)
+      .then(({ data }) => {
+        if (active) setComments(data || []);
+      });
+    return () => { active = false; };
   }, [post]);
 
   const handleSend = async () => {
@@ -126,7 +131,7 @@ const CommentDrawer = ({ post, currentUserId, onClose, onCommentAdded }: any) =>
       const { data, error } = await supabase
         .from("comments")
         .insert([{ post_id: post._raw_id, content: text.trim(), author_id: currentUserId, author: "User" }])
-        .select("*, profiles:author_id (username, avatar_url)")
+        .select("id, post_id, author_id, author, content, created_at, profiles:author_id (username, avatar_url)")
         .single();
       if (error) throw error;
       if (data) { setComments(p => [...p, data]); setText(""); toast.success("Commented!"); onCommentAdded?.(); }
@@ -714,7 +719,7 @@ export default function FlicksApp({ onBack, onBridgeChat, isAdmin: isAdminProp =
         // Single source of truth: posts table, type=video, with unambiguous FK hint
         const { data: postsData, error: postsErr } = await supabase
           .from("posts")
-          .select("*, author:profiles!posts_author_id_fkey(avatar_url, full_name), comments(count)")
+          .select("id, author_id, user_id, username, author_name, content, caption, media_url, video_url, cover_url, thumb_url, likes_count, views_count, shares_count, meta_title, meta_description, created_at, author:profiles!posts_author_id_fkey(avatar_url, full_name), comments(count)")
           .eq("type", "video")
           .order("created_at", { ascending: false })
           .limit(20);

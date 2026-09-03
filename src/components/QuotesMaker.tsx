@@ -174,6 +174,7 @@ const QuotesMaker: React.FC<Props> = ({ userId, userName = "", onClose, onPostSu
   // Canvas / design state
   const [themeIdx, setThemeIdx]   = useState(0);
   const [bgImg, setBgImg]         = useState<HTMLImageElement | null>(null);
+  const bgObjectUrlRef = useRef<string | null>(null);
   const [font, setFont]           = useState(FONT_OPTIONS[0].value);
   const [fontSize, setFontSize]   = useState(68);
   const [color, setColor]         = useState("#FFFFFF");
@@ -255,6 +256,15 @@ const QuotesMaker: React.FC<Props> = ({ userId, userName = "", onClose, onPostSu
     document.fonts.ready.then(() => draw());
   }, [draw]);
 
+  useEffect(() => {
+    return () => {
+      if (bgObjectUrlRef.current) {
+        URL.revokeObjectURL(bgObjectUrlRef.current);
+        bgObjectUrlRef.current = null;
+      }
+    };
+  }, []);
+
   // ── Pointer → canvas coordinate ───────────────────────────────────────────
   const toCanvas = (clientX: number, clientY: number) => {
     const r = canvasRef.current!.getBoundingClientRect();
@@ -285,8 +295,11 @@ const QuotesMaker: React.FC<Props> = ({ userId, userName = "", onClose, onPostSu
     const file = e.target.files?.[0];
     if (!file) return;
     const img = new Image();
+    const objectUrl = URL.createObjectURL(file);
+    if (bgObjectUrlRef.current) URL.revokeObjectURL(bgObjectUrlRef.current);
+    bgObjectUrlRef.current = objectUrl;
     img.onload = () => setBgImg(img);
-    img.src    = URL.createObjectURL(file);
+    img.src    = objectUrl;
     e.target.value = "";
   };
 

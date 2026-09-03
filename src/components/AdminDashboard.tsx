@@ -204,7 +204,8 @@ const AdminDashboard: React.FC<Props> = ({
             `id, reporter_id, post_id, target_id, reported_user_id, type, reason, status, created_at, token_number, decision`
           )
           .eq("status", "pending")
-          .order("created_at", { ascending: false }),
+          .order("created_at", { ascending: false })
+          .limit(100),
         supabase.from("profiles").select("id", { count: "exact", head: true }),
       ]);
 

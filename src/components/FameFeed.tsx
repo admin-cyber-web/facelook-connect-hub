@@ -2805,7 +2805,8 @@ const FameFeed = ({
             "id, content, author, user_id, parent_id, created_at, is_hidden, hidden_by_name, hidden_by_id",
           )
           .eq("post_id", postId)
-          .order("created_at");
+          .order("created_at")
+          .limit(100);
         if (error) {
           console.warn("[FameFeed] loadComments error:", error.message);
           return;

@@ -333,7 +333,7 @@ export default function AntakshariArena({
     if (!room?.id) return;
     const { data } = await supabase
       .from("antakshari_room_members")
-      .select("*, profiles(id, full_name, username, avatar_url, antakshari_level, country)")
+      .select("id, room_id, user_id, is_ready, is_host, score, joined_at, profiles(id, full_name, username, avatar_url, antakshari_level, country)")
       .eq("room_id", room.id);
     if (data) setMembers(data as any);
   };

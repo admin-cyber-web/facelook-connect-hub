@@ -171,7 +171,8 @@ export function useMagnet(postId: string, postType: string, currentUserId: strin
     const { data } = await supabase
       .from("magnet_chains")
       .select(`
-        *,
+        id, post_id, post_type, user_id, invited_by, parent_magnet_id,
+        depth, is_killed, is_muted, created_at,
         profile:profiles!magnet_chains_user_id_fkey(full_name,avatar_url,username),
         inviter:profiles!magnet_chains_invited_by_fkey(full_name,avatar_url)
       `)
@@ -635,12 +636,15 @@ function MagnetLeaderboard({ currentUserId }: { currentUserId: string | null }) 
     (async () => {
       setLoading(true);
       try {
-        // Pull every non-root chain entry with the inviter's profile
+        // Keep this lightweight: the leaderboard is a recent active-chain
+        // snapshot rather than an unbounded history export.
         const { data } = await supabase
           .from("magnet_chains")
           .select("invited_by, inviter:profiles!magnet_chains_invited_by_fkey(full_name,avatar_url)")
           .not("invited_by", "is", null)
-          .limit(2000);
+          .eq("is_killed", false)
+          .order("created_at", { ascending: false })
+          .limit(500);
 
         if (cancelled || !data) return;
 
@@ -848,7 +852,8 @@ export function MagnetModal({
         .from("friendships")
         .select("sender_id,receiver_id")
         .or(`sender_id.eq.${currentUserId},receiver_id.eq.${currentUserId}`)
-        .eq("status", "accepted");
+        .eq("status", "accepted")
+        .limit(500);
       const friendIds = (fships || []).map(f => f.sender_id === currentUserId ? f.receiver_id : f.sender_id);
 
       if (friendIds.length) {

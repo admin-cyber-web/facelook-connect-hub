@@ -54,6 +54,7 @@ import { subscribeWhileVisible } from "@/lib/realtimeVisibility";
 import { usePageVisibility } from "../hooks/usePageVisibility";
 import { toast } from "sonner";
 import { parseMessage } from "../lib/messageParser";
+import { playFeedbackTone } from "../lib/audioFeedback";
 import { ChatSticker } from "./ChatSticker";
 import {
   hasRiskKeyword,
@@ -329,41 +330,8 @@ const RosePetals = () => (
 );
 
 // ── Sound ─────────────────────────────────────────────────────────────────────
-const playSound = (type: "send" | "receive" | "delete") => {
-  try {
-    const ctx = new (window.AudioContext ||
-      (window as any).webkitAudioContext)();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    if (type === "send") {
-      osc.type = "sine";
-      osc.frequency.setValueAtTime(880, ctx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(1200, ctx.currentTime + 0.08);
-      gain.gain.setValueAtTime(0.12, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.18);
-      osc.start();
-      osc.stop(ctx.currentTime + 0.18);
-    } else if (type === "receive") {
-      osc.type = "sine";
-      osc.frequency.setValueAtTime(600, ctx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(900, ctx.currentTime + 0.15);
-      gain.gain.setValueAtTime(0.1, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.28);
-      osc.start();
-      osc.stop(ctx.currentTime + 0.28);
-    } else {
-      osc.type = "sawtooth";
-      osc.frequency.setValueAtTime(350, ctx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(80, ctx.currentTime + 0.3);
-      gain.gain.setValueAtTime(0.08, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
-      osc.start();
-      osc.stop(ctx.currentTime + 0.3);
-    }
-  } catch (_) {}
-};
+const playSound = (type: "send" | "receive" | "delete") =>
+  playFeedbackTone(type);
 
 // ── Avatar ────────────────────────────────────────────────────────────────────
 const Avatar = ({
@@ -793,6 +761,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   onLogout,
   onUnreadCountChange,
 }) => {
+  const pageVisible = usePageVisibility();
   const isAdmin = isAdminEmail(userEmail);
   const { openProfile } = useProfileViewer();
 
@@ -1060,6 +1029,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   const [deletingStory, setDeletingStory] = useState(false);
   const storyInputRef = useRef<HTMLInputElement>(null);
   const storyAudioRef = useRef<HTMLAudioElement | null>(null);
+  const storyVideoRef = useRef<HTMLVideoElement | null>(null);
   const storyTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [storyElapsed, setStoryElapsed] = useState(0);
   const [storyPaused, setStoryPaused] = useState(false);
@@ -1759,7 +1729,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
 
   // ── Story viewer: 15s countdown timer ────────────────────────────────────
   useEffect(() => {
-    if (!storyViewerOpen || storyPaused || storyGroups.length === 0) return;
+    if (!storyViewerOpen || storyPaused || !pageVisible || storyGroups.length === 0) return;
     storyTimerRef.current = setInterval(() => {
       setStoryElapsed((e) => {
         if (e + 0.1 >= 15) {
@@ -1789,6 +1759,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     viewerGroupIdx,
     viewerStoryIdx,
     storyGroups,
+    pageVisible,
   ]);
 
   // ── Story viewer: reset elapsed on story change ───────────────────────────
@@ -1806,7 +1777,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
         storyAudioRef.current = null;
       }
     };
-    if (!storyViewerOpen) {
+    if (!storyViewerOpen || !pageVisible) {
       stopAudio();
       return;
     }
@@ -1821,7 +1792,19 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       storyAudioRef.current = audio;
     }
     return stopAudio;
-  }, [storyViewerOpen, viewerGroupIdx, viewerStoryIdx, storyGroups]);
+  }, [storyViewerOpen, viewerGroupIdx, viewerStoryIdx, storyGroups, pageVisible]);
+
+  // A story viewer may contain video or music; explicitly pause both when the
+  // WebView is backgrounded instead of relying on browser throttling.
+  useEffect(() => {
+    const video = storyVideoRef.current;
+    if (!video) return;
+    if (!storyViewerOpen || !pageVisible) {
+      video.pause();
+    } else {
+      void video.play().catch(() => {});
+    }
+  }, [storyViewerOpen, pageVisible, viewerGroupIdx, viewerStoryIdx]);
 
   // ── Story viewer: view tracking ───────────────────────────────────────────
   useEffect(() => {
@@ -3671,27 +3654,28 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                           ) : story.media_type === "video" ? (
                             story.mood === "grid" ? (
                               <div className="w-full h-full grid grid-cols-2 grid-rows-2">
-                                {[0, 1, 2, 3].map((j) => (
-                                  <video
-                                    key={j}
-                                    src={getStoryMediaUrl(story.image_url)}
-                                    className="w-full h-full object-cover"
-                                    autoPlay
-                                    muted={!!story.music_url}
-                                    playsInline
-                                    loop
-                                    onError={onStoryMediaError}
-                                  />
-                                ))}
+                                <video
+                                  ref={storyVideoRef}
+                                  src={getStoryMediaUrl(story.image_url)}
+                                  className="col-span-2 row-span-2 w-full h-full object-cover"
+                                  autoPlay={pageVisible}
+                                  muted={!!story.music_url || muteStoryVideo}
+                                  playsInline
+                                  loop
+                                  preload="metadata"
+                                  onError={onStoryMediaError}
+                                />
                               </div>
                             ) : (
                               <video
+                                ref={storyVideoRef}
                                 src={getStoryMediaUrl(story.image_url)}
                                 className="w-full h-full object-cover"
-                                autoPlay
-                                muted={!!story.music_url}
+                                autoPlay={pageVisible}
+                                muted={!!story.music_url || muteStoryVideo}
                                 playsInline
                                 loop
+                                preload="metadata"
                                 style={{ filter: moodFilter }}
                                 onError={onStoryMediaError}
                               />

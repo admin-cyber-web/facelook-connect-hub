@@ -207,6 +207,25 @@ const SnapyStudio: React.FC<SnapyStudioProps> = ({ userId }) => {
     };
   }, [startCamera]);
 
+  // Camera hardware must not stay active while the app is backgrounded.
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.hidden) {
+        cameraRequestRef.current += 1;
+        videoRef.current?.pause();
+        if (videoRef.current) videoRef.current.srcObject = null;
+        streamRef.current?.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = 0;
+      } else if (state === "camera") {
+        void startCamera();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => document.removeEventListener("visibilitychange", handleVisibility);
+  }, [startCamera, state]);
+
   // ── Live render loop ──────────────────────────────────────────────────────
   useEffect(() => {
     if (state !== "camera") return;

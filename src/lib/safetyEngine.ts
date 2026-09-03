@@ -114,8 +114,6 @@ export async function sendSafetyNotification(
  * Returns false → no alert.
  */
 export async function checkLoveProtectViolation(partnerId: string): Promise<boolean> {
-  console.log("[LoveProtect] checkLoveProtectViolation called for partnerId:", partnerId);
-
   try {
     // Window: last 5 minutes
     const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
@@ -125,28 +123,21 @@ export async function checkLoveProtectViolation(partnerId: string): Promise<bool
       .select("id, created_at, content")
       .eq("sender_id", partnerId)
       .gte("created_at", fiveMinAgo)
-      .order("created_at", { ascending: false });
-
-    console.log("[LoveProtect] DB result — rows:", recent?.length ?? 0, "error:", error?.message ?? "none");
+      .order("created_at", { ascending: false })
+      .limit(2);
 
     if (error) {
-      console.warn("[LoveProtect] Supabase error:", error.message);
       return false;
     }
 
     if (!recent || recent.length === 0) {
-      console.log("[LoveProtect] No recent messages from partner — no violation.");
       return false;
     }
 
     // Violation: partner sent 2 or more messages in the last 5 minutes
     const violated = recent.length >= 2;
-    console.log(
-      `[LoveProtect] ${recent.length} messages in last 5 min — violated=${violated}`
-    );
     return violated;
   } catch (ex) {
-    console.error("[LoveProtect] Unexpected error:", ex);
     return false;
   }
 }

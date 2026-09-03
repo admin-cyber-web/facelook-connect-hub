@@ -740,7 +740,7 @@ export const DebateButton: React.FC<{
   const fetchMessages = useCallback(async (debateId: string) => {
     const { data } = await supabase
       .from("debate_messages")
-      .select("*, profiles!user_id(full_name, avatar_url)")
+      .select("id, debate_id, user_id, content, likes_count, created_at, profiles!user_id(full_name, avatar_url)")
       .eq("debate_id", debateId)
       .order("created_at", { ascending: true });
     if (!data) return;
@@ -904,7 +904,7 @@ export const DebateButton: React.FC<{
         status: "pending",
         expires_at: new Date(Date.now() + 48 * 3600 * 1000).toISOString(),
       })
-      .select("*, challenger:profiles!challenger_id(full_name,avatar_url), responder:profiles!responder_id(full_name,avatar_url)")
+      .select("id, survey_id, challenger_id, responder_id, status, is_public, expires_at, finished_at, winner_id, created_at, challenger:profiles!challenger_id(full_name,avatar_url), responder:profiles!responder_id(full_name,avatar_url)")
       .single();
 
     if (error) {

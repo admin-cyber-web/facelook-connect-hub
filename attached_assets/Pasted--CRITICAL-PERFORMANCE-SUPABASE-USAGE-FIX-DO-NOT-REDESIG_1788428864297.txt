@@ -1,0 +1,876 @@
+## CRITICAL PERFORMANCE + SUPABASE USAGE FIX — DO NOT REDESIGN OR REMOVE FEATURES
+
+You are working on my existing **React + Vite application** built with Lovable and later developed/updated in Replit. The app uses **Supabase** for database, storage, authentication and realtime.
+
+### MAIN PROBLEMS
+
+1. Even with only **ONE active user**, Supabase usage/cache/network consumption can exceed **1 GB per day**.
+2. The mobile phone becomes **very hot shortly after opening the app**.
+3. Battery drains extremely fast while the app is open.
+4. CPU/network activity appears to continue even when the user is not actively doing anything.
+5. The app must remain fully functional after optimization.
+
+This is a **production performance investigation**, not a UI redesign.
+
+---
+
+# IMPORTANT RULES
+
+* DO NOT delete existing features.
+* DO NOT change the existing UI/design unnecessarily.
+* DO NOT remove Supabase functionality.
+* DO NOT disable realtime globally just to reduce usage.
+* DO NOT replace working functionality with fake/mock data.
+* DO NOT add unnecessary libraries.
+* DO NOT introduce polling as a workaround.
+* Preserve authentication, posts, chat, notifications, Circle, Fame, media, profiles, etc.
+* First inspect the entire codebase and identify the actual causes.
+* Make changes incrementally.
+* After every major fix, run/build/test the application.
+* Prefer fixing the root cause instead of adding arbitrary caching.
+
+---
+
+# PHASE 1 — FULL PERFORMANCE AUDIT
+
+Inspect the complete project before making changes.
+
+Search specifically for:
+
+### Supabase
+
+* `supabase.from(`
+* `.select(`
+* `.insert(`
+* `.update(`
+* `.delete(`
+* `.rpc(`
+* `.channel(`
+* `.on(`
+* `.subscribe(`
+* `.removeChannel(`
+* `.removeAllChannels(`
+* realtime listeners
+* storage downloads
+* storage list calls
+* signed URL generation
+* repeated authentication/session calls
+
+### Timers / polling
+
+Search for:
+
+* `setInterval`
+* `setTimeout`
+* recursive timers
+* polling functions
+* polling every few seconds
+* polling every few milliseconds
+* `requestAnimationFrame`
+
+Every timer must have a clear reason and cleanup.
+
+### React lifecycle
+
+Search for:
+
+* `useEffect`
+* effects without dependency arrays
+* effects with unstable dependencies
+* functions/objects recreated on every render
+* components mounting/unmounting repeatedly
+* duplicate data fetching
+* duplicate subscriptions
+* state updates inside effects causing loops
+
+### Realtime
+
+Find every Supabase realtime subscription.
+
+For EVERY subscription determine:
+
+1. Which component creates it?
+2. How often is it created?
+3. Is it duplicated?
+4. Does it have cleanup?
+5. Can the component mount multiple times?
+6. Does it remain active after navigating away?
+7. Is the same table subscribed from multiple components?
+8. Is it receiving unnecessary UPDATE/INSERT events?
+
+---
+
+# PHASE 2 — FIND DUPLICATE SUPABASE REQUESTS
+
+This is extremely important.
+
+Check whether opening one page causes the same query multiple times.
+
+For example:
+
+```text
+Home
+  -> fetch profile
+  -> fetch posts
+  -> fetch notifications
+
+Header
+  -> fetch profile
+  -> fetch notifications
+
+Sidebar
+  -> fetch profile
+
+Notification component
+  -> fetch notifications
+```
+
+If the same data is fetched repeatedly, centralize it where appropriate.
+
+Do NOT blindly create a huge global cache.
+
+Use reasonable in-memory state/context only where it genuinely prevents duplicate requests.
+
+---
+
+# PHASE 3 — FIX SUPABASE REALTIME
+
+Realtime is a major suspect.
+
+For every realtime channel:
+
+### Correct pattern
+
+```ts
+useEffect(() => {
+  const channel = supabase
+    .channel(`unique-channel-name`)
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'notifications'
+      },
+      handleEvent
+    )
+    .subscribe();
+
+  return () => {
+    supabase.removeChannel(channel);
+  };
+}, []);
+```
+
+Ensure cleanup happens whenever the component unmounts.
+
+### Prevent:
+
+* multiple subscriptions to the same channel
+* subscription creation on every render
+* subscriptions created because of changing function references
+* subscriptions surviving route changes
+* duplicate listeners after login/logout
+* listeners created inside loops
+* listeners created inside frequently changing effects
+
+---
+
+# PHASE 4 — DO NOT SUBSCRIBE TO ENTIRE TABLES UNNECESSARILY
+
+Audit all realtime subscriptions.
+
+If a component only needs data belonging to the current user, don't listen to the entire table.
+
+For example, avoid unnecessarily broad subscriptions such as:
+
+```text
+all notifications
+all messages
+all posts
+all likes
+all comments
+```
+
+Where appropriate, use filters so the client receives only relevant changes.
+
+Example:
+
+```ts
+.on(
+  'postgres_changes',
+  {
+    event: 'INSERT',
+    schema: 'public',
+    table: 'notifications',
+    filter: `user_id=eq.${user.id}`
+  },
+  handler
+)
+```
+
+Use the same principle for messages, notifications, etc.
+
+Do not add filters blindly if the current Supabase schema does not support the required column.
+
+---
+
+# PHASE 5 — STOP POLLING WHERE REALTIME IS ALREADY USED
+
+If realtime already provides updates, don't also repeatedly fetch the same data.
+
+Bad:
+
+```text
+Every 2 seconds:
+fetch notifications
+
+AND
+
+Supabase realtime:
+listen for notifications
+```
+
+Use realtime for live changes and normal fetches only when needed.
+
+If polling is genuinely required, increase the interval substantially and stop polling when:
+
+* tab is hidden
+* app is backgrounded
+* component is unmounted
+* user is logged out
+* relevant page is not active
+
+Use Page Visibility API where appropriate.
+
+---
+
+# PHASE 6 — FIX setInterval / setTimeout LEAKS
+
+Every timer must be cleaned up.
+
+Bad:
+
+```ts
+useEffect(() => {
+  setInterval(loadData, 5000);
+}, []);
+```
+
+Correct:
+
+```ts
+useEffect(() => {
+  const interval = setInterval(loadData, 5000);
+
+  return () => clearInterval(interval);
+}, []);
+```
+
+Also inspect recursive `setTimeout` implementations for leaks.
+
+Do not allow multiple timers to accumulate after navigation or component remounts.
+
+---
+
+# PHASE 7 — PREVENT EFFECT LOOPS
+
+Find effects like:
+
+```ts
+useEffect(() => {
+  fetchData();
+  setSomething(...);
+}, [something]);
+```
+
+where the state update causes the effect to execute again.
+
+Fix all accidental request/render loops.
+
+Pay particular attention to:
+
+* profile loading
+* notifications
+* feed
+* chat
+* Circle
+* Fame
+* suggested users
+* likes/comments
+* authentication state
+* location
+* online status
+* unread counts
+
+---
+
+# PHASE 8 — OPTIMIZE DATABASE QUERIES
+
+Do NOT fetch unnecessary columns.
+
+Instead of:
+
+```ts
+.select('*')
+```
+
+select only required fields.
+
+For example:
+
+```ts
+.select('id,user_id,content,created_at,media_url')
+```
+
+Audit large queries for:
+
+* `select('*')`
+* huge result sets
+* repeated queries
+* unnecessary joins
+* fetching old posts repeatedly
+* fetching entire notification history
+* fetching entire chat history
+* fetching unnecessary profile fields
+
+Use pagination/incremental loading where appropriate.
+
+---
+
+# PHASE 9 — FEED OPTIMIZATION
+
+The feed is potentially one of the biggest sources of bandwidth and CPU usage.
+
+Implement/check:
+
+* pagination
+* limited initial post count
+* lazy loading
+* infinite scroll without duplicate requests
+* no repeated reload of the entire feed after a like/comment
+* update only the affected post
+* don't refetch the entire feed after every interaction
+
+Example:
+
+```text
+Like Post #123
+BAD:
+refetch entire feed
+
+GOOD:
+update Post #123 locally
+```
+
+---
+
+# PHASE 10 — VIDEO OPTIMIZATION
+
+If the application contains Reels/Flicks/videos:
+
+This is extremely important for mobile battery and heating.
+
+Implement:
+
+* autoplay only when video is visible
+* pause video when it leaves viewport
+* use IntersectionObserver
+* never play multiple videos simultaneously
+* stop videos when navigating away
+* avoid loading all videos at once
+* use appropriate video preload behavior
+* avoid repeated video source URL generation
+* avoid downloading high-resolution video unnecessarily
+
+Only the currently visible/active video should normally be playing.
+
+---
+
+# PHASE 11 — IMAGE OPTIMIZATION
+
+Audit every image.
+
+Prevent:
+
+* downloading original huge images when thumbnails are enough
+* repeatedly generating URLs
+* repeatedly fetching the same image
+* loading off-screen images immediately
+
+Use:
+
+```html
+loading="lazy"
+```
+
+where appropriate.
+
+Do not repeatedly transform/download the same media unnecessarily.
+
+---
+
+# PHASE 12 — MOBILE CPU/BATTERY OPTIMIZATION
+
+Find anything running continuously while the user is idle.
+
+Especially:
+
+* animations
+* live counters
+* clocks
+* timers
+* typing indicators
+* online presence
+* location watchers
+* realtime listeners
+* polling
+* progress updates
+* video playback
+* unnecessary React renders
+
+If a feature is not visible, it should generally not continuously consume CPU.
+
+Pause or reduce work when:
+
+```text
+document.hidden === true
+```
+
+and resume when the page becomes visible.
+
+---
+
+# PHASE 13 — LOCATION / GPS AUDIT
+
+If the application uses geolocation, inspect every use of:
+
+```ts
+navigator.geolocation.watchPosition
+```
+
+Make sure:
+
+* it is not started repeatedly
+* `clearWatch()` is called
+* high accuracy is not enabled unnecessarily
+* location is not continuously tracked when the feature isn't being used
+
+If location is only required for a specific feature, request it only while that feature is active.
+
+---
+
+# PHASE 14 — ONLINE / PRESENCE STATUS
+
+If online status is implemented, inspect it carefully.
+
+Do NOT continuously update Supabase every few seconds just to say the user is online.
+
+Avoid patterns like:
+
+```text
+UPDATE users SET last_seen = now()
+every 2 seconds
+```
+
+Use a much more efficient approach.
+
+Only update presence when genuinely necessary, and clean up correctly on logout/unmount.
+
+---
+
+# PHASE 15 — AUTH SESSION CHECKS
+
+Inspect authentication/session logic.
+
+Prevent:
+
+* repeated `getSession()` calls
+* repeated `getUser()` calls
+* auth listeners being registered multiple times
+* profile fetching repeatedly after auth state changes
+
+There should not be multiple independent auth listeners doing the same work.
+
+---
+
+# PHASE 16 — CACHE AUDIT
+
+Do NOT assume browser cache is the problem.
+
+Find the actual source of the reported ~1GB/day usage.
+
+Determine whether traffic is coming from:
+
+1. Supabase database queries
+2. Supabase realtime
+3. Supabase Storage
+4. video downloads
+5. image downloads
+6. repeated API requests
+7. duplicate queries
+8. service worker/cache
+9. client-side retry loops
+
+Do not simply increase cache duration.
+
+Fix the excessive requests.
+
+---
+
+# PHASE 17 — SUPABASE STORAGE
+
+Audit Storage access.
+
+Look for:
+
+* same file downloaded repeatedly
+* signed URL regenerated repeatedly
+* images fetched on every render
+* videos fetched repeatedly
+* unnecessary original-resolution files
+* storage list operations executed repeatedly
+
+Cache stable media URLs where appropriate.
+
+Do not generate a new signed URL on every React render.
+
+---
+
+# PHASE 18 — REACT RENDER PERFORMANCE
+
+Use:
+
+* `React.memo`
+* `useMemo`
+* `useCallback`
+
+ONLY where they actually reduce unnecessary work.
+
+Do not blindly wrap everything.
+
+Find components rendering unnecessarily because parent state changes.
+
+Pay special attention to:
+
+* Feed cards
+* Comments
+* Chat messages
+* Notification list
+* Header
+* Navigation
+* Video cards
+* Circle members
+* Profile cards
+
+---
+
+# PHASE 19 — MEMORY LEAK AUDIT
+
+Look for:
+
+* event listeners without cleanup
+* realtime channels without cleanup
+* timers without cleanup
+* observers without disconnect
+* geolocation watchers without clearWatch
+* AbortControllers not used for cancellable requests
+* stale subscriptions
+* promises updating unmounted components
+* duplicate listeners
+
+Every resource created by a component should have a cleanup strategy.
+
+---
+
+# PHASE 20 — NETWORK REQUEST DEDUPLICATION
+
+Prevent requests such as:
+
+```text
+GET profile
+GET profile
+GET profile
+GET profile
+```
+
+from a single page load.
+
+Also prevent:
+
+```text
+GET feed
+GET feed
+GET feed
+```
+
+caused by multiple effects.
+
+Use request deduplication/in-memory state where appropriate.
+
+---
+
+# PHASE 21 — BACKGROUND TAB / MOBILE VISIBILITY
+
+When the app is backgrounded:
+
+* pause unnecessary polling
+* pause video
+* reduce realtime-related processing where possible
+* stop animations
+* stop unnecessary timers
+* stop unnecessary data refreshes
+
+When returning to foreground, refresh only what is actually stale/needed.
+
+---
+
+# PHASE 22 — SUPABASE DATABASE SIDE
+
+Inspect whether existing queries require proper indexes.
+
+Identify frequently queried columns such as:
+
+* `user_id`
+* `created_at`
+* `post_id`
+* `circle_id`
+* `conversation_id`
+* notification recipient/user ID
+* foreign keys used in filters
+
+Do NOT blindly create indexes everywhere.
+
+Recommend indexes only for queries where they materially improve performance.
+
+If SQL changes are required, create a migration rather than manually destroying existing data.
+
+---
+
+# PHASE 23 — DO NOT BREAK RLS / SECURITY
+
+Performance fixes must NOT weaken Supabase Row Level Security.
+
+Do not:
+
+* disable RLS
+* expose private data
+* make private storage public
+* bypass authorization
+* expose service-role keys to frontend
+* move secret keys into client-side code
+
+Keep security exactly as strong or stronger than before.
+
+---
+
+# PHASE 24 — ADD DEVELOPMENT DIAGNOSTICS
+
+During development, add lightweight logging/debugging that helps identify:
+
+* Supabase request count
+* realtime channel count
+* duplicate subscriptions
+* repeated fetches
+* active timers
+* active video elements
+
+Do NOT leave excessive production logging enabled.
+
+Create a clear diagnostic summary.
+
+---
+
+# PHASE 25 — MEASURE BEFORE AND AFTER
+
+Before changing anything, establish a baseline.
+
+Measure:
+
+* number of Supabase requests during 5–10 minutes of idle use
+* realtime channels created
+* network transfer
+* repeated queries
+* CPU activity
+* active timers
+* active videos
+* memory usage
+
+Then apply fixes.
+
+Measure again.
+
+The goal is:
+
+### IDLE APP
+
+When the user opens the app and does nothing:
+
+* no unnecessary polling
+* no duplicate queries
+* no runaway timers
+* no duplicate realtime subscriptions
+* no continuous video playback
+* minimal CPU usage
+* minimal network traffic
+
+A single idle user should NOT generate hundreds/thousands of unnecessary Supabase requests.
+
+---
+
+# PHASE 26 — TEST THESE FLOWS
+
+After optimization test:
+
+1. Login
+2. Home/feed
+3. Navigate between pages
+4. Open/close chat
+5. Send message
+6. Receive message
+7. Like post
+8. Comment
+9. Notification
+10. Circle
+11. Profile
+12. Upload image
+13. Upload video
+14. Play video
+15. Navigate away from video
+16. Background the mobile browser
+17. Return to app
+18. Logout
+19. Login again
+20. Refresh browser
+21. Open same page repeatedly
+22. Rapidly navigate between pages
+
+Check that subscriptions and timers do NOT multiply after each navigation.
+
+---
+
+# PHASE 27 — VERY IMPORTANT RELOAD TEST
+
+Perform this test:
+
+```text
+Open app
+Wait 2 minutes
+Navigate Home -> Profile -> Home -> Chat -> Home
+Repeat several times
+Wait another 5 minutes
+```
+
+After this, verify:
+
+```text
+Realtime channels should remain expected/stable
+Timers should remain expected/stable
+Requests should NOT continuously multiply
+```
+
+If channel count grows after every navigation, there is a leak.
+
+If request frequency grows over time, there is a leak.
+
+---
+
+# PHASE 28 — DO NOT MASK THE PROBLEM
+
+Do NOT solve the problem by:
+
+* disabling features
+* disabling realtime completely
+* reducing functionality
+* replacing Supabase with fake data
+* adding arbitrary long cache times
+* hiding errors
+* stopping all network requests
+* deleting components
+* removing notifications/chat/live functionality
+
+The objective is:
+
+**same functionality + dramatically lower CPU + lower battery usage + lower network/Supabase consumption.**
+
+---
+
+# FINAL DELIVERABLE
+
+After completing the audit and fixes, provide me a concise report containing:
+
+### 1. ROOT CAUSES
+
+List the exact causes found.
+
+Example:
+
+```text
+- Duplicate notification subscriptions
+- Feed query executed 4 times
+- Chat polling every 3 seconds
+- Videos continuing to play offscreen
+- Profile query repeated on every render
+- Missing cleanup in X component
+```
+
+### 2. FILES CHANGED
+
+List every modified file.
+
+### 3. FIXES
+
+Explain what was changed in each file.
+
+### 4. BEFORE vs AFTER
+
+Provide measured/estimated:
+
+```text
+Supabase requests:
+Before: X
+After: Y
+
+Realtime channels:
+Before: X
+After: Y
+
+Network usage during idle test:
+Before: X
+After: Y
+
+CPU activity:
+Before: X
+After: Y
+```
+
+Do NOT invent numbers. If something could not be measured, explicitly say so.
+
+### 5. REMAINING RISKS
+
+Tell me if any feature still has high network/CPU usage.
+
+### 6. BUILD VERIFICATION
+
+Run the production build and TypeScript checks.
+
+Fix all errors caused by your changes.
+
+---
+
+## MOST IMPORTANT REQUIREMENT
+
+Do not stop after finding one problem.
+
+Perform a **full application-wide audit** because the 1GB+/day usage and mobile heating may be caused by MULTIPLE issues simultaneously.
+
+The final result must preserve the existing app's functionality and UI while making the application substantially more efficient on:
+
+* Supabase
+* network
+* CPU
+* RAM
+* battery
+* mobile thermals
+
+Treat this as a **production performance + resource leak investigation**, not a cosmetic optimization.

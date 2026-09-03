@@ -166,6 +166,50 @@ const GroupCard = ({
 const haptic = (ms = 8) => { try { navigator.vibrate?.(ms); } catch (_) {} };
 const isVideoUrl = (url: string) => /\.(mp4|webm|ogg|mov|m4v)/i.test(url.split("?")[0]);
 
+function CirclePostVideo({ url }: { url: string }) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [inView, setInView] = useState(false);
+  const pageVisible = usePageVisibility();
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || typeof IntersectionObserver === "undefined") {
+      setInView(true);
+      return;
+    }
+    const observer = new IntersectionObserver(
+      ([entry]) => setInView(entry.isIntersecting),
+      { threshold: 0.35 },
+    );
+    observer.observe(video);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (inView && pageVisible) {
+      void video.play().catch(() => {});
+    } else {
+      video.pause();
+    }
+  }, [inView, pageVisible]);
+
+  return (
+    <video
+      ref={videoRef}
+      src={url}
+      muted
+      playsInline
+      loop
+      controls
+      preload="metadata"
+      className="w-full object-contain"
+      style={{ maxHeight: "60vh" }}
+    />
+  );
+}
+
 // ── Memoized Post Card ─────────────────────────────────────────────────────────
 interface PostCardProps {
   post: GroupPost;
@@ -238,7 +282,7 @@ const CirclePostCard = memo(({
       {post.media_url && (
         <div className="w-full" style={{ background: "rgba(0,0,0,0.4)" }}>
           {isVideoUrl(post.media_url) ? (
-            <video src={post.media_url} autoPlay muted playsInline loop controls className="w-full object-contain" style={{ maxHeight: "60vh" }} />
+            <CirclePostVideo url={post.media_url} />
           ) : (
             <img src={post.media_url} className="w-full object-cover" style={{ maxHeight: "60vh" }} loading="lazy" alt="" decoding="async"/>
           )}
@@ -404,6 +448,8 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
   // Post in group
   const [postText, setPostText] = useState("");
   const [postMedia, setPostMedia] = useState<File | null>(null);
+  const [postMediaPreview, setPostMediaPreview] = useState<string | null>(null);
+  const postMediaPreviewRef = useRef<string | null>(null);
   const [posting, setPosting] = useState(false);
   const [likedPostIds, setLikedPostIds] = useState<Set<string>>(new Set());
   const [commentPostId, setCommentPostId] = useState<string | null>(null);
@@ -420,6 +466,26 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
   const [inviteSearch, setInviteSearch] = useState("");
   const [inviteResults, setInviteResults] = useState<any[]>([]);
   const [inviteLoading, setInviteLoading] = useState(false);
+
+  useEffect(() => {
+    if (postMediaPreviewRef.current) {
+      URL.revokeObjectURL(postMediaPreviewRef.current);
+      postMediaPreviewRef.current = null;
+    }
+    if (!postMedia) {
+      setPostMediaPreview(null);
+      return;
+    }
+    const previewUrl = URL.createObjectURL(postMedia);
+    postMediaPreviewRef.current = previewUrl;
+    setPostMediaPreview(previewUrl);
+    return () => {
+      URL.revokeObjectURL(previewUrl);
+      if (postMediaPreviewRef.current === previewUrl) {
+        postMediaPreviewRef.current = null;
+      }
+    };
+  }, [postMedia]);
 
   // Chat
   const [chatMessages, setChatMessages] = useState<GroupMessage[]>([]);
@@ -1063,7 +1129,7 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
     // Attempt 1: join query via FK
     const { data: joinData, error: joinErr } = await supabase
       .from("circle_members")
-      .select("*, profiles(id, full_name, avatar_url)")
+      .select("id, circle_id, user_id, role, created_at, profiles(id, full_name, avatar_url)")
       .eq("circle_id", circleId)
       .order("created_at", { ascending: true })
       .limit(500);
@@ -2587,7 +2653,9 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
                     />
                     {postMedia && (
                       <div className="relative mt-2 w-20 h-20 rounded-lg overflow-hidden">
-                        <img src={URL.createObjectURL(postMedia)} className="w-full h-full object-cover" alt="" loading="lazy" decoding="async"/>
+                        {postMediaPreview && (
+                          <img src={postMediaPreview} className="w-full h-full object-cover" alt="" loading="lazy" decoding="async"/>
+                        )}
                         <button onClick={() => setPostMedia(null)} className="absolute top-1 right-1 bg-black/70 rounded-full p-0.5">
                           <X size={10} className="text-white" />
                         </button>

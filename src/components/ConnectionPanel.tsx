@@ -35,7 +35,10 @@ const ConnectionPanel = () => {
     client: AgoraRTC.createClient({ mode: "rtc", codec: "vp8" }),
     localAudioTrack: null,
     localVideoTrack: null,
+    joined: false,
   });
+  const userPublishedHandlerRef = useRef<((user: any, mediaType: string) => Promise<void>) | null>(null);
+  const userLeftHandlerRef = useRef<(() => void) | null>(null);
 
   // 🛠️ CRITICAL FIX: Direct Playback Engine
   useEffect(() => {
@@ -72,7 +75,35 @@ const ConnectionPanel = () => {
     }
   }, [remoteUser, inCall, isVideoOff]);
 
+  const endCall = async () => {
+    const { client } = rtc.current;
+    if (userPublishedHandlerRef.current) {
+      client.off("user-published", userPublishedHandlerRef.current);
+      userPublishedHandlerRef.current = null;
+    }
+    if (userLeftHandlerRef.current) {
+      client.off("user-left", userLeftHandlerRef.current);
+      userLeftHandlerRef.current = null;
+    }
+    rtc.current.localAudioTrack?.stop();
+    rtc.current.localAudioTrack?.close();
+    rtc.current.localVideoTrack?.stop();
+    rtc.current.localVideoTrack?.close();
+    rtc.current.localAudioTrack = null;
+    rtc.current.localVideoTrack = null;
+    if (rtc.current.joined) {
+      try {
+        await client.leave();
+      } catch (_) {}
+      rtc.current.joined = false;
+    }
+    setInCall(false);
+    setIsSearching(false);
+    setRemoteUser(null);
+  };
+
   const startCall = async () => {
+    if (inCall || isSearching) return;
     if (!window.isSecureContext)
       return alert("Use HTTPS Mode (Open in New Tab)!");
     setIsSearching(true);
@@ -80,6 +111,7 @@ const ConnectionPanel = () => {
     try {
       // Joining with Credentials
       await rtc.current.client.join(APP_ID, CHANNEL, TOKEN, null);
+      rtc.current.joined = true;
 
       const [audioTrack, videoTrack] =
         await AgoraRTC.createMicrophoneAndCameraTracks();
@@ -89,20 +121,23 @@ const ConnectionPanel = () => {
       setInCall(true);
       setIsSearching(false);
 
+      const handleUserPublished = async (user: any, mediaType: string) => {
+        await rtc.current.client.subscribe(user, mediaType);
+        if (mediaType === "video") {
+          setRemoteUser(user);
+        }
+        if (mediaType === "audio") {
+          user.audioTrack.play();
+        }
+      };
+      const handleUserLeft = () => { void endCall(); };
+      userPublishedHandlerRef.current = handleUserPublished;
+      userLeftHandlerRef.current = handleUserLeft;
       rtc.current.client.on(
         "user-published",
-        async (user: any, mediaType: string) => {
-          await rtc.current.client.subscribe(user, mediaType);
-          if (mediaType === "video") {
-            setRemoteUser(user);
-          }
-          if (mediaType === "audio") {
-            user.audioTrack.play();
-          }
-        },
+        handleUserPublished,
       );
-
-      rtc.current.client.on("user-left", () => endCall());
+      rtc.current.client.on("user-left", handleUserLeft);
 
       await rtc.current.client.publish([
         rtc.current.localAudioTrack,
@@ -112,19 +147,21 @@ const ConnectionPanel = () => {
       console.error("Join error:", err);
       setIsSearching(false);
       alert("Connect failed. Check if App ID/Token/Channel matches.");
+      await endCall();
     }
   };
 
-  const endCall = async () => {
-    rtc.current.localAudioTrack?.stop();
-    rtc.current.localAudioTrack?.close();
-    rtc.current.localVideoTrack?.stop();
-    rtc.current.localVideoTrack?.close();
-    await rtc.current.client.leave();
-    setInCall(false);
-    setRemoteUser(null);
-    window.location.reload();
-  };
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.hidden && (inCall || rtc.current.joined)) {
+        void endCall();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => document.removeEventListener("visibilitychange", handleVisibility);
+  }, [inCall]);
+
+  useEffect(() => () => { void endCall(); }, []);
 
   const toggleMic = () => {
     rtc.current.localAudioTrack.setEnabled(isMuted);
