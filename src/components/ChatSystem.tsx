@@ -1076,6 +1076,8 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   const [contacts, setContacts] = useState<ChatContact[]>([]);
   const [messageRequests, setMessageRequests] = useState<ChatContact[]>([]);
   const [loadingContacts, setLoadingContacts] = useState(false);
+  const [initializingChat, setInitializingChat] = useState(false);
+  const [initializationError, setInitializationError] = useState<string | null>(null);
   const [blockedUserIds, setBlockedUserIds] = useState<Set<string>>(new Set());
   // Mirror of blockedUserIds — read by callbacks without adding the state to
   // their deps (otherwise fetchContacts → setBlockedUserIds → fetchStories
@@ -1099,10 +1101,13 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     null,
   );
   const [loadingMessages, setLoadingMessages] = useState(false);
+  const [messageLoadError, setMessageLoadError] = useState<string | null>(null);
+  const [messageRetryKey, setMessageRetryKey] = useState(0);
   const [chatSearch, setChatSearch] = useState("");
   const [showChatSearch, setShowChatSearch] = useState(false);
   const [msgMenuId, setMsgMenuId] = useState<string | null>(null);
   const [replyTo, setReplyTo] = useState<Message | null>(null);
+  const [realtimeError, setRealtimeError] = useState<string | null>(null);
 
   // ── Fun ───────────────────────────────────────────────────────────────────
   const [smokeParticles, setSmokeParticles] = useState<
@@ -1216,6 +1221,40 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
 
   const T = THEME_CFG[theme];
   const { playPop, playSwoosh } = useSoundEffects();
+  const reportRealtimeError = useCallback((scope: string, error?: unknown) => {
+    const detail =
+      error instanceof Error
+        ? error.message
+        : typeof error === "string"
+          ? error
+          : "";
+    console.warn(`[Chat] ${scope} realtime unavailable`, detail);
+    if (mountedRef.current) {
+      setRealtimeError("Live updates are temporarily unavailable. Chat still works; retry to reconnect.");
+    }
+  }, []);
+  const safeSubscribeWhileVisible = useCallback(
+    (
+      scope: string,
+      createChannel: () => ReturnType<typeof supabase.channel>,
+      options: { onVisible?: () => void } = {},
+    ) => {
+      try {
+        return subscribeWhileVisible(() => {
+          try {
+            return createChannel();
+          } catch (error) {
+            reportRealtimeError(scope, error);
+            throw error;
+          }
+        }, options);
+      } catch (error) {
+        reportRealtimeError(scope, error);
+        return () => {};
+      }
+    },
+    [reportRealtimeError],
+  );
 
   // ── Persist ───────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -1297,7 +1336,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
 
   // ── Fetch my profile ──────────────────────────────────────────────────────
   const fetchMyProfile = useCallback(async () => {
-    if (!userId) return;
+    if (!userId) return false;
     try {
       const { data, error } = await supabase
         .from("profiles")
@@ -1312,14 +1351,16 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
         setEditSchool(profile.school || "");
         setEditLocation(profile.location || "");
       }
+      return true;
     } catch (error) {
       console.warn("[Chat] profile load failed:", error);
+      return false;
     }
   }, [userId]);
 
   // ── Fetch friendships ─────────────────────────────────────────────────────
   const fetchFriendships = useCallback(async () => {
-    if (!userId) return;
+    if (!userId) return false;
     try {
       const { data, error } = await supabase
         .from("friendships")
@@ -1327,7 +1368,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
         .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
         .limit(500);
       if (error) throw error;
-      if (!data || !mountedRef.current) return;
+      if (!data || !mountedRef.current) return !mountedRef.current ? false : true;
       const map = new Map<string, FriendshipInfo>();
       for (const row of data) {
         const senderId = asTrimmedString((row as any).sender_id);
@@ -1341,14 +1382,16 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
         });
       }
       setFriendshipMap(map);
+      return true;
     } catch (error) {
       console.warn("[Chat] friendships load failed:", error);
+      return false;
     }
   }, [userId]);
 
   // ── Fetch pending requests ────────────────────────────────────────────────
   const fetchPendingRequests = useCallback(async () => {
-    if (!userId) return;
+    if (!userId) return false;
     try {
       const { data, error } = await supabase
         .from("friendships")
@@ -1363,7 +1406,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
           setPendingRequests([]);
           setPendingCount(0);
         }
-        return;
+        return true;
       }
       const senderIds = data.map((r: any) => asTrimmedString(r?.sender_id)).filter(Boolean);
       const { data: profiles, error: profileError } = await supabase
@@ -1405,14 +1448,16 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
           return [...newAlerts, ...prev].slice(0, 50);
         });
       }
+      return true;
     } catch (error) {
       console.warn("[Chat] pending requests load failed:", error);
+      return false;
     }
   }, [userId]);
 
   // ── Fetch contacts ────────────────────────────────────────────────────────
   const fetchContacts = useCallback(async () => {
-    if (!userId) return;
+    if (!userId) return false;
     setLoadingContacts(true);
     try {
       // 1. Friends list
@@ -1551,8 +1596,10 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
         setContacts(friendsResult);
         setMessageRequests(requestsResult);
       }
+      return true;
     } catch (error) {
       console.warn("[Chat] contacts load failed:", error);
+      return false;
     } finally {
       if (mountedRef.current) setLoadingContacts(false);
     }
@@ -1598,11 +1645,14 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
         }
         setStoryGroups(Array.from(map.values()).filter((group) => Boolean(group.profile?.id)));
       }
-    } catch (_) {
+      return true;
+    } catch (error) {
+      console.warn("[Chat] stories load failed:", error);
       if (mountedRef.current) {
         setStories([]);
         setStoryGroups([]);
       }
+      return false;
     } finally {
       if (mountedRef.current) setLoadingStories(false);
     }
@@ -1839,20 +1889,51 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   };
 
   // ── Bootstrap ─────────────────────────────────────────────────────────────
-  useEffect(() => {
-    if (!isOpen) return;
-    fetchFriendships();
-    fetchPendingRequests();
-    fetchContacts();
-    fetchMyProfile();
-    fetchStories();
+  const bootstrapChat = useCallback(async () => {
+    if (!isOpen || !userId || !mountedRef.current) return;
+    setInitializingChat(true);
+    setInitializationError(null);
+    const results = await Promise.allSettled([
+      fetchFriendships(),
+      fetchPendingRequests(),
+      fetchContacts(),
+      fetchMyProfile(),
+      fetchStories(),
+    ]);
+    if (!mountedRef.current) return;
+    const failed = results.some(
+      (result) =>
+        result.status === "rejected" ||
+        (result.status === "fulfilled" && result.value === false),
+    );
+    if (failed) {
+      setInitializationError(
+        "Some chat data could not be loaded. You can retry without closing the chat.",
+      );
+    }
+    setInitializingChat(false);
   }, [
     isOpen,
+    userId,
     fetchFriendships,
     fetchPendingRequests,
     fetchContacts,
     fetchMyProfile,
     fetchStories,
+  ]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    void bootstrapChat().catch((error) => {
+      console.error("[Chat] initialization failed:", error);
+      if (mountedRef.current) {
+        setInitializationError("Chat could not be initialized. Please try again.");
+        setInitializingChat(false);
+      }
+    });
+  }, [
+    isOpen,
+    bootstrapChat,
   ]);
 
   // ── External "Open chat with this user" trigger (from UserProfileModal) ──
