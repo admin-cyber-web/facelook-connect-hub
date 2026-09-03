@@ -2066,16 +2066,19 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     const story = group?.stories[viewerStoryIdx];
     if (!story || storyViewedRef.current.has(story.id)) return;
     storyViewedRef.current.add(story.id);
-    supabase
+    void supabase
       .from("story_views")
       .insert({ story_id: story.id, viewer_id: userId })
-      .then(() => {});
+      .then(({ error }) => {
+        if (error) console.warn("[Chat] story view tracking failed:", error.message);
+      })
+      .catch((error) => console.warn("[Chat] story view tracking failed:", error));
   }, [storyViewerOpen, viewerGroupIdx, viewerStoryIdx, storyGroups, userId]);
 
   // ── Presence: track who's actually online ─────────────────────────────────
   useEffect(() => {
     if (!isOpen || !userId) return;
-    const cleanup = subscribeWhileVisible(() => {
+    const cleanup = safeSubscribeWhileVisible("presence", () => {
       const ch = supabase.channel("cx-presence", {
         config: { presence: { key: userId } },
       });
@@ -2088,7 +2091,11 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
             if (p.user_id) ids.add(p.user_id);
           });
         setOnlineUsers(ids);
-      }).subscribe(async (status) => {
+      }).subscribe(async (status, error) => {
+        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+          reportRealtimeError("presence", error || status);
+          return;
+        }
         if (status === "SUBSCRIBED" && activeStatus) {
           try {
             await ch.track({ user_id: userId });
@@ -2104,7 +2111,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       cleanup();
       presenceChannelRef.current = null;
     };
-  }, [isOpen, userId]);
+  }, [isOpen, userId, safeSubscribeWhileVisible, reportRealtimeError]);
 
   // ── When activeStatus toggles, update presence tracking ───────────────────
   useEffect(() => {
@@ -2124,7 +2131,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   // ── Realtime: friendships ─────────────────────────────────────────────────
   useEffect(() => {
     if (!isOpen) return;
-    const cleanup = subscribeWhileVisible(() =>
+    const cleanup = safeSubscribeWhileVisible("friendships", () =>
       supabase
         .channel(`friendships-rt-${userId}`)
         .on(
@@ -2157,7 +2164,11 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
             }
           },
         )
-        .subscribe(),
+        .subscribe((status, error) => {
+          if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+            reportRealtimeError("friendships", error || status);
+          }
+        }),
       { onVisible: () => {
         void fetchFriendships();
         void fetchPendingRequests();
@@ -2167,12 +2178,12 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     return () => {
       cleanup();
     };
-  }, [isOpen, userId, fetchFriendships, fetchPendingRequests, fetchContacts]);
+  }, [isOpen, userId, fetchFriendships, fetchPendingRequests, fetchContacts, safeSubscribeWhileVisible, reportRealtimeError]);
 
   // ── Realtime: new messages → alert ────────────────────────────────────────
   useEffect(() => {
     if (!isOpen) return;
-    const cleanup = subscribeWhileVisible(() =>
+    const cleanup = safeSubscribeWhileVisible("message alerts", () =>
       supabase
         .channel(`alerts-rt-${userId}`)
         .on(
@@ -2203,13 +2214,17 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
             }
           },
         )
-        .subscribe(),
+        .subscribe((status, error) => {
+          if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+            reportRealtimeError("message alerts", error || status);
+          }
+        }),
     );
     return () => {
       cleanup();
     };
     // contacts/mutedChats accessed via refs — channel no longer tears down on every fetch
-  }, [isOpen, userId]);
+  }, [isOpen, userId, safeSubscribeWhileVisible, reportRealtimeError]);
 
   // ── Unseen message count (always-on, drives FAB badge) ────────────────────
   const fetchUnseenCount = useCallback(async () => {
@@ -2230,7 +2245,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   useEffect(() => {
     if (!userId) return;
     fetchUnseenCount();
-    return subscribeWhileVisible(() =>
+    return safeSubscribeWhileVisible("unread count", () =>
       supabase
         .channel(`unseen-count-${userId}`)
         .on(
@@ -2254,10 +2269,14 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
             }
           },
         )
-        .subscribe(),
+        .subscribe((status, error) => {
+          if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+            reportRealtimeError("unread count", error || status);
+          }
+        }),
       { onVisible: () => { void fetchUnseenCount(); } },
     );
-  }, [userId, fetchUnseenCount]);
+  }, [userId, fetchUnseenCount, safeSubscribeWhileVisible, reportRealtimeError]);
 
   // ── Report total unread count to parent (for FAB badge) ──────────────────
   useEffect(() => {
@@ -2319,6 +2338,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
 
     // Clear stale messages immediately so old chat doesn't flash on screen
     setMessages([]);
+    setMessageLoadError(null);
 
     const load = async () => {
       if (!active || requestId !== messageRequestRef.current || !mountedRef.current) return;
@@ -2365,6 +2385,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
           .map(normalizeMessage)
           .filter((m) => Boolean(m.id && m.sender_id && m.receiver_id));
         if (!active || requestId !== messageRequestRef.current || !mountedRef.current) return;
+        setMessageLoadError(null);
         setMessages(rows);
 
         // Mark all received messages as seen, without allowing a failed update
@@ -2380,6 +2401,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
         if (active && requestId === messageRequestRef.current && mountedRef.current) {
           console.error("[Chat] message load failed:", error);
           setMessages([]);
+          setMessageLoadError("Messages could not be loaded. Check your connection and retry.");
         }
       } finally {
         if (active && requestId === messageRequestRef.current && mountedRef.current) {
@@ -2524,8 +2546,13 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
           }
         },
       )
-      .subscribe();
-    const cleanupConversationChannel = subscribeWhileVisible(
+      .subscribe((status, error) => {
+        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+          reportRealtimeError("conversation", error || status);
+        }
+      });
+    const cleanupConversationChannel = safeSubscribeWhileVisible(
+      "conversation",
       createConversationChannel,
       { onVisible: () => { void load(); } },
     );
@@ -2544,11 +2571,15 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
             | undefined;
           if (active && mountedRef.current) setIsOtherTyping(other?.is_typing === true);
         })
-        .subscribe();
+        .subscribe((status, error) => {
+          if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+            reportRealtimeError("typing", error || status);
+          }
+        });
       typingChannelRef.current = typingCh;
       return typingCh;
     };
-    const cleanupTypingChannel = subscribeWhileVisible(createTypingChannel);
+    const cleanupTypingChannel = safeSubscribeWhileVisible("typing", createTypingChannel);
 
     return () => {
       active = false;
@@ -2558,7 +2589,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       typingChannelRef.current = null;
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     };
-  }, [isOpen, selectedUser, userId, fetchContacts, fetchMsgReactions]);
+  }, [isOpen, selectedUser, userId, fetchContacts, fetchMsgReactions, safeSubscribeWhileVisible, reportRealtimeError, messageRetryKey]);
 
   // ── Friend actions ────────────────────────────────────────────────────────
   const sendFriendRequest = async (targetId: string) => {
@@ -3464,6 +3495,41 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
           onClick={(e) => e.stopPropagation()}
           onPointerDown={(e) => e.stopPropagation()}
         >
+          {(initializationError || realtimeError) && (
+            <div
+              role="alert"
+              className="absolute top-3 left-3 right-3 z-[1000] rounded-2xl border border-amber-400/30 bg-amber-950/90 px-4 py-3 text-amber-50 shadow-xl backdrop-blur-sm"
+            >
+              <div className="flex items-center gap-3">
+                <Info size={18} className="shrink-0 text-amber-300" />
+                <p className="flex-1 text-xs font-semibold">
+                  {initializationError || realtimeError}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRealtimeError(null);
+                    void bootstrapChat();
+                  }}
+                  disabled={initializingChat}
+                  className="shrink-0 rounded-xl bg-amber-300 px-3 py-2 text-xs font-black text-amber-950 disabled:opacity-50"
+                >
+                  {initializingChat ? "Retrying…" : "Retry"}
+                </button>
+                <button
+                  type="button"
+                  aria-label="Dismiss chat warning"
+                  onClick={() => {
+                    setInitializationError(null);
+                    setRealtimeError(null);
+                  }}
+                  className="shrink-0 rounded-full p-1 text-amber-200/70 hover:bg-white/10"
+                >
+                  <X size={15} />
+                </button>
+              </div>
+            </div>
+          )}
           {/* ── PANIC MODE OVERLAY ───────────────────────────────────────── */}
           <AnimatePresence>
             {panicMode && (
@@ -5037,6 +5103,25 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                         size={20}
                         className={`animate-spin ${T.text3}`}
                       />
+                    </div>
+                  ) : messageLoadError ? (
+                    <div className="flex flex-col items-center justify-center py-16 gap-3 px-6 text-center">
+                      <div className={`w-14 h-14 rounded-2xl bg-white/5 border ${T.divider} flex items-center justify-center`}>
+                        <MessageSquare size={24} className={T.text3} />
+                      </div>
+                      <p className={`text-sm font-black ${T.text1}`}>
+                        Messages unavailable
+                      </p>
+                      <p className={`text-xs ${T.text3}`}>
+                        {messageLoadError}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setMessageRetryKey((key) => key + 1)}
+                        className="rounded-xl bg-red-500/20 px-4 py-2 text-xs font-black text-red-300 border border-red-500/30"
+                      >
+                        Retry messages
+                      </button>
                     </div>
                   ) : filteredMessages.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
