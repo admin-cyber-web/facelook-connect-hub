@@ -3071,7 +3071,12 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
           animate={{ y: 0 }}
           exit={{ y: "100%" }}
           transition={{ type: "spring", stiffness: 300, damping: 30 }}
-          className={`fixed inset-0 z-[150] flex flex-col ${T.wrap} overflow-hidden`}
+          className={`fixed inset-0 z-[150] flex flex-col ${T.wrap} overflow-hidden overscroll-y-contain`}
+          data-scroll-pane="true"
+          style={{
+            overscrollBehaviorY: "contain",
+            touchAction: "pan-y",
+          }}
           onClick={(e) => e.stopPropagation()}
           onPointerDown={(e) => e.stopPropagation()}
         >
