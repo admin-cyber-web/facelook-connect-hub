@@ -308,3 +308,10 @@ body.body-locked {
 .live-ticker-track:hover {
   animation-play-state: paused;
 }
+
+/* Android WebView pull-to-refresh fix */
+html, body, #root {
+  overscroll-behavior-y: none;
+  touch-action: pan-x pan-y;
+  -webkit-overflow-scrolling: touch;
+}
