@@ -8,3 +8,4 @@
 - [Post-merge workflow reconciliation](post-merge-workflow-reconciliation.md) — setup can pass while platform reconciliation fails on an injected missing skill path.
 - [Authenticated performance profiling](authenticated-performance-profiling.md) — mobile profiling needs an explicit Playwright auth state; never report guest-gated runs as authenticated.
 - [Native package declarations](native-package-declarations.md) — locally present Capacitor plugins must also be direct manifest and lockfile dependencies for clean publish installs.
+- [Android WebView verification](android-webview-verification.md) — this workspace has no physical Android device or emulator; use browser preview and static checks until device QA is available.
