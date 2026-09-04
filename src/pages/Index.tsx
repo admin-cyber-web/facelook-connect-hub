@@ -3835,7 +3835,7 @@ const PersonalizationView = React.memo(({
             {/* 2. FACE ─────────────────────────────────────────────────────── */}
             {activeFeature === "Face" && (
               <ErrorBoundary>
-              <div className="space-y-4">
+              <div className="app-scroll-container min-h-[100dvh] space-y-4">
                 <GlassCard className="sm:rounded-[3rem] p-6 overflow-hidden relative border-x-0 sm:border-x">
                   <div className="absolute top-0 left-0 w-full h-24 bg-gradient-to-r from-blue-600/40 to-purple-600/40" />
                   <div className="relative z-10 flex flex-col items-center mt-6">
@@ -4001,7 +4001,7 @@ const PersonalizationView = React.memo(({
             {activeFeature === "Circle" && (
               <ErrorBoundary>
               <Suspense fallback={<SectionLoader />}>
-              <div className="min-h-screen bg-gray-50">
+              <div className="app-scroll-container min-h-[100dvh] bg-gray-50">
                 <CirclePage userProfile={profile} currentUserId={userId} />
               </div>
               </Suspense>
@@ -4078,7 +4078,7 @@ const PersonalizationView = React.memo(({
             {/* 6. SETTINGS ─────────────────────────────────────────────────── */}
             {activeFeature === "Settings" && (
               <ErrorBoundary>
-              <div className="w-full min-h-screen pb-32" style={{ background: "#09090B" }}>
+              <div className="app-scroll-container w-full min-h-[100dvh] pb-32" style={{ background: "#09090B" }}>
               <AnimatePresence mode="wait">
                 {settingsView === "main" && (
                   <motion.div
