@@ -798,7 +798,7 @@ export default function FlicksApp({ onBack, onBridgeChat, isAdmin: isAdminProp =
         </button>
       )}
       <div ref={containerRef} onScroll={onScroll}
-        className="h-full overflow-y-scroll snap-y snap-mandatory scrollbar-hide">
+        className="app-scroll-container h-full snap-y snap-mandatory scrollbar-hide">
         {flicks.length === 0 ? (
           <div className="h-full flex items-center justify-center text-white/20 font-bold">NO VIDEOS FOUND.</div>
         ) : (

@@ -3273,7 +3273,7 @@ const FameFeed = ({
     setFlicksLoaded(true);
   };
 
-  // Pull-to-refresh listener — fired by <PullToRefresh> in Index.tsx.
+  // Manual feed refresh event — dispatched by the refresh action in the feed UI.
   useEffect(() => {
     const handler = () => {
       fetchPosts(true);
@@ -5910,7 +5910,7 @@ const FameFeed = ({
   }, [visiblePosts, videoPosts, flicksLoaded]);
 
   return (
-    <div className="bg-[#0F172A] min-h-screen pb-32" style={{ willChange: "transform" }}>
+    <div className="app-scroll-container w-full bg-[#0F172A] min-h-[100dvh] pb-32" style={{ willChange: "transform" }}>
       {/* ── "What's on your mind" bar ──────────────────────────────────── */}
       <div
         className="flex items-center gap-3 px-4 py-3 border-b border-white/8"

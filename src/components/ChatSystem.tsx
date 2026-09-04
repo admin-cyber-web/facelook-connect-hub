@@ -3071,7 +3071,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
           animate={{ y: 0 }}
           exit={{ y: "100%" }}
           transition={{ type: "spring", stiffness: 300, damping: 30 }}
-          className={`fixed inset-0 z-[150] flex flex-col ${T.wrap} overflow-x-hidden overflow-y-auto overscroll-y-contain`}
+          className={`fixed inset-0 z-[150] flex flex-col ${T.wrap} overflow-hidden overscroll-y-contain`}
           data-scroll-pane="true"
           style={{
             overscrollBehaviorY: "contain",
@@ -4672,7 +4672,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
 
                 {/* Messages */}
                 <div
-                  className="flex-1 overflow-y-auto overscroll-y-contain scroll-pane px-4 pt-20 pb-4 space-y-2"
+                  className="chat-scroll-container min-h-0 flex-1 px-4 pt-20 pb-4 space-y-2"
                   data-scroll-pane="true"
                   style={{
                     touchAction: "pan-y",

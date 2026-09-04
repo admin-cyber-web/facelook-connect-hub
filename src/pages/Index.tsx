@@ -58,7 +58,6 @@ import { toast } from "sonner";
 import Header from "@/components/Header";
 import InviteCard from "@/components/InviteCard";
 import GolSlider from "@/components/GolSlider";
-import PullToRefresh from "@/components/PullToRefresh";
 import AutoPlayMutedVideo from "@/components/AutoPlayMutedVideo";
 import { isAdminEmail } from "@/lib/adminConfig";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -2241,12 +2240,6 @@ const Index = ({ session, initialAdminOpen, isGuest = false }: { session: Sessio
   // ── Labels (language) ────────────────────────────────────────────────────
   const t = (en: string, hi: string) => (lang === "hi" ? hi : en);
 
-  const handleFeedRefresh = React.useCallback(async () => {
-    window.dispatchEvent(new CustomEvent("flicks-pull-refresh"));
-    await new Promise((resolve) => setTimeout(resolve, 600));
-  }, []);
-
-
   // ── Settings: Block List sub-view ─────────────────────────────────────────
   const BlockListView = () => {
     const [blockedList, setBlockedList] = React.useState<any[]>([]);
@@ -2995,7 +2988,7 @@ const PersonalizationView = React.memo(({
 
   return (
     <div
-      className={`min-h-screen w-full transition-colors duration-500 relative overflow-x-hidden ${darkMode ? "bg-[#020617]" : "bg-slate-100 light-mode"}`}
+      className={`min-h-[100dvh] w-full transition-colors duration-500 relative overflow-x-hidden ${darkMode ? "bg-[#020617]" : "bg-slate-100 light-mode"}`}
     >
       {/* Page-level Helmet — overrides the app-level default in App.tsx.
           The home-feed branch explicitly resets title + description so that
@@ -3734,10 +3727,7 @@ const PersonalizationView = React.memo(({
 
                 {/* ── What's on your mind + News Feed ─────────────────────── */}
                 <div className="mt-2">
-                  <PullToRefresh
-                    onRefresh={handleFeedRefresh}
-                  >
-                    <FameFeed
+                  <FameFeed
                       onPostClick={() => setIsPostOpen(true)}
                       onImageSelect={(f) => setPendingFile(f)}
                       userProfile={profile}
@@ -3758,8 +3748,7 @@ const PersonalizationView = React.memo(({
                         rec_interests: recInterestsPref,
                         rec_new_users: recNewUsers,
                       }}
-                    />
-                  </PullToRefresh>
+                  />
                 </div>
 
                 </div>{/* ═══ end CENTER COLUMN ═══ */}

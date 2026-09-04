@@ -601,11 +601,6 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
   const [postSheet, setPostSheet] = useState<GroupPost | null>(null);
   // Member management bottom sheet
   const [memberSheet, setMemberSheet] = useState<any | null>(null);
-  // Pull-to-refresh
-  const [pullRefreshing, setPullRefreshing] = useState(false);
-  const pullStartY = useRef(0);
-  const pullDelta = useRef(0);
-  const postsScrollRef = useRef<HTMLDivElement>(null);
   // Menu dropdown
   const [showMenuDropdown, setShowMenuDropdown] = useState(false);
   // Description expand
@@ -2388,38 +2383,9 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
         {/* ── POSTS TAB ──────────────────────────────────────────────────────── */}
         {groupTab === "posts" && (
           <div
-            ref={postsScrollRef}
-            className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:hidden"
+            className="app-scroll-container flex-1 [&::-webkit-scrollbar]:hidden"
             style={{ scrollbarWidth: "none" }}
-            onTouchStart={(e) => {
-              if (postsScrollRef.current && postsScrollRef.current.scrollTop === 0) {
-                pullStartY.current = e.touches[0].clientY;
-              }
-            }}
-            onTouchMove={(e) => {
-              if (pullStartY.current > 0) {
-                pullDelta.current = e.touches[0].clientY - pullStartY.current;
-              }
-            }}
-            onTouchEnd={async () => {
-              if (pullDelta.current > 64 && !pullRefreshing && selectedGroup) {
-                setPullRefreshing(true);
-                await fetchCirclePosts(selectedGroup.id, canModerate);
-                setPullRefreshing(false);
-              }
-              pullStartY.current = 0;
-              pullDelta.current = 0;
-            }}
           >
-            {/* Pull-to-refresh indicator */}
-            {pullRefreshing && (
-              <div className="flex items-center justify-center gap-2 py-3 border-b border-white/[0.06]"
-                style={{ background: "rgba(0,240,255,0.06)" }}>
-                <Loader2 size={14} className="animate-spin text-[#00F0FF]" />
-                <span className="text-[11px] font-black text-[#00F0FF]">Refreshing…</span>
-              </div>
-            )}
-
             {/* ── Pinned Announcement ──────────────────────────────────── */}
             <AnimatePresence>
               {(selectedGroup.pinned_announcement || (canAdmin && pinnedEditing)) && (

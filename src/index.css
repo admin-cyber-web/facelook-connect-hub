@@ -54,17 +54,16 @@
 }
 
 /* ── Mobile safety ────────────────────────────────────────────────────────
-   1. Lock the viewport: no horizontal overflow, never wider than the screen
+   1. Lock horizontal overflow without turning the app into a global scroll pane
    2. Honor iOS notches / Android nav bars with safe-area insets
    3. Stop background scrolling when a modal/sheet is open (toggle .body-locked)
-   4. Prevent scroll-chaining from inner panes to the page below
+   4. Prevent browser/WebView pull-to-refresh at the document boundary
    ──────────────────────────────────────────────────────────────────────── */
 html, body, #root {
   max-width: 100vw;
   overflow-x: hidden;
   overscroll-behavior-x: none;
   overscroll-behavior-y: none;
-  touch-action: pan-x pan-y;
   -webkit-overflow-scrolling: touch;
 }
 
@@ -77,6 +76,7 @@ html, body {
 
 #root {
   min-height: 100dvh;
+  width: 100%;
   padding-left:  env(safe-area-inset-left);
   padding-right: env(safe-area-inset-right);
   padding-top:    env(safe-area-inset-top);
@@ -92,11 +92,20 @@ body.body-locked {
   touch-action: none;
 }
 
-/* All scroll-y panes inside the app should contain their overscroll, so a
-   chat / sheet / list scroll never bubbles up to the main feed. */
-.scroll-pane,
-[data-scroll-pane="true"] {
-  overscroll-behavior: contain;
+/* Explicit page/feed scroll surfaces. Keep normal page scrolling fluid while
+   preventing Android WebView pull-to-refresh at the feed boundary. */
+.app-scroll-container {
+  overflow-y: auto;
+  overscroll-behavior-y: none;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Chat owns its gesture only on its message list. */
+.chat-scroll-container {
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  touch-action: pan-y;
   -webkit-overflow-scrolling: touch;
 }
 
@@ -307,11 +316,4 @@ body.body-locked {
 }
 .live-ticker-track:hover {
   animation-play-state: paused;
-}
-
-/* Android WebView pull-to-refresh fix */
-html, body, #root {
-  overscroll-behavior-y: none;
-  touch-action: pan-x pan-y;
-  -webkit-overflow-scrolling: touch;
 }
