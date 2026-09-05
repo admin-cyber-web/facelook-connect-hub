@@ -4,3 +4,4 @@
 - [MagnetButton callback stability](magnet-callback-ref.md) — onMagnetLoad must be wrapped in useRef inside MagnetButton to prevent infinite update cascade from inline lambda reference churn.
 - [Supabase storage URL helper pitfall](supabase-storage-url-pitfall.md) — resolveMediaUrl's bucket-prefix-stripping breaks when the object key's subfolder name matches the bucket name.
 - [Supabase bandwidth guardrails](supabase-bandwidth-guardrails.md) — public feeds stay bounded/manual; realtime is limited to scoped live state and disconnects while hidden.
+- [Settings editor safety](settings-editor-safety.md) — admin showcase editing must isolate draft state and never dismiss on backdrop clicks

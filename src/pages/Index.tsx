@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, lazy, Suspense } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import type { Session } from "@supabase/supabase-js";
 import {
@@ -203,6 +204,187 @@ const showcaseUrl = (value: string) => {
   }
 };
 
+interface ShowcaseEditorProps {
+  initialDraft: ShowcaseDraft;
+  saving: boolean;
+  lang: "en" | "hi";
+  onCancel: () => void;
+  onSave: (draft: ShowcaseDraft) => void;
+}
+
+/**
+ * The editor intentionally owns its form state.
+ *
+ * It is rendered through a portal so it cannot be affected by click handlers
+ * or stacking/overflow rules in the Settings view. The backdrop is visual
+ * only: clicking outside never dismisses unsaved work. Cancel, X, or a
+ * successful save are the only ways out.
+ */
+const ShowcaseEditor = ({
+  initialDraft,
+  saving,
+  lang,
+  onCancel,
+  onSave,
+}: ShowcaseEditorProps) => {
+  const [form, setForm] = React.useState<ShowcaseDraft>(() => ({ ...initialDraft }));
+
+  const update = <K extends keyof ShowcaseDraft>(field: K, value: ShowcaseDraft[K]) => {
+    setForm(previous => ({ ...previous, [field]: value }));
+  };
+
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[1000] flex items-center justify-center p-4"
+      role="presentation"
+      onMouseDown={(event) => event.stopPropagation()}
+      onClick={(event) => event.stopPropagation()}
+    >
+      <div
+        className="absolute inset-0 bg-black/75 backdrop-blur-md"
+        aria-hidden="true"
+      />
+      <form
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="showcase-editor-title"
+        onSubmit={(event) => {
+          event.preventDefault();
+          onSave(form);
+        }}
+        onMouseDown={(event) => event.stopPropagation()}
+        onClick={(event) => event.stopPropagation()}
+        className="relative z-10 max-h-[calc(100dvh-2rem)] w-full max-w-xl overflow-y-auto rounded-3xl border border-white/12 bg-[#10111d] p-4 shadow-2xl shadow-black/60 sm:p-5"
+      >
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p id="showcase-editor-title" className="text-sm font-black text-white">
+              {form.id ? "Edit showcase item" : "Add showcase item"}
+            </p>
+            <p className="mt-1 text-[10px] text-white/40">
+              {lang === "hi" ? "बदलाव सुरक्षित होने तक यह फ़ॉर्म खुला रहेगा।" : "This form stays open until you explicitly cancel or save."}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onCancel}
+            className="rounded-full p-2 text-white/45 transition hover:bg-white/10 hover:text-white"
+            aria-label="Close showcase editor"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="mt-4 space-y-3">
+          <select
+            value={form.mode}
+            onChange={(event) => update("mode", event.target.value as ShowcaseMode)}
+            className="w-full rounded-xl bg-black/30 px-3 py-2.5 text-sm font-bold text-white outline-none"
+            style={{ border: "1px solid rgba(255,255,255,0.16)" }}
+          >
+            {Object.entries(SHOWCASE_MODE_META).map(([value, item]) => (
+              <option key={value} value={value} className="bg-[#111827]">{item.label}</option>
+            ))}
+          </select>
+
+          <label className="block">
+            <span className="mb-1 block text-[10px] font-black uppercase tracking-wider text-white/35">Title</span>
+            <input
+              autoFocus
+              type="text"
+              value={form.title}
+              onChange={(event) => update("title", event.target.value)}
+              placeholder="Featured title"
+              className="w-full rounded-xl bg-black/30 px-3 py-2.5 text-sm text-white outline-none placeholder:text-white/25"
+              style={{ border: "1px solid rgba(255,255,255,0.16)" }}
+            />
+          </label>
+
+          <label className="block">
+            <span className="mb-1 block text-[10px] font-black uppercase tracking-wider text-white/35">Description</span>
+            <textarea
+              value={form.body}
+              onChange={(event) => update("body", event.target.value)}
+              placeholder="Write the public showcase message"
+              rows={4}
+              className="w-full resize-none rounded-xl bg-black/30 px-3 py-2.5 text-sm text-white outline-none placeholder:text-white/25"
+              style={{ border: "1px solid rgba(255,255,255,0.16)" }}
+            />
+          </label>
+
+          <label className="block">
+            <span className="mb-1 block text-[10px] font-black uppercase tracking-wider text-white/35">Custom image URL</span>
+            <input
+              type="url"
+              value={form.image_url}
+              onChange={(event) => update("image_url", event.target.value)}
+              placeholder="https://example.com/showcase-image.jpg"
+              className="w-full rounded-xl bg-black/30 px-3 py-2.5 text-sm text-white outline-none placeholder:text-white/25"
+              style={{ border: "1px solid rgba(255,255,255,0.16)" }}
+            />
+          </label>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <label className="block">
+              <span className="mb-1 block text-[10px] font-black uppercase tracking-wider text-white/35">Button label</span>
+              <input
+                type="text"
+                value={form.cta_label}
+                onChange={(event) => update("cta_label", event.target.value)}
+                placeholder="View details"
+                className="w-full rounded-xl bg-black/30 px-3 py-2.5 text-sm text-white outline-none placeholder:text-white/25"
+                style={{ border: "1px solid rgba(255,255,255,0.16)" }}
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-[10px] font-black uppercase tracking-wider text-white/35">CTA Link</span>
+              <input
+                type="url"
+                value={form.cta_url}
+                onChange={(event) => update("cta_url", event.target.value)}
+                placeholder="https://example.com"
+                className="w-full rounded-xl bg-black/30 px-3 py-2.5 text-sm text-white outline-none placeholder:text-white/25"
+                style={{ border: "1px solid rgba(255,255,255,0.16)" }}
+              />
+            </label>
+          </div>
+
+          <label className="flex items-center gap-2 text-xs font-bold text-white/65">
+            <input
+              type="checkbox"
+              checked={form.is_published}
+              onChange={(event) => update("is_published", event.target.checked)}
+              className="accent-lime-400"
+            />
+            Publish this item publicly
+          </label>
+
+          <div className="flex gap-2 pt-1">
+            <button
+              type="button"
+              onClick={onCancel}
+              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-white/8 py-2.5 text-xs font-black text-white/60 transition hover:text-white"
+            >
+              <X size={14} /> Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              className="flex flex-1 items-center justify-center gap-2 rounded-xl py-2.5 text-xs font-black text-black transition disabled:opacity-50"
+              style={{ background: "linear-gradient(135deg, #CCFF00, #eaff70)" }}
+            >
+              <Save size={14} /> {saving ? "Saving…" : form.id ? "Save changes" : form.is_published ? "Add & Publish" : "Add draft"}
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>,
+    document.body,
+  );
+};
+
 const ShowcaseWidget = ({ isAdmin, userId, lang }: { isAdmin: boolean; userId: string; lang: "en" | "hi" }) => {
   const [items, setItems] = useState<ShowcaseItem[]>([]);
   const [draft, setDraft] = useState<ShowcaseDraft | null>(null);
@@ -271,41 +453,36 @@ const ShowcaseWidget = ({ isAdmin, userId, lang }: { isAdmin: boolean; userId: s
     setEditing(false);
   };
 
-  const updateDraft = <K extends keyof ShowcaseDraft>(field: K, value: ShowcaseDraft[K]) => {
-    setDraft(previous => previous ? { ...previous, [field]: value } : previous);
-  };
-
-  const saveShowcase = async () => {
-    if (!draft) return;
-    if (!draft.title.trim() || !draft.body.trim()) {
+  const saveShowcase = async (nextDraft: ShowcaseDraft) => {
+    if (!nextDraft.title.trim() || !nextDraft.body.trim()) {
       toast.error(lang === "hi" ? "Title aur message zaroori hain." : "Title and message are required.");
       return;
     }
-    if (draft.cta_url.trim() && !showcaseUrl(draft.cta_url.trim())) {
+    if (nextDraft.cta_url.trim() && !showcaseUrl(nextDraft.cta_url.trim())) {
       toast.error("CTA link must be a valid http(s) URL.");
       return;
     }
-    if (draft.image_url.trim() && !showcaseUrl(draft.image_url.trim())) {
+    if (nextDraft.image_url.trim() && !showcaseUrl(nextDraft.image_url.trim())) {
       toast.error("Custom image URL must be a valid http(s) URL.");
       return;
     }
 
     setSaving(true);
     const payload = {
-      mode: draft.mode,
-      title: draft.title.trim(),
-      body: draft.body.trim(),
-      image_url: draft.image_url.trim() || null,
-      cta_label: draft.cta_label.trim() || null,
-      cta_url: draft.cta_url.trim() || null,
-      is_published: draft.is_published,
-      display_order: draft.display_order,
+      mode: nextDraft.mode,
+      title: nextDraft.title.trim(),
+      body: nextDraft.body.trim(),
+      image_url: nextDraft.image_url.trim() || null,
+      cta_label: nextDraft.cta_label.trim() || null,
+      cta_url: nextDraft.cta_url.trim() || null,
+      is_published: nextDraft.is_published,
+      display_order: nextDraft.display_order,
       updated_by: userId,
       updated_at: new Date().toISOString(),
     };
-    const itemId = draft.id || crypto.randomUUID();
-    const result = draft.id
-      ? await supabase.from("showcase_settings").update(payload).eq("id", draft.id).select(SHOWCASE_COLUMNS).single()
+    const itemId = nextDraft.id || crypto.randomUUID();
+    const result = nextDraft.id
+      ? await supabase.from("showcase_settings").update(payload).eq("id", nextDraft.id).select(SHOWCASE_COLUMNS).single()
       : await supabase.from("showcase_settings").insert({ ...payload, id: itemId }).select(SHOWCASE_COLUMNS).single();
 
     if (result.error || !result.data) {
@@ -327,7 +504,7 @@ const ShowcaseWidget = ({ isAdmin, userId, lang }: { isAdmin: boolean; userId: s
       ]);
       localStorage.setItem(SHOWCASE_STORAGE_KEY, JSON.stringify(nextItems));
     } catch { /* storage is optional */ }
-    toast.success(draft.id ? "Showcase updated." : "Showcase item added.");
+    toast.success(nextDraft.id ? "Showcase updated." : "Showcase item added.");
     cancelEdit();
     setSaving(false);
   };
@@ -477,106 +654,14 @@ const ShowcaseWidget = ({ isAdmin, userId, lang }: { isAdmin: boolean; userId: s
           </div>
 
           {editing && draft ? (
-            <div className="space-y-3 p-4">
-              <div className="flex items-center justify-between">
-                <p className="text-sm font-black text-white">{draft.id ? "Edit showcase item" : "Add showcase item"}</p>
-                <button onClick={cancelEdit} className="rounded-full p-1.5 text-white/45 transition hover:bg-white/10 hover:text-white" aria-label="Cancel editing">
-                  <X size={15} />
-                </button>
-              </div>
-              <select
-                value={draft.mode}
-                onChange={(event) => updateDraft("mode", event.target.value as ShowcaseMode)}
-                className="w-full rounded-xl bg-black/30 px-3 py-2.5 text-sm font-bold text-white outline-none"
-                style={{ border: "1px solid rgba(255,255,255,0.16)" }}
-              >
-                {Object.entries(SHOWCASE_MODE_META).map(([value, item]) => (
-                  <option key={value} value={value} className="bg-[#111827]">{item.label}</option>
-                ))}
-              </select>
-              <label className="block">
-                <span className="mb-1 block text-[10px] font-black uppercase tracking-wider text-white/35">Title</span>
-                <input
-                  type="text"
-                  value={draft.title}
-                  onChange={(event) => updateDraft("title", event.target.value)}
-                  placeholder="Featured title"
-                  className="w-full rounded-xl bg-black/30 px-3 py-2.5 text-sm text-white outline-none placeholder:text-white/25"
-                  style={{ border: "1px solid rgba(255,255,255,0.16)" }}
-                />
-              </label>
-              <label className="block">
-                <span className="mb-1 block text-[10px] font-black uppercase tracking-wider text-white/35">Message</span>
-                <textarea
-                  value={draft.body}
-                  onChange={(event) => updateDraft("body", event.target.value)}
-                  placeholder="Write the public showcase message"
-                  rows={3}
-                  className="w-full resize-none rounded-xl bg-black/30 px-3 py-2.5 text-sm text-white outline-none placeholder:text-white/25"
-                  style={{ border: "1px solid rgba(255,255,255,0.16)" }}
-                />
-              </label>
-              <label className="block">
-                <span className="mb-1 block text-[10px] font-black uppercase tracking-wider text-white/35">Custom image URL</span>
-                <input
-                  type="url"
-                  value={draft.image_url}
-                  onChange={(event) => updateDraft("image_url", event.target.value)}
-                  placeholder="https://example.com/showcase-image.jpg"
-                  className="w-full rounded-xl bg-black/30 px-3 py-2.5 text-sm text-white outline-none placeholder:text-white/25"
-                  style={{ border: "1px solid rgba(255,255,255,0.16)" }}
-                />
-              </label>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <label className="block">
-                  <span className="mb-1 block text-[10px] font-black uppercase tracking-wider text-white/35">Button label</span>
-                  <input
-                    type="text"
-                    value={draft.cta_label}
-                    onChange={(event) => updateDraft("cta_label", event.target.value)}
-                    placeholder="View details"
-                    className="w-full rounded-xl bg-black/30 px-3 py-2.5 text-sm text-white outline-none placeholder:text-white/25"
-                    style={{ border: "1px solid rgba(255,255,255,0.16)" }}
-                  />
-                </label>
-                <label className="block">
-                  <span className="mb-1 block text-[10px] font-black uppercase tracking-wider text-white/35">Button URL</span>
-                  <input
-                    type="url"
-                    value={draft.cta_url}
-                    onChange={(event) => updateDraft("cta_url", event.target.value)}
-                    placeholder="https://example.com"
-                    className="w-full rounded-xl bg-black/30 px-3 py-2.5 text-sm text-white outline-none placeholder:text-white/25"
-                    style={{ border: "1px solid rgba(255,255,255,0.16)" }}
-                  />
-                </label>
-              </div>
-              <label className="flex items-center gap-2 text-xs font-bold text-white/65">
-                <input
-                  type="checkbox"
-                  checked={draft.is_published}
-                  onChange={(event) => updateDraft("is_published", event.target.checked)}
-                  className="accent-lime-400"
-                />
-                Publish this item publicly
-              </label>
-              <div className="flex gap-2 pt-1">
-                <button
-                  onClick={cancelEdit}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-white/8 py-2.5 text-xs font-black text-white/60 transition hover:text-white"
-                >
-                  <X size={14} /> Cancel
-                </button>
-                <button
-                  onClick={() => void saveShowcase()}
-                  disabled={saving}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-xl py-2.5 text-xs font-black text-black transition disabled:opacity-50"
-                  style={{ background: "linear-gradient(135deg, #CCFF00, #eaff70)" }}
-                >
-                  <Save size={14} /> {saving ? "Saving…" : draft.id ? "Save changes" : draft.is_published ? "Add & Publish" : "Add draft"}
-                </button>
-              </div>
-            </div>
+            <ShowcaseEditor
+              key={draft.id || "new"}
+              initialDraft={draft}
+              saving={saving}
+              lang={lang}
+              onCancel={cancelEdit}
+              onSave={(nextDraft) => void saveShowcase(nextDraft)}
+            />
           ) : items.length ? (
             <div className="divide-y divide-white/6">
               {items.map((item) => {
