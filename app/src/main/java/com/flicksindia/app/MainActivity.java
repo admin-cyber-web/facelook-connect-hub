@@ -2,8 +2,6 @@ package com.flicksindia.app;
 
 import android.annotation.SuppressLint;
 import android.os.Bundle;
-import android.view.MotionEvent;
-import android.view.View;
 import android.webkit.CookieManager;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
@@ -11,14 +9,10 @@ import android.webkit.WebViewClient;
 
 import androidx.appcompat.app.AppCompatActivity;
 
-import java.util.Locale;
-
 public class MainActivity extends AppCompatActivity {
 
     private WebView webView;
     private SmartSwipeRefreshLayout refreshLayout;
-    private float touchDownY;
-    private final int touchSlop = 8;
 
     @Override
     @SuppressLint("SetJavaScriptEnabled")
@@ -61,34 +55,6 @@ public class MainActivity extends AppCompatActivity {
                 "ScrollControl"
         );
 
-        webView.setOnTouchListener((view, event) -> {
-            int action = event.getActionMasked();
-            if (action == MotionEvent.ACTION_DOWN) {
-                touchDownY = event.getY();
-                syncActiveScrollPosition(event);
-                // Keep every new gesture in the WebView until it is proven to
-                // be an intentional pull from the active surface's top.
-                setParentInterception(view, true);
-            } else if (action == MotionEvent.ACTION_MOVE) {
-                syncActiveScrollPosition(event);
-                float deltaY = event.getY() - touchDownY;
-                boolean allowNativePull = deltaY > touchSlop
-                        && refreshLayout.isSwipeEnabled()
-                        && refreshLayout.isContentAtTop()
-                        && !webView.canScrollVertically(-1);
-                setParentInterception(view, !allowNativePull);
-            } else if (action == MotionEvent.ACTION_UP
-                    || action == MotionEvent.ACTION_CANCEL) {
-                setParentInterception(view, false);
-            }
-            // Do not consume the gesture; the WebView owns normal scrolling.
-            return false;
-        });
-
-        // Keep the helper explicit so a missing parent can never swallow or
-        // crash an otherwise valid WebView gesture.
-        setParentInterception(webView, false);
-
         // App ke andar hi website chale, browser me na khule
         webView.setWebViewClient(new WebViewClient() {
             @Override
@@ -106,34 +72,6 @@ public class MainActivity extends AppCompatActivity {
 
         // Aapki live website ka URL
         webView.loadUrl("https://flicksindia.online");
-    }
-
-    private void setParentInterception(View view, boolean disallow) {
-        if (view.getParent() != null) {
-            view.getParent().requestDisallowInterceptTouchEvent(disallow);
-        }
-    }
-
-    private void syncActiveScrollPosition(MotionEvent event) {
-        float density = getResources().getDisplayMetrics().density;
-        float cssX = event.getX() / density;
-        float cssY = event.getY() / density;
-        String script = String.format(Locale.US,
-                "(function(x,y){" +
-                        "var n=document.elementFromPoint(x,y);" +
-                        "while(n&&n!==document.body){" +
-                        "var s=getComputedStyle(n);" +
-                        "if((s.overflowY==='auto'||s.overflowY==='scroll')&&n.scrollHeight>n.clientHeight+1)" +
-                        "return n.scrollTop<=1;" +
-                        "n=n.parentElement;" +
-                        "}" +
-                        "var r=document.scrollingElement||document.documentElement;" +
-                        "return r.scrollTop<=1;" +
-                        "})(%.2f,%.2f);",
-                cssX,
-                cssY
-        );
-        webView.evaluateJavascript(script, value -> refreshLayout.setContentAtTop("true".equals(value)));
     }
 
     // Phone ka Back button dabane par website me pichle page par jaye

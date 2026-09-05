@@ -887,12 +887,19 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   }, []);
 
   useEffect(() => {
-    if (window.ScrollControl) window.ScrollControl.setSwipeEnabled(false);
+    const open = isOpen;
+    if (window.ScrollControl) window.ScrollControl.setSwipeEnabled(!open);
+    window.dispatchEvent(new CustomEvent("flicks-chat-gesture", {
+      detail: { open },
+    }));
 
     return () => {
       if (window.ScrollControl) window.ScrollControl.setSwipeEnabled(true);
+      window.dispatchEvent(new CustomEvent("flicks-chat-gesture", {
+        detail: { open: false },
+      }));
     };
-  }, []);
+  }, [isOpen]);
 
   // ── Persisted state ───────────────────────────────────────────────────────
   const [theme, setTheme] = useState<Theme>(() => {

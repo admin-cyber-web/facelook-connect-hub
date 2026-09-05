@@ -18,11 +18,10 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
   }
 })();
 
-// Keep the native pull-to-refresh wrapper informed about the actual web scroll
-// surface under the user's finger. Feeds and reels often scroll inside a
-// nested div, so WebView.scrollY alone cannot tell Android whether the user is
-// genuinely at the top. ChatSystem temporarily disables the native bridge
-// while it owns the gesture.
+// Keep the web pull-to-refresh gesture scoped to the actual scroll surface
+// under the user's finger. Native Android refresh is deliberately not allowed
+// to intercept WebView gestures; this handler gives the app the same behavior
+// without a parent ViewGroup stealing the touch stream.
 (function syncNativeScrollPosition() {
   const getScrollSurface = (target: EventTarget | null): HTMLElement | null => {
     let node = target instanceof HTMLElement ? target : null;
@@ -39,6 +38,19 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
     return document.scrollingElement as HTMLElement | null;
   };
 
+  let chatOwnsGesture = false;
+  let pullStartY = 0;
+  let pullStartX = 0;
+  let pullSurface: HTMLElement | null = null;
+  let pullEligible = false;
+  let pullTriggered = false;
+
+  window.addEventListener("flicks-chat-gesture", (event) => {
+    chatOwnsGesture = (event as CustomEvent<{ open?: boolean }>).detail?.open === true;
+    pullEligible = false;
+    pullSurface = null;
+  });
+
   const reportPosition = (target: EventTarget | null) => {
     const control = (window as any).ScrollControl;
     if (!control?.setContentAtTop) return;
@@ -48,7 +60,68 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 
   document.addEventListener(
     "touchstart",
-    (event) => reportPosition(event.target),
+    (event) => {
+      reportPosition(event.target);
+      pullTriggered = false;
+      pullSurface = getScrollSurface(event.target);
+      pullEligible =
+        !chatOwnsGesture &&
+        (!pullSurface || pullSurface.scrollTop <= 1);
+      if (pullEligible) {
+        pullStartY = event.touches[0]?.clientY ?? 0;
+        pullStartX = event.touches[0]?.clientX ?? 0;
+      }
+    },
+    { capture: true, passive: true },
+  );
+  document.addEventListener(
+    "touchmove",
+    (event) => {
+      if (!pullEligible || pullTriggered || chatOwnsGesture) return;
+      const touch = event.touches[0];
+      if (!touch) return;
+      const deltaY = touch.clientY - pullStartY;
+      const deltaX = touch.clientX - pullStartX;
+      if (
+        deltaY > 12 &&
+        Math.abs(deltaY) > Math.abs(deltaX) &&
+        (!pullSurface || pullSurface.scrollTop <= 1)
+      ) {
+        // Keep this passive and non-canceling: WebView remains responsible for
+        // the actual scroll while we only recognize a pull gesture.
+        reportPosition(event.target);
+      } else if (deltaY < -12 || Math.abs(deltaX) > Math.abs(deltaY)) {
+        pullEligible = false;
+      }
+    },
+    { capture: true, passive: true },
+  );
+  document.addEventListener(
+    "touchend",
+    (event) => {
+      if (!pullEligible || pullTriggered || chatOwnsGesture) return;
+      const touch = event.changedTouches[0];
+      const deltaY = (touch?.clientY ?? 0) - pullStartY;
+      const deltaX = (touch?.clientX ?? 0) - pullStartX;
+      if (
+        deltaY >= 72 &&
+        Math.abs(deltaY) > Math.abs(deltaX) * 1.2 &&
+        (!pullSurface || pullSurface.scrollTop <= 1)
+      ) {
+        pullTriggered = true;
+        window.dispatchEvent(new CustomEvent("flicks-pull-refresh"));
+      }
+      pullEligible = false;
+      pullSurface = null;
+    },
+    { capture: true, passive: true },
+  );
+  document.addEventListener(
+    "touchcancel",
+    () => {
+      pullEligible = false;
+      pullSurface = null;
+    },
     { capture: true, passive: true },
   );
   document.addEventListener(

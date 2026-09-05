@@ -63,43 +63,9 @@ public class SmartSwipeRefreshLayout extends SwipeRefreshLayout {
 
     @Override
     public boolean onInterceptTouchEvent(MotionEvent event) {
-        if (event.getActionMasked() == MotionEvent.ACTION_DOWN) {
-            downX = event.getX();
-            downY = event.getY();
-        }
-
-        if (!nativeSwipeEnabled) {
-            return false;
-        }
-
-        switch (event.getActionMasked()) {
-            case MotionEvent.ACTION_DOWN:
-                return false;
-
-            case MotionEvent.ACTION_MOVE:
-                float deltaX = event.getX() - downX;
-                float deltaY = event.getY() - downY;
-
-                if (Math.abs(deltaX) > Math.abs(deltaY)
-                        || Math.abs(deltaY) < touchSlop) {
-                    return false;
-                }
-
-                if (deltaY <= 0 || !contentAtTop || canChildScrollUp()) {
-                    return false;
-                }
-
-                return super.onInterceptTouchEvent(event);
-
-            case MotionEvent.ACTION_UP:
-            case MotionEvent.ACTION_CANCEL:
-                downX = 0f;
-                downY = 0f;
-                return false;
-
-            default:
-                return false;
-        }
+        // Pull-to-refresh is handled by the web app. Never let this parent
+        // intercept or cancel a WebView gesture.
+        return false;
     }
 
     @Override
@@ -108,22 +74,11 @@ public class SmartSwipeRefreshLayout extends SwipeRefreshLayout {
             @NonNull View target,
             int axes
     ) {
-        if (!nativeSwipeEnabled) {
-            return false;
-        }
-        return super.onStartNestedScroll(child, target, axes);
+        return false;
     }
 
     @Override
     public boolean canChildScrollUp() {
-        if (!nativeSwipeEnabled || !contentAtTop) {
-            return true;
-        }
-
-        if (contentWebView != null && contentWebView.canScrollVertically(-1)) {
-            return true;
-        }
-
-        return super.canChildScrollUp();
+        return true;
     }
 }
