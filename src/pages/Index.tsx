@@ -152,7 +152,7 @@ const SHOWCASE_MODE_META: Record<ShowcaseMode, {
     glow: "rgba(39, 194, 255, 0.3)",
   },
   announcement: {
-    label: "Custom Announcement",
+    label: "Flicks Announcement",
     icon: <Sparkles size={14} />,
     accent: "#ff6db5",
     glow: "rgba(236, 72, 153, 0.3)",
@@ -277,11 +277,11 @@ const ShowcaseEditor = ({
           </button>
         </div>
 
-        <div className="mt-4 space-y-3">
+        <div className="mt-4 min-w-0 max-w-full space-y-3 overflow-hidden">
           <select
             value={form.mode}
             onChange={(event) => update("mode", event.target.value as ShowcaseMode)}
-            className="w-full rounded-xl bg-black/30 px-3 py-2.5 text-sm font-bold text-white outline-none"
+            className="box-border w-full max-w-full min-w-0 rounded-xl bg-black/30 px-3 py-2.5 text-sm font-bold text-white outline-none"
             style={{ border: "1px solid rgba(255,255,255,0.16)" }}
           >
             {Object.entries(SHOWCASE_MODE_META).map(([value, item]) => (
@@ -289,7 +289,7 @@ const ShowcaseEditor = ({
             ))}
           </select>
 
-          <label className="block">
+          <label className="block min-w-0 max-w-full">
             <span className="mb-1 block text-[10px] font-black uppercase tracking-wider text-white/35">Title</span>
             <input
               autoFocus
@@ -297,55 +297,55 @@ const ShowcaseEditor = ({
               value={form.title}
               onChange={(event) => update("title", event.target.value)}
               placeholder="Featured title"
-              className="w-full rounded-xl bg-black/30 px-3 py-2.5 text-sm text-white outline-none placeholder:text-white/25"
+              className="box-border w-full max-w-full min-w-0 rounded-xl bg-black/30 px-3 py-2.5 text-sm text-white outline-none placeholder:text-white/25"
               style={{ border: "1px solid rgba(255,255,255,0.16)" }}
             />
           </label>
 
-          <label className="block">
+          <label className="block min-w-0 max-w-full">
             <span className="mb-1 block text-[10px] font-black uppercase tracking-wider text-white/35">Description</span>
             <textarea
               value={form.body}
               onChange={(event) => update("body", event.target.value)}
               placeholder="Write the public showcase message"
               rows={4}
-              className="w-full resize-none rounded-xl bg-black/30 px-3 py-2.5 text-sm text-white outline-none placeholder:text-white/25"
+              className="box-border w-full max-w-full min-w-0 resize-none rounded-xl bg-black/30 px-3 py-2.5 text-sm text-white outline-none placeholder:text-white/25"
               style={{ border: "1px solid rgba(255,255,255,0.16)" }}
             />
           </label>
 
-          <label className="block">
+          <label className="block min-w-0 max-w-full">
             <span className="mb-1 block text-[10px] font-black uppercase tracking-wider text-white/35">Custom image URL</span>
             <input
               type="url"
               value={form.image_url}
               onChange={(event) => update("image_url", event.target.value)}
               placeholder="https://example.com/showcase-image.jpg"
-              className="w-full rounded-xl bg-black/30 px-3 py-2.5 text-sm text-white outline-none placeholder:text-white/25"
+              className="box-border w-full max-w-full min-w-0 rounded-xl bg-black/30 px-3 py-2.5 text-sm text-white outline-none placeholder:text-white/25"
               style={{ border: "1px solid rgba(255,255,255,0.16)" }}
             />
           </label>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <label className="block">
+          <div className="grid min-w-0 max-w-full grid-cols-1 gap-3 overflow-hidden sm:grid-cols-2">
+            <label className="block min-w-0 max-w-full">
               <span className="mb-1 block text-[10px] font-black uppercase tracking-wider text-white/35">Button label</span>
               <input
                 type="text"
                 value={form.cta_label}
                 onChange={(event) => update("cta_label", event.target.value)}
                 placeholder="View details"
-                className="w-full rounded-xl bg-black/30 px-3 py-2.5 text-sm text-white outline-none placeholder:text-white/25"
+                className="box-border w-full max-w-full min-w-0 rounded-xl bg-black/30 px-3 py-2.5 text-sm text-white outline-none placeholder:text-white/25"
                 style={{ border: "1px solid rgba(255,255,255,0.16)" }}
               />
             </label>
-            <label className="block">
+            <label className="block min-w-0 max-w-full">
               <span className="mb-1 block text-[10px] font-black uppercase tracking-wider text-white/35">CTA Link</span>
               <input
                 type="url"
                 value={form.cta_url}
                 onChange={(event) => update("cta_url", event.target.value)}
                 placeholder="https://example.com"
-                className="w-full rounded-xl bg-black/30 px-3 py-2.5 text-sm text-white outline-none placeholder:text-white/25"
+                className="box-border w-full max-w-full min-w-0 rounded-xl bg-black/30 px-3 py-2.5 text-sm text-white outline-none placeholder:text-white/25"
                 style={{ border: "1px solid rgba(255,255,255,0.16)" }}
               />
             </label>
@@ -430,13 +430,13 @@ const ShowcaseWidget = ({ isAdmin, userId, lang }: { isAdmin: boolean; userId: s
 
   useEffect(() => {
     const publishedCount = items.filter(item => item.is_published).length;
-    if (publishedCount <= 1) return;
+    if (publishedCount <= 1 || editing) return;
     const timer = window.setInterval(() => {
       setSlideDirection(1);
       setCurrentIndex(index => (index + 1) % publishedCount);
     }, 7000);
     return () => window.clearInterval(timer);
-  }, [items]);
+  }, [items, editing]);
 
   const beginAdd = () => {
     setDraft(createShowcaseDraft(items.length));
@@ -544,8 +544,8 @@ const ShowcaseWidget = ({ isAdmin, userId, lang }: { isAdmin: boolean; userId: s
             background: `linear-gradient(135deg, ${activeMeta.glow}, rgba(255,255,255,0.035) 42%, rgba(4,5,20,0.92))`,
             border: `1px solid ${activeMeta.accent}33`,
             boxShadow: `0 14px 42px rgba(0,0,0,0.25), 0 0 34px ${activeMeta.glow}`,
-            backdropFilter: "blur(24px)",
-            WebkitBackdropFilter: "blur(24px)",
+            backdropFilter: "blur(8px)",
+            WebkitBackdropFilter: "blur(8px)",
           }}
         >
           {activeItem.image_url && (
@@ -554,14 +554,19 @@ const ShowcaseWidget = ({ isAdmin, userId, lang }: { isAdmin: boolean; userId: s
               alt=""
               loading="lazy"
               decoding="async"
-              className="absolute inset-0 h-full w-full object-cover opacity-25"
+              className="absolute inset-0 h-full w-full object-cover opacity-70"
               onError={(event) => { event.currentTarget.style.display = "none"; }}
             />
           )}
-          <div className="absolute inset-0" style={{ background: "linear-gradient(90deg, rgba(4,5,20,0.97) 0%, rgba(4,5,20,0.83) 50%, rgba(4,5,20,0.55) 100%)" }} />
-          <div className="relative z-10 p-5">
+          <div
+            className="absolute inset-0"
+            style={{
+              background: "linear-gradient(to top, rgba(0,0,0,0.88) 12%, rgba(0,0,0,0.62) 42%, rgba(0,0,0,0.2) 80%, rgba(0,0,0,0.06) 100%)",
+            }}
+          />
+          <div className="relative z-10 min-w-0 max-w-full overflow-hidden p-5">
             <div className="flex items-start justify-between gap-3">
-              <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.16em]" style={{ color: activeMeta.accent }}>
+              <div className="min-w-0 break-words flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.16em]" style={{ color: activeMeta.accent }}>
                 {activeMeta.icon}
                 {activeMeta.label}
               </div>
@@ -593,15 +598,16 @@ const ShowcaseWidget = ({ isAdmin, userId, lang }: { isAdmin: boolean; userId: s
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: slideDirection * -18 }}
                 transition={{ duration: 0.24 }}
+                className="min-w-0 max-w-full overflow-hidden"
               >
-                <h3 className="mt-4 max-w-[560px] text-xl font-black leading-tight text-white">{activeItem.title}</h3>
-                <p className="mt-2 max-w-[600px] whitespace-pre-wrap text-sm leading-relaxed text-white/60">{activeItem.body}</p>
+                <h3 className="mt-4 max-w-[560px] break-words text-xl font-black leading-tight text-white [overflow-wrap:anywhere]">{activeItem.title}</h3>
+                <p className="mt-2 max-w-[600px] whitespace-pre-wrap break-words text-sm leading-relaxed text-white/75 [overflow-wrap:anywhere]">{activeItem.body}</p>
                 {activeItem.cta_label && activeItem.cta_url && showcaseUrl(activeItem.cta_url) && (
                   <a
                     href={activeItem.cta_url}
                     target="_blank"
                     rel="noreferrer"
-                    className="mt-4 inline-flex rounded-full px-4 py-2 text-xs font-black text-[#070912] transition hover:brightness-110"
+                    className="mt-4 inline-flex max-w-full min-w-0 whitespace-normal break-words rounded-full px-4 py-2 text-xs font-black text-[#070912] transition hover:brightness-110 [overflow-wrap:anywhere]"
                     style={{ background: `linear-gradient(135deg, ${activeMeta.accent}, #eaff70)` }}
                   >
                     {activeItem.cta_label}
@@ -673,8 +679,8 @@ const ShowcaseWidget = ({ isAdmin, userId, lang }: { isAdmin: boolean; userId: s
                         <img src={item.image_url} alt="" className="h-full w-full object-cover" onError={(event) => { event.currentTarget.style.display = "none"; }} />
                       ) : itemMeta.icon}
                     </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-xs font-black text-white/85">{item.title}</p>
+                    <div className="min-w-0 flex-1 overflow-hidden">
+                      <p className="break-words text-xs font-black text-white/85 [overflow-wrap:anywhere]">{item.title}</p>
                       <p className="mt-0.5 text-[10px] text-white/35">{itemMeta.label} · {item.is_published ? "Published" : "Draft"}</p>
                     </div>
                     <button onClick={() => beginEdit(item)} className="rounded-full p-2 text-white/45 transition hover:bg-white/10 hover:text-white" aria-label={`Edit ${item.title}`}>
