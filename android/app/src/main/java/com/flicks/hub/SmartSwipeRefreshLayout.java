@@ -54,6 +54,10 @@ public class SmartSwipeRefreshLayout extends SwipeRefreshLayout {
         contentAtTop = atTop;
     }
 
+    public boolean isContentAtTop() {
+        return contentAtTop;
+    }
+
     @Override
     public boolean onInterceptTouchEvent(MotionEvent event) {
         if (!nativeSwipeEnabled) {

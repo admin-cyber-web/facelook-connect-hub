@@ -9,14 +9,14 @@ import android.webkit.WebView;
 
 import com.getcapacitor.BridgeActivity;
 
-import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
-
 import java.util.Locale;
 
 public class MainActivity extends BridgeActivity {
 
     private SmartSwipeRefreshLayout refreshLayout;
     private WebView webView;
+    private float touchDownY;
+    private final int touchSlop = 8;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -59,13 +59,35 @@ public class MainActivity extends BridgeActivity {
 
         wrapBridgeWebView();
         webView.setOnTouchListener((view, event) -> {
-            if (event.getActionMasked() == MotionEvent.ACTION_DOWN
-                    || event.getActionMasked() == MotionEvent.ACTION_MOVE) {
+            int action = event.getActionMasked();
+            if (action == MotionEvent.ACTION_DOWN) {
+                touchDownY = event.getY();
                 syncActiveScrollPosition(event);
+                // Keep every new gesture in the WebView until it is proven to
+                // be an intentional pull from the active surface's top.
+                setParentInterception(view, true);
+            } else if (action == MotionEvent.ACTION_MOVE) {
+                syncActiveScrollPosition(event);
+                float deltaY = event.getY() - touchDownY;
+                boolean allowNativePull = deltaY > touchSlop
+                        && refreshLayout != null
+                        && refreshLayout.isSwipeEnabled()
+                        && refreshLayout.isContentAtTop()
+                        && !webView.canScrollVertically(-1);
+                setParentInterception(view, !allowNativePull);
+            } else if (action == MotionEvent.ACTION_UP
+                    || action == MotionEvent.ACTION_CANCEL) {
+                setParentInterception(view, false);
             }
             // Never consume the event; WebView must receive the full gesture.
             return false;
         });
+    }
+
+    private void setParentInterception(View view, boolean disallow) {
+        if (view.getParent() != null) {
+            view.getParent().requestDisallowInterceptTouchEvent(disallow);
+        }
     }
 
     private void wrapBridgeWebView() {
