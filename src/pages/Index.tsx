@@ -386,6 +386,7 @@ const ShowcaseEditor = ({
 
 const ShowcaseWidget = ({ isAdmin, userId, lang }: { isAdmin: boolean; userId: string; lang: "en" | "hi" }) => {
   const [items, setItems] = useState<ShowcaseItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<ShowcaseItem | null>(null);
   const [formData, setFormData] = useState<ShowcaseFormData>(() => createShowcaseDraft());
@@ -411,10 +412,12 @@ const ShowcaseWidget = ({ isAdmin, userId, lang }: { isAdmin: boolean; userId: s
         // Device-local drafts are an admin-only recovery path. Public users
         // never see stale cache data when the published query is unavailable.
         if (isAdmin) setItems(readLocalShowcases());
+        setIsLoading(false);
         return;
       }
       const next = normalizeShowcases(data || []);
       setItems(next);
+      setIsLoading(false);
       try { localStorage.setItem(SHOWCASE_STORAGE_KEY, JSON.stringify(next)); } catch { /* storage is optional */ }
     };
 
@@ -543,44 +546,57 @@ const ShowcaseWidget = ({ isAdmin, userId, lang }: { isAdmin: boolean; userId: s
 
   const publishedItems = items.filter(item => item.is_published);
   const activeItem = publishedItems[currentIndex];
-  if (!isAdmin && !activeItem) return null;
+  if (!isAdmin && !activeItem) {
+    return isLoading ? <div className="min-h-[300px] w-full" aria-hidden="true" /> : null;
+  }
 
   const activeMeta = activeItem
     ? SHOWCASE_MODE_META[activeItem.mode] || SHOWCASE_MODE_META.announcement
     : SHOWCASE_MODE_META.announcement;
 
   return (
-    <div className="space-y-3">
+    <div
+      className="min-h-[300px] space-y-3"
+      style={{
+        contain: "layout paint",
+        isolation: "isolate",
+        transform: "translateZ(0)",
+        willChange: "transform",
+      }}
+    >
       {activeItem && (
         <motion.section
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="relative overflow-hidden rounded-3xl"
+          className="relative min-h-[300px] w-full aspect-video overflow-hidden rounded-3xl"
           style={{
             background: `linear-gradient(135deg, ${activeMeta.glow}, rgba(255,255,255,0.035) 42%, rgba(4,5,20,0.92))`,
             border: `1px solid ${activeMeta.accent}33`,
             boxShadow: `0 14px 42px rgba(0,0,0,0.25), 0 0 34px ${activeMeta.glow}`,
             backdropFilter: "blur(8px)",
             WebkitBackdropFilter: "blur(8px)",
+            contain: "layout paint",
+            transform: "translateZ(0)",
+            willChange: "transform",
           }}
         >
           {activeItem.image_url && (
-            <img
-              src={activeItem.image_url}
-              alt=""
-              loading="lazy"
-              decoding="async"
-              className="absolute inset-0 h-full w-full object-cover opacity-70"
-              onError={(event) => { event.currentTarget.style.display = "none"; }}
-            />
+            <div className="pointer-events-none absolute inset-0 min-h-[300px] w-full aspect-video overflow-hidden" aria-hidden="true">
+              <img
+                src={activeItem.image_url}
+                alt=""
+                loading="lazy"
+                decoding="async"
+                className="h-full w-full object-cover opacity-70"
+                onError={(event) => { event.currentTarget.style.display = "none"; }}
+              />
+            </div>
           )}
           <div
-            className="absolute inset-0"
+            className="absolute inset-0 min-h-[300px] aspect-video"
             style={{
               background: "linear-gradient(to top, rgba(0,0,0,0.88) 12%, rgba(0,0,0,0.62) 42%, rgba(0,0,0,0.2) 80%, rgba(0,0,0,0.06) 100%)",
             }}
           />
-          <div className="relative z-10 min-w-0 max-w-full overflow-hidden p-5">
+          <div className="relative z-10 flex min-h-[300px] min-w-0 max-w-full flex-col overflow-hidden p-5">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0 break-words flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.16em]" style={{ color: activeMeta.accent }}>
                 {activeMeta.icon}
@@ -614,7 +630,7 @@ const ShowcaseWidget = ({ isAdmin, userId, lang }: { isAdmin: boolean; userId: s
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: slideDirection * -18 }}
                 transition={{ duration: 0.24 }}
-                className="min-w-0 max-w-full overflow-hidden"
+                className="min-h-[150px] min-w-0 max-w-full overflow-hidden"
               >
                 <h3 className="mt-4 max-w-[560px] break-words text-xl font-black leading-tight text-white [overflow-wrap:anywhere]">{activeItem.title}</h3>
                 <p className="mt-2 max-w-[600px] whitespace-pre-wrap break-words text-sm leading-relaxed text-white/75 [overflow-wrap:anywhere]">{activeItem.body}</p>
@@ -651,12 +667,13 @@ const ShowcaseWidget = ({ isAdmin, userId, lang }: { isAdmin: boolean; userId: s
 
       {isAdmin && (
         <div
-          className="overflow-hidden rounded-3xl"
+          className="min-h-[120px] overflow-hidden rounded-3xl"
           style={{
             background: "rgba(255,255,255,0.035)",
             border: "1px solid rgba(255,255,255,0.08)",
             backdropFilter: "blur(18px)",
             WebkitBackdropFilter: "blur(18px)",
+            contain: "layout paint",
           }}
         >
           <div className="flex items-center justify-between gap-3 border-b border-white/8 px-4 py-3">
@@ -2133,11 +2150,9 @@ const Index = ({ session, initialAdminOpen, isGuest = false }: { session: Sessio
   const [isUploading, setIsUploading] = useState(false);
   const [isPostOpen, setIsPostOpen] = useState(false);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
-  const [showNav, setShowNav] = useState(true);
   const [darkMode, setDarkMode] = useState(
     localStorage.getItem("flicks-dark") !== "false",
   );
-  const lastScrollY = useRef(0);
 
   // Chat
   const [isChatOpen, setIsChatOpen] = useState(false);
@@ -2436,30 +2451,7 @@ const Index = ({ session, initialAdminOpen, isGuest = false }: { session: Sessio
       }
     });
 
-    // 3. Scroll logic for Navbar — wrapped in rAF so the DOM read (scrollY)
-    //    and the React setState never happen in the same layout frame,
-    //    avoiding a Forced Reflow that causes overheating on mobile.
-    let rafPending = false;
-    let rafId = 0;
-    const handleScroll = () => {
-      if (rafPending) return;
-      rafPending = true;
-      rafId = requestAnimationFrame(() => {
-        rafPending = false;
-        rafId = 0;
-        if (window.scrollY > lastScrollY.current && window.scrollY > 100)
-          setShowNav(false);
-        else setShowNav(true);
-        lastScrollY.current = window.scrollY;
-      });
-    };
-
-    window.addEventListener("scroll", handleScroll, { passive: true });
-
     return () => {
-      window.removeEventListener("scroll", handleScroll);
-      if (rafId) cancelAnimationFrame(rafId);
-      rafPending = false;
       subscription.unsubscribe(); // Subscription band karna zaroori hai
     };
   }, [userId]);
@@ -4712,7 +4704,9 @@ const PersonalizationView = React.memo(({
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: -20 }}
                   >
-                    <MainSettingsView />
+                    {/* Call this closure directly so parent updates do not create
+                        a new nested component type and remount Settings. */}
+                    {MainSettingsView()}
                   </motion.div>
                 )}
                 {settingsView === "personal" && (
