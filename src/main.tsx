@@ -18,6 +18,46 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
   }
 })();
 
+// Keep the native pull-to-refresh wrapper informed about the actual web scroll
+// surface under the user's finger. Feeds and reels often scroll inside a
+// nested div, so WebView.scrollY alone cannot tell Android whether the user is
+// genuinely at the top. ChatSystem temporarily disables the native bridge
+// while it owns the gesture.
+(function syncNativeScrollPosition() {
+  const getScrollSurface = (target: EventTarget | null): HTMLElement | null => {
+    let node = target instanceof HTMLElement ? target : null;
+    while (node && node !== document.body) {
+      const styles = window.getComputedStyle(node);
+      if (
+        (styles.overflowY === "auto" || styles.overflowY === "scroll") &&
+        node.scrollHeight > node.clientHeight + 1
+      ) {
+        return node as HTMLElement;
+      }
+      node = node.parentElement;
+    }
+    return document.scrollingElement as HTMLElement | null;
+  };
+
+  const reportPosition = (target: EventTarget | null) => {
+    const control = (window as any).ScrollControl;
+    if (!control?.setContentAtTop) return;
+    const surface = getScrollSurface(target);
+    control.setContentAtTop(!surface || surface.scrollTop <= 1);
+  };
+
+  document.addEventListener(
+    "touchstart",
+    (event) => reportPosition(event.target),
+    { capture: true, passive: true },
+  );
+  document.addEventListener(
+    "scroll",
+    (event) => reportPosition(event.target),
+    { capture: true, passive: true },
+  );
+})();
+
 // OneSignal is loaded via CDN script in index.html.
 // Only initialise on the production domain — skip silently on Replit dev / localhost.
 const ONESIGNAL_DOMAIN = "flicksindia.online";

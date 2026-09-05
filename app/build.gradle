@@ -141,4 +141,5 @@ preBuild.dependsOn(generateShorcutsFile)
 dependencies {
     implementation fileTree(include: ['*.jar'], dir: 'libs')
     implementation 'com.google.androidbrowserhelper:androidbrowserhelper:2.6.2'
+    implementation 'androidx.swiperefreshlayout:swiperefreshlayout:1.1.0'
 }
