@@ -18,6 +18,7 @@ export default function PullToRefresh({
   const [refreshing, setRefreshing] = useState(false);
   const startY = useRef<number | null>(null);
   const pullYRef = useRef(0);
+  const pullRafRef = useRef<number | null>(null);
   const refreshingRef = useRef(false);
   const onRefreshRef = useRef(onRefresh);
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -66,9 +67,18 @@ export default function PullToRefresh({
     const getScrollTop = (): number =>
       scrollContainer ? scrollContainer.scrollTop : window.scrollY;
     const isAtExactTop = (): boolean => getScrollTop() === 0;
+    const paintPull = (value: number) => {
+      pullYRef.current = value;
+      if (pullRafRef.current !== null) {
+        cancelAnimationFrame(pullRafRef.current);
+      }
+      pullRafRef.current = requestAnimationFrame(() => {
+        pullRafRef.current = null;
+        setPullY(pullYRef.current);
+      });
+    };
     const resetPull = () => {
-      pullYRef.current = 0;
-      setPullY(0);
+      paintPull(0);
     };
 
     const onTouchStart = (e: TouchEvent) => {
@@ -101,10 +111,13 @@ export default function PullToRefresh({
         resetPull();
         return;
       }
+      // Claim only a downward pull that began at the exact top. This stops
+      // the browser's native overscroll from winning the gesture while
+      // leaving every normal scroll gesture untouched.
+      e.preventDefault();
       // Resistance curve: feels rubbery, capped at 1.6× threshold.
       const damped = Math.min(dy * 0.45, threshold * 1.6);
-      pullYRef.current = damped;
-      setPullY(damped);
+      paintPull(damped);
     };
 
     const onTouchEnd = async () => {
@@ -118,7 +131,7 @@ export default function PullToRefresh({
       ) {
         setRefreshing(true);
         refreshingRef.current = true;
-        setPullY(threshold);
+        paintPull(threshold);
         try { await onRefreshRef.current(); } finally {
           setRefreshing(false);
           refreshingRef.current = false;
@@ -135,12 +148,19 @@ export default function PullToRefresh({
     };
 
     el.addEventListener("touchstart", onTouchStart, { passive: true });
-    el.addEventListener("touchmove",  onTouchMove,  { passive: true });
+    // touchmove must be non-passive so a valid top-boundary pull can prevent
+    // native overscroll. The handler itself only calls preventDefault after
+    // the exact-top and downward-direction checks above pass.
+    el.addEventListener("touchmove", onTouchMove, { passive: false });
     el.addEventListener("touchend",   onTouchEnd, { passive: true });
     el.addEventListener("touchcancel", onTouchCancel, { passive: true });
     return () => {
+      if (pullRafRef.current !== null) {
+        cancelAnimationFrame(pullRafRef.current);
+        pullRafRef.current = null;
+      }
       el.removeEventListener("touchstart", onTouchStart);
-      el.removeEventListener("touchmove",  onTouchMove);
+      el.removeEventListener("touchmove", onTouchMove);
       el.removeEventListener("touchend",   onTouchEnd);
       el.removeEventListener("touchcancel", onTouchCancel);
     };
