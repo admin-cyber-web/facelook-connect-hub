@@ -106,6 +106,22 @@ body.body-locked {
   -webkit-overflow-scrolling: touch;
 }
 
+/* Chat owns the full viewport while open. Keep its gesture and overscroll
+   boundary local so Android/browser pull-to-refresh cannot claim a downward
+   drag from the top of a conversation. */
+.chat-shell {
+  overscroll-behavior: none;
+  touch-action: pan-y;
+}
+
+.chat-scroll-pane {
+  min-height: 0;
+  overscroll-behavior-y: none;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-gutter: stable;
+}
+
 /* Every app-owned vertical pane gets the same gesture contract, including
    feature pages and modal sheets that use utility overflow classes. */
 [class*="overflow-y-auto"],

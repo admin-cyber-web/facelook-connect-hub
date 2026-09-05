@@ -3142,7 +3142,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
           animate={{ y: 0 }}
           exit={{ y: "100%" }}
           transition={{ type: "spring", stiffness: 300, damping: 30 }}
-          className={`fixed inset-0 z-[150] flex flex-col ${T.wrap} overflow-hidden`}
+          className={`chat-shell fixed inset-0 z-[150] flex h-[100dvh] min-h-0 flex-col ${T.wrap} overflow-hidden`}
           onClick={(e) => e.stopPropagation()}
           onPointerDown={(e) => e.stopPropagation()}
         >
@@ -4161,10 +4161,10 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
           </AnimatePresence>
 
           {/* ═══════ MAIN CONTENT ═══════════════════════════════════════════ */}
-          <div className="flex-1 flex flex-col overflow-hidden relative z-10">
+          <div className="relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden">
             {/* ════ CHAT LIST ══════════════════════════════════════════════ */}
             {bottomTab === "chat" && !selectedUser && (
-              <div className={`flex flex-col flex-1 overflow-hidden`}>
+              <div className={`flex min-h-0 flex-1 flex-col overflow-hidden`}>
                 {/* Header */}
                 <div
                   className={`flex items-center justify-between px-5 pt-5 pb-3 border-b ${T.divider} shrink-0`}
@@ -4220,7 +4220,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                 {!searchQuery.trim() && <StoryRow />}
 
                 {/* List */}
-                <div className="flex-1 overflow-y-auto">
+                <div className="chat-scroll-pane flex min-h-0 flex-1 overflow-y-auto">
                   {searchQuery.trim() ? (
                     <>
                       <p
@@ -4426,7 +4426,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
 
             {/* ════ FULL-SCREEN CHAT ════════════════════════════════════════ */}
             {bottomTab === "chat" && selectedUser && (
-              <div className={`flex flex-col flex-1 overflow-hidden relative`}>
+              <div className={`relative flex min-h-0 flex-1 flex-col overflow-hidden`}>
                 {/* ── Theme Background Layers ──────────────────────────────── */}
                 {theme === "maroon" && (
                   <div className="absolute inset-0 pointer-events-none overflow-hidden" aria-hidden="true">
@@ -4706,7 +4706,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
 
                 {/* Messages */}
                 <div
-                  className="flex-1 overflow-y-auto px-4 pt-20 pb-4 space-y-2"
+                  className="chat-scroll-pane flex min-h-0 flex-1 overflow-y-auto px-4 pt-20 pb-4 space-y-2"
                   onClick={() => {
                     setMsgMenuId(null);
                     setShowEmojiGrid(false);
