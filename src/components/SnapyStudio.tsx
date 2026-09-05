@@ -19,7 +19,6 @@ import {
   Zap,
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
-import { revokeObjectUrl } from "@/lib/objectUrl";
 
 // ── LUT Definitions ────────────────────────────────────────────────────────────
 const LUTS = [
@@ -140,10 +139,6 @@ const SnapyStudio: React.FC<SnapyStudioProps> = ({ userId }) => {
   const [capturedUrl, setCapturedUrl] = useState<string>("");
   const [removedBgUrl, setRemovedBgUrl] = useState<string>("");
 
-  useEffect(() => {
-    return () => revokeObjectUrl(removedBgUrl);
-  }, [removedBgUrl]);
-
   // UI state
   const [state, setState] = useState<StudioState>("camera");
   const [selectedLut, setSelectedLut] = useState<LutId>("natural");
@@ -211,25 +206,6 @@ const SnapyStudio: React.FC<SnapyStudioProps> = ({ userId }) => {
       streamRef.current = null;
     };
   }, [startCamera]);
-
-  // Camera hardware must not stay active while the app is backgrounded.
-  useEffect(() => {
-    const handleVisibility = () => {
-      if (document.hidden) {
-        cameraRequestRef.current += 1;
-        videoRef.current?.pause();
-        if (videoRef.current) videoRef.current.srcObject = null;
-        streamRef.current?.getTracks().forEach((track) => track.stop());
-        streamRef.current = null;
-        cancelAnimationFrame(rafRef.current);
-        rafRef.current = 0;
-      } else if (state === "camera") {
-        void startCamera();
-      }
-    };
-    document.addEventListener("visibilitychange", handleVisibility);
-    return () => document.removeEventListener("visibilitychange", handleVisibility);
-  }, [startCamera, state]);
 
   // ── Live render loop ──────────────────────────────────────────────────────
   useEffect(() => {

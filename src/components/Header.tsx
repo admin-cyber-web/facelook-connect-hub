@@ -1969,16 +1969,10 @@ const Header = ({
               const row = (payload.new || payload.old) as any;
               if (row?.receiver_id !== userId) return;
               fetchFriendReqsRef.current();
-               window.dispatchEvent(new Event("flicks-friendship-changed"));
             },
           )
           .subscribe(),
-        {
-          onVisible: () => {
-            void fetchFriendReqsRef.current();
-            window.dispatchEvent(new Event("flicks-friendship-changed"));
-          },
-        },
+        { onVisible: () => { void fetchFriendReqsRef.current(); } },
       ),
     ];
     return () => {
@@ -1991,8 +1985,9 @@ const Header = ({
   useEffect(() => {
     if (showDash) {
       fetchDashStats();
+      fetchDashFriends();
     }
-  }, [showDash, fetchDashStats]);
+  }, [showDash, fetchDashStats, fetchDashFriends]);
 
 
   // ── Live DP update from Settings > Personal Info ───────────────────────────
@@ -2264,10 +2259,7 @@ const Header = ({
               exit={{ x: "100%" }}
               transition={{ type: "spring", damping: 28, stiffness: 220 }}
               className="fixed top-0 right-0 h-full w-full max-w-sm bg-slate-900/90 backdrop-blur-3xl shadow-2xl z-[110] border-l border-white/10 flex flex-col overflow-hidden overflow-x-hidden"
-              style={{
-                maxWidth: "min(100vw, 384px)",
-                paddingTop: "var(--cap-safe-top)",
-              }}
+              style={{ maxWidth: "min(100vw, 384px)" }}
             >
               {/* Header Section */}
               <div className="px-4 py-3 flex items-center justify-between border-b border-white/10 bg-white/5 shrink-0">
@@ -2301,7 +2293,7 @@ const Header = ({
               </div>
 
               {/* Content Section */}
-              <div className="flex-1 overflow-y-auto scroll-pane" data-scroll-pane="true">
+              <div className="flex-1 overflow-y-auto">
                 {!hasAnything ? (
                   <div className="h-full flex flex-col items-center justify-center gap-3 text-white/20 py-16">
                     <Bell size={44} strokeWidth={1} />

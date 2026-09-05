@@ -110,17 +110,12 @@ const CommentDrawer = ({ post, currentUserId, onClose, onCommentAdded }: any) =>
 
   useEffect(() => {
     if (!post?._raw_id) return;
-    let active = true;
     supabase
       .from("comments")
-      .select("id, post_id, author_id, author, content, created_at, profiles:author_id (username, avatar_url)")
+      .select("*, profiles:author_id (username, avatar_url)")
       .eq("post_id", post._raw_id)
       .order("created_at", { ascending: true })
-      .limit(100)
-      .then(({ data }) => {
-        if (active) setComments(data || []);
-      });
-    return () => { active = false; };
+      .then(({ data }) => setComments(data || []));
   }, [post]);
 
   const handleSend = async () => {
@@ -131,7 +126,7 @@ const CommentDrawer = ({ post, currentUserId, onClose, onCommentAdded }: any) =>
       const { data, error } = await supabase
         .from("comments")
         .insert([{ post_id: post._raw_id, content: text.trim(), author_id: currentUserId, author: "User" }])
-        .select("id, post_id, author_id, author, content, created_at, profiles:author_id (username, avatar_url)")
+        .select("*, profiles:author_id (username, avatar_url)")
         .single();
       if (error) throw error;
       if (data) { setComments(p => [...p, data]); setText(""); toast.success("Commented!"); onCommentAdded?.(); }
@@ -381,7 +376,10 @@ const FlickCard = memo(({ post, isActive, currentUserId, onBridgeChat, isAdmin, 
 
   return (
     /* Root card — explicit height, no flex layout so absolute children are unambiguous */
-    <div className="relative w-full bg-black snap-start overflow-hidden" style={{ height: "100dvh" }}>
+    <div
+      className="relative w-full bg-black snap-start overflow-hidden"
+      style={{ height: "100dvh", touchAction: "pan-y" }}
+    >
 
       {/* ── Video — absolute inset-0 so it is unambiguously at z=0 behind every overlay ── */}
       <video
@@ -394,7 +392,12 @@ const FlickCard = memo(({ post, isActive, currentUserId, onBridgeChat, isAdmin, 
         autoPlay={false}
         preload="metadata"
         className="absolute inset-0 w-full h-full object-cover"
-        style={{ backgroundColor: "#000", zIndex: 0, display: videoError ? "none" : undefined }}
+        style={{
+          backgroundColor: "#000",
+          zIndex: 0,
+          display: videoError ? "none" : undefined,
+          touchAction: "pan-y",
+        }}
         onLoadStart={() => { setVideoLoading(true); setVideoError(null); }}
         onCanPlay={() => setVideoLoading(false)}
         onPlaying={() => setVideoLoading(false)}
@@ -719,7 +722,7 @@ export default function FlicksApp({ onBack, onBridgeChat, isAdmin: isAdminProp =
         // Single source of truth: posts table, type=video, with unambiguous FK hint
         const { data: postsData, error: postsErr } = await supabase
           .from("posts")
-          .select("id, author_id, user_id, username, author_name, content, caption, media_url, video_url, cover_url, thumb_url, likes_count, views_count, shares_count, meta_title, meta_description, created_at, author:profiles!posts_author_id_fkey(avatar_url, full_name), comments(count)")
+          .select("*, author:profiles!posts_author_id_fkey(avatar_url, full_name), comments(count)")
           .eq("type", "video")
           .order("created_at", { ascending: false })
           .limit(20);
@@ -787,7 +790,7 @@ export default function FlicksApp({ onBack, onBridgeChat, isAdmin: isAdminProp =
     );
 
   return (
-    <div className="fixed inset-0 bg-black z-[100]">
+    <div className="fixed inset-0 bg-black z-[100]" style={{ touchAction: "pan-y" }}>
       {/* Back button — minimal, ghost style like TikTok/Instagram; no heavy border or background */}
       {onBack && (
         <button onClick={onBack}
@@ -798,7 +801,8 @@ export default function FlicksApp({ onBack, onBridgeChat, isAdmin: isAdminProp =
         </button>
       )}
       <div ref={containerRef} onScroll={onScroll}
-        className="app-scroll-container h-full snap-y snap-mandatory scrollbar-hide">
+        className="h-full overflow-y-scroll snap-y snap-mandatory scrollbar-hide"
+        style={{ touchAction: "pan-y" }}>
         {flicks.length === 0 ? (
           <div className="h-full flex items-center justify-center text-white/20 font-bold">NO VIDEOS FOUND.</div>
         ) : (

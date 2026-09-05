@@ -406,10 +406,9 @@ const SurveyCard: React.FC<{ survey: Survey; userId: string; onUpdate: () => voi
 
   const loadComments = useCallback(async () => {
     const { data } = await supabase.from("survey_comments")
-      .select("id, survey_id, user_id, parent_id, content, created_at, profiles(full_name, avatar_url)")
+      .select("*, profiles(full_name, avatar_url)")
       .eq("survey_id", survey.id)
-      .order("created_at", { ascending: true })
-      .limit(100);
+      .order("created_at", { ascending: true });
     if (!data) return;
     const roots: Comment[] = [];
     const map: Record<string, Comment> = {};
@@ -875,10 +874,12 @@ const SurveyFeed: React.FC<{ userId: string; highlightedSurveyId?: string | null
 
     const ids = data.map(s => s.id);
 
-    const [votesRes, likesRes, commentsRes] = await Promise.all([
-      supabase.from("votes").select("survey_id, option_id, user_id").in("survey_id", ids),
-      supabase.from("survey_likes").select("survey_id, user_id").in("survey_id", ids),
+    const [votesRes, likesRes, commentsRes, userVotesRes, userLikesRes] = await Promise.all([
+      supabase.from("votes").select("survey_id, option_id").in("survey_id", ids),
+      supabase.from("survey_likes").select("survey_id").in("survey_id", ids),
       supabase.from("survey_comments").select("survey_id").in("survey_id", ids),
+      supabase.from("votes").select("survey_id, option_id").in("survey_id", ids).eq("user_id", userId),
+      supabase.from("survey_likes").select("survey_id").in("survey_id", ids).eq("user_id", userId),
     ]);
 
     const votesMap: Record<string, Record<string, number>> = {};
@@ -893,12 +894,8 @@ const SurveyFeed: React.FC<{ userId: string; highlightedSurveyId?: string | null
     const commentsMap: Record<string, number> = {};
     (commentsRes.data || []).forEach(c => { commentsMap[c.survey_id] = (commentsMap[c.survey_id] || 0) + 1; });
     const userVoteMap: Record<string, string> = {};
-    (votesRes.data || [])
-      .filter(v => v.user_id === userId)
-      .forEach(v => { userVoteMap[v.survey_id] = v.option_id; });
-    const userLikeSet = new Set(
-      (likesRes.data || []).filter(l => l.user_id === userId).map(l => l.survey_id),
-    );
+    (userVotesRes.data || []).forEach(v => { userVoteMap[v.survey_id] = v.option_id; });
+    const userLikeSet = new Set((userLikesRes.data || []).map(l => l.survey_id));
 
     const enriched: Survey[] = data.map(s => ({
       ...s,

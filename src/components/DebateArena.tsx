@@ -8,7 +8,6 @@ import {
 import { supabase } from "@/lib/supabaseClient";
 import { resolveMediaUrl } from "@/lib/mediaUrl";
 import { toast } from "sonner";
-import { usePageVisibility } from "../hooks/usePageVisibility";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface Profile { full_name: string; avatar_url: string | null; }
@@ -47,14 +46,13 @@ type VoteMap = Record<string, VoteEntry>;
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function useCountdown(expiresAt: string | null) {
   const [left, setLeft] = useState(0);
-  const isPageVisible = usePageVisibility();
   useEffect(() => {
-    if (!expiresAt || !isPageVisible) return;
+    if (!expiresAt) return;
     const tick = () => setLeft(Math.max(0, new Date(expiresAt).getTime() - Date.now()));
     tick();
     const t = setInterval(tick, 1000);
     return () => clearInterval(t);
-  }, [expiresAt, isPageVisible]);
+  }, [expiresAt]);
   const h = Math.floor(left / 3600000);
   const m = Math.floor((left % 3600000) / 60000);
   const s = Math.floor((left % 60000) / 1000);
@@ -638,14 +636,13 @@ const DebateResultModal: React.FC<{
 // ── Queue Wait Modal ──────────────────────────────────────────────────────────
 const QueueWaitModal: React.FC<{ onClose: () => void; estimatedFreeAt: Date | null }> = ({ onClose, estimatedFreeAt }) => {
   const [left, setLeft] = useState(0);
-  const isPageVisible = usePageVisibility();
   useEffect(() => {
-    if (!estimatedFreeAt || !isPageVisible) return;
+    if (!estimatedFreeAt) return;
     const tick = () => setLeft(Math.max(0, estimatedFreeAt.getTime() - Date.now()));
     tick();
     const t = setInterval(tick, 1000);
     return () => clearInterval(t);
-  }, [estimatedFreeAt, isPageVisible]);
+  }, [estimatedFreeAt]);
 
   const m = Math.floor(left / 60000);
   const s = Math.floor((left % 60000) / 1000);
@@ -740,7 +737,7 @@ export const DebateButton: React.FC<{
   const fetchMessages = useCallback(async (debateId: string) => {
     const { data } = await supabase
       .from("debate_messages")
-      .select("id, debate_id, user_id, content, likes_count, created_at, profiles!user_id(full_name, avatar_url)")
+      .select("*, profiles!user_id(full_name, avatar_url)")
       .eq("debate_id", debateId)
       .order("created_at", { ascending: true });
     if (!data) return;
@@ -904,7 +901,7 @@ export const DebateButton: React.FC<{
         status: "pending",
         expires_at: new Date(Date.now() + 48 * 3600 * 1000).toISOString(),
       })
-      .select("id, survey_id, challenger_id, responder_id, status, is_public, expires_at, finished_at, winner_id, created_at, challenger:profiles!challenger_id(full_name,avatar_url), responder:profiles!responder_id(full_name,avatar_url)")
+      .select("*, challenger:profiles!challenger_id(full_name,avatar_url), responder:profiles!responder_id(full_name,avatar_url)")
       .single();
 
     if (error) {

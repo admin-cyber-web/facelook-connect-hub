@@ -20,7 +20,6 @@ const Index         = lazy(() => import("./pages/Index"));
 const Privacy       = lazy(() => import("./pages/Privacy"));
 const Terms         = lazy(() => import("./pages/Terms"));
 const DataInfo      = lazy(() => import("./pages/DataInfo"));
-const LandingPage   = lazy(() => import("./pages/LandingPage"));
 const NotFound      = lazy(() => import("./pages/NotFound"));
 const LoginScreen   = lazy(() => import("./components/LoginScreen"));
 const PostDetail    = lazy(() => import("./pages/PostDetail"));
@@ -30,18 +29,12 @@ const InviteLanding = lazy(() => import("./pages/InviteLanding"));
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      // This app uses explicit Supabase fetches rather than query observers.
-      // Keep React Query conservative if a screen adds a query later.
-      staleTime: Infinity,
-      gcTime:    1000 * 60 * 10,
-      refetchInterval: false,
-      refetchIntervalInBackground: false,
+      staleTime: 1000 * 60 * 5,
+      gcTime:    1000 * 60 * 60 * 24,
       refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
-      refetchOnMount: false,
-      retry: 0,
+      refetchOnReconnect: true,
+      retry: 2,
     },
-    mutations: { retry: 0 },
   },
 });
 
@@ -131,8 +124,7 @@ const App = () => {
           <Toaster />
           <Sonner />
 
-           <div className="app-root-scroll pointer-events-auto">
-           <CurvedEdgeOverlay />
+          <CurvedEdgeOverlay />
 
           {isAdminEmail(session?.user?.email || "") && (
             <button
@@ -151,7 +143,7 @@ const App = () => {
             </div>
           )}
 
-           <ProfileViewerProvider
+          <ProfileViewerProvider
             currentUserId={session?.user?.id ?? ""}
             currentUserEmail={session?.user?.email ?? ""}
           >
@@ -161,8 +153,6 @@ const App = () => {
                   <Suspense fallback={<PageLoader />}>
                     {!session ? (
                       <Routes>
-                        <Route path="/"            element={<LandingPage />} />
-                        <Route path="/login"        element={<LoginScreen />} />
                         <Route path="/privacy"     element={<Privacy />} />
                         <Route path="/terms"       element={<Terms />} />
                         <Route path="/data-info"   element={<DataInfo />} />
@@ -194,8 +184,7 @@ const App = () => {
                 </BrowserRouter>
               </DataCacheProvider>
             </OnlineUsersProvider>
-           </ProfileViewerProvider>
-           </div>
+          </ProfileViewerProvider>
         </TooltipProvider>
       </HelmetProvider>
     </QueryClientProvider>

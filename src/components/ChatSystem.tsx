@@ -51,11 +51,9 @@ import {
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { subscribeWhileVisible } from "@/lib/realtimeVisibility";
-import { revokeObjectUrl } from "@/lib/objectUrl";
 import { usePageVisibility } from "../hooks/usePageVisibility";
 import { toast } from "sonner";
 import { parseMessage } from "../lib/messageParser";
-import { playFeedbackTone } from "../lib/audioFeedback";
 import { ChatSticker } from "./ChatSticker";
 import {
   hasRiskKeyword,
@@ -66,14 +64,6 @@ import {
   sendSafetyNotification,
   RISK_THRESHOLD,
 } from "../lib/safetyEngine";
-
-declare global {
-  interface Window {
-    ScrollControl?: {
-      setSwipeEnabled: (enabled: boolean) => void;
-    };
-  }
-}
 
 // ── Storage bucket (must match the bucket created in Supabase dashboard) ───────
 const CHAT_BUCKET = "chat-images";
@@ -339,8 +329,41 @@ const RosePetals = () => (
 );
 
 // ── Sound ─────────────────────────────────────────────────────────────────────
-const playSound = (type: "send" | "receive" | "delete") =>
-  playFeedbackTone(type);
+const playSound = (type: "send" | "receive" | "delete") => {
+  try {
+    const ctx = new (window.AudioContext ||
+      (window as any).webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    if (type === "send") {
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(880, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(1200, ctx.currentTime + 0.08);
+      gain.gain.setValueAtTime(0.12, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.18);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.18);
+    } else if (type === "receive") {
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(600, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(900, ctx.currentTime + 0.15);
+      gain.gain.setValueAtTime(0.1, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.28);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.28);
+    } else {
+      osc.type = "sawtooth";
+      osc.frequency.setValueAtTime(350, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(80, ctx.currentTime + 0.3);
+      gain.gain.setValueAtTime(0.08, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.3);
+    }
+  } catch (_) {}
+};
 
 // ── Avatar ────────────────────────────────────────────────────────────────────
 const Avatar = ({
@@ -770,7 +793,6 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   onLogout,
   onUnreadCountChange,
 }) => {
-  const pageVisible = usePageVisibility();
   const isAdmin = isAdminEmail(userEmail);
   const { openProfile } = useProfileViewer();
 
@@ -886,21 +908,6 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     injectStyles();
   }, []);
 
-  useEffect(() => {
-    const open = isOpen;
-    if (window.ScrollControl) window.ScrollControl.setSwipeEnabled(!open);
-    window.dispatchEvent(new CustomEvent("flicks-chat-gesture", {
-      detail: { open },
-    }));
-
-    return () => {
-      if (window.ScrollControl) window.ScrollControl.setSwipeEnabled(true);
-      window.dispatchEvent(new CustomEvent("flicks-chat-gesture", {
-        detail: { open: false },
-      }));
-    };
-  }, [isOpen]);
-
   // ── Persisted state ───────────────────────────────────────────────────────
   const [theme, setTheme] = useState<Theme>(() => {
     // Version migration: v4 = remove water/nature/velvet, only maroon+whatsapp
@@ -986,7 +993,6 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<Profile[]>([]);
   const [isSearching, setIsSearching] = useState(false);
-  const [showListSearch, setShowListSearch] = useState(false);
 
   // ── Active chat ───────────────────────────────────────────────────────────
   const [selectedUser, setSelectedUser] = useState<ChatContact | null>(null);
@@ -999,9 +1005,6 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     null,
   );
   const [loadingMessages, setLoadingMessages] = useState(false);
-  useEffect(() => {
-    return () => revokeObjectUrl(pendingFilePreview);
-  }, [pendingFilePreview]);
   const [chatSearch, setChatSearch] = useState("");
   const [showChatSearch, setShowChatSearch] = useState(false);
   const [msgMenuId, setMsgMenuId] = useState<string | null>(null);
@@ -1042,12 +1045,6 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   const [storyFiles, setStoryFiles] = useState<File[]>([]);
   const [storyPreviews, setStoryPreviews] = useState<string[]>([]);
   const [storyPreviewUrl, setStoryPreviewUrl] = useState("");
-  useEffect(() => {
-    return () => storyPreviews.forEach(revokeObjectUrl);
-  }, [storyPreviews]);
-  useEffect(() => {
-    return () => revokeObjectUrl(storyPreviewUrl);
-  }, [storyPreviewUrl]);
   const [storyCaption, setStoryCaption] = useState("");
   const [storyEmoji, setStoryEmoji] = useState("");
   const [storyMood, setStoryMood] = useState("");
@@ -1062,7 +1059,6 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   const [deletingStory, setDeletingStory] = useState(false);
   const storyInputRef = useRef<HTMLInputElement>(null);
   const storyAudioRef = useRef<HTMLAudioElement | null>(null);
-  const storyVideoRef = useRef<HTMLVideoElement | null>(null);
   const storyTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [storyElapsed, setStoryElapsed] = useState(0);
   const [storyPaused, setStoryPaused] = useState(false);
@@ -1718,8 +1714,6 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   // mutedChatsRef: stable ref so the alerts channel doesn't teardown on every
   // contacts-fetch (removing contacts/mutedChats from the dep array below)
   const mutedChatsRef = useRef<Set<string>>(new Set());
-  const selectedUserRef = useRef<ChatContact | null>(null);
-  const isOpenRef = useRef(isOpen);
   useEffect(() => {
     contactsRef.current = contacts;
   }, [contacts]);
@@ -1729,10 +1723,6 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   useEffect(() => {
     mutedChatsRef.current = mutedChats;
   }, [mutedChats]);
-  useEffect(() => {
-    selectedUserRef.current = selectedUser;
-    isOpenRef.current = isOpen;
-  }, [selectedUser, isOpen]);
 
   useEffect(() => {
     const handler = async (e: Event) => {
@@ -1768,7 +1758,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
 
   // ── Story viewer: 15s countdown timer ────────────────────────────────────
   useEffect(() => {
-    if (!storyViewerOpen || storyPaused || !pageVisible || storyGroups.length === 0) return;
+    if (!storyViewerOpen || storyPaused || storyGroups.length === 0) return;
     storyTimerRef.current = setInterval(() => {
       setStoryElapsed((e) => {
         if (e + 0.1 >= 15) {
@@ -1798,7 +1788,6 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     viewerGroupIdx,
     viewerStoryIdx,
     storyGroups,
-    pageVisible,
   ]);
 
   // ── Story viewer: reset elapsed on story change ───────────────────────────
@@ -1816,7 +1805,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
         storyAudioRef.current = null;
       }
     };
-    if (!storyViewerOpen || !pageVisible) {
+    if (!storyViewerOpen) {
       stopAudio();
       return;
     }
@@ -1831,19 +1820,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       storyAudioRef.current = audio;
     }
     return stopAudio;
-  }, [storyViewerOpen, viewerGroupIdx, viewerStoryIdx, storyGroups, pageVisible]);
-
-  // A story viewer may contain video or music; explicitly pause both when the
-  // WebView is backgrounded instead of relying on browser throttling.
-  useEffect(() => {
-    const video = storyVideoRef.current;
-    if (!video) return;
-    if (!storyViewerOpen || !pageVisible) {
-      video.pause();
-    } else {
-      void video.play().catch(() => {});
-    }
-  }, [storyViewerOpen, pageVisible, viewerGroupIdx, viewerStoryIdx]);
+  }, [storyViewerOpen, viewerGroupIdx, viewerStoryIdx, storyGroups]);
 
   // ── Story viewer: view tracking ───────────────────────────────────────────
   useEffect(() => {
@@ -1899,57 +1876,64 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     }
   }, [activeStatus, userId]);
 
-  // ── Friendship updates are delivered by Header's single user-scoped channel.
-  // This keeps ChatSystem from opening a duplicate subscription for the same
-  // receiver_id filter while preserving live contact/request refreshes.
+  // ── Realtime: friendships ─────────────────────────────────────────────────
   useEffect(() => {
     if (!isOpen) return;
-    const handleFriendshipChanged = () => {
-      void fetchFriendships();
-      void fetchPendingRequests();
-      void fetchContacts();
-    };
-    window.addEventListener("flicks-friendship-changed", handleFriendshipChanged);
+    const cleanup = subscribeWhileVisible(() =>
+      supabase
+        .channel(`friendships-rt-${userId}`)
+        .on(
+          "postgres_changes",
+          { event: "INSERT", schema: "public", table: "friendships", filter: `receiver_id=eq.${userId}` },
+          (p) => {
+            const row = p.new as any;
+            if (row.receiver_id === userId || row.sender_id === userId) {
+              fetchFriendships();
+              if (row.receiver_id === userId && row.status === "pending")
+                fetchPendingRequests();
+            }
+          },
+        )
+        .on(
+          "postgres_changes",
+          { event: "UPDATE", schema: "public", table: "friendships", filter: `receiver_id=eq.${userId}` },
+          (p) => {
+            const row = p.new as any;
+            if (row.receiver_id === userId || row.sender_id === userId) {
+              fetchFriendships();
+              fetchPendingRequests();
+              if (row.status === "accepted") fetchContacts();
+            }
+          },
+        )
+        .subscribe(),
+      { onVisible: () => {
+        void fetchFriendships();
+        void fetchPendingRequests();
+        void fetchContacts();
+      } },
+    );
     return () => {
-      window.removeEventListener("flicks-friendship-changed", handleFriendshipChanged);
+      cleanup();
     };
   }, [isOpen, userId, fetchFriendships, fetchPendingRequests, fetchContacts]);
 
-  // ── User-scoped message stream: alerts, badge, and active chat updates ────
-  // One channel handles all receiver-side message work. The selected chat no
-  // longer opens a second channel for the same messages table/filter.
-  const fetchUnseenCount = useCallback(async () => {
-    if (!userId) return;
-    const { count } = await supabase
-      .from("messages")
-      .select("id", { count: "exact", head: true })
-      .eq("receiver_id", userId)
-      .is("seen_at", null);
-    setUnseenMsgCount(count ?? 0);
-  }, [userId]);
-
+  // ── Realtime: new messages → alert ────────────────────────────────────────
   useEffect(() => {
-    if (!userId) return;
-    void fetchUnseenCount();
-    return subscribeWhileVisible(() =>
+    if (!isOpen) return;
+    const cleanup = subscribeWhileVisible(() =>
       supabase
-        .channel(`messages-rt-${userId}`)
+        .channel(`alerts-rt-${userId}`)
         .on(
           "postgres_changes",
           { event: "INSERT", schema: "public", table: "messages", filter: `receiver_id=eq.${userId}` },
           (p) => {
             const msg = p.new as Message;
-            const sid = String(msg.sender_id || "").trim();
-            const rid = String(msg.receiver_id || "").trim();
-            if (rid !== userId) return;
-
-            if (!msg.seen_at) {
-              setUnseenMsgCount((prev) => prev + 1);
-            }
-
-            if (isOpenRef.current) {
-              const sender = contactsRef.current.find((c) => c.id === sid);
-              if (sender && !mutedChatsRef.current.has(sid)) {
+            if (msg.receiver_id === userId) {
+              const sender = contactsRef.current.find(
+                (c) => c.id === msg.sender_id,
+              );
+              if (sender && !mutedChatsRef.current.has(msg.sender_id)) {
                 setAlerts((prev) =>
                   [
                     {
@@ -1966,69 +1950,40 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                 );
               }
             }
+          },
+        )
+        .subscribe(),
+    );
+    return () => {
+      cleanup();
+    };
+    // contacts/mutedChats accessed via refs — channel no longer tears down on every fetch
+  }, [isOpen, userId]);
 
-            const selected = selectedUserRef.current;
-            const pid = String(selected?.id || "").trim();
-            if (!selected || sid !== pid || deletedForMeIdsRef.current.has(msg.id)) {
-              return;
-            }
+  // ── Unseen message count (always-on, drives FAB badge) ────────────────────
+  const fetchUnseenCount = useCallback(async () => {
+    if (!userId) return;
+    const { count } = await supabase
+      .from("messages")
+      .select("id", { count: "exact", head: true })
+      .eq("receiver_id", userId)
+      .is("seen_at", null);
+    setUnseenMsgCount(count ?? 0);
+  }, [userId]);
 
-            setMessages((prev) =>
-              prev.find((m) => m.id === msg.id) ? prev : [...prev, msg],
-            );
-            void fetchContacts();
-
-            // Auto-mark as seen when the message is addressed to the open chat.
-            supabase
-              .from("messages")
-              .update({ seen_at: new Date().toISOString() })
-              .eq("id", msg.id)
-              .then(() => {});
-
-            if (msg.content) {
-              const kwEmoji = getKeywordEmoji(msg.content);
-              if (kwEmoji) {
-                setEmojiBlast({ id: ++blastIdRef.current, emoji: kwEmoji });
-              }
-            }
-
-            getRiskProfile(sid).then((profile) => {
-              if (profile?.is_flagged) {
-                const senderName =
-                  contactsRef.current.find((c) => c.id === sid)?.full_name ||
-                  "Unknown";
-                if (suspiciousTimerRef.current)
-                  clearTimeout(suspiciousTimerRef.current);
-                setSuspiciousAlert({ senderName });
-                suspiciousTimerRef.current = setTimeout(
-                  () => setSuspiciousAlert(null),
-                  8000,
-                );
-              }
-            });
-
-            if (
-              loveProtectPartnerRef.current &&
-              sid === loveProtectPartnerRef.current
-            ) {
-              checkLoveProtectViolation(loveProtectPartnerRef.current).then(
-                (violated) => {
-                  if (violated) {
-                    if (loveProtectTimerRef.current)
-                      clearTimeout(loveProtectTimerRef.current);
-                    setLoveProtectAlert(true);
-                    sendSafetyNotification(
-                      userId,
-                      "love_protect",
-                      "Warning: Your partner's communication pattern shows suspicious inconsistencies.",
-                    );
-                    loveProtectTimerRef.current = setTimeout(
-                      () => setLoveProtectAlert(false),
-                      15000,
-                    );
-                  }
-                },
-              );
+  useEffect(() => {
+    if (!userId) return;
+    fetchUnseenCount();
+    return subscribeWhileVisible(() =>
+      supabase
+        .channel(`unseen-count-${userId}`)
+        .on(
+          "postgres_changes",
+          { event: "INSERT", schema: "public", table: "messages", filter: `receiver_id=eq.${userId}` },
+          (p) => {
+            const msg = p.new as any;
+            if (msg.receiver_id === userId && !msg.seen_at) {
+              setUnseenMsgCount((prev) => prev + 1);
             }
           },
         )
@@ -2036,31 +1991,10 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
           "postgres_changes",
           { event: "UPDATE", schema: "public", table: "messages", filter: `receiver_id=eq.${userId}` },
           (p) => {
-            const msg = p.new as Message;
-            const old = p.old as Partial<Message>;
-            if (msg.receiver_id !== userId) return;
-            if (msg.seen_at && !old?.seen_at) {
+            const msg = p.new as any;
+            const old = p.old as any;
+            if (msg.receiver_id === userId && msg.seen_at && !old?.seen_at) {
               setUnseenMsgCount((prev) => Math.max(0, prev - 1));
-            }
-
-            const selected = selectedUserRef.current;
-            if (
-              selected &&
-              String(msg.sender_id || "").trim() === String(selected.id).trim()
-            ) {
-              setMessages((prev) =>
-                prev.map((m) => (m.id === msg.id ? { ...m, ...msg } : m)),
-              );
-            }
-          },
-        )
-        .on(
-          "postgres_changes",
-          { event: "DELETE", schema: "public", table: "messages", filter: `receiver_id=eq.${userId}` },
-          (p) => {
-            const deletedId = (p.old as { id?: string })?.id;
-            if (deletedId) {
-              setMessages((prev) => prev.filter((m) => m.id !== deletedId));
             }
           },
         )
@@ -2197,13 +2131,128 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
 
     load().then(() => fetchMsgReactions(myId, partnerId));
 
-    // The user-scoped message channel above owns realtime inserts, updates, and
-    // deletes. Refresh the selected conversation on resume without opening a
-    // second postgres_changes channel for the same messages table.
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible") void load();
-    };
-    document.addEventListener("visibilitychange", handleVisibilityChange);
+    // ── Chat Realtime via custom-all-channel ─────────────────────────────────
+    const convKey = [myId, partnerId].sort().join("-");
+    const createConversationChannel = () => supabase
+      .channel(`conv-${convKey}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "messages", filter: `receiver_id=eq.${myId}` },
+        (p) => {
+          const msg = p.new as Message;
+          const sid = String(msg.sender_id || "").trim();
+          const rid = String(msg.receiver_id || "").trim();
+          const pid = partnerId;
+          const relevant =
+            (sid === myId && rid === pid) || (sid === pid && rid === myId);
+
+          if (!relevant) return;
+
+          // Skip messages the user deleted for themselves — don't let realtime bounce them back
+          if (deletedForMeIdsRef.current.has(msg.id)) return;
+
+          // Safely append — skip if already in list (optimistic duplicate guard)
+          setMessages((prev) =>
+            prev.find((m) => m.id === msg.id) ? prev : [...prev, msg],
+          );
+          fetchContacts();
+
+          // Auto-mark as seen when the message is addressed to us
+          if (rid === myId && sid === pid) {
+            supabase
+              .from("messages")
+              .update({ seen_at: new Date().toISOString() })
+              .eq("id", msg.id)
+              .then(() => {});
+
+            // ── Sync effect blast to receiver side ────────────────────────
+            if (msg.content) {
+              const kwEmoji = getKeywordEmoji(msg.content);
+              if (kwEmoji) {
+                setEmojiBlast({ id: ++blastIdRef.current, emoji: kwEmoji });
+              }
+            }
+
+            // ── Safety: check sender's risk profile ───────────────────────
+            getRiskProfile(sid).then((profile) => {
+              if (profile?.is_flagged) {
+                const senderName =
+                  contactsRef.current.find((c) => c.id === sid)?.full_name ||
+                  "Unknown";
+                if (suspiciousTimerRef.current)
+                  clearTimeout(suspiciousTimerRef.current);
+                setSuspiciousAlert({ senderName });
+                suspiciousTimerRef.current = setTimeout(
+                  () => setSuspiciousAlert(null),
+                  8000,
+                );
+              }
+            });
+
+            // ── Love Protect: check partner activity on every incoming message ──
+            // Keyword filter removed — we check on ANY message from partner so
+            // the mechanism is testable. checkLoveProtectViolation decides severity.
+            if (
+              loveProtectPartnerRef.current &&
+              sid === loveProtectPartnerRef.current
+            ) {
+              console.log(
+                "[LoveProtect] Incoming message from partner — running violation check.",
+                { partnerId: loveProtectPartnerRef.current, msgId: msg.id }
+              );
+              checkLoveProtectViolation(loveProtectPartnerRef.current).then(
+                (violated) => {
+                  console.log("[LoveProtect] Violation result:", violated);
+                  if (violated) {
+                    if (loveProtectTimerRef.current)
+                      clearTimeout(loveProtectTimerRef.current);
+                    setLoveProtectAlert(true);
+                    sendSafetyNotification(
+                      myId,
+                      "love_protect",
+                      "Warning: Your partner's communication pattern shows suspicious inconsistencies.",
+                    );
+                    loveProtectTimerRef.current = setTimeout(
+                      () => setLoveProtectAlert(false),
+                      15000,
+                    );
+                  }
+                },
+              );
+            }
+          }
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "messages", filter: `receiver_id=eq.${myId}` },
+        (p) => {
+          const msg = p.new as Message;
+          const relevant =
+            msg.sender_id === myId || msg.receiver_id === myId;
+          if (relevant) {
+            // Merge ALL updated fields (content, seen_at, any future fields)
+            setMessages((prev) =>
+              prev.map((m) => (m.id === msg.id ? { ...m, ...msg } : m)),
+            );
+          }
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "DELETE", schema: "public", table: "messages", filter: `receiver_id=eq.${myId}` },
+        (p) => {
+          const deletedId = (p.old as { id: string })?.id;
+          if (deletedId) {
+            setMessages((prev) => prev.filter((m) => m.id !== deletedId));
+          }
+        },
+      )
+      .subscribe();
+    const cleanupConversationChannel = subscribeWhileVisible(
+      createConversationChannel,
+      { onVisible: () => { void load(); } },
+    );
 
     // Typing presence channel
     const typingKey = [myId, partnerId].sort().join("-");
@@ -2226,7 +2275,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     const cleanupTypingChannel = subscribeWhileVisible(createTypingChannel);
 
     return () => {
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      cleanupConversationChannel();
       cleanupTypingChannel();
       typingChannelRef.current = null;
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
@@ -2545,6 +2594,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   };
 
   const clearPendingFile = () => {
+    if (pendingFilePreview) URL.revokeObjectURL(pendingFilePreview);
     setPendingFile(null);
     setPendingFilePreview(null);
     pendingFileRef.current = null;
@@ -3066,15 +3116,13 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
           if (files.length === 1) {
             setStoryFile(files[0]);
             setStoryFiles([files[0]]);
-            const previewUrl = URL.createObjectURL(files[0]);
-            setStoryPreviews([previewUrl]);
-            setStoryPreviewUrl(previewUrl);
+            setStoryPreviews([URL.createObjectURL(files[0])]);
+            setStoryPreviewUrl(URL.createObjectURL(files[0]));
           } else {
             setStoryFiles(files);
-            const previewUrls = files.map((f) => URL.createObjectURL(f));
-            setStoryPreviews(previewUrls);
+            setStoryPreviews(files.map((f) => URL.createObjectURL(f)));
             setStoryFile(files[0]);
-            setStoryPreviewUrl(previewUrls[0]);
+            setStoryPreviewUrl(URL.createObjectURL(files[0]));
           }
           setShowStoryEditor(true);
           e.target.value = "";
@@ -3094,12 +3142,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
           animate={{ y: 0 }}
           exit={{ y: "100%" }}
           transition={{ type: "spring", stiffness: 300, damping: 30 }}
-          className={`fixed inset-0 z-[150] flex flex-col ${T.wrap} overflow-hidden overscroll-y-contain`}
-          data-scroll-pane="true"
-          style={{
-            overscrollBehaviorY: "contain",
-            touchAction: "pan-y",
-          }}
+          className={`fixed inset-0 z-[150] flex flex-col ${T.wrap} overflow-hidden`}
           onClick={(e) => e.stopPropagation()}
           onPointerDown={(e) => e.stopPropagation()}
         >
@@ -3627,28 +3670,27 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                           ) : story.media_type === "video" ? (
                             story.mood === "grid" ? (
                               <div className="w-full h-full grid grid-cols-2 grid-rows-2">
-                                <video
-                                  ref={storyVideoRef}
-                                  src={getStoryMediaUrl(story.image_url)}
-                                  className="col-span-2 row-span-2 w-full h-full object-cover"
-                                  autoPlay={pageVisible}
-                                  muted={!!story.music_url || muteStoryVideo}
-                                  playsInline
-                                  loop
-                                  preload="metadata"
-                                  onError={onStoryMediaError}
-                                />
+                                {[0, 1, 2, 3].map((j) => (
+                                  <video
+                                    key={j}
+                                    src={getStoryMediaUrl(story.image_url)}
+                                    className="w-full h-full object-cover"
+                                    autoPlay
+                                    muted={!!story.music_url}
+                                    playsInline
+                                    loop
+                                    onError={onStoryMediaError}
+                                  />
+                                ))}
                               </div>
                             ) : (
                               <video
-                                ref={storyVideoRef}
                                 src={getStoryMediaUrl(story.image_url)}
                                 className="w-full h-full object-cover"
-                                autoPlay={pageVisible}
-                                muted={!!story.music_url || muteStoryVideo}
+                                autoPlay
+                                muted={!!story.music_url}
                                 playsInline
                                 loop
-                                preload="metadata"
                                 style={{ filter: moodFilter }}
                                 onError={onStoryMediaError}
                               />
@@ -4125,91 +4167,60 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
               <div className={`flex flex-col flex-1 overflow-hidden`}>
                 {/* Header */}
                 <div
-                  className={`flex items-center justify-between gap-4 px-4 pt-4 pb-3 border-b ${T.divider} shrink-0`}
+                  className={`flex items-center justify-between px-5 pt-5 pb-3 border-b ${T.divider} shrink-0`}
                 >
                   <div>
                     <p
-                      className={`text-lg font-black tracking-tight ${T.text1}`}
+                      className={`text-xl font-black tracking-tight ${T.text1}`}
                     >
                       Messages
                     </p>
-                    <p className={`text-[11px] font-semibold ${T.text3}`}>
+                    <p className={`text-xs font-semibold ${T.text3}`}>
                       {visibleContacts.length} conversations
                     </p>
                   </div>
-                  <div className="flex items-center gap-1.5 shrink-0">
+                  <div className="flex items-center gap-2">
                     {/* Theme switcher moved to Settings → Chat Theme */}
                     <button
-                      type="button"
-                      aria-label="Search friends or messages"
-                      aria-expanded={showListSearch}
-                      onClick={() => {
-                        setShowListSearch((open) => {
-                          if (open) setSearchQuery("");
-                          return !open;
-                        });
-                      }}
-                      className={`w-9 h-9 rounded-2xl border flex items-center justify-center transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40 ${
-                        showListSearch
-                          ? `${T.accent} ${T.sendBtnText} border-transparent shadow-lg`
-                          : `bg-white/5 ${T.divider} ${T.text2} hover:bg-white/10 hover:border-white/20`
-                      }`}
-                    >
-                      <Search size={16} strokeWidth={2.4} />
-                    </button>
-                    <button
-                      type="button"
-                      aria-label="Close chat"
                       onClick={onClose}
-                      className={`w-9 h-9 rounded-2xl bg-white/5 border ${T.divider} flex items-center justify-center ${T.text3} transition-all duration-200 hover:bg-white/10 hover:text-white hover:border-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40`}
+                      className={`w-8 h-8 rounded-xl bg-white/10 border ${T.divider} flex items-center justify-center ${T.text3}`}
                     >
-                      <X size={16} strokeWidth={2.4} />
+                      <X size={15} />
                     </button>
                   </div>
                 </div>
 
-                <AnimatePresence initial={false}>
-                  {showListSearch && (
-                    <motion.div
-                      initial={{ height: 0, opacity: 0, y: -4 }}
-                      animate={{ height: "auto", opacity: 1, y: 0 }}
-                      exit={{ height: 0, opacity: 0, y: -4 }}
-                      transition={{ duration: 0.18, ease: "easeOut" }}
-                      className={`px-4 pt-1.5 pb-3 border-b ${T.divider} shrink-0 overflow-hidden`}
-                    >
-                      <div className="relative">
-                        <Search
-                          size={15}
-                          className={`absolute left-3.5 top-1/2 -translate-y-1/2 ${T.text3}`}
-                        />
-                        <input
-                          autoFocus
-                          type="text"
-                          placeholder="Search friends or messages"
-                          value={searchQuery}
-                          onChange={(e) => setSearchQuery(e.target.value)}
-                          className={`w-full rounded-2xl pl-10 pr-10 py-2.5 text-sm font-semibold outline-none border transition-all focus:ring-2 focus:ring-white/10 ${T.searchBg}`}
-                        />
-                        {searchQuery && (
-                          <button
-                            type="button"
-                            aria-label="Clear search"
-                            onClick={() => setSearchQuery("")}
-                            className={`absolute right-2.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-white/10 flex items-center justify-center ${T.text3} transition-colors hover:bg-white/20 hover:text-white`}
-                          >
-                            <X size={12} />
-                          </button>
-                        )}
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                {/* Full-width Search Bar */}
+                <div className={`px-4 py-3 border-b ${T.divider} shrink-0`}>
+                  <div className="relative">
+                    <Search
+                      size={16}
+                      className={`absolute left-4 top-1/2 -translate-y-1/2 ${T.text3}`}
+                    />
+                    <input
+                      type="text"
+                      placeholder="Search friends or messages..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className={`w-full rounded-3xl pl-11 pr-10 py-3 text-sm font-semibold outline-none border-2 focus:ring-0 transition-all ${T.searchBg}`}
+                      style={{ fontSize: 15 }}
+                    />
+                    {searchQuery && (
+                      <button
+                        onClick={() => setSearchQuery("")}
+                        className={`absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-white/10 flex items-center justify-center ${T.text3}`}
+                      >
+                        <X size={12} />
+                      </button>
+                    )}
+                  </div>
+                </div>
 
                 {/* Story Row (only when not searching) */}
                 {!searchQuery.trim() && <StoryRow />}
 
                 {/* List */}
-                <div className="flex-1 overflow-y-auto scroll-pane" data-scroll-pane="true">
+                <div className="flex-1 overflow-y-auto">
                   {searchQuery.trim() ? (
                     <>
                       <p
@@ -4695,13 +4706,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
 
                 {/* Messages */}
                 <div
-                  className="chat-scroll-container min-h-0 flex-1 px-4 pt-20 pb-4 space-y-2"
-                  data-scroll-pane="true"
-                  style={{
-                    touchAction: "pan-y",
-                    overscrollBehaviorY: "contain",
-                    WebkitOverflowScrolling: "touch",
-                  }}
+                  className="flex-1 overflow-y-auto px-4 pt-20 pb-4 space-y-2"
                   onClick={() => {
                     setMsgMenuId(null);
                     setShowEmojiGrid(false);
@@ -5269,13 +5274,12 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                         return;
                       }
                       const files = allFiles;
-                      const previewUrls = files.map((f) =>
-                        URL.createObjectURL(f),
-                      );
                       setStoryFiles(files);
-                      setStoryPreviews(previewUrls);
+                      setStoryPreviews(
+                        files.map((f) => URL.createObjectURL(f)),
+                      );
                       setStoryFile(files[0]);
-                      setStoryPreviewUrl(previewUrls[0]);
+                      setStoryPreviewUrl(URL.createObjectURL(files[0]));
                       setShowStoryEditor(true);
                       e.target.value = "";
                     }}

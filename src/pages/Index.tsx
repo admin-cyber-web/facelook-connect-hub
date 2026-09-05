@@ -1,7 +1,6 @@
-import React, { useState, useEffect, useRef, useCallback, lazy, Suspense } from "react";
+import React, { useState, useEffect, useRef, lazy, Suspense } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { Session } from "@supabase/supabase-js";
-import { revokeObjectUrl } from "../lib/objectUrl";
 import {
   Camera,
   Loader2,
@@ -58,6 +57,7 @@ import { toast } from "sonner";
 import Header from "@/components/Header";
 import InviteCard from "@/components/InviteCard";
 import GolSlider from "@/components/GolSlider";
+import PullToRefresh from "@/components/PullToRefresh";
 import AutoPlayMutedVideo from "@/components/AutoPlayMutedVideo";
 import { isAdminEmail } from "@/lib/adminConfig";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -257,10 +257,6 @@ function FrameModePage({ onBack, userProfile, userEmail }: { onBack: () => void;
   const [photoFile, setPhotoFile]         = useState<File | null>(null);
   const [photoPreview, setPhotoPreview]   = useState("");
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
-
-  useEffect(() => {
-    return () => revokeObjectUrl(photoPreview);
-  }, [photoPreview]);
 
   useEffect(() => {
     fetchRequests();
@@ -1296,10 +1292,6 @@ const PersonalInfoView = React.memo(({
   const [avatarPreview, setAvatarPreview] = useState<string>(currentAvatarUrl);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
 
-  useEffect(() => {
-    return () => revokeObjectUrl(avatarPreview);
-  }, [avatarPreview]);
-
   const handleAvatarFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -1528,7 +1520,6 @@ const Index = ({ session, initialAdminOpen, isGuest = false }: { session: Sessio
   // Chat
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [chatBadgeCount, setChatBadgeCount] = useState(0);
-  const openChat = useCallback(() => setIsChatOpen(true), []);
 
   // Allow other components (e.g. UserProfileModal "Message" button) to open
   // the chat panel via a global event. ChatSystem itself listens for the
@@ -1567,25 +1558,13 @@ const Index = ({ session, initialAdminOpen, isGuest = false }: { session: Sessio
       isAdminPanelOpen ||
       isVideoCallOpen ||
       showMagnetDashboard;
-    if (!anyOverlay) {
-      // Clear a stale lock left behind if an overlay unmounts during a
-      // navigation, hot reload, or error boundary recovery.
-      document.body.classList.remove("body-locked");
-      document.body.style.top = "";
-      document.body.style.position = "";
-      document.body.style.inset = "";
-      document.body.style.width = "";
-      return;
-    }
+    if (!anyOverlay) return;
     const scrollY = window.scrollY;
     document.body.classList.add("body-locked");
     document.body.style.top = `-${scrollY}px`;
     return () => {
       document.body.classList.remove("body-locked");
       document.body.style.top = "";
-      document.body.style.position = "";
-      document.body.style.inset = "";
-      document.body.style.width = "";
       window.scrollTo(0, scrollY);
     };
   }, [isChatOpen, isPostOpen, isAdminPanelOpen, isVideoCallOpen, showMagnetDashboard]);
@@ -2251,6 +2230,12 @@ const Index = ({ session, initialAdminOpen, isGuest = false }: { session: Sessio
 
   // ── Labels (language) ────────────────────────────────────────────────────
   const t = (en: string, hi: string) => (lang === "hi" ? hi : en);
+
+  const handleFeedRefresh = React.useCallback(async () => {
+    window.dispatchEvent(new CustomEvent("flicks-pull-refresh"));
+    await new Promise((resolve) => setTimeout(resolve, 600));
+  }, []);
+
 
   // ── Settings: Block List sub-view ─────────────────────────────────────────
   const BlockListView = () => {
@@ -3000,7 +2985,7 @@ const PersonalizationView = React.memo(({
 
   return (
     <div
-      className={`pointer-events-auto min-h-[100dvh] w-full transition-colors duration-500 relative overflow-x-hidden ${darkMode ? "bg-[#020617]" : "bg-slate-100 light-mode"}`}
+      className={`min-h-screen w-full transition-colors duration-500 relative overflow-x-hidden ${darkMode ? "bg-[#020617]" : "bg-slate-100 light-mode"}`}
     >
       {/* Page-level Helmet — overrides the app-level default in App.tsx.
           The home-feed branch explicitly resets title + description so that
@@ -3204,7 +3189,7 @@ const PersonalizationView = React.memo(({
           onHomeClick={() => setActiveFeature("Fame")}
           onSettingsClick={() => { setActiveFeature("Settings"); setSettingsView("main"); }}
           onNavigateToFeature={(feature) => setActiveFeature(feature)}
-          onChatClick={openChat}
+          onChatClick={(e) => { e?.stopPropagation(); e?.preventDefault(); setIsChatOpen(true); }}
           chatBadge={chatBadgeCount}
           userId={userId}
         />
@@ -3212,7 +3197,7 @@ const PersonalizationView = React.memo(({
 
       <main
         className={`relative z-10 transition-all duration-500 w-full
-          pointer-events-auto ${activeFeature === "Flicks" ? "pt-0 pb-0" : "pt-0 pb-24"}`}
+          ${activeFeature === "Flicks" ? "pt-0 pb-0" : "pt-0 pb-24"}`}
       >
         <AnimatePresence mode="wait">
           <motion.div
@@ -3739,7 +3724,10 @@ const PersonalizationView = React.memo(({
 
                 {/* ── What's on your mind + News Feed ─────────────────────── */}
                 <div className="mt-2">
-                  <FameFeed
+                  <PullToRefresh
+                    onRefresh={handleFeedRefresh}
+                  >
+                    <FameFeed
                       onPostClick={() => setIsPostOpen(true)}
                       onImageSelect={(f) => setPendingFile(f)}
                       userProfile={profile}
@@ -3760,7 +3748,8 @@ const PersonalizationView = React.memo(({
                         rec_interests: recInterestsPref,
                         rec_new_users: recNewUsers,
                       }}
-                  />
+                    />
+                  </PullToRefresh>
                 </div>
 
                 </div>{/* ═══ end CENTER COLUMN ═══ */}
@@ -3847,7 +3836,7 @@ const PersonalizationView = React.memo(({
             {/* 2. FACE ─────────────────────────────────────────────────────── */}
             {activeFeature === "Face" && (
               <ErrorBoundary>
-              <div className="app-scroll-container min-h-[100dvh] space-y-4">
+              <div className="space-y-4">
                 <GlassCard className="sm:rounded-[3rem] p-6 overflow-hidden relative border-x-0 sm:border-x">
                   <div className="absolute top-0 left-0 w-full h-24 bg-gradient-to-r from-blue-600/40 to-purple-600/40" />
                   <div className="relative z-10 flex flex-col items-center mt-6">
@@ -4013,7 +4002,7 @@ const PersonalizationView = React.memo(({
             {activeFeature === "Circle" && (
               <ErrorBoundary>
               <Suspense fallback={<SectionLoader />}>
-              <div className="app-scroll-container min-h-[100dvh] bg-gray-50">
+              <div className="min-h-screen bg-gray-50">
                 <CirclePage userProfile={profile} currentUserId={userId} />
               </div>
               </Suspense>
@@ -4090,7 +4079,7 @@ const PersonalizationView = React.memo(({
             {/* 6. SETTINGS ─────────────────────────────────────────────────── */}
             {activeFeature === "Settings" && (
               <ErrorBoundary>
-              <div className="app-scroll-container w-full min-h-[100dvh] pb-32" style={{ background: "#09090B" }}>
+              <div className="w-full min-h-screen pb-32" style={{ background: "#09090B" }}>
               <AnimatePresence mode="wait">
                 {settingsView === "main" && (
                   <motion.div
@@ -4205,39 +4194,8 @@ const PersonalizationView = React.memo(({
       </main>
 
       {/* Chat System ───────────────────────────────────────────────────────── */}
-      <ErrorBoundary
-        key={isChatOpen ? "chat-open" : "chat-closed"}
-        fallback={
-          <div
-            role="alert"
-            className="fixed inset-0 z-[160] flex items-center justify-center bg-[#050505] px-6 text-white"
-          >
-            <div className="w-full max-w-sm rounded-2xl border border-red-400/20 bg-red-950/80 p-5 text-center shadow-2xl">
-              <p className="mb-2 text-sm font-black">Chat is temporarily unavailable</p>
-              <p className="mb-4 text-xs text-white/60">
-                Close this message and try opening chat again.
-              </p>
-              <button
-                type="button"
-                onClick={() => setIsChatOpen(false)}
-                className="rounded-xl bg-white/10 px-4 py-2 text-xs font-bold text-white"
-              >
-                Close and retry
-              </button>
-            </div>
-          </div>
-        }
-      >
-      <Suspense
-        fallback={
-          <div className="fixed inset-0 z-[150] flex items-center justify-center bg-[#050505] text-white">
-            <div className="flex items-center gap-2 text-sm font-bold text-white/60">
-              <Loader2 size={18} className="animate-spin" />
-              Loading chat…
-            </div>
-          </div>
-        }
-      >
+      <ErrorBoundary onError={() => setIsChatOpen(false)}>
+      <Suspense fallback={null}>
       <ChatSystem
         isOpen={isChatOpen}
         onClose={() => setIsChatOpen(false)}
@@ -4260,7 +4218,7 @@ const PersonalizationView = React.memo(({
             return;
           }
           if (f === "Antakshari") {
-            toast.info("Coming Soon", {
+            toast.info("🎤 Coming Soon: Antakshari — August 2026", {
               description: "Sing-along battles with your friends are on the way!",
               duration: 4000,
             });

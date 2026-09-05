@@ -25,7 +25,6 @@ import {
 } from "lucide-react";
 import { useProfileViewer } from "../context/ProfileViewerContext";
 import { useOnlineUsers } from "../context/OnlineUsersContext";
-import { usePageVisibility } from "../hooks/usePageVisibility";
 
 export { ADMIN_EMAILS, isAdminEmail } from "../lib/adminConfig";
 import { ADMIN_EMAILS } from "../lib/adminConfig";
@@ -107,7 +106,6 @@ const AdminDashboard: React.FC<Props> = ({
 }) => {
   const { openProfile } = useProfileViewer();
   const onlineUserIds = useOnlineUsers();
-  const isPageVisible = usePageVisibility();
   const [tab, setTab] = useState<Tab>("stats");
   const [loading, setLoading] = useState(true);
   const [users, setUsers] = useState<UserRow[]>([]);
@@ -138,15 +136,13 @@ const AdminDashboard: React.FC<Props> = ({
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    if (!isPageVisible) return;
     const id = setInterval(() => setNowTick((n) => n + 1), 30 * 1000);
     return () => clearInterval(id);
-  }, [isPageVisible]);
+  }, []);
 
   useEffect(() => {
-    if (!isPageVisible) return;
     fetchAll(false);
-  }, [isPageVisible]);
+  }, []);
 
   useEffect(() => {
     const q = userSearch.trim();
@@ -204,8 +200,7 @@ const AdminDashboard: React.FC<Props> = ({
             `id, reporter_id, post_id, target_id, reported_user_id, type, reason, status, created_at, token_number, decision`
           )
           .eq("status", "pending")
-          .order("created_at", { ascending: false })
-          .limit(100),
+          .order("created_at", { ascending: false }),
         supabase.from("profiles").select("id", { count: "exact", head: true }),
       ]);
 

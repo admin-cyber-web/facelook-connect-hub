@@ -93,6 +93,7 @@ const AudioWave = () => (
 const HelpSticker = () => (
   <div
     className="perf-pulse absolute top-20 left-1/2 -translate-x-1/2 z-30 px-5 py-2 rounded-full select-none"
+    style={{ background: "linear-gradient(135deg, #f97316, #ef4444)" }}
     style={{ background: "linear-gradient(135deg, #f97316, #ef4444)", "--perf-duration": "1.1s", "--perf-scale": "1.08" } as React.CSSProperties}
   >
     <span className="text-white font-black text-lg tracking-widest drop-shadow">🆘 MADAD</span>

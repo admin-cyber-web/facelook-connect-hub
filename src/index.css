@@ -54,52 +54,30 @@
 }
 
 /* ── Mobile safety ────────────────────────────────────────────────────────
-   1. Lock horizontal overflow without turning the app into a global scroll pane
+   1. Lock the viewport: no horizontal overflow, never wider than the screen
    2. Honor iOS notches / Android nav bars with safe-area insets
    3. Stop background scrolling when a modal/sheet is open (toggle .body-locked)
-   4. Prevent browser/WebView pull-to-refresh at the document boundary
+   4. Prevent scroll-chaining from inner panes to the page below
    ──────────────────────────────────────────────────────────────────────── */
 html, body, #root {
   max-width: 100vw;
   overflow-x: hidden;
   overscroll-behavior-x: none;
-  overscroll-behavior-y: none;
-  -webkit-overflow-scrolling: touch;
-  pointer-events: auto;
 }
 
 html, body {
-  /* Keep a viewport-sized baseline while allowing document content to grow. */
-  min-height: 100vh;
+  /* min-height (NOT height) so body can grow tall enough to scroll */
   min-height: 100dvh;
   height: auto;
   overflow-y: auto;
 }
 
 #root {
-  min-height: 100vh;
   min-height: 100dvh;
-  width: 100%;
   padding-left:  env(safe-area-inset-left);
   padding-right: env(safe-area-inset-right);
   padding-top:    env(safe-area-inset-top);
   padding-bottom: env(safe-area-inset-bottom);
-}
-
-/* One explicit WebView-owned scroll surface for every route. This prevents a
-   stale body lock or a nested feature from leaving the whole app untouchable. */
-.app-root-scroll {
-  width: 100%;
-  height: 100vh;
-  height: 100dvh;
-  min-height: 100vh;
-  min-height: 100dvh;
-  overflow-x: hidden;
-  overflow-y: auto;
-  overscroll-behavior-y: auto;
-  touch-action: auto;
-  -webkit-overflow-scrolling: touch;
-  pointer-events: auto;
 }
 
 /* Applied to <body> by useBodyScrollLock when ANY overlay is open. */
@@ -108,30 +86,15 @@ body.body-locked {
   position: fixed;
   inset: 0;
   width: 100%;
+  touch-action: none;
 }
 
-/* Explicit page/feed scroll surfaces. Keep normal page scrolling fluid while
-   preventing Android WebView pull-to-refresh at the feed boundary. */
-.app-scroll-container {
-  overflow-y: auto;
-  overscroll-behavior-y: contain;
-  touch-action: auto;
+/* All scroll-y panes inside the app should contain their overscroll, so a
+   chat / sheet / list scroll never bubbles up to the main feed. */
+.scroll-pane,
+[data-scroll-pane="true"] {
+  overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
-  pointer-events: auto;
-}
-
-.app-scroll-container::-webkit-scrollbar {
-  display: none;
-}
-
-/* Chat owns its gesture only on its message list. */
-.chat-scroll-container {
-  overflow-y: auto;
-  overscroll-behavior-y: contain;
-  touch-action: auto;
-  -webkit-overflow-scrolling: touch;
-  pointer-events: auto;
 }
 
 /* Horizontal carousels: allow both horizontal pan (carousel scroll) and
@@ -139,16 +102,15 @@ body.body-locked {
    gesture, so dragging up/down on the carousel scrolls the page. */
 [class*="overflow-x-auto"],
 .touch-content {
-  touch-action: auto;
+  touch-action: pan-x pan-y;
   overscroll-behavior-x: contain;
   -webkit-overflow-scrolling: touch;
-  pointer-events: auto;
 }
 
 /* Inline videos in the feed should never trap vertical scroll */
 .feed-reel,
 .feed-reel video {
-  touch-action: auto;
+  touch-action: pan-y;
 }
 
 @layer base {

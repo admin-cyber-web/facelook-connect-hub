@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "../lib/supabaseClient";
 import { ChevronLeft, Loader2, TrendingUp, Send, Inbox, ExternalLink } from "lucide-react";
@@ -35,16 +35,14 @@ export default function MagnetDashboard({ userId, viewerUserId, userName, onBack
   const [totalSent, setTotalSent]         = useState(0);
   const [totalReceived, setTotalReceived] = useState(0);
   const [maxDepth, setMaxDepth]           = useState(0);
-  const requestIdRef = useRef(0);
 
   const isOwnDashboard = viewerUserId === userId;
 
   useEffect(() => {
-    const requestId = ++requestIdRef.current;
-    void loadDashboard(requestId);
+    loadDashboard();
   }, [userId]);
 
-  const loadDashboard = async (requestId: number) => {
+  const loadDashboard = async () => {
     setLoading(true);
 
     // SENT: from magnet_invites where sender_id = userId (I invited others)
@@ -82,8 +80,6 @@ export default function MagnetDashboard({ userId, viewerUserId, userName, onBack
       .order("created_at", { ascending: false })
       .limit(50);
 
-    if (requestId !== requestIdRef.current) return;
-
     // Compute max depth from all entries
     const allDepths = [...sentRaw, ...(receivedRaw || [])].map(e => e.depth ?? 0);
     setMaxDepth(allDepths.length ? Math.max(...allDepths) : 0);
@@ -98,7 +94,6 @@ export default function MagnetDashboard({ userId, viewerUserId, userName, onBack
     if (postIds.length) {
       const { data: posts } = await supabase
         .from("posts").select("id,content,author").in("id", postIds);
-      if (requestId !== requestIdRef.current) return;
       (posts || []).forEach(p => { postMap[p.id] = { content: p.content, author: p.author }; });
     }
 
@@ -109,7 +104,6 @@ export default function MagnetDashboard({ userId, viewerUserId, userName, onBack
         post_author:  postMap[r.post_id]?.author,
       }));
 
-    if (requestId !== requestIdRef.current) return;
     setSent(enrich(sentRaw));
     setReceived(enrich(receivedRaw || []));
     setTotalSent(sentCount);

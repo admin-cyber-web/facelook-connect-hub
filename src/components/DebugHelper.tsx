@@ -21,7 +21,6 @@ export const DebugHelper = () => {
         log(`User Logged In: ${sessionData.session.user.email}`, "✅");
       } else {
         log("User Not Found! Refresh killed the session.", "❌");
-        return;
       }
 
       // 2. Check Database Table (Read Check)
@@ -41,14 +40,9 @@ export const DebugHelper = () => {
         .channel("debug-test")
         .on(
           "postgres_changes",
-          {
-            event: "*",
-            schema: "public",
-            table: "messages",
-            filter: `receiver_id=eq.${sessionData.session.user.id}`,
-          },
+          { event: "*", schema: "public", table: "messages" },
           (payload) => {
-            log(`Message realtime: ${payload.eventType}`, "✅");
+            console.log("Realtime Test Payload:", payload);
           },
         )
         .subscribe((status) => {

@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/lib/supabaseClient";
-import { usePageVisibility } from "../hooks/usePageVisibility";
 
 interface FlicksStudioProps {
   userId: string | null;
@@ -93,7 +92,6 @@ function ErrMsg({ msg }: { msg?: string }) {
 }
 
 export default function FlicksStudio({ userId }: FlicksStudioProps) {
-  const isPageVisible = usePageVisibility();
   const [profile, setProfile] = useState<CreatorProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -131,15 +129,13 @@ export default function FlicksStudio({ userId }: FlicksStudioProps) {
 
   useEffect(() => {
     if (!userId) { setLoading(false); return; }
-    if (!isPageVisible) return;
     fetchProfile();
-  }, [userId, isPageVisible]);
+  }, [userId]);
 
   useEffect(() => {
-    if (!isPageVisible) return;
     const id = setInterval(() => setTitleIndex(i => (i + 1) % TITLES.length), 2500);
     return () => clearInterval(id);
-  }, [isPageVisible]);
+  }, []);
 
   async function fetchProfile() {
     if (!userId) return;

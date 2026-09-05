@@ -105,7 +105,6 @@ const HINDI_HINGLISH_PROFANITY = [
   "betichod", "betichhod",
   "chutiya", "chutiyapa", "chutiy",
   "bhosda", "bhosdi", "bhosdike",
-  "bhosdiwala", "bhosdiwale", "bhosdiwali",
   "gandu", "gandoo",
   "lund", "lund khajao", "lund chus",
   "loda", "laude", "lauda",

@@ -93,7 +93,11 @@ const PostViewTracker = memo(({
     obs.observe(el);
     return () => obs.disconnect();
   }, [postId, onView]);
-  return <div ref={ref}>{children}</div>;
+  return (
+    <div ref={ref} style={{ touchAction: "pan-y" }}>
+      {children}
+    </div>
+  );
 });
 
 // ── Inline video ───────────────────────────────────────────────────────────────
@@ -133,7 +137,7 @@ const FeedVideo = memo(({ src }: { src: string }) => {
   return (
     <div
       className="relative w-full bg-black"
-      style={{ aspectRatio: "9/16", maxHeight: "85vh" }}
+      style={{ aspectRatio: "9/16", maxHeight: "85vh", touchAction: "pan-y" }}
     >
       <video
         ref={ref}
@@ -142,6 +146,7 @@ const FeedVideo = memo(({ src }: { src: string }) => {
         muted={muted}
         playsInline
         className="w-full h-full object-cover"
+        style={{ touchAction: "pan-y" }}
        preload="none"/>
       <button
         onClick={toggle}
@@ -165,10 +170,14 @@ const YouTubeEmbed = memo(({ url }: { url: string }) => {
   const id = m?.[2]?.length === 11 ? m[2] : null;
   if (!id) return null;
   return (
-    <div className="w-full bg-black" style={{ aspectRatio: "16/9" }}>
+    <div
+      className="w-full bg-black"
+      style={{ aspectRatio: "16/9", touchAction: "pan-y" }}
+    >
       <iframe
         src={`https://www.youtube.com/embed/${id}?controls=1&modestbranding=1`}
         className="w-full h-full"
+        style={{ touchAction: "pan-y" }}
         allow="accelerometer; autoplay; encrypted-media"
         title="Video"
       />
@@ -191,12 +200,12 @@ const PostMedia = memo(({ post }: { post: any }) => {
     url.includes("rapidcdn.app");
   if (isVid) return <FeedVideo src={url} />;
   return (
-    <div className="w-full bg-black">
+    <div className="w-full bg-black" style={{ touchAction: "pan-y" }}>
       <img
         src={url}
         loading="lazy"
         className="w-full object-cover"
-        style={{ maxHeight: "70vh" }}
+        style={{ maxHeight: "70vh", touchAction: "pan-y" }}
         alt=""
        decoding="async"/>
     </div>
@@ -1520,19 +1529,10 @@ const SuggestionPlaceholder = ({
 );
 
 // ── Single Full-Width Vertical Reel ───────────────────────────────────────────
-const SingleReelBlock = ({
-  post,
-  liked,
-  likeCount,
-  onToggleLike,
-}: {
-  post: any;
-  liked: boolean;
-  likeCount: number;
-  onToggleLike: (post: any) => void;
-}) => {
+const SingleReelBlock = ({ post }: { post: any }) => {
   const ref = useRef<HTMLVideoElement>(null);
   const [muted, setMuted] = useState(true);
+  const [liked, setLiked] = useState(false);
 
   useEffect(() => {
     const el = ref.current;
@@ -1560,7 +1560,7 @@ const SingleReelBlock = ({
   return (
     <div
       className="bg-black relative w-full feed-reel"
-      style={{ aspectRatio: "9/16", maxHeight: "80vh" }}
+      style={{ aspectRatio: "9/16", maxHeight: "80vh", touchAction: "pan-y" }}
     >
       {isYT ? (
         <div className="w-full h-full flex items-center justify-center bg-zinc-900">
@@ -1571,6 +1571,7 @@ const SingleReelBlock = ({
           ref={ref}
           src={post.media_url}
           className="w-full h-full object-cover"
+          style={{ touchAction: "pan-y" }}
           loop
           muted={muted}
           playsInline
@@ -1607,9 +1608,8 @@ const SingleReelBlock = ({
       </div>
       <div className="absolute right-3 bottom-16 flex flex-col items-center gap-4">
         <button
-          onClick={() => onToggleLike(post)}
+          onClick={() => setLiked(!liked)}
           className="flex flex-col items-center"
-          aria-label={liked ? "Unlike reel" : "Like reel"}
         >
           <Heart
             size={26}
@@ -1617,7 +1617,7 @@ const SingleReelBlock = ({
             className={liked ? "text-[#ff2d55]" : "text-white"}
           />
           <span className="text-white text-[10px] font-bold mt-1">
-            {likeCount}
+            {post.likes_count || 0}
           </span>
         </button>
         <button
@@ -1985,149 +1985,6 @@ type FeedCommentMenuItem = {
   danger?: boolean;
 };
 
-type FeedCommentAction = {
-  comment: any;
-  postId: string;
-};
-
-const FeedCommentActionSheet = memo(
-  ({
-    action,
-    currentUserId,
-    post,
-    onClose,
-    onEdit,
-    onDelete,
-    onHide,
-    onReport,
-  }: {
-    action: FeedCommentAction;
-    currentUserId: string | null;
-    post?: any;
-    onClose: () => void;
-    onEdit: (comment: any) => void;
-    onDelete: (commentId: string, postId: string) => void;
-    onHide: (commentId: string, postId: string) => void;
-    onReport: (comment: any, postId: string) => void;
-  }) => {
-    const { comment, postId } = action;
-    const isCommenter =
-      (comment.user_id ?? comment.author_id) === currentUserId;
-    const isPostOwner =
-      post?.author_id === currentUserId || post?.user_id === currentUserId;
-
-    const items: FeedCommentMenuItem[] = [];
-    if (isCommenter) {
-      items.push({
-        icon: "✏️",
-        label: "Edit",
-        action: () => onEdit(comment),
-      });
-      items.push({
-        icon: "🗑️",
-        label: "Delete",
-        action: () => onDelete(comment.id, postId),
-        danger: true,
-      });
-      if (!comment.is_hidden) {
-        items.push({
-          icon: "🙈",
-          label: "Hide from Others",
-          action: () => onHide(comment.id, postId),
-        });
-      }
-    } else if (isPostOwner) {
-      items.push({
-        icon: "🗑️",
-        label: "Delete",
-        action: () => onDelete(comment.id, postId),
-        danger: true,
-      });
-      if (!comment.is_hidden) {
-        items.push({
-          icon: "🙈",
-          label: "Hide Comment",
-          action: () => onHide(comment.id, postId),
-        });
-      }
-    } else {
-      items.push({
-        icon: "🚩",
-        label: "Report",
-        action: () => onReport(comment, postId),
-        danger: true,
-      });
-    }
-
-    useEffect(() => {
-      const handleKeyDown = (event: KeyboardEvent) => {
-        if (event.key === "Escape") onClose();
-      };
-      window.addEventListener("keydown", handleKeyDown);
-      return () => window.removeEventListener("keydown", handleKeyDown);
-    }, [onClose]);
-
-    return createPortal(
-      <AnimatePresence>
-        <motion.div
-          key="feed-comment-action-backdrop"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[1000] flex items-end justify-center bg-black/60 p-0 backdrop-blur-sm"
-          role="presentation"
-          onPointerDown={onClose}
-        >
-          <motion.div
-            initial={{ y: "100%" }}
-            animate={{ y: 0 }}
-            exit={{ y: "100%" }}
-            transition={{ type: "spring", damping: 28, stiffness: 340 }}
-            className="w-full max-w-lg overflow-hidden rounded-t-3xl border-t border-white/10 shadow-2xl"
-            style={{
-              maxHeight: "min(78vh, 520px)",
-              paddingBottom: "env(safe-area-inset-bottom)",
-              background: "rgba(20,5,30,0.98)",
-            }}
-            role="dialog"
-            aria-modal="true"
-            aria-label="Comment actions"
-            onPointerDown={(event) => event.stopPropagation()}
-          >
-            <div className="flex justify-center pt-3 pb-1">
-              <div className="h-1 w-10 rounded-full bg-white/20" />
-            </div>
-            <div className="border-b border-white/10 px-4 py-3">
-              <p className="truncate text-[12px] font-black text-pink-300">
-                {comment.author || comment.author_name || "Comment"}
-              </p>
-              <p className="mt-0.5 truncate text-[13px] leading-snug text-white/50">
-                {(comment.content || "").slice(0, 100)}
-              </p>
-            </div>
-            <div className="max-h-[calc(78vh-92px)] overflow-y-auto overscroll-contain">
-              {items.map((item, index) => (
-                <button
-                  key={item.label}
-                  type="button"
-                  onClick={item.action}
-                  className={`flex min-h-[52px] w-full items-center gap-3 px-4 text-left text-[15px] font-semibold transition-colors hover:bg-white/10 active:bg-white/15 ${
-                    item.danger ? "text-red-400" : "text-white/85"
-                  } ${index > 0 ? "border-t border-white/8" : ""}`}
-                >
-                  <span className="text-[18px] leading-none">{item.icon}</span>
-                  {item.label}
-                </button>
-              ))}
-            </div>
-          </motion.div>
-        </motion.div>
-      </AnimatePresence>,
-      document.body,
-    );
-  },
-);
-
 type FeedBlock = { type: string; post?: any; key: string; seed?: number };
 
 const FameFeed = ({
@@ -2182,8 +2039,12 @@ const FameFeed = ({
     return () => { stop(); document.removeEventListener("visibilitychange", onViz); };
   }, []);
 
-  const [feedCommentAction, setFeedCommentAction] =
-    useState<FeedCommentAction | null>(null);
+  const [feedCommentAction, setFeedCommentAction] = useState<{
+    comment: any;
+    postId: string;
+    x: number;
+    y: number;
+  } | null>(null);
   const [editingFeedComment, setEditingFeedComment] = useState<{
     id: string;
     text: string;
@@ -2196,14 +2057,6 @@ const FameFeed = ({
     null,
   );
   const longPressCommentPos = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
-  const longPressTriggered = useRef(false);
-  const clearLongPressCommentTimer = useCallback(() => {
-    if (longPressCommentTimer.current) {
-      clearTimeout(longPressCommentTimer.current);
-      longPressCommentTimer.current = null;
-    }
-  }, []);
-  useEffect(() => clearLongPressCommentTimer, [clearLongPressCommentTimer]);
   const [commentText, setCommentText] = useState("");
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
@@ -2221,7 +2074,6 @@ const FameFeed = ({
   const [userReactions, setUserReactions] = useState<{
     [postId: string]: string;
   }>({});
-  const reelLikeInFlightRef = useRef<Set<string>>(new Set());
   const [reactionBarPostId, setReactionBarPostId] = useState<string | null>(
     null,
   );
@@ -2805,8 +2657,7 @@ const FameFeed = ({
             "id, content, author, user_id, parent_id, created_at, is_hidden, hidden_by_name, hidden_by_id",
           )
           .eq("post_id", postId)
-          .order("created_at")
-          .limit(100);
+          .order("created_at");
         if (error) {
           console.warn("[FameFeed] loadComments error:", error.message);
           return;
@@ -3273,7 +3124,7 @@ const FameFeed = ({
     setFlicksLoaded(true);
   };
 
-  // Manual feed refresh event — dispatched by the refresh action in the feed UI.
+  // Pull-to-refresh listener — fired by <PullToRefresh> in Index.tsx.
   useEffect(() => {
     const handler = () => {
       fetchPosts(true);
@@ -3662,126 +3513,6 @@ const FameFeed = ({
       });
     }
   };
-
-  // Reels-only like path. This intentionally does not call handleReact:
-  // normal post reactions keep their existing behavior, while reel likes use
-  // one authenticated, idempotent toggle and a database-backed final count.
-  const handleReelLike = useCallback(
-    async (post: any) => {
-      const postId = post?.id;
-      if (!currentUserId || !postId) return;
-      if (reelLikeInFlightRef.current.has(postId)) return;
-
-      reelLikeInFlightRef.current.add(postId);
-      const wasLiked = likedIds.has(postId);
-      const previousIds = new Set(likedIds);
-      const previousReactions = { ...userReactions };
-      const previousPost = postsRef.current.find((p) => p.id === postId);
-      const previousCount = previousPost?.likes_count ?? post.likes_count ?? 0;
-      const optimisticCount = Math.max(previousCount + (wasLiked ? -1 : 1), 0);
-
-      const setReelState = (isLiked: boolean, count: number) => {
-        setLikedIds((prev) => {
-          const next = new Set(prev);
-          if (isLiked) next.add(postId);
-          else next.delete(postId);
-          return next;
-        });
-        setUserReactions((prev) => {
-          const next = { ...prev };
-          if (isLiked) next[postId] = "like";
-          else delete next[postId];
-          return next;
-        });
-        setPosts((prev) => {
-          const next = prev.map((p) =>
-            p.id === postId ? { ...p, likes_count: Math.max(count, 0) } : p,
-          );
-          dataCache.setCache("famePosts", {
-            data: next,
-            fetchedAt: Date.now(),
-          });
-          return next;
-        });
-      };
-
-      // Give the reel immediate feedback while the single server operation runs.
-      setReelState(!wasLiked, optimisticCount);
-
-      try {
-        let finalLiked = !wasLiked;
-        let finalCount = optimisticCount;
-
-        // Preferred path: this RPC performs the toggle, unique-conflict
-        // protection, recount, and posts.likes_count update in one transaction.
-        const { data: rpcData, error: rpcError } = await supabase
-          .rpc("toggle_reel_like", { p_post_id: postId })
-          .maybeSingle();
-
-        const rpcMissing =
-          rpcError?.code === "PGRST202" ||
-          /toggle_reel_like|function .* does not exist/i.test(
-            rpcError?.message || "",
-          );
-
-        if (!rpcError) {
-          const result = Array.isArray(rpcData) ? rpcData[0] : rpcData;
-          if (result) {
-            finalLiked = Boolean(result.liked);
-            finalCount = Number(result.likes_count ?? optimisticCount);
-          }
-        } else if (rpcMissing) {
-          // Backward-compatible fallback for environments where the migration
-          // has not been applied yet. The existing likes unique constraint
-          // makes this insert idempotent for (post_id, user_id).
-          if (finalLiked) {
-            const { error } = await supabase.from("likes").upsert(
-              { post_id: postId, user_id: currentUserId },
-              { onConflict: "post_id,user_id", ignoreDuplicates: true },
-            );
-            if (error) throw error;
-          } else {
-            const { error } = await supabase
-              .from("likes")
-              .delete()
-              .eq("post_id", postId)
-              .eq("user_id", currentUserId);
-            if (error) throw error;
-          }
-
-          const { count, error: countError } = await supabase
-            .from("likes")
-            .select("id", { count: "exact", head: true })
-            .eq("post_id", postId);
-          if (!countError && count !== null) finalCount = count;
-
-          // RLS may reject this fallback count write for non-authors. The RPC
-          // migration is the authoritative path and avoids that limitation.
-          await supabase
-            .from("posts")
-            .update({ likes_count: finalCount })
-            .eq("id", postId);
-        } else {
-          throw rpcError;
-        }
-
-        setReelState(finalLiked, finalCount);
-      } catch (error: any) {
-        console.error("[FameFeed] reel like toggle failed:", error?.message || error);
-        setLikedIds(previousIds);
-        setUserReactions(previousReactions);
-        setPosts((prev) =>
-          prev.map((p) =>
-            p.id === postId ? { ...p, likes_count: previousCount } : p,
-          ),
-        );
-        toast.error("Reel like save nahi ho saka. Try again.");
-      } finally {
-        reelLikeInFlightRef.current.delete(postId);
-      }
-    },
-    [currentUserId, likedIds, userReactions, dataCache],
-  );
 
   const handleShare = (post: any, e: React.MouseEvent<HTMLButtonElement>) => {
     e.stopPropagation();
@@ -4345,6 +4076,7 @@ const FameFeed = ({
               ? "#110811"
               : "linear-gradient(175deg,#2C001E 0%,#1a0812 38%,#0d0d14 100%)",
             borderRadius: "0px",
+            touchAction: "pan-y",
           }}
         >
           {/* Post header */}
@@ -5490,70 +5222,36 @@ const FameFeed = ({
                               <div
                                 key={c.id}
                                 onPointerDown={(e) => {
-                                  clearLongPressCommentTimer();
-                                  longPressTriggered.current = false;
                                   longPressCommentPos.current = {
                                     x: e.clientX,
                                     y: e.clientY,
                                   };
                                   longPressCommentTimer.current = setTimeout(
                                     () => {
-                                      longPressTriggered.current = true;
                                       try {
                                         navigator.vibrate?.(8);
                                       } catch (_) {}
                                       setFeedCommentAction({
                                         comment: c,
                                         postId: post.id,
+                                        x: longPressCommentPos.current.x,
+                                        y: longPressCommentPos.current.y,
                                       });
-                                    }, 600,
+                                    },
+                                    600,
                                   );
                                 }}
-                                onPointerMove={(e) => {
-                                  if (
-                                    longPressCommentTimer.current &&
-                                    Math.hypot(
-                                      e.clientX - longPressCommentPos.current.x,
-                                      e.clientY - longPressCommentPos.current.y,
-                                    ) > 10
-                                  ) {
-                                    clearLongPressCommentTimer();
-                                  }
-                                }}
                                 onPointerUp={() => {
-                                  clearLongPressCommentTimer();
+                                  if (longPressCommentTimer.current) {
+                                    clearTimeout(longPressCommentTimer.current);
+                                    longPressCommentTimer.current = null;
+                                  }
                                 }}
                                 onPointerCancel={() => {
-                                  clearLongPressCommentTimer();
-                                  longPressTriggered.current = false;
-                                }}
-                                onContextMenu={(e) => {
-                                  e.preventDefault();
-                                  clearLongPressCommentTimer();
-                                  longPressTriggered.current = true;
-                                  setFeedCommentAction({
-                                    comment: c,
-                                    postId: post.id,
-                                  });
-                                }}
-                                onClick={(e) => {
-                                  // Keep profile, reply, and reaction controls independent
-                                  // from the comment action sheet.
-                                  if (
-                                    (e.target as HTMLElement).closest(
-                                      "button, a, input, textarea",
-                                    )
-                                  ) {
-                                    return;
+                                  if (longPressCommentTimer.current) {
+                                    clearTimeout(longPressCommentTimer.current);
+                                    longPressCommentTimer.current = null;
                                   }
-                                  if (longPressTriggered.current) {
-                                    longPressTriggered.current = false;
-                                    return;
-                                  }
-                                  setFeedCommentAction({
-                                    comment: c,
-                                    postId: post.id,
-                                  });
                                 }}
                                 className={`rounded-xl transition-colors select-none ${isLongPressed ? "bg-white/5" : ""}`}
                               >
@@ -5910,7 +5608,10 @@ const FameFeed = ({
   }, [visiblePosts, videoPosts, flicksLoaded]);
 
   return (
-    <div className="app-scroll-container w-full bg-[#0F172A] min-h-[100dvh] pb-32" style={{ willChange: "transform" }}>
+    <div
+      className="bg-[#0F172A] min-h-screen pb-32"
+      style={{ willChange: "transform", touchAction: "pan-y" }}
+    >
       {/* ── "What's on your mind" bar ──────────────────────────────────── */}
       <div
         className="flex items-center gap-3 px-4 py-3 border-b border-white/8"
@@ -6251,12 +5952,7 @@ const FameFeed = ({
         if (block.type === "single-reel" && block.post) {
           return (
             <div key={block.key}>
-              <SingleReelBlock
-                post={block.post}
-                liked={likedIds.has(block.post.id)}
-                likeCount={block.post.likes_count || 0}
-                onToggleLike={handleReelLike}
-              />
+              <SingleReelBlock post={block.post} />
               <FeedDivider />
             </div>
           );
@@ -6592,24 +6288,132 @@ const FameFeed = ({
         document.body,
       )}
 
-      {/* ── Feed Comment Action Sheet (portal-backed and viewport anchored) ── */}
-      {feedCommentAction && (
-        <FeedCommentActionSheet
-          action={feedCommentAction}
-          currentUserId={currentUserId}
-          post={visiblePosts.find(
-            (post: any) => post.id === feedCommentAction.postId,
-          )}
-          onClose={() => setFeedCommentAction(null)}
-          onEdit={(comment) => {
-            setEditingFeedComment({ id: comment.id, text: comment.content });
-            setFeedCommentAction(null);
-          }}
-          onDelete={handleFeedCommentDelete}
-          onHide={handleFeedCommentHide}
-          onReport={handleFeedCommentReport}
-        />
-      )}
+      {/* ── Feed Comment Floating Context Menu (long-press) ─────────── */}
+      <AnimatePresence>
+        {feedCommentAction &&
+          (() => {
+            const ac = feedCommentAction.comment;
+            const postId = feedCommentAction.postId;
+            const { x, y } = feedCommentAction;
+            const isCommenter = (ac.user_id ?? ac.author_id) === currentUserId;
+            const sheetPost = visiblePosts.find((p: any) => p.id === postId);
+            const isPostOwner =
+              sheetPost?.author_id === currentUserId ||
+              sheetPost?.user_id === currentUserId;
+
+            const items: FeedCommentMenuItem[] = [];
+            if (isCommenter) {
+              items.push({
+                icon: "✏️",
+                label: "Edit",
+                action: () => {
+                  setEditingFeedComment({ id: ac.id, text: ac.content });
+                  setFeedCommentAction(null);
+                },
+              });
+              items.push({
+                icon: "🗑️",
+                label: "Delete",
+                action: () => handleFeedCommentDelete(ac.id, postId),
+                danger: true,
+              });
+              if (!ac.is_hidden)
+                items.push({
+                  icon: "🙈",
+                  label: "Hide from Others",
+                  action: () => handleFeedCommentHide(ac.id, postId),
+                });
+            }
+            if (isPostOwner && !isCommenter) {
+              items.push({
+                icon: "🗑️",
+                label: "Delete",
+                action: () => handleFeedCommentDelete(ac.id, postId),
+                danger: true,
+              });
+              if (!ac.is_hidden)
+                items.push({
+                  icon: "🙈",
+                  label: "Hide Comment",
+                  action: () => handleFeedCommentHide(ac.id, postId),
+                });
+            }
+            if (!isCommenter && !isPostOwner) {
+              items.push({
+                icon: "🚩",
+                label: "Report",
+                action: () => handleFeedCommentReport(ac, postId),
+                danger: true,
+              });
+            }
+
+            const menuW = 210;
+            const rowH = 46;
+            const headerH = 52;
+            const menuH = headerH + items.length * rowH;
+            const vw = window.innerWidth;
+            const vh = window.innerHeight;
+            const left = Math.min(Math.max(x - menuW / 2, 8), vw - menuW - 8);
+            const showAbove = y + menuH + 16 > vh;
+            const top = showAbove ? Math.max(y - menuH - 12, 8) : y + 12;
+
+            return (
+              <>
+                <div
+                  className="fixed inset-0 z-[600]"
+                  onPointerDown={() => setFeedCommentAction(null)}
+                />
+                <motion.div
+                  key="feed-ca-float"
+                  initial={{ opacity: 0, scale: 0.82 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.82 }}
+                  transition={{ type: "spring", damping: 22, stiffness: 400 }}
+                  className="fixed z-[601] rounded-2xl shadow-2xl overflow-hidden border border-white/10"
+                  style={{
+                    top,
+                    left,
+                    width: menuW,
+                    transformOrigin: showAbove ? "bottom center" : "top center",
+                    background: "rgba(20,5,30,0.97)",
+                  }}
+                  onPointerDown={(e) => e.stopPropagation()}
+                >
+                  <div
+                    className="px-3.5 py-2.5 border-b border-white/10"
+                    style={{ background: "rgba(255,255,255,0.05)" }}
+                  >
+                    <p
+                      style={{
+                        color: "#f9a8d4",
+                        fontSize: 11,
+                        fontWeight: 900,
+                      }}
+                      className="truncate"
+                    >
+                      {ac.author || ac.author_name}
+                    </p>
+                    <p className="text-[11px] text-white/40 truncate leading-snug mt-0.5">
+                      {(ac.content || "").slice(0, 55)}
+                    </p>
+                  </div>
+                  {items.map((item, i) => (
+                    <button
+                      key={i}
+                      onClick={item.action}
+                      className={`w-full flex items-center gap-2.5 px-3.5 py-[11px] text-left text-[14px] font-semibold hover:bg-white/10 transition-colors ${item.danger ? "text-red-400" : "text-white/80"} ${i > 0 ? "border-t border-white/8" : ""}`}
+                    >
+                      <span className="text-[17px] leading-none">
+                        {item.icon}
+                      </span>
+                      {item.label}
+                    </button>
+                  ))}
+                </motion.div>
+              </>
+            );
+          })()}
+      </AnimatePresence>
 
       {/* ── Share Popup (context-aware, anchored to button) ────────── */}
       {sharePopupData &&

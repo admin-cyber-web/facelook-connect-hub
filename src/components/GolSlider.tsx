@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Film, Anchor, CheckSquare, Users, Star, Shield, ChevronUp, ChevronDown, Clapperboard, Mic2 } from "lucide-react";
-import { usePageVisibility } from "../hooks/usePageVisibility";
 
 const BASE_NAV_ITEMS = [
   { label: "Flicks",      feature: "Flicks",      Icon: Film          },
@@ -54,10 +53,8 @@ function injectKeyframes() {
 function HandleLightning() {
   const [index, setIndex] = useState(0);
   const [visible, setVisible] = useState(true);
-  const isPageVisible = usePageVisibility();
 
   useEffect(() => {
-    if (!isPageVisible) return;
     const cycle = () => {
       setVisible(false);
       setTimeout(() => {
@@ -66,10 +63,17 @@ function HandleLightning() {
       }, 500);
     };
     const id = setInterval(cycle, 2800);
+    const onViz = () => {
+      if (document.hidden) {
+        clearInterval(id);
+      }
+    };
+    document.addEventListener("visibilitychange", onViz);
     return () => {
       clearInterval(id);
+      document.removeEventListener("visibilitychange", onViz);
     };
-  }, [isPageVisible]);
+  }, []);
 
   const { word, color, glow } = LIGHTNING_WORDS[index];
 
