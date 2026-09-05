@@ -70,6 +70,7 @@ html, body {
   min-height: 100dvh;
   height: auto;
   overflow-y: auto;
+  touch-action: pan-y;
 }
 
 #root {
@@ -78,6 +79,7 @@ html, body {
   padding-right: env(safe-area-inset-right);
   padding-top:    env(safe-area-inset-top);
   padding-bottom: env(safe-area-inset-bottom);
+  touch-action: pan-y;
 }
 
 /* Applied to <body> by useBodyScrollLock when ANY overlay is open. */
@@ -94,6 +96,21 @@ body.body-locked {
 .scroll-pane,
 [data-scroll-pane="true"] {
   overscroll-behavior: contain;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Explicit vertical gesture surface for the app shell and feed wrappers. */
+.touch-scroll-y {
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Every app-owned vertical pane gets the same gesture contract, including
+   feature pages and modal sheets that use utility overflow classes. */
+[class*="overflow-y-auto"],
+[class*="overflow-y-scroll"] {
+  touch-action: pan-y;
   -webkit-overflow-scrolling: touch;
 }
 

@@ -2006,7 +2006,7 @@ const HooksHub = ({ userId, initialOpenPageId }: { userId: string; initialOpenPa
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-28">
+    <div className="min-h-screen bg-gray-50 pb-28 touch-scroll-y">
       {/* Hero */}
       <div className="px-4 pt-5 pb-3 bg-white border-b border-gray-100 shadow-sm">
         <div className="flex items-center justify-between">

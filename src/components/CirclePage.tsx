@@ -503,7 +503,7 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
   const [memberSheet, setMemberSheet] = useState<any | null>(null);
   // Pull-to-refresh
   const [pullRefreshing, setPullRefreshing] = useState(false);
-  const pullStartY = useRef(0);
+  const pullStartY = useRef<number | null>(null);
   const pullDelta = useRef(0);
   const postsScrollRef = useRef<HTMLDivElement>(null);
   // Menu dropdown
@@ -1845,7 +1845,7 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
     const isMember = myGroupIds.has(selectedGroup.id);
 
     return (
-      <div className="min-h-screen flex flex-col" style={{
+      <div className="min-h-screen flex flex-col touch-scroll-y" style={{
         background: "#090a0f",
         backgroundImage: "radial-gradient(circle at top,#1e3a8a22,transparent 45%),radial-gradient(circle at bottom,#00e5ff18,transparent 55%)"
       }}>
@@ -2109,25 +2109,62 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
         {groupTab === "posts" && (
           <div
             ref={postsScrollRef}
-            className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:hidden"
-            style={{ scrollbarWidth: "none" }}
+            className="flex-1 overflow-y-auto touch-scroll-y [&::-webkit-scrollbar]:hidden"
+            style={{ scrollbarWidth: "none", touchAction: "pan-y" }}
             onTouchStart={(e) => {
-              if (postsScrollRef.current && postsScrollRef.current.scrollTop === 0) {
-                pullStartY.current = e.touches[0].clientY;
+              const surface = postsScrollRef.current;
+              if (
+                e.touches.length !== 1 ||
+                pullRefreshing ||
+                !surface ||
+                surface.scrollTop !== 0
+              ) {
+                pullStartY.current = null;
+                pullDelta.current = 0;
+                return;
               }
+              pullStartY.current = e.touches[0].clientY;
+              pullDelta.current = 0;
             }}
             onTouchMove={(e) => {
-              if (pullStartY.current > 0) {
-                pullDelta.current = e.touches[0].clientY - pullStartY.current;
+              const surface = postsScrollRef.current;
+              if (
+                pullStartY.current == null ||
+                e.touches.length !== 1 ||
+                !surface
+              ) {
+                return;
               }
+              if (surface.scrollTop !== 0) {
+                pullStartY.current = null;
+                pullDelta.current = 0;
+                return;
+              }
+              pullDelta.current = Math.max(
+                0,
+                e.touches[0].clientY - pullStartY.current,
+              );
             }}
             onTouchEnd={async () => {
-              if (pullDelta.current > 64 && !pullRefreshing && selectedGroup) {
+              const shouldRefresh =
+                pullStartY.current != null &&
+                pullDelta.current > 64 &&
+                postsScrollRef.current?.scrollTop === 0 &&
+                !pullRefreshing &&
+                !!selectedGroup;
+              pullStartY.current = null;
+              pullDelta.current = 0;
+              if (shouldRefresh && selectedGroup) {
                 setPullRefreshing(true);
-                await fetchCirclePosts(selectedGroup.id, canModerate);
-                setPullRefreshing(false);
+                try {
+                  await fetchCirclePosts(selectedGroup.id, canModerate);
+                } finally {
+                  setPullRefreshing(false);
+                }
               }
-              pullStartY.current = 0;
+            }}
+            onTouchCancel={() => {
+              pullStartY.current = null;
               pullDelta.current = 0;
             }}
           >
@@ -4131,7 +4168,7 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
 
   // ── DASHBOARD VIEW ────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-[#d4f0e2] pb-28">
+    <div className="min-h-screen bg-[#d4f0e2] pb-28 touch-scroll-y">
       {/* Header */}
       <div className="bg-[#d4f0e2] border-b border-gray-100 px-4 pt-12 pb-4 flex items-center justify-between sticky top-0 z-10">
         <div>

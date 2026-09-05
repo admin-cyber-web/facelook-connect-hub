@@ -948,7 +948,7 @@ const SurveyFeed: React.FC<{ userId: string; highlightedSurveyId?: string | null
         <meta name="twitter:image" content={ogImage} />
       </Helmet>
     )}
-    <div className="min-h-screen pb-32" style={{ background: "linear-gradient(180deg,#0d0d1a,#0a0a14)" }}>
+    <div className="min-h-screen pb-32 touch-scroll-y" style={{ background: "linear-gradient(180deg,#0d0d1a,#0a0a14)" }}>
       {/* Header */}
       <div className="sticky top-0 z-40 px-4 py-3"
         style={{ background: "rgba(13,13,26,0.95)", backdropFilter: "blur(16px)", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>

@@ -2985,7 +2985,7 @@ const PersonalizationView = React.memo(({
 
   return (
     <div
-      className={`min-h-screen w-full transition-colors duration-500 relative overflow-x-hidden ${darkMode ? "bg-[#020617]" : "bg-slate-100 light-mode"}`}
+      className={`min-h-screen w-full transition-colors duration-500 relative overflow-x-hidden touch-scroll-y ${darkMode ? "bg-[#020617]" : "bg-slate-100 light-mode"}`}
     >
       {/* Page-level Helmet — overrides the app-level default in App.tsx.
           The home-feed branch explicitly resets title + description so that
@@ -3196,7 +3196,7 @@ const PersonalizationView = React.memo(({
       )}
 
       <main
-        className={`relative z-10 transition-all duration-500 w-full
+        className={`relative z-10 transition-all duration-500 w-full touch-scroll-y
           ${activeFeature === "Flicks" ? "pt-0 pb-0" : "pt-0 pb-24"}`}
       >
         <AnimatePresence mode="wait">
@@ -3205,7 +3205,7 @@ const PersonalizationView = React.memo(({
             initial={{ opacity: 0, scale: 0.98 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 1.02 }}
-            className="w-full"
+            className="w-full touch-scroll-y"
           >
             {/* 1. FAME ─────────────────────────────────────────────────────── */}
             {activeFeature === "Fame" && (
@@ -3991,7 +3991,7 @@ const PersonalizationView = React.memo(({
             {activeFeature === "Flicks" && (
               <ErrorBoundary>
               <Suspense fallback={<SectionLoader />}>
-              <div className="fixed inset-0 z-[300] bg-black">
+              <div className="fixed inset-0 z-[300] bg-black touch-scroll-y">
                 <FlicksFeed onBack={() => setActiveFeature("Fame")} isAdmin={isAppAdmin} currentUserEmail={userEmail} />
               </div>
               </Suspense>

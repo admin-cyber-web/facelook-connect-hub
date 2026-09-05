@@ -90,7 +90,7 @@ const PostDetail = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#020617] flex flex-col items-center px-4 py-8">
+    <div className="min-h-screen bg-[#020617] flex flex-col items-center px-4 py-8 touch-scroll-y">
       <Helmet>
         <title>{ogTitle} | Flicks India</title>
         <meta name="description" content={ogDescription} />
@@ -164,7 +164,10 @@ const PostDetail = () => {
         </button>
 
         {/* Post card */}
-        <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
+        <div
+          className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden"
+          style={{ touchAction: "pan-y" }}
+        >
           {ogImage !== DEFAULT_IMAGE && (
             <img
               src={ogImage}
