@@ -67,6 +67,14 @@ import {
   RISK_THRESHOLD,
 } from "../lib/safetyEngine";
 
+declare global {
+  interface Window {
+    ScrollControl?: {
+      setSwipeEnabled: (enabled: boolean) => void;
+    };
+  }
+}
+
 // ── Storage bucket (must match the bucket created in Supabase dashboard) ───────
 const CHAT_BUCKET = "chat-images";
 
@@ -876,6 +884,14 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
 
   useEffect(() => {
     injectStyles();
+  }, []);
+
+  useEffect(() => {
+    if (window.ScrollControl) window.ScrollControl.setSwipeEnabled(false);
+
+    return () => {
+      if (window.ScrollControl) window.ScrollControl.setSwipeEnabled(true);
+    };
   }, []);
 
   // ── Persisted state ───────────────────────────────────────────────────────
