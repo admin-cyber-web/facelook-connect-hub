@@ -45,6 +45,10 @@ import {
   Sparkles,
   SlidersHorizontal,
   Tags,
+  Pencil,
+  X,
+  Film,
+  Handshake,
       } from "lucide-react";
 
 // DHAYAN DEIN: Sirf ye ek supabase import rehna chahiye
@@ -101,6 +105,304 @@ const SectionLoader = () => (
     <div className="w-8 h-8 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
   </div>
 );
+
+type ShowcaseMode = "movie" | "score" | "marketplace" | "announcement";
+
+interface ShowcaseConfig {
+  id: string;
+  mode: ShowcaseMode;
+  title: string;
+  body: string;
+  image_url: string;
+  cta_label: string;
+  cta_url: string;
+  is_published: boolean;
+}
+
+const SHOWCASE_STORAGE_KEY = "flicks-public-showcase-v1";
+
+const DEFAULT_SHOWCASE: ShowcaseConfig = {
+  id: "global",
+  mode: "announcement",
+  title: "Flicks India Showcase",
+  body: "Stories, moments, and updates worth sharing with the community.",
+  image_url: "",
+  cta_label: "",
+  cta_url: "",
+  is_published: true,
+};
+
+const SHOWCASE_MODE_META: Record<ShowcaseMode, {
+  label: string;
+  icon: React.ReactNode;
+  accent: string;
+  glow: string;
+}> = {
+  movie: {
+    label: "Movie Promo",
+    icon: <Film size={14} />,
+    accent: "#ffcf4a",
+    glow: "rgba(255, 174, 0, 0.3)",
+  },
+  score: {
+    label: "Live Score",
+    icon: <Radio size={14} />,
+    accent: "#47f0b0",
+    glow: "rgba(20, 220, 155, 0.3)",
+  },
+  marketplace: {
+    label: "Buy / Sell Ad",
+    icon: <Handshake size={14} />,
+    accent: "#63d9ff",
+    glow: "rgba(39, 194, 255, 0.3)",
+  },
+  announcement: {
+    label: "Custom Announcement",
+    icon: <Sparkles size={14} />,
+    accent: "#ff6db5",
+    glow: "rgba(236, 72, 153, 0.3)",
+  },
+};
+
+const normalizeShowcase = (value: any): ShowcaseConfig => ({
+  id: "global",
+  mode: SHOWCASE_MODE_META[value?.mode as ShowcaseMode] ? value.mode : DEFAULT_SHOWCASE.mode,
+  title: typeof value?.title === "string" && value.title.trim() ? value.title : DEFAULT_SHOWCASE.title,
+  body: typeof value?.body === "string" && value.body.trim() ? value.body : DEFAULT_SHOWCASE.body,
+  image_url: typeof value?.image_url === "string" ? value.image_url : "",
+  cta_label: typeof value?.cta_label === "string" ? value.cta_label : "",
+  cta_url: typeof value?.cta_url === "string" ? value.cta_url : "",
+  is_published: value?.is_published !== false,
+});
+
+const readLocalShowcase = (): ShowcaseConfig | null => {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(SHOWCASE_STORAGE_KEY) || "null");
+    if (!parsed || typeof parsed !== "object") return null;
+    return normalizeShowcase(parsed);
+  } catch {
+    return null;
+  }
+};
+
+const showcaseUrl = (value: string) => {
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" || url.protocol === "http:";
+  } catch {
+    return false;
+  }
+};
+
+const ShowcaseWidget = ({ isAdmin, userId, lang }: { isAdmin: boolean; userId: string; lang: "en" | "hi" }) => {
+  const [showcase, setShowcase] = useState<ShowcaseConfig>(() => readLocalShowcase() || DEFAULT_SHOWCASE);
+  const [draft, setDraft] = useState<ShowcaseConfig>(showcase);
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    const loadShowcase = async () => {
+      const { data, error } = await supabase
+        .from("showcase_settings")
+        .select("id, mode, title, body, image_url, cta_label, cta_url, is_published")
+        .eq("id", "global")
+        .maybeSingle();
+
+      if (!mounted) return;
+      if (data) {
+        const next = normalizeShowcase(data);
+        setShowcase(next);
+        setDraft(next);
+        try { localStorage.setItem(SHOWCASE_STORAGE_KEY, JSON.stringify(next)); } catch { /* storage is optional */ }
+      } else if (error) {
+        console.warn("[Showcase] Supabase load unavailable; using local/default showcase:", error.message);
+      }
+    };
+
+    void loadShowcase();
+    const handleStorage = () => {
+      const next = readLocalShowcase();
+      if (next && mounted) {
+        setShowcase(next);
+        if (!editing) setDraft(next);
+      }
+    };
+    window.addEventListener("storage", handleStorage);
+    window.addEventListener("flicks-showcase-updated", handleStorage);
+    return () => {
+      mounted = false;
+      window.removeEventListener("storage", handleStorage);
+      window.removeEventListener("flicks-showcase-updated", handleStorage);
+    };
+  }, [editing]);
+
+  const saveShowcase = async () => {
+    if (!draft.title.trim() || !draft.body.trim()) {
+      toast.error(lang === "hi" ? "Title aur message zaroori hain." : "Title and message are required.");
+      return;
+    }
+    if (draft.cta_url.trim() && !showcaseUrl(draft.cta_url.trim())) {
+      toast.error("CTA link must be a valid http(s) URL.");
+      return;
+    }
+
+    setSaving(true);
+    const payload = {
+      id: "global",
+      mode: draft.mode,
+      title: draft.title.trim(),
+      body: draft.body.trim(),
+      image_url: draft.image_url.trim() || null,
+      cta_label: draft.cta_label.trim() || null,
+      cta_url: draft.cta_url.trim() || null,
+      is_published: draft.is_published,
+      updated_by: userId,
+      updated_at: new Date().toISOString(),
+    };
+    const { error } = await supabase
+      .from("showcase_settings")
+      .upsert(payload, { onConflict: "id" });
+
+    const next = normalizeShowcase({ ...draft, ...payload });
+    setShowcase(next);
+    setDraft(next);
+    try { localStorage.setItem(SHOWCASE_STORAGE_KEY, JSON.stringify(next)); } catch { /* storage is optional */ }
+    window.dispatchEvent(new Event("flicks-showcase-updated"));
+
+    if (error) {
+      console.warn("[Showcase] Supabase save unavailable; kept local fallback:", error.message);
+      toast.warning("Saved on this device. Apply the showcase migration for public sync.");
+    } else {
+      toast.success("Showcase published.");
+    }
+    setEditing(false);
+    setSaving(false);
+  };
+
+  const meta = SHOWCASE_MODE_META[showcase.mode] || SHOWCASE_MODE_META.announcement;
+  return (
+    <motion.section
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="relative overflow-hidden rounded-3xl"
+      style={{
+        background: `linear-gradient(135deg, ${meta.glow}, rgba(255,255,255,0.035) 42%, rgba(4,5,20,0.92))`,
+        border: `1px solid ${meta.accent}33`,
+        boxShadow: `0 14px 42px rgba(0,0,0,0.25), 0 0 34px ${meta.glow}`,
+        backdropFilter: "blur(24px)",
+        WebkitBackdropFilter: "blur(24px)",
+      }}
+    >
+      {showcase.image_url && (
+        <img
+          src={showcase.image_url}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          className="absolute inset-0 h-full w-full object-cover opacity-25"
+          onError={(event) => { event.currentTarget.style.display = "none"; }}
+        />
+      )}
+      <div className="absolute inset-0" style={{ background: "linear-gradient(90deg, rgba(4,5,20,0.97) 0%, rgba(4,5,20,0.83) 50%, rgba(4,5,20,0.55) 100%)" }} />
+      <div className="relative z-10 p-5">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.16em]" style={{ color: meta.accent }}>
+            {meta.icon}
+            {meta.label}
+          </div>
+          {isAdmin && !editing && (
+            <button
+              onClick={() => { setDraft(showcase); setEditing(true); }}
+              className="flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-[10px] font-black text-white/70 transition hover:text-white"
+              style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.14)" }}
+            >
+              <Pencil size={12} />
+              {lang === "hi" ? "एडिट शोकेस" : "Edit Showcase"}
+            </button>
+          )}
+        </div>
+
+        {!editing ? (
+          <>
+            <h3 className="mt-4 max-w-[560px] text-xl font-black leading-tight text-white">{showcase.title}</h3>
+            <p className="mt-2 max-w-[600px] whitespace-pre-wrap text-sm leading-relaxed text-white/60">{showcase.body}</p>
+            {showcase.cta_label && showcase.cta_url && showcaseUrl(showcase.cta_url) && (
+              <a
+                href={showcase.cta_url}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-4 inline-flex rounded-full px-4 py-2 text-xs font-black text-[#070912] transition hover:brightness-110"
+                style={{ background: `linear-gradient(135deg, ${meta.accent}, #eaff70)` }}
+              >
+                {showcase.cta_label}
+              </a>
+            )}
+          </>
+        ) : (
+          <div className="mt-4 space-y-3">
+            <select
+              value={draft.mode}
+              onChange={(event) => setDraft(prev => ({ ...prev, mode: event.target.value as ShowcaseMode }))}
+              className="w-full rounded-xl bg-black/30 px-3 py-2.5 text-sm font-bold text-white outline-none"
+              style={{ border: "1px solid rgba(255,255,255,0.16)" }}
+            >
+              {Object.entries(SHOWCASE_MODE_META).map(([value, item]) => (
+                <option key={value} value={value} className="bg-[#111827]">{item.label}</option>
+              ))}
+            </select>
+            {([
+              ["title", "Title", "Featured title"],
+              ["body", "Message", "Write the public showcase message"],
+              ["image_url", "Image URL", "https://…"],
+              ["cta_label", "Button label", "View details"],
+              ["cta_url", "Button URL", "https://…"],
+            ] as const).map(([field, label, placeholder]) => (
+              <label key={field} className="block">
+                <span className="mb-1 block text-[10px] font-black uppercase tracking-wider text-white/35">{label}</span>
+                {field === "body" ? (
+                  <textarea
+                    value={draft[field]}
+                    onChange={(event) => setDraft(prev => ({ ...prev, [field]: event.target.value }))}
+                    placeholder={placeholder}
+                    rows={3}
+                    className="w-full resize-none rounded-xl bg-black/30 px-3 py-2.5 text-sm text-white outline-none placeholder:text-white/25"
+                    style={{ border: "1px solid rgba(255,255,255,0.16)" }}
+                  />
+                ) : (
+                  <input
+                    type="text"
+                    value={draft[field]}
+                    onChange={(event) => setDraft(prev => ({ ...prev, [field]: event.target.value }))}
+                    placeholder={placeholder}
+                    className="w-full rounded-xl bg-black/30 px-3 py-2.5 text-sm text-white outline-none placeholder:text-white/25"
+                    style={{ border: "1px solid rgba(255,255,255,0.16)" }}
+                  />
+                )}
+              </label>
+            ))}
+            <div className="flex gap-2 pt-1">
+              <button
+                onClick={() => { setDraft(showcase); setEditing(false); }}
+                className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-white/8 py-2.5 text-xs font-black text-white/60 transition hover:text-white"
+              >
+                <X size={14} /> Cancel
+              </button>
+              <button
+                onClick={() => void saveShowcase()}
+                disabled={saving}
+                className="flex flex-1 items-center justify-center gap-2 rounded-xl py-2.5 text-xs font-black text-black transition disabled:opacity-50"
+                style={{ background: `linear-gradient(135deg, ${meta.accent}, #eaff70)` }}
+              >
+                <Save size={14} /> {saving ? "Saving…" : "Save & Publish"}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </motion.section>
+  );
+};
 
 // ── Light-mode CSS overrides (previously bundled with rose petals, now standalone) ──
 const LightModeStyles = () => (
@@ -2920,6 +3222,8 @@ const PersonalizationView = React.memo(({
             <LogOut size={14} />
             {t("Sign Out", "साइन आउट")}
           </motion.button>
+
+          <ShowcaseWidget isAdmin={isAppAdmin} userId={userId} lang={lang} />
 
           <p className="text-center text-[10px] pb-2" style={{ color: "rgba(255,255,255,0.12)" }}>
             Flicks India © 2024–2025
