@@ -131,7 +131,7 @@ const App = () => {
           <Toaster />
           <Sonner />
 
-           <div className="pointer-events-auto min-h-screen">
+           <div className="app-root-scroll pointer-events-auto">
            <CurvedEdgeOverlay />
 
           {isAdminEmail(session?.user?.email || "") && (

@@ -1567,13 +1567,25 @@ const Index = ({ session, initialAdminOpen, isGuest = false }: { session: Sessio
       isAdminPanelOpen ||
       isVideoCallOpen ||
       showMagnetDashboard;
-    if (!anyOverlay) return;
+    if (!anyOverlay) {
+      // Clear a stale lock left behind if an overlay unmounts during a
+      // navigation, hot reload, or error boundary recovery.
+      document.body.classList.remove("body-locked");
+      document.body.style.top = "";
+      document.body.style.position = "";
+      document.body.style.inset = "";
+      document.body.style.width = "";
+      return;
+    }
     const scrollY = window.scrollY;
     document.body.classList.add("body-locked");
     document.body.style.top = `-${scrollY}px`;
     return () => {
       document.body.classList.remove("body-locked");
       document.body.style.top = "";
+      document.body.style.position = "";
+      document.body.style.inset = "";
+      document.body.style.width = "";
       window.scrollTo(0, scrollY);
     };
   }, [isChatOpen, isPostOpen, isAdminPanelOpen, isVideoCallOpen, showMagnetDashboard]);
