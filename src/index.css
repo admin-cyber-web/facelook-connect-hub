@@ -65,6 +65,7 @@ html, body, #root {
   overscroll-behavior-x: none;
   overscroll-behavior-y: none;
   -webkit-overflow-scrolling: touch;
+  pointer-events: auto;
 }
 
 html, body {
@@ -98,9 +99,10 @@ body.body-locked {
 .app-scroll-container {
   overflow-y: auto;
   overscroll-behavior-y: contain;
-  touch-action: pan-y;
+  touch-action: auto;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
+  pointer-events: auto;
 }
 
 .app-scroll-container::-webkit-scrollbar {
@@ -111,8 +113,9 @@ body.body-locked {
 .chat-scroll-container {
   overflow-y: auto;
   overscroll-behavior-y: contain;
-  touch-action: pan-y;
+  touch-action: auto;
   -webkit-overflow-scrolling: touch;
+  pointer-events: auto;
 }
 
 /* Horizontal carousels: allow both horizontal pan (carousel scroll) and
@@ -120,15 +123,16 @@ body.body-locked {
    gesture, so dragging up/down on the carousel scrolls the page. */
 [class*="overflow-x-auto"],
 .touch-content {
-  touch-action: pan-x pan-y;
+  touch-action: auto;
   overscroll-behavior-x: contain;
   -webkit-overflow-scrolling: touch;
+  pointer-events: auto;
 }
 
 /* Inline videos in the feed should never trap vertical scroll */
 .feed-reel,
 .feed-reel video {
-  touch-action: pan-y;
+  touch-action: auto;
 }
 
 @layer base {

@@ -131,7 +131,8 @@ const App = () => {
           <Toaster />
           <Sonner />
 
-          <CurvedEdgeOverlay />
+           <div className="pointer-events-auto min-h-screen">
+           <CurvedEdgeOverlay />
 
           {isAdminEmail(session?.user?.email || "") && (
             <button
@@ -150,7 +151,7 @@ const App = () => {
             </div>
           )}
 
-          <ProfileViewerProvider
+           <ProfileViewerProvider
             currentUserId={session?.user?.id ?? ""}
             currentUserEmail={session?.user?.email ?? ""}
           >
@@ -193,7 +194,8 @@ const App = () => {
                 </BrowserRouter>
               </DataCacheProvider>
             </OnlineUsersProvider>
-          </ProfileViewerProvider>
+           </ProfileViewerProvider>
+           </div>
         </TooltipProvider>
       </HelmetProvider>
     </QueryClientProvider>

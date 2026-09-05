@@ -10,3 +10,4 @@
 - [Native package declarations](native-package-declarations.md) — locally present Capacitor plugins must also be direct manifest and lockfile dependencies for clean publish installs.
 - [Post-merge npm dependency](post-merge-npm-dependency.md) — do not declare the npm CLI as an app dependency; Replit clean installs can reject its nested tarball.
 - [Android WebView verification](android-webview-verification.md) — this workspace has no physical Android device or emulator; use browser preview and static checks until device QA is available.
+- [WebView touch ownership](webview-touch-ownership.md) — native refresh must opt in explicitly; CSS touch-action and nested parents must never own normal WebView gestures.

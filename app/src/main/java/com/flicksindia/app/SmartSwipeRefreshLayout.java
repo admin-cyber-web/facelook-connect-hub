@@ -3,6 +3,7 @@ package com.flicksindia.app;
 import android.content.Context;
 import android.util.AttributeSet;
 import android.view.MotionEvent;
+import android.view.View;
 import android.view.ViewConfiguration;
 import android.webkit.WebView;
 
@@ -19,7 +20,9 @@ public class SmartSwipeRefreshLayout extends SwipeRefreshLayout {
 
     private final int touchSlop;
     private WebView contentWebView;
-    private boolean nativeSwipeEnabled = true;
+    // Never let the native wrapper participate in the first WebView gesture.
+    // The web bridge must explicitly opt in after the page is ready.
+    private boolean nativeSwipeEnabled = false;
     private boolean contentAtTop = true;
     private float downX;
     private float downY;
@@ -60,15 +63,17 @@ public class SmartSwipeRefreshLayout extends SwipeRefreshLayout {
 
     @Override
     public boolean onInterceptTouchEvent(MotionEvent event) {
+        if (event.getActionMasked() == MotionEvent.ACTION_DOWN) {
+            downX = event.getX();
+            downY = event.getY();
+        }
+
         if (!nativeSwipeEnabled) {
             return false;
         }
 
         switch (event.getActionMasked()) {
             case MotionEvent.ACTION_DOWN:
-                downX = event.getX();
-                downY = event.getY();
-                super.onInterceptTouchEvent(event);
                 return false;
 
             case MotionEvent.ACTION_MOVE:
@@ -95,6 +100,18 @@ public class SmartSwipeRefreshLayout extends SwipeRefreshLayout {
             default:
                 return false;
         }
+    }
+
+    @Override
+    public boolean onStartNestedScroll(
+            @NonNull View child,
+            @NonNull View target,
+            int axes
+    ) {
+        if (!nativeSwipeEnabled) {
+            return false;
+        }
+        return super.onStartNestedScroll(child, target, axes);
     }
 
     @Override

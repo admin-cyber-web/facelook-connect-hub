@@ -2988,7 +2988,7 @@ const PersonalizationView = React.memo(({
 
   return (
     <div
-      className={`min-h-[100dvh] w-full transition-colors duration-500 relative overflow-x-hidden ${darkMode ? "bg-[#020617]" : "bg-slate-100 light-mode"}`}
+      className={`pointer-events-auto min-h-[100dvh] w-full transition-colors duration-500 relative overflow-x-hidden ${darkMode ? "bg-[#020617]" : "bg-slate-100 light-mode"}`}
     >
       {/* Page-level Helmet — overrides the app-level default in App.tsx.
           The home-feed branch explicitly resets title + description so that
@@ -3200,7 +3200,7 @@ const PersonalizationView = React.memo(({
 
       <main
         className={`relative z-10 transition-all duration-500 w-full
-          ${activeFeature === "Flicks" ? "pt-0 pb-0" : "pt-0 pb-24"}`}
+          pointer-events-auto ${activeFeature === "Flicks" ? "pt-0 pb-0" : "pt-0 pb-24"}`}
       >
         <AnimatePresence mode="wait">
           <motion.div
