@@ -46,6 +46,7 @@ import {
   SlidersHorizontal,
   Tags,
   Pencil,
+  Plus,
   X,
   Film,
   Handshake,
@@ -108,7 +109,7 @@ const SectionLoader = () => (
 
 type ShowcaseMode = "movie" | "score" | "marketplace" | "announcement";
 
-interface ShowcaseConfig {
+interface ShowcaseItem {
   id: string;
   mode: ShowcaseMode;
   title: string;
@@ -117,20 +118,13 @@ interface ShowcaseConfig {
   cta_label: string;
   cta_url: string;
   is_published: boolean;
+  display_order: number;
 }
 
-const SHOWCASE_STORAGE_KEY = "flicks-public-showcase-v1";
+type ShowcaseDraft = Omit<ShowcaseItem, "id"> & { id?: string };
 
-const DEFAULT_SHOWCASE: ShowcaseConfig = {
-  id: "global",
-  mode: "announcement",
-  title: "Flicks India Showcase",
-  body: "Stories, moments, and updates worth sharing with the community.",
-  image_url: "",
-  cta_label: "",
-  cta_url: "",
-  is_published: true,
-};
+const SHOWCASE_STORAGE_KEY = "flicks-public-showcase-v2";
+const SHOWCASE_COLUMNS = "id, mode, title, body, image_url, cta_label, cta_url, is_published, display_order";
 
 const SHOWCASE_MODE_META: Record<ShowcaseMode, {
   label: string;
@@ -164,24 +158,39 @@ const SHOWCASE_MODE_META: Record<ShowcaseMode, {
   },
 };
 
-const normalizeShowcase = (value: any): ShowcaseConfig => ({
-  id: "global",
-  mode: SHOWCASE_MODE_META[value?.mode as ShowcaseMode] ? value.mode : DEFAULT_SHOWCASE.mode,
-  title: typeof value?.title === "string" && value.title.trim() ? value.title : DEFAULT_SHOWCASE.title,
-  body: typeof value?.body === "string" && value.body.trim() ? value.body : DEFAULT_SHOWCASE.body,
+const createShowcaseDraft = (displayOrder = 0): ShowcaseDraft => ({
+  mode: "announcement",
+  title: "",
+  body: "",
+  image_url: "",
+  cta_label: "",
+  cta_url: "",
+  is_published: true,
+  display_order: displayOrder,
+});
+
+const normalizeShowcase = (value: any, index = 0): ShowcaseItem => ({
+  id: typeof value?.id === "string" && value.id ? value.id : `local-${index}`,
+  mode: SHOWCASE_MODE_META[value?.mode as ShowcaseMode] ? value.mode : "announcement",
+  title: typeof value?.title === "string" ? value.title : "",
+  body: typeof value?.body === "string" ? value.body : "",
   image_url: typeof value?.image_url === "string" ? value.image_url : "",
   cta_label: typeof value?.cta_label === "string" ? value.cta_label : "",
   cta_url: typeof value?.cta_url === "string" ? value.cta_url : "",
   is_published: value?.is_published !== false,
+  display_order: Number.isFinite(Number(value?.display_order)) ? Number(value.display_order) : index,
 });
 
-const readLocalShowcase = (): ShowcaseConfig | null => {
+const normalizeShowcases = (values: any[]): ShowcaseItem[] => values
+  .map((value, index) => normalizeShowcase(value, index))
+  .sort((a, b) => a.display_order - b.display_order);
+
+const readLocalShowcases = (): ShowcaseItem[] => {
   try {
     const parsed = JSON.parse(localStorage.getItem(SHOWCASE_STORAGE_KEY) || "null");
-    if (!parsed || typeof parsed !== "object") return null;
-    return normalizeShowcase(parsed);
+    return Array.isArray(parsed) ? normalizeShowcases(parsed) : [];
   } catch {
-    return null;
+    return [];
   }
 };
 
@@ -195,49 +204,79 @@ const showcaseUrl = (value: string) => {
 };
 
 const ShowcaseWidget = ({ isAdmin, userId, lang }: { isAdmin: boolean; userId: string; lang: "en" | "hi" }) => {
-  const [showcase, setShowcase] = useState<ShowcaseConfig>(() => readLocalShowcase() || DEFAULT_SHOWCASE);
-  const [draft, setDraft] = useState<ShowcaseConfig>(showcase);
+  const [items, setItems] = useState<ShowcaseItem[]>([]);
+  const [draft, setDraft] = useState<ShowcaseDraft | null>(null);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [slideDirection, setSlideDirection] = useState(1);
 
   useEffect(() => {
     let mounted = true;
     const loadShowcase = async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("showcase_settings")
-        .select("id, mode, title, body, image_url, cta_label, cta_url, is_published")
-        .eq("id", "global")
-        .maybeSingle();
+        .select(SHOWCASE_COLUMNS)
+        .order("display_order", { ascending: true })
+        .order("updated_at", { ascending: false })
+        .limit(isAdmin ? 50 : 12);
+      if (!isAdmin) query = query.eq("is_published", true);
+      const { data, error } = await query;
 
       if (!mounted) return;
-      if (data) {
-        const next = normalizeShowcase(data);
-        setShowcase(next);
-        setDraft(next);
-        try { localStorage.setItem(SHOWCASE_STORAGE_KEY, JSON.stringify(next)); } catch { /* storage is optional */ }
-      } else if (error) {
-        console.warn("[Showcase] Supabase load unavailable; using local/default showcase:", error.message);
+      if (error) {
+        console.warn("[Showcase] Supabase load unavailable:", error.message);
+        // Device-local drafts are an admin-only recovery path. Public users
+        // never see stale cache data when the published query is unavailable.
+        if (isAdmin) setItems(readLocalShowcases());
+        return;
       }
+      const next = normalizeShowcases(data || []);
+      setItems(next);
+      try { localStorage.setItem(SHOWCASE_STORAGE_KEY, JSON.stringify(next)); } catch { /* storage is optional */ }
     };
 
     void loadShowcase();
-    const handleStorage = () => {
-      const next = readLocalShowcase();
-      if (next && mounted) {
-        setShowcase(next);
-        if (!editing) setDraft(next);
-      }
-    };
-    window.addEventListener("storage", handleStorage);
-    window.addEventListener("flicks-showcase-updated", handleStorage);
     return () => {
       mounted = false;
-      window.removeEventListener("storage", handleStorage);
-      window.removeEventListener("flicks-showcase-updated", handleStorage);
     };
-  }, [editing]);
+  }, [isAdmin]);
+
+  useEffect(() => {
+    if (currentIndex >= items.filter(item => item.is_published).length) setCurrentIndex(0);
+  }, [currentIndex, items]);
+
+  useEffect(() => {
+    const publishedCount = items.filter(item => item.is_published).length;
+    if (publishedCount <= 1) return;
+    const timer = window.setInterval(() => {
+      setSlideDirection(1);
+      setCurrentIndex(index => (index + 1) % publishedCount);
+    }, 7000);
+    return () => window.clearInterval(timer);
+  }, [items]);
+
+  const beginAdd = () => {
+    setDraft(createShowcaseDraft(items.length));
+    setEditing(true);
+  };
+
+  const beginEdit = (item: ShowcaseItem) => {
+    setDraft({ ...item });
+    setEditing(true);
+  };
+
+  const cancelEdit = () => {
+    setDraft(null);
+    setEditing(false);
+  };
+
+  const updateDraft = <K extends keyof ShowcaseDraft>(field: K, value: ShowcaseDraft[K]) => {
+    setDraft(previous => previous ? { ...previous, [field]: value } : previous);
+  };
 
   const saveShowcase = async () => {
+    if (!draft) return;
     if (!draft.title.trim() || !draft.body.trim()) {
       toast.error(lang === "hi" ? "Title aur message zaroori hain." : "Title and message are required.");
       return;
@@ -246,10 +285,13 @@ const ShowcaseWidget = ({ isAdmin, userId, lang }: { isAdmin: boolean; userId: s
       toast.error("CTA link must be a valid http(s) URL.");
       return;
     }
+    if (draft.image_url.trim() && !showcaseUrl(draft.image_url.trim())) {
+      toast.error("Custom image URL must be a valid http(s) URL.");
+      return;
+    }
 
     setSaving(true);
     const payload = {
-      id: "global",
       mode: draft.mode,
       title: draft.title.trim(),
       body: draft.body.trim(),
@@ -257,150 +299,318 @@ const ShowcaseWidget = ({ isAdmin, userId, lang }: { isAdmin: boolean; userId: s
       cta_label: draft.cta_label.trim() || null,
       cta_url: draft.cta_url.trim() || null,
       is_published: draft.is_published,
+      display_order: draft.display_order,
       updated_by: userId,
       updated_at: new Date().toISOString(),
     };
-    const { error } = await supabase
-      .from("showcase_settings")
-      .upsert(payload, { onConflict: "id" });
+    const itemId = draft.id || crypto.randomUUID();
+    const result = draft.id
+      ? await supabase.from("showcase_settings").update(payload).eq("id", draft.id).select(SHOWCASE_COLUMNS).single()
+      : await supabase.from("showcase_settings").insert({ ...payload, id: itemId }).select(SHOWCASE_COLUMNS).single();
 
-    const next = normalizeShowcase({ ...draft, ...payload });
-    setShowcase(next);
-    setDraft(next);
-    try { localStorage.setItem(SHOWCASE_STORAGE_KEY, JSON.stringify(next)); } catch { /* storage is optional */ }
-    window.dispatchEvent(new Event("flicks-showcase-updated"));
-
-    if (error) {
-      console.warn("[Showcase] Supabase save unavailable; kept local fallback:", error.message);
-      toast.warning("Saved on this device. Apply the showcase migration for public sync.");
-    } else {
-      toast.success("Showcase published.");
+    if (result.error || !result.data) {
+      console.warn("[Showcase] Supabase save failed:", result.error?.message);
+      toast.error("Showcase could not be saved. Apply the latest showcase migration and try again.");
+      setSaving(false);
+      return;
     }
-    setEditing(false);
+
+    const saved = normalizeShowcase(result.data, items.length);
+    setItems(previous => normalizeShowcases([
+      ...previous.filter(item => item.id !== saved.id),
+      saved,
+    ]));
+    try {
+      const nextItems = normalizeShowcases([
+        ...items.filter(item => item.id !== saved.id),
+        saved,
+      ]);
+      localStorage.setItem(SHOWCASE_STORAGE_KEY, JSON.stringify(nextItems));
+    } catch { /* storage is optional */ }
+    toast.success(draft.id ? "Showcase updated." : "Showcase item added.");
+    cancelEdit();
     setSaving(false);
   };
 
-  const meta = SHOWCASE_MODE_META[showcase.mode] || SHOWCASE_MODE_META.announcement;
-  return (
-    <motion.section
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="relative overflow-hidden rounded-3xl"
-      style={{
-        background: `linear-gradient(135deg, ${meta.glow}, rgba(255,255,255,0.035) 42%, rgba(4,5,20,0.92))`,
-        border: `1px solid ${meta.accent}33`,
-        boxShadow: `0 14px 42px rgba(0,0,0,0.25), 0 0 34px ${meta.glow}`,
-        backdropFilter: "blur(24px)",
-        WebkitBackdropFilter: "blur(24px)",
-      }}
-    >
-      {showcase.image_url && (
-        <img
-          src={showcase.image_url}
-          alt=""
-          loading="lazy"
-          decoding="async"
-          className="absolute inset-0 h-full w-full object-cover opacity-25"
-          onError={(event) => { event.currentTarget.style.display = "none"; }}
-        />
-      )}
-      <div className="absolute inset-0" style={{ background: "linear-gradient(90deg, rgba(4,5,20,0.97) 0%, rgba(4,5,20,0.83) 50%, rgba(4,5,20,0.55) 100%)" }} />
-      <div className="relative z-10 p-5">
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.16em]" style={{ color: meta.accent }}>
-            {meta.icon}
-            {meta.label}
-          </div>
-          {isAdmin && !editing && (
-            <button
-              onClick={() => { setDraft(showcase); setEditing(true); }}
-              className="flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-[10px] font-black text-white/70 transition hover:text-white"
-              style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.14)" }}
-            >
-              <Pencil size={12} />
-              {lang === "hi" ? "एडिट शोकेस" : "Edit Showcase"}
-            </button>
-          )}
-        </div>
+  const deleteShowcase = async (item: ShowcaseItem) => {
+    if (!window.confirm(`Delete "${item.title}" from the showcase?`)) return;
+    const { error } = await supabase.from("showcase_settings").delete().eq("id", item.id);
+    if (error) {
+      console.warn("[Showcase] Supabase delete failed:", error.message);
+      toast.error("Showcase item could not be deleted.");
+      return;
+    }
+    setItems(previous => {
+      const next = previous.filter(candidate => candidate.id !== item.id);
+      try { localStorage.setItem(SHOWCASE_STORAGE_KEY, JSON.stringify(next)); } catch { /* storage is optional */ }
+      return next;
+    });
+    toast.success("Showcase item deleted.");
+  };
 
-        {!editing ? (
-          <>
-            <h3 className="mt-4 max-w-[560px] text-xl font-black leading-tight text-white">{showcase.title}</h3>
-            <p className="mt-2 max-w-[600px] whitespace-pre-wrap text-sm leading-relaxed text-white/60">{showcase.body}</p>
-            {showcase.cta_label && showcase.cta_url && showcaseUrl(showcase.cta_url) && (
-              <a
-                href={showcase.cta_url}
-                target="_blank"
-                rel="noreferrer"
-                className="mt-4 inline-flex rounded-full px-4 py-2 text-xs font-black text-[#070912] transition hover:brightness-110"
-                style={{ background: `linear-gradient(135deg, ${meta.accent}, #eaff70)` }}
+  const publishedItems = items.filter(item => item.is_published);
+  const activeItem = publishedItems[currentIndex];
+  if (!isAdmin && !activeItem) return null;
+
+  const activeMeta = activeItem
+    ? SHOWCASE_MODE_META[activeItem.mode] || SHOWCASE_MODE_META.announcement
+    : SHOWCASE_MODE_META.announcement;
+
+  return (
+    <div className="space-y-3">
+      {activeItem && (
+        <motion.section
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="relative overflow-hidden rounded-3xl"
+          style={{
+            background: `linear-gradient(135deg, ${activeMeta.glow}, rgba(255,255,255,0.035) 42%, rgba(4,5,20,0.92))`,
+            border: `1px solid ${activeMeta.accent}33`,
+            boxShadow: `0 14px 42px rgba(0,0,0,0.25), 0 0 34px ${activeMeta.glow}`,
+            backdropFilter: "blur(24px)",
+            WebkitBackdropFilter: "blur(24px)",
+          }}
+        >
+          {activeItem.image_url && (
+            <img
+              src={activeItem.image_url}
+              alt=""
+              loading="lazy"
+              decoding="async"
+              className="absolute inset-0 h-full w-full object-cover opacity-25"
+              onError={(event) => { event.currentTarget.style.display = "none"; }}
+            />
+          )}
+          <div className="absolute inset-0" style={{ background: "linear-gradient(90deg, rgba(4,5,20,0.97) 0%, rgba(4,5,20,0.83) 50%, rgba(4,5,20,0.55) 100%)" }} />
+          <div className="relative z-10 p-5">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.16em]" style={{ color: activeMeta.accent }}>
+                {activeMeta.icon}
+                {activeMeta.label}
+              </div>
+              {publishedItems.length > 1 && (
+                <div className="flex items-center gap-1.5">
+                  <button
+                    aria-label="Previous showcase"
+                    onClick={() => { setSlideDirection(-1); setCurrentIndex(index => (index - 1 + publishedItems.length) % publishedItems.length); }}
+                    className="rounded-full p-1.5 text-white/55 transition hover:bg-white/10 hover:text-white"
+                  >
+                    <ChevronLeft size={14} />
+                  </button>
+                  <span className="text-[10px] font-bold text-white/35">{currentIndex + 1}/{publishedItems.length}</span>
+                  <button
+                    aria-label="Next showcase"
+                    onClick={() => { setSlideDirection(1); setCurrentIndex(index => (index + 1) % publishedItems.length); }}
+                    className="rounded-full p-1.5 text-white/55 transition hover:bg-white/10 hover:text-white"
+                  >
+                    <ChevronRight size={14} />
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.div
+                key={activeItem.id}
+                initial={{ opacity: 0, x: slideDirection * 18 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: slideDirection * -18 }}
+                transition={{ duration: 0.24 }}
               >
-                {showcase.cta_label}
-              </a>
-            )}
-          </>
-        ) : (
-          <div className="mt-4 space-y-3">
-            <select
-              value={draft.mode}
-              onChange={(event) => setDraft(prev => ({ ...prev, mode: event.target.value as ShowcaseMode }))}
-              className="w-full rounded-xl bg-black/30 px-3 py-2.5 text-sm font-bold text-white outline-none"
-              style={{ border: "1px solid rgba(255,255,255,0.16)" }}
-            >
-              {Object.entries(SHOWCASE_MODE_META).map(([value, item]) => (
-                <option key={value} value={value} className="bg-[#111827]">{item.label}</option>
-              ))}
-            </select>
-            {([
-              ["title", "Title", "Featured title"],
-              ["body", "Message", "Write the public showcase message"],
-              ["image_url", "Image URL", "https://…"],
-              ["cta_label", "Button label", "View details"],
-              ["cta_url", "Button URL", "https://…"],
-            ] as const).map(([field, label, placeholder]) => (
-              <label key={field} className="block">
-                <span className="mb-1 block text-[10px] font-black uppercase tracking-wider text-white/35">{label}</span>
-                {field === "body" ? (
-                  <textarea
-                    value={draft[field]}
-                    onChange={(event) => setDraft(prev => ({ ...prev, [field]: event.target.value }))}
-                    placeholder={placeholder}
-                    rows={3}
-                    className="w-full resize-none rounded-xl bg-black/30 px-3 py-2.5 text-sm text-white outline-none placeholder:text-white/25"
-                    style={{ border: "1px solid rgba(255,255,255,0.16)" }}
+                <h3 className="mt-4 max-w-[560px] text-xl font-black leading-tight text-white">{activeItem.title}</h3>
+                <p className="mt-2 max-w-[600px] whitespace-pre-wrap text-sm leading-relaxed text-white/60">{activeItem.body}</p>
+                {activeItem.cta_label && activeItem.cta_url && showcaseUrl(activeItem.cta_url) && (
+                  <a
+                    href={activeItem.cta_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-4 inline-flex rounded-full px-4 py-2 text-xs font-black text-[#070912] transition hover:brightness-110"
+                    style={{ background: `linear-gradient(135deg, ${activeMeta.accent}, #eaff70)` }}
+                  >
+                    {activeItem.cta_label}
+                  </a>
+                )}
+              </motion.div>
+            </AnimatePresence>
+
+            {publishedItems.length > 1 && (
+              <div className="mt-4 flex gap-1.5">
+                {publishedItems.map((item, index) => (
+                  <button
+                    key={item.id}
+                    aria-label={`Showcase ${index + 1}`}
+                    onClick={() => { setSlideDirection(index >= currentIndex ? 1 : -1); setCurrentIndex(index); }}
+                    className="h-1.5 rounded-full transition-all"
+                    style={{ width: index === currentIndex ? 20 : 6, background: index === currentIndex ? activeMeta.accent : "rgba(255,255,255,0.24)" }}
                   />
-                ) : (
+                ))}
+              </div>
+            )}
+          </div>
+        </motion.section>
+      )}
+
+      {isAdmin && (
+        <div
+          className="overflow-hidden rounded-3xl"
+          style={{
+            background: "rgba(255,255,255,0.035)",
+            border: "1px solid rgba(255,255,255,0.08)",
+            backdropFilter: "blur(18px)",
+            WebkitBackdropFilter: "blur(18px)",
+          }}
+        >
+          <div className="flex items-center justify-between gap-3 border-b border-white/8 px-4 py-3">
+            <div>
+              <p className="text-[11px] font-black uppercase tracking-[0.14em] text-white/65">Showcase Manager</p>
+              <p className="mt-1 text-[10px] text-white/35">{publishedItems.length} published · {items.length} total</p>
+            </div>
+            {!editing && (
+              <button
+                onClick={beginAdd}
+                className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[10px] font-black text-black transition hover:brightness-110"
+                style={{ background: "linear-gradient(135deg, #CCFF00, #eaff70)" }}
+              >
+                <Plus size={12} /> Add item
+              </button>
+            )}
+          </div>
+
+          {editing && draft ? (
+            <div className="space-y-3 p-4">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-black text-white">{draft.id ? "Edit showcase item" : "Add showcase item"}</p>
+                <button onClick={cancelEdit} className="rounded-full p-1.5 text-white/45 transition hover:bg-white/10 hover:text-white" aria-label="Cancel editing">
+                  <X size={15} />
+                </button>
+              </div>
+              <select
+                value={draft.mode}
+                onChange={(event) => updateDraft("mode", event.target.value as ShowcaseMode)}
+                className="w-full rounded-xl bg-black/30 px-3 py-2.5 text-sm font-bold text-white outline-none"
+                style={{ border: "1px solid rgba(255,255,255,0.16)" }}
+              >
+                {Object.entries(SHOWCASE_MODE_META).map(([value, item]) => (
+                  <option key={value} value={value} className="bg-[#111827]">{item.label}</option>
+                ))}
+              </select>
+              <label className="block">
+                <span className="mb-1 block text-[10px] font-black uppercase tracking-wider text-white/35">Title</span>
+                <input
+                  type="text"
+                  value={draft.title}
+                  onChange={(event) => updateDraft("title", event.target.value)}
+                  placeholder="Featured title"
+                  className="w-full rounded-xl bg-black/30 px-3 py-2.5 text-sm text-white outline-none placeholder:text-white/25"
+                  style={{ border: "1px solid rgba(255,255,255,0.16)" }}
+                />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-[10px] font-black uppercase tracking-wider text-white/35">Message</span>
+                <textarea
+                  value={draft.body}
+                  onChange={(event) => updateDraft("body", event.target.value)}
+                  placeholder="Write the public showcase message"
+                  rows={3}
+                  className="w-full resize-none rounded-xl bg-black/30 px-3 py-2.5 text-sm text-white outline-none placeholder:text-white/25"
+                  style={{ border: "1px solid rgba(255,255,255,0.16)" }}
+                />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-[10px] font-black uppercase tracking-wider text-white/35">Custom image URL</span>
+                <input
+                  type="url"
+                  value={draft.image_url}
+                  onChange={(event) => updateDraft("image_url", event.target.value)}
+                  placeholder="https://example.com/showcase-image.jpg"
+                  className="w-full rounded-xl bg-black/30 px-3 py-2.5 text-sm text-white outline-none placeholder:text-white/25"
+                  style={{ border: "1px solid rgba(255,255,255,0.16)" }}
+                />
+              </label>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <label className="block">
+                  <span className="mb-1 block text-[10px] font-black uppercase tracking-wider text-white/35">Button label</span>
                   <input
                     type="text"
-                    value={draft[field]}
-                    onChange={(event) => setDraft(prev => ({ ...prev, [field]: event.target.value }))}
-                    placeholder={placeholder}
+                    value={draft.cta_label}
+                    onChange={(event) => updateDraft("cta_label", event.target.value)}
+                    placeholder="View details"
                     className="w-full rounded-xl bg-black/30 px-3 py-2.5 text-sm text-white outline-none placeholder:text-white/25"
                     style={{ border: "1px solid rgba(255,255,255,0.16)" }}
                   />
-                )}
+                </label>
+                <label className="block">
+                  <span className="mb-1 block text-[10px] font-black uppercase tracking-wider text-white/35">Button URL</span>
+                  <input
+                    type="url"
+                    value={draft.cta_url}
+                    onChange={(event) => updateDraft("cta_url", event.target.value)}
+                    placeholder="https://example.com"
+                    className="w-full rounded-xl bg-black/30 px-3 py-2.5 text-sm text-white outline-none placeholder:text-white/25"
+                    style={{ border: "1px solid rgba(255,255,255,0.16)" }}
+                  />
+                </label>
+              </div>
+              <label className="flex items-center gap-2 text-xs font-bold text-white/65">
+                <input
+                  type="checkbox"
+                  checked={draft.is_published}
+                  onChange={(event) => updateDraft("is_published", event.target.checked)}
+                  className="accent-lime-400"
+                />
+                Publish this item publicly
               </label>
-            ))}
-            <div className="flex gap-2 pt-1">
-              <button
-                onClick={() => { setDraft(showcase); setEditing(false); }}
-                className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-white/8 py-2.5 text-xs font-black text-white/60 transition hover:text-white"
-              >
-                <X size={14} /> Cancel
-              </button>
-              <button
-                onClick={() => void saveShowcase()}
-                disabled={saving}
-                className="flex flex-1 items-center justify-center gap-2 rounded-xl py-2.5 text-xs font-black text-black transition disabled:opacity-50"
-                style={{ background: `linear-gradient(135deg, ${meta.accent}, #eaff70)` }}
-              >
-                <Save size={14} /> {saving ? "Saving…" : "Save & Publish"}
-              </button>
+              <div className="flex gap-2 pt-1">
+                <button
+                  onClick={cancelEdit}
+                  className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-white/8 py-2.5 text-xs font-black text-white/60 transition hover:text-white"
+                >
+                  <X size={14} /> Cancel
+                </button>
+                <button
+                  onClick={() => void saveShowcase()}
+                  disabled={saving}
+                  className="flex flex-1 items-center justify-center gap-2 rounded-xl py-2.5 text-xs font-black text-black transition disabled:opacity-50"
+                  style={{ background: "linear-gradient(135deg, #CCFF00, #eaff70)" }}
+                >
+                  <Save size={14} /> {saving ? "Saving…" : draft.id ? "Save changes" : draft.is_published ? "Add & Publish" : "Add draft"}
+                </button>
+              </div>
             </div>
-          </div>
-        )}
-      </div>
-    </motion.section>
+          ) : items.length ? (
+            <div className="divide-y divide-white/6">
+              {items.map((item) => {
+                const itemMeta = SHOWCASE_MODE_META[item.mode] || SHOWCASE_MODE_META.announcement;
+                return (
+                  <div key={item.id} className="flex items-center gap-3 px-4 py-3">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl" style={{ background: `${itemMeta.glow}` }}>
+                      {item.image_url ? (
+                        <img src={item.image_url} alt="" className="h-full w-full object-cover" onError={(event) => { event.currentTarget.style.display = "none"; }} />
+                      ) : itemMeta.icon}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-xs font-black text-white/85">{item.title}</p>
+                      <p className="mt-0.5 text-[10px] text-white/35">{itemMeta.label} · {item.is_published ? "Published" : "Draft"}</p>
+                    </div>
+                    <button onClick={() => beginEdit(item)} className="rounded-full p-2 text-white/45 transition hover:bg-white/10 hover:text-white" aria-label={`Edit ${item.title}`}>
+                      <Pencil size={14} />
+                    </button>
+                    <button onClick={() => void deleteShowcase(item)} className="rounded-full p-2 text-red-300/55 transition hover:bg-red-400/10 hover:text-red-300" aria-label={`Delete ${item.title}`}>
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="px-4 py-5 text-center">
+              <p className="text-xs font-bold text-white/55">No showcase items yet.</p>
+              <p className="mt-1 text-[10px] text-white/30">Add a published item to show a card to users.</p>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 };
 
