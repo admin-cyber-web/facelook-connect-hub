@@ -123,6 +123,7 @@ interface ShowcaseItem {
 }
 
 type ShowcaseDraft = Omit<ShowcaseItem, "id"> & { id?: string };
+type ShowcaseFormData = Omit<ShowcaseItem, "id">;
 
 const SHOWCASE_STORAGE_KEY = "flicks-public-showcase-v2";
 const SHOWCASE_COLUMNS = "id, mode, title, body, image_url, cta_label, cta_url, is_published, display_order";
@@ -205,11 +206,13 @@ const showcaseUrl = (value: string) => {
 };
 
 interface ShowcaseEditorProps {
-  initialDraft: ShowcaseDraft;
+  formData: ShowcaseFormData;
+  editingItem: ShowcaseItem | null;
   saving: boolean;
   lang: "en" | "hi";
   onCancel: () => void;
-  onSave: (draft: ShowcaseDraft) => void;
+  onChange: <K extends keyof ShowcaseFormData>(field: K, value: ShowcaseFormData[K]) => void;
+  onSave: () => void;
 }
 
 /**
@@ -221,18 +224,14 @@ interface ShowcaseEditorProps {
  * successful save are the only ways out.
  */
 const ShowcaseEditor = ({
-  initialDraft,
+  formData,
+  editingItem,
   saving,
   lang,
   onCancel,
+  onChange,
   onSave,
 }: ShowcaseEditorProps) => {
-  const [form, setForm] = React.useState<ShowcaseDraft>(() => ({ ...initialDraft }));
-
-  const update = <K extends keyof ShowcaseDraft>(field: K, value: ShowcaseDraft[K]) => {
-    setForm(previous => ({ ...previous, [field]: value }));
-  };
-
   if (typeof document === "undefined") return null;
 
   return createPortal(
@@ -252,7 +251,7 @@ const ShowcaseEditor = ({
         aria-labelledby="showcase-editor-title"
         onSubmit={(event) => {
           event.preventDefault();
-          onSave(form);
+          onSave();
         }}
         onMouseDown={(event) => event.stopPropagation()}
         onClick={(event) => event.stopPropagation()}
@@ -261,7 +260,7 @@ const ShowcaseEditor = ({
         <div className="flex items-center justify-between gap-3">
           <div>
             <p id="showcase-editor-title" className="text-sm font-black text-white">
-              {form.id ? "Edit showcase item" : "Add showcase item"}
+              {editingItem ? "Edit showcase item" : "Add showcase item"}
             </p>
             <p className="mt-1 text-[10px] text-white/40">
               {lang === "hi" ? "बदलाव सुरक्षित होने तक यह फ़ॉर्म खुला रहेगा।" : "This form stays open until you explicitly cancel or save."}
@@ -279,8 +278,8 @@ const ShowcaseEditor = ({
 
         <div className="mt-4 min-w-0 max-w-full space-y-3 overflow-hidden">
           <select
-            value={form.mode}
-            onChange={(event) => update("mode", event.target.value as ShowcaseMode)}
+            value={formData.mode}
+            onChange={(event) => onChange("mode", event.target.value as ShowcaseMode)}
             className="box-border w-full max-w-full min-w-0 rounded-xl bg-black/30 px-3 py-2.5 text-sm font-bold text-white outline-none"
             style={{ border: "1px solid rgba(255,255,255,0.16)" }}
           >
@@ -294,8 +293,8 @@ const ShowcaseEditor = ({
             <input
               autoFocus
               type="text"
-              value={form.title}
-              onChange={(event) => update("title", event.target.value)}
+              value={formData.title}
+              onChange={(event) => onChange("title", event.target.value)}
               placeholder="Featured title"
               className="box-border w-full max-w-full min-w-0 rounded-xl bg-black/30 px-3 py-2.5 text-sm text-white outline-none placeholder:text-white/25"
               style={{ border: "1px solid rgba(255,255,255,0.16)" }}
@@ -305,8 +304,8 @@ const ShowcaseEditor = ({
           <label className="block min-w-0 max-w-full">
             <span className="mb-1 block text-[10px] font-black uppercase tracking-wider text-white/35">Description</span>
             <textarea
-              value={form.body}
-              onChange={(event) => update("body", event.target.value)}
+              value={formData.body}
+              onChange={(event) => onChange("body", event.target.value)}
               placeholder="Write the public showcase message"
               rows={4}
               className="box-border w-full max-w-full min-w-0 resize-none rounded-xl bg-black/30 px-3 py-2.5 text-sm text-white outline-none placeholder:text-white/25"
@@ -318,8 +317,8 @@ const ShowcaseEditor = ({
             <span className="mb-1 block text-[10px] font-black uppercase tracking-wider text-white/35">Custom image URL</span>
             <input
               type="url"
-              value={form.image_url}
-              onChange={(event) => update("image_url", event.target.value)}
+              value={formData.image_url}
+              onChange={(event) => onChange("image_url", event.target.value)}
               placeholder="https://example.com/showcase-image.jpg"
               className="box-border w-full max-w-full min-w-0 rounded-xl bg-black/30 px-3 py-2.5 text-sm text-white outline-none placeholder:text-white/25"
               style={{ border: "1px solid rgba(255,255,255,0.16)" }}
@@ -331,8 +330,8 @@ const ShowcaseEditor = ({
               <span className="mb-1 block text-[10px] font-black uppercase tracking-wider text-white/35">Button label</span>
               <input
                 type="text"
-                value={form.cta_label}
-                onChange={(event) => update("cta_label", event.target.value)}
+                value={formData.cta_label}
+                onChange={(event) => onChange("cta_label", event.target.value)}
                 placeholder="View details"
                 className="box-border w-full max-w-full min-w-0 rounded-xl bg-black/30 px-3 py-2.5 text-sm text-white outline-none placeholder:text-white/25"
                 style={{ border: "1px solid rgba(255,255,255,0.16)" }}
@@ -342,8 +341,8 @@ const ShowcaseEditor = ({
               <span className="mb-1 block text-[10px] font-black uppercase tracking-wider text-white/35">CTA Link</span>
               <input
                 type="url"
-                value={form.cta_url}
-                onChange={(event) => update("cta_url", event.target.value)}
+                value={formData.cta_url}
+                onChange={(event) => onChange("cta_url", event.target.value)}
                 placeholder="https://example.com"
                 className="box-border w-full max-w-full min-w-0 rounded-xl bg-black/30 px-3 py-2.5 text-sm text-white outline-none placeholder:text-white/25"
                 style={{ border: "1px solid rgba(255,255,255,0.16)" }}
@@ -354,8 +353,8 @@ const ShowcaseEditor = ({
           <label className="flex items-center gap-2 text-xs font-bold text-white/65">
             <input
               type="checkbox"
-              checked={form.is_published}
-              onChange={(event) => update("is_published", event.target.checked)}
+              checked={formData.is_published}
+              onChange={(event) => onChange("is_published", event.target.checked)}
               className="accent-lime-400"
             />
             Publish this item publicly
@@ -375,7 +374,7 @@ const ShowcaseEditor = ({
               className="flex flex-1 items-center justify-center gap-2 rounded-xl py-2.5 text-xs font-black text-black transition disabled:opacity-50"
               style={{ background: "linear-gradient(135deg, #CCFF00, #eaff70)" }}
             >
-              <Save size={14} /> {saving ? "Saving…" : form.id ? "Save changes" : form.is_published ? "Add & Publish" : "Add draft"}
+              <Save size={14} /> {saving ? "Saving…" : editingItem ? "Save changes" : formData.is_published ? "Add & Publish" : "Add draft"}
             </button>
           </div>
         </div>
@@ -387,8 +386,9 @@ const ShowcaseEditor = ({
 
 const ShowcaseWidget = ({ isAdmin, userId, lang }: { isAdmin: boolean; userId: string; lang: "en" | "hi" }) => {
   const [items, setItems] = useState<ShowcaseItem[]>([]);
-  const [draft, setDraft] = useState<ShowcaseDraft | null>(null);
-  const [editing, setEditing] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState<ShowcaseItem | null>(null);
+  const [formData, setFormData] = useState<ShowcaseFormData>(() => createShowcaseDraft());
   const [saving, setSaving] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [slideDirection, setSlideDirection] = useState(1);
@@ -430,30 +430,49 @@ const ShowcaseWidget = ({ isAdmin, userId, lang }: { isAdmin: boolean; userId: s
 
   useEffect(() => {
     const publishedCount = items.filter(item => item.is_published).length;
-    if (publishedCount <= 1 || editing) return;
+    if (publishedCount <= 1 || isModalOpen) return;
     const timer = window.setInterval(() => {
       setSlideDirection(1);
       setCurrentIndex(index => (index + 1) % publishedCount);
     }, 7000);
     return () => window.clearInterval(timer);
-  }, [items, editing]);
+  }, [items, isModalOpen]);
 
   const beginAdd = () => {
-    setDraft(createShowcaseDraft(items.length));
-    setEditing(true);
+    setEditingItem(null);
+    setFormData(createShowcaseDraft(items.length));
+    setIsModalOpen(true);
   };
 
   const beginEdit = (item: ShowcaseItem) => {
-    setDraft({ ...item });
-    setEditing(true);
+    setEditingItem(item);
+    setFormData({
+      mode: item.mode,
+      title: item.title,
+      body: item.body,
+      image_url: item.image_url,
+      cta_label: item.cta_label,
+      cta_url: item.cta_url,
+      is_published: item.is_published,
+      display_order: item.display_order,
+    });
+    setIsModalOpen(true);
   };
 
   const cancelEdit = () => {
-    setDraft(null);
-    setEditing(false);
+    setIsModalOpen(false);
+    setEditingItem(null);
   };
 
-  const saveShowcase = async (nextDraft: ShowcaseDraft) => {
+  const updateFormData = <K extends keyof ShowcaseFormData>(field: K, value: ShowcaseFormData[K]) => {
+    setFormData(previous => ({ ...previous, [field]: value }));
+  };
+
+  const saveShowcase = async () => {
+    const nextDraft: ShowcaseDraft = editingItem
+      ? { ...formData, id: editingItem.id }
+      : formData;
+
     if (!nextDraft.title.trim() || !nextDraft.body.trim()) {
       toast.error(lang === "hi" ? "Title aur message zaroori hain." : "Title and message are required.");
       return;
@@ -493,18 +512,15 @@ const ShowcaseWidget = ({ isAdmin, userId, lang }: { isAdmin: boolean; userId: s
     }
 
     const saved = normalizeShowcase(result.data, items.length);
-    setItems(previous => normalizeShowcases([
-      ...previous.filter(item => item.id !== saved.id),
+    const nextItems = normalizeShowcases([
+      ...items.filter(item => item.id !== saved.id),
       saved,
-    ]));
+    ]);
+    setItems(nextItems);
     try {
-      const nextItems = normalizeShowcases([
-        ...items.filter(item => item.id !== saved.id),
-        saved,
-      ]);
       localStorage.setItem(SHOWCASE_STORAGE_KEY, JSON.stringify(nextItems));
     } catch { /* storage is optional */ }
-    toast.success(nextDraft.id ? "Showcase updated." : "Showcase item added.");
+    toast.success(editingItem ? "Showcase updated." : "Showcase item added.");
     cancelEdit();
     setSaving(false);
   };
@@ -648,7 +664,7 @@ const ShowcaseWidget = ({ isAdmin, userId, lang }: { isAdmin: boolean; userId: s
               <p className="text-[11px] font-black uppercase tracking-[0.14em] text-white/65">Showcase Manager</p>
               <p className="mt-1 text-[10px] text-white/35">{publishedItems.length} published · {items.length} total</p>
             </div>
-            {!editing && (
+            {!isModalOpen && (
               <button
                 onClick={beginAdd}
                 className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[10px] font-black text-black transition hover:brightness-110"
@@ -659,16 +675,7 @@ const ShowcaseWidget = ({ isAdmin, userId, lang }: { isAdmin: boolean; userId: s
             )}
           </div>
 
-          {editing && draft ? (
-            <ShowcaseEditor
-              key={draft.id || "new"}
-              initialDraft={draft}
-              saving={saving}
-              lang={lang}
-              onCancel={cancelEdit}
-              onSave={(nextDraft) => void saveShowcase(nextDraft)}
-            />
-          ) : items.length ? (
+          {items.length ? (
             <div className="divide-y divide-white/6">
               {items.map((item) => {
                 const itemMeta = SHOWCASE_MODE_META[item.mode] || SHOWCASE_MODE_META.announcement;
@@ -700,6 +707,18 @@ const ShowcaseWidget = ({ isAdmin, userId, lang }: { isAdmin: boolean; userId: s
             </div>
           )}
         </div>
+      )}
+
+      {isModalOpen && (
+        <ShowcaseEditor
+          formData={formData}
+          editingItem={editingItem}
+          saving={saving}
+          lang={lang}
+          onCancel={cancelEdit}
+          onChange={updateFormData}
+          onSave={() => void saveShowcase()}
+        />
       )}
     </div>
   );
