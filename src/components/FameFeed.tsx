@@ -1529,10 +1529,133 @@ const SuggestionPlaceholder = ({
 );
 
 // ── Single Full-Width Vertical Reel ───────────────────────────────────────────
-const SingleReelBlock = ({ post }: { post: any }) => {
+const SingleReelBlock = ({
+  post,
+  currentUserId,
+}: {
+  post: any;
+  currentUserId: string | null;
+}) => {
   const ref = useRef<HTMLVideoElement>(null);
   const [muted, setMuted] = useState(true);
-  const [liked, setLiked] = useState(false);
+  const [likedByMe, setLikedByMe] = useState(false);
+  const [likeCount, setLikeCount] = useState(Number(post.likes_count || 0));
+  const [likePending, setLikePending] = useState(false);
+  const likeMutationRef = useRef<Promise<void> | null>(null);
+
+  const refreshLikeState = useCallback(async () => {
+    const countRequest = supabase
+      .from("likes")
+      .select("id", { count: "exact", head: true })
+      .eq("post_id", post.id);
+    const mineRequest = currentUserId
+      ? supabase
+          .from("likes")
+          .select("id")
+          .eq("post_id", post.id)
+          .eq("user_id", currentUserId)
+          .limit(1)
+      : Promise.resolve({ data: [], error: null });
+
+    const [countResult, mineResult] = await Promise.all([
+      countRequest,
+      mineRequest,
+    ]);
+
+    if (countResult.error || mineResult.error) {
+      console.warn(
+        "[FameFeed][reel-like] state refresh failed:",
+        countResult.error?.message || mineResult.error?.message,
+      );
+      return;
+    }
+
+    setLikeCount(countResult.count ?? 0);
+    setLikedByMe(Boolean(mineResult.data?.length));
+  }, [currentUserId, post.id]);
+
+  // Rehydrate from the source rows when this Reel or authenticated user changes.
+  // The queries are bounded and run only while this Reel is mounted.
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const countRequest = supabase
+        .from("likes")
+        .select("id", { count: "exact", head: true })
+        .eq("post_id", post.id);
+      const mineRequest = currentUserId
+        ? supabase
+            .from("likes")
+            .select("id")
+            .eq("post_id", post.id)
+            .eq("user_id", currentUserId)
+            .limit(1)
+        : Promise.resolve({ data: [], error: null });
+      const [countResult, mineResult] = await Promise.all([
+        countRequest,
+        mineRequest,
+      ]);
+      if (cancelled) return;
+      if (countResult.error || mineResult.error) {
+        console.warn(
+          "[FameFeed][reel-like] initial state load failed:",
+          countResult.error?.message || mineResult.error?.message,
+        );
+        return;
+      }
+      setLikeCount(countResult.count ?? 0);
+      setLikedByMe(Boolean(mineResult.data?.length));
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUserId, post.id]);
+
+  const toggleReelLike = useCallback(async () => {
+    if (!currentUserId) {
+      toast.error("Please login to like");
+      return;
+    }
+    if (likeMutationRef.current) return;
+
+    const nextLiked = !likedByMe;
+    setLikePending(true);
+    setLikedByMe(nextLiked);
+    setLikeCount((count) => Math.max(count + (nextLiked ? 1 : -1), 0));
+
+    const mutation = (async () => {
+      const result = nextLiked
+        ? await supabase
+            .from("likes")
+            .upsert(
+              { post_id: post.id, user_id: currentUserId },
+              { onConflict: "post_id,user_id", ignoreDuplicates: true },
+            )
+        : await supabase
+            .from("likes")
+            .delete()
+            .eq("post_id", post.id)
+            .eq("user_id", currentUserId);
+
+      if (result.error) {
+        toast.error(nextLiked ? "Like nahi ho saka." : "Like nahi hata.");
+      }
+
+      // Always reconcile from likes rows. This handles duplicate taps,
+      // concurrent sessions, and an idempotent upsert/delete response.
+      await refreshLikeState();
+    })();
+
+    likeMutationRef.current = mutation;
+    try {
+      await mutation;
+    } finally {
+      if (likeMutationRef.current === mutation) {
+        likeMutationRef.current = null;
+        setLikePending(false);
+      }
+    }
+  }, [currentUserId, likedByMe, post.id, refreshLikeState]);
 
   useEffect(() => {
     const el = ref.current;
@@ -1608,16 +1731,19 @@ const SingleReelBlock = ({ post }: { post: any }) => {
       </div>
       <div className="absolute right-3 bottom-16 flex flex-col items-center gap-4">
         <button
-          onClick={() => setLiked(!liked)}
-          className="flex flex-col items-center"
+          onClick={toggleReelLike}
+          disabled={likePending}
+          aria-pressed={likedByMe}
+          aria-label={likedByMe ? "Unlike Reel" : "Like Reel"}
+          className="flex flex-col items-center disabled:opacity-70"
         >
           <Heart
             size={26}
-            fill={liked ? "#ff2d55" : "none"}
-            className={liked ? "text-[#ff2d55]" : "text-white"}
+            fill={likedByMe ? "#ff2d55" : "none"}
+            className={likedByMe ? "text-[#ff2d55]" : "text-white"}
           />
           <span className="text-white text-[10px] font-bold mt-1">
-            {post.likes_count || 0}
+            {likeCount}
           </span>
         </button>
         <button
@@ -5952,7 +6078,10 @@ const FameFeed = ({
         if (block.type === "single-reel" && block.post) {
           return (
             <div key={block.key}>
-              <SingleReelBlock post={block.post} />
+              <SingleReelBlock
+                post={block.post}
+                currentUserId={currentUserId}
+              />
               <FeedDivider />
             </div>
           );

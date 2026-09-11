@@ -288,6 +288,34 @@ const FlickCard = memo(({ post, isActive, isPreloaded, currentUserId, onBridgeCh
   }, [isActive]);
 
   // ── Core like logic (used by button + double-tap) ─────────────────────
+  const refreshLikeState = useCallback(async () => {
+    const isFlick = post._source === "flicks";
+    const likesTable = isFlick ? "flick_likes" : "likes";
+    const fkCol = isFlick ? "flick_id" : "post_id";
+    const targetId = post._raw_id || post.id;
+
+    const [countResult, mineResult] = await Promise.all([
+      supabase
+        .from(likesTable)
+        .select("id", { count: "exact", head: true })
+        .eq(fkCol, targetId),
+      currentUserId
+        ? supabase
+            .from(likesTable)
+            .select("id")
+            .eq(fkCol, targetId)
+            .eq("user_id", currentUserId)
+            .limit(1)
+        : Promise.resolve({ data: [], error: null }),
+    ]);
+
+    if (countResult.error) throw countResult.error;
+    if (mineResult.error) throw mineResult.error;
+
+    setLiveLikes(countResult.count ?? 0);
+    setLikedByMe(Boolean(mineResult.data?.length));
+  }, [currentUserId, post._raw_id, post._source, post.id]);
+
   const triggerLike = async () => {
     if (!currentUserId) { toast.error("Please login to like"); return; }
     if (likeBusyRef.current) return;
@@ -299,41 +327,47 @@ const FlickCard = memo(({ post, isActive, isPreloaded, currentUserId, onBridgeCh
     setLikedByMe(isLiking);
     setLiveLikes(prev => isLiking ? prev + 1 : Math.max(prev - 1, 0));
     const isFlick   = post._source === "flicks";
-    const table     = isFlick ? "flicks"     : "posts";
     const likesTable = isFlick ? "flick_likes" : "likes";
     const fkCol     = isFlick ? "flick_id"   : "post_id";
+    const targetId  = post._raw_id || post.id;
     try {
       if (isLiking) {
         const { error } = await supabase
           .from(likesTable)
-          .upsert({ [fkCol]: post._raw_id, user_id: currentUserId, ...(isFlick ? {} : { reaction_type: "like" }) });
+          .upsert(
+            {
+              [fkCol]: targetId,
+              user_id: currentUserId,
+              ...(isFlick ? {} : { reaction_type: "like" }),
+            },
+            {
+              onConflict: `${fkCol},user_id`,
+              ignoreDuplicates: true,
+            },
+          );
         if (error) throw error;
       } else {
         const { error } = await supabase
           .from(likesTable)
           .delete()
-          .eq(fkCol, post._raw_id)
+          .eq(fkCol, targetId)
           .eq("user_id", currentUserId);
         if (error) throw error;
       }
-      const { count, error: countError } = await supabase
-        .from(likesTable)
-        .select("id", { count: "exact", head: true })
-        .eq(fkCol, post._raw_id);
-      if (countError) throw countError;
-      const accurateCount = Number(count) || 0;
-      setLiveLikes(accurateCount);
-
-      // Keep the denormalized counter fresh where the current RLS policy
-      // permits it. The relation count above remains the source of truth.
-      const { error: counterError } = await supabase
-        .from(table)
-        .update({ likes_count: accurateCount })
-        .eq("id", post._raw_id);
-      if (counterError) console.warn("[Flicks] likes_count sync skipped:", counterError.message);
+      // Read both the exact count and this user's row after the mutation.
+      // Never derive the final state from a stale card count and never write
+      // a client-calculated counter back to posts/flicks.
+      await refreshLikeState();
     } catch (err) {
-      setLikedByMe(previousLiked);
-      setLiveLikes(previousCount);
+      // A failed mutation may still have reached the database. Reconcile
+      // first; only roll back the optimistic state if the authoritative read
+      // also fails.
+      try {
+        await refreshLikeState();
+      } catch {
+        setLikedByMe(previousLiked);
+        setLiveLikes(previousCount);
+      }
       console.error("[Flicks] like update failed:", err);
       toast.error("Like update nahi hua");
     } finally {
