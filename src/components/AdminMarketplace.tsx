@@ -92,13 +92,18 @@ function CheckoutDrawer({
   const [utrId,         setUtrId]         = useState("");
   const [placing,       setPlacing]       = useState(false);
   const [upiCopied,     setUpiCopied]     = useState(false);
+  const authUserRef = useRef<any>(null);
+  const authUserReadyRef = useRef<Promise<any> | null>(null);
 
   const sizes  = item.sizes  ? item.sizes.split(",").map(s => s.trim()).filter(Boolean)  : [];
   const colors = item.colors ? item.colors.split(",").map(c => c.trim()).filter(Boolean) : [];
 
   // Pre-fill name from auth
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
+    const request = supabase.auth.getUser();
+    authUserReadyRef.current = request;
+    request.then(({ data }) => {
+      authUserRef.current = data.user ?? null;
       if (data.user) {
         const n = data.user.user_metadata?.full_name || data.user.email?.split("@")[0] || "";
         setName(n);
@@ -127,7 +132,9 @@ function CheckoutDrawer({
     }
     setPlacing(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const user = authUserRef.current
+        ?? (await authUserReadyRef.current)?.data?.user
+        ?? null;
       const payload = {
         tracking_code:  genTrackingCode(),
         user_id:        user?.id        ?? null,

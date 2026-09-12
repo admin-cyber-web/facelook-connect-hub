@@ -6,3 +6,4 @@
 - [Supabase bandwidth guardrails](supabase-bandwidth-guardrails.md) — public feeds stay bounded/manual; realtime is limited to scoped live state and disconnects while hidden.
 - [Settings editor safety](settings-editor-safety.md) — admin showcase editing must isolate draft state and never dismiss on backdrop clicks
 - [Step 2 aggregate egress](step2-egress-aggregates.md) — engagement and member/follower totals use bounded aggregate RPCs with scoped fallbacks until SQL is deployed
+- [Android icon generation](android-icon-generation.md) — use a separate circular mask image with the local ImageMagick build

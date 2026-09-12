@@ -829,11 +829,9 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   );
 
   const handleMsgReact = async (msgId: string, emoji: string) => {
-    // ── Step 1: get real auth user ID directly from Supabase session ──────────
-    const {
-      data: { user: authUser },
-    } = await supabase.auth.getUser();
-    const reactingUserId = authUser?.id ?? userId;
+    // userId comes from the authenticated App session. Reusing it avoids an
+    // auth request for every reaction.
+    const reactingUserId = userId;
 
     if (!reactingUserId) {
       console.error("[Reaction] ❌ No user ID — aborting");
@@ -1120,6 +1118,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   const messageLoadInFlightRef = useRef(false);
   const olderLoadInFlightRef = useRef(false);
   const oldestMessageCursorRef = useRef<string | null>(null);
+  const lastMessageLoadAtRef = useRef(0);
   const conversationKeyRef = useRef("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -2209,6 +2208,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       });
       setLoadingMessages(false);
       messageLoadInFlightRef.current = false;
+      lastMessageLoadAtRef.current = Date.now();
 
       // Mark all received messages as seen
       await supabase
@@ -2343,7 +2343,13 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       .subscribe();
     const cleanupConversationChannel = subscribeWhileVisible(
       createConversationChannel,
-      { onVisible: () => { void load(); } },
+      {
+        onVisible: () => {
+          // A visibility transition can happen immediately after mount. Avoid
+          // downloading the same message window again unless it is stale.
+          if (Date.now() - lastMessageLoadAtRef.current > 15_000) void load();
+        },
+      },
     );
 
     // Typing presence channel
@@ -2378,12 +2384,8 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   const sendFriendRequest = async (targetId: string) => {
     setActionLoading(targetId);
     try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      const senderId = session?.user?.id ?? userId;
       const { error } = await supabase.from("friendships").insert({
-        sender_id: senderId,
+        sender_id: userId,
         receiver_id: targetId,
         status: "pending",
       });
@@ -2504,11 +2506,8 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     setReplyTo(null);
     if (soundEnabled) playSound("send");
 
-    // Always use the authenticated user ID to satisfy RLS policies
-    const {
-      data: { user: authUser },
-    } = await supabase.auth.getUser();
-    const realSenderId = authUser?.id ?? userId;
+    // userId is supplied from the authenticated App session.
+    const realSenderId = userId;
 
     const tempId = `temp-${Date.now()}`;
     const tempMsg: Message = {

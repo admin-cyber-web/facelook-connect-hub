@@ -4,7 +4,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "../lib/supabaseClient";
 import { X, MapPin, GraduationCap, UserPlus, MessageCircle, Check, Users, Ban, ShieldCheck, UserMinus, Flag, ShieldAlert } from "lucide-react";
 import { useProfileViewer } from "../context/ProfileViewerContext";
-import { isAdminEmail } from "../lib/adminConfig";
 import { toast } from "sonner";
 import { memGet, memSet } from "../lib/memCache";
 
@@ -37,9 +36,9 @@ interface Friend {
 
 const UserProfileModal = ({ userId, currentUserId, isAdmin: isAdminProp = false, onClose }: Props) => {
   const { openProfile } = useProfileViewer();
-  const [myEmail, setMyEmail] = useState<string | null>(null);
-  // Robust admin detection: trust prop OR fall back to fetched email of logged-in user
-  const isAdmin = isAdminProp || isAdminEmail(myEmail);
+  // ProfileViewerContext already derives this from the authenticated session
+  // email. Do not issue another auth request just to repeat that check.
+  const isAdmin = isAdminProp;
   const [profile, setProfile]         = useState<ProfileData | null>(null);
   const [friends, setFriends]         = useState<Friend[]>([]);
   const [postCount, setPostCount]     = useState(0);
@@ -59,10 +58,6 @@ const UserProfileModal = ({ userId, currentUserId, isAdmin: isAdminProp = false,
   const dragY = useRef(0);
 
   const isOwnProfile = userId === currentUserId;
-
-  useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => setMyEmail(data.user?.email ?? null));
-  }, []);
 
   useEffect(() => {
     if (!userId) return;

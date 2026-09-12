@@ -1922,6 +1922,8 @@ interface FameFeedProps {
   onNavigateToSurveys?: () => void;
   isAdmin?: boolean;
   localProfile?: LocalProfile;
+  currentUserId?: string;
+  currentUserEmail?: string;
 }
 
 // ── Hidden Posts Archive Drawer ───────────────────────────────────────────────
@@ -2123,6 +2125,8 @@ const FameFeed = ({
   onNavigateToSurveys,
   isAdmin: isAdminProp = false,
   localProfile = {},
+  currentUserId: currentUserIdProp,
+  currentUserEmail: currentUserEmailProp,
 }: FameFeedProps) => {
   const { openProfile } = useProfileViewer();
   const { playPop, playSwoosh } = useSoundEffects();
@@ -2183,8 +2187,8 @@ const FameFeed = ({
   );
   const longPressCommentPos = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const [commentText, setCommentText] = useState("");
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(currentUserIdProp ?? null);
+  const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(currentUserEmailProp ?? null);
   const onlineUserIds = useOnlineUsers();
   // Robust admin detection: direct email match (isAdminEmail also checks same list)
   const isAdmin =
@@ -2539,13 +2543,11 @@ const FameFeed = ({
   };
 
   useEffect(() => {
-    supabase.auth
-      .getUser()
-      .then(async ({ data }) => {
+    (async () => {
         try {
-          const uid = data.user?.id ?? null;
+          const uid = currentUserIdProp ?? null;
           setCurrentUserId(uid);
-          setCurrentUserEmail(data.user?.email ?? null);
+          setCurrentUserEmail(currentUserEmailProp ?? null);
           if (uid) {
             // ── Restore hidden posts from localStorage (survives refresh) ──
             try {
@@ -2642,11 +2644,10 @@ const FameFeed = ({
             }
           }
         } catch (e) {
-          console.error("[FameFeed] auth useEffect error:", e);
+          console.error("[FameFeed] init error:", e);
         }
-      })
-      .catch((e) => console.error("[FameFeed] getUser error:", e));
-  }, []);
+      })();
+  }, [currentUserIdProp, currentUserEmailProp]);
 
   // ── Fetch owner profile names once suggestions are loaded ─────────────────
   useEffect(() => {
@@ -3929,27 +3930,23 @@ const FameFeed = ({
     if (!text) return;
     playSwoosh();
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
     // Use the user-saved profile name first; fall back to OAuth/email
     let authorName = userProfile?.full_name;
-    if (!authorName && user?.id) {
+    if (!authorName && currentUserId) {
       const { data: freshProfile } = await supabase
         .from("profiles")
         .select("full_name")
-        .eq("id", user.id)
+        .eq("id", currentUserId)
         .maybeSingle();
       authorName = freshProfile?.full_name;
     }
     authorName =
       authorName ||
-      user?.user_metadata?.full_name ||
-      user?.email?.split("@")[0] ||
+      userProfile?.username ||
+      currentUserEmail?.split("@")[0] ||
       "Vibe User";
 
-    if (!user?.id) {
+    if (!currentUserId) {
       toast.error("Pehle login karo.");
       return;
     }
@@ -4177,8 +4174,7 @@ const FameFeed = ({
     setReportSubmitting(true);
 
     // Always capture the logged-in user's id so reporter_id is never null
-    const { data: authData } = await supabase.auth.getUser();
-    const reporterId = authData?.user?.id || currentUserId || null;
+    const reporterId = currentUserId || null;
 
     const reportPayload = {
       reporter_id: reporterId,

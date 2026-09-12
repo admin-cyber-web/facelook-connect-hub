@@ -4356,6 +4356,8 @@ const PersonalizationView = React.memo(({
                     <FameFeed
                       onPostClick={() => setIsPostOpen(true)}
                       onImageSelect={(f) => setPendingFile(f)}
+                      currentUserId={userId}
+                      currentUserEmail={userEmail}
                       userProfile={profile}
                       suggestions={onlineUsers}
                       onNavigateToCircles={() => setActiveFeature("Circle")}
@@ -4618,7 +4620,12 @@ const PersonalizationView = React.memo(({
               <ErrorBoundary>
               <Suspense fallback={<SectionLoader />}>
               <div className="fixed inset-0 z-[300] bg-black touch-scroll-y">
-                <FlicksFeed onBack={() => setActiveFeature("Fame")} isAdmin={isAppAdmin} currentUserEmail={userEmail} />
+                <FlicksFeed
+                  onBack={() => setActiveFeature("Fame")}
+                  isAdmin={isAppAdmin}
+                  currentUserId={userId}
+                  currentUserEmail={userEmail}
+                />
               </div>
               </Suspense>
               </ErrorBoundary>

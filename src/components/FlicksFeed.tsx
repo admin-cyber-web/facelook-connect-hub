@@ -341,10 +341,9 @@ const FlickCard = memo(({ post, isActive, isPreloaded, currentUserId, onBridgeCh
           .eq("user_id", currentUserId);
         if (error) throw error;
       }
-      // Read both the exact count and this user's row after the mutation.
-      // Never derive the final state from a stale card count and never write
-      // a client-calculated counter back to posts/flicks.
-      await refreshLikeState();
+      // Keep the optimistic card state after a successful mutation. The feed
+      // already receives the server counter with the bounded post projection;
+      // rereading count + viewer row here doubled egress for every tap.
     } catch (err) {
       // A failed mutation may still have reached the database. Reconcile
       // first; only roll back the optimistic state if the authoritative read
@@ -796,14 +795,20 @@ const FlickCard = memo(({ post, isActive, isPreloaded, currentUserId, onBridgeCh
 });
 
 // ── Main FlicksApp ────────────────────────────────────────────────────────────
-export default function FlicksApp({ onBack, onBridgeChat, isAdmin: isAdminProp = false, currentUserEmail: currentUserEmailProp }: any) {
+export default function FlicksApp({
+  onBack,
+  onBridgeChat,
+  isAdmin: isAdminProp = false,
+  currentUserEmail: currentUserEmailProp,
+  currentUserId: currentUserIdProp,
+}: any) {
   const dataCache    = useDataCache();
   const cachedFlicks = dataCache.cacheRef.current.flicksFeed;
   const [flicks,       setFlicks]       = useState<any[]>(() => cachedFlicks?.data ?? []);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading,      setLoading]      = useState(() => !cachedFlicks?.data);
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [fetchedEmail,  setFetchedEmail]  = useState<string | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(currentUserIdProp ?? null);
+  const [fetchedEmail,  setFetchedEmail]  = useState<string | null>(currentUserEmailProp ?? null);
   const isAdmin = isAdminProp || isAdminEmail(currentUserEmailProp) || isAdminEmail(fetchedEmail);
   const containerRef = useRef<HTMLDivElement>(null);
   const currentIndexRef = useRef(0);
@@ -817,7 +822,7 @@ export default function FlicksApp({ onBack, onBridgeChat, isAdmin: isAdminProp =
       try {
         const { data: postsData, error: postsErr } = await supabase
           .from("posts")
-          .select("id, author, author_id, content, media_url, type, metadata, cover_url, views_count, likes_count, comments_count, shares_count, created_at, author_profile:profiles!posts_author_id_fkey(avatar_url, full_name)")
+          .select("id, author, author_id, content, media_url, type, metadata, cover_url, views_count, likes_count, comments_count, shares_count, meta_title, meta_description, created_at, author_profile:profiles!posts_author_id_fkey(avatar_url, full_name)")
           .in("type", ["video", "reel"])
           .order("created_at", { ascending: false })
           .limit(30);
@@ -865,13 +870,11 @@ export default function FlicksApp({ onBack, onBridgeChat, isAdmin: isAdminProp =
       finally { setLoading(false); }
     };
 
-    supabase.auth.getUser().then(({ data }) => {
-      const viewerId = data.user?.id ?? null;
-      setCurrentUserId(viewerId);
-      setFetchedEmail(data.user?.email ?? null);
-      fetchData(viewerId);
-    });
-  }, []);
+    const viewerId = currentUserIdProp ?? null;
+    setCurrentUserId(viewerId);
+    setFetchedEmail(currentUserEmailProp ?? null);
+    fetchData(viewerId);
+  }, [currentUserIdProp, currentUserEmailProp]);
 
   // RAF-throttled scroll → update active index
   const scrollTicking = useRef(false);
