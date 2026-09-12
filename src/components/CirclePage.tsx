@@ -394,6 +394,7 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
   // Post in group
   const [postText, setPostText] = useState("");
   const [postMedia, setPostMedia] = useState<File | null>(null);
+  const [postMediaPreview, setPostMediaPreview] = useState<string | null>(null);
   const [posting, setPosting] = useState(false);
   const [likedPostIds, setLikedPostIds] = useState<Set<string>>(new Set());
   const [commentPostId, setCommentPostId] = useState<string | null>(null);
@@ -450,6 +451,15 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
   const [editGroupSaving, setEditGroupSaving]   = useState(false);
   const [confirmDeleteGroup, setConfirmDeleteGroup] = useState(false);
   const [deletingGroup, setDeletingGroup]       = useState(false);
+
+  useEffect(() => {
+    const urls = [coverPreview, postMediaPreview, chatMediaPreview, editGroupCoverPrev];
+    return () => {
+      urls.forEach(url => {
+        if (url?.startsWith("blob:")) URL.revokeObjectURL(url);
+      });
+    };
+  }, [coverPreview, postMediaPreview, chatMediaPreview, editGroupCoverPrev]);
 
   // Circle Events
   const [circleEvents, setCircleEvents]       = useState<CircleEvent[]>([]);
@@ -1408,6 +1418,7 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
       }
       setPostText("");
       setPostMedia(null);
+      setPostMediaPreview(null);
       await fetchCirclePosts(selectedGroup.id);
       toast.success(postStatus === "pending" ? "Post sent for review." : "Post published.");
     } finally {
@@ -2463,10 +2474,12 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
                       style={{ background: "rgba(255,255,255,0.06)" }}
                       rows={2}
                     />
-                    {postMedia && (
+                    {postMedia && postMediaPreview && (
                       <div className="relative mt-2 w-20 h-20 rounded-lg overflow-hidden">
-                        <img src={URL.createObjectURL(postMedia)} className="w-full h-full object-cover" alt="" loading="lazy" decoding="async"/>
-                        <button onClick={() => setPostMedia(null)} className="absolute top-1 right-1 bg-black/70 rounded-full p-0.5">
+                        {postMedia.type.startsWith("video/")
+                          ? <video src={postMediaPreview} className="w-full h-full object-cover" muted playsInline preload="metadata" />
+                          : <img src={postMediaPreview} className="w-full h-full object-cover" alt="" loading="lazy" decoding="async"/>}
+                        <button onClick={() => { setPostMedia(null); setPostMediaPreview(null); }} className="absolute top-1 right-1 bg-black/70 rounded-full p-0.5">
                           <X size={10} className="text-white" />
                         </button>
                       </div>
@@ -2478,7 +2491,7 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
                         <ImageIcon size={16} />
                       </button>
                       <input ref={mediaInputRef} type="file" accept="image/*,video/*" className="hidden"
-                        onChange={e => { const f = e.target.files?.[0]; if (f) setPostMedia(f); e.target.value = ""; }} />
+                         onChange={e => { const f = e.target.files?.[0]; if (f) { setPostMedia(f); setPostMediaPreview(URL.createObjectURL(f)); } e.target.value = ""; }} />
                       <button
                         onClick={handleGroupPost}
                         disabled={!postText.trim() || posting}

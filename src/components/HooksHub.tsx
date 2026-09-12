@@ -34,6 +34,9 @@ interface Friend { id: string; full_name: string; avatar_url: string; }
 
 const CATEGORIES = ["General","Business","Entertainment","Education","Sports","Food","Travel","Tech","Art","Music"];
 const STORAGE_BUCKET = "hooks";
+const revokeBlobUrl = (url: string | null | undefined) => {
+  if (url?.startsWith("blob:")) URL.revokeObjectURL(url);
+};
 
 // ── Graceful hook_pages helper ─────────────────────────────────────────────
 // Silently absorbs errors when hook_pages table doesn't exist yet (PGRST204 /
@@ -189,6 +192,11 @@ const EditPageModal = ({ page, userId, onClose, onSaved }:
   const [avatarPrev, setAvatarPrev] = useState(page.avatar_url || "");
   const [saving, setSaving]   = useState(false);
   const [err, setErr]         = useState("");
+
+  useEffect(() => () => {
+    revokeBlobUrl(coverPrev);
+    revokeBlobUrl(avatarPrev);
+  }, [coverPrev, avatarPrev]);
 
   const save = async () => {
     if (!form.name.trim()) { setErr("Page ka naam zaroori hai"); return; }
@@ -435,6 +443,8 @@ const AddPostModal = ({ pageId, userId, isOwner, pageName, onClose, onPosted }:
   const imgRef  = useRef<HTMLInputElement>(null);
   const vidRef  = useRef<HTMLInputElement>(null);
 
+  useEffect(() => () => revokeBlobUrl(mediaPreview), [mediaPreview]);
+
   const pickFile = (file: File, type: "image" | "video") => {
     setMediaFile(file); setMediaType(type);
     setMediaPreview(URL.createObjectURL(file));
@@ -563,6 +573,8 @@ const CreatePageModal = ({ userId, onClose, onCreated }:
   const [ownerProfile, setOwnerProfile] = useState<{ avatar_url: string | null; full_name: string | null } | null>(null);
   const [saving, setSaving]         = useState(false);
   const [err, setErr]               = useState("");
+
+  useEffect(() => () => revokeBlobUrl(coverPrev), [coverPrev]);
 
   // Auto-load creator's profile on mount — cached 5 min
   useEffect(() => {

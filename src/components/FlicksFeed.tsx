@@ -23,6 +23,7 @@ const formatCount = (n: any): string => {
 };
 
 const SUPPORTED_VIDEO_EXTENSIONS = /\.(mp4|webm)(?:$|[?#])/i;
+let globalSoundEnabled = false;
 
 const isSupportedVideoUrl = (url: unknown, metadata?: any): boolean => {
   if (typeof url !== "string" || !url.trim()) return false;
@@ -203,7 +204,7 @@ const FlickCard = memo(({ post, isActive, isPreloaded, currentUserId, onBridgeCh
   const likeBusyRef = useRef(false);
   const heartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const [isMuted,           setIsMuted]           = useState(false);
+  const [isMuted,           setIsMuted]           = useState(!globalSoundEnabled);
   const [likedByMe,         setLikedByMe]         = useState(false);
   const [liveLikes,         setLiveLikes]          = useState(Number(post?.likes_count || 0));
   const [liveCommentsCount, setLiveCommentsCount]  = useState(Number(post?.comments_count || 0));
@@ -255,7 +256,7 @@ const FlickCard = memo(({ post, isActive, isPreloaded, currentUserId, onBridgeCh
       // Reset transient error/loading on each activation (e.g. user scrolled away and back)
       setVideoError(null);
       vid.currentTime = 0;
-      const wantSound = true;
+      const wantSound = globalSoundEnabled;
       vid.muted  = !wantSound;
       vid.volume = 1;
       setIsMuted(!wantSound);
@@ -363,6 +364,14 @@ const FlickCard = memo(({ post, isActive, isPreloaded, currentUserId, onBridgeCh
 
   // ── Tap handler: double-tap anywhere on the video = like ────────────────
   const handleVideoTap = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!globalSoundEnabled) {
+      globalSoundEnabled = true;
+      if (isActive && videoRef.current) {
+        videoRef.current.muted = false;
+        setIsMuted(false);
+        videoRef.current.play().catch(() => {});
+      }
+    }
     const now = Date.now();
     if (now - lastTap.current < 300) {
       // Double-tap detected
@@ -504,8 +513,8 @@ const FlickCard = memo(({ post, isActive, isPreloaded, currentUserId, onBridgeCh
         loop
         muted={isMuted}
         playsInline
-        autoPlay={isActive}
-        preload={isActive || isPreloaded ? "auto" : "metadata"}
+        autoPlay={false}
+        preload={isActive ? "auto" : isPreloaded ? "metadata" : "none"}
         className="absolute inset-0 w-full h-full object-cover"
         style={{
           backgroundColor: "#000",

@@ -1076,7 +1076,10 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   const [deletingStory, setDeletingStory] = useState(false);
   const storyInputRef = useRef<HTMLInputElement>(null);
   const storyAudioRef = useRef<HTMLAudioElement | null>(null);
+  const storyVideoRef = useRef<HTMLVideoElement | null>(null);
   const storyTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const storyDeadlineRef = useRef<number | null>(null);
+  const storyElapsedRef = useRef(0);
   const [storyElapsed, setStoryElapsed] = useState(0);
   const [storyPaused, setStoryPaused] = useState(false);
   const storyViewedRef = useRef<Set<string>>(new Set());
@@ -1100,9 +1103,13 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   }, [pendingFilePreview, storyPreviews, storyPreviewUrl]);
 
   const clearStoryPreviews = () => {
-    storyPreviews.forEach(revokeObjectUrl);
-    if (!storyPreviews.includes(storyPreviewUrl)) revokeObjectUrl(storyPreviewUrl);
-    clearStoryPreviews();
+    const urls = new Set(storyPreviews);
+    if (storyPreviewUrl) urls.add(storyPreviewUrl);
+    urls.forEach(revokeObjectUrl);
+    setStoryPreviews([]);
+    setStoryPreviewUrl("");
+    setStoryFiles([]);
+    setStoryFile(null);
   };
 
   // ── Advanced features state ────────────────────────────────────────────────
@@ -1815,27 +1822,40 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
 
   // ── Story viewer: 15s countdown timer ────────────────────────────────────
   useEffect(() => {
+    storyElapsedRef.current = storyElapsed;
+  }, [storyElapsed]);
+
+  useEffect(() => {
     if (!storyViewerOpen || storyPaused || storyGroups.length === 0) return;
-    storyTimerRef.current = setInterval(() => {
-      setStoryElapsed((e) => {
-        if (e + 0.1 >= 15) {
-          // advance to next story
-          const group = storyGroups[viewerGroupIdx];
-          const totalInGroup = group?.stories.length ?? 0;
-          if (viewerStoryIdx + 1 < totalInGroup) {
-            setViewerStoryIdx((i) => i + 1);
-          } else if (viewerGroupIdx + 1 < storyGroups.length) {
-            setViewerGroupIdx((g) => g + 1);
-            setViewerStoryIdx(0);
-          } else {
-            setStoryViewerOpen(false);
-            setViewingStory(null);
-          }
-          return 0;
+    const startedAt = Date.now() - storyElapsedRef.current * 1000;
+    const deadline = startedAt + 15_000;
+    storyDeadlineRef.current = deadline;
+    let advanced = false;
+    const tick = () => {
+      if (document.hidden) return;
+      const now = Date.now();
+      if (now >= deadline) {
+        if (advanced) return;
+        advanced = true;
+        if (storyTimerRef.current) clearInterval(storyTimerRef.current);
+        storyDeadlineRef.current = null;
+        const group = storyGroups[viewerGroupIdx];
+        const totalInGroup = group?.stories.length ?? 0;
+        if (viewerStoryIdx + 1 < totalInGroup) {
+          setViewerStoryIdx(viewerStoryIdx + 1);
+        } else if (viewerGroupIdx + 1 < storyGroups.length) {
+          setViewerGroupIdx(viewerGroupIdx + 1);
+          setViewerStoryIdx(0);
+        } else {
+          setStoryViewerOpen(false);
+          setViewingStory(null);
         }
-        return e + 0.1;
-      });
-    }, 250);
+        return;
+      }
+      setStoryElapsed(Math.min(15, Math.max(0, (now - startedAt) / 1000)));
+    };
+    storyTimerRef.current = setInterval(tick, 1000);
+    tick();
     return () => {
       if (storyTimerRef.current) clearInterval(storyTimerRef.current);
     };
@@ -1849,6 +1869,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
 
   // ── Story viewer: reset elapsed on story change ───────────────────────────
   useEffect(() => {
+    storyElapsedRef.current = 0;
     setStoryElapsed(0);
   }, [viewerGroupIdx, viewerStoryIdx]);
 
@@ -1878,6 +1899,28 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     }
     return stopAudio;
   }, [storyViewerOpen, viewerGroupIdx, viewerStoryIdx, storyGroups]);
+
+  // Story media must stop when the app is backgrounded or the viewer closes.
+  useEffect(() => {
+    const stopVideo = () => {
+      storyVideoRef.current?.pause();
+      if (storyVideoRef.current) storyVideoRef.current.currentTime = 0;
+    };
+    const handleVisibility = () => {
+      if (document.hidden) {
+        stopVideo();
+        storyAudioRef.current?.pause();
+      } else if (storyViewerOpen && !storyPaused) {
+        storyVideoRef.current?.play().catch(() => {});
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    if (!storyViewerOpen) {
+      stopVideo();
+      storyAudioRef.current?.pause();
+    }
+    return () => document.removeEventListener("visibilitychange", handleVisibility);
+  }, [storyViewerOpen, storyPaused]);
 
   // ── Story viewer: view tracking ───────────────────────────────────────────
   useEffect(() => {
@@ -3783,27 +3826,31 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                             </div>
                           ) : story.media_type === "video" ? (
                             story.mood === "grid" ? (
-                              <div className="w-full h-full grid grid-cols-2 grid-rows-2">
-                                {[0, 1, 2, 3].map((j) => (
-                                  <video
-                                    key={j}
-                                    src={getStoryMediaUrl(story.image_url)}
-                                    className="w-full h-full object-cover"
-                                    autoPlay
-                                    muted={!!story.music_url}
-                                    playsInline
-                                    loop
-                                    onError={onStoryMediaError}
-                                  />
-                                ))}
+                              <div className="relative w-full h-full">
+                                <video
+                                  ref={storyVideoRef}
+                                  src={getStoryMediaUrl(story.image_url)}
+                                  className="w-full h-full object-cover"
+                                  autoPlay
+                                  muted
+                                  playsInline
+                                  preload="metadata"
+                                  loop
+                                  onError={onStoryMediaError}
+                                />
+                                <div className="absolute inset-0 pointer-events-none grid grid-cols-2 grid-rows-2">
+                                  {[0, 1, 2, 3].map(j => <div key={j} className="border border-white/10" />)}
+                                </div>
                               </div>
                             ) : (
                               <video
+                                ref={storyVideoRef}
                                 src={getStoryMediaUrl(story.image_url)}
                                 className="w-full h-full object-cover"
                                 autoPlay
-                                muted={!!story.music_url}
+                                muted
                                 playsInline
+                                preload="metadata"
                                 loop
                                 style={{ filter: moodFilter }}
                                 onError={onStoryMediaError}
@@ -4052,15 +4099,20 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                             <div className="w-full h-full grid grid-cols-2 grid-rows-2">
                               {[0, 1, 2, 3].map((j) =>
                                 storyFile?.type.startsWith("video/") ? (
-                                  <video
-                                    key={j}
-                                    src={storyPreviewUrl}
-                                    className="w-full h-full object-cover"
-                                    muted
-                                    playsInline
-                                    loop
-                                    autoPlay
-                                  />
+                                  <div className="relative w-full h-full">
+                                    <video
+                                      src={storyPreviewUrl}
+                                      className="w-full h-full object-cover"
+                                      muted
+                                      playsInline
+                                      preload="metadata"
+                                      loop
+                                      autoPlay
+                                    />
+                                    <div className="absolute inset-0 pointer-events-none grid grid-cols-2 grid-rows-2">
+                                      {[0, 1, 2, 3].map(k => <div key={k} className="border border-white/10" />)}
+                                    </div>
+                                  </div>
                                 ) : (
                                   <img
                                     key={j}
@@ -4084,6 +4136,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                               }}
                               muted
                               playsInline
+                              preload="metadata"
                               loop
                               autoPlay
                             />

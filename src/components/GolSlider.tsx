@@ -1,5 +1,4 @@
-import { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useState, useEffect, useRef } from "react";
 import { Film, Anchor, CheckSquare, Users, Star, Shield, ChevronUp, ChevronDown, Clapperboard, Mic2 } from "lucide-react";
 
 const BASE_NAV_ITEMS = [
@@ -45,6 +44,28 @@ function injectKeyframes() {
       50%  { box-shadow: 0 2px 14px rgba(0,229,255,0.9); }
       100% { box-shadow: 0 2px 8px rgba(0,229,255,0.55); }
     }
+    @keyframes gol-beam {
+      0% { left: -90px; opacity: 0; }
+      18% { opacity: .9; }
+      82% { opacity: .9; }
+      100% { left: calc(100% + 90px); opacity: 0; }
+    }
+    @keyframes gol-word-in {
+      from { opacity: 0; transform: translateY(6px) scale(.88); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    .gol-lightning-beam { animation: gol-beam 2.2s ease-in-out both; }
+    .gol-lightning-word { animation: gol-word-in .5s ease-out both; }
+    .gol-handle-glow { animation: gol-handle-glow 2.4s ease-in-out infinite; }
+    .gol-chevron-pulse { animation: gol-chevron-pulse 2.4s ease-in-out infinite; }
+    @keyframes gol-handle-glow {
+      0%, 100% { box-shadow: 0 -3px 20px rgba(0,229,255,0.10), 0 0 0 rgba(0,229,255,0); }
+      50% { box-shadow: 0 -3px 30px rgba(0,229,255,0.40), 0 0 14px rgba(0,229,255,0.18); }
+    }
+    @keyframes gol-chevron-pulse {
+      0%, 100% { transform: scale(1); opacity: .6; }
+      50% { transform: scale(1.25); opacity: 1; }
+    }
   `;
   document.head.appendChild(s);
 }
@@ -53,24 +74,36 @@ function injectKeyframes() {
 function HandleLightning() {
   const [index, setIndex] = useState(0);
   const [visible, setVisible] = useState(true);
+  const cycleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fadeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    const cycle = () => {
-      setVisible(false);
-      setTimeout(() => {
-        setIndex((i) => (i + 1) % LIGHTNING_WORDS.length);
-        setVisible(true);
-      }, 500);
+    const stop = () => {
+      if (cycleTimerRef.current) clearTimeout(cycleTimerRef.current);
+      if (fadeTimerRef.current) clearTimeout(fadeTimerRef.current);
+      cycleTimerRef.current = null;
+      fadeTimerRef.current = null;
     };
-    const id = setInterval(cycle, 2800);
+    const schedule = () => {
+      stop();
+      if (document.hidden) return;
+      cycleTimerRef.current = setTimeout(() => {
+        setVisible(false);
+        fadeTimerRef.current = setTimeout(() => {
+          setIndex((i) => (i + 1) % LIGHTNING_WORDS.length);
+          setVisible(true);
+          schedule();
+        }, 500);
+      }, 2800);
+    };
     const onViz = () => {
-      if (document.hidden) {
-        clearInterval(id);
-      }
+      if (document.hidden) stop();
+      else schedule();
     };
+    schedule();
     document.addEventListener("visibilitychange", onViz);
     return () => {
-      clearInterval(id);
+      stop();
       document.removeEventListener("visibilitychange", onViz);
     };
   }, []);
@@ -90,13 +123,9 @@ function HandleLightning() {
       }}
     >
       {/* Sweeping beam — slow left-to-right */}
-      <AnimatePresence>
-        {visible && (
-          <motion.div
-            key={`beam-${index}`}
-            initial={{ left: "-90px", opacity: 0 }}
-            animate={{ left: "calc(100% + 90px)", opacity: [0, 0.9, 0.9, 0] }}
-            transition={{ duration: 2.2, ease: "easeInOut" }}
+      {visible && (
+          <div
+            className="gol-lightning-beam"
             style={{
               position: "absolute",
               top: 0,
@@ -107,18 +136,13 @@ function HandleLightning() {
               zIndex: 1,
             }}
           />
-        )}
-      </AnimatePresence>
+      )}
 
       {/* Neon cursive word */}
-      <AnimatePresence mode="wait">
-        {visible && (
-          <motion.span
+      {visible && (
+          <span
             key={word + index}
-            initial={{ opacity: 0, y: 6, scale: 0.88 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -5, scale: 0.92 }}
-            transition={{ duration: 0.5, ease: "easeOut" }}
+            className="gol-lightning-word"
             style={{
               color,
               textShadow: `0 0 6px ${glow}, 0 0 16px ${glow}, 0 0 32px ${glow}`,
@@ -133,9 +157,8 @@ function HandleLightning() {
             }}
           >
             ⚡ {word} ⚡
-          </motion.span>
-        )}
-      </AnimatePresence>
+          </span>
+      )}
     </div>
   );
 }
@@ -254,16 +277,9 @@ const GolSlider = ({ onFeatureChange, activeFeature, hidden, isAdmin }: GolSlide
       </div>
 
       {/* ── HANDLE BAR — always visible, contains lightning animation ─────────── */}
-      <motion.button
+      <button
         onClick={() => setIsOpen((p) => !p)}
-        animate={{
-          boxShadow: [
-            "0 -3px 20px rgba(0,229,255,0.10), 0 0 0px rgba(0,229,255,0)",
-            "0 -3px 30px rgba(0,229,255,0.40), 0 0 14px rgba(0,229,255,0.18)",
-            "0 -3px 20px rgba(0,229,255,0.10), 0 0 0px rgba(0,229,255,0)",
-          ],
-        }}
-        transition={{ duration: 2.4, repeat: 3, ease: "easeInOut" }}
+        className="gol-handle-glow"
         style={{
           pointerEvents: "auto",
           background: BG_DARK,
@@ -291,9 +307,8 @@ const GolSlider = ({ onFeatureChange, activeFeature, hidden, isAdmin }: GolSlide
         <span style={{ width: 1, height: 16, background: CYAN_DIM, flexShrink: 0 }} />
 
         {/* Pulsing chevron — right side */}
-        <motion.span
-          animate={{ scale: [1, 1.25, 1], opacity: [0.6, 1, 0.6] }}
-          transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
+        <span
+          className="gol-chevron-pulse"
           style={{
             display: "flex",
             alignItems: "center",
@@ -307,8 +322,8 @@ const GolSlider = ({ onFeatureChange, activeFeature, hidden, isAdmin }: GolSlide
             ? <ChevronDown size={16} strokeWidth={3} />
             : <ChevronUp   size={16} strokeWidth={3} />
           }
-        </motion.span>
-      </motion.button>
+        </span>
+      </button>
     </div>
   );
 };

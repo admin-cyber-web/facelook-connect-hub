@@ -341,9 +341,12 @@ const StoryViewer = ({
   const [groupIdx, setGroupIdx] = useState(startGroupIdx);
   const [storyIdx, setStoryIdx] = useState(startStoryIdx);
   const [elapsed, setElapsed] = useState(0);
+  const elapsedRef = useRef(0);
   const [paused, setPaused] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const storyDeadlineRef = useRef<number | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
   const viewedRef = useRef<Set<string>>(new Set());
 
   // ── Action bar state ─────────────────────────────────────────────────────
@@ -361,6 +364,12 @@ const StoryViewer = ({
   const story = group?.stories[storyIdx];
   const totalInGroup = group?.stories.length ?? 0;
   const isOwner = currentUserId === story?.user_id;
+  const currentStoryIsVoice = story?.media_type === "voice" ||
+    /\.(mp3|wav|m4a|ogg|aac|flac)$/i.test(story?.image_url || "");
+
+  useEffect(() => {
+    elapsedRef.current = elapsed;
+  }, [elapsed]);
 
   // Resolve public URL for the current story
   const storyPublicUrl = story?.image_url
@@ -396,17 +405,28 @@ const StoryViewer = ({
     }
   }, [storyIdx, groupIdx, groups]);
 
-  // Timer tick — pauses when sheets are open or page is hidden (saves battery)
+  // Timer tick — one deadline + ~1s tick. Navigation stays outside state updaters.
   useEffect(() => {
     if (paused || showComments || showViewers) return;
+    const startedAt = Date.now() - elapsedRef.current * 1000;
+    const deadline = startedAt + DURATION * 1000;
+    storyDeadlineRef.current = deadline;
+    let advanced = false;
     const tick = () => {
       if (document.hidden) return; // don't fire when screen is off/app backgrounded
-      setElapsed(e => {
-      if (e + 0.25 >= DURATION) { goNext(); return 0; }
-        return e + 0.25;
-      });
+      const now = Date.now();
+      if (now >= deadline) {
+        if (advanced) return;
+        advanced = true;
+        if (timerRef.current) clearInterval(timerRef.current);
+        storyDeadlineRef.current = null;
+        goNext();
+        return;
+      }
+      setElapsed(Math.min(DURATION, Math.max(0, (now - startedAt) / 1000)));
     };
-    timerRef.current = setInterval(tick, 250);
+    timerRef.current = setInterval(tick, 1000);
+    tick();
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [paused, goNext, storyIdx, groupIdx, showComments, showViewers]);
 
@@ -431,17 +451,53 @@ const StoryViewer = ({
   const [musicPlaying, setMusicPlaying] = useState(false);
 
   useEffect(() => {
-    if (!musicPublicUrl) return;
-    audioRef.current = new Audio(musicPublicUrl);
+    const playbackUrl = currentStoryIsVoice ? storyPublicUrl : musicPublicUrl;
+    if (!playbackUrl) return;
+    audioRef.current = new Audio(playbackUrl);
+    audioRef.current.preload = "none";
     audioRef.current.volume = 0.5;
     audioRef.current.loop = true;
-    // Browsers block autoplay — user must click the speaker icon
+    // Browsers may block autoplay; the story viewer remains usable without audio.
+    if (currentStoryIsVoice) audioRef.current.play().catch(() => {});
     return () => {
       audioRef.current?.pause();
+      if (audioRef.current) {
+        audioRef.current.currentTime = 0;
+        audioRef.current.src = "";
+        audioRef.current.load();
+      }
       audioRef.current = null;
       setMusicPlaying(false);
+      videoRef.current?.pause();
+      if (videoRef.current) videoRef.current.currentTime = 0;
     };
-  }, [musicPublicUrl, story?.id]);
+  }, [musicPublicUrl, storyPublicUrl, currentStoryIsVoice, story?.id]);
+
+  // Stop nonessential media while the tab/app is hidden and resume only when
+  // the viewer was not intentionally paused.
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.hidden) {
+        videoRef.current?.pause();
+        audioRef.current?.pause();
+        return;
+      }
+      if (!paused) {
+        videoRef.current?.play().catch(() => {});
+        if (musicPlaying || currentStoryIsVoice) audioRef.current?.play().catch(() => {});
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => document.removeEventListener("visibilitychange", handleVisibility);
+  }, [paused, musicPlaying, currentStoryIsVoice]);
+
+  useEffect(() => {
+    if (currentStoryIsVoice || paused) return;
+    const frame = requestAnimationFrame(() => {
+      videoRef.current?.play().catch(() => {});
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [story?.id, currentStoryIsVoice, paused]);
 
   const toggleMusic = () => {
     if (!audioRef.current) return;
@@ -489,8 +545,7 @@ const StoryViewer = ({
 
   if (!story || !group) return null;
 
-  const isVoice = story.media_type === "voice" ||
-    /\.(mp3|wav|m4a|ogg|aac|flac)$/i.test(story.image_url || "");
+  const isVoice = currentStoryIsVoice;
   const moodFilter = MOOD_FILTER[story.mood ?? ""] ?? "";
   const isSad = story.mood === "sad";
   const isParty = story.mood === "party";
@@ -617,9 +672,6 @@ const StoryViewer = ({
               {isVoice ? (
                 <div className="w-full h-full flex flex-col items-center justify-center gap-6"
                   style={{ background: `linear-gradient(160deg, ${gradFor(group.user_id)}, #0f172a)` }}>
-                  {/* Hidden audio element — auto-plays the music */}
-                  <audio src={storyPublicUrl} autoPlay loop style={{ display: "none" }} />
-
                   {/* Rotating music disc / visualizer */}
                   <div className="perf-spin w-32 h-32 rounded-full border-4 border-white/30 overflow-hidden shadow-2xl flex items-center justify-center relative">
                     <div className="absolute inset-0 rounded-full" style={{ background: `conic-gradient(from 0deg, transparent 0%, rgba(255,255,255,0.08) 50%, transparent 100%)` }} />
@@ -644,11 +696,14 @@ const StoryViewer = ({
                 </div>
               ) : story.media_type === "video" ? (
                 story.mood === "grid" ? (
-                  <div className="w-full h-full grid grid-cols-2 grid-rows-2">
-                    {[0,1,2,3].map(j => <video key={j} src={storyPublicUrl} className="w-full h-full object-cover" autoPlay muted={!!story.music_url} playsInline loop />)}
+                  <div className="relative w-full h-full">
+                    <video ref={videoRef} src={storyPublicUrl} className="w-full h-full object-cover" autoPlay={false} muted playsInline preload="metadata" loop />
+                    <div className="absolute inset-0 pointer-events-none grid grid-cols-2 grid-rows-2">
+                      {[0, 1, 2, 3].map(j => <div key={j} className="border border-white/10" />)}
+                    </div>
                   </div>
                 ) : (
-                  <video src={storyPublicUrl} className="w-full h-full object-cover" autoPlay muted={!!story.music_url} playsInline loop style={{ filter: moodFilter }} />
+                  <video ref={videoRef} src={storyPublicUrl} className="w-full h-full object-cover" autoPlay={false} muted playsInline preload="metadata" loop style={{ filter: moodFilter }} />
                 )
               ) : story.mood === "grid" ? (
                 <div className="w-full h-full grid grid-cols-2 grid-rows-2">
