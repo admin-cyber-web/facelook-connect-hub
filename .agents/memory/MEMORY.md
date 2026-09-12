@@ -5,3 +5,4 @@
 - [Supabase storage URL helper pitfall](supabase-storage-url-pitfall.md) — resolveMediaUrl's bucket-prefix-stripping breaks when the object key's subfolder name matches the bucket name.
 - [Supabase bandwidth guardrails](supabase-bandwidth-guardrails.md) — public feeds stay bounded/manual; realtime is limited to scoped live state and disconnects while hidden.
 - [Settings editor safety](settings-editor-safety.md) — admin showcase editing must isolate draft state and never dismiss on backdrop clicks
+- [Step 2 aggregate egress](step2-egress-aggregates.md) — engagement and member/follower totals use bounded aggregate RPCs with scoped fallbacks until SQL is deployed

@@ -701,14 +701,14 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
       const ids = groupsData.map(g => g.id);
       if (ids.length > 0) {
         // Step 2 — real member counts from circle_members
-        const { data: memberRows } = await supabase
-          .from("circle_members")
-          .select("circle_id")
-          .in("circle_id", ids);
-        if (memberRows) {
+        const { data: memberCounts, error: memberCountsError } = await supabase.rpc(
+          "get_circle_member_counts",
+          { p_circle_ids: ids },
+        );
+        if (!memberCountsError && memberCounts) {
           const counts: Record<string, number> = {};
-          for (const row of memberRows as any[]) {
-            counts[row.circle_id] = (counts[row.circle_id] || 0) + 1;
+          for (const row of memberCounts as any[]) {
+            counts[row.circle_id] = Number(row.member_count) || 0;
           }
           groupsData = groupsData.map(g => ({ ...g, member_count: counts[g.id] ?? 0 }));
         }

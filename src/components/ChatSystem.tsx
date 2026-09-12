@@ -989,6 +989,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   const blockedUserIdsRef = useRef<Set<string>>(new Set());
   const deletedForMeIdsRef = useRef<Set<string>>(new Set());
   const lastContactsFetchAtRef = useRef(0);
+  const contactsFetchInFlightRef = useRef(false);
   const contactsRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const rememberDeletedMessage = (messageId: string) => {
@@ -1310,7 +1311,9 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   const fetchContacts = useCallback(async () => {
     const now = Date.now();
     if (now - lastContactsFetchAtRef.current < 1200) return;
+    if (contactsFetchInFlightRef.current) return;
     lastContactsFetchAtRef.current = now;
+    contactsFetchInFlightRef.current = true;
     setLoadingContacts(true);
     try {
       // 1. Friends list
@@ -1438,6 +1441,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       setMessageRequests(requestsResult);
     } finally {
       setLoadingContacts(false);
+      contactsFetchInFlightRef.current = false;
     }
   }, [userId]);
 

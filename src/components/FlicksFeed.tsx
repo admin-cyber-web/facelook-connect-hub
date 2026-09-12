@@ -123,6 +123,7 @@ const CommentDrawer = ({ post, currentUserId, onClose, onCommentAdded }: any) =>
       .select("id, post_id, content, user_id, author, created_at, profiles:user_id(username, avatar_url)")
       .eq("post_id", post._raw_id)
       .order("created_at", { ascending: true })
+      .limit(100)
       .then(({ data, error }) => {
         if (error) {
           console.warn("[Flicks] comment fetch failed:", error.message);
@@ -130,7 +131,7 @@ const CommentDrawer = ({ post, currentUserId, onClose, onCommentAdded }: any) =>
         }
         setComments(data || []);
       });
-  }, [post]);
+  }, [post?._raw_id]);
 
   const handleSend = async () => {
     if (!text.trim() || !currentUserId) { toast.error("Please login to comment"); return; }

@@ -2386,27 +2386,91 @@ const FameFeed = ({
   const [commentsMap, setCommentsMap] = useState<Record<string, any[]>>({});
   const loadedCommentsRef = useRef<Set<string>>(new Set());
 
-  // ── DB se current user ki liked post IDs fetch karo ─────────────────────
-  const fetchLikedPostIds = async (uid: string) => {
+  // ── Load engagement only for the visible/paged post window ───────────────
+  const fetchPostEngagement = async (postIds: string[], uid: string | null) => {
+    if (postIds.length === 0) return;
     try {
-      const { data, error } = await supabase
-        .from("likes")
-        .select("post_id, reaction_type")
-        .eq("user_id", uid)
-        .limit(1000);
+      const { data, error } = await supabase.rpc("get_post_engagement_counts", {
+        p_post_ids: postIds,
+        p_viewer_id: uid,
+      });
       if (error) {
-        console.warn("[FameFeed] fetchLikedPostIds error:", error.message);
+        // Keep existing deployments functional until the focused SQL patch is
+        // applied; the fallback is still bounded to this page.
+        const { data: likes, error: fallbackError } = await supabase
+          .from("likes")
+          .select("post_id, user_id, reaction_type")
+          .in("post_id", postIds);
+        if (fallbackError) throw fallbackError;
+        const counts: Record<string, number> = {};
+        const liked = new Set<string>();
+        const reactions: Record<string, string> = {};
+        for (const row of likes || []) {
+          counts[row.post_id] = (counts[row.post_id] || 0) + 1;
+          if (uid && row.user_id === uid) {
+            liked.add(row.post_id);
+            if (row.reaction_type) reactions[row.post_id] = row.reaction_type;
+          }
+        }
+        setLikedIds((prev) => {
+          const next = new Set(prev);
+          postIds.forEach((id) => next.delete(id));
+          liked.forEach((id) => next.add(id));
+          return next;
+        });
+        setUserReactions((prev) => {
+          const next = { ...prev };
+          postIds.forEach((id) => delete next[id]);
+          return { ...next, ...reactions };
+        });
+        setPosts((prev) =>
+          prev.map((post) =>
+            counts[post.id] === undefined
+              ? post
+              : { ...post, likes_count: counts[post.id] },
+          ),
+        );
         return;
       }
-      const ids = new Set<string>((data || []).map((r: any) => r.post_id));
-      setLikedIds(ids);
-      const reactions: { [postId: string]: string } = {};
-      (data || []).forEach((r: any) => {
-        if (r.reaction_type) reactions[r.post_id] = r.reaction_type;
+      const rows = (data || []) as any[];
+      const pageIds = new Set(postIds);
+      const liked = new Set<string>();
+      const reactions: Record<string, string> = {};
+      const counts: Record<string, number> = {};
+      const commentCounts: Record<string, number> = {};
+      const shareCounts: Record<string, number> = {};
+      rows.forEach((row) => {
+        counts[row.post_id] = Number(row.likes_count) || 0;
+        commentCounts[row.post_id] = Number(row.comments_count) || 0;
+        shareCounts[row.post_id] = Number(row.shares_count) || 0;
+        if (row.liked_by_me) liked.add(row.post_id);
+        if (row.reaction_type) reactions[row.post_id] = row.reaction_type;
       });
-      setUserReactions(reactions);
+      setLikedIds((prev) => {
+        const next = new Set(prev);
+        pageIds.forEach((id) => next.delete(id));
+        liked.forEach((id) => next.add(id));
+        return next;
+      });
+      setUserReactions((prev) => {
+        const next = { ...prev };
+        pageIds.forEach((id) => delete next[id]);
+        return { ...next, ...reactions };
+      });
+      setPosts((prev) =>
+        prev.map((post) =>
+          counts[post.id] === undefined
+            ? post
+            : {
+                ...post,
+                likes_count: counts[post.id],
+                comments_count: commentCounts[post.id],
+                shares_count: shareCounts[post.id],
+              },
+        ),
+      );
     } catch (e) {
-      console.warn("[FameFeed] fetchLikedPostIds exception:", e);
+      console.warn("[FameFeed] fetchPostEngagement exception:", e);
     }
   };
 
@@ -2488,7 +2552,6 @@ const FameFeed = ({
               const saved = localStorage.getItem(`flicks_hidden_${uid}`);
               if (saved) setHiddenIds(new Set(JSON.parse(saved)));
             } catch {}
-            fetchLikedPostIds(uid);
             fetchPeopleSuggestions(uid);
             // Fetch already-sent friend requests (cached 5 min)
             try {
@@ -2613,18 +2676,13 @@ const FameFeed = ({
   useEffect(() => {
     if (pageSuggestions.length === 0) return;
     const ids = pageSuggestions.map((p: any) => p.id);
-    supabase
-      .from("page_followers")
-      .select("page_id")
-      .in("page_id", ids)
-      .then(({ data }) => {
-        if (!data) return;
-        const counts: { [key: string]: number } = {};
-        data.forEach((r: any) => {
-          counts[r.page_id] = (counts[r.page_id] || 0) + 1;
-        });
+    supabase.rpc("get_page_follower_counts", { p_page_ids: ids }).then(({ data, error }) => {
+      if (!error && data) {
+        const counts: Record<string, number> = {};
+        data.forEach((r: any) => { counts[r.page_id] = Number(r.follower_count) || 0; });
         setPageFollowerCounts(counts);
-      });
+      }
+    });
   }, [pageSuggestions]);
 
   // ── Fetch real member counts from circle_members table ───────────────────
@@ -2632,18 +2690,13 @@ const FameFeed = ({
     if (groupSuggestions.length === 0) return;
     const ids = groupSuggestions.map((c: any) => c.id).filter(Boolean);
     if (ids.length === 0) return;
-    supabase
-      .from("circle_members")
-      .select("circle_id")
-      .in("circle_id", ids)
-      .then(({ data }) => {
-        if (!data) return;
-        const counts: { [key: string]: number } = {};
-        data.forEach((r: any) => {
-          counts[r.circle_id] = (counts[r.circle_id] || 0) + 1;
-        });
+    supabase.rpc("get_circle_member_counts", { p_circle_ids: ids }).then(({ data, error }) => {
+      if (!error && data) {
+        const counts: Record<string, number> = {};
+        data.forEach((r: any) => { counts[r.circle_id] = Number(r.member_count) || 0; });
         setCircleMemberCounts(counts);
-      });
+      }
+    });
   }, [groupSuggestions]);
 
   // ── Hook / Unhook a page (toggle) ────────────────────────────────────────
@@ -2782,7 +2835,8 @@ const FameFeed = ({
             "id, content, author, user_id, parent_id, created_at, is_hidden, hidden_by_name, hidden_by_id",
           )
           .eq("post_id", postId)
-          .order("created_at");
+          .order("created_at")
+          .limit(100);
         if (error) {
           console.warn("[FameFeed] loadComments error:", error.message);
           return;
@@ -3166,29 +3220,6 @@ const FameFeed = ({
     setHasMore(rows.length === PAGE_SIZE);
     setLoading(false);
     setLoadingMore(false);
-    // Merge real like counts from likes table — fixes drift when posts.likes_count
-    // can't be updated by the current user due to RLS restrictions.
-    if (rows.length > 0) {
-      const pIds = (rows as any[]).map((r: any) => r.id).filter(Boolean);
-      supabase
-        .from("likes")
-        .select("post_id")
-        .in("post_id", pIds)
-        .then(({ data: lRows }) => {
-          if (!lRows || lRows.length === 0) return;
-          const cm: Record<string, number> = {};
-          for (const lr of lRows) {
-            cm[lr.post_id] = (cm[lr.post_id] || 0) + 1;
-          }
-          setPosts((prev) =>
-            prev.map((p) =>
-              cm[p.id] !== undefined ? { ...p, likes_count: cm[p.id] } : p,
-            ),
-          );
-        })
-        // Supabase builders are PromiseLike; normalize before using catch.
-        .then(undefined, () => {});
-    }
     // Safety net: still batch-fetch any author_ids whose join row was empty
     // (e.g. orphaned posts whose author profile was deleted).
     const missing = [
@@ -3332,6 +3363,11 @@ const FameFeed = ({
     if (!visiblePostIdsKey) return;
     fetchCommentPreviewsFnRef.current(visiblePostIdsKey.split(","));
   }, [visiblePostIdsKey]);
+
+  useEffect(() => {
+    if (!currentUserId || !visiblePostIdsKey) return;
+    void fetchPostEngagement(visiblePostIdsKey.split(","), currentUserId);
+  }, [currentUserId, visiblePostIdsKey]);
 
   useEffect(() => {
     // Cache-aware mount: restore from cache instantly, refetch silently if stale (>2min).

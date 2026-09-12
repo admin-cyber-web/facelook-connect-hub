@@ -18,8 +18,10 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 
 const SITE_URL = "https://www.flicksindia.online";
 const PAGE_SIZE = 1000;
-// Keep pagination bounded while leaving room for the sitemap's 50,000 URL limit.
-const MAX_PAGES = 50;
+const MAX_SITEMAP_URLS = 50000;
+const STATIC_URL_COUNT = 3;
+// Keep a small amount of headroom for the static URLs in the sitemap.
+const MAX_DYNAMIC_URLS = MAX_SITEMAP_URLS - STATIC_URL_COUNT;
 const CACHE_TTL_MS = 5 * 60 * 1000;
 const CACHE_FILE = path.join(process.cwd(), '.cache', 'sitemap-data.json');
 
@@ -32,12 +34,13 @@ function escapeXml(value) {
     .replace(/'/g, "&apos;");
 }
 
-async function fetchPaginated(label, buildQuery) {
+async function fetchPaginated(label, buildQuery, maxRows = MAX_DYNAMIC_URLS) {
   const rows = [];
 
-  for (let page = 0; page < MAX_PAGES; page += 1) {
+  for (let page = 0; rows.length < maxRows; page += 1) {
     const from = page * PAGE_SIZE;
-    const to = from + PAGE_SIZE - 1;
+    const pageSize = Math.min(PAGE_SIZE, maxRows - rows.length);
+    const to = from + pageSize - 1;
     let response;
 
     try {
@@ -56,14 +59,22 @@ async function fetchPaginated(label, buildQuery) {
     }
 
     rows.push(...response.data);
-    if (response.data.length < PAGE_SIZE) {
+    if (response.data.length < pageSize) {
       return rows;
     }
   }
 
-  throw new Error(
-    `${label} exceeded the ${MAX_PAGES}-page sitemap limit; refusing to generate a truncated sitemap`,
-  );
+  console.warn(`[Sitemap] ${label} capped at ${maxRows} rows`);
+  return rows.slice(0, maxRows);
+}
+
+function uniqueRows(rows) {
+  const seen = new Set();
+  return rows.filter((row) => {
+    if (!row?.id || seen.has(row.id)) return false;
+    seen.add(row.id);
+    return true;
+  });
 }
 
 async function generateSitemap() {
@@ -84,27 +95,30 @@ async function generateSitemap() {
       // Fetching below preserves the existing error behavior.
     }
 
-    const [posts, stories] = cached?.posts && cached?.stories
-      ? [cached.posts, cached.stories]
+    const [posts, stories] = Array.isArray(cached?.posts) && Array.isArray(cached?.stories)
+      ? [cached.posts.slice(0, MAX_DYNAMIC_URLS), cached.stories.slice(0, MAX_DYNAMIC_URLS)]
       : await Promise.all([
         fetchPaginated("Posts", () => supabase
           .from('posts')
           .select('id, created_at')
           .eq('visibility', 'public')
           .order('created_at', { ascending: false })
-          .order('id', { ascending: false })),
+          .order('id', { ascending: false }), MAX_DYNAMIC_URLS),
         fetchPaginated("Stories", () => supabase
           .from('stories')
           .select('id, created_at')
           .gte('created_at', since24h)
           .order('created_at', { ascending: false })
-          .order('id', { ascending: false })),
+          .order('id', { ascending: false }), MAX_DYNAMIC_URLS),
       ]);
 
-    if (!cached?.posts || !cached?.stories) {
+    const boundedPosts = uniqueRows(posts).slice(0, MAX_DYNAMIC_URLS);
+    const boundedStories = uniqueRows(stories).slice(0, Math.max(0, MAX_DYNAMIC_URLS - boundedPosts.length));
+
+    if (!Array.isArray(cached?.posts) || !Array.isArray(cached?.stories)) {
       fs.mkdirSync(path.dirname(CACHE_FILE), { recursive: true });
       const tempFile = `${CACHE_FILE}.${process.pid}.tmp`;
-      fs.writeFileSync(tempFile, JSON.stringify({ posts, stories }));
+      fs.writeFileSync(tempFile, JSON.stringify({ posts: boundedPosts, stories: boundedStories }));
       fs.renameSync(tempFile, CACHE_FILE);
     }
 
@@ -118,13 +132,13 @@ async function generateSitemap() {
     xmlItems.push(`  <url>\n    <loc>${SITE_URL}/terms</loc>\n    <priority>0.3</priority>\n    <changefreq>yearly</changefreq>\n  </url>`);
 
     // 3. Dynamic Post Pages
-    posts.forEach(post => {
+    boundedPosts.forEach(post => {
       const lastmod = post.created_at ? String(post.created_at).slice(0, 10) : '';
       xmlItems.push(`  <url>\n    <loc>${escapeXml(`${SITE_URL}/post/${post.id}`)}</loc>\n    <priority>0.8</priority>\n    <changefreq>weekly</changefreq>${lastmod ? `\n    <lastmod>${escapeXml(lastmod)}</lastmod>` : ''}\n  </url>`);
     });
 
     // 4. Active Story Pages (ephemeral — high crawl priority while live)
-    stories.forEach(story => {
+    boundedStories.forEach(story => {
       const lastmod = story.created_at ? String(story.created_at).slice(0, 10) : '';
       xmlItems.push(`  <url>\n    <loc>${escapeXml(`${SITE_URL}/story/${story.id}`)}</loc>\n    <priority>0.6</priority>\n    <changefreq>daily</changefreq>${lastmod ? `\n    <lastmod>${escapeXml(lastmod)}</lastmod>` : ''}\n  </url>`);
     });
@@ -137,10 +151,13 @@ ${xmlItems.join('\n')}
 </urlset>`;
 
     const publicDir = path.join(process.cwd(), 'public');
-    if (!fs.existsSync(publicDir)) fs.mkdirSync(publicDir);
+    if (!fs.existsSync(publicDir)) fs.mkdirSync(publicDir, { recursive: true });
 
-    fs.writeFileSync(path.join(publicDir, 'sitemap.xml'), sitemapXml);
-    console.log(`🎉 SUCCESS: sitemap.xml → ${totalLinks} URLs (${posts.length} posts + ${stories.length} stories + 3 static)`);
+    const outputFile = path.join(publicDir, 'sitemap.xml');
+    const tempOutputFile = `${outputFile}.${process.pid}.tmp`;
+    fs.writeFileSync(tempOutputFile, sitemapXml);
+    fs.renameSync(tempOutputFile, outputFile);
+    console.log(`🎉 SUCCESS: sitemap.xml → ${totalLinks} URLs (${boundedPosts.length} posts + ${boundedStories.length} stories + 3 static)`);
 
   } catch (err) {
     console.error("[Sitemap] Generation failed:", err.message);

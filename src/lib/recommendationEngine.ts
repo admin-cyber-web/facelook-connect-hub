@@ -130,6 +130,7 @@ function buildReasonDetail(v: LocalProfile, c: any, sharedInterests: number, mut
 const PROFILE_KEY = "recommendations:public-profiles:v1";
 const BLOCK_KEY = (id: string) => `recommendations:blocks:${id}`;
 const FRIEND_KEY = (id: string) => `recommendations:friends:${id}`;
+const RESOURCE_KEY = (id: string) => `recommendations:resources:${id}`;
 let resourceGeneration = 0;
 
 type ProfileRow = {
@@ -179,12 +180,35 @@ async function getFriends(currentUserId: string): Promise<Set<string>> {
   return new Set(rows.map((f: any) => f.sender_id === currentUserId ? f.receiver_id : f.sender_id));
 }
 
+type RecommendationResources = {
+  candidates: ProfileRow[];
+  blocked: Set<string>;
+  friends: Set<string>;
+};
+
+/**
+ * Both recommendation surfaces are mounted in the same feed. Resolve their
+ * shared source data through one in-flight/cache entry so the two components
+ * never bootstrap the same resource bundle independently.
+ */
+async function getRecommendationResources(currentUserId: string): Promise<RecommendationResources> {
+  return memGetOrFetch(RESOURCE_KEY(currentUserId), async () => {
+    const [candidates, blocked, friends] = await Promise.all([
+      getPublicProfiles(),
+      getBlocks(currentUserId),
+      getFriends(currentUserId),
+    ]);
+    return { candidates, blocked, friends };
+  });
+}
+
 /** Call after a block, unblock, friend request, or profile/privacy mutation. */
 export function invalidateRecommendationCaches(currentUserId: string): void {
   resourceGeneration += 1;
   memDel(PROFILE_KEY);
   memDel(BLOCK_KEY(currentUserId));
   memDel(FRIEND_KEY(currentUserId));
+  memDel(RESOURCE_KEY(currentUserId));
 }
 
 // ── Public: People You May Know ───────────────────────────────────────────────
@@ -206,9 +230,8 @@ export async function fetchRecommendedPeople(
   })}`;
   const cached = memGet<RecommendedUser[]>(cacheKey);
   if (cached) return cached;
-  const [candidates, blocked, friends] = await Promise.all([
-    getPublicProfiles(), getBlocks(currentUserId), getFriends(currentUserId),
-  ]);
+  const { candidates, blocked, friends } =
+    await getRecommendationResources(currentUserId);
 
   // ── Mutual connections: fetch friends-of-friends ──────────────────────────
   // Only run when viewer has ≤ 60 friends (keep query cost bounded)
@@ -279,9 +302,8 @@ export async function fetchNewInYourArea(
   const cacheKey = `new-in-area:${resourceGeneration}:${currentUserId}:${area}:${limit}`;
   const cached = memGet<RecommendedUser[]>(cacheKey);
   if (cached) return cached;
-  const [candidates, blocked, friends] = await Promise.all([
-    getPublicProfiles(), getBlocks(currentUserId), getFriends(currentUserId),
-  ]);
+  const { candidates, blocked, friends } =
+    await getRecommendationResources(currentUserId);
   const cutoff = Date.now() - 30 * 86_400_000;
   const results = candidates
     .filter(u => u.id !== currentUserId && !blocked.has(u.id) && !friends.has(u.id))
