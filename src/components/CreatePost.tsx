@@ -142,6 +142,12 @@ const CreatePost = ({
   }, [initialFile]);
 
   useEffect(() => {
+    return () => {
+      if (preview?.startsWith("blob:")) URL.revokeObjectURL(preview);
+    };
+  }, [preview]);
+
+  useEffect(() => {
     if (!isOpen) {
       setContent("");
       setFile(null);

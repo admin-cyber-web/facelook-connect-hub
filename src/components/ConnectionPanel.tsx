@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Video,
@@ -35,10 +35,62 @@ const ConnectionPanel = () => {
     client: AgoraRTC.createClient({ mode: "rtc", codec: "vp8" }),
     localAudioTrack: null,
     localVideoTrack: null,
+    joined: false,
+    userPublishedHandler: null,
+    userLeftHandler: null,
   });
+  const remoteTracksRef = useRef<Set<any>>(new Set());
+  const cleanupInFlightRef = useRef(false);
 
-  // 🛠️ CRITICAL FIX: Direct Playback Engine
+  const cleanupCall = useCallback(async () => {
+    if (cleanupInFlightRef.current) return;
+    cleanupInFlightRef.current = true;
+    const state = rtc.current;
+    const client = state.client;
+    try {
+      if (state.userPublishedHandler) {
+        client.off("user-published", state.userPublishedHandler);
+        state.userPublishedHandler = null;
+      }
+      if (state.userLeftHandler) {
+        client.off("user-left", state.userLeftHandler);
+        state.userLeftHandler = null;
+      }
+
+      for (const track of remoteTracksRef.current) {
+        try { track.stop?.(); } catch {}
+        try { track.close?.(); } catch {}
+      }
+      remoteTracksRef.current.clear();
+
+      for (const key of ["localAudioTrack", "localVideoTrack"] as const) {
+        const track = state[key];
+        if (!track) continue;
+        try { track.stop?.(); } catch {}
+        try { track.close?.(); } catch {}
+        state[key] = null;
+      }
+
+      if (state.joined) {
+        try { await client.leave(); } catch (error) {
+          console.warn("[Agora] leave cleanup failed:", error);
+        }
+      }
+      state.joined = false;
+      setInCall(false);
+      setIsSearching(false);
+      setRemoteUser(null);
+      setIsMuted(false);
+      setIsVideoOff(false);
+      setIsSpeakerOff(false);
+    } finally {
+      cleanupInFlightRef.current = false;
+    }
+  }, []);
+
+  // Direct playback engine. Do not rerun it for camera mute toggles.
   useEffect(() => {
+    let cancelled = false;
     const playRemote = async () => {
       if (
         inCall &&
@@ -48,9 +100,8 @@ const ConnectionPanel = () => {
       ) {
         try {
           await remoteUser.videoTrack.play(remoteVideoRef.current);
-          console.log("Remote video started successfully");
         } catch (err) {
-          console.error("Remote playback failed, retrying...", err);
+          if (!cancelled) console.warn("[Agora] remote playback failed:", err);
         }
       }
     };
@@ -59,9 +110,8 @@ const ConnectionPanel = () => {
       if (inCall && rtc.current.localVideoTrack && localVideoRef.current) {
         try {
           await rtc.current.localVideoTrack.play(localVideoRef.current);
-          console.log("Local video started successfully");
         } catch (err) {
-          console.error("Local playback failed", err);
+          if (!cancelled) console.warn("[Agora] local playback failed:", err);
         }
       }
     };
@@ -70,9 +120,13 @@ const ConnectionPanel = () => {
       playLocal();
       playRemote();
     }
-  }, [remoteUser, inCall, isVideoOff]);
+    return () => { cancelled = true; };
+  }, [remoteUser, inCall]);
+
+  useEffect(() => () => { void cleanupCall(); }, [cleanupCall]);
 
   const startCall = async () => {
+    if (isSearching || inCall || rtc.current.joined) return;
     if (!window.isSecureContext)
       return alert("Use HTTPS Mode (Open in New Tab)!");
     setIsSearching(true);
@@ -80,6 +134,7 @@ const ConnectionPanel = () => {
     try {
       // Joining with Credentials
       await rtc.current.client.join(APP_ID, CHANNEL, TOKEN, null);
+      rtc.current.joined = true;
 
       const [audioTrack, videoTrack] =
         await AgoraRTC.createMicrophoneAndCameraTracks();
@@ -89,49 +144,40 @@ const ConnectionPanel = () => {
       setInCall(true);
       setIsSearching(false);
 
-      rtc.current.client.on(
-        "user-published",
-        async (user: any, mediaType: string) => {
-          await rtc.current.client.subscribe(user, mediaType);
-          if (mediaType === "video") {
-            setRemoteUser(user);
-          }
-          if (mediaType === "audio") {
-            user.audioTrack.play();
-          }
-        },
-      );
-
-      rtc.current.client.on("user-left", () => endCall());
+      const userPublishedHandler = async (user: any, mediaType: string) => {
+        await rtc.current.client.subscribe(user, mediaType);
+        const track = mediaType === "video" ? user.videoTrack : user.audioTrack;
+        if (track) remoteTracksRef.current.add(track);
+        if (mediaType === "video") setRemoteUser(user);
+        if (mediaType === "audio") user.audioTrack?.play();
+      };
+      const userLeftHandler = () => { void cleanupCall(); };
+      rtc.current.userPublishedHandler = userPublishedHandler;
+      rtc.current.userLeftHandler = userLeftHandler;
+      rtc.current.client.on("user-published", userPublishedHandler);
+      rtc.current.client.on("user-left", userLeftHandler);
 
       await rtc.current.client.publish([
         rtc.current.localAudioTrack,
         rtc.current.localVideoTrack,
       ]);
     } catch (err) {
-      console.error("Join error:", err);
-      setIsSearching(false);
+      console.error("[Agora] join error:", err);
+      await cleanupCall();
       alert("Connect failed. Check if App ID/Token/Channel matches.");
     }
   };
 
-  const endCall = async () => {
-    rtc.current.localAudioTrack?.stop();
-    rtc.current.localAudioTrack?.close();
-    rtc.current.localVideoTrack?.stop();
-    rtc.current.localVideoTrack?.close();
-    await rtc.current.client.leave();
-    setInCall(false);
-    setRemoteUser(null);
-    window.location.reload();
-  };
+  const endCall = cleanupCall;
 
   const toggleMic = () => {
+    if (!rtc.current.localAudioTrack) return;
     rtc.current.localAudioTrack.setEnabled(isMuted);
     setIsMuted(!isMuted);
   };
 
   const toggleVideo = () => {
+    if (!rtc.current.localVideoTrack) return;
     rtc.current.localVideoTrack.setEnabled(isVideoOff);
     setIsVideoOff(!isVideoOff);
   };

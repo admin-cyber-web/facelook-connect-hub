@@ -703,6 +703,12 @@ const CreateSurveyModal: React.FC<{ userId: string; onCreated: () => void; onClo
   const [uploadProgress, setUploadProgress] = useState(0);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  useEffect(() => {
+    return () => {
+      if (imagePreview?.startsWith("blob:")) URL.revokeObjectURL(imagePreview);
+    };
+  }, [imagePreview]);
+
   const addOption = () => setOptions(v => [...v, ""]);
   const removeOption = (i: number) => setOptions(v => v.filter((_, idx) => idx !== i));
   const updateOption = (i: number, val: string) => setOptions(v => v.map((o, idx) => idx === i ? val : o));
@@ -712,6 +718,7 @@ const CreateSurveyModal: React.FC<{ userId: string; onCreated: () => void; onClo
     if (!f) return;
     setImageFile(f);
     setImagePreview(URL.createObjectURL(f));
+    e.target.value = "";
   };
 
   const handleSubmit = async () => {

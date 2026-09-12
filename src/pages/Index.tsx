@@ -897,6 +897,12 @@ function FrameModePage({ onBack, userProfile, userEmail }: { onBack: () => void;
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
   useEffect(() => {
+    return () => {
+      if (photoPreview.startsWith("blob:")) URL.revokeObjectURL(photoPreview);
+    };
+  }, [photoPreview]);
+
+  useEffect(() => {
     fetchRequests();
   }, []);
 
@@ -917,6 +923,7 @@ function FrameModePage({ onBack, userProfile, userEmail }: { onBack: () => void;
     if (!file) return;
     setPhotoFile(file);
     setPhotoPreview(URL.createObjectURL(file));
+    e.target.value = "";
   };
 
   const handleSubmit = async () => {
@@ -1929,6 +1936,12 @@ const PersonalInfoView = React.memo(({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [avatarPreview, setAvatarPreview] = useState<string>(currentAvatarUrl);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+
+  useEffect(() => {
+    return () => {
+      if (avatarPreview.startsWith("blob:")) URL.revokeObjectURL(avatarPreview);
+    };
+  }, [avatarPreview]);
 
   const handleAvatarFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

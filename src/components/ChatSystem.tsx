@@ -67,6 +67,9 @@ import {
 
 // ── Storage bucket (must match the bucket created in Supabase dashboard) ───────
 const CHAT_BUCKET = "chat-images";
+const revokeObjectUrl = (url: string | null | undefined) => {
+  if (url?.startsWith("blob:")) URL.revokeObjectURL(url);
+};
 
 // ── Story media URL resolver ────────────────────────────────────────────────────
 // Stories are uploaded to path "stories/<filename>" WITHIN the "stories" bucket.
@@ -1086,6 +1089,22 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   const [viewerEditMood, setViewerEditMood] = useState("");
   const [showAdminDashboard, setShowAdminDashboard] = useState(false);
 
+  // Blob previews are short-lived browser resources. The effect cleanup runs
+  // both when a preview is replaced and when ChatSystem unmounts.
+  useEffect(() => {
+    return () => {
+      revokeObjectUrl(pendingFilePreview);
+      storyPreviews.forEach(revokeObjectUrl);
+      if (!storyPreviews.includes(storyPreviewUrl)) revokeObjectUrl(storyPreviewUrl);
+    };
+  }, [pendingFilePreview, storyPreviews, storyPreviewUrl]);
+
+  const clearStoryPreviews = () => {
+    storyPreviews.forEach(revokeObjectUrl);
+    if (!storyPreviews.includes(storyPreviewUrl)) revokeObjectUrl(storyPreviewUrl);
+    clearStoryPreviews();
+  };
+
   // ── Advanced features state ────────────────────────────────────────────────
   const [panicMode, setPanicMode] = useState(false);
   const [isOtherTyping, setIsOtherTyping] = useState(false);
@@ -1717,7 +1736,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       setEditingStory(null);
       setStoryCaption("");
       setStoryEmoji("");
-      setStoryPreviewUrl("");
+      clearStoryPreviews();
       setStoryFile(null);
     } catch (e: any) {
       toast.error("Update failed: " + (e?.message || "Unknown error"));
@@ -2492,7 +2511,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     if (fileToSend) {
       pendingFileRef.current = null;
       setPendingFile(null);
-      setPendingFilePreview(null);
+      clearPendingFile();
       uploadAndSendFile(fileToSend);
       if (!text) {
         setNewMessage("");
@@ -2674,8 +2693,14 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
 
     if (file.type.startsWith("image/") || file.type.startsWith("video/")) {
       const objectUrl = URL.createObjectURL(file);
+      clearPendingFile();
+      setPendingFile(file);
+      pendingFileRef.current = file;
       setPendingFilePreview(objectUrl);
     } else {
+      clearPendingFile();
+      setPendingFile(file);
+      pendingFileRef.current = file;
       setPendingFilePreview(null);
     }
 
@@ -2688,7 +2713,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   };
 
   const clearPendingFile = () => {
-    if (pendingFilePreview) URL.revokeObjectURL(pendingFilePreview);
+    revokeObjectUrl(pendingFilePreview);
     setPendingFile(null);
     setPendingFilePreview(null);
     pendingFileRef.current = null;
@@ -3207,17 +3232,12 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
             return;
           }
           const files = allFiles;
-          if (files.length === 1) {
-            setStoryFile(files[0]);
-            setStoryFiles([files[0]]);
-            setStoryPreviews([URL.createObjectURL(files[0])]);
-            setStoryPreviewUrl(URL.createObjectURL(files[0]));
-          } else {
-            setStoryFiles(files);
-            setStoryPreviews(files.map((f) => URL.createObjectURL(f)));
-            setStoryFile(files[0]);
-            setStoryPreviewUrl(URL.createObjectURL(files[0]));
-          }
+          clearStoryPreviews();
+          const previews = files.map((f) => URL.createObjectURL(f));
+          setStoryFile(files[0]);
+          setStoryFiles(files);
+          setStoryPreviews(previews);
+          setStoryPreviewUrl(previews[0] || "");
           setShowStoryEditor(true);
           e.target.value = "";
         }}
@@ -3948,7 +3968,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                     className="fixed inset-0 z-[280] bg-black/70 backdrop-blur-sm"
-                    onClick={() => setShowStoryEditor(false)}
+                    onClick={() => { clearStoryPreviews(); setShowStoryEditor(false); }}
                   />
                   <motion.div
                     initial={{ y: "100%", opacity: 0 }}
@@ -3970,7 +3990,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                             : "Create Story ✨"}
                         </p>
                         <button
-                          onClick={() => setShowStoryEditor(false)}
+                          onClick={() => { clearStoryPreviews(); setShowStoryEditor(false); }}
                           className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white/60"
                         >
                           <X size={14} />
@@ -5382,12 +5402,12 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                         return;
                       }
                       const files = allFiles;
+                      clearStoryPreviews();
+                      const previews = files.map((f) => URL.createObjectURL(f));
                       setStoryFiles(files);
-                      setStoryPreviews(
-                        files.map((f) => URL.createObjectURL(f)),
-                      );
+                      setStoryPreviews(previews);
                       setStoryFile(files[0]);
-                      setStoryPreviewUrl(URL.createObjectURL(files[0]));
+                      setStoryPreviewUrl(previews[0] || "");
                       setShowStoryEditor(true);
                       e.target.value = "";
                     }}
