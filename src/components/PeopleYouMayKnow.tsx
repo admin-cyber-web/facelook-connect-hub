@@ -26,6 +26,7 @@ export default function PeopleYouMayKnow({ currentUserId, localProfile = {}, onP
   const [users,        setUsers]        = useState<RecommendedUser[]>([]);
   const [loading,      setLoading]      = useState(true);
   const [sentIds,      setSentIds]      = useState<Set<string>>(new Set());
+  const pendingConnects = useRef(new Set<string>());
   const [infoCardId,   setInfoCardId]   = useState<string | null>(null);
   const didFetch                        = useRef(false);
   const cacheKey                        = `smartPeople_${currentUserId}`;
@@ -66,7 +67,8 @@ export default function PeopleYouMayKnow({ currentUserId, localProfile = {}, onP
 
   const handleConnect = async (targetId: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (sentIds.has(targetId)) return;
+    if (sentIds.has(targetId) || pendingConnects.current.has(targetId)) return;
+    pendingConnects.current.add(targetId);
     const { error } = await supabase.from("friend_requests").insert({
       sender_id:   currentUserId,
       receiver_id: targetId,
@@ -74,7 +76,9 @@ export default function PeopleYouMayKnow({ currentUserId, localProfile = {}, onP
     });
     if (!error || error.message?.includes("duplicate") || error.message?.includes("unique")) {
       setSentIds(prev => new Set(prev).add(targetId));
+      memDel(cacheKey);
     }
+    pendingConnects.current.delete(targetId);
   };
 
   if (loading) return (

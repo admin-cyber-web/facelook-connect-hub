@@ -988,6 +988,19 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   // identity changes → bootstrap effect re-runs → infinite loop & flicker).
   const blockedUserIdsRef = useRef<Set<string>>(new Set());
   const deletedForMeIdsRef = useRef<Set<string>>(new Set());
+  const lastContactsFetchAtRef = useRef(0);
+  const contactsRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const rememberDeletedMessage = (messageId: string) => {
+    const ids = deletedForMeIdsRef.current;
+    ids.delete(messageId);
+    ids.add(messageId);
+    while (ids.size > 500) {
+      const oldest = ids.values().next().value;
+      if (!oldest) break;
+      ids.delete(oldest);
+    }
+  };
 
   // ── Search ────────────────────────────────────────────────────────────────
   const [searchQuery, setSearchQuery] = useState("");
@@ -1288,6 +1301,9 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
 
   // ── Fetch contacts ────────────────────────────────────────────────────────
   const fetchContacts = useCallback(async () => {
+    const now = Date.now();
+    if (now - lastContactsFetchAtRef.current < 1200) return;
+    lastContactsFetchAtRef.current = now;
     setLoadingContacts(true);
     try {
       // 1. Friends list
@@ -1417,6 +1433,18 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       setLoadingContacts(false);
     }
   }, [userId]);
+
+  const scheduleContactsRefresh = useCallback(() => {
+    if (contactsRefreshTimerRef.current) clearTimeout(contactsRefreshTimerRef.current);
+    contactsRefreshTimerRef.current = setTimeout(() => {
+      contactsRefreshTimerRef.current = null;
+      void fetchContacts();
+    }, 250);
+  }, [fetchContacts]);
+
+  useEffect(() => () => {
+    if (contactsRefreshTimerRef.current) clearTimeout(contactsRefreshTimerRef.current);
+  }, []);
 
   // ── Fetch stories ─────────────────────────────────────────────────────────
   const fetchStories = useCallback(async () => {
@@ -2077,35 +2105,10 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
         .order("created_at", { ascending: true })
         .limit(200);
 
-      // ── Fallback: if above fails (e.g. RLS or column issue) try simpler query
       if (error) {
-        console.error("[Chat] fetchMessages primary error:", error.message);
-        const fallback = await supabase
-          .from("messages")
-          .select(
-            "id, sender_id, receiver_id, content, created_at, seen_at, reply_to_id",
-          )
-          .or(`sender_id.eq.${myId},receiver_id.eq.${myId}`)
-          .order("created_at", { ascending: true })
-          .limit(200);
-
-        if (!fallback.error && fallback.data) {
-          // Filter to this conversation only on the JS side
-          data = fallback.data.filter(
-            (m: any) =>
-              (m.sender_id.trim() === myId &&
-                m.receiver_id.trim() === partnerId) ||
-              (m.sender_id.trim() === partnerId &&
-                m.receiver_id.trim() === myId),
-          ) as any;
-        } else {
-          console.error(
-            "[Chat] fetchMessages fallback error:",
-            fallback.error?.message,
-          );
-          setLoadingMessages(false);
-          return;
-        }
+        console.error("[Chat] fetchMessages error:", error.message);
+        setLoadingMessages(false);
+        return;
       }
 
       // Normalise every row so comparisons are reliable
@@ -2117,7 +2120,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
         content: m.content ?? "",
       }));
 
-      setMessages(rows);
+      setMessages(rows.slice(-200));
       setLoadingMessages(false);
 
       // Mark all received messages as seen
@@ -2152,10 +2155,12 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
           if (deletedForMeIdsRef.current.has(msg.id)) return;
 
           // Safely append — skip if already in list (optimistic duplicate guard)
-          setMessages((prev) =>
-            prev.find((m) => m.id === msg.id) ? prev : [...prev, msg],
-          );
-          fetchContacts();
+          setMessages((prev) => {
+            if (prev.find((m) => m.id === msg.id)) return prev;
+            const next = [...prev, msg];
+            return next.length > 200 ? next.slice(-200) : next;
+          });
+          scheduleContactsRefresh();
 
           // Auto-mark as seen when the message is addressed to us
           if (rid === myId && sid === pid) {
@@ -2280,7 +2285,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       typingChannelRef.current = null;
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     };
-  }, [isOpen, selectedUser, userId, fetchContacts, fetchMsgReactions]);
+  }, [isOpen, selectedUser, userId, scheduleContactsRefresh, fetchMsgReactions]);
 
   // ── Friend actions ────────────────────────────────────────────────────────
   const sendFriendRequest = async (targetId: string) => {
@@ -2427,7 +2432,10 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       created_at: new Date().toISOString(),
       reply_to_id: replyRef?.id,
     };
-    setMessages((prev) => [...prev, tempMsg]);
+         setMessages((prev) => {
+           const next = [...prev, tempMsg];
+           return next.length > 200 ? next.slice(-200) : next;
+         });
 
     // ── Magic Keyword Emoji Blast ─────────────────────────────────────────
     const kwEmoji = getKeywordEmoji(text);
@@ -2459,7 +2467,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
         setMessages((prev) =>
           prev.map((m) => (m.id === tempId ? (data as Message) : m)),
         );
-        fetchContacts();
+        scheduleContactsRefresh();
       } else if (error) {
         setMessages((prev) => prev.filter((m) => m.id !== tempId));
         console.error("[ChatSystem] sendMessage Supabase error:", error);
@@ -2650,12 +2658,12 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       }
 
       if (data) {
-        setMessages((prev) =>
-          prev.find((m) => m.id === (data as Message).id)
-            ? prev
-            : [...prev, data as Message],
-        );
-        fetchContacts();
+          setMessages((prev) => {
+            if (prev.find((m) => m.id === (data as Message).id)) return prev;
+            const next = [...prev, data as Message];
+            return next.length > 200 ? next.slice(-200) : next;
+          });
+        scheduleContactsRefresh();
         if (soundEnabled) playSound("send");
       }
     } catch (err: any) {
@@ -2829,7 +2837,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
             raw,
           )
         ) {
-          messages.forEach((m) => deletedForMeIdsRef.current.add(m.id));
+          messages.forEach((m) => rememberDeletedMessage(m.id));
           setMessages([]);
           toast.success("🧹 Chat cleared!");
           scheduleVoiceTimeout(() => setVoiceStatus("listening"), 600);
@@ -2930,7 +2938,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   // ── Delete for Me (local only) ────────────────────────────────────────────
   const deleteForMe = (msgId: string) => {
     // Persist the ID so realtime + polling never re-add this message
-    deletedForMeIdsRef.current.add(msgId);
+    rememberDeletedMessage(msgId);
     setMessages((prev) => prev.filter((m) => m.id !== msgId));
     setMsgMenuId(null);
     setDeletingForMe(null);
@@ -4588,9 +4596,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                             onClick={() => {
                               // Mark every current message as "deleted for me" so the
                               // 3-second polling fallback never re-adds them from DB
-                              messages.forEach((m) =>
-                                deletedForMeIdsRef.current.add(m.id),
-                              );
+                              messages.forEach((m) => rememberDeletedMessage(m.id));
                               setMessages([]);
                               setShowChatMenu(false);
                               toast.success("Chat wiped locally 🧽");

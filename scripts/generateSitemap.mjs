@@ -17,6 +17,52 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 });
 
 const SITE_URL = "https://www.flicksindia.online";
+const PAGE_SIZE = 1000;
+// Keep pagination bounded while leaving room for the sitemap's 50,000 URL limit.
+const MAX_PAGES = 50;
+
+function escapeXml(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
+
+async function fetchPaginated(label, buildQuery) {
+  const rows = [];
+
+  for (let page = 0; page < MAX_PAGES; page += 1) {
+    const from = page * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
+    let response;
+
+    try {
+      response = await buildQuery().range(from, to);
+    } catch (error) {
+      throw new Error(`${label} query failed: ${error?.message || error}`);
+    }
+
+    // Supabase normally fulfills the promise even when the response contains
+    // an error, so checking only Promise rejection is not sufficient.
+    if (response?.error) {
+      throw new Error(`${label} query failed: ${response.error.message || response.error}`);
+    }
+    if (!Array.isArray(response?.data)) {
+      throw new Error(`${label} query returned no data`);
+    }
+
+    rows.push(...response.data);
+    if (response.data.length < PAGE_SIZE) {
+      return rows;
+    }
+  }
+
+  throw new Error(
+    `${label} exceeded the ${MAX_PAGES}-page sitemap limit; refusing to generate a truncated sitemap`,
+  );
+}
 
 async function generateSitemap() {
   console.log("[Sitemap] Generating sitemap.xml via Supabase...");
@@ -25,16 +71,20 @@ async function generateSitemap() {
     // Fetch public posts + active stories (last 24 h) in parallel
     const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
-    const [postsResult, storiesResult] = await Promise.allSettled([
-      supabase.from('posts').select('id, created_at').eq('visibility', 'public'),
-      supabase.from('stories').select('id, created_at').gte('created_at', since24h),
+    const [posts, stories] = await Promise.all([
+      fetchPaginated("Posts", () => supabase
+        .from('posts')
+        .select('id, created_at')
+        .eq('visibility', 'public')
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: false })),
+      fetchPaginated("Stories", () => supabase
+        .from('stories')
+        .select('id, created_at')
+        .gte('created_at', since24h)
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: false })),
     ]);
-
-    const posts   = postsResult.status   === 'fulfilled' ? (postsResult.value.data   || []) : [];
-    const stories = storiesResult.status === 'fulfilled' ? (storiesResult.value.data || []) : [];
-
-    if (postsResult.status === 'rejected')   console.warn("[Sitemap] ⚠️  Posts fetch error:", postsResult.reason?.message);
-    if (storiesResult.status === 'rejected') console.warn("[Sitemap] ⚠️  Stories fetch error:", storiesResult.reason?.message);
 
     let xmlItems = [];
 
@@ -47,14 +97,14 @@ async function generateSitemap() {
 
     // 3. Dynamic Post Pages
     posts.forEach(post => {
-      const lastmod = post.created_at ? post.created_at.slice(0, 10) : '';
-      xmlItems.push(`  <url>\n    <loc>${SITE_URL}/post/${post.id}</loc>\n    <priority>0.8</priority>\n    <changefreq>weekly</changefreq>${lastmod ? `\n    <lastmod>${lastmod}</lastmod>` : ''}\n  </url>`);
+      const lastmod = post.created_at ? String(post.created_at).slice(0, 10) : '';
+      xmlItems.push(`  <url>\n    <loc>${escapeXml(`${SITE_URL}/post/${post.id}`)}</loc>\n    <priority>0.8</priority>\n    <changefreq>weekly</changefreq>${lastmod ? `\n    <lastmod>${escapeXml(lastmod)}</lastmod>` : ''}\n  </url>`);
     });
 
     // 4. Active Story Pages (ephemeral — high crawl priority while live)
     stories.forEach(story => {
-      const lastmod = story.created_at ? story.created_at.slice(0, 10) : '';
-      xmlItems.push(`  <url>\n    <loc>${SITE_URL}/story/${story.id}</loc>\n    <priority>0.6</priority>\n    <changefreq>daily</changefreq>${lastmod ? `\n    <lastmod>${lastmod}</lastmod>` : ''}\n  </url>`);
+      const lastmod = story.created_at ? String(story.created_at).slice(0, 10) : '';
+      xmlItems.push(`  <url>\n    <loc>${escapeXml(`${SITE_URL}/story/${story.id}`)}</loc>\n    <priority>0.6</priority>\n    <changefreq>daily</changefreq>${lastmod ? `\n    <lastmod>${escapeXml(lastmod)}</lastmod>` : ''}\n  </url>`);
     });
 
     const totalLinks = xmlItems.length;
@@ -72,7 +122,7 @@ ${xmlItems.join('\n')}
 
   } catch (err) {
     console.error("[Sitemap] Generation failed:", err.message);
-    process.exit(0);
+    process.exit(1);
   }
 }
 

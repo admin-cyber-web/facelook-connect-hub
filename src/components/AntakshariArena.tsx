@@ -233,7 +233,7 @@ export default function AntakshariArena({
           current_word: getRandomStartingWord(),
           round_number: 0,
         })
-        .select()
+        .select("id,code,name,theme,max_players,host_id,is_public,status,current_word,current_singer_id,round_number,created_at")
         .single();
 
       if (err || !roomRow) throw err || new Error("Failed to create room");

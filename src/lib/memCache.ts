@@ -4,6 +4,7 @@
 // within the TTL window. Zero dependencies, zero React re-renders.
 
 const TTL_MS = 1000 * 60 * 5; // 5 minutes
+const MAX_ENTRIES = 200;
 
 interface CacheEntry {
   data: unknown;
@@ -11,6 +12,20 @@ interface CacheEntry {
 }
 
 const store = new Map<string, CacheEntry>();
+const inFlight = new Map<string, Promise<unknown>>();
+
+function pruneStore(): void {
+  const now = Date.now();
+  for (const [key, entry] of store) {
+    const ttl = (entry as any)._ttl ?? TTL_MS;
+    if (now - entry.at > ttl) store.delete(key);
+  }
+  while (store.size > MAX_ENTRIES) {
+    const oldest = store.keys().next().value;
+    if (oldest === undefined) break;
+    store.delete(oldest);
+  }
+}
 
 /** Returns cached data if still fresh, null otherwise. */
 export function memGet<T = unknown>(key: string): T | null {
@@ -21,6 +36,8 @@ export function memGet<T = unknown>(key: string): T | null {
     store.delete(key);
     return null;
   }
+  store.delete(key);
+  store.set(key, entry);
   return entry.data as T;
 }
 
@@ -28,24 +45,29 @@ export function memGet<T = unknown>(key: string): T | null {
 export function memSet(key: string, data: unknown, ttlMs?: number): void {
   const entry: CacheEntry = { data, at: Date.now() };
   if (ttlMs !== undefined) (entry as any)._ttl = ttlMs;
+  store.delete(key);
   store.set(key, entry);
+  pruneStore();
 }
 
 /** Removes a key (use after mutations so next fetch gets fresh data). */
 export function memDel(key: string): void {
   store.delete(key);
+  inFlight.delete(key);
 }
 
 /** Wipes every entry — call on logout to prevent cross-session data leaks. */
 export function memClear(): void {
   store.clear();
+  inFlight.clear();
 }
 
 /** Returns true if a key exists AND is still within TTL. */
 export function memFresh(key: string): boolean {
   const entry = store.get(key);
   if (!entry) return false;
-  if (Date.now() - entry.at > TTL_MS) { store.delete(key); return false; }
+  const ttl = (entry as any)._ttl ?? TTL_MS;
+  if (Date.now() - entry.at > ttl) { store.delete(key); return false; }
   return true;
 }
 
@@ -60,7 +82,14 @@ export async function memGetOrFetch<T>(
 ): Promise<T> {
   const hit = memGet<T>(key);
   if (hit !== null) return hit;
-  const data = await fetchFn();
-  if (data !== null && data !== undefined) memSet(key, data);
-  return data;
+  const pending = inFlight.get(key) as Promise<T> | undefined;
+  if (pending) return pending;
+  const request = fetchFn()
+    .then((data) => {
+      if (data !== null && data !== undefined) memSet(key, data);
+      return data;
+    })
+    .finally(() => inFlight.delete(key));
+  inFlight.set(key, request);
+  return request;
 }

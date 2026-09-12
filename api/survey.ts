@@ -51,7 +51,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     // ── 1. Fetch the survey row (question + image_url + options) ──────────────
-    const [surveyRes, votesRes] = await Promise.all([
+    const [surveyRes, voteCountsRes] = await Promise.all([
       fetch(
         `${SUPABASE_URL}/rest/v1/surveys` +
           `?id=eq.${encodeURIComponent(surveyId)}` +
@@ -59,18 +59,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           `&limit=1`,
         { headers }
       ),
-      fetch(
-        `${SUPABASE_URL}/rest/v1/votes` +
-          `?survey_id=eq.${encodeURIComponent(surveyId)}` +
-          `&select=option_id`,
-        { headers }
-      ),
+      fetch(`${SUPABASE_URL}/rest/v1/rpc/get_survey_vote_counts`, {
+        method: "POST",
+        headers: { ...headers, "Content-Type": "application/json" },
+        body: JSON.stringify({ p_survey_ids: [surveyId] }),
+      }),
     ]);
 
     if (!surveyRes.ok) throw new Error(`Supabase error: ${surveyRes.status}`);
 
     const surveys = await surveyRes.json();
-    const votes = await votesRes.json();
+    const voteCountRows = voteCountsRes.ok ? await voteCountsRes.json() : [];
     const survey = Array.isArray(surveys) ? surveys[0] : null;
 
     if (!survey) {
@@ -80,11 +79,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // ── 2. Build per-option vote percentages for og:description ──────────────
-    const total: number = Array.isArray(votes) ? votes.length : 0;
+    const total: number = Array.isArray(voteCountRows) && voteCountRows.length > 0
+      ? Number(voteCountRows[0].total_votes) || 0
+      : 0;
     const voteCounts: Record<string, number> = {};
-    if (Array.isArray(votes)) {
-      votes.forEach((v: { option_id: string }) => {
-        voteCounts[v.option_id] = (voteCounts[v.option_id] || 0) + 1;
+    if (Array.isArray(voteCountRows)) {
+      voteCountRows.forEach((v: { option_id: string; vote_count: number }) => {
+        voteCounts[v.option_id] = Number(v.vote_count) || 0;
       });
     }
 

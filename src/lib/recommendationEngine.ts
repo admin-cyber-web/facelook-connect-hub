@@ -16,6 +16,7 @@
  */
 
 import { supabase } from "./supabaseClient";
+import { memGet, memSet } from "./memCache";
 
 // ── Interest catalogue ────────────────────────────────────────────────────────
 
@@ -130,6 +131,18 @@ export async function fetchRecommendedPeople(
   viewer: LocalProfile,
   limit = 9,
 ): Promise<RecommendedUser[]> {
+  const cacheKey = `recommendations:${currentUserId}:${JSON.stringify({
+    state: viewer.state ?? null,
+    district: viewer.district ?? null,
+    city: viewer.city ?? null,
+    pincode: viewer.pincode ?? null,
+    interests: viewer.interests ?? [],
+    nearby: viewer.rec_people_nearby !== false,
+    similar: viewer.rec_interests !== false,
+    limit,
+  })}`;
+  const cached = memGet<RecommendedUser[]>(cacheKey);
+  if (cached) return cached;
 
   const [candRes, blockRes, friendRes] = await Promise.all([
     supabase
@@ -187,7 +200,7 @@ export async function fetchRecommendedPeople(
   const useLocation  = viewer.rec_people_nearby !== false;
   const useInterests = viewer.rec_interests     !== false;
 
-  return ((candRes.data ?? []) as any[])
+  const results = ((candRes.data ?? []) as any[])
     .filter(c => !blocked.has(c.id) && !friends.has(c.id))
     .map(c => {
       const cInts: string[] = Array.isArray(c.interests) ? c.interests : [];
@@ -215,6 +228,8 @@ export async function fetchRecommendedPeople(
     })
     .sort((a, b) => b.score - a.score)
     .slice(0, limit);
+  memSet(cacheKey, results, 5 * 60_000);
+  return results;
 }
 
 // ── Public: New in Your Area ──────────────────────────────────────────────────
@@ -225,6 +240,10 @@ export async function fetchNewInYourArea(
   limit = 8,
 ): Promise<RecommendedUser[]> {
   if (!viewer.state && !viewer.district && !viewer.city) return [];
+  const area = viewer.district || viewer.city || viewer.state || "";
+  const cacheKey = `new-in-area:${currentUserId}:${area}:${limit}`;
+  const cached = memGet<RecommendedUser[]>(cacheKey);
+  if (cached) return cached;
 
   let q = supabase
     .from("profiles")
@@ -254,7 +273,7 @@ export async function fetchNewInYourArea(
     blocked.add(b.blocker_id === currentUserId ? b.blocked_id : b.blocker_id);
   }
 
-  return ((newRes.data ?? []) as any[])
+  const results = ((newRes.data ?? []) as any[])
     .filter(u => !blocked.has(u.id))
     .map(u => ({
       ...u,
@@ -264,4 +283,6 @@ export async function fetchNewInYourArea(
       isNew:     true,
     }))
     .slice(0, limit);
+  memSet(cacheKey, results, 5 * 60_000);
+  return results;
 }

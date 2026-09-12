@@ -815,7 +815,7 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
           created_by: currentUserId,
           admin_id: currentUserId,
         }])
-        .select()
+        .select("id,name,description,privacy,cover_url,created_by,admin_id,member_count,rules,post_approval,pinned_announcement,pinned_at,created_at")
         .single();
 
       if (error) { toast.error(`Failed to create Circle: ${error.message}`); return; }
@@ -927,7 +927,7 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
         event_time: eventForm.event_time || null,
         location: eventForm.location.trim() || null,
       }])
-      .select()
+      .select("id,circle_id,created_by,title,description,event_date,event_time,location,created_at")
       .single();
     setSavingEvent(false);
     if (error) { toast.error("Failed to create event."); return; }
@@ -1524,7 +1524,7 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
       author_name: userProfile?.full_name || "Member",
       author_avatar: userProfile?.avatar_url || null,
       content: cleanContent,
-    }).select().single();
+    }).select("id,post_id,author_id,author_name,author_avatar,content,created_at").single();
     if (!error) {
       setCommentText("");
       if (data) {

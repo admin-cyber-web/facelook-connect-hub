@@ -7,6 +7,22 @@ import React, { createContext, useContext, useCallback, useRef } from "react";
 // ═══════════════════════════════════════════════════════════════════════════
 
 const STALE_MS = 1000 * 60 * 5; // 5 minutes
+const MAX_CIRCLE_ENTRIES = 20;
+
+function setBoundedCircleEntry(
+  entries: Record<string, CacheEntry<any[]>>,
+  circleId: string,
+  entry: CacheEntry<any[]>,
+): Record<string, CacheEntry<any[]>> {
+  const next = { ...entries };
+  delete next[circleId];
+  next[circleId] = entry;
+  const ids = Object.keys(next);
+  if (ids.length > MAX_CIRCLE_ENTRIES) {
+    delete next[ids[0]];
+  }
+  return next;
+}
 
 export type CacheEntry<T> = {
   data: T;
@@ -101,21 +117,21 @@ export const DataCacheProvider = ({ children }: { children: React.ReactNode }) =
   const setCirclePosts = useCallback((circleId: string, entry: CacheEntry<any[]>) => {
     cacheRef.current = {
       ...cacheRef.current,
-      circlePosts: { ...cacheRef.current.circlePosts, [circleId]: entry },
+      circlePosts: setBoundedCircleEntry(cacheRef.current.circlePosts, circleId, entry),
     };
   }, []);
 
   const setCirclePending = useCallback((circleId: string, entry: CacheEntry<any[]>) => {
     cacheRef.current = {
       ...cacheRef.current,
-      circlePending: { ...cacheRef.current.circlePending, [circleId]: entry },
+      circlePending: setBoundedCircleEntry(cacheRef.current.circlePending, circleId, entry),
     };
   }, []);
 
   const setCircleMembers = useCallback((circleId: string, entry: CacheEntry<any[]>) => {
     cacheRef.current = {
       ...cacheRef.current,
-      circleMembers: { ...cacheRef.current.circleMembers, [circleId]: entry },
+      circleMembers: setBoundedCircleEntry(cacheRef.current.circleMembers, circleId, entry),
     };
   }, []);
 

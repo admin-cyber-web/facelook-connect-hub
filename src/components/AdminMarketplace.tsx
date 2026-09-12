@@ -147,7 +147,7 @@ function CheckoutDrawer({
       const { data, error } = await supabase
         .from("marketplace_orders")
         .insert([payload])
-        .select()
+        .select("id,tracking_code,user_id,user_email,user_name,phone,address,item_id,item_title,item_price,selected_size,selected_color,payment_method,utr_id,status,created_at")
         .single();
       if (error) throw error;
       onSuccess(data as MarketplaceOrder);

@@ -40,14 +40,19 @@ const SurveyDetail = () => {
 
       if (!s) { setLoading(false); return; }
 
-      const { data: votes } = await supabase
-        .from("votes")
-        .select("option_id")
-        .eq("survey_id", id);
-
       const voteMap: Record<string, number> = {};
-      (votes || []).forEach(v => { voteMap[v.option_id] = (voteMap[v.option_id] || 0) + 1; });
-      const total = (votes || []).length;
+      const { data: voteCounts, error: countsError } = await supabase.rpc(
+        "get_survey_vote_counts",
+        { p_survey_ids: [id] },
+      );
+      if (countsError) {
+        console.warn("[SurveyDetail] vote aggregate unavailable:", countsError.message);
+      }
+      let total = 0;
+      (voteCounts || []).forEach((row: any) => {
+        voteMap[row.option_id] = Number(row.vote_count) || 0;
+        total = Math.max(total, Number(row.total_votes) || 0);
+      });
 
       setSurvey({
         ...s,

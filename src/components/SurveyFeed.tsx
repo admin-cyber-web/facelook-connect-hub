@@ -732,7 +732,7 @@ const CreateSurveyModal: React.FC<{ userId: string; onCreated: () => void; onClo
       }
       const { data: survey, error: sErr } = await supabase.from("surveys")
         .insert({ question: question.trim(), image_url: imageUrl, user_id: userId })
-        .select().single();
+        .select("id").single();
       if (sErr || !survey) throw sErr;
       setUploadProgress(90);
       const { error: oErr } = await supabase.from("survey_options")
@@ -874,25 +874,26 @@ const SurveyFeed: React.FC<{ userId: string; highlightedSurveyId?: string | null
 
     const ids = data.map(s => s.id);
 
-    const [votesRes, likesRes, commentsRes, userVotesRes, userLikesRes] = await Promise.all([
-      supabase.from("votes").select("survey_id, option_id").in("survey_id", ids),
-      supabase.from("survey_likes").select("survey_id").in("survey_id", ids),
-      supabase.from("survey_comments").select("survey_id").in("survey_id", ids),
+    const [voteCountsRes, engagementRes, userVotesRes, userLikesRes] = await Promise.all([
+      supabase.rpc("get_survey_vote_counts", { p_survey_ids: ids }),
+      supabase.rpc("get_survey_engagement_counts", { p_survey_ids: ids }),
       supabase.from("votes").select("survey_id, option_id").in("survey_id", ids).eq("user_id", userId),
       supabase.from("survey_likes").select("survey_id").in("survey_id", ids).eq("user_id", userId),
     ]);
 
     const votesMap: Record<string, Record<string, number>> = {};
     const totalMap: Record<string, number> = {};
-    (votesRes.data || []).forEach(v => {
+    (voteCountsRes.data || []).forEach((v: any) => {
       if (!votesMap[v.survey_id]) votesMap[v.survey_id] = {};
-      votesMap[v.survey_id][v.option_id] = (votesMap[v.survey_id][v.option_id] || 0) + 1;
-      totalMap[v.survey_id] = (totalMap[v.survey_id] || 0) + 1;
+      votesMap[v.survey_id][v.option_id] = Number(v.vote_count) || 0;
+      totalMap[v.survey_id] = Number(v.total_votes) || 0;
     });
     const likesMap: Record<string, number> = {};
-    (likesRes.data || []).forEach(l => { likesMap[l.survey_id] = (likesMap[l.survey_id] || 0) + 1; });
     const commentsMap: Record<string, number> = {};
-    (commentsRes.data || []).forEach(c => { commentsMap[c.survey_id] = (commentsMap[c.survey_id] || 0) + 1; });
+    (engagementRes.data || []).forEach((row: any) => {
+      likesMap[row.survey_id] = Number(row.likes_count) || 0;
+      commentsMap[row.survey_id] = Number(row.comments_count) || 0;
+    });
     const userVoteMap: Record<string, string> = {};
     (userVotesRes.data || []).forEach(v => { userVoteMap[v.survey_id] = v.option_id; });
     const userLikeSet = new Set((userLikesRes.data || []).map(l => l.survey_id));

@@ -200,7 +200,7 @@ const EditPageModal = ({ page, userId, onClose, onSaved }:
     const { data, error } = await supabase.from("hook_pages")
       .update({ name: form.name.trim(), description: form.description.trim(), category: form.category, cover_url: cover_url || "", avatar_url: avatar_url || "" })
       .eq("id", page.id).eq("owner_id", userId)
-      .select().single();
+      .select("id,owner_id,name,description,category,cover_url,avatar_url,hook_count,created_at,follower_count,like_count,is_monetized").single();
     setSaving(false);
     if (error) { setErr("Update failed: " + error.message); return; }
     onSaved(data as HookPage);
@@ -586,7 +586,7 @@ const CreatePageModal = ({ userId, onClose, onCreated }:
     }
     const { data, error } = await supabase.from("hook_pages")
       .insert([{ owner_id: userId, name: form.name.trim(), description: form.description.trim(), category: form.category, cover_url, avatar_url }])
-      .select().single();
+      .select("id,owner_id,name,description,category,cover_url,avatar_url,hook_count,created_at,follower_count,like_count,is_monetized").single();
     setSaving(false);
     if (error) { setErr("Page nahi ban saka. Supabase SQL tables setup karein."); return; }
     onCreated({ ...(data as HookPage), profiles: ownerProfile ? { avatar_url: ownerProfile.avatar_url, full_name: ownerProfile.full_name } : null });

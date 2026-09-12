@@ -33,20 +33,6 @@ const isSupportedVideoUrl = (url: unknown, metadata?: any): boolean => {
   return SUPPORTED_VIDEO_EXTENSIONS.test(url);
 };
 
-const relationCount = (row: any, relation: string, counter: string): number => {
-  const related = row?.[relation];
-  if (Array.isArray(related) && related[0]?.count != null) {
-    return Number(related[0].count) || 0;
-  }
-  return Math.max(Number(row?.[counter]) || 0, 0);
-};
-
-const countRowsByPost = (rows: any[] | null | undefined): Record<string, number> =>
-  (rows || []).reduce<Record<string, number>>((counts, row) => {
-    if (row?.post_id) counts[row.post_id] = (counts[row.post_id] || 0) + 1;
-    return counts;
-  }, {});
-
 // ── CSS injection (keyframes for marquee + reel spin, done once) ──────────────
 function injectFlicksStyles() {
   const id = "flicks-global-styles";
@@ -828,66 +814,28 @@ export default function FlicksApp({ onBack, onBridgeChat, isAdmin: isAdminProp =
   useEffect(() => {
     const fetchData = async (viewerId: string | null) => {
       try {
-        // Relational counts are fetched with the reel rows so stale/zero
-        // denormalized counters cannot be the only value shown in the UI.
-        const countSelect =
-          "likes(count), comments(count), shares(count)";
         const { data: postsData, error: postsErr } = await supabase
           .from("posts")
-          .select(`id, author, author_id, content, media_url, type, metadata, cover_url, views_count, likes_count, comments_count, shares_count, created_at, ${countSelect}, author_profile:profiles!posts_author_id_fkey(avatar_url, full_name)`)
+          .select("id, author, author_id, content, media_url, type, metadata, cover_url, views_count, likes_count, comments_count, shares_count, created_at, author_profile:profiles!posts_author_id_fkey(avatar_url, full_name)")
           .in("type", ["video", "reel"])
           .order("created_at", { ascending: false })
           .limit(30);
-
-        let rows = postsData || [];
-        let relationCountsAvailable = !postsErr;
-
-        if (postsErr) {
-          console.warn("[FlicksApp] relational count query failed, using explicit fallback:", postsErr.message);
-          const fallback = await supabase
-            .from("posts")
-            .select("id, author, author_id, content, media_url, type, metadata, cover_url, views_count, likes_count, comments_count, shares_count, created_at, author_profile:profiles!posts_author_id_fkey(avatar_url, full_name)")
-            .in("type", ["video", "reel"])
-            .order("created_at", { ascending: false })
-            .limit(30);
-          if (fallback.error) throw fallback.error;
-          rows = fallback.data || [];
-          relationCountsAvailable = false;
-        }
+        if (postsErr) throw postsErr;
+        const rows = postsData || [];
 
         const supportedRows = rows.filter((row: any) =>
           isSupportedVideoUrl(row.media_url, row.metadata),
         );
         const postIds = supportedRows.map((row: any) => row.id).filter(Boolean);
         const likedIds = new Set<string>();
-        let fallbackCounts: Record<string, Record<string, number>> = {
-          likes: {},
-          comments: {},
-          shares: {},
-        };
-
         if (postIds.length > 0) {
-          const [likedResult, likesResult, commentsResult, sharesResult] = await Promise.all([
+          const [likedResult] = await Promise.all([
             viewerId
               ? supabase.from("likes").select("post_id").eq("user_id", viewerId).in("post_id", postIds)
               : Promise.resolve({ data: [], error: null }),
-            relationCountsAvailable
-              ? Promise.resolve({ data: [], error: null })
-              : supabase.from("likes").select("post_id").in("post_id", postIds),
-            relationCountsAvailable
-              ? Promise.resolve({ data: [], error: null })
-              : supabase.from("comments").select("post_id").in("post_id", postIds),
-            relationCountsAvailable
-              ? Promise.resolve({ data: [], error: null })
-              : supabase.from("shares").select("post_id").in("post_id", postIds),
           ]);
 
           (likedResult.data || []).forEach((row: any) => likedIds.add(row.post_id));
-          fallbackCounts = {
-            likes: countRowsByPost(likesResult.data),
-            comments: countRowsByPost(commentsResult.data),
-            shares: countRowsByPost(sharesResult.data),
-          };
         }
 
         const normalized = supportedRows.map((p: any) => ({
@@ -900,16 +848,10 @@ export default function FlicksApp({ onBack, onBridgeChat, isAdmin: isAdminProp =
           content: p.content || p.caption || "",
           media_url: p.media_url,
           thumb_url: p.cover_url || p.thumb_url || null,
-          likes_count: relationCountsAvailable
-            ? relationCount(p, "likes", "likes_count")
-            : fallbackCounts.likes[p.id] || 0,
+          likes_count: Math.max(Number(p.likes_count) || 0, 0),
           views_count: p.views_count || 0,
-          comments_count: relationCountsAvailable
-            ? relationCount(p, "comments", "comments_count")
-            : fallbackCounts.comments[p.id] || 0,
-          shares_count: relationCountsAvailable
-            ? relationCount(p, "shares", "shares_count")
-            : fallbackCounts.shares[p.id] || 0,
+          comments_count: Math.max(Number(p.comments_count) || 0, 0),
+          shares_count: Math.max(Number(p.shares_count) || 0, 0),
           liked_by_me: likedIds.has(p.id),
           meta_title: p.meta_title || null,
           meta_description: p.meta_description || null,

@@ -12,6 +12,7 @@ import { MapPin, X, UserPlus, Sparkles } from "lucide-react";
 import { fetchNewInYourArea, type LocalProfile, type RecommendedUser } from "@/lib/recommendationEngine";
 import { supabase } from "@/lib/supabaseClient";
 import { subscribeWhileVisible } from "@/lib/realtimeVisibility";
+import { memGetOrFetch, memDel } from "@/lib/memCache";
 
 const POPUP_KEY = "flicks_new_in_area_popup_v1";
 
@@ -28,17 +29,20 @@ export default function NewInYourArea({ currentUserId, localProfile, onProfileCl
   const [popupUser,    setPopupUser]    = useState<RecommendedUser | null>(null);
   const [sentIds,      setSentIds]      = useState<Set<string>>(new Set());
   const didFetch                        = useRef(false);
+  const popupTimerRef                  = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingConnects                 = useRef(new Set<string>());
+  const cacheKey                        = `newInArea_${currentUserId}_${localProfile.district || localProfile.city || localProfile.state || "unknown"}`;
 
   const doFetch = async () => {
     try {
-      const results = await fetchNewInYourArea(currentUserId, localProfile, 8);
+      const results = await memGetOrFetch(cacheKey, () => fetchNewInYourArea(currentUserId, localProfile, 8));
       setUsers(results);
 
       // Show popup once per user lifetime (not just session) if we find people nearby
       const dismissed = localStorage.getItem(POPUP_KEY);
       if (!dismissed && results.length > 0) {
         setPopupUser(results[0]);
-        setTimeout(() => setShowPopup(true), 1200);
+        popupTimerRef.current = setTimeout(() => setShowPopup(true), 1200);
       }
     } catch (e) {
       console.warn("[NewInYourArea]", e);
@@ -57,6 +61,10 @@ export default function NewInYourArea({ currentUserId, localProfile, onProfileCl
     doFetch();
   }, [currentUserId, localProfile.district, localProfile.city, localProfile.state]);
 
+  useEffect(() => () => {
+    if (popupTimerRef.current) clearTimeout(popupTimerRef.current);
+  }, []);
+
   // ── Realtime: re-fetch when a new user joins the same area ───────────────
   useEffect(() => {
     const areaKey = localProfile.district || localProfile.city || localProfile.state;
@@ -68,13 +76,13 @@ export default function NewInYourArea({ currentUserId, localProfile, onProfileCl
         .channel(channelName)
         .on("broadcast", { event: "new_user_joined" }, () => {
           // Re-fetch silently; update strip without showing popup again
-          fetchNewInYourArea(currentUserId, localProfile, 8)
+          memGetOrFetch(cacheKey, () => fetchNewInYourArea(currentUserId, localProfile, 8))
             .then(results => { if (results.length > 0) setUsers(results); })
             .catch(() => {});
         })
         .subscribe(),
       { onVisible: () => {
-        void fetchNewInYourArea(currentUserId, localProfile, 8)
+        void memGetOrFetch(cacheKey, () => fetchNewInYourArea(currentUserId, localProfile, 8))
           .then(results => { if (results.length > 0) setUsers(results); })
           .catch(() => {});
       } },
@@ -88,7 +96,8 @@ export default function NewInYourArea({ currentUserId, localProfile, onProfileCl
 
   const handleConnect = async (userId: string, e?: React.MouseEvent) => {
     e?.stopPropagation();
-    if (sentIds.has(userId)) return;
+    if (sentIds.has(userId) || pendingConnects.current.has(userId)) return;
+    pendingConnects.current.add(userId);
     const { error } = await supabase.from("friend_requests").insert({
       sender_id:   currentUserId,
       receiver_id: userId,
@@ -96,7 +105,9 @@ export default function NewInYourArea({ currentUserId, localProfile, onProfileCl
     });
     if (!error || error.message?.includes("duplicate") || error.message?.includes("unique")) {
       setSentIds(prev => new Set(prev).add(userId));
+      memDel(cacheKey);
     }
+    pendingConnects.current.delete(userId);
     dismissPopup();
   };
 

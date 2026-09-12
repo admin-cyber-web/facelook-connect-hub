@@ -2123,17 +2123,16 @@ const Index = ({ session, initialAdminOpen, isGuest = false }: { session: Sessio
     const hit = memGet<any[]>(cKey);
     if (hit) { setTrendingSurveys(hit); return; }
     (async () => {
-      const { data: votes } = await supabase
-        .from("votes")
-        .select("survey_id")
-        .limit(5000);
-      if (!votes?.length) return;
+      const { data: trendingRows, error: trendingError } = await supabase.rpc(
+        "get_trending_surveys",
+        { p_limit: 3 },
+      );
+      if (trendingError || !trendingRows?.length) return;
       const countMap: Record<string, number> = {};
-      votes.forEach((v: any) => { countMap[v.survey_id] = (countMap[v.survey_id] || 0) + 1; });
-      const top3ids = Object.entries(countMap)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 3)
-        .map(([id]) => id);
+      trendingRows.forEach((row: any) => {
+        countMap[row.survey_id] = Number(row.total_votes) || 0;
+      });
+      const top3ids = trendingRows.map((row: any) => row.survey_id);
       if (!top3ids.length) return;
       const { data: surveys } = await supabase
         .from("surveys")

@@ -149,7 +149,7 @@ const StoryCommentSheet = ({
         .select("id, comment_text, created_at, user_id, profiles(full_name, avatar_url)")
         .eq("story_id", storyId)
         .order("created_at", { ascending: true });
-      setComments(data || []);
+      setComments((data || []).slice(-100));
       setLoading(false);
       setTimeout(() => { listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" }); }, 100);
     })();
@@ -183,7 +183,7 @@ const StoryCommentSheet = ({
 
     if (data) {
       console.log("[StoryCommentSheet] Insert success:", data);
-      setComments(prev => [...prev, data]);
+      setComments(prev => [...prev, data].slice(-100));
       onCommentPosted();
       setTimeout(() => { listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" }); }, 80);
       // Notification to story owner
@@ -911,11 +911,11 @@ const ViewerListSheet = ({
       const [{ data: rows }, { data: likes }] = await Promise.all([
         // Use RPC to get a flat, reliable join of story_views + profiles
         supabase.rpc("get_story_viewers_list", { p_story_id: storyId }),
-        supabase.from("story_likes").select("user_id").eq("story_id", storyId),
+        supabase.from("story_likes").select("user_id").eq("story_id", storyId).limit(200),
       ]);
       setLikedSet(new Set((likes || []).map((l: any) => l.user_id)));
-      setViewers(
-        (rows || []).map((r: any) => ({
+        setViewers(
+        (rows || []).slice(-200).map((r: any) => ({
           id: r.viewer_id,
           viewed_at: r.viewed_at,
           full_name: r.full_name || "User",

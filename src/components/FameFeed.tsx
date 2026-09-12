@@ -600,15 +600,14 @@ const LatestSurveysWidget = ({
       setLoaded(true);
       if (data && data.length > 0) {
         const ids = data.map((s: any) => s.id);
-        const { data: votes } = await supabase
-          .from("votes")
-          .select("survey_id, option_id")
-          .in("survey_id", ids);
-        if (!cancelled && votes) {
+        const { data: voteCounts } = await supabase.rpc("get_survey_vote_counts", {
+          p_survey_ids: ids,
+        });
+        if (!cancelled && voteCounts) {
           const map: Record<string, Record<string, number>> = {};
-          votes.forEach((v: any) => {
+          voteCounts.forEach((v: any) => {
             if (!map[v.survey_id]) map[v.survey_id] = {};
-            map[v.survey_id][v.option_id] = (map[v.survey_id][v.option_id] || 0) + 1;
+            map[v.survey_id][v.option_id] = Number(v.vote_count) || 0;
           });
           setVoteCounts(map);
         }
