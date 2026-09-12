@@ -65,7 +65,7 @@ const RainOverlay = () => (
           top: "-10%",
           "--perf-duration": `${0.8 + (i % 4) * 0.15}s`,
           "--perf-delay": `${(i % 6) * 0.2}s`,
-        }}
+        } as React.CSSProperties}
       />
     ))}
   </div>
@@ -83,7 +83,7 @@ const AudioWave = () => (
       <div
         key={i}
         className="perf-wave w-1.5 h-5 rounded-full bg-white/80"
-        style={{ "--perf-delay": `${i * 0.1}s` }}
+        style={{ ["--perf-delay" as any]: `${i * 0.1}s` }}
       />
     ))}
   </div>
@@ -137,6 +137,9 @@ const StoryCommentSheet = ({
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const [hasOlder, setHasOlder] = useState(false);
+  const oldestCommentAt = useRef<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -148,12 +151,35 @@ const StoryCommentSheet = ({
         .from("story_comments")
         .select("id, comment_text, created_at, user_id, profiles(full_name, avatar_url)")
         .eq("story_id", storyId)
-        .order("created_at", { ascending: true });
-      setComments((data || []).slice(-100));
+        .order("created_at", { ascending: false })
+        .range(0, 99);
+      const page = (data || []).reverse();
+      oldestCommentAt.current = page[0]?.created_at ?? null;
+      setHasOlder((data || []).length === 100);
+      setComments(page);
       setLoading(false);
       setTimeout(() => { listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" }); }, 100);
     })();
   }, [storyId]);
+
+  const loadOlderComments = async () => {
+    if (loadingOlder || !hasOlder || !oldestCommentAt.current) return;
+    setLoadingOlder(true);
+    const { data } = await supabase
+      .from("story_comments")
+      .select("id, comment_text, created_at, user_id, profiles(full_name, avatar_url)")
+      .eq("story_id", storyId)
+      .lt("created_at", oldestCommentAt.current)
+      .order("created_at", { ascending: false })
+      .range(0, 99);
+    const page = (data || []).reverse();
+    if (page.length > 0) {
+      oldestCommentAt.current = page[0].created_at;
+      setComments(prev => [...page, ...prev]);
+    }
+    setHasOlder((data || []).length === 100);
+    setLoadingOlder(false);
+  };
 
   const send = async () => {
     if (!text.trim() || !currentUserId || sending) return;
@@ -183,7 +209,7 @@ const StoryCommentSheet = ({
 
     if (data) {
       console.log("[StoryCommentSheet] Insert success:", data);
-      setComments(prev => [...prev, data].slice(-100));
+       setComments(prev => [...prev, data]);
       onCommentPosted();
       setTimeout(() => { listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" }); }, 80);
       // Notification to story owner
@@ -214,10 +240,10 @@ const StoryCommentSheet = ({
         exit={{ y: "100%" }}
         transition={{ type: "spring", stiffness: 320, damping: 32 }}
         className="bg-black/85 backdrop-blur-2xl rounded-t-3xl flex flex-col"
-        style={{
+          style={{
           maxHeight: "65vh",
           paddingBottom: "max(calc(env(safe-area-inset-bottom) + 72px), 80px)",
-        }}
+          } as React.CSSProperties}
         onClick={e => e.stopPropagation()}
         onPointerDown={e => e.stopPropagation()}
         onPointerUp={e => e.stopPropagation()}
@@ -240,7 +266,17 @@ const StoryCommentSheet = ({
           ) : comments.length === 0 ? (
             <p className="text-white/35 text-sm text-center py-8 font-medium">Pehla comment karo! 🌟</p>
           ) : (
-            comments.map((c: any) => (
+            <>
+            {hasOlder && (
+              <button
+                onClick={loadOlderComments}
+                disabled={loadingOlder}
+                className="w-full py-2 text-blue-300 text-xs font-bold disabled:opacity-50"
+              >
+                {loadingOlder ? "Loading…" : "Load older comments"}
+              </button>
+            )}
+            {comments.map((c: any) => (
               <div key={c.id} className="flex items-start gap-2.5">
                 {c.profiles?.avatar_url ? (
                   <img src={c.profiles.avatar_url} className="w-8 h-8 rounded-full object-cover shrink-0 mt-0.5" loading="lazy" crossOrigin="anonymous" referrerPolicy="no-referrer" decoding="async"/>
@@ -254,7 +290,8 @@ const StoryCommentSheet = ({
                   <p className="text-white text-[13px] leading-snug mt-0.5">{c.comment_text}</p>
                 </div>
               </div>
-            ))
+            ))}
+            </>
           )}
         </div>
         {/* Input row */}
@@ -904,28 +941,72 @@ const ViewerListSheet = ({
   const [viewers, setViewers] = useState<Array<{ id: string; viewed_at: string; full_name: string; username?: string; avatar_url?: string }>>([]);
   const [likedSet, setLikedSet] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const viewerOffset = useRef(0);
 
   useEffect(() => {
     (async () => {
       setLoading(true);
-      const [{ data: rows }, { data: likes }] = await Promise.all([
-        // Use RPC to get a flat, reliable join of story_views + profiles
-        supabase.rpc("get_story_viewers_list", { p_story_id: storyId }),
-        supabase.from("story_likes").select("user_id").eq("story_id", storyId).limit(200),
-      ]);
-      setLikedSet(new Set((likes || []).map((l: any) => l.user_id)));
-        setViewers(
-        (rows || []).slice(-200).map((r: any) => ({
+      viewerOffset.current = 0;
+      // Use RPC to get a flat, reliable join of story_views + profiles.
+      // Range pagination keeps the existing RPC while avoiding unbounded results.
+      const { data: rows } = await supabase
+        .rpc("get_story_viewers_list", { p_story_id: storyId })
+        .range(0, 199);
+      const loaded = (rows || []).map((r: any) => ({
           id: r.viewer_id,
           viewed_at: r.viewed_at,
           full_name: r.full_name || "User",
           username: r.username,
           avatar_url: r.avatar_url,
-        }))
-      );
+        }));
+      viewerOffset.current = loaded.length;
+      setHasMore(loaded.length === 200);
+      setViewers(loaded);
+      if (loaded.length > 0) {
+        const { data: likes } = await supabase
+          .from("story_likes")
+          .select("user_id")
+          .eq("story_id", storyId)
+          .in("user_id", loaded.map(v => v.id));
+        setLikedSet(new Set((likes || []).map((l: any) => l.user_id)));
+      } else {
+        setLikedSet(new Set());
+      }
       setLoading(false);
     })();
   }, [storyId]);
+
+  const loadMoreViewers = async () => {
+    if (loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    const start = viewerOffset.current;
+    const { data: rows } = await supabase
+      .rpc("get_story_viewers_list", { p_story_id: storyId })
+      .range(start, start + 199);
+    const more = (rows || []).map((r: any) => ({
+      id: r.viewer_id,
+      viewed_at: r.viewed_at,
+      full_name: r.full_name || "User",
+      username: r.username,
+      avatar_url: r.avatar_url,
+    }));
+    viewerOffset.current += more.length;
+    setHasMore(more.length === 200);
+    setViewers(prev => [...prev, ...more]);
+    if (more.length > 0) {
+      const { data: likes } = await supabase
+        .from("story_likes")
+        .select("user_id")
+        .eq("story_id", storyId)
+        .in("user_id", more.map(v => v.id));
+      if (likes) {
+        setLikedSet(prev => new Set([...prev, ...likes.map((l: any) => l.user_id)]));
+      }
+    }
+    setLoadingMore(false);
+  };
 
   return (
     <motion.div
@@ -965,7 +1046,17 @@ const ViewerListSheet = ({
           ) : viewers.length === 0 ? (
             <p className="text-center text-sm text-gray-400 py-10">No viewers yet</p>
           ) : (
-            viewers.map(v => (
+             <>
+             {hasMore && (
+               <button
+                 onClick={loadMoreViewers}
+                 disabled={loadingMore}
+                 className="w-full py-2 text-sm font-bold text-gray-600 disabled:opacity-50"
+               >
+                 {loadingMore ? "Loading…" : "Load more viewers"}
+               </button>
+             )}
+             {viewers.map(v => (
               <div key={v.id} className="flex items-center gap-3 px-3 py-2.5 hover:bg-[#c4e8d4] rounded-xl">
                 {v.avatar_url ? (
                   <img src={v.avatar_url} className="w-11 h-11 rounded-full object-cover" loading="lazy" crossOrigin="anonymous" referrerPolicy="no-referrer" decoding="async"/>
@@ -990,7 +1081,8 @@ const ViewerListSheet = ({
                   <Heart size={16} className="text-red-500" fill="#ef4444" />
                 )}
               </div>
-            ))
+             ))}
+             </>
           )}
         </div>
       </motion.div>

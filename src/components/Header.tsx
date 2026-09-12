@@ -500,7 +500,7 @@ const SearchModal = ({
     setTimeout(() => inputRef.current?.focus(), 80);
     (async () => {
       const queries: Promise<any>[] = [
-        supabase
+        Promise.resolve(supabase
           .from("profiles")
           .select("id,full_name,avatar_url,fame_points,last_seen")
           .eq("profile_hidden", false)
@@ -514,25 +514,25 @@ const SearchModal = ({
                   .select("id,full_name,avatar_url,last_seen")
                   .eq("profile_hidden", false)
                   .limit(8)
-              : r,
+              : r),
           ),
-        supabase
+        Promise.resolve(supabase
           .from("groups")
           .select("id,name,cover_url,member_count")
           .order("member_count", { ascending: false })
-          .limit(8),
-        supabase
+          .limit(8)),
+        Promise.resolve(supabase
           .from("hook_pages")
           .select("id,name,cover_url,hook_count,category")
           .order("hook_count", { ascending: false })
-          .limit(8),
+          .limit(8)),
       ];
       if (userId)
-        queries.push(
-          supabase
+          queries.push(
+          Promise.resolve(supabase
             .from("friend_requests")
             .select("receiver_id")
-            .eq("sender_id", userId),
+            .eq("sender_id", userId)),
         );
       const [{ data: p }, { data: c }, { data: hp }, reqRes] =
         await Promise.all(queries);
@@ -1670,7 +1670,7 @@ const Header = ({
             }
           : null;
       })
-      .filter((f): f is FriendEntry => !!f && !!f.id);
+      .filter((f: any): f is FriendEntry => !!f && !!f.id);
 
     console.log("[PowerDash] parsed friends:", parsed.length);
     setDashFriends(parsed);

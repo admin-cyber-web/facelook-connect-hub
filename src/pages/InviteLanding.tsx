@@ -38,7 +38,7 @@ export default function InviteLanding() {
         }
         setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .then(undefined, () => setLoading(false));
   }, [refId]);
 
   const handleJoin = () => {

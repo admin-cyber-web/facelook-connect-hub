@@ -737,7 +737,7 @@ export const DebateButton: React.FC<{
   const fetchMessages = useCallback(async (debateId: string) => {
     const { data } = await supabase
       .from("debate_messages")
-      .select("*, profiles!user_id(full_name, avatar_url)")
+      .select("id, debate_id, user_id, content, likes_count, created_at, profiles!user_id(full_name, avatar_url)")
       .eq("debate_id", debateId)
       .order("created_at", { ascending: true });
     if (!data) return;
@@ -749,7 +749,7 @@ export const DebateButton: React.FC<{
       .eq("user_id", currentUserId);
 
     const likedSet = new Set((likedRows || []).map(r => r.message_id));
-    setMessages(data.map(m => ({ ...m, user_liked: likedSet.has(m.id) })));
+    setMessages(data.map(m => ({ ...m, user_liked: likedSet.has(m.id) })) as unknown as DebateMessage[]);
   }, [currentUserId]);
 
   // ── Fetch & sync message votes ───────────────────────────────────────────────
@@ -901,7 +901,7 @@ export const DebateButton: React.FC<{
         status: "pending",
         expires_at: new Date(Date.now() + 48 * 3600 * 1000).toISOString(),
       })
-      .select("*, challenger:profiles!challenger_id(full_name,avatar_url), responder:profiles!responder_id(full_name,avatar_url)")
+      .select("id, survey_id, challenger_id, responder_id, status, is_public, expires_at, finished_at, winner_id, created_at, challenger:profiles!challenger_id(full_name,avatar_url), responder:profiles!responder_id(full_name,avatar_url)")
       .single();
 
     if (error) {
@@ -913,7 +913,7 @@ export const DebateButton: React.FC<{
         toast.error(`Challenge failed (${error.code || "unknown"}): ${error.message}`);
       }
     } else {
-      setDebate(newDebate as DebateChallenge);
+      setDebate(newDebate as unknown as DebateChallenge);
       supabase.from("notifications").insert({
         notifier_id: surveyOwnerId,
         actor_id: user.id,

@@ -50,7 +50,6 @@ import {
   Plus,
   X,
   Film,
-  Handshake,
       } from "lucide-react";
 
 // DHAYAN DEIN: Sirf ye ek supabase import rehna chahiye
@@ -2503,6 +2502,10 @@ const Index = ({ session, initialAdminOpen, isGuest = false }: { session: Sessio
         school: cachedProfile.school || "",
         mobile: cachedProfile.mobile || "",
         location: cachedProfile.location || "",
+        state: cachedProfile.state || "",
+        district: cachedProfile.district || "",
+        city: cachedProfile.city || "",
+        pincode: cachedProfile.pincode || "",
       });
       setProfileLoading(false);
       return;
@@ -2541,6 +2544,10 @@ const Index = ({ session, initialAdminOpen, isGuest = false }: { session: Sessio
           school: "",
           mobile: "",
           location: "",
+          state: "",
+          district: "",
+          city: "",
+          pincode: "",
         });
         setProfileLoading(false);
         setProfileError(
@@ -2630,6 +2637,10 @@ const Index = ({ session, initialAdminOpen, isGuest = false }: { session: Sessio
           school: "",
           mobile: "",
           location: "",
+          state: "",
+          district: "",
+          city: "",
+          pincode: "",
         });
       }
     } catch (err: any) {

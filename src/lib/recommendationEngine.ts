@@ -16,7 +16,7 @@
  */
 
 import { supabase } from "./supabaseClient";
-import { memGet, memSet } from "./memCache";
+import { memGet, memGetOrFetch, memDel } from "./memCache";
 
 // ── Interest catalogue ────────────────────────────────────────────────────────
 
@@ -124,6 +124,69 @@ function buildReasonDetail(v: LocalProfile, c: any, sharedInterests: number, mut
   return parts.length > 0 ? parts.join(" · ") : "Active on Flicks India";
 }
 
+// These resources are shared by both discovery surfaces.  Keeping the raw
+// rows separate from the ranked results means a second mounted surface can
+// reuse an in-flight request without sharing mutable result arrays.
+const PROFILE_KEY = "recommendations:public-profiles:v1";
+const BLOCK_KEY = (id: string) => `recommendations:blocks:${id}`;
+const FRIEND_KEY = (id: string) => `recommendations:friends:${id}`;
+let resourceGeneration = 0;
+
+type ProfileRow = {
+  id: string; full_name: string | null; avatar_url: string | null;
+  username: string | null; fame_points?: number; state?: string | null;
+  district?: string | null; city?: string | null; pincode?: string | null;
+  interests?: string[] | null; created_at?: string | null;
+};
+
+async function getPublicProfiles(): Promise<ProfileRow[]> {
+  return memGetOrFetch(PROFILE_KEY, async () => {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("id,full_name,avatar_url,username,fame_points,state,district,city,pincode,interests,created_at")
+      .eq("is_private_mode", false)
+      .eq("profile_hidden", false)
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
+      .limit(150);
+    if (error) throw error;
+    return (data ?? []) as ProfileRow[];
+  });
+}
+
+async function getBlocks(currentUserId: string): Promise<Set<string>> {
+  const rows = await memGetOrFetch(BLOCK_KEY(currentUserId), async () => {
+    const { data, error } = await supabase.from("user_blocks")
+      .select("blocker_id,blocked_id")
+      .or(`blocker_id.eq.${currentUserId},blocked_id.eq.${currentUserId}`)
+      .limit(500);
+    if (error) throw error;
+    return data ?? [];
+  });
+  return new Set(rows.map((b: any) => b.blocker_id === currentUserId ? b.blocked_id : b.blocker_id));
+}
+
+async function getFriends(currentUserId: string): Promise<Set<string>> {
+  const rows = await memGetOrFetch(FRIEND_KEY(currentUserId), async () => {
+    const { data, error } = await supabase.from("friend_requests")
+      .select("receiver_id,sender_id")
+      .or(`sender_id.eq.${currentUserId},receiver_id.eq.${currentUserId}`)
+      .eq("status", "accepted")
+      .limit(500);
+    if (error) throw error;
+    return data ?? [];
+  });
+  return new Set(rows.map((f: any) => f.sender_id === currentUserId ? f.receiver_id : f.sender_id));
+}
+
+/** Call after a block, unblock, friend request, or profile/privacy mutation. */
+export function invalidateRecommendationCaches(currentUserId: string): void {
+  resourceGeneration += 1;
+  memDel(PROFILE_KEY);
+  memDel(BLOCK_KEY(currentUserId));
+  memDel(FRIEND_KEY(currentUserId));
+}
+
 // ── Public: People You May Know ───────────────────────────────────────────────
 
 export async function fetchRecommendedPeople(
@@ -131,7 +194,7 @@ export async function fetchRecommendedPeople(
   viewer: LocalProfile,
   limit = 9,
 ): Promise<RecommendedUser[]> {
-  const cacheKey = `recommendations:${currentUserId}:${JSON.stringify({
+  const cacheKey = `recommendations:${resourceGeneration}:${currentUserId}:${JSON.stringify({
     state: viewer.state ?? null,
     district: viewer.district ?? null,
     city: viewer.city ?? null,
@@ -143,37 +206,9 @@ export async function fetchRecommendedPeople(
   })}`;
   const cached = memGet<RecommendedUser[]>(cacheKey);
   if (cached) return cached;
-
-  const [candRes, blockRes, friendRes] = await Promise.all([
-    supabase
-      .from("profiles")
-      .select("id,full_name,avatar_url,username,fame_points,state,district,city,pincode,interests,created_at")
-      .eq("is_private_mode", false)
-      .eq("profile_hidden", false)
-      .neq("id", currentUserId)
-      .limit(150),
-    supabase
-      .from("user_blocks")
-      .select("blocker_id,blocked_id")
-      .or(`blocker_id.eq.${currentUserId},blocked_id.eq.${currentUserId}`)
-      .limit(500),
-    supabase
-      .from("friend_requests")
-      .select("receiver_id,sender_id")
-      .or(`sender_id.eq.${currentUserId},receiver_id.eq.${currentUserId}`)
-      .eq("status", "accepted")
-      .limit(500),
+  const [candidates, blocked, friends] = await Promise.all([
+    getPublicProfiles(), getBlocks(currentUserId), getFriends(currentUserId),
   ]);
-
-  // Build exclusion sets
-  const blocked = new Set<string>();
-  for (const b of blockRes.data ?? []) {
-    blocked.add(b.blocker_id === currentUserId ? b.blocked_id : b.blocker_id);
-  }
-  const friends = new Set<string>();
-  for (const f of friendRes.data ?? []) {
-    friends.add(f.sender_id === currentUserId ? f.receiver_id : f.sender_id);
-  }
 
   // ── Mutual connections: fetch friends-of-friends ──────────────────────────
   // Only run when viewer has ≤ 60 friends (keep query cost bounded)
@@ -200,7 +235,8 @@ export async function fetchRecommendedPeople(
   const useLocation  = viewer.rec_people_nearby !== false;
   const useInterests = viewer.rec_interests     !== false;
 
-  const results = ((candRes.data ?? []) as any[])
+  const results = candidates
+    .filter(c => c.id !== currentUserId)
     .filter(c => !blocked.has(c.id) && !friends.has(c.id))
     .map(c => {
       const cInts: string[] = Array.isArray(c.interests) ? c.interests : [];
@@ -228,8 +264,7 @@ export async function fetchRecommendedPeople(
     })
     .sort((a, b) => b.score - a.score)
     .slice(0, limit);
-  memSet(cacheKey, results, 5 * 60_000);
-  return results;
+  return memGetOrFetch(cacheKey, async () => results);
 }
 
 // ── Public: New in Your Area ──────────────────────────────────────────────────
@@ -241,40 +276,19 @@ export async function fetchNewInYourArea(
 ): Promise<RecommendedUser[]> {
   if (!viewer.state && !viewer.district && !viewer.city) return [];
   const area = viewer.district || viewer.city || viewer.state || "";
-  const cacheKey = `new-in-area:${currentUserId}:${area}:${limit}`;
+  const cacheKey = `new-in-area:${resourceGeneration}:${currentUserId}:${area}:${limit}`;
   const cached = memGet<RecommendedUser[]>(cacheKey);
   if (cached) return cached;
-
-  let q = supabase
-    .from("profiles")
-    .select("id,full_name,avatar_url,username,state,district,city,interests,created_at")
-    .eq("is_private_mode", false)
-    .eq("profile_hidden", false)
-    .neq("id", currentUserId)
-    .gte("created_at", new Date(Date.now() - 30 * 86_400_000).toISOString())
-    .order("created_at", { ascending: false })
-    .limit(50);
-
-  if      (viewer.district) q = (q as any).eq("district", viewer.district);
-  else if (viewer.city)     q = (q as any).eq("city",     viewer.city);
-  else if (viewer.state)    q = (q as any).eq("state",    viewer.state);
-
-  const [newRes, blockRes] = await Promise.all([
-    q,
-    supabase
-      .from("user_blocks")
-      .select("blocker_id,blocked_id")
-      .or(`blocker_id.eq.${currentUserId},blocked_id.eq.${currentUserId}`)
-      .limit(500),
+  const [candidates, blocked, friends] = await Promise.all([
+    getPublicProfiles(), getBlocks(currentUserId), getFriends(currentUserId),
   ]);
-
-  const blocked = new Set<string>();
-  for (const b of blockRes.data ?? []) {
-    blocked.add(b.blocker_id === currentUserId ? b.blocked_id : b.blocker_id);
-  }
-
-  const results = ((newRes.data ?? []) as any[])
-    .filter(u => !blocked.has(u.id))
+  const cutoff = Date.now() - 30 * 86_400_000;
+  const results = candidates
+    .filter(u => u.id !== currentUserId && !blocked.has(u.id) && !friends.has(u.id))
+    .filter(u => !u.created_at || new Date(u.created_at).getTime() >= cutoff)
+    .filter(u => viewer.district ? u.district === viewer.district
+      : viewer.city ? u.city === viewer.city : u.state === viewer.state)
+    .sort((a, b) => String(b.created_at ?? "").localeCompare(String(a.created_at ?? "")))
     .map(u => ({
       ...u,
       interests: Array.isArray(u.interests) ? u.interests : [],
@@ -283,6 +297,5 @@ export async function fetchNewInYourArea(
       isNew:     true,
     }))
     .slice(0, limit);
-  memSet(cacheKey, results, 5 * 60_000);
-  return results;
+  return memGetOrFetch(cacheKey, async () => results);
 }

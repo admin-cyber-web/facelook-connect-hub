@@ -289,13 +289,13 @@ const App = () => {
         // ── Referral tracking — log invite chain when user joined via /invite?ref= ──
         const referrerId = localStorage.getItem("flicks_referrer");
         if (referrerId && referrerId !== s.user.id) {
-          supabase.from("magnet_chains").upsert({
+          Promise.resolve(supabase.from("magnet_chains").upsert({
             post_id:    `referral_${referrerId}`,
             post_type:  "referral",
             user_id:    s.user.id,
             invited_by: referrerId,
             depth:      1,
-          }, { onConflict: "user_id,post_id,post_type", ignoreDuplicates: true })
+          }, { onConflict: "user_id,post_id,post_type", ignoreDuplicates: true }))
             .then(() => localStorage.removeItem("flicks_referrer"))
             .catch(() => {});
         }

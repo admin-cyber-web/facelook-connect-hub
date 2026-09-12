@@ -18,19 +18,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     "";
 
   try {
-    const [surveyRes, votesRes] = await Promise.all([
+    const [surveyRes, countsRes] = await Promise.all([
       fetch(
         `${SUPABASE_URL}/rest/v1/surveys?id=eq.${encodeURIComponent(surveyId)}&select=question,image_url,survey_options(id,text)&limit=1`,
         { headers: { apikey: key, Authorization: `Bearer ${key}` } }
       ),
-      fetch(
-        `${SUPABASE_URL}/rest/v1/votes?survey_id=eq.${encodeURIComponent(surveyId)}&select=option_id`,
-        { headers: { apikey: key, Authorization: `Bearer ${key}` } }
-      ),
+      fetch(`${SUPABASE_URL}/rest/v1/rpc/get_survey_vote_counts`, {
+        method: "POST",
+        headers: {
+          apikey: key,
+          Authorization: `Bearer ${key}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ p_survey_ids: [surveyId] }),
+      }),
     ]);
 
     const surveys = await surveyRes.json();
-    const votes = await votesRes.json();
+    if (!countsRes.ok) {
+      throw new Error(`Vote count RPC failed (${countsRes.status})`);
+    }
+    const voteCountsRows = await countsRes.json();
     const survey = surveys?.[0];
 
     if (!survey) {
@@ -39,13 +47,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // Build vote-percentage description
-    const total: number = Array.isArray(votes) ? votes.length : 0;
     const voteCounts: Record<string, number> = {};
-    if (Array.isArray(votes)) {
-      votes.forEach((v: { option_id: string }) => {
-        voteCounts[v.option_id] = (voteCounts[v.option_id] || 0) + 1;
-      });
+    let total = 0;
+    if (!Array.isArray(voteCountsRows)) {
+      throw new Error("Vote count RPC returned an invalid response");
     }
+    voteCountsRows.forEach((v: { option_id?: string; vote_count?: number; total_votes?: number }) => {
+      if (v.option_id) voteCounts[v.option_id] = Number(v.vote_count) || 0;
+      total = Math.max(total, Number(v.total_votes) || 0);
+    });
 
     const opts: Array<{ id: string; text: string }> = Array.isArray(survey.survey_options)
       ? survey.survey_options.slice(0, 4)

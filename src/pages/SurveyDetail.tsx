@@ -23,6 +23,7 @@ const SurveyDetail = () => {
   const navigate = useNavigate();
   const [survey, setSurvey] = useState<Survey | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [session, setSession] = useState<any>(undefined);
 
   useEffect(() => {
@@ -32,13 +33,17 @@ const SurveyDetail = () => {
   useEffect(() => {
     if (!id) return;
     (async () => {
-      const { data: s } = await supabase
+      const { data: s, error: surveyError } = await supabase
         .from("surveys")
         .select("id, question, image_url, user_id, created_at, profiles(full_name, avatar_url), survey_options(id, text)")
         .eq("id", id)
         .single();
 
-      if (!s) { setLoading(false); return; }
+      if (surveyError || !s) {
+        setLoadError(surveyError?.message || "Survey not found");
+        setLoading(false);
+        return;
+      }
 
       const voteMap: Record<string, number> = {};
       const { data: voteCounts, error: countsError } = await supabase.rpc(
@@ -46,10 +51,17 @@ const SurveyDetail = () => {
         { p_survey_ids: [id] },
       );
       if (countsError) {
-        console.warn("[SurveyDetail] vote aggregate unavailable:", countsError.message);
+        setLoadError(`Unable to load vote counts: ${countsError.message}`);
+        setLoading(false);
+        return;
+      }
+      if (!Array.isArray(voteCounts)) {
+        setLoadError("Unable to load vote counts: aggregate returned no data");
+        setLoading(false);
+        return;
       }
       let total = 0;
-      (voteCounts || []).forEach((row: any) => {
+      voteCounts.forEach((row: any) => {
         voteMap[row.option_id] = Number(row.vote_count) || 0;
         total = Math.max(total, Number(row.total_votes) || 0);
       });
@@ -60,7 +72,7 @@ const SurveyDetail = () => {
           ...o, vote_count: voteMap[o.id] || 0,
         })),
         total_votes: total,
-      });
+      } as unknown as Survey);
       setLoading(false);
     })();
   }, [id]);
@@ -77,7 +89,7 @@ const SurveyDetail = () => {
     return (
       <div className="min-h-screen bg-[#0d0d1a] flex flex-col items-center justify-center gap-4">
         <BarChart2 size={40} className="text-white/20" />
-        <p className="text-white/50 font-bold">Survey not found</p>
+        <p className="text-white/50 font-bold">{loadError || "Survey not found"}</p>
         <button onClick={() => navigate("/")} className="text-indigo-400 text-sm">← Go Home</button>
       </div>
     );

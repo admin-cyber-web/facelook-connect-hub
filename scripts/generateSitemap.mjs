@@ -20,6 +20,8 @@ const SITE_URL = "https://www.flicksindia.online";
 const PAGE_SIZE = 1000;
 // Keep pagination bounded while leaving room for the sitemap's 50,000 URL limit.
 const MAX_PAGES = 50;
+const CACHE_TTL_MS = 5 * 60 * 1000;
+const CACHE_FILE = path.join(process.cwd(), '.cache', 'sitemap-data.json');
 
 function escapeXml(value) {
   return String(value)
@@ -71,20 +73,40 @@ async function generateSitemap() {
     // Fetch public posts + active stories (last 24 h) in parallel
     const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
-    const [posts, stories] = await Promise.all([
-      fetchPaginated("Posts", () => supabase
-        .from('posts')
-        .select('id, created_at')
-        .eq('visibility', 'public')
-        .order('created_at', { ascending: false })
-        .order('id', { ascending: false })),
-      fetchPaginated("Stories", () => supabase
-        .from('stories')
-        .select('id, created_at')
-        .gte('created_at', since24h)
-        .order('created_at', { ascending: false })
-        .order('id', { ascending: false })),
-    ]);
+    let cached;
+    try {
+      const stat = fs.statSync(CACHE_FILE);
+      if (Date.now() - stat.mtimeMs <= CACHE_TTL_MS) {
+        cached = JSON.parse(fs.readFileSync(CACHE_FILE, 'utf8'));
+      }
+    } catch {
+      // A missing, stale, or malformed local artifact is not a data source.
+      // Fetching below preserves the existing error behavior.
+    }
+
+    const [posts, stories] = cached?.posts && cached?.stories
+      ? [cached.posts, cached.stories]
+      : await Promise.all([
+        fetchPaginated("Posts", () => supabase
+          .from('posts')
+          .select('id, created_at')
+          .eq('visibility', 'public')
+          .order('created_at', { ascending: false })
+          .order('id', { ascending: false })),
+        fetchPaginated("Stories", () => supabase
+          .from('stories')
+          .select('id, created_at')
+          .gte('created_at', since24h)
+          .order('created_at', { ascending: false })
+          .order('id', { ascending: false })),
+      ]);
+
+    if (!cached?.posts || !cached?.stories) {
+      fs.mkdirSync(path.dirname(CACHE_FILE), { recursive: true });
+      const tempFile = `${CACHE_FILE}.${process.pid}.tmp`;
+      fs.writeFileSync(tempFile, JSON.stringify({ posts, stories }));
+      fs.renameSync(tempFile, CACHE_FILE);
+    }
 
     let xmlItems = [];
 

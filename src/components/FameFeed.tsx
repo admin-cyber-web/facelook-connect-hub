@@ -3186,7 +3186,8 @@ const FameFeed = ({
             ),
           );
         })
-        .catch(() => {});
+        // Supabase builders are PromiseLike; normalize before using catch.
+        .then(undefined, () => {});
     }
     // Safety net: still batch-fetch any author_ids whose join row was empty
     // (e.g. orphaned posts whose author profile was deleted).

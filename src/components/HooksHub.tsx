@@ -38,13 +38,13 @@ const STORAGE_BUCKET = "hooks";
 // ── Graceful hook_pages helper ─────────────────────────────────────────────
 // Silently absorbs errors when hook_pages table doesn't exist yet (PGRST204 /
 // 42P01). Run supabase_hooks_tables.sql in your Supabase SQL Editor to create it.
-const safeHp = (promise: Promise<{ error: any }>) =>
-  promise.then(({ error }) => {
+const safeHp = (promise: PromiseLike<{ error: any }>) =>
+  Promise.resolve(promise).then(({ error }) => {
     if (error && error.code !== "PGRST116") // PGRST116 = 0 rows, harmless
       console.warn("[HooksHub] hook_pages:", error.code, error.message);
   }).catch(() => {});
 
-const safeHpRead = async <T,>(promise: Promise<{ data: T | null; error: any }>): Promise<T | null> => {
+const safeHpRead = async <T,>(promise: PromiseLike<{ data: T | null; error: any }>): Promise<T | null> => {
   try {
     const { data, error } = await promise;
     if (error) console.warn("[HooksHub] hook_pages read:", error.code, error.message);

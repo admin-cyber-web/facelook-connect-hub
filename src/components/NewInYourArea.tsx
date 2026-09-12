@@ -9,7 +9,7 @@ import { useEffect, useState, useRef } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { MapPin, X, UserPlus, Sparkles } from "lucide-react";
-import { fetchNewInYourArea, type LocalProfile, type RecommendedUser } from "@/lib/recommendationEngine";
+import { fetchNewInYourArea, invalidateRecommendationCaches, type LocalProfile, type RecommendedUser } from "@/lib/recommendationEngine";
 import { supabase } from "@/lib/supabaseClient";
 import { subscribeWhileVisible } from "@/lib/realtimeVisibility";
 import { memGetOrFetch, memDel } from "@/lib/memCache";
@@ -105,6 +105,7 @@ export default function NewInYourArea({ currentUserId, localProfile, onProfileCl
     });
     if (!error || error.message?.includes("duplicate") || error.message?.includes("unique")) {
       setSentIds(prev => new Set(prev).add(userId));
+      invalidateRecommendationCaches(currentUserId);
       memDel(cacheKey);
     }
     pendingConnects.current.delete(userId);

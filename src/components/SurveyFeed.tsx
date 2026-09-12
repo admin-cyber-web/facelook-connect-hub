@@ -406,13 +406,13 @@ const SurveyCard: React.FC<{ survey: Survey; userId: string; onUpdate: () => voi
 
   const loadComments = useCallback(async () => {
     const { data } = await supabase.from("survey_comments")
-      .select("*, profiles(full_name, avatar_url)")
+      .select("id, survey_id, user_id, parent_id, content, created_at, profiles(full_name, avatar_url)")
       .eq("survey_id", survey.id)
       .order("created_at", { ascending: true });
     if (!data) return;
     const roots: Comment[] = [];
     const map: Record<string, Comment> = {};
-    data.forEach(c => { map[c.id] = { ...c, replies: [] }; });
+    data.forEach(c => { map[c.id] = { ...c, profiles: Array.isArray(c.profiles) ? c.profiles[0] : c.profiles, replies: [] }; });
     data.forEach(c => {
       if (c.parent_id && map[c.parent_id]) map[c.parent_id].replies!.push(map[c.id]);
       else roots.push(map[c.id]);
@@ -870,7 +870,11 @@ const SurveyFeed: React.FC<{ userId: string; highlightedSurveyId?: string | null
       .order("created_at", { ascending: false })
       .limit(30);
 
-    if (error || !data) { setLoading(false); return; }
+    if (error || !data) {
+      toast.error(error?.message || "Failed to load surveys");
+      setLoading(false);
+      return;
+    }
 
     const ids = data.map(s => s.id);
 
@@ -881,16 +885,32 @@ const SurveyFeed: React.FC<{ userId: string; highlightedSurveyId?: string | null
       supabase.from("survey_likes").select("survey_id").in("survey_id", ids).eq("user_id", userId),
     ]);
 
+    if (voteCountsRes.error || !Array.isArray(voteCountsRes.data)) {
+      toast.error(`Unable to load vote counts: ${voteCountsRes.error?.message || "aggregate returned no data"}`);
+      setLoading(false);
+      return;
+    }
+    if (engagementRes.error || !Array.isArray(engagementRes.data)) {
+      toast.error(`Unable to load survey engagement: ${engagementRes.error?.message || "aggregate returned no data"}`);
+      setLoading(false);
+      return;
+    }
+    if (userVotesRes.error || userLikesRes.error) {
+      toast.error("Unable to load your survey activity");
+      setLoading(false);
+      return;
+    }
+
     const votesMap: Record<string, Record<string, number>> = {};
     const totalMap: Record<string, number> = {};
-    (voteCountsRes.data || []).forEach((v: any) => {
+    voteCountsRes.data.forEach((v: any) => {
       if (!votesMap[v.survey_id]) votesMap[v.survey_id] = {};
       votesMap[v.survey_id][v.option_id] = Number(v.vote_count) || 0;
       totalMap[v.survey_id] = Number(v.total_votes) || 0;
     });
     const likesMap: Record<string, number> = {};
     const commentsMap: Record<string, number> = {};
-    (engagementRes.data || []).forEach((row: any) => {
+    engagementRes.data.forEach((row: any) => {
       likesMap[row.survey_id] = Number(row.likes_count) || 0;
       commentsMap[row.survey_id] = Number(row.comments_count) || 0;
     });
@@ -908,7 +928,7 @@ const SurveyFeed: React.FC<{ userId: string; highlightedSurveyId?: string | null
       comments_count: commentsMap[s.id] || 0,
       user_vote: userVoteMap[s.id] || null,
       user_liked: userLikeSet.has(s.id),
-    }));
+    })) as unknown as Survey[];
 
     setSurveys(enriched);
     setLoading(false);

@@ -643,7 +643,7 @@ const StoryRainOverlay = () => (
           top: "-10%",
           "--perf-duration": `${0.8 + (i % 4) * 0.15}s`,
           "--perf-delay": `${(i % 6) * 0.2}s`,
-        }}
+        } as React.CSSProperties}
       />
     ))}
   </div>
@@ -661,7 +661,7 @@ const StoryAudioWave = () => (
       <div
         key={i}
         className="perf-wave w-1.5 h-5 rounded-full bg-white/80"
-        style={{ "--perf-delay": `${i * 0.1}s` }}
+        style={{ "--perf-delay": `${i * 0.1}s` } as React.CSSProperties}
       />
     ))}
   </div>
@@ -1018,6 +1018,8 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     null,
   );
   const [loadingMessages, setLoadingMessages] = useState(false);
+  const [loadingOlderMessages, setLoadingOlderMessages] = useState(false);
+  const [hasOlderMessages, setHasOlderMessages] = useState(false);
   const [chatSearch, setChatSearch] = useState("");
   const [showChatSearch, setShowChatSearch] = useState(false);
   const [msgMenuId, setMsgMenuId] = useState<string | null>(null);
@@ -1113,6 +1115,11 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
 
   // ── Refs ──────────────────────────────────────────────────────────────────
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesPaneRef = useRef<HTMLDivElement>(null);
+  const messageLoadInFlightRef = useRef(false);
+  const olderLoadInFlightRef = useRef(false);
+  const oldestMessageCursorRef = useRef<string | null>(null);
+  const conversationKeyRef = useRef("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const prevMsgCount = useRef(0);
@@ -2065,6 +2072,55 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     }, 500);
   }, [searchQuery, userId]);
 
+  // ── Load older messages without discarding the newest window ───────────────
+  const loadOlderMessages = useCallback(async () => {
+    if (!selectedUser || !userId || !oldestMessageCursorRef.current ||
+        !hasOlderMessages || olderLoadInFlightRef.current) return;
+    const myId = String(userId).trim();
+    const partnerId = String(selectedUser.id || "").trim();
+    const cursor = oldestMessageCursorRef.current;
+    const pane = messagesPaneRef.current;
+    olderLoadInFlightRef.current = true;
+    setLoadingOlderMessages(true);
+    const previousHeight = pane?.scrollHeight ?? 0;
+    try {
+      const { data, error } = await supabase
+        .from("messages")
+        .select("id, sender_id, receiver_id, content, media_url, media_type, created_at, seen_at, reply_to_id")
+        .in("sender_id", [myId, partnerId])
+        .in("receiver_id", [myId, partnerId])
+        .lt("created_at", cursor)
+        .order("created_at", { ascending: false })
+        .limit(200);
+      if (error) {
+        console.error("[Chat] load older messages error:", error.message);
+        return;
+      }
+      const rows: Message[] = (data || []).map((m: any) => ({
+        ...m,
+        id: String(m.id || "").trim(),
+        sender_id: String(m.sender_id || "").trim(),
+        receiver_id: String(m.receiver_id || "").trim(),
+        content: m.content ?? "",
+      })).reverse();
+      if (rows.length) {
+        oldestMessageCursorRef.current = rows[0].created_at;
+        setMessages((prev) => {
+          const merged = new Map(prev.map((message) => [message.id, message]));
+          rows.forEach((message) => merged.set(message.id, { ...merged.get(message.id), ...message }));
+          return [...merged.values()].sort((a, b) => a.created_at.localeCompare(b.created_at));
+        });
+      }
+      setHasOlderMessages(rows.length === 200);
+      requestAnimationFrame(() => {
+        if (pane) pane.scrollTop += pane.scrollHeight - previousHeight;
+      });
+    } finally {
+      olderLoadInFlightRef.current = false;
+      setLoadingOlderMessages(false);
+    }
+  }, [hasOlderMessages, selectedUser, userId]);
+
   // ── Messages for selected chat ────────────────────────────────────────────
   useEffect(() => {
     if (!isOpen || !selectedUser || !userId) return;
@@ -2078,10 +2134,16 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     setReplyTo(null);
     setShowInputEmoji(false);
 
+    const conversationKey = `${myId}:${partnerId}`;
+    conversationKeyRef.current = conversationKey;
+    oldestMessageCursorRef.current = null;
+    setHasOlderMessages(false);
     // Clear stale messages immediately so old chat doesn't flash on screen
     setMessages([]);
 
     const load = async () => {
+      if (messageLoadInFlightRef.current) return;
+      messageLoadInFlightRef.current = true;
       setLoadingMessages(true);
 
       // Normalise IDs — trim whitespace to guard against subtle format differences
@@ -2102,12 +2164,13 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
         )
         .in("sender_id", [myId, partnerId])
         .in("receiver_id", [myId, partnerId])
-        .order("created_at", { ascending: true })
+        .order("created_at", { ascending: false })
         .limit(200);
 
       if (error) {
         console.error("[Chat] fetchMessages error:", error.message);
         setLoadingMessages(false);
+        messageLoadInFlightRef.current = false;
         return;
       }
 
@@ -2119,9 +2182,29 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
         receiver_id: String(m.receiver_id || "").trim(),
         content: m.content ?? "",
       }));
+      if (conversationKeyRef.current !== conversationKey) {
+        setLoadingMessages(false);
+        messageLoadInFlightRef.current = false;
+        return;
+      }
 
-      setMessages(rows.slice(-200));
+      const orderedRows = rows.reverse();
+      const isInitialWindow = oldestMessageCursorRef.current === null;
+      if (isInitialWindow) {
+        oldestMessageCursorRef.current = orderedRows[0]?.created_at ?? null;
+        setHasOlderMessages(orderedRows.length === 200);
+      }
+      setMessages((prev) => {
+        // Visibility refreshes merge into an already paged conversation rather
+        // than replacing older messages with a fresh 200-row window.
+        if (conversationKeyRef.current !== conversationKey || prev.length === 0)
+          return orderedRows;
+        const merged = new Map(prev.map((message) => [message.id, message]));
+        orderedRows.forEach((message) => merged.set(message.id, { ...merged.get(message.id), ...message }));
+        return [...merged.values()].sort((a, b) => a.created_at.localeCompare(b.created_at));
+      });
       setLoadingMessages(false);
+      messageLoadInFlightRef.current = false;
 
       // Mark all received messages as seen
       await supabase
@@ -2158,7 +2241,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
           setMessages((prev) => {
             if (prev.find((m) => m.id === msg.id)) return prev;
             const next = [...prev, msg];
-            return next.length > 200 ? next.slice(-200) : next;
+            return next.sort((a, b) => a.created_at.localeCompare(b.created_at));
           });
           scheduleContactsRefresh();
 
@@ -2481,8 +2564,8 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
           errMsg.includes("disk") ||
           errCode === "25006" ||
           errCode === "53100" ||
-          error.status === 503 ||
-          error.status === 507;
+          (error as unknown as { status?: number }).status === 503 ||
+          (error as unknown as { status?: number }).status === 507;
         if (isQuota) {
           toast.error("Server busy — please try again in a few minutes.", {
             duration: 6000,
@@ -4712,6 +4795,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
 
                 {/* Messages */}
                 <div
+                  ref={messagesPaneRef}
                   className="chat-scroll-pane flex min-h-0 flex-1 overflow-y-auto px-4 pt-20 pb-4 space-y-2"
                   onClick={() => {
                     setMsgMenuId(null);
@@ -4719,6 +4803,21 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                     setShowInputEmoji(false);
                   }}
                 >
+                  {hasOlderMessages && (
+                    <div className="absolute left-0 right-0 top-2 z-10 flex justify-center pointer-events-none">
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          void loadOlderMessages();
+                        }}
+                        disabled={loadingOlderMessages}
+                        className={`pointer-events-auto rounded-full px-3 py-1 text-[11px] font-bold border ${T.divider} ${T.text1} bg-black/30 backdrop-blur-sm disabled:opacity-50`}
+                      >
+                        {loadingOlderMessages ? "Loading older…" : "Load older messages"}
+                      </button>
+                    </div>
+                  )}
                   {loadingMessages ? (
                     <div className="flex items-center justify-center py-10">
                       <Loader2

@@ -10,7 +10,7 @@
 import { useEffect, useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { MapPin, Users, UserPlus, RefreshCw, X, Info } from "lucide-react";
-import { fetchRecommendedPeople, type LocalProfile, type RecommendedUser } from "@/lib/recommendationEngine";
+import { fetchRecommendedPeople, invalidateRecommendationCaches, type LocalProfile, type RecommendedUser } from "@/lib/recommendationEngine";
 import { supabase } from "@/lib/supabaseClient";
 import { memGet, memSet, memDel } from "@/lib/memCache";
 
@@ -57,6 +57,7 @@ export default function PeopleYouMayKnow({ currentUserId, localProfile = {}, onP
   // Listen for preference / privacy changes → bust cache and re-fetch
   useEffect(() => {
     const bust = () => {
+      invalidateRecommendationCaches(currentUserId);
       memDel(cacheKey);
       didFetch.current = false;
       load(true);

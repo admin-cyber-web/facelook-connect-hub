@@ -364,6 +364,9 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
   const [selectedGroup, setSelectedGroup] = useState<Group | null>(null);
   const [groupTab, setGroupTab] = useState<GroupTab>("posts");
   const [groupPosts, setGroupPosts] = useState<GroupPost[]>([]);
+  const [hasMorePosts, setHasMorePosts] = useState(false);
+  const [loadingMorePosts, setLoadingMorePosts] = useState(false);
+  const postsOffsetRef = useRef(0);
   const [pendingPosts, setPendingPosts] = useState<GroupPost[]>([]);
   const [groupMembers, setGroupMembers] = useState<any[]>([]);
   const [newMemberCount, setNewMemberCount] = useState(0);
@@ -537,14 +540,19 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
     return false;
   };
 
-  const fetchCirclePosts = useCallback(async (circleId: string, reviewer = canModerate) => {
-    setPostsLoading(true);
+  const fetchCirclePosts = useCallback(async (circleId: string, reviewer = canModerate, append = false) => {
+    if (append) setLoadingMorePosts(true);
+    else {
+      setPostsLoading(true);
+      postsOffsetRef.current = 0;
+    }
+    const offset = append ? postsOffsetRef.current : 0;
     let query = supabase
       .from("circle_posts")
       .select("id, circle_id, author_id, author_name, author_avatar, content, media_url, created_at, likes_count, comments_count, shares_count, status, comments_muted")
       .eq("circle_id", circleId)
       .order("created_at", { ascending: false })
-      .limit(50);
+      .range(offset, offset + 49);
 
     // Reviewers (admin/mod) see all posts; regular members see approved + their own pending
     if (reviewer) {
@@ -557,8 +565,12 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
     const { data, error } = await query;
     if (error) {
       toast.error("Circle posts are unavailable. Please run the circle_posts setup SQL.");
-      setGroupPosts([]);
-      setPendingPosts([]);
+      if (!append) {
+        setGroupPosts([]);
+        setPendingPosts([]);
+      }
+      setPostsLoading(false);
+      setLoadingMorePosts(false);
       return;
     }
     const rows = ((data as GroupPost[]) ?? []).map(post => ({
@@ -578,19 +590,34 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
         // Fetch failed — leave existing likedPostIds untouched so UI doesn't wipe state
         console.warn("[CirclePage] circle_post_likes fetch failed:", likesErr.message);
       } else {
-        setLikedPostIds(new Set((likedRows ?? []).map((row: any) => row.post_id)));
+        setLikedPostIds(prev => append
+          ? new Set([...prev, ...(likedRows ?? []).map((row: any) => row.post_id)])
+          : new Set((likedRows ?? []).map((row: any) => row.post_id)));
       }
     } else if (!currentUserId) {
       // Only clear if genuinely logged out
       setLikedPostIds(new Set());
     }
     // All rows are already filtered correctly by the query above
-    setGroupPosts(rows);
+    setHasMorePosts(rows.length === 50);
+    postsOffsetRef.current = offset + rows.length;
+    setGroupPosts(prev => append
+      ? [...prev, ...rows.filter(row => !prev.some(existing => existing.id === row.id))]
+      : rows);
     const pending = reviewer ? rows.filter(post => post.status === "pending") : [];
-    setPendingPosts(pending);
+    setPendingPosts(prev => append
+      ? [...prev, ...pending.filter(row => !prev.some(existing => existing.id === row.id))]
+      : pending);
     setPostsLoading(false);
-    dataCache.setCirclePosts(circleId, { data: rows, fetchedAt: Date.now() });
-    dataCache.setCirclePending(circleId, { data: pending, fetchedAt: Date.now() });
+    setLoadingMorePosts(false);
+    const allPosts = append
+      ? [...groupPosts, ...rows.filter(row => !groupPosts.some(existing => existing.id === row.id))]
+      : rows;
+    const allPending = reviewer
+      ? allPosts.filter(post => post.status === "pending")
+      : [];
+    dataCache.setCirclePosts(circleId, { data: allPosts, fetchedAt: Date.now() });
+    dataCache.setCirclePending(circleId, { data: allPending, fetchedAt: Date.now() });
 
     // Fetch latest comment preview for each post (FB-style single comment below card)
     if (rows.length > 0) {
@@ -629,10 +656,15 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
       if (viewRows) {
         const counts: Record<string, number> = {};
         for (const row of viewRows as any[]) counts[row.post_id] = (counts[row.post_id] || 0) + 1;
-        setViewCounts(counts);
+         setViewCounts(prev => append ? { ...prev, ...counts } : counts);
       }
     }
-  }, [canModerate, currentUserId]);
+  }, [canModerate, currentUserId, dataCache, groupPosts]);
+
+  const loadMoreCirclePosts = useCallback(async () => {
+    if (!selectedGroup || postsLoading || loadingMorePosts || !hasMorePosts) return;
+    await fetchCirclePosts(selectedGroup.id, canModerate, true);
+  }, [selectedGroup, postsLoading, loadingMorePosts, hasMorePosts, fetchCirclePosts, canModerate]);
 
   const fetchMyInvites = useCallback(async () => {
     if (!currentUserId) return;
@@ -643,7 +675,7 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
       .eq("status", "pending")
       .order("created_at", { ascending: false })
       .limit(10);
-    setMyInvites((data as CircleInvite[]) ?? []);
+    setMyInvites((data as unknown as CircleInvite[]) ?? []);
   }, [currentUserId]);
 
   // ── Fetch all groups ─────────────────────────────────────────────────────────
@@ -1018,7 +1050,7 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
     // Attempt 1: join query via FK
     const { data: joinData, error: joinErr } = await supabase
       .from("circle_members")
-      .select("*, profiles(id, full_name, avatar_url)")
+      .select("id, circle_id, user_id, role, created_at, profiles(id, full_name, avatar_url)")
       .eq("circle_id", circleId)
       .order("created_at", { ascending: true })
       .limit(500);
@@ -2498,6 +2530,19 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
                 ))
               )}
             </div>
+            {!postsLoading && groupPosts.length > 0 && hasMorePosts && (
+              <div className="flex justify-center px-4 py-4">
+                <button
+                  onClick={loadMoreCirclePosts}
+                  disabled={loadingMorePosts}
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl border border-white/15 text-white/70 text-xs font-black disabled:opacity-50 active:scale-95 transition-transform"
+                  style={{ background: "rgba(255,255,255,0.05)" }}
+                >
+                  {loadingMorePosts && <Loader2 size={14} className="animate-spin" />}
+                  {loadingMorePosts ? "Loading…" : "Load more posts"}
+                </button>
+              </div>
+            )}
 
             {/* Not a member CTA */}
             {!isMember && (

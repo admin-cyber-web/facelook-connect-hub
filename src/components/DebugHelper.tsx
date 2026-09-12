@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { supabase } from "../lib/supabase"; // Apna supabase path check kar lena
+import { supabase } from "../lib/supabaseClient";
 
 export const DebugHelper = () => {
   const [report, setReport] = useState<any[]>([]);

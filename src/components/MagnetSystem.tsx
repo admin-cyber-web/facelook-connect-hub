@@ -504,13 +504,13 @@ function MagnetDashboard({ currentUserId }: { currentUserId: string | null }) {
           .eq("invited_by", currentUserId)
           .order("created_at", { ascending: false })
           .limit(50);
-        setSent(fbData ?? []);
+        setSent((fbData ?? []) as unknown as DashboardEntry[]);
         setTotalSent(fbCount ?? fbData?.length ?? 0);
       } else {
-        setSent(sentRes.data ?? []);
+        setSent((sentRes.data ?? []) as unknown as DashboardEntry[]);
         setTotalSent(sentRes.count ?? sentRes.data?.length ?? 0);
       }
-      setReceived(recvRes.data ?? []);
+      setReceived((recvRes.data ?? []) as unknown as DashboardEntry[]);
       setTotalReceived(recvRes.count ?? recvRes.data?.length ?? 0);
     } catch (_) {}
     setLoading(false);

@@ -203,7 +203,7 @@ const UserProfileModal = ({ userId, currentUserId, isAdmin: isAdminProp = false,
 
   const handleAddFriend = async () => {
     if (friendStatus !== "none" || actionBusy) return;
-    if (profile?.is_private_mode && friendStatus !== "accepted" && !isOwnProfile) {
+    if (profile?.is_private_mode && !isOwnProfile) {
       toast.error("This user has enabled Private Mode. You cannot disturb them until they turn it off.");
       return;
     }
