@@ -1008,6 +1008,8 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<Profile[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const searchRequestSeqRef = useRef(0);
+  const searchAbortRef = useRef<AbortController | null>(null);
 
   // ── Active chat ───────────────────────────────────────────────────────────
   const [selectedUser, setSelectedUser] = useState<ChatContact | null>(null);
@@ -2111,6 +2113,9 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   // ── Search debounce ───────────────────────────────────────────────────────
   useEffect(() => {
     if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    searchAbortRef.current?.abort();
+    searchAbortRef.current = null;
+    const requestSeq = ++searchRequestSeqRef.current;
     if (!searchQuery.trim()) {
       setSearchResults([]);
       setIsSearching(false);
@@ -2119,12 +2124,21 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     setIsSearching(true);
     searchDebounceRef.current = setTimeout(async () => {
       const q = searchQuery.trim();
-      const { data } = await supabase
-        .from("profiles")
-        .select("id, full_name, username, avatar_url")
-        .neq("id", userId)
-        .or(`full_name.ilike.%${q}%,username.ilike.%${q}%`)
-        .limit(20);
+      const controller = new AbortController();
+      searchAbortRef.current = controller;
+      const { data, error } = await supabase
+          .from("profiles")
+          .select("id, full_name, username, avatar_url")
+          .neq("id", userId)
+          .or(`full_name.ilike.%${q}%,username.ilike.%${q}%`)
+          .limit(20)
+          .abortSignal(controller.signal);
+      if (controller.signal.aborted || requestSeq !== searchRequestSeqRef.current) return;
+      if (error) {
+        setSearchResults([]);
+        setIsSearching(false);
+        return;
+      }
       setSearchResults(
         (data || []).map((p) => ({
           id: p.id,
@@ -2135,6 +2149,10 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       );
       setIsSearching(false);
     }, 500);
+    return () => {
+      if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+      searchAbortRef.current?.abort();
+    };
   }, [searchQuery, userId]);
 
   // ── Load older messages without discarding the newest window ───────────────

@@ -1,0 +1,122 @@
+FLICKS INDIA — STEP 4 ONLY: FINAL LIFECYCLE + ASYNC + VERIFICATION
+
+Steps 1–3 have already been completed.
+
+Do NOT redesign or rewrite the app.
+
+Do NOT remove features.
+
+Do NOT migrate database/framework.
+
+Do NOT disable Realtime globally.
+
+Do NOT change the existing admin-email authorization system.
+
+TASK 1 — ASYNC RACE CONDITIONS
+
+Fix verified lifecycle issues:
+
+* Chat search → AbortController/request sequence
+* FlicksFeed comment fetch → cancellation/unmount guard
+* media requests → prevent stale state updates
+* timers → mounted guards
+* Story playback → cleanup
+* Blob previews → cleanup
+
+Do not introduce unnecessary abstractions.
+
+TASK 2 — TIMERS / VISIBILITY
+
+Audit remaining intervals/timeouts.
+
+Pause nonessential work when page/app is hidden.
+
+Wall-clock countdowns should resume correctly from their deadline.
+
+Ensure every timer has cleanup.
+
+Do not change actual feature timing unnecessarily.
+
+TASK 3 — REALTIME DUPLICATES
+
+Audit active channels.
+
+Ensure:
+
+* no duplicate subscriptions
+* proper cleanup
+* active UI controls subscription lifecycle
+* no unnecessary refetch after events
+
+KEEP required Realtime features.
+
+Do not globally disable Realtime.
+
+TASK 4 — FINAL PERFORMANCE CHECK
+
+Verify:
+
+* no Blob URL leak
+* no camera/mic leak
+* no hidden story audio/video
+* no multiple unintended Flicks videos
+* no duplicate auth listeners
+* no duplicate major Realtime channels
+* no unbounded chat arrays
+* no 5,000-row vote downloads
+* no unnecessary `select(*)` in targeted files
+* no repeated recommendation queries
+* no unnecessary Magnet voice channels
+* no repeated AudioContext creation
+
+TASK 5 — BUILD
+
+Run the production build.
+
+Fix only errors caused by the implemented changes.
+
+Do not perform unrelated refactoring.
+
+TASK 6 — FUNCTIONAL REGRESSION TEST
+
+Verify:
+
+* Login/logout
+* Existing admin email detection
+* Admin dashboard
+* Create Post
+* Gemini suggestions
+* Stories
+* Chat
+* Circles
+* Surveys
+* FlicksFeed
+* FameFeed
+* Magnet
+* Hooks
+* Recommendations
+* Notifications
+* Profile
+* Agora
+* AutoPost
+* Public post/OG behavior
+
+TASK 7 — FINAL REPORT
+
+Return:
+
+1. Files changed across Steps 1–4
+2. SQL migrations/patches created
+3. Security fixes
+4. Supabase egress fixes
+5. Mobile CPU/battery fixes
+6. Media lifecycle fixes
+7. Realtime changes
+8. Admin-email system confirmation: MUST SAY IT WAS LEFT INTACT
+9. Build result
+10. Remaining risks/issues
+
+IMPORTANT:
+If something cannot be safely verified, do not guess or make speculative changes. Report it.
+
+This is the final verification step.

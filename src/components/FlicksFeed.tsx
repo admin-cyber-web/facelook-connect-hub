@@ -119,6 +119,7 @@ const CommentDrawer = ({ post, currentUserId, onClose, onCommentAdded }: any) =>
 
   useEffect(() => {
     if (!post?._raw_id) return;
+    let cancelled = false;
     supabase
       .from("comments")
       .select("id, post_id, content, user_id, author, created_at, profiles:user_id(username, avatar_url)")
@@ -126,12 +127,14 @@ const CommentDrawer = ({ post, currentUserId, onClose, onCommentAdded }: any) =>
       .order("created_at", { ascending: true })
       .limit(100)
       .then(({ data, error }) => {
+        if (cancelled) return;
         if (error) {
           console.warn("[Flicks] comment fetch failed:", error.message);
           return;
         }
         setComments(data || []);
       });
+    return () => { cancelled = true; };
   }, [post?._raw_id]);
 
   const handleSend = async () => {
