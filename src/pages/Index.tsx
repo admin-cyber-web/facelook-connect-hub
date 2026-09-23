@@ -2865,8 +2865,13 @@ const Index = ({ session, initialAdminOpen, isGuest = false }: { session: Sessio
   const t = (en: string, hi: string) => (lang === "hi" ? hi : en);
 
   const handleFeedRefresh = React.useCallback(async () => {
-    window.dispatchEvent(new CustomEvent("flicks-pull-refresh"));
-    await new Promise((resolve) => setTimeout(resolve, 600));
+    await new Promise<void>((resolve) => {
+      window.dispatchEvent(
+        new CustomEvent("flicks-pull-refresh", {
+          detail: { complete: resolve },
+        }),
+      );
+    });
   }, []);
 
 
