@@ -72,14 +72,16 @@ html, body {
   overflow-y: auto;
   position: relative;
   touch-action: pan-y;
-  overscroll-behavior-y: auto;
+  /* The feed owns pull-to-refresh. Do not let the browser/WebView start its
+     own edge effect before the React gesture can claim the touch. */
+  overscroll-behavior-y: none;
 }
 
 /* Keep the root document a normal, expanding scroll surface. */
 body,
 #root {
   overflow: visible;
-  overscroll-behavior-y: auto;
+  overscroll-behavior-y: none;
 }
 
 #root {
@@ -127,6 +129,7 @@ body.body-locked {
 /* Explicit vertical gesture surface for the app shell and feed wrappers. */
 .touch-scroll-y {
   touch-action: pan-y;
+  overscroll-behavior-y: contain;
   -webkit-overflow-scrolling: touch;
 }
 

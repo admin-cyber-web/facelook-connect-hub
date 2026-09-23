@@ -3,6 +3,7 @@ package com.flicksindia.app;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
+import android.view.MotionEvent;
 import android.view.View;
 import android.webkit.CookieManager;
 import android.webkit.WebChromeClient;
@@ -38,12 +39,22 @@ public class MainActivity extends AppCompatActivity {
         shareBridge = new AndroidShareBridge(this);
         webView.addJavascriptInterface(shareBridge, "AndroidShare");
 
-        // Keep native WebView touch scrolling available for the full React
-        // document, including nested feed/list panes.
-        webView.setOverScrollMode(View.OVER_SCROLL_ALWAYS);
+        // The React pull-to-refresh surface owns the downward gesture. Native
+        // WebView overscroll glow otherwise consumes the same edge movement.
+        webView.setOverScrollMode(View.OVER_SCROLL_NEVER);
+        webView.setNestedScrollingEnabled(false);
+        webView.setOnTouchListener((view, event) -> {
+            final int action = event.getActionMasked();
+            if (action == MotionEvent.ACTION_DOWN) {
+                view.getParent().requestDisallowInterceptTouchEvent(true);
+            } else if (action == MotionEvent.ACTION_UP
+                    || action == MotionEvent.ACTION_CANCEL) {
+                view.getParent().requestDisallowInterceptTouchEvent(false);
+            }
+            return false;
+        });
         webView.setVerticalScrollBarEnabled(true);
         webView.setHorizontalScrollBarEnabled(false);
-        webView.setNestedScrollingEnabled(true);
 
         CookieManager.getInstance().setAcceptCookie(true);
         CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true);
