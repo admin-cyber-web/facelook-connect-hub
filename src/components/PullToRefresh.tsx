@@ -24,6 +24,7 @@ export default function PullToRefresh({
   const refreshingRef = useRef(false);
   const onRefreshRef = useRef(onRefresh);
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const touchTargetRef = useRef<EventTarget | null>(null);
 
   useEffect(() => {
     onRefreshRef.current = onRefresh;
@@ -42,42 +43,57 @@ export default function PullToRefresh({
     const el = wrapperRef.current;
     if (!el) return;
 
-    // Use the nearest scrollable ancestor when this component is inside one.
-    // Otherwise the page itself is the scroll container. This keeps the
-    // top-of-scroll check tied to the surface the user is actually scrolling.
-    const findScrollContainer = (): HTMLElement | null => {
-      let node = el.parentElement;
-      while (node) {
-        const isDocumentRoot =
-          node === document.body || node === document.documentElement;
-        if (!isDocumentRoot) {
-          const { overflowY } = window.getComputedStyle(node);
-          const canScrollY = /(auto|scroll|overlay)/.test(overflowY);
-          if (canScrollY && node.scrollHeight > node.clientHeight) {
-            return node;
-          }
-        }
-        node = node.parentElement;
-      }
-      return null;
-    };
-
-    const scrollContainer = findScrollContainer();
-
-    const getScrollTop = (): number => {
-      if (scrollContainer) return scrollContainer.scrollTop;
+    /**
+     * WebView scroll position is not always represented by window.scrollY.
+     * Depending on the wrapper and document mode, the active value can live
+     * on document.scrollingElement, documentElement, or body. Check all of
+     * them instead of choosing one at mount time.
+     */
+    const getDocumentScrollTop = (): number => {
+      const scrollingElement = document.scrollingElement;
       return Math.max(
         window.scrollY,
         window.pageYOffset,
+        scrollingElement?.scrollTop ?? 0,
         document.documentElement.scrollTop,
         document.body.scrollTop,
         0,
       );
     };
 
-    // Do not use a tolerance here. A pull is only eligible at the exact top
-    // of the active scroll container.
-    const isAtTop = (): boolean => getScrollTop() === 0;
+    /**
+     * Return every scrollable ancestor between the touch target and this
+     * wrapper. An inner list at scrollTop 0 is still not pull-to-refresh
+     * eligible if the document itself is already scrolled.
+     */
+    const getScrollableAncestors = (target: EventTarget | null): HTMLElement[] => {
+      const ancestors: HTMLElement[] = [];
+      let node: HTMLElement | null =
+        target instanceof HTMLElement
+          ? target
+          : target instanceof Element
+            ? target.parentElement
+            : el;
+
+      while (node) {
+        if (node !== document.body && node !== document.documentElement) {
+          const { overflowY } = window.getComputedStyle(node);
+          const canScrollY = /(auto|scroll|overlay)/.test(overflowY);
+          if (canScrollY && node.scrollHeight > node.clientHeight) {
+            ancestors.push(node);
+          }
+        }
+        if (node === el) break;
+        node = node.parentElement;
+      }
+      return ancestors;
+    };
+
+    // WebView can report a fractional sub-pixel value at the boundary. Treat
+    // that as the top while never allowing a real offset to start a refresh.
+    const isAtTop = (target: EventTarget | null = touchTargetRef.current): boolean =>
+      getDocumentScrollTop() <= 1 &&
+      getScrollableAncestors(target).every((node) => node.scrollTop <= 1);
 
     const paintPull = (value: number) => {
       pullYRef.current = value;
@@ -93,12 +109,14 @@ export default function PullToRefresh({
     const resetPull = () => {
       pullDistanceRef.current = 0;
       startPoint.current = null;
+      touchTargetRef.current = null;
       gestureState.current = "blocked";
       paintPull(0);
     };
 
     const onTouchStart = (e: TouchEvent) => {
-      if (e.touches.length !== 1 || refreshingRef.current || !isAtTop()) {
+      touchTargetRef.current = e.target;
+      if (e.touches.length !== 1 || refreshingRef.current || !isAtTop(e.target)) {
         resetPull();
         return;
       }
@@ -137,16 +155,16 @@ export default function PullToRefresh({
         return;
       }
 
-      // Avoid taking over if native scrolling has already moved this
-      // container away from its exact top.
-      if (Math.abs(dy) < directionLock || !isAtTop()) {
-        if (!isAtTop()) {
-          gestureState.current = "blocked";
-          pullDistanceRef.current = 0;
-          paintPull(0);
-        }
+      // Avoid taking over if native scrolling has already moved the document
+      // or any nested scroll surface away from its absolute top.
+      if (!isAtTop(touchTargetRef.current || e.target)) {
+        gestureState.current = "blocked";
+        pullDistanceRef.current = 0;
+        paintPull(0);
         return;
       }
+
+      if (dy < directionLock) return;
 
       gestureState.current = "pulling";
       pullDistanceRef.current = dy;
@@ -170,7 +188,7 @@ export default function PullToRefresh({
       const shouldRefresh =
         gestureState.current === "pulling" &&
         pullDistance >= threshold &&
-        isAtTop() &&
+        isAtTop(touchTargetRef.current) &&
         !refreshingRef.current;
       startPoint.current = null;
       gestureState.current = "blocked";
@@ -232,12 +250,16 @@ export default function PullToRefresh({
   }, [threshold, disabled]);
 
   const progress = Math.min(pullY / threshold, 1);
+  const readyToRefresh = pullY >= threshold * 0.7;
 
   return (
     <div
       ref={wrapperRef}
       className="relative touch-scroll-y"
-      style={{ touchAction: "pan-y" }}
+      style={{
+        touchAction: "pan-y",
+        overscrollBehaviorY: "contain",
+      }}
     >
       {/* Indicator */}
       <div
@@ -247,6 +269,7 @@ export default function PullToRefresh({
           pointerEvents: "none",
           transform: `translate(-50%, ${pullY - 40}px)`,
           opacity: progress,
+          willChange: "transform, opacity",
           transition:
             refreshing || pullY === 0
               ? "transform 200ms ease, opacity 200ms ease"
@@ -254,18 +277,26 @@ export default function PullToRefresh({
         }}
       >
         <div
-          className="w-9 h-9 rounded-full bg-white shadow-lg border border-gray-100 flex items-center justify-center"
+          className="flex min-h-9 items-center gap-1.5 rounded-full border border-gray-100 bg-white px-2.5 shadow-lg"
           role={refreshing ? "status" : undefined}
           aria-label={refreshing ? "Refreshing feed" : undefined}
+          aria-live={refreshing ? "polite" : undefined}
         >
           <RefreshCw
-            size={16}
-            className="text-blue-600"
+            size={15}
+            className={readyToRefresh || refreshing ? "text-blue-600" : "text-slate-400"}
             style={{
               transform: `rotate(${progress * 360}deg)`,
               animation: refreshing ? "spin 0.8s linear infinite" : undefined,
             }}
           />
+          <span className="whitespace-nowrap text-[10px] font-bold text-slate-600">
+            {refreshing
+              ? "Refreshing…"
+              : readyToRefresh
+                ? "Release to refresh"
+                : "Pull to refresh"}
+          </span>
         </div>
       </div>
 
