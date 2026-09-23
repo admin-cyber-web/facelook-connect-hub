@@ -3501,9 +3501,13 @@ const FameFeed = ({
 
   // Pull-to-refresh listener — fired by <PullToRefresh> in Index.tsx.
   useEffect(() => {
-    const handler = () => {
-      fetchPosts(true);
-      fetchFlicks();
+    const handler = (event: Event) => {
+      const complete = (event as CustomEvent<{ complete?: () => void }>)
+        .detail?.complete;
+
+      Promise.all([fetchPosts(true), fetchFlicks()]).finally(() => {
+        complete?.();
+      });
     };
     window.addEventListener("flicks-pull-refresh", handler);
     return () => window.removeEventListener("flicks-pull-refresh", handler);

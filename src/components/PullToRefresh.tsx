@@ -16,7 +16,9 @@ export default function PullToRefresh({
 }: Props) {
   const [pullY, setPullY] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
-  const startY = useRef<number | null>(null);
+  const startPoint = useRef<{ x: number; y: number } | null>(null);
+  const gestureState = useRef<"undecided" | "pulling" | "blocked">("blocked");
+  const pullDistanceRef = useRef(0);
   const pullYRef = useRef(0);
   const pullRafRef = useRef<number | null>(null);
   const refreshingRef = useRef(false);
@@ -40,7 +42,9 @@ export default function PullToRefresh({
     const el = wrapperRef.current;
     if (!el) return;
 
-    // Search for a scrollable parent container, but always combine with global window/document scroll positions
+    // Use the nearest scrollable ancestor when this component is inside one.
+    // Otherwise the page itself is the scroll container. This keeps the
+    // top-of-scroll check tied to the surface the user is actually scrolling.
     const findScrollContainer = (): HTMLElement | null => {
       let node = el.parentElement;
       while (node) {
@@ -60,19 +64,20 @@ export default function PullToRefresh({
 
     const scrollContainer = findScrollContainer();
 
-    // Check both container scroll & window/document scroll globally
     const getScrollTop = (): number => {
-      const containerScroll = scrollContainer ? scrollContainer.scrollTop : 0;
-      const winScroll =
-        window.scrollY ||
-        window.pageYOffset ||
-        document.documentElement.scrollTop ||
-        document.body.scrollTop ||
-        0;
-      return Math.max(containerScroll, winScroll);
+      if (scrollContainer) return scrollContainer.scrollTop;
+      return Math.max(
+        window.scrollY,
+        window.pageYOffset,
+        document.documentElement.scrollTop,
+        document.body.scrollTop,
+        0,
+      );
     };
 
-    const isNearTop = (): boolean => getScrollTop() <= 15;
+    // Do not use a tolerance here. A pull is only eligible at the exact top
+    // of the active scroll container.
+    const isAtTop = (): boolean => getScrollTop() === 0;
 
     const paintPull = (value: number) => {
       pullYRef.current = value;
@@ -86,48 +91,91 @@ export default function PullToRefresh({
     };
 
     const resetPull = () => {
+      pullDistanceRef.current = 0;
+      startPoint.current = null;
+      gestureState.current = "blocked";
       paintPull(0);
     };
 
     const onTouchStart = (e: TouchEvent) => {
-      if (e.touches.length !== 1 || refreshingRef.current || !isNearTop()) {
-        startY.current = null;
+      if (e.touches.length !== 1 || refreshingRef.current || !isAtTop()) {
+        resetPull();
         return;
       }
-      startY.current = e.touches[0].clientY;
+
+      startPoint.current = {
+        x: e.touches[0].clientX,
+        y: e.touches[0].clientY,
+      };
+      gestureState.current = "undecided";
+      pullDistanceRef.current = 0;
       pullYRef.current = 0;
     };
 
     const onTouchMove = (e: TouchEvent) => {
       if (
-        startY.current == null ||
+        startPoint.current == null ||
         refreshingRef.current ||
-        e.touches.length !== 1
+        e.touches.length !== 1 ||
+        gestureState.current === "blocked"
       ) {
         return;
       }
-      const dy = e.touches[0].clientY - startY.current;
-      if (dy <= 0) {
-        if (pullYRef.current > 0) resetPull();
+
+      const dx = e.touches[0].clientX - startPoint.current.x;
+      const dy = e.touches[0].clientY - startPoint.current.y;
+
+      // Let the browser own taps, horizontal gestures, and upward scrolling.
+      // Once one of these directions wins, this touch cannot become a pull.
+      const directionLock = 8;
+      if (Math.abs(dx) > Math.abs(dy) || dy <= 0) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) >= directionLock) {
+          gestureState.current = "blocked";
+          pullDistanceRef.current = 0;
+          paintPull(0);
+        }
         return;
       }
 
-      // Claim downward pull that began near top & prevent native overscroll in WebViews
-      if (isNearTop() || pullYRef.current > 0) {
-        if (e.cancelable) {
-          e.preventDefault();
+      // Avoid taking over if native scrolling has already moved this
+      // container away from its exact top.
+      if (Math.abs(dy) < directionLock || !isAtTop()) {
+        if (!isAtTop()) {
+          gestureState.current = "blocked";
+          pullDistanceRef.current = 0;
+          paintPull(0);
         }
-        // Resistance curve: feels rubbery, capped at 1.6× threshold
-        const damped = Math.min(dy * 0.45, threshold * 1.6);
-        paintPull(damped);
+        return;
       }
+
+      gestureState.current = "pulling";
+      pullDistanceRef.current = dy;
+
+      // Only claim the gesture after it is unambiguously a downward pull at
+      // scrollTop === 0. This prevents WebView overscroll without affecting
+      // normal page scrolling, taps, or horizontal gestures.
+      if (e.cancelable) {
+        e.preventDefault();
+      }
+
+      // Resistance keeps the content movement subtle while retaining a
+      // responsive progress indicator. The raw distance controls the trigger.
+      const damped = Math.min(dy * 0.7, threshold * 1.35);
+      paintPull(damped);
     };
 
     const onTouchEnd = async () => {
-      if (startY.current == null) return;
-      startY.current = null;
-      const pullDistance = pullYRef.current;
-      if (pullDistance >= threshold && !refreshingRef.current) {
+      if (startPoint.current == null) return;
+      const pullDistance = pullDistanceRef.current;
+      const shouldRefresh =
+        gestureState.current === "pulling" &&
+        pullDistance >= threshold &&
+        isAtTop() &&
+        !refreshingRef.current;
+      startPoint.current = null;
+      gestureState.current = "blocked";
+
+      if (shouldRefresh) {
         setRefreshing(true);
         refreshingRef.current = true;
         paintPull(threshold);
@@ -146,24 +194,40 @@ export default function PullToRefresh({
     };
 
     const onTouchCancel = () => {
-      startY.current = null;
-      resetPull();
+      if (startPoint.current !== null || pullYRef.current > 0) {
+        resetPull();
+      }
     };
 
-    el.addEventListener("touchstart", onTouchStart, { passive: true });
-    el.addEventListener("touchmove", onTouchMove, { passive: false });
-    el.addEventListener("touchend", onTouchEnd, { passive: true });
-    el.addEventListener("touchcancel", onTouchCancel, { passive: true });
+    // Capture ensures child components cannot accidentally swallow the
+    // gesture, while the move listener remains passive until it is actually
+    // eligible to prevent WebView overscroll.
+    el.addEventListener("touchstart", onTouchStart, {
+      passive: true,
+      capture: true,
+    });
+    el.addEventListener("touchmove", onTouchMove, {
+      passive: false,
+      capture: true,
+    });
+    el.addEventListener("touchend", onTouchEnd, {
+      passive: true,
+      capture: true,
+    });
+    el.addEventListener("touchcancel", onTouchCancel, {
+      passive: true,
+      capture: true,
+    });
 
     return () => {
       if (pullRafRef.current !== null) {
         cancelAnimationFrame(pullRafRef.current);
         pullRafRef.current = null;
       }
-      el.removeEventListener("touchstart", onTouchStart);
-      el.removeEventListener("touchmove", onTouchMove);
-      el.removeEventListener("touchend", onTouchEnd);
-      el.removeEventListener("touchcancel", onTouchCancel);
+      el.removeEventListener("touchstart", onTouchStart, true);
+      el.removeEventListener("touchmove", onTouchMove, true);
+      el.removeEventListener("touchend", onTouchEnd, true);
+      el.removeEventListener("touchcancel", onTouchCancel, true);
     };
   }, [threshold, disabled]);
 
@@ -189,7 +253,11 @@ export default function PullToRefresh({
               : "none",
         }}
       >
-        <div className="w-9 h-9 rounded-full bg-white shadow-lg border border-gray-100 flex items-center justify-center">
+        <div
+          className="w-9 h-9 rounded-full bg-white shadow-lg border border-gray-100 flex items-center justify-center"
+          role={refreshing ? "status" : undefined}
+          aria-label={refreshing ? "Refreshing feed" : undefined}
+        >
           <RefreshCw
             size={16}
             className="text-blue-600"
