@@ -1,0 +1,52 @@
+Skip to content
+
+Enable "Accessible Terminal" in Workspace Settings to use a screen reader with the shell.
+
+bhai abhi circle section me agar koi post hoti hai aur us post pe like kro to like ke baad post refresh ho rhi hai ise band kro . bina mtlb ke bar bar post ya like refresh na ho circle section me kisi bhi post me. jaise kisi circle ko open kiya jaise "safar" usme kisi user ne post kiya to refresh scroll kro to refresh post like kro to refresh ye band kr do. user jab scroll krke header me aaye aur jab upar se niche slide kre to hi refresh kam karna chahiye jo facebook me hota hai fix kro
+2 months ago
+Deciding on optimizing Circle section refreshes
+
+Pehle CirclePage ka posts + like logic padh leta hoon taaki exact issue samajh sakoon.
+
+Ab specific sections padh leta hoon — realtime subscription aur like handler dono.
+
+Root cause clear hai. Teen problems:
+
+    circle_post_likes realtime listener → har like pe full fetchCirclePosts call
+    circle_posts realtime UPDATE event → like ke baad likes_count update hota hai → phir re-fetch
+    Pull-to-refresh scroll position check nahi — beech mein bhi trigger ho jaata
+
+Ab fix karta hoon:
+
+Ab teeno fixes parallel karta hoon — realtime subscription, pull-to-refresh scroll check, aur like optimistic update:
+
+Ab teeno fixes ek saath karta hoon — parallel edits:
+
+Ab baaki dono fixes ek saath karta hoon:
+
+Ab pull-to-refresh fix karta hoon — sirf scroll top pe hi trigger ho:
+
+Zero TypeScript errors. Teeno fixes ho gaye!
+
+Kya kya fix kiya:
+
+Fix 1 — Like pe refresh band — circle_post_likes ka realtime listener pura hata diya. Pehle har like/unlike pe ye listener fetchCirclePosts call kar raha tha — ab nahi karega. Like ka optimistic update already tha (UI turant update hoti thi), ab DB se poori list dobara nahi aayegi.
+
+Fix 2 — circle_posts UPDATE pe refresh band — Pehle event: "*" tha matlab INSERT, UPDATE, DELETE sab pe refetch. likes_count update bhi UPDATE event hai — toh like karo, DB update ho, realtime fire ho, poori list reload ho. Ab sirf INSERT (naya post) aur DELETE (post remove) pe trigger hoga. DELETE bhi smart hai — ab poori list re-fetch nahi hoti, sirf wo ek post seedha remove hoti hai state se.
+
+Fix 3 — Pull-to-refresh sirf top pe — Ab postsScrollRef add kiya. Jab bhi touch start ho, pehle check karta hai scrollTop <= 0 hai ya nahi. Agar user beech mein scroll kar raha hai toh pullStartY = -1 set hota hai aur pull gesture ignore ho jaata hai. Bilkul Facebook/Instagram jaisa behavior.
+
+Next, I can add a "post reach" analytics view on each Circle post showing how many unique members have seen it, with a bar showing seen vs. total members percentage. Would you like me to do that?
+
+Fix and enhance notification logic for follows and hook interactions.
+
+    Fix Follow Notifications (Actual Name Display):
+
+    When a user follows someone, update the notification logic/query so it fetches and displays the actual follower's name instead of hardcoding "Someone following you".
+    Example format: "${followerName} started following you" (using a join with the user profiles/authors table).
+
+    Hook Invitation / Connection Notifications:
+
+    When someone sends a hook request, invitation, or connects via hooks, generate a proper real-time notification for the recipient.
+    The notification must clearly state who sent it using their actual name, e.g., "${senderName} sent you a hook request" or "${senderName} connected with your page via hook".
+    Ensure these notifications are stored in the database and appear instantly in the user's notification panel.

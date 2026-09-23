@@ -1,0 +1,22 @@
+Act as an expert Full-Stack Engineer. We need to apply immediate structural corrections to the desktop mode layout, fix the sticky sidebars, refine components, and trigger immediate data seedings.
+
+Please implement the following updates exactly:
+
+1. FIX CSS STICKY SIDEBARS (Freeze Effect):
+   - In the main layout component (Index.tsx or layout grid), ensure the desktop wrapper container for sidebars uses `align-items: flex-start;` and has a clean layout flow.
+   - Apply explicit CSS to both the left and right sidebars: `position: sticky; top: 80px; max-height: calc(100vh - 100px); overflow-y: auto;`. 
+   - Ensure the outer body or wrapping wrappers do not have conflicting `overflow: hidden` or absolute containment that breaks the sticky scrolling behavior of the middle Fame Feed.
+
+2. COMPLETE EXPLORE NAVIGATION SECTION:
+   - Update the core Explore/Navigation panel layout. Ensure that alongside Flicks, Circles, and Hooks, you explicitly add the missing options: "Task Board" and "Quotes Maker". Keep the layout fully clean and matching our tech aesthetic.
+
+3. CLEANUP CIRCLES DATA STREAM (Real Data Only):
+   - Modify the right sidebar data fetching logic for Circles. Remove any fallback dummy array elements or "demo" labeled static data objects. 
+   - Fetch dynamically from the Supabase database. If only 4 real circles currently exist in the database, display exactly those 4 real items. Ensure the container handles a variable count gracefully and expands up to 10 automatically as new entries are added over time.
+
+4. INSTANT AUTO-STORIES BOOT SEEDING (Min 5 Stories Live):
+   - Update the background execution script (autoPost.mjs) initialization sequence. 
+   - Add an immediate boot execution wrapper for the Bollywood Stories engine. When the script starts, it must immediately execute and seed at least 5 fresh automated song stories to the database without waiting for the initial 1-hour or 6-hour scheduler delay. Ensure clean Gemini integration for captions.
+
+5. VERIFICATION:
+   - Run a production build to confirm syntax layout stability and ensure zero compilation errors. Save files and deploy the updates.

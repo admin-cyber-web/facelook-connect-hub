@@ -1,0 +1,33 @@
+### 🚨 CRITICAL PRODUCTION DIRECTIVE: ADVANCED FEATURE ACTIVATION & ANIMATION INJECTION 🚨
+
+Agent, we are executing a high-priority functional restoration and live animation data-binding cycle for `FameFeed.tsx`, `Header.tsx`, `Footer.tsx`, and Circle sub-components. The layout system is successfully applying visual states, but you must now hard-wire the core logic layers, live arrays, and distinct blinking interactive components specified below.
+
+DO NOT break any existing database routing, data arrays, or state hooks. Implement these updates with maximum visual contrast and precise alignment:
+
+1. MAGNET ENGINE NODE: LIVE JOIN TRACKING & BLINKING USER STATE
+   - Re-architect the Magnet/Link section layout directly underneath the post body content.
+   - It must dynamically map and display the sequence array of usernames who have successfully joined/accepted the post owner's link.
+   - **Blinking Selection:** Isolate the absolute last user who accepted the link in the current array context and explicitly apply a high-visibility animated pulse/blink token (`animate-pulse text-pink-400 font-bold`) directly next to the wireframe sequence.
+
+2. VOICE SECTION RESTORATION (Twitter-Style Logo & BLINKING WARNING DISPLAY)
+   - Re-insert the missing **"Voice"** component block immediately following the layout's link trace sequence.
+   - This section must feature a high-contrast Twitter-style vector icon (or wireframe Bird asset).
+   - **Dynamic Warning Animation:** Pull the automated warning text or custom viral request string provided by the post owner (e.g., "bhai post ko viral kro"). You MUST wrap this warning text inside a high-visibility alert container forced to blink continuously using the `animate-pulse` Tailwind utility (`className="animate-pulse text-red-400 bg-red-950/30 px-3 py-1.5 rounded-lg border border-red-500/20 font-medium"`).
+
+3. DYNAMIC EYE VIEWS REFACTOR (Blinking Eye Metric)
+   - Locate the post view tracking counter (`👁️ 1.2K Views`) row inside the content card action template.
+   - Separate the Eye icon vector node (`👁️`) from the text string and force an active structural blinking framework directly onto the eye element using custom timing utilities or a loop pulse animation (`className="animate-pulse inline-block mr-1 text-white text-base"`), making the view monitor blink responsively.
+
+4. DAFUL ENGINE CONVERSION: LIVE MAGNET DASHBOARD PIPELINE
+   - Move the `Magnet Dashboard` container module out of demo mode and bind it directly to the active live user context states:
+     - **Sent Count:** Bind directly to the outbound sent links array length variable.
+     - **Received Count:** Bind to the incoming accepted/joined links array tracker length.
+   - **Max Depth Execution (Failed Inbound Filtering):** Extract and display the collection list of targeted users to whom the current authenticated user dispatched a magnet link, but who have *NOT* yet completed or accepted the receipt hook.
+   - **Tactile Resend Trigger:** Render these non-receiving usernames in clear rows, mounting a high-contrast functional **"Resend"** button (`bg-pink-600 text-white text-xs px-3 py-1 rounded-md font-bold`) right next to each name token to re-fire the link invocation.
+
+5. CIRCLE METADATA COLOR FORCE
+   - Target the sub-component loop displaying active circles or community badges.
+   - Isolate the specific text label string rendering the creator credit: `✦ by @username` or `created by`.
+   - Hard-override this specific metadata text node color immediately to a sharp, high-contrast emerald green (`text-emerald-400 font-semibold`) so it cuts perfectly through the dark gradient background matrix.
+
+Compile the code immediately, test the component trees to confirm zero visual asset clipping, and ensure that all interactive blinking properties run smoothly on the front-end layout frame.

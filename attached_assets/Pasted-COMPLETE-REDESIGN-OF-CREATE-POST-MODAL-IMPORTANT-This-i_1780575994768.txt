@@ -1,0 +1,307 @@
+COMPLETE REDESIGN OF CREATE POST MODAL
+
+IMPORTANT:
+
+This is a UI/UX redesign only.
+
+DO NOT remove, disable, break, rename, or change existing functionality.
+
+Every existing feature must continue working exactly as it works today.
+
+Only redesign layout, spacing, responsiveness, accessibility, and usability.
+
+==================================================
+GOAL
+====
+
+Redesign the entire Create Post modal to match a modern premium mobile-first social media experience.
+
+Use the provided reference design style.
+
+The final result must feel:
+
+* Premium
+* Clean
+* Fast
+* Easy to use
+* Mobile-first
+
+==================================================
+CRITICAL RULE
+=============
+
+DO NOT REMOVE ANY EXISTING FEATURES.
+
+Keep:
+
+* Text posting
+* Media uploads
+* Multiple image uploads
+* Video uploads
+* Public / Friends visibility
+* AI suggestions
+* Hashtag suggestions
+* Hooks
+* Improved captions
+* Location support
+* Emoji support
+* Existing posting logic
+* Existing Gemini integration
+* Existing fallback system
+* Existing analytics
+* Existing notifications
+* Existing draft functionality
+
+Everything must remain functional.
+
+==================================================
+LAYOUT
+======
+
+Top Header:
+
+Create Post
+
+with floating close button.
+
+==================================================
+FLOATING CLOSE BUTTON
+=====================
+
+Current close UX is poor.
+
+Implement:
+
+Sticky floating close button.
+
+Requirements:
+
+* Always visible
+* Follows user while scrolling
+* Top-right corner
+* High z-index
+* Never hidden behind content
+* Mobile-friendly touch target
+
+User should be able to exit instantly from any scroll position.
+
+==================================================
+PROFILE SECTION
+===============
+
+Show:
+
+Profile Image
+Username
+
+Visibility selector
+
+Display visibility as bold toggle cards:
+
+🌍 Public
+
+👥 Friends
+
+Large touch-friendly buttons.
+
+Selected state visually obvious.
+
+==================================================
+TEXT EDITOR
+===========
+
+Large textarea.
+
+Always visible.
+
+Must never be hidden by:
+
+* Uploaded media
+* Suggestion panel
+* Keyboard
+
+Add proper spacing.
+
+==================================================
+MEDIA PREVIEW
+=============
+
+Uploaded images/videos should appear below editor.
+
+Requirements:
+
+* Responsive grid
+* Remove button
+* Edit button
+* Add More button
+
+Must not overlap any content.
+
+==================================================
+QUICK ACTION BAR
+================
+
+Responsive buttons:
+
+Photo/Video
+
+Camera
+
+GIF
+
+Poll
+
+Feeling
+
+Location
+
+etc.
+
+All buttons visible.
+
+No wrapping bugs.
+
+No overlap.
+
+==================================================
+FLICKS SUGGESTED FOR YOU
+========================
+
+Keep ALL existing functionality.
+
+Keep:
+
+* Captions
+* Hashtags
+* Hooks
+* Improved
+* Recommended
+* Refresh
+* Back
+* Copy
+* Use
+* Replace
+* Add
+
+Do not remove anything.
+
+==================================================
+SUGGESTION PANEL UX
+===================
+
+After user selects a suggestion:
+
+Collapse panel automatically.
+
+Show:
+
+✨ Suggestion Applied
+
+toast.
+
+User can reopen manually.
+
+==================================================
+BOTTOM ACTION BAR
+=================
+
+Sticky bottom area.
+
+Include:
+
+Save Draft
+
+Post Now
+
+Always visible.
+
+Even when content is long.
+
+==================================================
+MOBILE RESPONSIVENESS
+=====================
+
+Highest priority.
+
+Requirements:
+
+* No overlapping components
+* No hidden buttons
+* No clipped text
+* No content outside viewport
+* No horizontal scrolling
+* No keyboard covering inputs
+* No broken spacing
+
+Test:
+
+320px
+360px
+390px
+414px
+768px
+
+==================================================
+SCROLL BEHAVIOR
+===============
+
+Smooth scrolling.
+
+Create Post modal must handle long content gracefully.
+
+Close button remains accessible.
+
+Post button remains accessible.
+
+==================================================
+ACCESSIBILITY
+=============
+
+Large tap targets.
+
+Good spacing.
+
+Readable typography.
+
+Clear focus states.
+
+==================================================
+PERFORMANCE
+===========
+
+No new polling.
+
+No new subscriptions.
+
+No battery drain.
+
+No CPU spikes.
+
+No mobile heating.
+
+==================================================
+QUALITY CHECK
+=============
+
+Before completion verify:
+
+* Every existing feature still works
+* No feature removed
+* No feature hidden
+* No overlap issues
+* Mobile responsive
+* Desktop responsive
+* Build passes
+* TypeScript passes
+
+==================================================
+FINAL REPORT
+============
+
+Provide:
+
+* Files modified
+* Screenshots
+* Responsive test results
+* Features preserved checklist
+* Confirmation that no existing feature was removed

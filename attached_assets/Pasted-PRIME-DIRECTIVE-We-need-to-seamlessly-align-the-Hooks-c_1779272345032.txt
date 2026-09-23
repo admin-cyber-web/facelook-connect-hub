@@ -1,0 +1,32 @@
+PRIME DIRECTIVE: We need to seamlessly align the Hooks components across FameFeed.tsx and HooksHub.tsx to ensure image persistence, native sizes, auto-avatar provisioning, and optimized spacing. 
+
+Please perform the following exact architectural updates immediately:
+
+1. FIX MAIN SCREEN HOOK IMAGE BLANKNESS (FrameFeed.tsx):
+   - In the main feed (FrameFeed.tsx), locate the newly added Hooks suggestions strip.
+   - The reason the cover image isn't showing there is because it's either referencing the wrong column or missing the explicit background styling used in HooksHub.tsx.
+   - Enforce that the item card reads 'cover_url' from the 'hook_pages' table and applies this exact inline style for rendering the background image:
+     style={{
+       backgroundImage: item.cover_url ? `url('${item.cover_url}')` : "none",
+       backgroundColor: item.cover_url ? "transparent" : "#1f2937",
+       backgroundSize: "cover",
+       backgroundPosition: "center"
+     }}
+
+2. REMOVE MANUAL DP SELECTOR & IMPLEMENT AUTO-AVATAR (HooksHub.tsx / Page Creation Modal):
+   - In the "Create Hook Page" modal/form, completely REMOVE the manual profile picture selector / upload field. Users should not upload a separate DP for the page.
+   - Replace it with an automatic avatar engine: extract the currently logged-in user's active profile details (`auth.user()`).
+   - If the user has an existing 'avatar_url' in their profile, fetch and bind that dynamic image natively.
+   - If they do not have a profile DP, generate a fallback UI avatar showing the first letter of their 'full_name' or 'username' dynamically with a premium cinematic background color.
+   - Render this creator's avatar and the creator's full name explicitly on the Hooks cards on the main screen so users see exactly who founded it.
+
+3. MATCH HOOK PAGE CARD SIZE WITH CIRCLE CARDS (FrameFeed.tsx):
+   - Locate the CSS classes / Tailwind attributes governing the "Circles" horizontal cards on the front page.
+   - Match the width, height, aspect-ratio, padding, border-radius, and typography of the Hook Page suggestion cards to be EXACTLY identical to the Circle cards. They must look uniform, clean, and align to the same visual grid.
+
+4. DYNAMIC HOOKS INSERTION IN THE FEED TRAFFIC (FrameFeed.tsx):
+   - Modify the main timeline render loop inside FrameFeed.tsx.
+   - Introduce an interleaving rule: exactly after every 3 or 4 posts (regardless of whether the item is a standard post, image, or reel), inject a beautifully stylized horizontal Hooks suggestion strip or a targeted single Hook Page recommendation item. 
+   - This ensures continuous user discovery as they scroll down the feed.
+
+Run a clean project verification check, eliminate any orphan props or style breaks, and confirm that the images, auto-avatars, card dimensions, and post-interleaving rules are completely live and operational!

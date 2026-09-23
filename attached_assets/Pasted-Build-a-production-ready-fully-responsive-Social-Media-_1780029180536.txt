@@ -1,0 +1,20 @@
+Build a production-ready, fully responsive Social Media Authentication & Landing Page for 'FlicksIndia'.
+Design Philosophy:
+Aesthetic: Cinematic dark UI, Midnight Maroon (#800020) & Electric Lemon (#FFF44F) theme, high-end Glassmorphism with soft shadows.
+Responsiveness: Mobile-first, fully optimized for iOS notches, Android, and Desktop.
+Components & Structure:
+Auth System (Right/Center): A glassmorphic login card with Google OAuth placeholder, Email/Password fields, Remember Me, Forgot Password, and animated Login/Sign-up CTAs. Include loading/error states using Framer Motion.
+Feature Highlights (Left/Side): Display the platform pillars (Hooks, Circle, Fame, Fun, Frame, Auto Chat, Studio). Use Lucide icons, hover-scale animations, and specific color identities for each.
+Branding: Feature the App Name 'FlicksIndia', tagline 'Post Karo, Earn Karo', and a magnetic link symbol icon.
+Layout: Adaptive grid—on mobile, feature highlights should collapse or become a horizontal scroll/carousel; on desktop, utilize the left/right split-screen layout effectively.
+Technical Requirements:
+Tech Stack: React + Vite, TailwindCSS, Framer Motion, Lucide Icons.
+Folder Structure: Create a clean components/auth, components/features, and components/ui structure.
+Performance: Ensure all animations are hardware-accelerated using framer-motion layoutId for smooth transitions.
+Interactive Elements: Floating creator cards, reels-style preview elements, and reward badges.
+Goal: Create a high-conversion, premium creator platform landing page that is ready for Firebase/Supabase integration."
+Agent ko ye extra instructions zaroor dena (Chat mein):
+"Make the UI fully responsive: Use a mobile-first approach where the login card is centered on mobile and side-by-side with features on desktop."
+"Ensure all interactive elements (buttons, inputs) have 'focus' states for accessibility."
+"Use a 'Midnight Maroon' background with 'Electric Lemon' accents, as this is our brand identity."
+Ek suggestion: Jab Agent code bana le, toh usey kehna: "Please check if the mobile 'Safe Area' (iOS notch) is handled correctly using padding-bottom: env(safe-area-inset-bottom) in Tailwind classes."

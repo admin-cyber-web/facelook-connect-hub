@@ -1,0 +1,22 @@
+Act as an expert Full-Stack Developer and DevOps Engineer. Our previous Supabase project has been restricted due to egress limits. To bypass Free Plan UI restrictions and eliminate any risk of missing database schemas, policies, or tables, we are executing a manual database dump and migrating entirely to a brand new Supabase project using the free-tier SQL Editor workflow.
+
+The credentials for the NEW Supabase project are:
+SUPABASE_URL="https://rxwvvhvretostbiknuek.supabase.co"
+SUPABASE_ANON_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ4d3Z2aHZyZXRvc3RiaWtudWVrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg4MzEyMjMsImV4cCI6MjA5NDQwNzIyM30.8l_wmT13HKJc8TCK5UIw9KVK-iencj0YXD4aIjvy5rw"
+
+Please execute this exact workflow immediately:
+
+1. GENERATE MANUAL BACKUP (pg_dump):
+   - Access the restricted database via terminal and run the 'pg_dump' command to export the full schema, data, triggers, indexes, and RLS policies into a local file named 'supabase_full_backup.sql' in the root workspace.
+   - Verify that 'supabase_full_backup.sql' is successfully created and contains all structures for 'profiles' (including 'is_private_mode'), 'posts' (including 'visibility'), and 'friendships'.
+
+2. UPDATE ENVIRONMENT VARIABLES:
+   - Replace the old Supabase credentials in the Replit Secrets / Environment configurations with the new project URL and ANON_KEY provided above.
+
+3. RESTORE TO NEW DATABASE:
+   - Provide the complete plain-text content of the generated 'supabase_full_backup.sql' file to the user, or guide the user to copy its entire content.
+   - Instruct the user to open the SQL Editor in the new Supabase Dashboard (project: rxwvvhvretostbiknuek), click "New Query", paste the code, and hit "Run".
+
+4. VERIFY & START REPLIT SERVER:
+   - Once the SQL script executes successfully on the new backend, restart the application server using 'npm run dev'.
+   - Verify that the frontend connects flawlessly to the new database, authentication and feed queries resolve with zero errors, and all Facebook-style privacy/profanity layers remain 100% active.

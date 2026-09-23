@@ -1,0 +1,9 @@
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "com.flicksindia.app",
+    "sha256_cert_fingerprints":
+      ["15:16:F2:A1:1F:81:DA:D6:19:53:0C:25:E7:1E:92:64:5A:C6:BE:6B:80:B9:21:08:53:17:3D:53:A4:A8:7E:90"]
+  }
+}]

@@ -1,0 +1,34 @@
+CRITICAL FIX REQUIRED: Quotes created from the QuotesMaker (opened via the bottom menu) are successfully saving to the database `posts` table, but they are NOT rendering properly on the FameFeed / front page feed.
+
+Here is the exact state of the posts table returned from the app:
+[
+  {
+    "idx": 0,
+    "id": "16956172-6d77-4355-ab7f-83e706b2250a",
+    "content": "जो हार नहीं मानता, जीत उसी की होती है।",
+    "author": null,
+    "author_id": "08470254-3e78-4385-8c78-90bb7865acd7",
+    "post_type": "fame"
+  },
+  {
+    "idx": 1,
+    "id": "40447a38-a0e9-4249-a86a-dda98737865e",
+    "content": "The only way to do great work is to love what you do.",
+    "author": null,
+    "author_id": "08470254-3e78-4385-8c78-90bb7865acd7",
+    "post_type": "fame"
+  },
+  {
+    "idx": 2,
+    "id": "85ece0d8-44ea-4f01-9fbb-0307739c4f26",
+    "content": "The only way to do great work is to love what you do.",
+    "author": null,
+    "author_id": "08470254-3e78-4385-8c78-90bb7865acd7",
+    "post_type": "fame"
+  }
+]
+
+### Issues to Fix in Code & Database:
+1. **Author Name Missing (`author: null`)**: In the FameFeed UI where hooks/reels/posts are displayed below the discover header, the quotes posts show `"user"` instead of the actual user's name because the `author` join relationship (`profiles` table link via `author_id`) is returning `null` or failing during insertion from `QuotesMaker`.
+2. **QuotesMaker Insert Payload**: Inspect how `QuotesMaker.tsx` inserts new quote posts into Supabase. Make sure it explicitly sends the correct `user_id` / `author_id` and sets the correct `post_type` and `visibility` so that the profile join (`profiles!posts_author_id_fkey`) successfully populates the author's name and avatar on the FameFeed.
+3. **Database Migration / SQL**: Provide any necessary Supabase SQL (such as ensuring foreign keys, default triggers for `author_id`, or fixing profile relations) so that future quotes posted from the bottom menu instantly appear with the correct author name on the FameFeed without requiring manual DB fixes.

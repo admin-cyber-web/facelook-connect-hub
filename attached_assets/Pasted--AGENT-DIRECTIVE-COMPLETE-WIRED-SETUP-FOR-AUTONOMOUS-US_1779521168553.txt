@@ -1,0 +1,32 @@
+# AGENT DIRECTIVE: COMPLETE WIRED SETUP FOR AUTONOMOUS USER-STYLE NEWS PIPELINE
+
+Agent, we now have the official GNews API Key ready: `900fd7ed7efdb6e4452411241eeb548e`. We need to build and completely wire up an autonomous background posting engine that populates the `posts` table in Supabase every 2 hours without requiring any human action.
+
+Please implement the entire workflow flawlessly, adhering to these strict architecture and policy rules:
+
+1. **Autonomous News Fetcher Integration:**
+   - Create or update a background service / worker (e.g., inside an automated utility file, a serverless API route, or an index polling loop suitable for our Replit environment).
+   - Use the GNews API endpoint to fetch trending news in India. Wire the HTTP request exactly as:
+     `https://gnews.io/api/v4/top-headlines?category=general&lang=hi&country=in&max=5&apikey=900fd7ed7efdb6e4452411241eeb548e`
+   - (Note: You can switch `lang=hi` to `lang=en` or merge them based on our app's target demographic, but keep it strictly focused on Indian trends).
+
+2. **Gemini AI User-Style Transformation (AdSense Safety):**
+   - Take the raw description and title from GNews and feed it into our updated `gemini-1.5-flash` engine.
+   - Use a strict system instruction to enforce an **"Authentic Indian Social Media User Persona"**:
+     * **Tone:** Casual, engaging, and expressive (using appropriate local context, Hindi-English blend, or pure conversational native script depending on input language). No dry journalistic jargon.
+     * **Aesthetics:** Automatically sprinkle relevant emojis (🚨, 🔥, 👏, 🏏) according to the post's mood.
+     * **Hashtags:** Append 2 to 3 highly context-specific trending hashtags at the end of the text (e.g., `#BhopalNews`, `#TeamIndia`).
+     * **Uniqueness:** The post content MUST be rewritten entirely to ensure 100% original phrasing, shielding the domain from AdSense "Scraped Content" or "Low Value Content" flags.
+   - Run this at a creative temperature of `0.72` using our secure double-layer regex parsing logic (`{...}` extraction) to generate the full database payload object.
+
+3. **Database Insertion Configuration:**
+   - Map the fields cleanly and insert directly into the Supabase `posts` table:
+     * `content`: The beautiful, emoji-rich, AI-generated social media caption text.
+     * `meta_title`: Clean, complete click-worthy headline (no abrupt cuts).
+     * `meta_description`: Crisp, URL-free search summary under 160 characters.
+     * `seo_keywords`: Dynamic, context-specific keywords (completely banning the static "flicks, social" words).
+     * `is_admin_post`: Set to `true` or use a dedicated system agent flag.
+
+4. **Audit and Verification:**
+   - Double-check that no duplicate news items are posted by maintaining a quick state/ID deduplication check or checking against existing database headlines before `.insert()`.
+   - Ensure the entire script compiles without a single TypeScript error and hooks smoothly into the existing runtime tree.

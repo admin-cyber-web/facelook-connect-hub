@@ -1,0 +1,26 @@
+Act as an expert Full-Stack Engineer and UI/UX Designer. We need to implement two major architecture upgrades for Flicks India: a Sticky Dual-Sidebar desktop layout and an Automated Public/Private Story system with SEO indexing.
+
+Please implement the following technical specifications cleanly:
+
+1. DESKTOP DUAL-SIDEBAR LAYOUT (CSS Sticky):
+   - Update the desktop responsive layout (media queries for screen widths >= 1024px).
+   - LEFT SIDEBAR: Display a clean, visually full list of up to 10 trending "Hooks Pages".
+   - RIGHT SIDEBAR: Display a clean list of up to 10 active "Circles Groups".
+   - STICKY MECHANISM: Implement `position: sticky` with a safe top offset (e.g., `top: 80px`) on both sidebars. When the user scrolls the main middle Fame Feed, the left and right sidebars must remain completely fixed in place so the layout always looks complete and full.
+
+2. AUTO BOLLYWOOD/LATEST SONGS STORIES ENGINE:
+   - Create a backend background routine that pulls trending Bollywood/latest song assets (titles, album art/thumbnails, or short details).
+   - Automatically publish these as public platform stories under an official anchor profile at scheduled intervals, keeping the story section dynamic and full even if regular users haven't posted.
+
+3. STORY PRIVACY & FILTERING LOGIC:
+   - Implement strict access control logic in the Story rendering component:
+     * If a user sets their profile/story to Private via settings, restrict visibility exclusively to their confirmed friends/connections.
+     * Public user stories should display seamlessly in the feed loop.
+     * Integrate the auto-generated song stories cleanly as public-facing backup content.
+
+4. SEO SEARCH INDEXING FOR STORIES:
+   - Ensure each automated song story generates clean dynamic metadata (Title, OpenGraph tags, Description) so they are discoverable by web crawlers.
+   - Automatically inject these dynamic story routes into our active Supabase-driven sitemap generator (`sitemap.xml`) so they rank on Google Search.
+
+5. VERIFICATION:
+   - Run a clean production build, ensure layout responsiveness doesn't break mobile/tablet views (where sidebars should gracefully hide or transition into bottom sheets/drawers), and deploy the changes safely.

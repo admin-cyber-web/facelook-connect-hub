@@ -1,0 +1,168 @@
+FLICKS INDIA — STEP 3 ONLY: MOBILE HEAT + BATTERY + MEDIA LIFECYCLE
+
+Previous security/egress work is already completed.
+
+Goal:
+Fix verified causes of phone heating and battery drain.
+
+DO NOT:
+
+* redesign UI
+* remove features
+* migrate framework/database
+* disable Realtime globally
+* change admin-email authorization
+* rewrite the app
+
+TASK 1 — AGORA
+
+`ConnectionPanel.tsx`
+
+Fix cleanup on:
+
+* unmount
+* failed join
+* call end
+* component destruction
+
+Ensure:
+
+* camera track stopped
+* microphone track stopped
+* tracks closed
+* client leaves
+* listeners removed
+* cleanup is idempotent
+
+Preserve user-gesture camera/mic permission.
+
+Investigate `window.location.reload()` and remove it only if safe.
+
+TASK 2 — BLOB URL LEAKS
+
+Audit/fix `URL.createObjectURL()` in:
+
+* `Index.tsx`
+* `SurveyFeed.tsx`
+* `ChatSystem.tsx`
+* `HooksHub.tsx`
+* `CirclePage.tsx`
+* `CreatePost.tsx`
+
+Every Blob URL must be revoked when:
+
+* replaced
+* preview closed
+* modal closes
+* component unmounts
+
+CRITICAL:
+Never call `createObjectURL()` during React render.
+
+Preserve previews/uploads.
+
+TASK 3 — STORY MEDIA
+
+Audit `StoryBar.tsx` and Chat story viewer.
+
+Fix:
+
+* hidden audio playback
+* hidden video playback
+* duplicate media nodes
+* excessive preload
+
+Use one active media node where practical.
+
+Pause/reset media when story closes or becomes hidden.
+
+Do not create multiple simultaneously playing copies of the same story.
+
+Preserve story functionality.
+
+TASK 4 — STORY TIMER
+
+Replace unnecessary 250ms loops with:
+
+* stable deadline
+* visibility-aware approximately 1-second tick
+
+Do not perform navigation as a side effect inside a state updater.
+
+Pause nonessential timers when hidden.
+
+TASK 5 — FLICKS VIDEO
+
+`FlicksFeed.tsx`
+
+Optimize autoplay:
+
+* only active card plays
+* muted by default
+* unmute after user interaction
+* pause previous card
+* bounded preload
+* metadata/none for inactive cards
+
+Preserve existing ±2 virtualization.
+
+TASK 6 — ONLINE USERS / UNSEEN COUNT
+
+Keep Realtime.
+
+Reduce:
+
+* excessive presence rerenders
+* repeated Set creation
+* unnecessary unseen-count subscription while Chat is closed
+
+Scope subscriptions to active UI where safe.
+
+DO NOT disable Realtime globally.
+
+TASK 7 — MAGNET
+
+`MagnetSystem.tsx`
+
+Do not create voice channels for every mounted Magnet card.
+
+Create voice channel only when voice UI is active, or use a safe scoped shared channel.
+
+Preserve Magnet.
+
+TASK 8 — AUDIO CONTEXT
+
+`useSoundEffects.ts`
+
+Do not create a new AudioContext for every sound.
+
+Reuse a context safely and suspend/close when idle.
+
+Preserve sound effects.
+
+TASK 9 — DECORATIVE ANIMATIONS
+
+Audit verified infinite JS/Framer loops:
+
+* `GolSlider`
+* `ConnectionPanel`
+* `StoryBar`
+
+Move purely decorative infinite loops to CSS where safe.
+
+Do not remove meaningful interaction animations.
+
+VALIDATION:
+Test on mobile-sized viewport and verify:
+
+* no camera/mic leak
+* no Blob URL growth
+* no hidden story playback
+* only intended video plays
+* lower timer/animation activity
+* Magnet channels are not created unnecessarily
+* sounds still work
+
+Run build.
+
+STOP AFTER STEP 3.

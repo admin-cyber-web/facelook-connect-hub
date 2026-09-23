@@ -1,0 +1,33 @@
+### 🚨 CRITICAL SPECIFICATION & STRICT ARCHITECTURAL DIRECTIVE 🚨
+
+Agent, you are authorized to perform a comprehensive, production-grade visual redesign of the front-page framework ("Fame Feed"), its primary Post Card templates, the underlying reaction layout rows, and the Integrated Notification listing panels.
+
+⚠️ STRICT WARNING - ZERO FUNCTIONALITY LOSS: You MUST preserve 100% of the existing functional business logic, active tool integrations, database variables, routes, and structural element names exactly as they currently exist in the code. Under no circumstances should you delete, rename, or omit any menu item, user counter, action trigger, or system feature (e.g., Gemini-powered Magic Write, User Media Gallery arrays, stickers, or the Magnet Engine network). The target is strict visual transformation into a high-end native mobile application UI layout, removing any bready or web-style structural remnants.
+
+Please execute the following engineering overrides precisely:
+
+1. GLOBAL FRAMEWORK & APP CANVAS
+   - Transition the layout architecture from web-style wrappers to a responsive mobile app shell layout.
+   - Enforce a deep, premium cinematic background canvas across global sheets utilizing Dark Slate Gray (#0F172A).
+
+2. HEADER & LIVE NAVIGATION TRANSITION
+   - Maintain the top layout identities precisely: Ensure "🌟 FLICKS INDIA" and the user's active context dashboard state ("Meenu / ⭐ 0 Fame") remain structurally intact.
+   - Refactor the current category buttons (e.g., Stranger Call 📞, Live 🔴) into a smooth, horizontal scrollable row of modern tactile native chips. 
+   - Apply an active gradient glowing neon border overlay specifically around the container of the "✨ Magic Write" tool component.
+
+3. THE HIGH-FIDELITY VIRAL POST CARD & INTERACTION ENGINE
+   - Update the core Post Container layout to use a premium dark linear gradient blending Midnight Maroon (#2C001E) directly into charcoal black with clean 16px rounded borders.
+   - Retain full handling for rich text, Hindi typography layers, local user media gallery layouts, and overlapping sticker arrays.
+   - INTERACTION ROW OVERHAUL: Group all counters neatly into a cohesive horizontal mobile application dock. Ensure the system view counter ("👁️ Views") is prominently displayed alongside the explicit social listing line ("Liked by You, Rahul_UP32, and 12 others") with tight typographic weight pairings.
+   - THE 🧲 MAGNET COMPONENT: Preserve the existing linkage mapping for sent and received statistics but visually replace the legacy state with our glowing '🧲 Magnet Engine' dynamic chip right alongside Comment and Share triggers.
+   - 6-EMOJI REACTION PANEL: Attach a long-press touch-gesture handler to the primary Like button component. Upon invocation, conditionally render an animated floating horizontal glassmorphic overlay displaying the precise 6-reaction state array: ['👍', '🔥', '😂', '😮', '😢', '😡'] implementing a scale-up bounce animation on selection.
+
+4. REDESIGNED NOTIFICATION CONTEXTS
+   - Locate and modify the Notification component layers (handling Friend Requests, Likes, and Comments).
+   - Convert standard alert list entries into high-fidelity compact frosted-glass container modules. Friend requests must render with bold, standalone native action buttons for immediate, desktop-free execution (e.g., '✅ Accept' / '❌ Decline').
+
+5. EXTENDED NATIVE BOTTOM-SHEET FOR SHARING
+   - Refactor the share action click event so that instead of a simple redirect link, it pops up an interactive, translucent native bottom-drawer sheet.
+   - The drawer must align an immediate horizontal shortcut matrix mapping action triggers for: Copy Link, WhatsApp Status ("Status par lagayein" styled with a custom green vector badge layout), Messenger, and the default system device sharing arrays.
+
+Review the existing state trees carefully before updating styles to ensure no variable hooks or conditional data-mappings break during deployment.

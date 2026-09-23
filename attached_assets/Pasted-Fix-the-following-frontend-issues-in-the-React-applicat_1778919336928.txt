@@ -1,0 +1,43 @@
+Fix the following frontend issues in the React application causing a global white-screen crash after login:
+
+1. FIX THE INVALID REGEX (SyntaxError: Nothing to repeat)
+Location: `app-rich-caption` component / utility.
+Issue: The bad-word filtering regex for "asshole" contains `**` (double asterisk) which causes an engine crash inside `new RegExp()`.
+Broken Regex:
+/\b(a[\s._-]*hole)\b|(a[\W_]*[[\W_]*\[\W_]*s[\W_]*.[\W_]*_[\W_]*-[\W_]*][\W_]**[\W_]*h[\W_]*o[\W_]*l[\W_]*e)/
+
+Fix: Replace the broken regex pattern with a sanitized/escaped version. Remove the duplicate quantifiers (the consecutive `**`). A cleaner fix for this specific segment:
+/\b(a[\s._-]*hole)\b|(a[\W_]*s[\W_]*s[\W_]*h[\W_]*o[\W_]*l[\W_]*e)/i
+
+2. IMPLEMENT LOCALIZED ERROR BOUNDARY (Prevent full-app crash)
+Right now, the global `app-error-boundary` is catching this caption-rendering error and breaking the entire page layout. 
+Wrap ONLY the post caption / comment rendering logic inside a localized try-catch or a smaller inline component-level Error Boundary. 
+
+Example Implementation Strategy for the RichCaption component:
+```javascript
+import React from 'react';
+
+// Local Error Boundary for safe string processing
+class SafeCaptionProvider extends React.Component {
+  state = { hasError: false };
+  static getDerivedStateFromError() { return { hasError: true }; }
+  componentDidCatch(error) { console.error("Regex/Caption error caught locally:", error); }
+  render() {
+    if (this.state.hasError) {
+      // Fallback: Just display raw unformatted text instead of crashing the app
+      return <span>{this.props.fallbackText}</span>;
+    }
+    return this.props.children;
+  }
+}
+
+// Wrap the filter logic inside the component securely
+export function RichCaption({ text }) {
+  try {
+    // Wrap your bad-word array mapping and regex parsing here
+    // Ensure `new RegExp(...)` is wrapped in a try-catch block individually!
+  } catch (e) {
+    console.error("Regex parsing failed", e);
+    return <span>{text}</span>;
+  }
+}

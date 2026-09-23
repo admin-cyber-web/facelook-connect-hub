@@ -1,0 +1,42 @@
+### 🚨 EXPLICIT INTERFACE RECONSTRUCTION DIRECTIVE (REPLIT PRODUCTION HOTFIX) 🚨
+
+Agent, look at the active screen data. The UI layout is completely failing to render the premium design specifications. It is rendering as a basic white/light legacy web list container. The Midnight Maroon elements, high-contrast dark modes, mobile application structures, and the custom dot-dot line layout maps are completely absent. 
+
+You must immediately execute raw styling overrides inside `FameFeed.tsx`, `Header.tsx`, `Footer.tsx`, and the nested row wrappers. DO NOT touch any conditional logic, array endpoints, metadata parameters, or routes. Directly force-inject the Tailwind and inline layout specifications defined below:
+
+1. FORCE GLOBAL APPS CANVAS CONTRAST (No Grey/White Web Space)
+   - Force the main layout body container element to render with a deep, solid backdrop token of Dark Slate Gray: `bg-[#0F172A]` or `className="bg-[#0F172A] min-h-screen text-white"`.
+   - Force ALL primary typography, user handles, time trackers, and interaction tags to render in high-contrast solid milk-white: `text-white font-medium`. Absolutely NO dark text on dark surfaces.
+
+2. HEADER RECONSTRUCTION WITH ANIMATED BULLET LOGO (`Header.tsx`)
+   - Preserve the exact custom bullet-style animation wrapper logic for the "Flicks Made in India" branding logo intact.
+   - Force the background bar of the header layout to deep matte charcoal: `bg-[#0B0B0F] border-b border-[#E2F1FF]/10 py-3 px-4`.
+   - Align the explicit navigation shortcuts for Home, Search, Notification, Setting, and Profile Dashboard horizontally with solid white icon states (`text-white hover:text-pink-500 transition-colors`).
+
+3. HIGH-FIDELITY USER STORIES SECTION
+   - Target the Story container list directly below the Header app-bar. Change it from plain layout blocks into a smooth, horizontal scroll layout: `flex items-center gap-4 overflow-x-auto pb-3 scrollbar-none`.
+   - Wrap each profile avatar icon inside a custom multi-colored pulsing gradient border ring: `p-[2px] bg-gradient-to-tr from-pink-500 via-purple-500 to-yellow-500 rounded-full`.
+   - Force the descriptive user labels underneath to be bold, sharp white typography.
+
+4. ULTRA-PREMIUM MIDNIGHT MAROON CARD METRICS
+   - Overwrite the main Post Card container wrapper styles completely. Force-inject a rich linear gradient that starts from Midnight Maroon fading down into deep Charcoal Black with clean 16px corner shapes:
+     `bg-gradient-to-br from-[#2C001E] to-[#0B0B0F] rounded-2xl p-4 shadow-xl border border-purple-950/40 mb-4`
+   - Boldly style post content text in high-contrast white, and highlight raw hashtag segments using dynamic Burnt Orange/Coral: `text-[#FF6B6B] font-semibold`.
+
+5. THE WIREFRAME DOT-DOT (`- - - -`) MAGNET ENGINE DOCK
+   - Locate the bottom interaction layout row containing View tracking (`👁️`), Likes, Comments, and Share.
+   - Style the live engagement row to render inline with crisp text layouts.
+   - RECONSTRUCT THE MAGNET NODE: Visually display the functional `🧲 Magnet Engine` tracker by binding it directly to an explicit custom digital dot-dot wireframe connector array layout:
+     Render an inline decorative track element using dashed CSS or string parameters: `className="text-pink-500/50 tracking-widest font-mono text-xs mx-1" -> "- - - -"` connecting the active counter asset cleanly next to the Comment and Share nodes.
+   - REACTION CAPSULE: Ensure the long-press interaction layer on the Like trigger launches a translucent floating glassmorphic bubble Capsule (`bg-slate-900/90 backdrop-blur-md border border-white/10 rounded-full px-3 py-1.5 abs-position`) showing the 3D-styled 6-reaction state elements clearly.
+
+6. HIGH-CONTRAST NOTIFICATION BADGES
+   - Restructure standard notification data rows into clear compact glassmorphic plates: `bg-white/5 backdrop-blur-sm border border-white/5 p-3 rounded-xl`.
+   - Action items (Friend Requests) must feature solid, high-contrast native operation buttons: `bg-emerald-500 text-white rounded-lg px-4 py-1 font-bold` for Accept, and translucent layout variants for Decline.
+
+7. NATIVE SYSTEM FOOTER OVERHAUL (`Footer.tsx`)
+   - Do NOT alter the active labels ("Flicks", "Hooks", "Task", "Circle", "Fame") or their underlying native animation triggers.
+   - Update the container layout to be a fixed mobile bottom bar shell: `fixed bottom-0 left-0 right-0 z-50 bg-[#0F172A]/95 backdrop-blur-lg border-t border-white/5 py-2`.
+   - Force maximum typographic contrast visibility over all active text labels and navigation paths, ensuring every string title is beautifully illuminated (`text-white` or `text-pink-500` on active states) and instantly legible.
+
+Run a clean project build, verify that the compilation contains zero visual asset leaks, and ensure the UI flawlessly reflects this crisp native interface design layout.

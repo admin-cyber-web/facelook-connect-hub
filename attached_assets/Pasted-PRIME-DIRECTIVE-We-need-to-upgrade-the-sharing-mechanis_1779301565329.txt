@@ -1,0 +1,23 @@
+PRIME DIRECTIVE: We need to upgrade the sharing mechanism inside src/components/FameFeed.tsx and its related share utilities from a basic text string to a premium, professional "Rich Share Payload" that bundles a thumbnail image and a clean 2-to-4 line contextual description snippet.
+
+Please implement the following architectural enhancements immediately:
+
+1. CONSTRUCT THE RICH SHARE PAYLOAD OBJECT:
+   - Modify the `handleShare` (or the respective click handler for shares) to extract more than just the item ID.
+   - For every content type (Standard Post, Circle, Reel, Hook Page), define a standardized structural preview metadata object:
+     - `thumbnail_url`: Extract the primary source image (e.g., `item.image_url`, `item.cover_url`, or the video thumbnail for reels).
+     - `title`: Extract a clean bold header (e.g., "Check out this Hook Page: [Name]" or "New Reel by [Author]").
+     - `description`: Slice the text content or description gracefully to exactly 2 to 4 lines (e.g., `item.content.substring(0, 120) + '...'`) to ensure it looks tight, uniform, and branded.
+
+2. INTEGRATE WITH THE NOTIFICATION & ACTIVITY PIPELINE:
+   - When writing the share action to the `notifications` or `shares` database tables, do not just push a raw string.
+   - Save these metadata fields (`share_thumbnail`, `share_title`, `share_description`) into the payload column or adjacent fields so the database preserves the exact state of what was shared.
+
+3. RENDER THE RICH CARD PREVIEW IN THE UI:
+   - Locate the UI view where shared items or share alerts are displayed to users.
+   - Instead of a plain text description, design a beautiful, modern container card:
+     - Left/Top side: A crisp, rounded thumbnail layout (`w-16 h-16` or balanced aspect-ratio) using `<img className="object-cover rounded-md" />`.
+     - Right/Bottom side: The bold Title followed by the clamped 2-4 lines description in a muted premium typography color (e.g., `text-sm text-gray-400 line-clamp-3`).
+   - Ensure the card wrapper feels clickable, branded, and heavily resembles premium integrations like LinkedIn or Twitter rich cards.
+
+Run a comprehensive compilation check to ensure there are no missing properties, clean up the data model references, and ensure the UI renders the thumbnails and description lines flawlessly without any alignment breaking!
