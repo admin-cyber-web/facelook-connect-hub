@@ -1,4 +1,4 @@
-import { shareViaAndroid } from "./universalShare";
+import { universalShare } from "./universalShare";
 
 // ── Universal post sharing util ────────────────────────────────────────────────
 // Goal: when sharing to WhatsApp / Instagram / etc., the receiver sees the post
@@ -9,11 +9,8 @@ import { shareViaAndroid } from "./universalShare";
 //   attached via the Web Share API. So the only reliable cross-app way to
 //   ship the caption with the image is to bake the caption INTO the image.
 //
-// Behaviour:
-//   1. If the post has an image → compose a card (image on top + caption below
-//      + author/credit footer) and share that single PNG file.
-//   2. If the post is video / has no image → fall back to text-only share.
-//   3. Final fallback → copy text to clipboard.
+// Native Android receives the original media URI and caption in one ACTION_SEND
+// intent. Browsers receive a File through the Web Share API, including videos.
 
 export interface SharePostOptions {
   postId: string;
@@ -258,71 +255,17 @@ export async function sharePost(opts: SharePostOptions): Promise<"shared" | "cop
   const parts: string[] = [];
   if (headline) parts.push(headline);
   if (body && body !== headline) parts.push(body);
-  parts.push(PROMO_FOOTER);
-  parts.push(`${credit}\n${postUrl}`);
-  const shareText = parts.join("\n\n");
+  parts.push(`${credit}`);
 
-  // Let the Android wrapper share the original media URL directly. This path
-  // is intentionally before share-card generation so Android does not fetch
-  // and re-encode the media in the WebView.
-  if (await shareViaAndroid(shareText, mediaUrl)) {
-    return "shared";
-  }
+  const outcome = await universalShare({
+    title: headline || "Flicks India post",
+    text: parts.join("\n\n"),
+    url: postUrl,
+    mediaUrl: mediaUrl || undefined,
+    type: mediaType?.toLowerCase().startsWith("video") ? "reel" : "post",
+  });
 
-  const hasImage = !!mediaUrl && isImageMedia(mediaUrl, mediaType);
-
-  // ── 1. Image post → composed share-card (image + caption baked together) ──
-  if (hasImage && typeof navigator !== "undefined" && (navigator as any).canShare) {
-    const file = await buildShareCard({
-      imageUrl: mediaUrl!,
-      caption: cleanCaption,
-      authorName,
-    });
-    if (file) {
-      const payload: any = { files: [file], text: shareText };
-      try {
-        if ((navigator as any).canShare(payload)) {
-          await (navigator as any).share(payload);
-          return "shared";
-        }
-        // Some browsers refuse text+files together — try files-only
-        const filesOnly: any = { files: [file] };
-        if ((navigator as any).canShare(filesOnly)) {
-          await (navigator as any).share(filesOnly);
-          return "shared";
-        }
-      } catch (err: any) {
-        if (err?.name === "AbortError") return "cancelled";
-        // fall through
-      }
-    }
-    // Composition or share failed → try sharing the original image directly
-    try {
-      const original = await urlToFile(mediaUrl!, "flicks-post.jpg");
-      if (original && (navigator as any).canShare?.({ files: [original] })) {
-        await (navigator as any).share({ files: [original], text: shareText });
-        return "shared";
-      }
-    } catch (err: any) {
-      if (err?.name === "AbortError") return "cancelled";
-    }
-  }
-
-  // ── 2. Video / no-image / unsupported → text+link share ──
-  if (typeof navigator !== "undefined" && (navigator as any).share) {
-    try {
-      await (navigator as any).share({ text: shareText });
-      return "shared";
-    } catch (err: any) {
-      if (err?.name === "AbortError") return "cancelled";
-    }
-  }
-
-  // ── 3. Clipboard fallback ──
-  try {
-    await navigator.clipboard?.writeText(shareText);
-    return "copied";
-  } catch {
-    return "cancelled";
-  }
+  if (outcome === "copied") return "copied";
+  if (outcome === "cancelled") return "cancelled";
+  return outcome === "error" ? "cancelled" : "shared";
 }

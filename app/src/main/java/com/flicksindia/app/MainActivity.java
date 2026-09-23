@@ -16,6 +16,7 @@ import androidx.appcompat.app.AppCompatActivity;
 public class MainActivity extends AppCompatActivity {
 
     private WebView webView;
+    private AndroidShareBridge shareBridge;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -34,6 +35,8 @@ public class MainActivity extends AppCompatActivity {
         webSettings.setDatabaseEnabled(true);
         webSettings.setAllowFileAccess(true);
         webSettings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
+        shareBridge = new AndroidShareBridge(this);
+        webView.addJavascriptInterface(shareBridge, "AndroidShare");
 
         // Keep native WebView touch scrolling available for the full React
         // document, including nested feed/list panes.
@@ -73,5 +76,13 @@ public class MainActivity extends AppCompatActivity {
         } else {
             super.onBackPressed();
         }
+    }
+
+    @Override
+    protected void onDestroy() {
+        if (shareBridge != null) {
+            shareBridge.shutdown();
+        }
+        super.onDestroy();
     }
 }
