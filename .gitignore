@@ -10,6 +10,7 @@ android.keystore
 *.idsig
 dist/
 local.properties
+<<<<<<< HEAD
 
 *.zip
 gradle-*.zip
@@ -22,3 +23,8 @@ gradle-*.zip
 
 *.zip
 gradle-*.zip
+=======
+*.zip
+gradle-*.zip
+.gradle/
+>>>>>>> 120e3f5 (Preserve full commit history and cleanup gradle zip)
