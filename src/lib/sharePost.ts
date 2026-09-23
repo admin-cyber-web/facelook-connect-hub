@@ -1,13 +1,8 @@
 import { universalShare } from "./universalShare";
 
 // ── Universal post sharing util ────────────────────────────────────────────────
-// Goal: when sharing to WhatsApp / Instagram / etc., the receiver sees the post
-// IMAGE *plus* the caption text together (FB-style).
-//
-// Why we render a share-card instead of just passing { text, files }:
-//   WhatsApp & Instagram silently DROP the `text` payload when `files` are
-//   attached via the Web Share API. So the only reliable cross-app way to
-//   ship the caption with the image is to bake the caption INTO the image.
+// Goal: when sharing to WhatsApp / Instagram / etc., the receiver gets the
+// original post media plus the caption and deep link in one share operation.
 //
 // Native Android receives the original media URI and caption in one ACTION_SEND
 // intent. Browsers receive a File through the Web Share API, including videos.
@@ -229,13 +224,7 @@ async function buildShareCard(opts: {
   }
 }
 
-/**
- * Share a post.
- *   1. If the post has an image → bake caption INTO the image (FB-style card)
- *      and share that one PNG so caption + visual always travel together.
- *   2. Video / no media → text-only share with caption + link.
- *   3. Fallback → copy to clipboard.
- */
+/** Share a post with the original image or video when available. */
 export async function sharePost(opts: SharePostOptions): Promise<"shared" | "copied" | "cancelled"> {
   const { postId, caption, mediaUrl, mediaType, authorName, metaTitle, metaDescription } = opts;
   const postUrl = `${BASE_URL}/post/${postId}`;
