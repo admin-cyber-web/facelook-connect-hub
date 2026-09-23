@@ -10,3 +10,4 @@
 - [Surprise tag trigger behavior](surprise-tag-backend-guard.md) — validate new targets while allowing the recipient's one-time seen update after posting
 - [Private chat search guard](private-chat-search-guard.md) — private-profile discovery needs a server-side friend/mutual check because friendship RLS hides other users' edges
 - [Package install manifest churn](package-install-manifest-churn.md) — provisioning Node packages through the workspace installer may rewrite unrelated dependency pins; inspect and restore manifest churn before finishing
+- [Android device validation prerequisites](android-device-validation.md) — native checks need Android SDK tooling and Java 21; otherwise report the device gap explicitly
