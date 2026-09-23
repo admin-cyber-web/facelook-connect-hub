@@ -52,6 +52,7 @@ declare global {
       shareMedia?: (
         caption: string,
         mediaUrl: string,
+        mediaType?: string,
       ) => void | boolean | Promise<void | boolean>;
     };
   }
@@ -163,6 +164,7 @@ export function resolveShareMediaUrl(post: {
 export async function shareViaAndroid(
   caption: string,
   mediaUrl?: string | null,
+  mediaType?: string,
 ): Promise<boolean> {
   if (
     typeof window === "undefined" ||
@@ -173,7 +175,7 @@ export async function shareViaAndroid(
   }
 
   try {
-    const result = await window.AndroidShare.shareMedia(caption, mediaUrl);
+    const result = await window.AndroidShare.shareMedia(caption, mediaUrl, mediaType);
     return result !== false;
   } catch {
     return false;
@@ -213,7 +215,7 @@ export async function universalShare(
 
   // Android handles the remote media natively. Do this before fetching a blob
   // so the WebView does not duplicate the media download in JavaScript.
-  if (await shareViaAndroid(text, mediaUrl)) {
+  if (await shareViaAndroid(text, mediaUrl, type)) {
     return "shared-with-file";
   }
 

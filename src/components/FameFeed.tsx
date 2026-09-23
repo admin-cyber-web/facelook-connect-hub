@@ -1891,7 +1891,7 @@ const SingleReelBlock = ({
         <button
           className="flex flex-col items-center"
           onClick={() => {
-            sharePost({
+            void sharePost({
               postId: post.id,
               caption: post.content,
               mediaUrl: post.media_url,
@@ -1899,6 +1899,8 @@ const SingleReelBlock = ({
               authorName: post.author,
               metaTitle: post.meta_title,
               metaDescription: post.meta_description,
+            }).then((outcome) => {
+              if (outcome === "copied") toast.success("Link copied!");
             });
           }}
         >
