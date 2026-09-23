@@ -1,0 +1,24 @@
+Please redesign and enhance the HooksHub / Page Dashboard section with a modern, sleek, premium dark-themed UI featuring **glassmorphism (translucent background panels where the page banner/background art faintly bleeds through)**, smooth gradients, and clean spacing, while fully preserving and integrating all existing functionality.
+
+Implement and polish the following exact features:
+
+1. Cinematic Glassmorphism UI & Layout & Owner Profile on Banner:
+   - Use translucent glass cards (`backdrop-blur-md bg-black/40` or similar styles) for the hook page view, post cards, and modals so that the background banner/gradients softly show through for a modern premium feel.
+   - **Crucial Owner Header on Banner:** In the main page banner / header section, prominently display the **Page Owner's profile avatar and name in a large, bold font**, followed immediately by their distinct badge (**"👑 Owner"** or **"🤝 Page Partner"**) so every visitor instantly knows who created and owns the page.
+
+2. Enhanced "Invite to Friends" Feature:
+   - Include a robust "Invite Friends" modal where the page owner can select friends to invite.
+   - When sent, the invite notification must clearly display:
+     - The Page Banner image.
+     - The Page Name and Short Description.
+     - The Creator's name ("Created by [Owner Name]").
+     - A welcoming text: "Join this page and enjoy it!"
+     - An active button to accept or view the page.
+
+3. Comprehensive Requests Panel (Owner & Visitor Visibility):
+   - The owner panel must cleanly display all incoming requests (both join requests from visitors and sent invites) with clear **Accept / Reject** buttons and time limit selection dropdowns (e.g., 24 hours, 7 days).
+   - Ensure visitor-facing views and owner management states are intuitively structured.
+
+4. Permissions & Approval Integration:
+   - Once accepted, grant immediate posting access, trigger real-time welcome notifications, and display the **"🤝 Page Partner"** badge on their posts.
+   - Maintain strict post-approval queues and contributor deletion guards.

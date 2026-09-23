@@ -1,0 +1,25 @@
+Act as an expert Backend & AI Integration Developer. We need to upgrade our automated background posting loop (located in autoPost.mjs or your core background script) to automatically post trending short videos/reels to the main "Fame Feed". 
+
+Our frontend bottom menu already features a dedicated "Flicks" (Instagram-style Reels) section that automatically syncs and pulls any video post published on the Fame Feed. Your job is to fully automate the backend side of this content engine.
+
+Please implement the following technical specifications cleanly:
+
+1. FREQUENCY & SCHEDULING (Min 5 Posts/Day):
+   - Configure the background interval timer or loop parameters so that the bot automatically publishes a minimum of 5 short video/reels posts within every 24-hour cycle (approximately every 4 to 4.5 hours).
+   - Ensure this video routine runs harmoniously alongside our existing automated text/image news updates without overlapping, causing race conditions, or hitting API rate limits.
+
+2. CRITICAL JAVASCRIPT/YOUTUBE BYPASS LOGIC:
+   - To completely prevent Google/YouTube from blocking video playback via security headers ("Refused to display in a frame"), the script MUST automatically sanitize and convert any standard YouTube or Shorts URL into the official unblocked embed format: 'https://www.youtube-nocookie.com/embed/{VIDEO_ID}'.
+   - Maintain a highly stable, curated, or rotated array of verified trending short video/webseries public assets/links for production stability.
+
+3. GOOGLE GEMINI SDK INTEGRATION:
+   - Utilize our existing Google Gemini AI configuration to dynamically generate high-engagement, viral, clickbait titles and catchy short descriptions tailored to the context of each video.
+
+4. DATABASE PAYLOAD STRUCTURE:
+   - Format the incoming object strictly to match our standard Fame Feed post model, ensuring you explicitly set:
+     * `mediaType`: 'video'
+     * `videoUrl`: The cleaned up 'youtube-nocookie.com/embed/...' link.
+
+5. FAULT TOLERANCE & DEPLOYMENT:
+   - Wrap the entire video generation loop in robust try/catch blocks so that if an external API timeout or fetch error occurs, it logs cleanly and waits for the next interval without crashing the main PM2 background loop.
+   - Save all modified files, run a clean production build, and push the updates directly to GitHub so it deploys live.

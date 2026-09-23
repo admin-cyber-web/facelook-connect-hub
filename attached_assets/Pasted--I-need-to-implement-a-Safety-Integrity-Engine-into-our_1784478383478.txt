@@ -1,0 +1,44 @@
+"I need to implement a 'Safety & Integrity Engine' into our chat system, integrated directly into the existing 'Privacy Settings' section.
+
+Task 1: Privacy Settings UI Update
+
+In the existing Privacy Settings section, add a new 'Love Protect' toggle button.
+
+This toggle should allow the user to link their account with a partner's ID to activate the protection monitoring.
+
+Task 2: Crime/Fraud Detection (Global Engine - Rule Based)
+
+Create a server-side KeywordFilter list (e.g., 'paise', 'account', 'gpay', 'threat', 'murder').
+
+When a message is sent, perform a backend scan. If a match occurs, increment the sender's RiskScore in the database.
+
+If RiskScore > 50, inject a metadata flag into the message object. The frontend should display a high-visibility, bilingual alert on the receiver's screen: '⚠️ Warning: Suspicious Activity Detected / चेतावनी: संदिग्ध गतिविधि'.
+
+Task 3: Love Protect Logic (Specific Monitoring)
+
+Monitor messages sent by a user who has 'Love Protect' activated.
+
+Maintain a message_history table. If the linked partner sends romantic/intimate keywords (love, kiss, hug, sex) to multiple users within a short duration, flag this behavior as 'Suspicious'.
+
+Send an automated, privacy-conscious system notification to the 'Protected' user: 'Warning: Your partner's communication pattern shows suspicious inconsistencies.' (Do not show the actual chat content to maintain privacy).
+
+Task 4: Database Requirements
+
+Design a SQL schema that includes:
+
+UserRiskProfile (user_id, risk_score, is_flagged).
+
+MessageHistory (sender_id, receiver_id, message_content, timestamp).
+
+LoveProtectLinks (user_id, partner_id, is_active).
+
+All logic must run on the backend to ensure security cannot be bypassed by the client.
+
+Note: Keep the existing UI structure for 'Privacy Settings' and just append this new functionality cleanly."
+
+Bhai, Implementation ka ek chhota sa tip:
+Jab agent code de, toh dhyan rakhna ki:
+
+Risk Score Reset: Kabhi-kabhi genuine log bhi "paise" shabd use kar sakte hain, toh backend mein ek decay logic rakhna (jaise ki agar user ne 1 hafte tak koi galat kaam nahi kiya, toh uska RiskScore apne aap kam ho jaye).
+
+Notification: Love Protect ki notification hamesha "System Message" ki tarah honi chahiye, na ki normal chat ki tarah, taaki user ko turant samajh aa jaye ki ye ek alert hai.

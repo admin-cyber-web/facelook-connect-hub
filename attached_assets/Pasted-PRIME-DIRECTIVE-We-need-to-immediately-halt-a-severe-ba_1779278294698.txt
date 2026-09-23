@@ -1,0 +1,21 @@
+PRIME DIRECTIVE: We need to immediately halt a severe background data-fetching infinite loop in src/components/FameFeed.tsx that is draining bandwidth (consuming 1GB+ quickly) and fix a mismatch between actual like records and the visual UI like counter.
+
+Please perform the following engineering refactors immediately:
+
+1. FIX THE LIKE COUNTER MISMATCH LOGIC:
+   - Locate the liking mechanism and the local state that tracks likes per post/reel.
+   - Do NOT rely on shaky local increment logic or unstable client-side calculations that drift.
+   - Change the state binding so that the visual like count is directly derived from the accurate array length of the users who liked it (`item.likes.length` or the direct count of specific relations) which you confirmed is accurate.
+   - Ensure that when a user clicks 'Like', the UI optimistically updates based on the exact presence of the user's ID in that list, avoiding double-counting or random decrements.
+
+2. ELIMINATE THE BACKGROUND FETCHING INFINITE LOOP (STOP DATA DRAIN):
+   - Inspect all `useEffect` hooks inside FameFeed.tsx, especially those fetching posts, reels, circles, and hook pages.
+   - Clean up the dependency arrays: Remove any unstable objects, dynamic arrays, or setters that trigger re-renders. If a fetch function should only run ONCE on page load, freeze the dependency array to empty `[]` or strictly limit it to authenticated user state variables (`user?.id`).
+   - Implement strict memoization (`useCallback`) for data-fetch handlers to ensure their references don't change on every render cycle.
+   - Add a client-side loading guard flag (e.g., `isFetching`) to block any redundant background network requests if a fetch operation is already in progress.
+
+3. OPTIMIZE RENDERING TO PREVENT CACHE AGGRESSION:
+   - Ensure components do not forcefully re-trigger whole page layouts or loop back-to-back real-time Supabase subscriptions.
+   - Ensure the total memory footprint for the existing ~20 posts is minimal and lightweight.
+
+Run a strict compilation and network pipeline check to confirm that background network spamming is completely eliminated and like counters are synchronized with actual data!

@@ -1,0 +1,198 @@
+PROJECT: FLICKS INDIA - COMPLETE SEO INDEXING FIX
+
+Tech Stack:
+
+* Frontend: React + Vite
+* Backend: Node.js
+* Domain: https://www.flicksindia.online
+
+GOAL:
+Fix Google Search Console "Discovered – Currently Not Indexed" issue and make every public post fully SEO-friendly and indexable.
+
+IMPLEMENT ALL OF THE FOLLOWING:
+
+1. DYNAMIC SEO FOR EVERY POST
+
+Every public post page must automatically generate:
+
+* SEO title
+* Meta description
+* Open Graph tags
+* Twitter Card tags
+* Canonical URL
+
+Example output:
+
+<title>{postTitle} | Flicks India</title>
+
+<meta name="description" content="{postDescription}" />
+
+<meta property="og:title" content="{postTitle}" />
+<meta property="og:description" content="{postDescription}" />
+<meta property="og:image" content="{postThumbnail}" />
+<meta property="og:url" content="{postUrl}" />
+<meta property="og:type" content="article" />
+
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="{postTitle}" />
+<meta name="twitter:description" content="{postDescription}" />
+<meta name="twitter:image" content="{postThumbnail}" />
+
+<link rel="canonical" href="{postUrl}" />
+
+2. AUTO TITLE GENERATION
+
+If user enters a title:
+Use the title.
+
+If user does not enter a title:
+Generate title automatically from first 60 characters of caption.
+
+Examples:
+
+Caption:
+"My first trip to Goa was amazing"
+
+SEO title:
+"My First Trip To Goa Was Amazing | Flicks India"
+
+Short captions:
+Use available text.
+
+Never leave title empty.
+
+3. POST PAGE STRUCTURE
+
+Every public post page must render:
+
+<h1>{seoTitle}</h1>
+
+Visible post content
+
+Visible username
+
+Visible image/video
+
+Visible description
+
+Google must see real content.
+
+No blank pages.
+
+4. SEO FRIENDLY URLS
+
+Current:
+
+/post/0073cd11-386a-4b85-90a4-f5af43cf2f7e
+
+Convert automatically to:
+
+/post/funny-cat-video-0073cd11
+
+or
+
+/@username/funny-cat-video
+
+Keep old URLs redirected with 301 redirects.
+
+5. INTERNAL LINKING
+
+All posts must be linked from:
+
+* Home Feed
+* User Profile
+* Trending Feed
+* Search Results
+* Hashtag Pages
+
+Links must use crawlable anchor tags.
+
+Example:
+
+<a href="/post/funny-cat-video-0073cd11">
+View Post
+</a>
+
+Do not rely only on JavaScript navigation.
+
+6. XML SITEMAP
+
+Create dynamic sitemap:
+
+/sitemap.xml
+
+Include:
+
+Homepage
+User Profiles
+Public Posts
+Hashtag Pages
+
+Auto update whenever new content is created.
+
+7. ROBOTS.TXT
+
+Generate:
+
+User-agent: *
+Allow: /
+
+Sitemap: https://www.flicksindia.online/sitemap.xml
+
+Ensure no post routes are blocked.
+
+8. STRUCTURED DATA
+
+Add JSON-LD SocialMediaPosting schema.
+
+Include:
+
+headline
+author
+datePublished
+image
+url
+
+for every post.
+
+9. SERVER SIDE SEO
+
+Ensure search engine bots receive rendered HTML content.
+
+Implement SSR, prerendering, or bot-rendering.
+
+Google View Source must contain:
+
+<title>
+<h1>
+description
+username
+post content
+
+not only:
+
+<div id="root"></div>
+
+10. PERFORMANCE
+
+Generate:
+
+* Lazy loading
+* Image optimization
+* Preload critical assets
+* Mobile SEO improvements
+
+11. SEARCH CONSOLE VALIDATION
+
+After deployment:
+
+* Rebuild sitemap
+* Submit sitemap
+* Verify indexing readiness
+
+Create a final report showing:
+
+* Files modified
+* SEO features added
+* Remaining issues
+* Indexing readiness score

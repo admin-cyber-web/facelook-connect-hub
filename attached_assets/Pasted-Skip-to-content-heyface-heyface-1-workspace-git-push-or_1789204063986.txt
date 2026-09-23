@@ -1,0 +1,267 @@
+Skip to content
+heyface
+
+heyface
+1
+
+~/workspace: git push origin main
+Enable "Accessible Terminal" in Workspace Settings to use a screen reader with the shell.
+step 2 follow
+
+Ln 1, Col 1
+7 actions
+Worked for 2 minutes
+
+You've reached your daily free quota limit. It will reset at 12:00 AM UTC.
+Worked for 1 second
+
+You've reached your daily free quota limit. It will reset at 12:00 AM UTC.
+Worked for 1 second
+
+You've reached your daily free quota limit. It will reset at 12:00 AM UTC.
+Worked for 1 second
+
+You've reached your daily free quota limit. It will reset at 12:00 AM UTC.
+Worked for 1 second
+
+You've reached your daily free quota limit. It will reset at 12:00 AM UTC.
+Pasted-FLICKS-INDIA-STEP-2-ACTUAL-SUPABASE-EGRESS-FIX-Step-1-s_1789203380006.txt
+
+jo pura nhi hua hai use pura kro diye gye prompt ke hisab se
+Free
+9 minutes ago
+
+ठीक है—quota की वजह से delegated edits apply नहीं हुए, इसलिए अब मैं खुद बाकी Step 2 पूरा करूँगा। नए attached prompt को source of truth मानकर पहले current workspace/status और उसकी exact contents मिलाऊँगा, फिर सीधे code/SQL patches करूँगा—सिर्फ audit report नहीं दूँगा।
+23 actions
+
+Broad projection fixes are now applied. Next I’m tightening the shared cache/recommendation paths and then I’ll replace the survey raw-vote reads with a focused aggregate RPC patch; after that I’ll handle Chat’s sidebar/message refresh loop.
+read nhi fix karna hai ok Agent activity ठीक है—सिर्फ पढ़ूँगा नहीं, attached Step-2 egress fix के हिसाब से code में बदलाव करूँगा। पहले उसमें दिए हुए exact समस्या/निर्देश और project के मौजूदा Supabase traffic paths मिलाकर देखता हूँ, फिर fix करके build और workflow verify करूँगा। Agent activity Agent activity समझ गया—यह पूरा Step 2 implementation है, सिर्फ report नहीं। मैं इसे scoped batches में करूँगा: broad queries/auth duplication, survey aggregation, FlicksFeed amplification, recommendations/chat, bounded arrays, और sitemap generation; फिर focused patches, SQL केवल जरूरत होने पर, और full verification। UI redesign, migration replay, admin detection या Realtime behavior नहीं बदलूँगा। Agent activity Agent activity Exploration confirms this is a broad but concrete egress pass, not a single query fix. I’m now turning the findings into small, behavior-preserving patches; first I’ll inspect the exact current query blocks and existing shared auth/cache helpers so I don’t replace fields or session handling incorrectly. Agent activity Agent activity मैं independent files पर parallel implementation करवा रहा हूँ ताकि यह pass जल्दी और safely पूरा हो: query projection, survey aggregation, FlicksFeed amplification, Chat dedupe/bounds, recommendations/cache bounds, और sitemap pagination. Overlapping files को एक ही worker को दे रहा हूँ; उसके बाद मैं auth/FameFeed integration और final verification संभालूँगा। Agent activity Agent activity Agent activity Agent activity Agent activity Agent activity Agent activity Agent activity Agent activity Agent activity Agent activity Agent activity Agent activity Agent activity Agent activity jo pura nhi hua hai use pura kro diye gye prompt ke hisab se Agent activity ठीक है—quota की वजह से delegated edits apply नहीं हुए, इसलिए अब मैं खुद बाकी Step 2 पूरा करूँगा। नए attached prompt को source of truth मानकर पहले current workspace/status और उसकी exact contents मिलाऊँगा, फिर सीधे code/SQL patches करूँगा—सिर्फ audit report नहीं दूँगा। Agent activity Agent activity Broad projection fixes are now applied. Next I’m tightening the shared cache/recommendation paths and then I’ll replace the survey raw-vote reads with a focused aggregate RPC patch; after that I’ll handle Chat’s sidebar/message refresh loop. Agent activity Agent activity The survey aggregate path is in place across the feed, detail page, trending widget, and OG endpoint. I’m doing a consistency pass now: fixing the endpoint variable collision, bounding Chat’s live state, and checking the remaining raw count queries before running TypeScript/build verification. Agent activity Agent activity One Chat patch hit a context mismatch, so I’m narrowing the edit rather than forcing it. The cache and survey changes are intact; I’m correcting only the affected Chat blocks, then I’ll run the compiler to catch any integration mistakes. Agent activity Agent activity The main Step 2 reductions are implemented: bounded shared caches, deduplicated recommendation fetches, capped Chat/sidebar refreshes and message state, no broad Chat retry query, bounded Story sheets, and aggregate survey reads. I’m running the typecheck now, then I’ll fix any compile issues and do the final workflow check. Agent activity Agent activity TypeScript and the production build pass. The build also verified the sitemap generator against Supabase; I’m restoring the generated sitemap artifact if it changed, restarting the main workflow once, and then checking the live preview for runtime errors. Agent activity Agent activity Agent activity Agent activity
+Scroll to latest
+
+facelook-connect-hub - Replit
+Pasted-FLICKS-INDIA-STEP-2-ACTUAL-SUPABASE-EGRESS-FIX-Step-1-s_1789203380006.txt
+FLICKS INDIA — STEP 2: ACTUAL SUPABASE EGRESS FIX
+
+Step 1 security work is already completed/reviewed.
+
+This STEP 2 is an **IMPLEMENTATION TASK, NOT A READ-ONLY AUDIT.**
+
+You must:
+
+1. Inspect the current code.
+2. Identify the verified problems below.
+3. **ACTUALLY MODIFY THE CODE/SQL TO FIX THEM.**
+4. Run the build/tests.
+5. Report exactly what you changed.
+
+Do NOT just create a report or recommendations.
+
+### HARD RULES
+
+* No UI redesign.
+* No feature removal.
+* No Supabase migration.
+* No Next.js migration.
+* No global Realtime disable.
+* No architecture rewrite.
+* Do not change the existing admin-email authorization/detection.
+* Do not blindly replay old SQL migrations.
+* Preserve existing behavior.
+* Make the smallest safe changes necessary.
+
+---
+
+## 1. FIX BROAD `select(*)`
+
+Actually replace unnecessary `select(*)` with explicit columns in these verified areas:
+
+* `CirclePage.tsx`
+* `SurveyFeed.tsx`
+* `DebateArena.tsx`
+* `AntakshariArena.tsx`
+* `AdminMarketplace.tsx`
+* `HooksHub.tsx`
+
+Before changing each query, inspect which fields are actually used.
+
+Then modify the query to request only those fields.
+
+Do NOT change queries where `*` is genuinely required.
+
+After modification, test that the affected feature still works.
+
+---
+
+## 2. FIX DUPLICATE AUTH REQUESTS
+
+Actually reduce duplicate `getSession()` / `getUser()` calls and unnecessary auth listeners in:
+
+* `App.tsx`
+* `Index.tsx`
+* `SurveyDetail.tsx`
+* `ChatSystem.tsx`
+* `AdminMarketplace.tsx`
+* `UserProfileModal.tsx`
+* `DebugHelper.tsx`
+* `FameFeed.tsx`
+
+Use the existing session/auth state where possible instead of repeatedly requesting the same user.
+
+Do NOT remove the existing admin-email check.
+
+The admin email must remain the source of admin identification.
+
+Do NOT break login/logout/session restoration.
+
+---
+
+## 3. FIX SURVEY 5,000-ROW EGRESS
+
+Actually change the survey/trending implementation.
+
+Current problem:
+The app can download thousands of raw vote rows just to calculate counts.
+
+DO NOT fetch 5,000 votes to the browser.
+
+Implement a safe aggregate RPC/view/query that returns only the required statistics/counts.
+
+The browser should receive aggregated results, not unnecessary raw voter records.
+
+Preserve:
+
+* voting
+* survey display
+* trending
+* OG behavior
+* existing UI
+
+If a suitable RPC already exists, reuse it instead of creating a duplicate.
+
+If SQL is required, inspect the current database state first and create a focused migration/patch.
+
+---
+
+## 4. FIX FLICKSFEED QUERY AMPLIFICATION
+
+Actually modify `FlicksFeed.tsx`.
+
+Reduce the verified unnecessary queries:
+
+* duplicate retry query
+* separate repeated likes query
+* separate repeated comments query
+* separate repeated shares query
+* unnecessary relational data
+
+Use a bounded projection/aggregate approach.
+
+IMPORTANT:
+Do NOT break:
+
+* post loading
+* like counts
+* comment counts
+* share counts
+* reactions
+* sharing
+* existing RAF scroll
+* existing ±2 card virtualization.
+
+Keep the current virtualization implementation intact.
+
+---
+
+## 5. FIX RECOMMENDATION DUPLICATION
+
+Actually optimize:
+
+* `PeopleYouMayKnow.tsx`
+* `NewInYourArea.tsx`
+* `recommendationEngine.ts`
+
+These currently duplicate profile/block/friend data fetching.
+
+Reduce duplicate network calls by reusing shared data/cache where safe.
+
+Request only required profile fields.
+
+Do NOT remove recommendation features.
+
+Do NOT change recommendation behavior unnecessarily.
+
+---
+
+## 6. FIX CHAT EGRESS
+
+Chat is a major verified egress hotspot.
+
+Actually modify `ChatSystem.tsx`.
+
+Reduce:
+
+* repeated bootstrap queries
+* repeated profile queries
+* repeated relationship/block queries
+* unnecessary message fetching
+* repeated refresh after Realtime events
+
+Implement safe improvements such as:
+
+* reuse current authenticated user
+* cache/reuse profile and relationship data
+* paginate older messages instead of loading unnecessary history
+* deduplicate repeated Realtime-triggered fetches
+* prevent the same event from causing multiple refreshes
+
+IMPORTANT:
+
+KEEP active conversation Realtime.
+
+DO NOT disable Chat Realtime.
+
+DO NOT remove chat functionality.
+
+---
+
+## 7. FIX UNBOUNDED CLIENT ARRAYS
+
+Actually inspect and fix verified unbounded growth in:
+
+* Chat messages
+* Story comments/viewers
+* Circle feeds
+* Community feeds
+
+Use cursor/load-more/bounded-window logic where appropriate.
+
+Do NOT simply delete older data or impose a small hard limit that removes functionality.
+
+The user must still be able to access older content through pagination/load-more where needed.
+
+---
+
+## 8. FIX SITEMAP EGRESS
+
+Actually modify sitemap generation if the current implementation fetches unnecessarily large datasets.
+
+Make it:
+
+* paginated
+* bounded
+* cacheable where appropriate
+
+Preserve all public post URLs and SEO behavior.
+
+Do not break OG/public indexing.
+
+---
+
+# DATABASE SAFETY
+
+Before changing SQL:
+
+1. Inspect the current Supabase schema/policies if connected.
+2. Determine what is actually deployed.
+3. Reuse an existing RPC if suitable.
+4. Otherwise cre...

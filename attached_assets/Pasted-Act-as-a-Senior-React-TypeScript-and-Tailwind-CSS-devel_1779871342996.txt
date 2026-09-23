@@ -1,0 +1,25 @@
+Act as a Senior React, TypeScript, and Tailwind CSS developer. We need to upgrade the Creator Badge in FameFeed.tsx and significantly redesign the Creator Application Form inside our Studio view to make it highly professional, while adding a unique Creator ID tracking system.
+
+Please implement the following changes completely across the frontend and state files:
+
+### 1. PREMIUM BLINKING CREATOR BADGE (FameFeed.tsx):
+- Modify the "Creator ⚡" badge styling next to the username.
+- Create an infinite, smooth custom css animation loop that fades cleanly between a Royal Blue theme and a Metallic Golden theme without causing any layout shifts or performance lag.
+- State 1 (Royal Blue Glow): 'text-sky-400 bg-sky-950/40 border-sky-500/40 shadow-[0_0_8px_rgba(56,189,248,0.3)]'
+- State 2 (Metallic Gold Glow): 'text-amber-400 bg-amber-950/40 border-amber-500/40 shadow-[0_0_8px_rgba(251,191,36,0.3)]'
+- Ensure the text remains perfectly crisp, legible, and uses standard Tailwind arbitrary values or @keyframes transitions. Absolutely zero database reads should trigger during this loop.
+
+### 2. PROFESSIONAL MULTI-FIELD JOIN FORM (Studio View):
+Redesign the "Apply Now" onboarding form modal from scratch. Make it a clean, beautiful dark-themed grid layout with proper input validation wrappers. The form must collect these specific fields:
+1. Full Name (Text input)
+2. Professional Gmail Address (Email input)
+3. Active Mobile Number (Phone/Number input)
+4. Current Location / City (Text input)
+5. Full Permanent Address (Textarea input)
+6. Pin Code (6-digit Number input)
+7. Content Category / Hobby / Ruchi (Select dropdown with options: Shorts/Reels, Tech, Gaming, Comedy, Education, Vlogging, Lifestyle, Others).
+
+### 3. UNIQUE CREATOR ID GENERATION & STORAGE:
+- Logic: When the user submits this professional form, the application must automatically generate a unique, clean alphanumeric string in the frontend or fallback backend as their permanent Creator ID. Format example: `FLICKS-CR-XXXX` (where XXXX is a combination of random numbers or uppercase characters).
+- Database Save: Write this generated string directly into a new or existing column named `creator_id` inside the `public.profiles` table, alongside setting `is_official_creator` to true.
+- Dashboard Display: Once approved/activated, display this Unique Creator ID prominently at the top corner of the Flicks Studio Dashboard with a neat copy-to-clipboard shortcut badge (e.g., "ID: FLICKS-CR-9482 📋"). This ensures easy backend tracing for administrators since multiple users can share the same display name.

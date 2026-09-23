@@ -1,0 +1,507 @@
+# Replit Agent Prompt – Redesign Circle Section (UI Only, Keep All Functionality Intact)
+
+## Objective
+
+Redesign the **Circle Detail Screen** of my social media app into a **premium cinematic glassmorphism experience** inspired by modern community apps. **Do NOT change any backend logic, API calls, routes, state management, or existing features.** Only redesign the UI/UX while keeping every existing button and functionality working exactly as before.
+
+---
+
+# Critical Rules
+
+* ✅ Keep every existing feature.
+* ✅ Keep every existing button and action.
+* ✅ Keep all APIs, database calls, and business logic unchanged.
+* ✅ Keep navigation unchanged.
+* ✅ Keep permissions and roles unchanged.
+* ❌ Do NOT remove any feature.
+* ❌ Do NOT rename API functions.
+* ❌ Do NOT break responsiveness.
+
+You are only redesigning the interface.
+
+---
+
+# Design Language
+
+Create a premium cinematic social community interface.
+
+### Theme
+
+Background
+
+```css
+#090a0f
+```
+
+Layer multiple radial gradients
+
+* Deep Indigo
+* Electric Cyan
+* Slight Purple glow
+
+Example
+
+```
+bg-[#090a0f]
+
+background:
+radial-gradient(circle at top,#1e3a8a22,transparent 45%),
+radial-gradient(circle at bottom,#00e5ff18,transparent 55%);
+```
+
+---
+
+# Glassmorphism
+
+Every card should use
+
+```
+backdrop-blur-xl
+
+bg-white/[0.03]
+
+border border-white/10
+
+shadow-[0_8px_32px_rgba(0,0,0,0.45)]
+
+rounded-3xl
+```
+
+No flat cards.
+
+Everything should feel like floating glass.
+
+---
+
+# Typography
+
+Use
+
+* Inter
+  or
+* Plus Jakarta Sans
+
+Weights
+
+```
+600
+700
+800
+```
+
+Colors
+
+Primary
+
+```
+White
+```
+
+Secondary
+
+```
+#9CA3AF
+```
+
+Accent
+
+```
+#00F0FF
+```
+
+Owner Badge
+
+```
+Gold
+```
+
+Danger
+
+```
+#ff5d5d
+```
+
+---
+
+# Mobile First Design
+
+The page must look beautiful on
+
+* 360px
+* 375px
+* 390px
+* 412px
+* Tablets
+* Desktop
+
+Everything should scale smoothly.
+
+---
+
+# Hero Header
+
+Top section should contain
+
+Large cinematic cover image
+
+Height
+
+```
+220px
+```
+
+Bottom gradient overlay
+
+```
+Black → Transparent
+```
+
+---
+
+# Floating Avatar
+
+Circle avatar overlaps the banner.
+
+Large glowing cyan ring.
+
+Shadow glow.
+
+---
+
+# Circle Information
+
+Below avatar
+
+Large title
+
+Example
+
+```
+एक लम्हा
+```
+
+Then
+
+```
+🌍 Public • 9 Members
+```
+
+Below
+
+Owner Badge
+
+```
+👑 Owner
+```
+
+or
+
+```
+🤝 Page Partner
+```
+
+Then description.
+
+---
+
+# Top Action Buttons
+
+Keep existing actions.
+
+Arrange them professionally.
+
+Examples
+
+Share
+
+Invite
+
+More
+
+Notifications
+
+Settings
+
+Do not remove any.
+
+Only reposition them.
+
+---
+
+# Navigation Tabs
+
+Create floating glass navigation.
+
+Rounded pill container.
+
+```
+Posts
+Chat
+Members
+About
+```
+
+Active tab
+
+Electric cyan background.
+
+Inactive
+
+Glass.
+
+Unread chat indicator
+
+Small glowing blue dot.
+
+---
+
+# Exit Circle
+
+Keep existing Leave/Exit functionality.
+
+Move it to
+
+Right side
+
+or
+
+Bottom
+
+Style
+
+Dark glass
+
+Red icon
+
+Red hover
+
+Confirmation modal.
+
+---
+
+# Feed
+
+Redesign post cards.
+
+Rounded
+
+Glass
+
+Large spacing
+
+Beautiful typography
+
+Floating shadows
+
+Keep
+
+Like
+
+Comment
+
+Bookmark
+
+Share
+
+Exactly working.
+
+Only redesign icons and layout.
+
+---
+
+# Members Screen
+
+Grid
+
+3–4 avatars per row
+
+Glowing cyan borders
+
+Owner
+
+Gold badge
+
+Moderator
+
+Blue badge
+
+Member
+
+Gray
+
+Show
+
+Online indicator
+
+where already supported.
+
+---
+
+# About Tab
+
+Glass card
+
+Contains
+
+Description
+
+Rules
+
+Created date
+
+Language
+
+Tags
+
+Everything existing should remain.
+
+Better layout.
+
+---
+
+# Chat Tab
+
+Keep existing realtime logic.
+
+Only redesign.
+
+Modern bubbles
+
+Rounded
+
+Soft glow
+
+Better spacing
+
+Glass input bar
+
+Floating send button
+
+Emoji button
+
+Attachment button
+
+No backend changes.
+
+---
+
+# Animations
+
+Use Framer Motion or CSS transitions.
+
+Smooth
+
+Fade
+
+Scale
+
+Glass hover
+
+Card lift
+
+Tab animation
+
+Avatar glow pulse
+
+No excessive animation.
+
+---
+
+# Responsive Bottom Navigation
+
+On Mobile
+
+Bottom navigation stays fixed.
+
+Keep all current buttons.
+
+Do NOT remove anything.
+
+You may rearrange icons for better UX.
+
+Center button can be slightly larger.
+
+---
+
+# Desktop
+
+Use a modern dashboard layout.
+
+Left
+
+Navigation
+
+Center
+
+Posts
+
+Right
+
+Members/About
+
+Responsive grid
+
+```
+320px | auto | 340px
+```
+
+---
+
+# Components
+
+Create reusable components
+
+* CircleHero
+* CircleTabs
+* CirclePostCard
+* CircleMemberCard
+* CircleAboutCard
+* CircleChat
+* GlassButton
+* GlassCard
+* FloatingAvatar
+* OwnerBadge
+
+---
+
+# Performance
+
+Use lazy loading.
+
+Avoid unnecessary re-renders.
+
+Memoize components where needed.
+
+Maintain existing API calls.
+
+---
+
+# Accessibility
+
+Keyboard navigation
+
+Proper contrast
+
+ARIA labels
+
+Touch friendly buttons
+
+Minimum touch size
+
+48px
+
+---
+
+# Final Requirement
+
+This is a **UI/UX redesign only**.
+
+Everything currently working in the Circle section must continue to work exactly the same.
+
+* Do not remove any functionality.
+* Do not change APIs.
+* Do not change business logic.
+* Do not change backend.
+* Keep every button and every action.
+* You may reposition buttons and improve layouts for better usability.
+* Deliver a **fully responsive**, production-ready interface with a premium cinematic glassmorphism look that matches the reference style across mobile, tablet, and desktop.

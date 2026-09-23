@@ -1,0 +1,34 @@
+Please create or update the User Profile Modal component (the popup that appears when clicking on a user's profile picture / DP) in our React app. 
+
+IMPORTANT RESTRICTION: Only modify or create the user profile modal component. Do NOT touch, alter, or break any other files, routes, database schemas, or components in the project.
+
+Here is the exact design and technical specification for the modal (Dark mode + Vibrant Neon Glassmorphism / "Jubarsat" style):
+
+1. Modal Container & Overlay:
+   - Full-screen dark overlay with backdrop blur (rgba(10, 10, 20, 0.85) background).
+   - Centered glassmorphic card with rounded-3xl (24px) corners, dark translucent background, and a striking neon glowing border (gradient from hot pink #ff2d95 -> purple #a855f7 -> cyan #22d3ee).
+   - Include a close (X) button at the top right.
+
+2. Profile Picture & Dynamic User Info Section:
+   - Large circular profile image (approx 120-140px) surrounded by a thick multi-color neon status ring with soft outer glow.
+   - **Dynamic User Fields:** Display whatever details the user has configured in their profile:
+     * User Name in bold white text with a slight neon text shadow.
+     * Profession/Job/Work badge (e.g., Housewife, Driver, etc.) styled as a rounded pill with a pink-to-purple gradient background and a small icon.
+     * Address / Location info with a pin icon.
+     * Short bio or description text in soft muted gray.
+   - **Privacy Rule:** Ensure the user's mobile number is strictly hidden and never displayed.
+
+3. Stats Row (3 Equal Cards):
+   - Three cards side-by-side showing: Posts (Hot Pink), Friends (Purple), and Hooks (Cyan).
+   - Each card must feature a neon glowing icon, large bold count number, and small label on a dark glass background with subtle borders.
+
+4. Primary Action Buttons (Side by Side):
+   - "Add Friend" button with a vibrant hot-pink-to-purple gradient and glow.
+   - "Message" button with a cyan-to-blue gradient and glow.
+   - Bold white text with icons, medium height, rounded.
+
+5. Secondary / Moderation Actions (3 in a row):
+   - "Ban Account", "Block", and "Report" buttons.
+   - Dark glass styling with soft red neon accents / red icons for a clean admin/moderation look.
+
+Please implement this cleanly using Tailwind CSS classes (utilizing backdrop-blur, custom box-shadows for neon glow, and smooth animations) so it looks high-end, premium, and fully responsive on mobile screens.

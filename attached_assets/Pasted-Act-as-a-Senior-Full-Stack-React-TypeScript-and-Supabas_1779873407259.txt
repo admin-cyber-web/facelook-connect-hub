@@ -1,0 +1,29 @@
+Act as a Senior Full-Stack React, TypeScript, and Supabase developer. We need to implement a "Creator Profile Editing & Admin Name-Change Request System" across Flicks Studio and the Admin Dashboard.
+
+Please implement the frontend UI components, states, and backend database interaction fully based on these specs:
+
+### 1. CREATOR DASHBOARD EDIT DETAILS (FlicksStudio.tsx)
+- Add an "Edit Profile Details" button in the Studio Dashboard for active creators.
+- When clicked, allow creators to freely update and re-submit their fields: Gmail, Mobile, Location, Permanent Address, Pin Code, and Content Category/Hobby.
+- CRITICAL: The "Full Name" input field MUST be locked (disabled). Right next to the Full Name field, add a button/checkbox styled as "Request Name Change ✏️".
+
+### 2. NAME CHANGE REQUEST MODAL & VALIDATION
+- Clicking "Request Name Change" opens a professional dark-themed modal.
+- Input Fields inside the modal:
+  1. Requested New Name (Text field)
+  2. Reason for Change (Textarea, enforced with a strict 200-word limit character counter).
+- On submission:
+  - Save this data into a new table `public.name_change_requests` (columns: id, profile_id, current_name, requested_name, reason, status default 'pending', created_at).
+  - Show an immediate success popup alert: "Your request has been successfully received. The Flicks Verification Team will review it within 24 to 72 hours."
+
+### 3. ADMIN DASHBOARD INTEGRATION ("Studio Reports" Tab)
+- Open the Admin Dashboard component (where total active users/reports are displayed).
+- Add a new dedicated navigation tab called "Studio Requests ⚡".
+- Strict Authentication Role-Gate: This tab and its data must ONLY be visible and accessible if the logged-in user's email is exactly 'tiwarijhumki@gmail.com' or 'textilevikhyat'. For all other users, hide this section entirely.
+- Features in "Studio Requests" Tab:
+  - Render a clean table/list of all 'pending' name change requests showing: Creator ID, Current Name, Requested New Name, and the 200-word Reason.
+  - Action Buttons: "Approve Change" and "Reject".
+  - If the Admin clicks "Approve Change", trigger a Supabase RPC or direct query that:
+    1. Updates the user's name inside `public.profiles`.
+    2. Marks the request status as 'approved' in `public.name_change_requests`.
+  - Refresh the UI immediately upon approval/rejection.

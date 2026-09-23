@@ -1,0 +1,22 @@
+Please completely refactor the image and banner rendering logic in CirclePage.tsx and HooksHub.tsx. Remove all hardcoded Unsplash placeholders (BANNER_FB, AVATAR_FB) and delete the gradient fallback system (gradFor, COVER_GRADS) entirely. We only want to show authentic user-uploaded data.
+
+Apply these exact structural changes:
+
+1. GroupCard Cover & Banner (CirclePage.tsx):
+   - In the GroupCard component, rewrite the style object for the cover div. It must strictly look for the database fields 'cover_url' or 'avatar_url' without any fallback images or gradients:
+     style={{
+       backgroundImage: group.cover_url ? `url('${group.cover_url}')` : 'none',
+       backgroundColor: group.cover_url ? 'transparent' : '#f3f4f6', // clean neutral gray background if empty
+       backgroundSize: "cover",
+       backgroundPosition: "center",
+     }}
+   - Ensure that the element always renders so that if 'cover_url' exists in the database, the browser is forced to display it immediately.
+
+2. Avatars and Profile DPs (CirclePage & HooksHub):
+   - For all <img> tags rendering profile pictures, owner DPs, or circle avatars, map the 'src' directly to the database response field (e.g., post.author_avatar, circle.avatar_url, or user.avatar_url).
+   - Remove the 'onError' handler that forces an Unsplash placeholder. Instead, if an image fails to load or is null, let it gracefully fall back to a standard blank/user icon or a simple generic text initials badge (like the existing code: (post.author_name || "M")[0].toUpperCase()).
+
+3. Verify Property Mapping:
+   - Ensure there are no hidden conditional operators like '{group.cover_url && ...}' suppressing the container wrapper from rendering. The wrappers must remain visible with absolute height/width (like w-full aspect-square) so the real image has the structural space to show up immediately when fetched.
+
+Run a clean build check and ensure that ONLY real owner-configured assets are visible across the entire platform.

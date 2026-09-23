@@ -1,0 +1,27 @@
+Agent, execute a strict visual-only layout migration for our main dashboard files: `FameFeed.tsx`, `Header.tsx`, `Footer.tsx`, and the integrated Stories component. 
+
+⚠️ CRITICAL INTEGRITY MANDATE - ZERO FUNCTIONAL/MENU LOSS: Do NOT alter, rename, or remove any existing backend business logic, routes, states, or current menu configurations. The "Profile Dashboard" interior system must remain exactly as it currently is. In the footer, you MUST preserve the exact item labels ("Flicks", "Hooks", "Task", "Circle", "Fame") and their native animation sequences. Your task is strictly limited to fixing color contrasts, enhancing gradients, and applying a mobile app UI look based on the following parameters:
+
+1. REPLIT STYLE & CONTRAST FORCE OVERRIDE
+   - Set the global application layout background canvas to a solid Dark Slate Gray (#0F172A).
+   - Force ALL typography, user handles, comment nodes, and interaction strings to render in crisp white (`text-white` or `text-gray-100`). Eliminate all dark-on-dark invisible text rendering.
+
+2. HEADER SYSTEM SYNC (`Header.tsx`)
+   - Preserve the custom bullet-style animation wrapper for the "Flicks Made in India" logo.
+   - Style the header container background into deep matte black. Force the layout links for Home, Search, Notification, Setting, and Profile Dashboard into high-contrast white so they are perfectly legible.
+
+3. VISUAL STORIES REFACTOR
+   - Style the horizontal User Stories row directly beneath the header. 
+   - Apply fluid, glowing active gradient ring borders around each profile avatar and ensure the text labels underneath are rendered in clean white font weights.
+
+4. MAROON GRADIENT CONTENT CARDS WITH DOT-DOT WIREFRAME LINKING
+   - Style the main Post Card container to use a linear gradient moving from Midnight Maroon (#2C001E) down to deep Charcoal Black (#0B0B0F) with sharp 16px rounded corners.
+   - Maintain full rendering for view counters (`👁️`) and the "Liked by You..." inline array in bright white typography.
+   - THE WIREFRAME MAGNET DOCK: Implement the custom dot-dot line wireframe mapping style (`- - - -`) directly adjacent to the functional '🧲 Magnet Engine (0)' tracker asset, keeping it aligned with Comment and Share icons.
+   - REACTION DOCK: Ensure the long-press event over the Like icon renders the floating glassmorphic 6-reaction capsule overlay seamlessly with its scale bounce animation state.
+
+5. HIGH-VISIBILITY FOOTER NAV (`Footer.tsx`)
+   - Retain the active text items and their custom animation code blocks intact.
+   - Adjust the text color tokens to force maximum visibility (`text-white` or vibrant contrast active states) over a backdrop-blurred glass container (`bg-slate-900/90 backdrop-blur-md`), ensuring every text menu label is clearly visible to the user.
+
+Compile the updates and verify that the frontend build is completely free of TypeScript errors and layout clipping.

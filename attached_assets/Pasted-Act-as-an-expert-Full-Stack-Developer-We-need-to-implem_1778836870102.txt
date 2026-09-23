@@ -1,0 +1,24 @@
+Act as an expert Full-Stack Developer. We need to implement a comprehensive, multilingual Profanity Filter Engine in Flicks India to automatically detect and mask abusive words, slang, or offensive language across posts and comments. The filter must catch words in Hindi, Hinglish, English, and variations of regional slangs.
+
+Please implement the following technical specifications:
+
+### 1. PROFANITY UTILITY INTEGRATION (src/lib/profanityFilter.ts)
+Create a dedicated utility file that contains a curated internal list of highly offensive words across multiple languages, including:
+- Standard English slangs and swear words.
+- Intense Hindi/Hinglish expletives, sexual slangs, and vulgar terms (including: madharchhod, kutiya, bahanchod, boor, bur, land, lund, bhosda, gand, chut, chuchi, betichhod, r@ndi, and common variations/phrases like 'maa ka...', 'bahan ka...').
+- Common regional phonetic equivalents (Bengali, Gujarati slangs).
+
+Implement a robust matching function:
+- Use Regex word boundaries (`\b`) or substring scanning to catch mixed variants (e.g., replacing 'u' with 'v' or 'a' with '@').
+- Ensure it is case-insensitive.
+
+### 2. MASKING SYSTEM (Visual Replacement)
+- Create a configuration where any detected offensive word is replaced with a styled visual placeholder or emoji block instead of the raw text.
+- Example replacements: Mask the exact length with symbols like `🤬🤬🤬` or wrap it as a standardized inline text badge: `[Offensive Content 🚫]`.
+
+### 3. INTERCEPT POSTS & COMMENTS (Frontend & Backend Safeguards)
+- **CreatePost Component (`CreatePost.tsx`):** Before submitting the post payload to Supabase, run the text through the profanity filter utility. Automatically sanitize the `content` field.
+- **Comments Component:** Apply the exact same filtering logic to comment text submissions before writing to the database.
+- **Display Level:** Ensure that if any legacy text bypasses, the UI safely scrubs the layout, preserving a clean experience for other users.
+
+Please refactor the string processing pipelines in `CreatePost.tsx`, `FameFeed.tsx`, and comment modals to integrate this censorship protection seamlessly without throwing runtime crashes.

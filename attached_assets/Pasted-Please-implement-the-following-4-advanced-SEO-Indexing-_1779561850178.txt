@@ -1,0 +1,21 @@
+Please implement the following 4 advanced SEO, Indexing, and Content Optimization features to maximize organic traffic and instant ranking:
+
+1. GOOGLE INDEXING API INTEGRATION (BACKEND):
+   - Update 'scripts/autoPost.mjs'. Right after a post is successfully inserted into Supabase and the sitemap generation child-process completes, trigger an automated ping to the Google Indexing API.
+   - Use 'googleapis' (or standard fetch request to 'https://indexing.googleapis.com/v1/urlNotifications:publish').
+   - Send a 'URL_UPDATED' notification type with the newly created post's live production URL to force Googlebot to crawl and index the news within 10-15 minutes. Ensure the environment variables for Google service account credentials are safely initialized.
+
+2. HIGH-TRAFFIC "KALYUG KEYWORDS" INJECTOR (GEMINI PROMPT ENGINE):
+   - Modify the Google Gemini AI generation prompt inside the auto-post engine.
+   - Instruct Gemini to naturally weave high-volume, casual Indian search queries and Hinglish phrases near the end or within the body of the news article.
+   - Force injection of dynamic contextual variations like: "[Topic] aaj ki taza khabar", "[Topic] latest response update", and "[Topic] viral video link/details" so that casual searches land directly on our platform.
+
+3. NEWSARTICLE SCHEMA MARKUP (FRONTEND RICH SNIPPETS):
+   - Open the frontend 'PostDetail' or article view component. Use 'react-helmet-async' (or standard script tag injection) to dynamically insert a JSON-LD NewsArticle Schema markup for search engines.
+   - Structure the JSON-LD object to map exactly to Google's Rich Snippet requirements: '@context': 'https://schema.org', '@type': 'NewsArticle', 'headline': post.title, 'image': [post.image_url], 'datePublished': post.created_at, 'author': 'Flicks India Team'. This will show large image preview boxes directly in Google search results.
+
+4. CATCHY "CLICKBAIT" META-TITLES (SEO OPTIMIZATION):
+   - Update the 'buildSeoFields' utility or the logic that generates the meta-title and description before pushing to production.
+   - Adjust the Gemini instruction to craft high-CTR, curiosity-driven titles that remain safe for Google AdSense but aggressively trigger user curiosity (e.g., transforming a boring title like "RTO updates driving license guidelines" into "Driving License New Rules: Ab RTO jaane ki jhanjhat khatam? Dekho naye niyam!").
+
+Please run a full production build ('npm run build') after the implementation to ensure zero compilation or syntax errors.

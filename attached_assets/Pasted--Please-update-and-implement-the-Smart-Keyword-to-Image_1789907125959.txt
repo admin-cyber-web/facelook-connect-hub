@@ -1,0 +1,61 @@
+"Please update and implement the Smart Keyword-to-Image Auto Mapping System for our post creation feature with a specific condition: The magic automated image should ONLY be applied if the user has NOT uploaded or selected their own original image/media. If the user provides their own image, it must take priority.
+
+Here is how the logic should work:
+
+    Check if the user has uploaded an image (userSelectedImage).
+
+    If userSelectedImage is present, use that.
+
+    If userSelectedImage is empty / null (meaning the user posted only text), then scan the text for keywords using our helper utility (src/utils/smartAssets.js) and assign the matching pre-defined Cloudinary asset.
+
+    If no keyword matches, fallback to the official Flicks India promotional ad banner.
+
+Keyword Dictionary & Cloudinary URLs to integrate into src/utils/smartAssets.js:
+
+    News / Alerts / Breaking News / Taza Khabar:
+
+        Keywords: news, breaking, taza khabar, update, alert, headline
+
+        Image URL: [https://res.cloudinary.com/dzlazqbvf/image/upload/v1789906544/breaking-news-news_kbyw3w.gif](https://res.cloudinary.com/dzlazqbvf/image/upload/v1789906544/breaking-news-news_kbyw3w.gif)
+
+    Rain / Weather / Paani / Baarish:
+
+        Keywords: rain, barish, paani, weather, mausam, storm, baarish
+
+        Image URL: (Placeholder - will update URL later)
+
+    Accident / Road / Transport / Sadak / Train:
+
+        Keywords: accident, road, sadak, train, crash, collision, vehicle, truck, bus
+
+        Image URL: (Placeholder - will update URL later)
+
+    Love / Romance / Pyaar / Ishq:
+
+        Keywords: love, pyaar, romance, ishq, mohabbat, cute
+
+        Image URL: (Placeholder - will update URL later)
+
+    Intimate Actions / Hug / Kiss:
+
+        Keywords: kiss, hug, jaanejaan, partner
+
+        Image URL: (Placeholder - will update URL later)
+
+    Crime / Police / Thief / Chor:
+
+        Keywords: kill, murder, chhor, theif, chor, police, crime, arrest, loot
+
+        Image URL: (Placeholder - will update URL later)
+
+    Politics / Government / Sarkar:
+
+        Keywords: government, sarkar, neta, minister, politics, election, vote
+
+        Image URL: (Placeholder - will update URL later)
+
+    Fallback / Default:
+
+        If text is empty or no keywords match and no image was uploaded, attach the default Flicks India promotional brand image/banner.
+
+Please update the handlePostSubmit logic and create the helper utility so everything integrates smoothly with our Supabase database (posts table)."

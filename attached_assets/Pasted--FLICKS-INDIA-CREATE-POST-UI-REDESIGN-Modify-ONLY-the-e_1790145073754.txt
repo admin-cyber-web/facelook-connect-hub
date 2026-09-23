@@ -1,0 +1,510 @@
+## FLICKS INDIA — CREATE POST UI REDESIGN
+
+Modify ONLY the existing **Create Post / Post Composer system** of Flicks India.
+
+### IMPORTANT
+
+* Do NOT remove, disable, rename, or break any existing post functionality.
+* Do NOT rewrite the post system from scratch.
+* Do NOT change Supabase logic, authentication, posting API, database schema, AI logic, media upload logic, permissions, privacy logic, tagging logic, or existing post behavior.
+* Preserve every existing button/action and make sure all existing functionality continues working.
+* This is primarily a **UI/UX visual redesign**.
+* Keep the interface **LIGHT, WHITE and premium**.
+* Do NOT make the screen dark.
+* Do NOT use a heavy neon theme.
+* Do NOT turn the entire UI red or green.
+
+---
+
+# TARGET DESIGN
+
+Recreate the visual style of the provided reference:
+
+**Clean white mobile Create Post screen with subtle RED/PINK and GREEN ambient effects.**
+
+The overall feeling should be:
+
+* Premium
+* Modern
+* Clean
+* Spacious
+* Soft
+* Social-media focused
+* Mobile-first
+* Figma-quality
+* Light theme
+* Slight glassmorphism
+* Very subtle colorful ambient glow
+
+The dominant background must remain:
+
+`#FFFFFF`
+
+Secondary surfaces:
+
+`#F8FAFC`
+`#F9FAFB`
+
+Main text:
+
+`#172554` / deep navy-slate
+
+Secondary text:
+
+`#64748B`
+
+Border:
+
+`#E2E8F0`
+
+---
+
+# COLOR SYSTEM
+
+Use these colors carefully:
+
+### Primary Red
+
+`#FF3B4D`
+
+Use for:
+
+* selected/active accents
+* subtle borders
+* surprise tag accent
+* small decorative effects
+* important visual highlights
+
+### Soft Red/Pink
+
+`#FFE8EC`
+
+Use for:
+
+* extremely subtle background glow
+* card gradient
+* ambient decorative blobs
+
+### Green
+
+`#22C55E`
+
+Use for:
+
+* positive/active states
+* online indicator
+* AI card accents
+* subtle decorative glow
+
+### Soft Green
+
+`#E9FBEF`
+
+Use for:
+
+* AI Suggestions card background
+* very subtle ambient background effects
+
+### Optional blended accent
+
+Use very subtle:
+
+`linear-gradient(135deg, #FF3B4D, #FF6B7A, #22C55E)`
+
+Do NOT overuse this gradient.
+
+---
+
+# BACKGROUND
+
+Keep the entire Create Post page predominantly white.
+
+Use very subtle decorative red and green ambient effects around the edges.
+
+Example:
+
+* soft pink/red blurred circular glow near top-left
+* soft green blurred circular glow near top-right
+* extremely subtle red/green glow around lower sections
+* occasional tiny red/green decorative dots
+
+These must be:
+
+* low opacity
+* heavily blurred
+* non-interactive
+* non-distracting
+* behind the content
+
+Suggested opacity:
+
+`0.08 – 0.16`
+
+Suggested blur:
+
+`40px – 80px`
+
+The user must still perceive the page as a **white/light interface**.
+
+---
+
+# HEADER
+
+Create a clean mobile header.
+
+Left:
+
+* Back arrow
+
+Center:
+
+* `Create a Post`
+
+Use bold but elegant typography.
+
+Right side should remain clean and uncluttered.
+
+Header:
+
+* white background
+* subtle bottom border
+* no heavy shadow
+
+---
+
+# USER SECTION
+
+Keep the existing logged-in user's data dynamically connected.
+
+Example:
+
+Avatar:
+
+`Jhumki Tiwari`
+
+Do NOT hardcode the name if the existing system already loads the current user's name.
+
+Show:
+
+* circular avatar
+* subtle red → green status/profile ring
+* online indicator if existing system supports it
+* user name
+* existing privacy selector
+
+Privacy selector example:
+
+`🌐 Public ▾`
+
+The privacy dropdown must continue using the existing privacy functionality.
+
+Do NOT replace the actual logic with a visual-only dropdown.
+
+---
+
+# POST TEXT AREA
+
+Make the text composer spacious.
+
+Placeholder:
+
+`What's on your mind?`
+
+Use:
+
+* large readable typography
+* muted slate placeholder
+* generous padding
+* clean white background
+* no heavy border
+
+When focused:
+
+Use a very subtle red-to-green vertical accent or focus glow.
+
+Do NOT create a strong neon effect.
+
+The text editor must continue using the existing implementation and functionality.
+
+---
+
+# ADD SURPRISE TAG CARD
+
+Keep the existing:
+
+`🎁 Add Surprise Tag`
+
+section/functionality.
+
+Redesign it as a premium light card.
+
+Card:
+
+* white / very soft pink-white background
+* rounded corners: approximately `20px`
+* subtle red border/glow
+* very soft shadow
+* comfortable padding
+
+Example visual hierarchy:
+
+🎁
+**Add Surprise Tag**
+
+`Tag someone for a surprise`
+
+Right side:
+
+`⌄`
+
+Use red/pink as the primary accent.
+
+The existing Surprise Tag functionality must remain exactly intact.
+
+---
+
+# FLICKS AI SUGGESTIONS
+
+Keep the existing:
+
+`Flicks AI Suggestions`
+
+functionality.
+
+This section should visually use the GREEN side of the theme.
+
+Card:
+
+* very soft green/white background
+* subtle green glow
+* rounded corners
+* minimal glass effect
+* thin green accent
+* no dark background
+
+Example:
+
+✨
+**Flicks AI Suggestions**
+
+`Get smart caption ideas, hashtags & more...`
+
+Right side:
+
+`⌄`
+
+If the existing AI suggestion panel expands/collapses, preserve that exact behavior.
+
+Do NOT remove any existing AI functionality.
+
+---
+
+# BOTTOM TOOLBAR
+
+Create a clean fixed bottom toolbar.
+
+Keep all existing actions.
+
+Visually arrange:
+
+* Photo
+* Reel
+* Location
+* Emoji
+* Post Now
+
+Each icon should be minimal and modern.
+
+Use individual subtle colors:
+
+Photo → blue
+Reel → pink/red
+Location → red
+Emoji → orange/yellow
+
+Do NOT make the toolbar dark.
+
+Use:
+
+* white background
+* subtle top border
+* soft shadow
+* rounded upper corners if compatible with the existing layout
+
+---
+
+# POST NOW BUTTON
+
+Make `Post Now` the primary CTA.
+
+Use a tasteful red → green gradient:
+
+`linear-gradient(90deg, #FF3B4D, #FF6B6B, #22C55E)`
+
+Button:
+
+* rounded pill
+* bold white text
+* subtle shadow
+* paper-plane/send icon
+* comfortable height
+* premium appearance
+
+Important:
+
+The button must continue calling the **existing post submission function**.
+
+Do NOT create a new posting mechanism.
+
+Do NOT bypass validation.
+
+Do NOT bypass existing upload logic.
+
+Do NOT change database behavior.
+
+---
+
+# RESPONSIVE DESIGN
+
+This redesign must work correctly on:
+
+* small Android phones
+* normal Android phones
+* iPhone-sized screens
+* larger mobile screens
+* tablet/mobile responsive widths
+
+Avoid:
+
+* horizontal scrolling
+* overlapping buttons
+* bottom toolbar covering the editor
+* keyboard layout problems
+* clipped cards
+* excessive vertical spacing
+
+The Post Now button must remain accessible when the keyboard opens.
+
+---
+
+# EXISTING FUNCTIONALITY MUST REMAIN
+
+Before changing UI, inspect the current Create Post implementation.
+
+Identify and preserve all existing functionality including, where present:
+
+* text posting
+* image upload
+* video upload
+* reels
+* location
+* emoji
+* privacy
+* tagging
+* surprise tag
+* AI suggestions
+* captions
+* hashtags
+* hooks
+* media preview
+* post validation
+* loading state
+* error state
+* upload progress
+* post submission
+* Supabase interactions
+* existing permissions
+* existing authentication
+* existing post database behavior
+
+Do not remove any of these.
+
+If a feature already exists but is visually hidden or collapsed, keep it available.
+
+---
+
+# IMPORTANT PERFORMANCE RULE
+
+Do NOT introduce:
+
+* unnecessary animation loops
+* continuous re-renders
+* excessive blur layers
+* huge background images
+* expensive video effects
+* unnecessary timers
+* unnecessary Supabase requests
+
+The red/green ambient effects should be implemented efficiently using lightweight CSS gradients/blurs where possible.
+
+No JavaScript animation is required for the background effects.
+
+---
+
+# DESIGN DETAILS
+
+Use approximately:
+
+Border radius:
+`18px – 24px`
+
+Card shadows:
+very soft, low opacity
+
+Typography:
+clean modern sans-serif
+
+Spacing:
+generous but not excessive
+
+Overall composition:
+
+WHITE BASE
+↓
+SUBTLE RED/PINK GLOW
++
+SUBTLE GREEN GLOW
+↓
+NAVY TEXT
+↓
+WHITE/SOFT CARDS
+↓
+RED + GREEN ACCENTS
+↓
+RED/GREEN PRIMARY CTA
+
+The result should look like a **premium Indian social-media app**, not a generic template.
+
+---
+
+# DO NOT DO
+
+❌ Do not make background dark
+❌ Do not use black cards
+❌ Do not use neon green everywhere
+❌ Do not use neon red everywhere
+❌ Do not make the UI overly colorful
+❌ Do not remove existing buttons
+❌ Do not remove existing features
+❌ Do not change database schema
+❌ Do not migrate framework
+❌ Do not rewrite Supabase logic
+❌ Do not replace working components unnecessarily
+❌ Do not create fake/mock functionality
+❌ Do not hardcode user information where dynamic data already exists
+
+---
+
+# FINAL REQUIREMENT
+
+First inspect the existing Create Post/Post Composer components and understand their current functionality.
+
+Then apply this visual redesign **on top of the existing implementation**.
+
+The final result should visually match the reference style:
+
+**Pure white + soft red/pink ambient effects + soft green ambient effects + navy typography + subtle glass cards + red/green accents + premium rounded UI.**
+
+Functionality must remain unchanged.
+
+Only improve the visual design, spacing, hierarchy, responsiveness and interaction presentation.

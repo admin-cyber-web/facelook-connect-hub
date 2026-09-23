@@ -1,0 +1,12 @@
+- [Mobile Performance Deep Clean](perf-deep-clean.md) — audit + fixes for CPU/GPU heating: channels, animations, console spam, DOM virtualization, media decoding
+- [Notifications DB column naming](notif-columns.md) — `notifier_id` is the recipient, `actor_id` is the sender; never use `user_id` in the notifications table.
+- [Magnet channel collision](magnet-channel-collision.md) — MagnetModal send-only channel must use `-send` suffix to avoid Supabase topic collision with useMagnet listener channel.
+- [MagnetButton callback stability](magnet-callback-ref.md) — onMagnetLoad must be wrapped in useRef inside MagnetButton to prevent infinite update cascade from inline lambda reference churn.
+- [Supabase storage URL helper pitfall](supabase-storage-url-pitfall.md) — resolveMediaUrl's bucket-prefix-stripping breaks when the object key's subfolder name matches the bucket name.
+- [Supabase bandwidth guardrails](supabase-bandwidth-guardrails.md) — public feeds stay bounded/manual; realtime is limited to scoped live state and disconnects while hidden.
+- [Settings editor safety](settings-editor-safety.md) — admin showcase editing must isolate draft state and never dismiss on backdrop clicks
+- [Step 2 aggregate egress](step2-egress-aggregates.md) — engagement and member/follower totals use bounded aggregate RPCs with scoped fallbacks until SQL is deployed
+- [Android icon generation](android-icon-generation.md) — use a separate circular mask image with the local ImageMagick build
+- [Surprise tag trigger behavior](surprise-tag-backend-guard.md) — validate new targets while allowing the recipient's one-time seen update after posting
+- [Private chat search guard](private-chat-search-guard.md) — private-profile discovery needs a server-side friend/mutual check because friendship RLS hides other users' edges
+- [Package install manifest churn](package-install-manifest-churn.md) — provisioning Node packages through the workspace installer may rewrite unrelated dependency pins; inspect and restore manifest churn before finishing

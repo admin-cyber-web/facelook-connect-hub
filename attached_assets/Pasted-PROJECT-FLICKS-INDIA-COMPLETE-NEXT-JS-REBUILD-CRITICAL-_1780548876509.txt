@@ -1,0 +1,325 @@
+PROJECT: FLICKS INDIA COMPLETE NEXT.JS REBUILD
+
+CRITICAL REQUIREMENT:
+
+Do NOT perform an audit-only task.
+
+Do NOT generate reports without fixing issues.
+
+Identify problems and directly implement permanent fixes.
+
+Preserve 100% existing functionality.
+
+==================================================
+PRIMARY GOALS
+=============
+
+1. Migrate React + Vite to Next.js App Router.
+
+2. Implement enterprise-grade SEO.
+
+3. Eliminate excessive CPU usage.
+
+4. Eliminate excessive battery drain.
+
+5. Minimize mobile heating.
+
+6. Improve page speed.
+
+7. Improve Google indexing.
+
+8. Preserve all existing features.
+
+==================================================
+NEXT.JS MIGRATION
+=================
+
+Migrate entire application to:
+
+* Next.js latest stable version
+* App Router architecture
+* TypeScript if possible
+* Server Components by default
+
+Preserve:
+
+* Authentication
+* Supabase
+* User Profiles
+* Posts
+* News
+* Search
+* Trending
+* Messaging
+* Notifications
+* Admin Panel
+* Uploads
+* Existing database
+
+==================================================
+PERFORMANCE FIRST ARCHITECTURE
+==============================
+
+Reduce client-side JavaScript aggressively.
+
+Use:
+
+* Server Components
+* Dynamic imports
+* Route splitting
+* Component lazy loading
+
+Move unnecessary logic from browser to server.
+
+Minimize hydration.
+
+==================================================
+MOBILE HEATING REDUCTION
+========================
+
+Identify and directly fix any code causing:
+
+* High CPU usage
+* High GPU usage
+* Battery drain
+* Excessive rendering
+* Memory leaks
+* Continuous polling
+* Duplicate subscriptions
+* Unnecessary timers
+* Infinite loops
+
+Implement fixes immediately.
+
+No suggestion-only output.
+
+==================================================
+REACT OPTIMIZATION
+==================
+
+Apply:
+
+React.memo
+
+useMemo
+
+useCallback
+
+where beneficial.
+
+Prevent:
+
+* Feed-wide rerenders
+* Unnecessary state updates
+* Context over-rendering
+
+==================================================
+SUPABASE OPTIMIZATION
+=====================
+
+Review all realtime channels.
+
+Remove duplicate subscriptions.
+
+Close listeners correctly.
+
+Prevent background listeners from running unnecessarily.
+
+Replace expensive polling with efficient mechanisms.
+
+==================================================
+FEED OPTIMIZATION
+=================
+
+Home feed
+News feed
+Trending feed
+
+Implement:
+
+* Virtualized rendering
+* Infinite scroll optimization
+* Lazy loading
+
+Never render large lists simultaneously.
+
+Only render visible items.
+
+==================================================
+VIDEO OPTIMIZATION
+==================
+
+Only load visible videos.
+
+Pause offscreen videos.
+
+Do not preload all videos.
+
+Reduce decoding overhead.
+
+Reduce memory usage.
+
+Prevent hidden videos from consuming resources.
+
+==================================================
+IMAGE OPTIMIZATION
+==================
+
+Use Next.js Image component.
+
+Implement:
+
+* Responsive sizing
+* Lazy loading
+* Compression
+* WebP
+* AVIF where supported
+
+==================================================
+SEO ARCHITECTURE
+================
+
+Every public page must be fully crawlable.
+
+Google View Source must contain:
+
+* Page Title
+* Meta Description
+* H1
+* Content
+* Username
+* Images
+* Structured Data
+
+Do not rely solely on client-side rendering.
+
+==================================================
+POST SEO
+========
+
+For every public post:
+
+Generate automatically:
+
+<title>{Post Title} | Flicks India</title>
+
+<meta name="description" content="{SEO Description}" />
+
+<meta property="og:title" content="{Post Title}" />
+<meta property="og:description" content="{SEO Description}" />
+<meta property="og:image" content="{Primary Image}" />
+
+<meta name="twitter:card" content="summary_large_image" />
+
+<link rel="canonical" href="{Canonical URL}" />
+
+==================================================
+SEO FRIENDLY URLS
+=================
+
+Replace:
+
+/?post=id
+
+with
+
+/post/post-title-shortid
+
+Example:
+
+/post/funny-cat-video-226c15bc
+
+Generate slugs automatically.
+
+Implement 301 redirects from old URLs.
+
+==================================================
+STRUCTURED DATA
+===============
+
+Implement:
+
+SocialMediaPosting
+
+NewsArticle
+
+Person
+
+Organization
+
+WebSite
+
+JSON-LD schemas.
+
+==================================================
+IMAGE SEO
+=========
+
+Automatically generate:
+
+* alt text
+* title text
+
+for uploaded images.
+
+==================================================
+SITEMAPS
+========
+
+Generate:
+
+sitemap.xml
+
+posts-sitemap.xml
+
+profiles-sitemap.xml
+
+news-sitemap.xml
+
+Auto-update.
+
+==================================================
+GOOGLE INDEXABILITY
+===================
+
+Ensure every public post is:
+
+* Crawlable
+* Indexable
+* Canonicalized
+* Included in sitemap
+
+==================================================
+PERFORMANCE TARGETS
+===================
+
+Target:
+
+LCP < 2 seconds
+
+CLS < 0.1
+
+TBT < 100ms
+
+Low memory usage
+
+Low CPU usage
+
+Low battery usage
+
+==================================================
+FINAL REQUIREMENT
+=================
+
+Do not stop at finding problems.
+
+Refactor and fix them.
+
+Prioritize:
+
+1. Stability
+2. Performance
+3. SEO
+4. User Experience
+
+Provide final working implementation and deployment-ready code.

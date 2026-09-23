@@ -1,0 +1,26 @@
+PRIME DIRECTIVE: We need to completely overhaul and fully production-ize the messaging architecture inside src/components/ChatSystem.tsx. Currently, messages are not persisting properly in the database and disappear upon screen navigation. We must establish a bulletproof, real-time Supabase connection and implement a full suite of premium chat capabilities mimicking WhatsApp/Messenger.
+
+Please execute the following engineering rewrites immediately:
+
+1. FIX DATABASE PERSISTENCE & REAL-TIME SYNC (NO MORE LOST MESSAGES):
+   - Ensure every sent message is strictly inserted into the Supabase `messages` table with full fields: `id`, `sender_id`, `receiver_id`, `content`, and `created_at`.
+   - Setup a resilient Supabase Realtime subscription (`supabase.channel`) listening to INSERT and UPDATE changes on the `messages` table filtered for the active conversation. 
+   - Ensure that when a user navigates away and returns, the full historical chat logs are automatically queried and rendered immediately on first paint.
+
+2. GLOBAL USER SEARCH & INTEGRATED FRIEND REQUEST FLOW:
+   - Implement a responsive user search bar directly inside the chat sidebar.
+   - If a searched user is NOT currently a friend: Display a premium "Send Friend Request" button right next to their search result profile.
+   - Once clicked, insert a state row into the `friendships` or `friend_requests` table.
+   - If they are already friends, clicking their profile must instantly open their active chat window.
+
+3. FULL INTERACTIVE CHAT MANAGEMENT (BLOCK, HIDE, DELETE):
+   - BLOCK USER: Add an option in the chat header to block/unblock a user, updating a `blocked_users` record and instantly freezing the chat input container for both parties.
+   - DELETE CHAT: Implement a "Delete Chat" or "Clear Conversation" option that performs a clean database deletion (or soft-delete flag) for messages between those two specific UUIDs.
+   - HIDE CHAT: Add a toggle to visually filter out or hide a specific conversation node from the active sidebar roster without wiping the underlying database logs.
+
+4. MESSAGE REACTIONS & INTERACTION LAYER:
+   - Restore and fully stabilize the message reaction overlay grid (Like, Heart, Laugh, Wow, Sad, Angry).
+   - When a user long-presses or hovers and selects an emoji reaction, update that specific message row's `reactions` JSON/Array column in the database.
+   - Ensure the realtime channel propagates these emoji badge updates to both screens instantly without triggering full page layout re-renders.
+
+Perform a strict TypeScript compilation check. Ensure all foreign key references align seamlessly and verify that there are zero unhandled state errors across the messaging flow!

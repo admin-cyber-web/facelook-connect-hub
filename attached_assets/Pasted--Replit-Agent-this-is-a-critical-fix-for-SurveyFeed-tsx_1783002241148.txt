@@ -1,0 +1,23 @@
+"Replit Agent, this is a critical fix for SurveyFeed.tsx. I am facing 3 major failures:
+
+        Dynamic Sharing Failure: When I share a survey, it shows the default 'FlicksIndia' demo image instead of the specific image_url uploaded for THAT survey. Fix: Update the sharing logic to dynamically generate an Open Graph preview using the specific survey_id and its associated image_url from Supabase. Use a server-side route or dynamic meta-tag injection so WhatsApp/FB fetches the real survey image, NOT the demo one.
+
+        Debate Arena Fixes:
+
+            Rename all instances of 'Duel' to 'Debate' in the code and UI.
+
+            The 'Debate' button must have a Pink background with a pulsating Mic icon (animated using Framer Motion).
+
+            The 'Failed to send challenge' error must be fixed. Ensure that when a user clicks 'Debate', it checks if the user is logged in, inserts the record into debate_challenges with status 'pending', and triggers a real-time notification to the responder.
+
+        Database/RLS Fix: You are getting a 'Row-level security' violation. Ensure that the SQL function for triggering the challenge has the correct auth.uid() validation and that the debate_challenges table has an 'Insert' policy for authenticated users.
+
+    Warning: Do not use any hardcoded demo images. Every share action must point to the dynamic image of the survey. If the link preview is cached, provide me the 'Facebook Sharing Debugger' URL to clear the cache. This must be production-ready."
+
+Tumhare liye "Pro-Tips" (Fix verify karne ke liye):
+
+    Cache Clear Kaise Karein: Jab Agent fix kar de, toh Facebook Sharing Debugger par jaao, apna survey link daalo, aur "Scrape Again" par click karo. Ye tumhari purani "demo image" ko hata kar nayi wali fetch kar lega.
+
+    Debate Button Fix: Failed to send challenge tabhi aata hai jab tumhara Supabase backend debate_challenges table mein row insert nahi kar pa raha hai. Agent ko bolo: "Check if the user is logged in before allowing the Debate click."
+
+    Pink Pulsating Mic: Agent ko bolo: "Use animate={{ scale: [1, 1.2, 1] }} on the Mic icon inside the Debate button to make it pulsate."

@@ -1,0 +1,22 @@
+# AGENT REQUIREMENT DIRECTIVE: CRITICAL EDIT CAPABILITIES & ZERO-BANDWIDTH OVERHEAD
+
+You must implement or preserve real-time editing features across the entire application interface while matching the strict cache-saving protocols. Every editable component must update the UI state instantly upon database confirmation without triggering a full page or component re-fetch.
+
+## 1. POST EDITING (FAME FEED / FLICKS FEED)
+- Every user-owned post card must include a discrete 3-Dot (⋮) dropdown menu icon on the top right.
+- Clicking the 3-Dot menu must open a local UI context layer containing an "📝 Edit Post" button.
+- When clicked, the post text content view must morph inline into a styled `<textarea>` input containing the current post data, showing immediate "Save" and "Cancel" configurations.
+
+## 2. COMMENT EDITING SYSTEM
+- Every comment written by the currently logged-in user must render an accessible small edit icon (✏️) or inline option alongside their text payload.
+- Activating the edit mode must seamlessly switch the specific static comment layout into a micro text input without layout shifts or reloading adjacent comments.
+
+## 3. CHAT MESSAGE EDITING & CONTEXT MENUS (LONG-PRESS PROTOCOL)
+- All generated chat blocks must dynamically support long-press triggers for mobile users and context-clicks/hover anchors for desktop clients.
+- Triggering the long-press event must pop up an absolute-positioned floating mini-sheet overlay displaying structural choices: "📝 Edit", "Hide", and "Delete".
+- Modifying a text block should append a clean, subtle `(edited)` indicator sub-label natively without disrupting the active web-socket thread or scrolling container.
+
+## 4. STRICT EFFICIENCY AND BOUNDARY CONDITIONS
+- DO NOT execute a secondary full database query sequence (e.g., `loadFeed()` or `fetchMessages()`) to show updated content after a successful update mutation.
+- Use local Array mutations (`.map()`) inside the current state hooks to reflect edited values dynamically on the screen instantly upon receipt of a successful HTTP 200/Supabase status response.
+- Maintain persistent protection over the `Cache-Control` header setup.

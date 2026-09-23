@@ -1,0 +1,196 @@
+FIX AND IMPROVE "✨ FLICKS SUGGESTED FOR YOU"
+
+The feature is working, but the UX needs refinement.
+
+Please implement the following fixes:
+
+==================================================
+
+1. CLOSE / BACK BUTTON
+   ==================================================
+
+Add a visible:
+
+✕ Close
+
+and/or
+
+← Back to Post
+
+button inside the suggestion panel.
+
+When user selects a suggestion, they should be able to immediately return to the post editor and see the updated post content.
+
+The panel should not remain stuck on screen.
+
+Behavior:
+
+* Select suggestion
+* Apply to post
+* Auto-collapse suggestion panel
+
+or
+
+* Show Back button to return to editor
+
+==================================================
+2. PREVENT DOUBLE INSERTION
+===========================
+
+Current issue:
+
+Sometimes selecting a suggestion inserts it twice.
+
+Fix this completely.
+
+Requirements:
+
+* One click = one insertion
+* Prevent duplicate appends
+* Prevent duplicate Replace actions
+* Add guard checks before inserting content
+
+==================================================
+3. DEDUPLICATE SUGGESTIONS
+==========================
+
+Current issue:
+
+Very similar suggestions appear repeatedly.
+
+Example:
+
+Suggestion 1:
+"Goa trip was amazing"
+
+Suggestion 2:
+"Goa trip was really amazing"
+
+Suggestion 3:
+"Amazing Goa trip"
+
+This feels repetitive.
+
+Implement similarity filtering.
+
+Requirements:
+
+* Remove near-duplicate suggestions
+* Use text similarity checks
+* Ensure all 5 suggestions are meaningfully different
+
+==================================================
+4. BETTER VARIETY
+=================
+
+For every generation produce different styles:
+
+Example:
+
+Option 1:
+Emotional
+
+Option 2:
+Funny
+
+Option 3:
+Travel Blogger Style
+
+Option 4:
+Short Viral Style
+
+Option 5:
+Storytelling Style
+
+Avoid generating the same tone repeatedly.
+
+==================================================
+5. SMART REFRESH
+================
+
+Add:
+
+🔄 More Suggestions
+
+button.
+
+When clicked:
+
+Generate a fresh set.
+
+Avoid returning the same suggestions repeatedly.
+
+==================================================
+6. HISTORY MEMORY
+=================
+
+Within the current post session:
+
+Remember previously shown suggestions.
+
+Do not show identical suggestions again.
+
+Track:
+
+shownSuggestions[]
+
+Filter duplicates before rendering.
+
+==================================================
+7. AUTO COLLAPSE AFTER APPLY
+============================
+
+After:
+
+Use
+Replace
+Add
+
+actions
+
+Automatically collapse the panel.
+
+Show:
+
+✨ Suggestion Applied
+
+toast message.
+
+User can reopen manually if desired.
+
+==================================================
+8. MOBILE UX
+============
+
+On mobile:
+
+* Panel must not cover the editor
+* User must always see the caption field
+* Smooth collapse/expand animation
+
+==================================================
+9. PERFORMANCE
+==============
+
+Keep all existing optimizations:
+
+* Debounce
+* Cache
+* No extra polling
+* No CPU spikes
+* No battery drain
+
+Do not sacrifice performance.
+
+==================================================
+FINAL DELIVERABLE
+=================
+
+Provide:
+
+* Files modified
+* Duplicate insertion fix details
+* Deduplication logic
+* Close/back implementation
+* Refresh implementation
+* Mobile UX improvements

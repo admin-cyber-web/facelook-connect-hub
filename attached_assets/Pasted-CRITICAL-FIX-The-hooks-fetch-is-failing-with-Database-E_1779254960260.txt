@@ -1,0 +1,21 @@
+CRITICAL FIX: The hooks fetch is failing with Database Error 42703 because of another ghost column 'like_count' injected into the select query. Additionally, the hooks suggestion component/section on the main feed screen (FrameFeed) was incorrectly removed or broken.
+
+Please apply these absolute fixes across HooksHub.tsx, FrameFeed.tsx, and any related type files immediately:
+
+1. CLEAN THE HOOK_PAGES QUERY (HooksHub.tsx):
+   - Meticulously audit the Supabase fetch call for 'hook_pages'. Remove 'like_count' or any other unverified columns completely.
+   - The query must strictly use only the verified columns from the schema:
+     .select('id, name, description, cover_url, category, hook_count, owner_id, created_at, profiles:owner_id(avatar_url, full_name)')
+   - Ensure the HookPage type interface matches this exact structure (use hook_count, remove like_count and post_count).
+
+2. RESTORE & ENHANCE HOOKS SUGGESTIONS ON MAIN SCREEN (FrameFeed.tsx):
+   - Bring back the visual hooks suggestion component directly inside the main feed layout, seamlessly blended between the existing "Circles" and "Flicks / People You May Know" sections.
+   - Do NOT use static demo data. Fetch the original, real-time rows directly from the 'hook_pages' table using Supabase.
+   - Design it as a beautiful horizontal scrolling list or cards grid, matching the high-quality cinematic tech aesthetics of Flicks India.
+
+3. REAL-TIME RENDERING & CLICKS:
+   - For each hook page card on the main feed, display its dynamic 'cover_url' with proper background alignment. If 'cover_url' is missing, fallback gracefully to a premium gradient.
+   - Make the cards fully interactive: when a user clicks/taps any hook page from the main screen, use the router to navigate them directly into that specific hooks section inside HooksHub so they can join or interact instantly.
+   - Display the real 'hook_count' on the card badge.
+
+Run a comprehensive compilation and build check. Ensure all database calls are airtight, no column errors remain, and the original hooks successfully populate both the main screen feed and the HooksHub module dynamically.

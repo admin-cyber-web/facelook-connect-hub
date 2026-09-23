@@ -1,0 +1,514 @@
+# Replit Agent Prompt — Premium Aurora Glass Settings Screen Redesign (UI Only)
+
+## Objective
+
+Redesign my **Settings Screen** into a **luxury premium Aurora Glass UI** inspired by modern Apple Vision Pro, Nothing OS, Arc Browser, and Linear aesthetics.
+
+**IMPORTANT:**
+This is **ONLY a UI/UX redesign**.
+
+Do **NOT** change:
+
+* Existing APIs
+* Backend logic
+* Database
+* Navigation
+* State management
+* Authentication
+* Existing buttons
+* Existing functionality
+
+Every button that currently works must continue working exactly as before.
+
+You may only improve the layout, spacing, colors, typography, icons, animations, and responsiveness.
+
+---
+
+# Overall Design Style
+
+Create an interface that feels:
+
+* Premium
+* Elegant
+* Minimal
+* Cinematic
+* Luxury
+* Modern
+* Glassmorphism
+* Soft glowing UI
+* High-end mobile application
+
+Think of it as a mix of
+
+* Apple VisionOS
+* Arc Browser
+* Linear
+* Nothing
+* Discord Nitro
+* Spotify Premium
+* Tesla UI
+
+NOT a gaming interface.
+
+The interface should feel calm and expensive.
+
+---
+
+# Color Palette
+
+Do NOT use the previous cyan-only theme.
+
+Instead use an Aurora gradient system.
+
+Primary Background
+
+```css
+#09090B
+```
+
+Secondary
+
+```css
+#11131A
+```
+
+Cards
+
+```css
+rgba(255,255,255,0.04)
+```
+
+Borders
+
+```css
+rgba(255,255,255,0.08)
+```
+
+Accent Gradient
+
+```
+Purple
+↓
+
+Pink
+↓
+
+Amber Gold
+```
+
+Example
+
+```
+#8B5CF6
+↓
+
+#EC4899
+↓
+
+#F59E0B
+```
+
+Success
+
+```
+#10B981
+```
+
+Info
+
+```
+#38BDF8
+```
+
+Danger
+
+```
+#EF4444
+```
+
+The entire page should have soft ambient gradient glows.
+
+---
+
+# Background
+
+Dark cinematic background with subtle aurora lighting.
+
+Use
+
+* Purple glow
+* Amber glow
+* Pink glow
+
+Blurred radial gradients behind cards.
+
+No flat background.
+
+---
+
+# Glassmorphism Cards
+
+Every section should look like floating premium glass.
+
+Example
+
+```
+backdrop-blur-2xl
+
+bg-white/5
+
+border border-white/10
+
+rounded-3xl
+
+shadow-xl
+```
+
+Cards should float with large spacing.
+
+---
+
+# Header
+
+Top Header
+
+Contains
+
+← Back
+
+Title
+
+```
+Settings
+```
+
+Subtitle
+
+```
+Manage your account & preferences
+```
+
+Search button
+
+Notification button
+
+Use circular glass icon buttons.
+
+---
+
+# Profile Card
+
+Large premium profile card.
+
+Contains
+
+Avatar
+
+Name
+
+Username
+
+Bio
+
+Premium badge
+
+Edit icon
+
+Quick actions
+
+Example actions
+
+* Edit Profile
+* Appearance
+* Cover Photo
+* Theme
+
+Each action should use modern rounded icon buttons.
+
+Use gradient icons.
+
+---
+
+# Settings Sections
+
+Each section should have
+
+Large section title
+
+Gradient section number
+
+Example
+
+```
+01
+
+Appearance & Personal Info
+```
+
+Cards should have plenty of breathing room.
+
+---
+
+# Appearance
+
+Keep existing functionality.
+
+Redesign UI only.
+
+Items include
+
+* Profile
+* Avatar
+* Theme
+* Cover Photo
+
+---
+
+# Security & Language
+
+Keep existing features.
+
+Include
+
+* Change Password
+* Reset Password
+* Two Factor Authentication (if already exists)
+* Language Selector
+
+Use premium arrow navigation.
+
+---
+
+# Privacy Controls
+
+Modern glass switches.
+
+Include
+
+* Profile Lock
+* Hide Profile
+* Private Profile
+* Blocked Users
+
+Switches should animate smoothly.
+
+Glow when ON.
+
+Muted when OFF.
+
+---
+
+# Support
+
+Glass list items.
+
+Include
+
+* Help Center
+* Contact Us
+* About
+* FAQ
+* Privacy Policy
+* Terms
+
+Only show items already present in the app.
+
+Do NOT invent backend pages.
+
+---
+
+# Danger Zone
+
+Very premium warning card.
+
+Not bright red.
+
+Use
+
+Dark red glass
+
+Soft coral glow
+
+Rounded corners
+
+Delete icon
+
+Subtitle
+
+```
+This action cannot be undone.
+```
+
+Delete button should feel elegant instead of scary.
+
+---
+
+# Icons
+
+Use Lucide React icons.
+
+Rounded icons.
+
+Gradient strokes.
+
+Soft glow.
+
+---
+
+# Typography
+
+Use
+
+Inter
+
+or
+
+Plus Jakarta Sans
+
+Weights
+
+```
+500
+
+600
+
+700
+```
+
+Spacing should feel luxurious.
+
+---
+
+# Animations
+
+Use Framer Motion.
+
+Include
+
+Fade
+
+Scale
+
+Slide
+
+Hover lift
+
+Glow pulse
+
+Switch animation
+
+Card hover
+
+Keep animations subtle.
+
+No flashy effects.
+
+---
+
+# Mobile Layout
+
+Design for
+
+360px
+
+375px
+
+390px
+
+412px
+
+Fully responsive.
+
+Respect safe areas.
+
+Proper spacing.
+
+---
+
+# Tablet
+
+Use centered layout.
+
+Max width
+
+```
+720px
+```
+
+---
+
+# Desktop
+
+Centered Settings Panel
+
+Large glass card
+
+Comfortable spacing
+
+Max width
+
+```
+900px
+```
+
+---
+
+# Accessibility
+
+Touch targets minimum
+
+48px
+
+Proper contrast.
+
+Keyboard navigation.
+
+ARIA labels.
+
+---
+
+# Components
+
+Create reusable components
+
+* SettingsHeader
+* ProfileCard
+* GlassCard
+* SettingsSection
+* SettingsRow
+* GlassSwitch
+* DangerZone
+* GradientIcon
+* SectionTitle
+
+---
+
+# Code Quality
+
+Use reusable components.
+
+Avoid duplicated code.
+
+Maintain existing business logic.
+
+Do not modify APIs.
+
+Do not modify routes.
+
+Do not change database interactions.
+
+---
+
+# Final Requirement
+
+This is **strictly a visual redesign**.
+
+Everything that currently works in the Settings page must continue to work exactly the same.
+
+* Keep all existing buttons and actions.
+* Keep all navigation.
+* Keep all backend logic.
+* Keep all API calls.
+* Keep authentication unchanged.
+* You may reposition elements for a cleaner UX.
+* Deliver a polished, production-ready, fully responsive **Aurora Glass premium Settings screen** with cinematic gradients, glassmorphism cards, luxury spacing, and smooth animations.

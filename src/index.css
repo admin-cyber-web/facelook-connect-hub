@@ -1,0 +1,364 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* ── Creator badge: smooth Royal Blue ↔ Metallic Gold pulse ── */
+@keyframes creator-badge-pulse {
+  0%, 40% {
+    color: #38bdf8;
+    background: rgba(8, 47, 73, 0.4);
+    border-color: rgba(14, 165, 233, 0.4);
+    box-shadow: 0 0 8px rgba(56, 189, 248, 0.3);
+  }
+  50%, 90% {
+    color: #fbbf24;
+    background: rgba(69, 26, 3, 0.4);
+    border-color: rgba(245, 158, 11, 0.4);
+    box-shadow: 0 0 8px rgba(251, 191, 36, 0.3);
+  }
+  100% {
+    color: #38bdf8;
+    background: rgba(8, 47, 73, 0.4);
+    border-color: rgba(14, 165, 233, 0.4);
+    box-shadow: 0 0 8px rgba(56, 189, 248, 0.3);
+  }
+}
+.creator-badge-pulse {
+  animation: creator-badge-pulse 2.8s ease-in-out infinite;
+  will-change: color, box-shadow;
+}
+
+/* ── Capacitor Android safe-area CSS variables ────────────────────────────
+   --cap-safe-top / --cap-safe-bottom are the single source of truth used
+   by all modal/header components that need status-bar clearance.
+
+   Web / iOS  : follows env(safe-area-inset-*) directly (0 on plain browser,
+                notch height on iPhone).
+   Android    : guarantees ≥ 24px (standard Android status-bar height in dp)
+                even when the WebView hasn't yet populated the env() variable.
+                The .cap-android class is added by main.tsx at startup via
+                window.Capacitor.getPlatform().
+   ──────────────────────────────────────────────────────────────────────── */
+:root {
+  --cap-safe-top:    env(safe-area-inset-top, 0px);
+  --cap-safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+.cap-android {
+  --cap-safe-top:    max(env(safe-area-inset-top, 24px), 24px);
+  --cap-safe-bottom: max(env(safe-area-inset-bottom, 0px),  0px);
+}
+
+/* ── Mobile safety ────────────────────────────────────────────────────────
+   1. Prevent horizontal overflow without constraining page height
+   2. Honor iOS notches / Android nav bars with safe-area insets
+   3. Stop background scrolling only when a modal/sheet is open
+   4. Keep normal document scrolling available on every app screen
+   ──────────────────────────────────────────────────────────────────────── */
+html, body, #root {
+  max-width: 100vw;
+  overflow-x: hidden;
+  overscroll-behavior-x: none;
+}
+
+html, body {
+  /* min-height (NOT height) so body can grow tall enough to scroll */
+  min-height: 100dvh;
+  height: auto;
+  overflow-y: auto;
+  position: relative;
+  touch-action: pan-y;
+  overscroll-behavior-y: auto;
+}
+
+/* Keep the root document a normal, expanding scroll surface. */
+body,
+#root {
+  overflow: visible;
+  overscroll-behavior-y: auto;
+}
+
+#root {
+  min-height: 100dvh;
+  padding-left:  env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+  padding-top:    var(--cap-safe-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  touch-action: pan-y;
+  overflow-x: hidden;
+  overflow-y: visible;
+}
+
+/* Toasts and other fixed notices are outside #root's flow, so give their
+   viewport an explicit status-bar offset as well. */
+.toast-viewport-safe {
+  top: calc(var(--cap-safe-top) + 16px);
+}
+
+@media (min-width: 640px) {
+  .toast-viewport-safe {
+    top: auto;
+    bottom: 0;
+  }
+}
+
+/* Applied to <body> by useBodyScrollLock when ANY overlay is open. */
+body.body-locked {
+  overflow: hidden !important;
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  touch-action: none;
+}
+
+/* All scroll-y panes inside the app should contain their overscroll, so a
+   chat / sheet / list scroll never bubbles up to the main feed. */
+.scroll-pane,
+[data-scroll-pane="true"] {
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Explicit vertical gesture surface for the app shell and feed wrappers. */
+.touch-scroll-y {
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Chat owns the full viewport while open. Keep its gesture and overscroll
+   boundary local so Android/browser pull-to-refresh cannot claim a downward
+   drag from the top of a conversation. */
+.chat-shell {
+  overscroll-behavior-y: auto;
+  touch-action: pan-y;
+}
+
+.chat-scroll-pane {
+  min-height: 0;
+  overscroll-behavior-y: contain;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-gutter: stable;
+}
+
+/* Every app-owned vertical pane gets the same gesture contract, including
+   feature pages and modal sheets that use utility overflow classes. */
+[class*="overflow-y-auto"],
+[class*="overflow-y-scroll"] {
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Horizontal carousels: allow both horizontal pan (carousel scroll) and
+   vertical pan (page scroll). The browser picks the dominant axis per
+   gesture, so dragging up/down on the carousel scrolls the page. */
+[class*="overflow-x-auto"],
+.touch-content {
+  touch-action: pan-x pan-y;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Inline videos in the feed should never trap vertical scroll */
+.feed-reel,
+.feed-reel video {
+  touch-action: pan-y;
+}
+
+@layer base {
+  :root {
+    --background: 230 30% 97%;
+    --foreground: 230 25% 15%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 230 25% 15%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 230 25% 15%;
+
+    --primary: 230 80% 62%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 280 60% 70%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 230 20% 92%;
+    --muted-foreground: 230 15% 50%;
+
+    --accent: 340 70% 65%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 230 20% 90%;
+    --input: 230 20% 90%;
+    --ring: 230 80% 62%;
+
+    --radius: 1rem;
+
+    --glass-bg: 0 0% 100% / 0.45;
+    --glass-border: 0 0% 100% / 0.5;
+    --glass-blur: 20px;
+
+    --gradient-start: 230 80% 95%;
+    --gradient-mid: 280 60% 95%;
+    --gradient-end: 340 50% 95%;
+
+    --glow-primary: 230 80% 62%;
+    --glow-accent: 340 70% 65%;
+
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans;
+    font-family: 'DM Sans', sans-serif;
+    background: linear-gradient(
+      135deg,
+      hsl(var(--gradient-start)) 0%,
+      hsl(var(--gradient-mid)) 50%,
+      hsl(var(--gradient-end)) 100%
+    );
+    min-height: 100vh;
+  }
+}
+
+@layer utilities {
+  .glass {
+    background: hsla(var(--glass-bg));
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+  }
+
+  .glass-strong {
+    background: hsla(0 0% 100% / 0.7);
+    backdrop-filter: blur(30px);
+    -webkit-backdrop-filter: blur(30px);
+  }
+
+  .glow-primary {
+    box-shadow: 0 0 30px hsla(var(--glow-primary) / 0.4),
+                0 0 60px hsla(var(--glow-primary) / 0.15);
+  }
+
+  .glow-accent {
+    box-shadow: 0 0 20px hsla(var(--glow-accent) / 0.3),
+                0 0 40px hsla(var(--glow-accent) / 0.1);
+  }
+
+  .text-gradient {
+    background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--secondary)), hsl(var(--accent)));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .connection-line {
+    background: linear-gradient(90deg, hsl(var(--primary)), hsl(var(--secondary)));
+    height: 2px;
+  }
+}
+
+/* ── Magnet system: CSS animations replace Framer Motion infinite loops ── */
+/* These run on the compositor thread (no main-thread cost) */
+@keyframes invite-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(204,255,0,0.5); }
+  50%       { box-shadow: 0 0 0 6px rgba(204,255,0,0); }
+}
+
+@keyframes magnet-pulse-scale {
+  0%, 100% { transform: scale(1); }
+  50%       { transform: scale(1.2); }
+}
+@keyframes magnet-pulse-opacity {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.3; }
+}
+
+/* ── Live mini-ticker strip — pure CSS, compositor-only, zero JS cost ── */
+@keyframes live-ticker-scroll {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+/* Decorative motion stays on the compositor instead of scheduling React/JS
+   animation work on every frame. */
+@keyframes perf-float {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(var(--perf-y, -4px)) scale(var(--perf-scale, 1)); }
+}
+@keyframes perf-pulse {
+  0%, 100% { transform: scale(1); opacity: var(--perf-opacity, 1); }
+  50% { transform: scale(var(--perf-scale, 1.08)); opacity: 1; }
+}
+@keyframes perf-spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes perf-wave {
+  0%, 100% { transform: scaleY(0.55); }
+  50% { transform: scaleY(1); }
+}
+@keyframes perf-flag {
+  0%, 100% { transform: rotate(0deg); }
+  20% { transform: rotate(-5deg); }
+  40% { transform: rotate(5deg); }
+  60% { transform: rotate(-3deg); }
+  80% { transform: rotate(1deg); }
+}
+@keyframes perf-bell {
+  0%, 100% { transform: rotate(0deg); }
+  8%, 24% { transform: rotate(-18deg); }
+  16%, 32% { transform: rotate(18deg); }
+  40%, 52% { transform: rotate(-8deg); }
+  46%, 58% { transform: rotate(8deg); }
+}
+@keyframes perf-notif-pulse {
+  0% { transform: scale(1); opacity: 0.7; }
+  100% { transform: scale(1.9); opacity: 0; }
+}
+@keyframes perf-rain {
+  0% { transform: translateY(0); opacity: 0.7; }
+  100% { transform: translateY(130%); opacity: 0; }
+}
+@keyframes perf-neon {
+  0%, 100% { background-position: 30% 40%; }
+  50% { background-position: 70% 60%; }
+}
+.perf-float { animation: perf-float var(--perf-duration, 2s) ease-in-out infinite; animation-delay: var(--perf-delay, 0s); }
+.perf-pulse { animation: perf-pulse var(--perf-duration, 2s) ease-in-out infinite; }
+.perf-spin { animation: perf-spin var(--perf-duration, 6s) linear infinite; }
+.perf-wave { animation: perf-wave var(--perf-duration, 0.7s) ease-in-out infinite; animation-delay: var(--perf-delay, 0s); transform-origin: bottom; }
+.perf-flag { animation: perf-flag 3s ease-in-out infinite; animation-delay: 1.2s; transform-origin: 50% 100%; }
+.perf-bell { animation: perf-bell 0.75s ease-in-out infinite; animation-delay: 2.5s; }
+.perf-notif-pulse { animation: perf-notif-pulse 1.1s ease-out infinite; }
+.perf-rain { animation: perf-rain var(--perf-duration, 1.2s) linear infinite; animation-delay: var(--perf-delay, 0s); }
+.perf-neon { animation: perf-neon 2s linear infinite alternate; background: radial-gradient(circle at 30% 40%, rgba(236,72,153,0.25) 0%, transparent 60%), radial-gradient(circle at 70% 60%, rgba(99,102,241,0.25) 0%, transparent 60%), radial-gradient(circle at 50% 20%, rgba(245,158,11,0.25) 0%, transparent 60%); background-size: 180% 180%; }
+.live-ticker-track {
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+  will-change: transform;
+  animation: live-ticker-scroll 28s linear infinite;
+}
+.live-ticker-track:hover {
+  animation-play-state: paused;
+}

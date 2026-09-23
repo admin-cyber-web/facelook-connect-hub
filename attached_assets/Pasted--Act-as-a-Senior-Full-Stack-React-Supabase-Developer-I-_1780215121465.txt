@@ -1,0 +1,39 @@
+"Act as a Senior Full-Stack React/Supabase Developer. I have a 'Magnet' viral engagement system. Please implement the following features systematically, ensuring database connectivity and realtime logic:
+
+    1. Magnet Notification & Chain Flow:
+
+        Flow: When a user is 'Magnet-Linked', send a Realtime Notification to their header panel. Clicking the notification takes them to the post.
+
+        Join Chain: On the post, add a 'Join this viral chain' action. Upon clicking, update the magnet_chains table.
+
+        Feedback Loop: Once joined, trigger a notification to the Post Owner (e.g., 'User X accepted your link').
+
+        Dashboard: In the 'Trace' tab, show a dynamic, growing list of linked users. In the 'Board' tab, rank users by 'Magnet Reach' (who sent the most links for this post).
+
+    2. Voice/Broadcast System:
+
+        Keep the 'Voice' section functionality: Post owners can type a message (Status/Warning) in the 'Voice' dashboard, which must appear as a real-time blinking alert on the post itself.
+
+    3. Magnet Dashboard (Global & Local):
+
+        Create a global dashboard under 'Flicks Frame/Calls' showing 'Total Links Sent' vs 'Total Links Received'.
+
+        Include the specific posts for each.
+
+        Private Notification: When a user sends a magnet link to someone, ensure the notification is targeted only to the recipient (private channel).
+
+    4. Universal Notification & Social Logic:
+
+        Implement a central notification service: Any interaction (Like, Comment, Share, Friend Request) must trigger a notification.
+
+        Aggregated Notification: If I like a post, I must receive notifications for subsequent likes/comments/shares on that same post.
+
+        Friend Requests: Display Friend Requests as large, visually appealing 'Cards' in the notification panel to encourage easy acceptance.
+
+        Language: All notifications must be strictly in English.
+
+    5. Dynamic Flicks Frame Sharing:
+
+        Fix: Currently, sharing a 'Flicks Frame' (e.g., a help request for food) sends the default Flicks image.
+
+        Change: Modify the share metadata/logic so that sharing a post includes the specific photo posted by the user and the Name of the reporter/poster instead of the generic Flicks logo. Do not remove any existing design elements, just append this data to the share payload."

@@ -1,0 +1,9 @@
+/* Vite's default boilerplate (max-width 1280px + padding) was creating
+   blank gutters on laptops/desktops. Use the full viewport instead and
+   let inner components handle their own widths. */
+#root {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  text-align: left;
+}

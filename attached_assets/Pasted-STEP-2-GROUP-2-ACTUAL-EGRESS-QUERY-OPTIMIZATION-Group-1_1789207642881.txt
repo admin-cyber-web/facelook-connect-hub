@@ -1,0 +1,136 @@
+STEP 2 — GROUP 2: ACTUAL EGRESS + QUERY OPTIMIZATION
+
+Group 1 complete hone ke baad ab NEXT GROUP implement karo.
+
+IMPORTANT: Ye bhi IMPLEMENTATION TASK hai, audit/report nahi.
+
+Actually code/SQL modify karo. Sirf recommendations ya report mat banao.
+
+GROUP 2 TASKS:
+
+1. BROAD SELECT FIX
+   Verified unnecessary `select(*)` ko explicit required columns mein replace karo, especially:
+
+* CirclePage.tsx
+* SurveyFeed.tsx
+* DebateArena.tsx
+* AntakshariArena.tsx
+* AdminMarketplace.tsx
+* HooksHub.tsx
+
+Behavior/features/UI bilkul same rehne chahiye.
+
+2. DUPLICATE AUTH REQUESTS
+   Duplicate `getSession()` / `getUser()` calls reduce karo in:
+
+* App.tsx
+* Index.tsx
+* SurveyDetail.tsx
+* ChatSystem.tsx
+* AdminMarketplace.tsx
+* UserProfileModal.tsx
+* DebugHelper.tsx
+* FameFeed.tsx
+
+Shared existing auth/session state use karo where safe.
+
+CRITICAL:
+Existing admin-email authorization/detection system ko bilkul touch, remove, replace ya redesign mat karo.
+
+3. FLICKSFEED QUERY OPTIMIZATION
+   FlicksFeed mein:
+
+* duplicate post queries
+* duplicate likes queries
+* duplicate comments queries
+* duplicate shares queries
+* unnecessary retry/fallback fetches
+
+reduce karo.
+
+All existing counts, reactions, buttons and behavior must remain identical.
+
+4. RECOMMENDATION QUERY DEDUPLICATION
+   PeopleYouMayKnow + NewInYourArea currently overlapping profiles/block/friend data fetch karte hain.
+
+Shared/cached data path banao so same data repeatedly Supabase se fetch na ho.
+
+Do NOT change recommendation logic/results intentionally.
+
+5. CHAT BOOTSTRAP OPTIMIZATION
+   ChatSystem mein repeated profile/relationship/block/current-user queries reduce karo.
+
+Active Chat Realtime MUST remain enabled.
+
+Do NOT globally disable Realtime.
+
+Realtime event par unnecessary full contact/bootstrap refetch mat karao. Only affected data update/refetch karo.
+
+6. CHAT MESSAGE PAGINATION
+   Chat messages ke liye safe cursor-based pagination/additional loading implement karo.
+
+Requirements:
+
+* Initial conversation load bounded rahe.
+* Older messages "load more" / equivalent safe mechanism se aaye.
+* Realtime naye messages continue receive kare.
+* Realtime messages duplicate nahi hone chahiye.
+* Existing chat UI and behavior preserve karo.
+* Client-side messages array ko unbounded grow mat hone do.
+
+7. SAFE BOUNDED WINDOWS
+   Verified unbounded story/circle/community arrays ko bounded/paginated karo.
+
+Do NOT simply add an arbitrary tiny limit that hides existing content.
+
+Use cursor/load-more or safe windowing where practical.
+
+8. SITEMAP
+   Sitemap generation ko:
+
+* paginated
+* bounded per request
+* cacheable
+* SEO-safe
+
+banao.
+
+All public/indexable posts should remain discoverable across sitemap pages. Do not accidentally exclude public content.
+
+DATABASE RULE:
+Production/deployed SQL state inspect karo before adding RPC/policies.
+Old migrations ko blindly replay mat karo.
+Only add/modify the minimum required SQL.
+
+DO NOT:
+
+* redesign UI
+* remove features
+* migrate Supabase
+* migrate to Next.js
+* disable Realtime globally
+* change admin-email system
+* rewrite architecture unnecessarily
+
+VERIFICATION:
+
+After completing Group 2:
+
+1. Run typecheck.
+2. Run production build.
+3. Fix any errors/regressions.
+4. Check changed files/diff.
+5. Confirm admin-email files were not modified.
+
+Then report ONLY:
+
+* files changed
+* query/code optimizations actually implemented
+* SQL/RPC changes
+* typecheck result
+* build result
+* admin-email untouched confirmation
+
+Do NOT claim a fix unless the code was actually changed.
+
+STOP after Group 2.

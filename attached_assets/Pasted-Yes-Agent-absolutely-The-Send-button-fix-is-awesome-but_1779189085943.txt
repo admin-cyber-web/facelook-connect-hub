@@ -1,0 +1,17 @@
+Yes Agent, absolutely! The Send button fix is awesome, but now you have full permission to proceed with the major architecture refactor immediately. 
+
+Do not worry about it being a multi-day task—let's get it done step-by-step right now. The database has been completely wiped clean, and 5 public storage buckets (posts, flicks, avatars, circles, hooks) are already manually created and ready on the new Supabase instance.
+
+Please update the project credentials and execute the final instructions completely:
+
+- VITE_SUPABASE_URL = "YOUR_NEW_SUPABASE_URL_HERE"
+- VITE_SUPABASE_ANON_KEY = "YOUR_NEW_SUPABASE_ANON_KEY_HERE"
+
+STRICT EXECUTION MANDATE:
+1. SCHEMA DEPLOYMENT & GAME REMOVAL: Deploy the clean schema using `supabase_master_migration.sql` or `supabase_core_schema.sql`. Completely REMOVE/SKIP any game section features, game states, or game SQL tables. Delete the Movie Game file/routes as we do not want this feature anymore.
+2. GLOBAL MEDIA URL RESOLUTION: Fix the public URL parser utility across FameFeed, Flicks, Circles, Hooks, and Comments. If it's a relative storage path (e.g., 'posts/file.mp4' or 'hooks/banner.jpg'), wrap it dynamically with `supabase.storage.from(bucket).getPublicUrl(path)`. Ensure media players never render blank black boxes.
+3. FULL WORKING PAGES & FEATURES RESTORATION: Ensure Hooks (Pages), Circles (Groups), Flicks (Vertical Videos), and Tasks work dynamically with 100% full CRUD operations (Like triggers, Comment submissions, Join/Follow counts, Post Deletion) using the active authenticated User ID.
+4. NO-TOUCH ZONE: Do NOT touch or alter the Magnet system, Admin Panel config, or the Gemini-powered Quotes Maker/Fame Section utility. Keep them exactly as they are.
+5. CLEAN PRODUCTION BUILD: Clean up legacy dead code or broken imports left behind by the removed game feature, and verify that `npm run build` compiles perfectly with complete TypeScript safety.
+
+Let's begin the refactor now. Start by deploying the schema and removing the game files!

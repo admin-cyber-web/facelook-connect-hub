@@ -1,0 +1,15 @@
+Agent, we are completely replacing the existing notification UI with a custom high-fidelity design layout. Please find the main notifications component in the project (usually named something like `NotificationCenter.jsx`, `Notifications.tsx`, or inside the pages directory).
+
+Replace its layout with the new premium JSX structure we generated, making sure it is hooked into the main layout so that the Floating Capsule Toast can trigger globally when a new event occurs.
+
+For visual and layout alignment, follow this structural and aesthetic mockup blueprint strictly:
+
+1. TOP BRANDING: A minimalist dark header at the top that says "🌟 FLICKS INDIA" in a bold, cinematic font with a thin, glowing neon yellow-green border at the bottom.
+
+2. CARD 1 (The Cinematic Alert): A premium rectangular notification card with a rich "Midnight Maroon" (#2C001E) dynamic gradient background. It has sharp rounded corners. Inside, there is a bright yellow neon tag that says "💥 TOP KHABAR" and a bold white Hindi text body placeholder. At the bottom of this card, two clean action buttons are visible: "👑 Read Full Article" (filled with electric lemon neon color #E3FF00) and "❌ Dismiss" (transparent with a subtle white border).
+
+3. CARD 2 (The Interactive Social Preview): A clean, modern white card below the first one, mimicking a high-end social interaction feed. On the left, there is a circular user profile avatar icon. On the right, it displays a bold username "Rahul_UP32" with a subtle text description, a nested light-grey comment box containing Hindi text with a fire emoji, and two interactive text shortcuts at the bottom: "❤️ Like Back" in red and "💬 Quick Reply" in blue.
+
+4. CARD 3 (The Floating Capsule): At the very bottom, a floating pill-shaped capsule (Dynamic Island style) in deep matte black. It contains light text "🎵 5 New Desi Reels published!" and a small rounded "👉 Watch" button glowing in electric yellow.
+
+Ensure all inline styles, typography weights, and layout states perfectly match this high-end UI design.

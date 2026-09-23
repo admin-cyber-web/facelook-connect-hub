@@ -1,0 +1,32 @@
+Role: Lead Full-Stack Engineer & Supabase Expert
+Project: Flicks India (Social Video & News Platform)
+
+Task Overview:
+Refactor the automated backend ingestion system and adjust the frontend player configuration to address video loading failures, user identity, and playback user experience.
+
+Strict Technical Specifications:
+
+1. Video Library Hardcoding Fix (scripts/autoPost.mjs):
+   - Completely remove all legacy Hollywood, international, or broken video source links from the injection array.
+   - Replace the video library array exclusively with highly available, public Indian content embed URLs (Trending Bollywood songs, Desi comedy clips, regional web series/movie trailers).
+   - Ensure the URLs use the correct YouTube embed architecture: 'https://www.youtube.com/embed/[VIDEO_ID]'.
+   - If the frontend architecture relies purely on 11-character alpha-numeric strings, change the array to store only string IDs (e.g., "uAsV5-Hv-70", "dQw4w9WgXcQ", "Pasoori").
+
+2. Automation Bot Identity Re-branding:
+   - Modify the user/author authentication context inside the auto-posting cron loops.
+   - Do NOT associate automated posts with default personal admin handles or random generic string usernames (like "vibe user").
+   - Explicitly route all automated news and video posts to a dedicated system profile.
+   - System Profile Specifications:
+     * Full Name / Display Name: "Flicks TV"
+     * Avatar/DP: Use a distinct, premium branding logo vector or a clean automation asset URL (e.g., 'https://api.dicebear.com/7.x/bottts/svg?seed=FlicksTV').
+   - Implement an upsert layer so if the "Flicks TV" profile doesn't exist in the 'profiles' database table, it creates it before firing the post insert query.
+
+3. Autoplay & Audio Sync Mechanics (Frontend Components):
+   - Locate the core video feed renderer component (e.g., VideoPlayer.tsx, ReelCard.tsx, or FameFeed logic).
+   - Configure the HTML5/YouTube Iframe video player to trigger automatic play on viewport scroll.
+   - To bypass strict modern browser sandboxing blocks against unmuted autoplay, implement the following UX pattern:
+     * Initialize the video item as `muted: true` and `autoplay: true` so the video begins playing instantly visual-only when rendered.
+     * Overlay a distinct, interactive "Tap for Sound" / "Unmute" audio button on top of the active video card context.
+     * On user click/tap interaction anywhere on the card container, seamlessly toggle the player element state to unmuted at 100% audio volume without restarting the stream.
+
+Execute these updates across the codebase immediately, verify schema compilation, and ensure no legacy assets persist in the active distribution loop.

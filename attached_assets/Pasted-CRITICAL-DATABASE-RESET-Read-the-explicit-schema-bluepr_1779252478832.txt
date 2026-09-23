@@ -1,0 +1,39 @@
+CRITICAL DATABASE RESET: Read the explicit schema blueprints below. The application is throwing "table not available" because previous queries used incorrect column relations and broken table names. Fix this across CirclePage.tsx and HooksHub.tsx instantly.
+
+EXACT TABLE BLUEPRINTS FROM POSTGRES SCHEMA:
+1. Table Name: 'circles'
+   - Key Fields: 'cover_url' (text), 'admin_id' (uuid - matches profile creator)
+   - Do NOT query any 'avatar_url' column directly from the 'circles' table if it doesn't exist.
+
+2. Table Name: 'hook_pages' (STRICTLY plural with an 's' and underscore, NOT hook_page)
+   - Key Fields: 'cover_url' (text), 'owner_id' (uuid - matches profile creator), 'category' (text), 'hook_count' (int4)
+
+Apply these exact mathematical and structural fixes immediately:
+
+1. FIX THE SELECTION & RELATIONAL JOIN CRASH:
+   - In CirclePage.tsx (for fetching circles): Use the correct table name 'circles' and ensure any profile join targets the correct user reference:
+     .select('*, profiles:admin_id(avatar_url, full_name)')
+   - In HooksHub.tsx (for fetching hook pages): Target the exact table name 'hook_pages'. The owner field is 'owner_id'. Rewrite the query precisely:
+     .select('*, profiles:owner_id(avatar_url, full_name)')
+   - If the relational profile join continues to throw a database exception, fetch the raw arrays first from 'circles' and 'hook_pages', and manually map the creator's profile image dynamically in React to prevent Postgres from failing.
+
+2. FIX STORAGE UPLOAD AND PERSISTENCE (Stop NULL insertion):
+   - In the submission handlers for both Circle creation and Hooks Page creation, the image upload to Supabase storage MUST resolve first.
+   - Await the absolute completion of the storage upload, capture the string 'publicUrl' from the response, and verify it is a valid URL before proceeding.
+   - In the subsequent .insert() block, write this URL directly into the 'cover_url' field for both tables ('circles' and 'hook_pages').
+
+3. REAL-TIME FRONTEND RENDERING FORCE:
+   - Once the database insert succeeds, append the newly created object (including the valid 'cover_url' string and the current active user's avatar context mapped to the avatar view) directly into the local React state array immediately. This will trigger an instant UI re-render without forcing the user to manually refresh the browser.
+   - For image containers, enforce this explicit style structure:
+     style={{
+       backgroundImage: item.cover_url ? `url('${item.cover_url}')` : "none",
+       backgroundColor: item.cover_url ? "transparent" : "#f3f4f6",
+       backgroundSize: "cover",
+       backgroundPosition: "center"
+     }}
+
+4. DYNAMIC AVATAR DISPATCH:
+   - Since these tables rely on 'cover_url' and do not have an operational avatar upload slot, always fallback the group/page profile DP element to render the creator's profile picture dynamically using:
+     item.profiles?.avatar_url || supabase.auth.user().user_metadata.avatar_url
+
+Run a clean project compilation, eliminate any invalid schema references, and ensure data writes successfully to 'circles' and 'hook_pages' while displaying instantly on the screen.

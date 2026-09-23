@@ -1,0 +1,57 @@
+Act as an expert Full-Stack Developer. We are upgrading the Flicks India platform to implement an advanced, Facebook-like Privacy System, Timeline Logic, and Live Online Status. This must be 100% functional with Supabase, not demo data. Follow these exact technical specifications:
+
+---
+
+### 1. DATABASE SCHEMA UPDATES (Supabase SQL)
+Please execute or ensure these schema modifications exist:
+- **`profiles` table:**
+  - Add `is_private_mode` (boolean, default: false) -> Controls full profile lockdown.
+  - Add `last_seen` (timestamp with time zone) or `is_online` (boolean) -> For real-time green dot status.
+- **`posts` table:**
+  - Add `visibility` (text, default: 'public') -> Values can be 'public' or 'friends_only'.
+- **`friendships` table (Crucial for Timeline/Feed):**
+  - Ensure a table tracking `user_id`, `friend_id`, and `status` ('pending', 'accepted').
+
+---
+
+### 2. SETTINGS COMPONENT: REAL PRIVATE MODE SWITCH
+- Create/Update the Settings section with a functional Toggle Switch for "Private Profile Mode".
+- When toggled, it must immediately update the `is_private_mode` field in the Supabase `profiles` table for the logged-in user.
+- **Dashboard Visibility:** On the user's main dashboard, display a clear, non-editable badge showing their current account status: "🛡️ Account Status: Private Mode ON" or "🌐 Account Status: Public Mode".
+
+---
+
+### 3. INTERACTION BLOCKER & ERROR HANDLING
+- If a user attempts to view a profile, send a friend request, or open a direct chat with someone who has `is_private_mode === true` (and they are not accepted friends), completely block the action UI and display this exact English message:
+  > "This user has enabled Private Mode. You cannot disturb them until they turn it off."
+
+---
+
+### 4. CREATE POST COMPONENT: VISIBILITY SELECTOR & CONTENT WARNING
+- Modify the Main Post Creation Component (`CreatePost.tsx`):
+  - Add a dropdown/selector right next to the user profile icon inside the post box allowing the user to select **"🌐 Public"** or **"👥 Friends Only"**.
+  - **The Content Warning:** If a user selects "🌐 Public", display a subtle, real-time cautionary notice text below the input field:
+    > "⚠️ Warning: You are posting publicly. Ensure your content complies with community guidelines before publishing."
+  - Save the selected state into the `posts.visibility` column during submission.
+
+---
+
+### 5. FEED FILTERING & TIMELINE ALGORITHM
+- **Main Global Feed (`FameFeed.tsx`):**
+  - Update the fetching query. A post must ONLY appear on the global front page if:
+    1. The post `visibility === 'public'` AND the author's account `is_private_mode === false`.
+  - Public posts can be viewed, liked, commented, and shared by everyone (public + friends).
+- **User Timeline Logic:**
+  - If a profile is Public (`is_private_mode === false`), anyone can open their timeline to view posts, like, and comment.
+  - If a user has Private Mode ON OR posts a video/text as "Friends Only":
+    - These posts must completely bypass the Global Feed.
+    - They must only render on their personal timeline page.
+    - Only users with an `accepted` friendship status can view, like, or comment on these timeline posts.
+
+---
+
+### 6. REAL-TIME GREEN DOT ONLINE STATUS indicator
+- Implement a real-time presence system using Supabase Realtime Channels or tracking `last_seen`.
+- On the Header, Chat list, and Profile cards, show a vibrant **Green Dot** indicator next to the user's avatar if they are currently active/online, matching Facebook's active status UI.
+
+Please refactor the codebase, update the database queries, and rewrite the UI components to execute this architectural setup flawlessly. Ensure proper loading states and error boundaries.

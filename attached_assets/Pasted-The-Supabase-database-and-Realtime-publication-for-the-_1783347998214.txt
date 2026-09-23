@@ -1,0 +1,31 @@
+The Supabase database and Realtime publication for the `notifications` table are verified and working perfectly. The entire issue is strictly in the frontend application code (likely `chatsystem.tsx` or the Admin dashboard code). 
+
+Please locate and fix these 3 specific frontend logic blocks immediately:
+
+1. FIX THE "UNKNOWN USER" IN REPORTS QUERY:
+   - Find where reports are fetched from the `reports` table. The query is missing the join with `profiles`.
+   - Update the `.select()` query so it brings the reporter's profile details. For example: `.select('*, profiles:reporter_id(full_name, username, avatar_url)')` or `.select('*, profiles(full_name, username, avatar_url)')`.
+   - In the JSX component, ensure the reporter's name renders correctly using `report.profiles?.full_name || report.profiles?.username || "User"`, instead of falling back to "Unknown user".
+
+2. RESTORE REAL-TIME NOTIFICATION ON "SAFE POST":
+   - Find the function that runs when an admin marks a post as safe or dismisses a report (e.g., `handleSafePost`, `dismissReport`, or `markAsSafe`).
+   - Inside this function, ensure that right after updating the post/report status, it triggers an INSERT into the `notifications` table targeting the user who created the report:
+     ```typescript
+     await supabase.from('notifications').insert([{
+       user_id: report.reporter_id, // ID of the user who reported
+       type: 'report_resolved',
+       title: 'Post Reviewed',
+       message: 'The post you reported has been reviewed by the admin and marked safe.',
+       is_read: false
+     }]);
+     ```
+
+3. RESTORE THE BEEP SOUND ON RECEIVED NOTIFICATION:
+   - Check the active Supabase realtime listener that subscribes to the `notifications` table for the logged-in user.
+   - Inside the `.on('postgres_changes', { event: 'INSERT', table: 'notifications' }, ...)` callback, add the audio playback logic to play a beep sound instantly when a new notification arrives:
+     ```typescript
+     const audio = new Audio('/notification-beep.mp3'); // Ensure the path matches your public asset folder
+     audio.play().catch(err => console.log("Audio play blocked by browser:", err));
+     ```
+
+Please run a full code inspection on these areas and patch the logic cleanly without messing up other chat or post UI components.

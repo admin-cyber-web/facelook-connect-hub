@@ -1,0 +1,242 @@
+IMPLEMENT FEATURE: ✨ FLICKS SUGGESTED FOR YOU
+
+OBJECTIVE:
+
+Create a permanent, highly visible smart suggestion system inside the post creation experience.
+
+This feature must be active for all users and should feel like a core part of Flicks India.
+
+Use the existing Gemini API key stored in Replit Secrets.
+
+Do NOT expose API keys to the frontend.
+
+==================================================
+LOCATION
+========
+
+Inside the post composer.
+
+Directly below:
+
+"What's on your mind?"
+
+Always display:
+
+✨ Flicks Suggested For You
+
+The section must always be visible.
+
+==================================================
+GENERATION TRIGGERS
+===================
+
+Generate suggestions when:
+
+* User enters text
+* User uploads image(s)
+* User uploads video(s)
+* User adds location
+* User edits content significantly
+
+Do NOT call Gemini on every keystroke.
+
+Use debouncing and intelligent triggering.
+
+==================================================
+SUGGESTION TYPES
+================
+
+Generate:
+
+1. Caption Suggestions
+2. Hashtag Suggestions
+3. Engagement Hooks
+4. Improved Post Versions
+
+Example:
+
+User Input:
+"Goa Trip"
+
+Generate:
+
+Multiple caption options
+
+Relevant hashtags
+
+Questions to increase engagement
+
+Improved post text
+
+==================================================
+UI
+==
+
+Display 5 suggestion cards.
+
+Each card:
+
+* Clean design
+* Preview text
+* Select button
+
+Actions:
+
+Use
+Add
+Replace
+Copy
+
+==================================================
+AUTO SELECTION
+==============
+
+If user does not manually choose anything:
+
+Automatically select the highest-ranked suggestion.
+
+Show it clearly as:
+
+⭐ Recommended For You
+
+The selected suggestion must be visible before posting.
+
+Never modify a post secretly.
+
+User must be able to see what will be added.
+
+==================================================
+POSTING FLOW
+============
+
+Before publish:
+
+Preview final content.
+
+If auto-selected suggestion exists:
+
+Merge it into post content.
+
+User can:
+
+* Keep it
+* Remove it
+* Edit it
+
+==================================================
+HASHTAGS
+========
+
+Generate relevant hashtags.
+
+Allow:
+
+Add Selected
+
+Add All
+
+Remove Individually
+
+==================================================
+IMAGE + VIDEO CONTEXT
+=====================
+
+When image/video exists:
+
+Use Gemini to generate context-aware suggestions.
+
+Examples:
+
+Travel
+Food
+Nature
+Fashion
+News
+Sports
+Events
+
+Generate relevant captions and hashtags.
+
+==================================================
+LOCATION CONTEXT
+================
+
+If location exists:
+
+Generate location-aware suggestions.
+
+Example:
+
+Delhi Rain
+
+Generate Delhi-specific captions and hashtags.
+
+==================================================
+PERFORMANCE REQUIREMENTS
+========================
+
+Must NOT increase:
+
+CPU usage
+Battery usage
+Mobile heating
+
+Requirements:
+
+* Server-side Gemini calls
+* Debounced requests
+* Request caching where appropriate
+* No polling
+* No realtime subscriptions
+* No infinite loops
+
+==================================================
+FAILSAFE
+========
+
+If Gemini is unavailable:
+
+Generate fallback suggestions.
+
+Feature must never appear broken.
+
+Section should always show usable content.
+
+==================================================
+ANALYTICS
+=========
+
+Track:
+
+Suggestion shown
+Suggestion selected
+Suggestion ignored
+Suggestion copied
+
+==================================================
+DESIGN
+======
+
+Match Flicks India premium UI.
+
+Mobile-first.
+
+Fast.
+
+Smooth.
+
+==================================================
+FINAL DELIVERABLE
+=================
+
+Implement fully.
+
+Do not leave placeholders.
+
+Provide:
+
+* Files changed
+* Gemini integration points
+* Fallback mechanism
+* Example outputs
+* Performance safeguards

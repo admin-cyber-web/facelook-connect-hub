@@ -1,0 +1,370 @@
+Create a premium mobile chat screen UI for my social media app "FLICKS INDIA".
+
+Design Style:
+- Ultra-modern
+- Dark mode
+- Comic book inspired
+- Premium cinematic look
+- Native Android/iPhone app (NOT a website)
+- Mobile responsive (390x844 reference)
+- Pixel-perfect
+- Smooth rounded corners
+- High-end social media feel
+
+========================================
+COLOR PALETTE
+========================================
+
+Background:
+#050505
+
+Top Gradient:
+Midnight Maroon
+#2B0B16
+to
+#12070C
+
+Accent:
+Electric Lemon
+#E3FF00
+
+Message Bubble:
+Gradient
+#1E5EFF
+to
+#006BFF
+
+Text:
+White (#FFFFFF)
+
+Secondary Text:
+rgba(255,255,255,0.72)
+
+Divider:
+rgba(255,255,255,0.08)
+
+========================================
+BACKGROUND
+========================================
+
+DO NOT keep plain black.
+
+Create a subtle comic style background.
+
+Use:
+
+• Dark purple city skyline silhouettes
+• Halftone comic dots
+• Soft smoke texture
+• Large faded moon
+• Comic grain
+• Very low opacity buildings
+• Soft maroon fog
+• Neon glow in corners
+• Slight vignette
+
+Background opacity should remain low (10-18%) so messages stay readable.
+
+Background must NEVER reduce text readability.
+
+========================================
+HEADER
+========================================
+
+Top gradient header.
+
+Left
+
+← Back
+
+User Avatar
+64px
+
+Green online dot
+
+Username
+Bold
+20px
+
+Online
+15px
+Green
+
+Right
+
+Phone icon
+
+Video icon
+
+Three dot menu
+
+========================================
+DATE CHIP
+========================================
+
+Comic style floating chip
+
+TODAY
+
+Dark background
+
+Pink outline
+
+Comic speech style
+
+========================================
+MESSAGE BUBBLE
+========================================
+
+Outgoing message
+
+Align Right
+
+Comic speech bubble shape
+
+Rounded 24px
+
+Tail on bottom-right
+
+Gradient
+
+Blue
+
+Soft shadow
+
+Thin blue border
+
+Padding:
+18px
+
+Message text:
+
+That was an amazing shoot yesterday! ✨
+Can't wait to work on the next one with you.
+
+Font
+
+18px
+
+Weight 500
+
+Line height 1.7
+
+Text must ALWAYS remain perfectly readable.
+
+Timestamp
+
+10:30 PM
+
+Small
+
+Bottom-right
+
+Double blue tick
+
+========================================
+SEEN INDICATOR
+========================================
+
+IMPORTANT
+
+Do NOT place seen avatar inside the message bubble.
+
+Do NOT overlap bubble.
+
+Instead:
+
+Place it BELOW the message.
+
+Align to right.
+
+Layout:
+
+                Seen by
+                  ○ Avatar
+                10:31 PM
+
+Avatar:
+
+36px circle
+
+Thin Electric Lemon border
+
+High resolution profile image
+
+Small green verification/check badge overlapping bottom-right
+
+Spacing:
+
+12px below message bubble
+
+Seen text
+
+13px
+
+Light gray
+
+Timestamp
+
+12px
+
+Opacity 70%
+
+========================================
+BOTTOM INPUT
+========================================
+
+Floating glassmorphism bar
+
+Height
+
+64px
+
+Rounded
+
+32px
+
+Background
+
+rgba(20,20,20,.82)
+
+Blur
+
+20px
+
+Border
+
+1px rgba(255,255,255,.08)
+
+Left
+
+Attachment icon
+
+Center
+
+Placeholder
+
+Type a message...
+
+Right
+
+Emoji button
+
+Send button
+
+Large circular Electric Lemon button
+
+Shadow
+
+========================================
+BOTTOM NAVIGATION
+========================================
+
+4 Tabs
+
+Chats
+
+Calls
+
+People
+
+Stories
+
+Active tab
+
+Electric Lemon
+
+Others
+
+Gray
+
+========================================
+COMIC DESIGN DETAILS
+========================================
+
+Use comic inspired UI only.
+
+Include
+
+• Halftone dots inside message bubble
+• Thick comic outlines
+• Soft neon glow
+• Small comic sparkle effects
+• Comic style speech bubble tail
+• Slight paper grain texture
+• Rounded modern shapes
+• Layer depth
+• Soft shadows
+
+Do NOT overuse effects.
+
+Keep UI premium.
+
+========================================
+TYPOGRAPHY
+========================================
+
+Font
+
+Inter
+
+or SF Pro Display
+
+Message
+18px
+
+Header
+20px
+
+Online
+15px
+
+Seen
+13px
+
+Timestamp
+12px
+
+Everything must remain crystal clear.
+
+Never allow text to blend into background.
+
+========================================
+ANIMATION
+========================================
+
+Framer Motion
+
+Fade in
+
+Bubble slide
+
+Seen avatar pop animation
+
+Header fade
+
+Input glow on focus
+
+Hover effects
+
+========================================
+TECH
+========================================
+
+React
+
+TailwindCSS
+
+Framer Motion
+
+Lucide Icons
+
+Fully responsive
+
+Component based
+
+Clean code
+
+No CSS framework other than Tailwind.
+
+The final result should look like a premium comic-inspired chat screen found in a luxury social media app, with excellent readability, cinematic depth, and a clear "Seen by" profile avatar displayed below the sent message rather than inside the message bubble.
