@@ -3625,7 +3625,7 @@ const PersonalizationView = React.memo(({
 
   return (
     <div
-      className={`min-h-screen w-full transition-colors duration-500 relative overflow-x-hidden touch-scroll-y ${darkMode ? "bg-[#020617]" : "bg-slate-100 light-mode"}`}
+      className={`min-h-screen w-full transition-colors duration-500 relative overflow-x-clip touch-scroll-y ${darkMode ? "bg-[#020617]" : "bg-slate-100 light-mode"}`}
     >
       {/* Page-level Helmet — overrides the app-level default in App.tsx.
           The home-feed branch explicitly resets title + description so that
@@ -4633,7 +4633,7 @@ const PersonalizationView = React.memo(({
             {activeFeature === "Flicks" && (
               <ErrorBoundary>
               <Suspense fallback={<SectionLoader />}>
-              <div className="fixed inset-0 z-[300] bg-black touch-scroll-y">
+              <div className="fixed inset-0 z-[300] bg-black touch-scroll-y" data-reels-feed>
                 <FlicksFeed
                   onBack={() => setActiveFeature("Fame")}
                   isAdmin={isAppAdmin}
