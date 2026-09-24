@@ -63,8 +63,7 @@ export default function PullToRefresh({
 
     /**
      * Return every scrollable ancestor between the touch target and this
-     * wrapper. An inner list at scrollTop 0 is still not pull-to-refresh
-     * eligible if the document itself is already scrolled.
+     * wrapper. Nested scroll surfaces must be at their exact top too.
      */
     const getScrollableAncestors = (target: EventTarget | null): HTMLElement[] => {
       const ancestors: HTMLElement[] = [];
@@ -89,11 +88,16 @@ export default function PullToRefresh({
       return ancestors;
     };
 
-    // WebView can report a fractional sub-pixel value at the boundary. Treat
-    // that as the top while never allowing a real offset to start a refresh.
     const isAtTop = (target: EventTarget | null = touchTargetRef.current): boolean =>
-      getDocumentScrollTop() <= 1 &&
-      getScrollableAncestors(target).every((node) => node.scrollTop <= 1);
+       getDocumentScrollTop() === 0 &&
+       getScrollableAncestors(target).every((node) => node.scrollTop === 0);
+
+     const isExcludedTarget = (target: EventTarget | null): boolean => {
+       const node = target instanceof Element ? target : null;
+       return Boolean(node?.closest(
+         'input, textarea, select, [contenteditable], [role="textbox"], video, .feed-reel, [data-no-pull-refresh], [data-reels-feed]',
+       ));
+     };
 
     const paintPull = (value: number) => {
       pullYRef.current = value;
@@ -116,7 +120,7 @@ export default function PullToRefresh({
 
     const onTouchStart = (e: TouchEvent) => {
       touchTargetRef.current = e.target;
-      if (e.touches.length !== 1 || refreshingRef.current || !isAtTop(e.target)) {
+       if (e.touches.length !== 1 || refreshingRef.current || isExcludedTarget(e.target) || !isAtTop(e.target)) {
         resetPull();
         return;
       }
@@ -169,15 +173,8 @@ export default function PullToRefresh({
       gestureState.current = "pulling";
       pullDistanceRef.current = dy;
 
-      // Only claim the gesture after it is unambiguously a downward pull at
-      // scrollTop === 0. This prevents WebView overscroll without affecting
-      // normal page scrolling, taps, or horizontal gestures.
-      if (e.cancelable) {
-        e.preventDefault();
-      }
-
-      // Resistance keeps the content movement subtle while retaining a
-      // responsive progress indicator. The raw distance controls the trigger.
+       // Observe the gesture without cancelling native scrolling, selection,
+       // or video navigation. The raw distance controls the trigger.
       const damped = Math.min(dy * 0.7, threshold * 1.35);
       paintPull(damped);
     };
@@ -217,15 +214,13 @@ export default function PullToRefresh({
       }
     };
 
-    // Capture ensures child components cannot accidentally swallow the
-    // gesture, while the move listener remains passive until it is actually
-    // eligible to prevent WebView overscroll.
+     // Passive listeners observe gestures without ever blocking native scrolling.
     el.addEventListener("touchstart", onTouchStart, {
       passive: true,
       capture: true,
     });
     el.addEventListener("touchmove", onTouchMove, {
-      passive: false,
+       passive: true,
       capture: true,
     });
     el.addEventListener("touchend", onTouchEnd, {
@@ -255,11 +250,7 @@ export default function PullToRefresh({
   return (
     <div
       ref={wrapperRef}
-      className="relative touch-scroll-y"
-      style={{
-        touchAction: "pan-y",
-        overscrollBehaviorY: "contain",
-      }}
+       className="relative"
     >
       {/* Indicator */}
       <div
