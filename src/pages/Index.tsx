@@ -4366,6 +4366,7 @@ const PersonalizationView = React.memo(({
                 <div className="mt-2">
                   <PullToRefresh
                     onRefresh={handleFeedRefresh}
+                    staticFeed
                   >
                     <FameFeed
                       onPostClick={() => setIsPostOpen(true)}

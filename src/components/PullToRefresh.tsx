@@ -5,6 +5,7 @@ interface Props {
   onRefresh: () => Promise<void> | void;
   children: ReactNode;
   disabled?: boolean;
+  staticFeed?: boolean;
   threshold?: number;
 }
 
@@ -12,6 +13,7 @@ export default function PullToRefresh({
   onRefresh,
   children,
   disabled = false,
+  staticFeed = false,
   threshold = 70,
 }: Props) {
   const [pullY, setPullY] = useState(0);
@@ -39,7 +41,9 @@ export default function PullToRefresh({
   }, [refreshing]);
 
   useEffect(() => {
-    if (disabled) return;
+    // Pull-to-refresh is intentionally opt-in. This prevents the gesture
+    // observer from being reused by settings, modals, or video feeds.
+    if (disabled || !staticFeed) return;
     const el = wrapperRef.current;
     if (!el) return;
 
@@ -214,22 +218,19 @@ export default function PullToRefresh({
       }
     };
 
-     // Passive listeners observe gestures without ever blocking native scrolling.
+    // Passive bubble listeners observe only this static feed. They never
+    // cancel native scrolling, selection, clicks, or video navigation.
     el.addEventListener("touchstart", onTouchStart, {
       passive: true,
-      capture: true,
     });
     el.addEventListener("touchmove", onTouchMove, {
-       passive: true,
-      capture: true,
+      passive: true,
     });
     el.addEventListener("touchend", onTouchEnd, {
       passive: true,
-      capture: true,
     });
     el.addEventListener("touchcancel", onTouchCancel, {
       passive: true,
-      capture: true,
     });
 
     return () => {
@@ -237,12 +238,12 @@ export default function PullToRefresh({
         cancelAnimationFrame(pullRafRef.current);
         pullRafRef.current = null;
       }
-      el.removeEventListener("touchstart", onTouchStart, true);
-      el.removeEventListener("touchmove", onTouchMove, true);
-      el.removeEventListener("touchend", onTouchEnd, true);
-      el.removeEventListener("touchcancel", onTouchCancel, true);
+      el.removeEventListener("touchstart", onTouchStart);
+      el.removeEventListener("touchmove", onTouchMove);
+      el.removeEventListener("touchend", onTouchEnd);
+      el.removeEventListener("touchcancel", onTouchCancel);
     };
-  }, [threshold, disabled]);
+  }, [threshold, disabled, staticFeed]);
 
   const progress = Math.min(pullY / threshold, 1);
   const readyToRefresh = pullY >= threshold * 0.7;
@@ -250,7 +251,7 @@ export default function PullToRefresh({
   return (
     <div
       ref={wrapperRef}
-       className="relative"
+      className="relative"
     >
       {/* Indicator */}
       <div

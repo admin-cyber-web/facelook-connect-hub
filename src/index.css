@@ -61,14 +61,24 @@
    ──────────────────────────────────────────────────────────────────────── */
 html, body, #root {
   max-width: 100vw;
-  overflow-x: clip;
+  overflow-x: hidden;
+  overscroll-behavior-x: none;
 }
 
 html, body {
   min-height: 100dvh;
   height: auto;
-  /* Prevent the browser's own refresh without disabling document scrolling. */
-  overscroll-behavior-y: none;
+  overflow-y: auto;
+  position: relative;
+  touch-action: pan-y;
+  overscroll-behavior-y: auto;
+}
+
+/* Keep the root document a normal, expanding scroll surface. */
+body,
+#root {
+  overflow: visible;
+  overscroll-behavior-y: auto;
 }
 
 #root {
@@ -77,6 +87,9 @@ html, body {
   padding-right: env(safe-area-inset-right);
   padding-top:    var(--cap-safe-top);
   padding-bottom: env(safe-area-inset-bottom);
+  touch-action: pan-y;
+  overflow-x: hidden;
+  overflow-y: visible;
 }
 
 /* Toasts and other fixed notices are outside #root's flow, so give their
@@ -98,6 +111,7 @@ body.body-locked {
   position: fixed;
   inset: 0;
   width: 100%;
+  touch-action: none;
 }
 
 /* All scroll-y panes inside the app should contain their overscroll, so a
@@ -111,6 +125,7 @@ body.body-locked {
 
 /* Explicit vertical gesture surface for the app shell and feed wrappers. */
 .touch-scroll-y {
+  touch-action: pan-y;
   -webkit-overflow-scrolling: touch;
 }
 
