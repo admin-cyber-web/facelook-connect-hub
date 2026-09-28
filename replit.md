@@ -83,7 +83,9 @@ Full-screen messenger with 6 modules:
 - `vite.config.ts` — Vite config (host: 0.0.0.0, port: 5000)
 
 ## Running the App
-- Development: `npm run dev` (port 5000)
+- Install dependencies: `npm install` (Node.js 20; uses the existing `package-lock.json`)
+- Set `VITE_SUPABASE_URL` to the existing Supabase project URL and set `VITE_SUPABASE_ANON_KEY` as a Replit Secret. Both are required for the frontend to initialize. Other integrations (for example Gemini and Agora) need their own credentials to use those features.
+- Development: run the existing **Start application** workflow (`npm run dev`, port 5000). Open the Replit web preview.
 - Build: `npm run build`
 
 ## KBC Quiz Battle (Task Section)
