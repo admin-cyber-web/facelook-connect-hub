@@ -223,6 +223,7 @@ const FlickCard = memo(({ post, isActive, isPreloaded, currentUserId, onBridgeCh
   const [reportAnchor,      setReportAnchor]       = useState<{ top: number; right: number } | null>(null);
   const [reportText,        setReportText]         = useState("");
   const [reporting,         setReporting]          = useState(false);
+  const [deleting,          setDeleting]           = useState(false);
   const [editingCaption,    setEditingCaption]     = useState(false);
   const [localContent,      setLocalContent]       = useState(post?.content || "");
   // ── Video health states ────────────────────────────────────────────────
@@ -504,6 +505,31 @@ const FlickCard = memo(({ post, isActive, isPreloaded, currentUserId, onBridgeCh
     onPostDeleted?.(post._raw_id);
   };
 
+  const handleOwnerDelete = async () => {
+    setMenuOpen(false);
+    if (!isOwner || !currentUserId || !post._raw_id || deleting) return;
+    if (!window.confirm("Delete this Reel permanently?")) return;
+
+    setDeleting(true);
+    try {
+      // Supabase RLS remains the final authorization check. The UI owner
+      // check only controls visibility of this action.
+      const { error } = await supabase
+        .from("posts")
+        .delete()
+        .eq("id", post._raw_id);
+      if (error) throw error;
+
+      toast.success("Reel deleted.");
+      onPostDeleted?.(post._raw_id);
+    } catch (error: unknown) {
+      console.error("[Flicks] owner reel delete failed:", error);
+      toast.error(error instanceof Error ? error.message : "Reel could not be deleted.");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const handleAdminBan = async () => {
     setMenuOpen(false);
     if (!isAdmin || !post.author_id) return;
@@ -520,6 +546,10 @@ const FlickCard = memo(({ post, isActive, isPreloaded, currentUserId, onBridgeCh
   if (!post) return null;
 
   const tickerText = `♪  @${post.author || "user"}  —  ${localContent || "No caption"}`;
+  // Reels are normalized with their creator in `user_id`; author_id is kept
+  // as a compatibility fallback for cached cards from before normalization.
+  const reelOwnerId = post.user_id || post.author_id;
+  const isOwner = Boolean(currentUserId && reelOwnerId === currentUserId);
 
   return (
     /* Root card — explicit height, no flex layout so absolute children are unambiguous */
@@ -633,6 +663,16 @@ const FlickCard = memo(({ post, isActive, isPreloaded, currentUserId, onBridgeCh
                   <button onClick={() => { setMenuOpen(false); setEditingCaption(true); }}
                     className="w-full flex items-center gap-3 px-4 py-3.5 text-blue-400 hover:bg-white/5 text-sm font-bold border-b border-white/5">
                     <Pencil size={14} /> Edit Post
+                  </button>
+                )}
+                {isOwner && (
+                  <button
+                    onClick={handleOwnerDelete}
+                    disabled={deleting}
+                    className="w-full flex items-center gap-3 px-4 py-3.5 text-red-400 hover:bg-red-500/10 text-sm font-bold border-b border-white/5 disabled:cursor-wait disabled:opacity-60"
+                  >
+                    {deleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                    {deleting ? "Deleting Reel…" : "Delete Reel"}
                   </button>
                 )}
                 <button onClick={e => {
@@ -855,6 +895,7 @@ export default function FlicksApp({
         const { data: authData, error: authError } = await supabase.auth.getUser();
         if (authError) throw authError;
         const viewerId = authData.user?.id ?? null;
+        setCurrentUserId(viewerId);
         const { data: postsData, error: postsErr } = await supabase
           .from("posts")
           .select("id, author, author_id, content, media_url, type, metadata, cover_url, views_count, likes_count, comments_count, shares_count, meta_title, meta_description, created_at, author_profile:profiles!posts_author_id_fkey(avatar_url, full_name)")
@@ -892,6 +933,9 @@ export default function FlicksApp({
           id: `post_${p.id}`,
           _raw_id: p.id,
           _source: "posts",
+          // The posts table stores the creator as author_id. Normalize that
+          // value to user_id for the Reel card ownership contract.
+          user_id: p.author_id || p.user_id,
           author_id: p.author_id || p.user_id,
           author: p.author_profile?.full_name || p.author || "User",
           author_avatar: p.author_profile?.avatar_url || null,
@@ -946,6 +990,21 @@ export default function FlicksApp({
     scrollTicking.current = false;
   }, []);
 
+  useEffect(() => {
+    if (flicks.length === 0 || currentIndex < flicks.length) return;
+    const nextIndex = flicks.length - 1;
+    currentIndexRef.current = nextIndex;
+    setCurrentIndex(nextIndex);
+  }, [currentIndex, flicks.length]);
+
+  const handlePostDeleted = useCallback((rawId: string) => {
+    setFlicks((previous) => {
+      const next = previous.filter((item) => item._raw_id !== rawId);
+      dataCache.setCache("flicksFeed", { data: next, fetchedAt: Date.now() });
+      return next;
+    });
+  }, [dataCache]);
+
   if (loading)
     return (
       <div className="h-screen bg-black" aria-label="Loading reels" />
@@ -983,7 +1042,7 @@ export default function FlicksApp({
                   currentUserId={currentUserId}
                   onBridgeChat={onBridgeChat}
                   isAdmin={isAdmin}
-                  onPostDeleted={(rawId: string) => setFlicks(prev => prev.filter(x => x._raw_id !== rawId))}
+                  onPostDeleted={handlePostDeleted}
                   onUserBanned={(authorId: string) => setFlicks(prev => prev.filter(x => x.author_id !== authorId))}
                   onVideoInvalid={(id: string) => setFlicks(prev => prev.filter(x => x.id !== id))}
                 />
