@@ -64,6 +64,7 @@ import InviteCard from "@/components/InviteCard";
 import GolSlider from "@/components/GolSlider";
 import PullToRefresh from "@/components/PullToRefresh";
 import AutoPlayMutedVideo from "@/components/AutoPlayMutedVideo";
+import ShareVibeComposer from "@/components/ShareVibeComposer";
 import { isAdminEmail } from "@/lib/adminConfig";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { useDataCache } from "@/context/DataCacheContext";
@@ -3951,6 +3952,15 @@ const PersonalizationView = React.memo(({
                 {/* ── Stories Strip ─────────────────────────────────────────── */}
                 <StoryBar userProfile={profile} />
 
+                <ShareVibeComposer
+                  userProfile={profile}
+                  onOpen={() => setIsPostOpen(true)}
+                  onMediaSelect={(file) => {
+                    setPendingFile(file);
+                    setIsPostOpen(true);
+                  }}
+                />
+
                 {/* ── Feature Cards: Fun Call + Frame (Section B style) ────── */}
                 <div className="px-3 pt-1 pb-1 grid grid-cols-2 gap-2.5">
 
@@ -4369,8 +4379,6 @@ const PersonalizationView = React.memo(({
                     staticFeed
                   >
                     <FameFeed
-                      onPostClick={() => setIsPostOpen(true)}
-                      onImageSelect={(f) => setPendingFile(f)}
                       currentUserId={userId}
                       currentUserEmail={userEmail}
                       userProfile={profile}
