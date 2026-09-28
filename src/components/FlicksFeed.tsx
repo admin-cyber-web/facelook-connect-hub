@@ -546,9 +546,9 @@ const FlickCard = memo(({ post, isActive, isPreloaded, currentUserId, onBridgeCh
   if (!post) return null;
 
   const tickerText = `♪  @${post.author || "user"}  —  ${localContent || "No caption"}`;
-  // Reels are normalized with their creator in `user_id`; author_id is kept
-  // as a compatibility fallback for cached cards from before normalization.
-  const reelOwnerId = post.user_id || post.author_id;
+  // The Reel creator is `author_id` on posts, matching Fame Feed's owner
+  // contract. Keep user_id as a fallback for older cached Reel objects.
+  const reelOwnerId = post.author_id || post.user_id;
   const isOwner = Boolean(currentUserId && reelOwnerId === currentUserId);
 
   return (
@@ -659,7 +659,7 @@ const FlickCard = memo(({ post, isActive, isPreloaded, currentUserId, onBridgeCh
               <motion.div initial={{ opacity: 0, scale: 0.9, y: -6 }} animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.9, y: -6 }} transition={{ duration: 0.12 }}
                 className="absolute right-0 top-11 z-[70] w-52 bg-zinc-900/95 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
-                {post.author_id === currentUserId && (
+                {isOwner && (
                   <button onClick={() => { setMenuOpen(false); setEditingCaption(true); }}
                     className="w-full flex items-center gap-3 px-4 py-3.5 text-blue-400 hover:bg-white/5 text-sm font-bold border-b border-white/5">
                     <Pencil size={14} /> Edit Post
