@@ -358,6 +358,7 @@ create table if not exists public.posts (
   content         text,
   media_url       text,
   image_url       text,
+  image_urls      text[],
   cover_url       text,
   media_type      text,
   type            text not null default 'text',
@@ -379,6 +380,7 @@ alter table public.posts add column if not exists author_id uuid;
 alter table public.posts add column if not exists author text;
 alter table public.posts add column if not exists content text;
 alter table public.posts add column if not exists media_url text;
+alter table public.posts add column if not exists image_urls text[];
 alter table public.posts add column if not exists image_url text;
 alter table public.posts add column if not exists cover_url text;
 alter table public.posts add column if not exists media_type text;

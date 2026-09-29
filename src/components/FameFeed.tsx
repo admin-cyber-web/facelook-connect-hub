@@ -22,6 +22,7 @@ import AutoPlayMutedVideo from "./AutoPlayMutedVideo";
 import { maskProfanity, sanitizeText } from "../lib/profanityFilter";
 import { resolveMediaUrl } from "../lib/mediaUrl";
 import { getReelSettings } from "../lib/reelSettings";
+import PostImageViewer from "./PostImageViewer";
 import {
   Send,
   Heart,
@@ -322,10 +323,94 @@ const YouTubeEmbed = memo(({ url }: { url: string }) => {
   );
 });
 
+const getPostImageUrls = (post: any): string[] => {
+  let rawUrls = post?.image_urls ?? post?.metadata?.image_urls;
+  if (typeof rawUrls === "string") {
+    try {
+      rawUrls = JSON.parse(rawUrls);
+    } catch {
+      rawUrls = rawUrls.includes(",") ? rawUrls.split(",") : [rawUrls];
+    }
+  }
+  if (Array.isArray(rawUrls)) {
+    const urls = rawUrls.filter((url): url is string => typeof url === "string" && url.trim().length > 0);
+    if (urls.length) return urls.slice(0, 5);
+  }
+
+  const legacyUrl = post?.media_url || post?.image_url || post?.cover_url || null;
+  if (!legacyUrl || post?.type === "video") return [];
+  const isVideo =
+    post?.metadata?.is_youtube ||
+    legacyUrl.includes("youtube.com") ||
+    legacyUrl.includes("youtu.be") ||
+    /\.(mp4|webm|ogg|mov|m4v)/i.test(legacyUrl.split("?")[0]) ||
+    legacyUrl.includes("rapidcdn.app");
+  return isVideo ? [] : [legacyUrl];
+};
+
+const PostImageCollage = memo(({ urls, onOpen }: { urls: string[]; onOpen: (index: number) => void }) => {
+  const visibleUrls = urls.length === 5 ? urls.slice(0, 4) : urls;
+  const count = visibleUrls.length;
+  const layout =
+    count === 1
+      ? "grid-cols-1"
+      : count === 2
+        ? "grid-cols-2"
+        : count === 3
+          ? "grid-cols-2 grid-rows-[1.35fr_1fr]"
+          : "grid-cols-2 grid-rows-2";
+
+  return (
+    <div className={`grid aspect-[16/10] w-full gap-1 overflow-hidden bg-black ${layout}`} style={{ touchAction: "pan-y" }}>
+      {visibleUrls.map((url, index) => (
+        <button
+          key={`${url}-${index}`}
+          type="button"
+          onClick={() => onOpen(index)}
+          className={`group relative min-h-0 overflow-hidden bg-slate-950 ${
+            count === 3 && index === 0 ? "col-span-2" : ""
+          }`}
+          aria-label={`Open image ${index + 1} of ${urls.length}`}
+        >
+          <img
+            src={url}
+            loading={index === 0 ? "eager" : "lazy"}
+            className="h-full w-full object-cover transition duration-500 ease-out group-hover:scale-[1.045]"
+            alt=""
+            decoding="async"
+          />
+          {urls.length === 5 && index === 3 && (
+            <span className="absolute inset-0 flex items-center justify-center bg-black/45 text-2xl font-black text-white">
+              +1
+            </span>
+          )}
+        </button>
+      ))}
+    </div>
+  );
+});
+
 // ── Smart media renderer ───────────────────────────────────────────────────────
 const PostMedia = memo(({ post }: { post: any }) => {
+  const [viewerIndex, setViewerIndex] = useState<number | null>(null);
+  const imageUrls = getPostImageUrls(post);
   const url = post.media_url || post.image_url || post.cover_url || null;
-  if (!url) return null;
+  if (!url && !imageUrls.length) return null;
+  if (imageUrls.length) {
+    return (
+      <>
+        <PostImageCollage urls={imageUrls} onOpen={setViewerIndex} />
+        {viewerIndex !== null && (
+          <PostImageViewer
+            urls={imageUrls}
+            index={viewerIndex}
+            onIndexChange={setViewerIndex}
+            onClose={() => setViewerIndex(null)}
+          />
+        )}
+      </>
+    );
+  }
   const isYT =
     post.metadata?.is_youtube ||
     url.includes("youtube.com") ||
@@ -3364,7 +3449,7 @@ const FameFeed = ({
       let res = await supabase
         .from("posts")
         .select(
-          "id, author, author_id, content, media_url, image_url, type, likes_count, comments_count, created_at, metadata, cover_url, views_count, shares_count, visibility, meta_title, meta_description, author_profile:profiles!posts_author_id_fkey(avatar_url, full_name, is_verified, is_private_mode, last_seen, is_official_creator, state, district, city)",
+          "id, author, author_id, content, media_url, image_url, image_urls, type, likes_count, comments_count, created_at, metadata, cover_url, views_count, shares_count, visibility, meta_title, meta_description, author_profile:profiles!posts_author_id_fkey(avatar_url, full_name, is_verified, is_private_mode, last_seen, is_official_creator, state, district, city)",
         )
         .order("created_at", { ascending: false })
         .range(from, to);
@@ -3466,7 +3551,7 @@ const FameFeed = ({
           if (newPostIds.length) {
             const { data: chainPosts } = await supabase
               .from("posts")
-              .select("id, author, author_id, content, media_url, image_url, type, likes_count, comments_count, created_at, metadata, cover_url, views_count, shares_count, visibility, meta_title, meta_description, author_profile:profiles!posts_author_id_fkey(avatar_url,full_name,is_verified,is_private_mode,last_seen,is_official_creator,state,district,city,pincode)")
+              .select("id, author, author_id, content, media_url, image_url, image_urls, type, likes_count, comments_count, created_at, metadata, cover_url, views_count, shares_count, visibility, meta_title, meta_description, author_profile:profiles!posts_author_id_fkey(avatar_url,full_name,is_verified,is_private_mode,last_seen,is_official_creator,state,district,city,pincode)")
               .in("id", newPostIds)
               .limit(10);
             if (chainPosts?.length) {

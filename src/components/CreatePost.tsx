@@ -44,8 +44,9 @@ const CreatePost = ({
   onReelSelected,
 }: CreatePostProps) => {
   const [content, setContent] = useState("");
-  const [file, setFile] = useState<File | null>(null);
-  const [preview, setPreview] = useState<string | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
+  const [previews, setPreviews] = useState<string[]>([]);
+  const previewUrlsRef = useRef<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingMsg, setLoadingMsg] = useState("Post Vibe");
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -61,6 +62,18 @@ const CreatePost = ({
   const [surpriseTargetId, setSurpriseTargetId] = useState("");
   const [surpriseCustomMessage, setSurpriseCustomMessage] = useState("");
   const [surpriseGifUrl, setSurpriseGifUrl] = useState("");
+
+  const replaceMediaSelection = (nextFiles: File[]) => {
+    previewUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+    const nextPreviews = nextFiles.map((selectedFile) =>
+      URL.createObjectURL(selectedFile),
+    );
+    previewUrlsRef.current = nextPreviews;
+    setFiles(nextFiles);
+    setPreviews(nextPreviews);
+  };
+
+  const clearMediaSelection = () => replaceMediaSelection([]);
 
   // Load friends + first circle members for mention candidates (memoized fetch).
   useEffect(() => {
@@ -151,22 +164,18 @@ const CreatePost = ({
 
   useEffect(() => {
     if (initialFile) {
-      setFile(initialFile);
-      setPreview(URL.createObjectURL(initialFile));
+      replaceMediaSelection([initialFile]);
     }
   }, [initialFile]);
 
   useEffect(() => {
-    return () => {
-      if (preview?.startsWith("blob:")) URL.revokeObjectURL(preview);
-    };
-  }, [preview]);
+    return () => previewUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+  }, []);
 
   useEffect(() => {
     if (!isOpen) {
       setContent("");
-      setFile(null);
-      setPreview(null);
+      clearMediaSelection();
       setVisibility("public");
       setLoadingMsg("Post Vibe");
        setSurpriseEnabled(false);
@@ -204,29 +213,38 @@ const CreatePost = ({
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0];
-    if (selectedFile) {
-      if (selectedFile.type.startsWith("video/")) {
-        onReelSelected?.(selectedFile);
+    const selectedFiles = Array.from(e.target.files || []);
+    if (selectedFiles.length) {
+      const videoFile = selectedFiles.find((selectedFile) =>
+        selectedFile.type.startsWith("video/"),
+      );
+      if (videoFile) {
+        onReelSelected?.(videoFile);
         onClose();
         e.target.value = "";
         return;
       }
-      if (preview) URL.revokeObjectURL(preview);
-      setFile(selectedFile);
-      setPreview(URL.createObjectURL(selectedFile));
+      const imageFiles = selectedFiles.filter((selectedFile) =>
+        selectedFile.type.startsWith("image/"),
+      );
+      const nextFiles = [...files, ...imageFiles].slice(0, 5);
+      if (files.length + imageFiles.length > 5) {
+        toast.info("You can add up to 5 images per post.");
+      }
+      replaceMediaSelection(nextFiles);
     }
+    e.target.value = "";
   };
 
   const mediaType = useMemo<"image" | "video" | "youtube" | "text" | undefined>(() => {
-    if (file) {
-      if (file.type.startsWith("video/")) return "video";
+    if (files.length) {
+      if (files[0].type.startsWith("video/")) return "video";
       return "image";
     }
     const url = content.match(/https?:\/\/[^\s]+/)?.[0] || "";
     if (/youtu\.be\/|youtube\.com\/|\/shorts\//.test(url)) return "youtube";
     return undefined;
-  }, [file, content]);
+  }, [files, content]);
 
   const { suggestions, loading: suggestLoading, error: suggestError, refresh } = useSuggestion({
     text: content,
@@ -294,14 +312,14 @@ const CreatePost = ({
   };
 
   const handleSaveDraft = () => {
-    if (!content && !file) return;
+    if (!content && !files.length) return;
     setDraft(true);
     toast.success("Draft saved!", { duration: 2000 });
     onClose();
   };
 
   const handlePost = async () => {
-    if (!content && !file) return;
+    if (!content && !files.length) return;
     setLoading(true);
     setLoadingMsg("Posting…");
 
@@ -360,17 +378,27 @@ const CreatePost = ({
       let isYoutube = false;
       let smartAssetSource: "keyword" | "fallback" | null = null;
       let smartAssetKey: string | null = null;
+      let imageUrls: string[] = [];
 
-      if (!file) {
+      if (!files.length) {
         const detection = getMediaInfoFromUrl(content);
         finalMediaUrl = detection.finalUrl;
         mediaType = detection.type;
         isYoutube = detection.isYoutube;
       }
 
-      if (file) {
-        mediaType = file.type.startsWith("video/") ? "video" : "image";
-        finalMediaUrl = await uploadToCloudinary(file);
+      if (files.length) {
+        if (files[0].type.startsWith("video/")) {
+          mediaType = "video";
+          finalMediaUrl = await uploadToCloudinary(files[0]);
+        } else {
+          mediaType = "image";
+          setLoadingMsg(`Uploading ${files.length} image${files.length === 1 ? "" : "s"}…`);
+          imageUrls = await Promise.all(
+            files.map((selectedFile) => uploadToCloudinary(selectedFile)),
+          );
+          finalMediaUrl = imageUrls[0] || "";
+        }
         isYoutube = false;
       }
 
@@ -416,7 +444,7 @@ const CreatePost = ({
 
       // User-selected media always wins. Only text-only posts without an
       // existing direct/YouTube media URL receive an automatic image.
-      if (!file && !finalMediaUrl) {
+      if (!files.length && !finalMediaUrl) {
         const smartAsset = getSmartPostAsset(cleanContent);
         finalMediaUrl = smartAsset.url;
         mediaType = smartAsset.type;
@@ -431,6 +459,7 @@ const CreatePost = ({
         author_id: user?.id || userProfile?.id,
         content: cleanContent,
         media_url: finalMediaUrl,
+        image_urls: imageUrls.length ? imageUrls : null,
         author: authorName,
         type: mediaType,
         post_type: "fame",
@@ -446,6 +475,7 @@ const CreatePost = ({
           has_team: hasTeam,
           smart_asset_source: smartAssetSource,
           smart_asset_key: smartAssetKey,
+          ...(imageUrls.length ? { image_urls: imageUrls } : {}),
           // SEO also stored inside metadata as fallback in case columns aren't migrated yet
           meta_title: seo.meta_title,
           meta_description: seo.meta_description,
@@ -534,6 +564,11 @@ const CreatePost = ({
           content: inserted?.content ?? postPayload.content,
           media_url: inserted?.media_url ?? postPayload.media_url,
           image_url: inserted?.image_url ?? postPayload.media_url,
+           image_urls:
+             inserted?.image_urls ??
+             postPayload.image_urls ??
+             postPayload.metadata.image_urls ??
+             null,
           type: inserted?.type ?? postPayload.type,
           visibility: inserted?.visibility ?? postPayload.visibility,
           metadata: inserted?.metadata ?? postPayload.metadata,
@@ -589,8 +624,7 @@ const CreatePost = ({
       }
 
       setContent("");
-      setFile(null);
-      setPreview(null);
+      clearMediaSelection();
       onClose();
     } catch (err: any) {
       console.error("Error Details:", err);
@@ -601,7 +635,7 @@ const CreatePost = ({
     }
   };
 
-  const canPost = !loading && (!!content || !!file);
+  const canPost = !loading && (!!content || files.length > 0);
 
   return (
     <AnimatePresence>
@@ -738,32 +772,54 @@ const CreatePost = ({
                   </AnimatePresence>
 
                   <AnimatePresence>
-                    {preview && (
+                    {previews.length > 0 && (
                       <motion.div
                         initial={{ opacity: 0, scale: 0.97 }}
                         animate={{ opacity: 1, scale: 1 }}
                         exit={{ opacity: 0, scale: 0.97 }}
                         className="relative overflow-hidden rounded-[1.25rem] border border-slate-200 bg-slate-950 shadow-[0_10px_30px_rgba(23,37,84,0.10)]"
                       >
-                        {file?.type.startsWith("video/") ? (
-                          <video src={preview} className="max-h-60 w-full object-contain" controls preload="none" />
-                        ) : (
-                          <img src={preview} className="max-h-60 w-full object-cover" alt="Preview" decoding="async" />
+                        <div className={`grid gap-1.5 p-1.5 ${previews.length === 1 ? "grid-cols-1" : "grid-cols-2"}`}>
+                          {previews.map((previewUrl, index) => (
+                            <div
+                              key={previewUrl}
+                              className={`relative overflow-hidden rounded-xl bg-slate-900 ${previews.length === 1 ? "aspect-[16/10]" : "aspect-square"}`}
+                            >
+                              {files[index]?.type.startsWith("video/") ? (
+                                <video src={previewUrl} className="h-full w-full object-contain" controls preload="none" />
+                              ) : (
+                                <img src={previewUrl} className="h-full w-full object-cover" alt={`Selected image ${index + 1}`} decoding="async" />
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const nextFiles = files.filter((_, fileIndex) => fileIndex !== index);
+                                  const removedPreview = previews[index];
+                                  if (removedPreview) URL.revokeObjectURL(removedPreview);
+                                  const nextPreviews = previews.filter((_, previewIndex) => previewIndex !== index);
+                                  previewUrlsRef.current = nextPreviews;
+                                  setFiles(nextFiles);
+                                  setPreviews(nextPreviews);
+                                }}
+                                className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-slate-950/70 text-white transition-colors hover:bg-[#FF3B4D] active:scale-90"
+                                aria-label={`Remove image ${index + 1}`}
+                              >
+                                <X size={14} strokeWidth={2.5} />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                        {files.length > 1 && (
+                          <p className="px-3 pb-1 text-[11px] font-bold text-white/75">
+                            {files.length}/5 images selected
+                          </p>
                         )}
-                        <button
-                          type="button"
-                          onClick={() => { setFile(null); setPreview(null); }}
-                          className="absolute right-2 top-2 flex h-9 w-9 items-center justify-center rounded-full bg-slate-950/65 text-white transition-colors hover:bg-[#FF3B4D] active:scale-90"
-                          aria-label="Remove media"
-                        >
-                          <X size={14} strokeWidth={2.5} />
-                        </button>
                         <label
                           htmlFor="add-more-picker"
-                          className="absolute bottom-2 right-2 flex cursor-pointer items-center gap-1 rounded-full bg-slate-950/65 px-3 py-1.5 text-[11px] font-bold text-white transition-colors hover:bg-[#FF3B4D]"
+                          className="absolute bottom-2 right-2 flex cursor-pointer items-center gap-1 rounded-full bg-slate-950/70 px-3 py-1.5 text-[11px] font-bold text-white transition-colors hover:bg-[#FF3B4D]"
                         >
                           <ImageIcon size={11} /> Add More
-                          <input id="add-more-picker" type="file" className="hidden" accept="image/*,video/*" onChange={handleFileChange} />
+                          <input id="add-more-picker" type="file" multiple className="hidden" accept="image/*" onChange={handleFileChange} />
                         </label>
                       </motion.div>
                     )}
@@ -876,7 +932,7 @@ const CreatePost = ({
                       >
                         <ImageIcon size={22} strokeWidth={2} />
                         <span className="text-[11px] font-semibold text-slate-500">Photo</span>
-                        <input id="gallery-picker" type="file" className="hidden" accept="image/*,video/*" onChange={handleFileChange} ref={fileInputRef} />
+                        <input id="gallery-picker" type="file" multiple className="hidden" accept="image/*,video/*" onChange={handleFileChange} ref={fileInputRef} />
                       </label>
                       <button
                         type="button"
@@ -926,7 +982,7 @@ const CreatePost = ({
                       <span className="text-[11px] font-semibold text-slate-500">Emoji</span>
                     </button>
 
-                    {Boolean(content || file) && (
+                    {Boolean(content || files.length) && (
                       <button
                         type="button"
                         onClick={handleSaveDraft}

@@ -34,6 +34,7 @@ create table if not exists posts (
   author        text,
   content       text,
   media_url     text,
+  image_urls    text[],
   type          text default 'text',
   likes_count   integer default 0,
   comments_count integer default 0,
