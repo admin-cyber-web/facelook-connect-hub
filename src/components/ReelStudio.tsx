@@ -78,7 +78,8 @@ export default function ReelStudio({
   onClose,
   onSaved,
 }: ReelStudioProps) {
-  const isEditing = Boolean(reel?.id);
+  const reelId = reel?._raw_id || reel?.id || null;
+  const isEditing = Boolean(reelId);
   const videoInputRef = useRef<HTMLInputElement>(null);
   const audioInputRef = useRef<HTMLInputElement>(null);
   const previewVideoRef = useRef<HTMLVideoElement>(null);
@@ -314,7 +315,7 @@ export default function ReelStudio({
         const result = await supabase
           .from("posts")
           .update(fullPayload)
-          .eq("id", reel.id)
+          .eq("id", reelId)
           .select("*")
           .maybeSingle();
         savedRow = result.data;
@@ -342,7 +343,7 @@ export default function ReelStudio({
           metadata,
         };
         const result = isEditing
-          ? await supabase.from("posts").update(compatibilityPayload).eq("id", reel.id).select("*").maybeSingle()
+          ? await supabase.from("posts").update(compatibilityPayload).eq("id", reelId).select("*").maybeSingle()
           : await supabase.from("posts").insert([compatibilityPayload]).select("*").maybeSingle();
         savedRow = result.data;
         saveError = result.error;
@@ -356,7 +357,7 @@ export default function ReelStudio({
       const fallbackRow = {
         ...(reel || {}),
         ...fullPayload,
-        id: savedRow?.id || reel?.id,
+        id: savedRow?.id || reelId,
         author_id: savedRow?.author_id || userId,
       };
       const nextRow = toReelRow(savedRow, fallbackRow);

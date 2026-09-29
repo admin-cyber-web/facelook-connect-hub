@@ -33,6 +33,7 @@ interface CreatePostProps {
   onClose: () => void;
   userProfile: any;
   initialFile?: File | null;
+  onReelSelected?: (file: File) => void;
 }
 
 const CreatePost = ({
@@ -40,6 +41,7 @@ const CreatePost = ({
   onClose,
   userProfile,
   initialFile,
+  onReelSelected,
 }: CreatePostProps) => {
   const [content, setContent] = useState("");
   const [file, setFile] = useState<File | null>(null);
@@ -204,6 +206,12 @@ const CreatePost = ({
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
     if (selectedFile) {
+      if (selectedFile.type.startsWith("video/")) {
+        onReelSelected?.(selectedFile);
+        onClose();
+        e.target.value = "";
+        return;
+      }
       if (preview) URL.revokeObjectURL(preview);
       setFile(selectedFile);
       setPreview(URL.createObjectURL(selectedFile));
