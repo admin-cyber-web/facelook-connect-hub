@@ -1,0 +1,16 @@
+CRITICAL UI UPDATE: Redesign the "Create Post / Share Your Vibe" composer section on the Flicks India home/feed screen.
+
+Follow these strict requirements:
+1. **Scope Limitation:** Redesign ONLY the Create Post / Share Your Vibe composer section. Do NOT touch the header, Stories row, posts feed, bottom navigation, or overall page colors. Keep the dark midnight/maroon app background completely intact.
+2. **Placement & Visual Style:** Position the new composer card directly below the Stories section. The composer itself must be a premium, bright white / very light card with large rounded corners, soft shadows, and a very thin cyan/pink gradient glow around the outer edge (creating a stunning contrast against the dark background).
+3. **Left Side (Avatar):** Keep the current logged-in user's profile avatar with a thin cyan/purple/pink glowing ring and a small green online indicator at the bottom-right.
+4. **Center (Typewriter Input Area):** 
+   - Display a clean, modern input-style area with dark slate/indigo text.
+   - Implement a smooth **typewriter animation** for the placeholder text: "Share your vibe today..." (Types in character-by-character, pauses, deletes smoothly, and repeats).
+   - Ensure the animation instantly stops if the user starts typing or clicks the composer.
+   - Respect `prefers-reduced-motion` by disabling the animation for users who prefer reduced motion.
+   - Tapping the composer must seamlessly open the existing post creation flow/editor without duplicating logic.
+5. **Right Side (Media Button Only):** 
+   - Keep ONLY ONE action button: "Media / Photo" with a clean camera icon inside a rounded capsule/pill shape (blue → purple gradient with white label and subtle glow).
+   - **Do NOT** add any "Magic AI Quote" or AI buttons to this section.
+6. **Code & Logic Preservation:** Reuse existing handlers, authentication checks, and upload/media picker flows. Do not create duplicate post-creation logic, and ensure all animation timers are properly cleaned up on unmount.
