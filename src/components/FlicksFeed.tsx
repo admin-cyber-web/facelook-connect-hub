@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback, memo } from "react";
+import React, { useState, useRef, useEffect, useCallback, useMemo, memo } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "../lib/supabaseClient";
@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { MagnetButton } from "./MagnetSystem";
 import { toast } from "sonner";
+import { getReelSettings } from "@/lib/reelSettings";
 
 // ── Utilities ─────────────────────────────────────────────────────────────────
 const formatCount = (n: any): string => {
@@ -206,6 +207,7 @@ const CommentDrawer = ({ post, currentUserId, onClose, onCommentAdded }: any) =>
 // ── FlickCard ─────────────────────────────────────────────────────────────────
 const FlickCard = memo(({ post, isActive, isPreloaded, currentUserId, onBridgeChat, isAdmin, onPostDeleted, onUserBanned, onVideoInvalid }: any) => {
   const videoRef   = useRef<HTMLVideoElement>(null);
+  const audioRef   = useRef<HTMLAudioElement>(null);
   const tapTimer   = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastTap    = useRef<number>(0);
   const likeBusyRef = useRef(false);
@@ -230,6 +232,9 @@ const FlickCard = memo(({ post, isActive, isPreloaded, currentUserId, onBridgeCh
   const [videoError,        setVideoError]         = useState<string | null>(null);
   const sounds = useSoundEffects();
   const { openProfile } = useProfileViewer();
+  const reelSettings = useMemo(() => getReelSettings(post), [post]);
+  const videoUrl = reelSettings.videoUrl || post.media_url || post.url;
+  const hasBackgroundAudio = Boolean(reelSettings.audioUrl);
 
   useEffect(() => {
     setLikedByMe(Boolean(post?.liked_by_me));
@@ -259,13 +264,22 @@ const FlickCard = memo(({ post, isActive, isPreloaded, currentUserId, onBridgeCh
   // ── Play / pause + sound when card enters/leaves view ──────────────────
   useEffect(() => {
     const vid = videoRef.current;
+    const audio = audioRef.current;
     if (!vid) return;
+    vid.playbackRate = reelSettings.playbackRate;
+    vid.style.filter = reelSettings.cssFilter;
+    vid.muted = hasBackgroundAudio || !globalSoundEnabled;
+    if (audio) {
+      audio.playbackRate = reelSettings.playbackRate;
+      audio.loop = true;
+      audio.muted = !globalSoundEnabled;
+    }
     if (isActive) {
       // Reset transient error/loading on each activation (e.g. user scrolled away and back)
       setVideoError(null);
       vid.currentTime = 0;
       const wantSound = globalSoundEnabled;
-      vid.muted  = !wantSound;
+      vid.muted  = hasBackgroundAudio || !wantSound;
       vid.volume = 1;
       setIsMuted(!wantSound);
       vid.play().catch((err) => {
@@ -278,10 +292,28 @@ const FlickCard = memo(({ post, isActive, isPreloaded, currentUserId, onBridgeCh
         }
         // Other errors (NotSupportedError etc.) are handled by the onError handler below
       });
+      if (hasBackgroundAudio && audio) {
+        audio.currentTime = vid.currentTime;
+        audio.play().catch(() => {});
+      }
     } else {
       vid.pause();
+      audio?.pause();
     }
-  }, [isActive]);
+  }, [hasBackgroundAudio, isActive, reelSettings.cssFilter, reelSettings.playbackRate]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    const audio = audioRef.current;
+    if (!video || !audio || !hasBackgroundAudio) return;
+    const syncAudio = () => {
+      if (Math.abs(audio.currentTime - video.currentTime) > 0.18) {
+        audio.currentTime = video.currentTime;
+      }
+    };
+    video.addEventListener("timeupdate", syncAudio);
+    return () => video.removeEventListener("timeupdate", syncAudio);
+  }, [hasBackgroundAudio, reelSettings.audioUrl]);
 
   // ── Core like logic (used by button + double-tap) ─────────────────────
   const refreshLikeState = useCallback(async () => {
@@ -391,9 +423,14 @@ const FlickCard = memo(({ post, isActive, isPreloaded, currentUserId, onBridgeCh
     if (!globalSoundEnabled) {
       globalSoundEnabled = true;
       if (isActive && videoRef.current) {
-        videoRef.current.muted = false;
+        videoRef.current.muted = hasBackgroundAudio;
         setIsMuted(false);
         videoRef.current.play().catch(() => {});
+        if (hasBackgroundAudio && audioRef.current) {
+          audioRef.current.muted = false;
+          audioRef.current.currentTime = videoRef.current.currentTime;
+          audioRef.current.play().catch(() => {});
+        }
       }
     }
     const now = Date.now();
@@ -561,16 +598,17 @@ const FlickCard = memo(({ post, isActive, isPreloaded, currentUserId, onBridgeCh
       {/* ── Video — absolute inset-0 so it is unambiguously at z=0 behind every overlay ── */}
       <video
         ref={videoRef}
-        key={post.media_url || post.url}
-        src={post.media_url || post.url}
+        key={videoUrl}
+        src={videoUrl}
         loop
-        muted={isMuted}
+        muted={hasBackgroundAudio || isMuted}
         playsInline
         autoPlay={false}
         preload={isActive ? "auto" : isPreloaded ? "metadata" : "none"}
         className="absolute inset-0 w-full h-full object-cover"
         style={{
           backgroundColor: "#000",
+          filter: reelSettings.cssFilter,
           zIndex: 0,
           display: videoError ? "none" : undefined,
           touchAction: "pan-y",
@@ -589,6 +627,9 @@ const FlickCard = memo(({ post, isActive, isPreloaded, currentUserId, onBridgeCh
           }
         }}
       />
+      {hasBackgroundAudio && (
+        <audio ref={audioRef} src={reelSettings.audioUrl || undefined} preload="metadata" loop />
+      )}
 
       {/* ── Tap overlay — z-10, full-screen, catches single/double tap ── */}
       {/* touchAction:"pan-y" lets the snap-scroll container receive vertical swipes  */}
@@ -659,6 +700,17 @@ const FlickCard = memo(({ post, isActive, isPreloaded, currentUserId, onBridgeCh
               <motion.div initial={{ opacity: 0, scale: 0.9, y: -6 }} animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.9, y: -6 }} transition={{ duration: 0.12 }}
                 className="absolute right-0 top-11 z-[70] w-52 bg-zinc-900/95 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
+                {isOwner && (
+                  <button
+                    onClick={() => {
+                      setMenuOpen(false);
+                      window.dispatchEvent(new CustomEvent("flicks:open-reel-studio", { detail: { reel: post } }));
+                    }}
+                    className="w-full flex items-center gap-3 px-4 py-3.5 text-cyan-300 hover:bg-white/5 text-sm font-bold border-b border-white/5"
+                  >
+                    <Pencil size={14} /> Edit Reel
+                  </button>
+                )}
                 {isOwner && (
                   <button onClick={() => { setMenuOpen(false); setEditingCaption(true); }}
                     className="w-full flex items-center gap-3 px-4 py-3.5 text-blue-400 hover:bg-white/5 text-sm font-bold border-b border-white/5">
@@ -807,7 +859,7 @@ const FlickCard = memo(({ post, isActive, isPreloaded, currentUserId, onBridgeCh
             backdropFilter: "blur(16px)",
             borderTop: "1px solid rgba(255,255,255,0.07)",
           }}>
-          <AudioCassette spinning={!isMuted} />
+           <AudioCassette spinning={!isMuted || hasBackgroundAudio} />
           {/* Neon rule */}
           <div className="shrink-0 w-px h-4 rounded-full" style={{ background: "rgba(0,255,230,0.55)", boxShadow: "0 0 5px rgba(0,255,230,0.55)" }} />
           <Ticker text={tickerText} isActive={isActive} />
@@ -940,7 +992,12 @@ export default function FlicksApp({
           author: p.author_profile?.full_name || p.author || "User",
           author_avatar: p.author_profile?.avatar_url || null,
           content: p.content || p.caption || "",
-          media_url: p.media_url,
+          media_url: getReelSettings(p).videoUrl || p.media_url,
+          video_url: getReelSettings(p).videoUrl || p.media_url,
+          audio_url: getReelSettings(p).audioUrl,
+          filters: getReelSettings(p).filter,
+          playback_rate: getReelSettings(p).playbackRate,
+          metadata: p.metadata,
           thumb_url: p.cover_url || p.thumb_url || null,
           likes_count: Math.max(
             likeCounts.has(p.id) ? likeCounts.get(p.id)! : Number(p.likes_count) || 0,
@@ -1003,6 +1060,63 @@ export default function FlicksApp({
       dataCache.setCache("flicksFeed", { data: next, fetchedAt: Date.now() });
       return next;
     });
+  }, [dataCache]);
+
+  useEffect(() => {
+    const handleReelUpdated = (event: Event) => {
+      const updated = (event as CustomEvent<any>).detail;
+      if (!updated?.id) return;
+      setFlicks((previous) => {
+        const next = previous.map((item) =>
+          item._raw_id === updated.id || item.id === `post_${updated.id}`
+            ? {
+                ...item,
+                ...updated,
+                media_url: getReelSettings(updated).videoUrl || updated.media_url || item.media_url,
+                video_url: getReelSettings(updated).videoUrl || updated.video_url || item.video_url,
+              }
+            : item,
+        );
+        dataCache.setCache("flicksFeed", { data: next, fetchedAt: Date.now() });
+        return next;
+      });
+    };
+
+    const handleReelCreated = (event: Event) => {
+      const created = (event as CustomEvent<any>).detail;
+      if (!created?.id || created.type !== "video") return;
+      const settings = getReelSettings(created);
+      const normalized = {
+        ...created,
+        id: `post_${created.id}`,
+        _raw_id: created.id,
+        _source: "posts",
+        user_id: created.author_id,
+        author_id: created.author_id,
+        author: created.author || "User",
+        content: created.content || "",
+        media_url: settings.videoUrl || created.media_url,
+        video_url: settings.videoUrl || created.video_url || created.media_url,
+        audio_url: settings.audioUrl,
+        filters: settings.filter,
+        playback_rate: settings.playbackRate,
+        likes_count: Number(created.likes_count) || 0,
+        comments_count: Number(created.comments_count) || 0,
+        shares_count: Number(created.shares_count) || 0,
+      };
+      setFlicks((previous) => {
+        const next = [normalized, ...previous.filter((item) => item._raw_id !== created.id)];
+        dataCache.setCache("flicksFeed", { data: next, fetchedAt: Date.now() });
+        return next;
+      });
+    };
+
+    window.addEventListener("flicks:reel-updated", handleReelUpdated);
+    window.addEventListener("flicks:post-created", handleReelCreated);
+    return () => {
+      window.removeEventListener("flicks:reel-updated", handleReelUpdated);
+      window.removeEventListener("flicks:post-created", handleReelCreated);
+    };
   }, [dataCache]);
 
   if (loading)

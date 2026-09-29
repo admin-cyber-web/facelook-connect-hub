@@ -68,7 +68,6 @@ import ShareVibeComposer from "@/components/ShareVibeComposer";
 import { isAdminEmail } from "@/lib/adminConfig";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { useDataCache } from "@/context/DataCacheContext";
-import { uploadToCloudinary } from "@/lib/cloudinaryUpload";
 
 // ── Lazy-loaded feature sections (breaks circular deps + improves load time) ──
 const FameFeed       = lazy(() => import("@/components/FameFeed"));
@@ -83,6 +82,7 @@ const QuotesMaker    = lazy(() => import("@/components/QuotesMaker"));
 const AdminDashboard = lazy(() => import("@/components/AdminDashboard"));
 const MagnetDashboard= lazy(() => import("@/components/MagnetDashboard"));
 const FlicksStudio   = lazy(() => import("@/components/FlicksStudio"));
+const ReelStudio     = lazy(() => import("@/components/ReelStudio"));
 const AntakshariArena = lazy(() => import("@/components/AntakshariArena"));
 const ConnectionPanel= lazy(() => import("@/components/ConnectionPanel"));
 const CreatePost     = lazy(() => import("@/components/CreatePost"));
@@ -2291,6 +2291,9 @@ const Index = ({ session, initialAdminOpen, isGuest = false }: { session: Sessio
   const [reelUploadPct, setReelUploadPct] = useState(0);   // 0 = idle
   const [reelUploading, setReelUploading] = useState(false);
   const reelInputRef = useRef<HTMLInputElement>(null);
+  const [reelStudioOpen, setReelStudioOpen] = useState(false);
+  const [reelStudioReel, setReelStudioReel] = useState<any | null>(null);
+  const [reelStudioVideoFile, setReelStudioVideoFile] = useState<File | null>(null);
 
   useEffect(() => {
     if (!userId) return;
@@ -2342,31 +2345,42 @@ const Index = ({ session, initialAdminOpen, isGuest = false }: { session: Sessio
     }
   };
 
-  const handleReelFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const openReelStudio = React.useCallback((videoFile: File | null = null, reel: any | null = null) => {
+    setReelStudioVideoFile(videoFile);
+    setReelStudioReel(reel);
+    setReelStudioOpen(true);
+  }, []);
+
+  useEffect(() => {
+    const handleOpenReelStudio = (event: Event) => {
+      const detail = (event as CustomEvent<{ reel?: any; videoFile?: File | null }>).detail || {};
+      openReelStudio(detail.videoFile || null, detail.reel || null);
+    };
+    window.addEventListener("flicks:open-reel-studio", handleOpenReelStudio);
+    return () => window.removeEventListener("flicks:open-reel-studio", handleOpenReelStudio);
+  }, [openReelStudio]);
+
+  const handleReelFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setReelUploading(true);
-    setReelUploadPct(10);
-    try {
-      const mediaUrl = await uploadToCloudinary(file);
-      setReelUploadPct(75);
-      await supabase.from("posts").insert([{
-        author_id: userId,
-        author: profile.full_name || "User",
-        content: "",
-        media_url: mediaUrl,
-        type: "video",
-        metadata: { is_youtube: false },
-      }]);
-      setReelUploadPct(100);
-      fetchMyReels();
-      setTimeout(() => { setReelUploading(false); setReelUploadPct(0); }, 800);
-    } catch {
-      setReelUploading(false);
-      setReelUploadPct(0);
-    }
+    openReelStudio(file);
     e.target.value = "";
   };
+
+  const handleReelSaved = React.useCallback((savedReel: any) => {
+    fetchMyReels();
+    setReelPosts((previous) => {
+      const next = [
+        savedReel,
+        ...previous.filter((item) => item.id !== savedReel?.id),
+      ];
+      dataCache.setCache("reelPosts", { data: next, fetchedAt: Date.now() });
+      return next;
+    });
+    setReelStudioOpen(false);
+    setReelStudioReel(null);
+    setReelStudioVideoFile(null);
+  }, [dataCache, fetchMyReels]);
 
   // ── Fetch online users + real reel posts in parallel ─────────────────────
   useEffect(() => {
@@ -3956,6 +3970,10 @@ const PersonalizationView = React.memo(({
                   userProfile={profile}
                   onOpen={() => setIsPostOpen(true)}
                   onMediaSelect={(file) => {
+                    if (file.type.startsWith("video/")) {
+                      openReelStudio(file);
+                      return;
+                    }
                     setPendingFile(file);
                     setIsPostOpen(true);
                   }}
@@ -4909,7 +4927,28 @@ const PersonalizationView = React.memo(({
         onClose={() => { setIsPostOpen(false); setPendingFile(null); }}
         userProfile={profile}
         initialFile={pendingFile}
+        onReelSelected={(file) => {
+          setIsPostOpen(false);
+          setPendingFile(null);
+          openReelStudio(file);
+        }}
       />
+      </Suspense>
+
+      <Suspense fallback={null}>
+        <ReelStudio
+          isOpen={reelStudioOpen}
+          userId={userId}
+          userProfile={profile}
+          initialVideoFile={reelStudioVideoFile}
+          reel={reelStudioReel}
+          onClose={() => {
+            setReelStudioOpen(false);
+            setReelStudioReel(null);
+            setReelStudioVideoFile(null);
+          }}
+          onSaved={handleReelSaved}
+        />
       </Suspense>
     </div>
   );

@@ -21,6 +21,7 @@ import { RichCaption } from "./RichCaption";
 import AutoPlayMutedVideo from "./AutoPlayMutedVideo";
 import { maskProfanity, sanitizeText } from "../lib/profanityFilter";
 import { resolveMediaUrl } from "../lib/mediaUrl";
+import { getReelSettings } from "../lib/reelSettings";
 import {
   Send,
   Heart,
@@ -1672,11 +1673,15 @@ const SingleReelBlock = ({
   currentUserId: string | null;
 }) => {
   const ref = useRef<HTMLVideoElement>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
   const [muted, setMuted] = useState(true);
   const [likedByMe, setLikedByMe] = useState(false);
   const [likeCount, setLikeCount] = useState(() => totalLikesFrom(post));
   const [likePending, setLikePending] = useState(false);
   const likeMutationRef = useRef<Promise<void> | null>(null);
+  const reelSettings = getReelSettings(post);
+  const reelVideoUrl = reelSettings.videoUrl || post.media_url;
+  const hasBackgroundAudio = Boolean(reelSettings.audioUrl);
 
   const refreshLikeState = useCallback(async () => {
     const countRequest = supabase
@@ -1801,25 +1806,52 @@ const SingleReelBlock = ({
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
+    el.playbackRate = reelSettings.playbackRate;
+    el.style.filter = reelSettings.cssFilter;
     const obs = new IntersectionObserver(
       ([entry]) => {
         if (!ref.current) return;
         if (entry.isIntersecting) {
           ref.current.muted = true;
+          if (audioRef.current && hasBackgroundAudio) {
+            // Start muted so the feed remains autoplay-safe; the volume
+            // control unmutes the background track without ever unmuting the
+            // video's original audio.
+            audioRef.current.muted = true;
+            audioRef.current.currentTime = ref.current.currentTime;
+            audioRef.current.play().catch(() => {});
+            setMuted(true);
+          }
           ref.current.play().catch(() => {});
         } else {
           ref.current.pause();
+          audioRef.current?.pause();
         }
       },
       { threshold: 0.5 },
     );
     obs.observe(el);
     return () => obs.disconnect();
-  }, [post.media_url]);
+  }, [hasBackgroundAudio, reelSettings.cssFilter, reelSettings.playbackRate, reelVideoUrl]);
+
+  useEffect(() => {
+    const video = ref.current;
+    const audio = audioRef.current;
+    if (!video || !audio || !hasBackgroundAudio) return;
+    audio.playbackRate = reelSettings.playbackRate;
+    audio.loop = true;
+    const syncAudio = () => {
+      if (Math.abs(audio.currentTime - video.currentTime) > 0.18) {
+        audio.currentTime = video.currentTime;
+      }
+    };
+    video.addEventListener("timeupdate", syncAudio);
+    return () => video.removeEventListener("timeupdate", syncAudio);
+  }, [hasBackgroundAudio, reelSettings.audioUrl, reelSettings.playbackRate]);
 
   const isYT =
-    post.media_url?.includes("youtube.com") ||
-    post.media_url?.includes("youtu.be");
+    reelVideoUrl?.includes("youtube.com") ||
+    reelVideoUrl?.includes("youtu.be");
 
   return (
     <div
@@ -1831,24 +1863,34 @@ const SingleReelBlock = ({
           <Play size={40} className="text-white/40" />
         </div>
       ) : (
-        <video
-          ref={ref}
-          src={post.media_url}
-          className="w-full h-full object-cover"
-          style={{ touchAction: "pan-y" }}
-          loop
-          muted={muted}
-          playsInline
-          preload="metadata"
-        />
+        <>
+          <video
+            ref={ref}
+            src={reelVideoUrl}
+            className="w-full h-full object-cover"
+            style={{ touchAction: "pan-y", filter: reelSettings.cssFilter }}
+            loop
+            muted={hasBackgroundAudio || muted}
+            playsInline
+            preload="metadata"
+          />
+          {hasBackgroundAudio && (
+            <audio ref={audioRef} src={reelSettings.audioUrl || undefined} preload="metadata" loop />
+          )}
+        </>
       )}
       <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none" />
       {!isYT && (
         <button
           onClick={() => {
             if (ref.current) {
-              ref.current.muted = !ref.current.muted;
-              setMuted(ref.current.muted);
+              if (hasBackgroundAudio && audioRef.current) {
+                audioRef.current.muted = !audioRef.current.muted;
+                setMuted(audioRef.current.muted);
+              } else {
+                ref.current.muted = !ref.current.muted;
+                setMuted(ref.current.muted);
+              }
             }
           }}
           className="absolute top-4 right-4 p-2 bg-black/40 backdrop-blur-sm rounded-full border border-white/10"
@@ -1959,13 +2001,37 @@ const FlickPlayerModal = ({
   flick: any;
   onClose: () => void;
 }) => {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const reelSettings = getReelSettings(flick);
+  const reelVideoUrl = reelSettings.videoUrl || flick.media_url;
   const isYT =
-    flick.media_url?.includes("youtube.com") ||
-    flick.media_url?.includes("youtu.be");
+    reelVideoUrl?.includes("youtube.com") ||
+    reelVideoUrl?.includes("youtu.be");
   const isVid =
     !isYT &&
-    flick.media_url &&
-    /\.(mp4|webm|ogg|mov|m4v)/i.test(flick.media_url.split("?")[0]);
+    reelVideoUrl &&
+    /\.(mp4|webm|ogg|mov|m4v)/i.test(reelVideoUrl.split("?")[0]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    const audio = audioRef.current;
+    if (!video) return;
+    video.playbackRate = reelSettings.playbackRate;
+    if (audio) {
+      audio.playbackRate = reelSettings.playbackRate;
+      audio.loop = true;
+      audio.currentTime = video.currentTime;
+      audio.play().catch(() => {});
+    }
+    const syncAudio = () => {
+      if (audio && Math.abs(audio.currentTime - video.currentTime) > 0.18) {
+        audio.currentTime = video.currentTime;
+      }
+    };
+    video.addEventListener("timeupdate", syncAudio);
+    return () => video.removeEventListener("timeupdate", syncAudio);
+  }, [reelSettings.audioUrl, reelSettings.playbackRate]);
 
   const getYtEmbedUrl = (url: string) => {
     const match = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&?/]+)/);
@@ -2008,7 +2074,7 @@ const FlickPlayerModal = ({
         >
           {isYT && (
             <iframe
-              src={getYtEmbedUrl(flick.media_url)}
+              src={getYtEmbedUrl(reelVideoUrl)}
               className="w-full h-full"
               allow="autoplay; fullscreen"
               allowFullScreen
@@ -2017,23 +2083,28 @@ const FlickPlayerModal = ({
           )}
           {isVid && (
             <video
-              src={flick.media_url}
+              ref={videoRef}
+              src={reelVideoUrl}
               className="w-full h-full object-contain"
               autoPlay
               controls
+              muted={Boolean(reelSettings.audioUrl)}
               playsInline
-              style={{ maxHeight: "100dvh" }}
+              style={{ maxHeight: "100dvh", filter: reelSettings.cssFilter }}
             />
           )}
-          {!isVid && !isYT && flick.media_url && (
+          {reelSettings.audioUrl && isVid && (
+            <audio ref={audioRef} src={reelSettings.audioUrl} preload="metadata" loop />
+          )}
+          {!isVid && !isYT && reelVideoUrl && (
             <img
-              src={flick.media_url}
+              src={reelVideoUrl}
               className="w-full h-full object-contain"
               alt=""
               style={{ maxHeight: "100dvh" }}
              decoding="async"/>
           )}
-          {!flick.media_url && (
+          {!reelVideoUrl && (
             <div className="flex flex-col items-center gap-3 text-white/50">
               <Film size={48} strokeWidth={1} />
               <p className="text-[13px]">No media available</p>
@@ -2508,6 +2579,24 @@ const FameFeed = ({
     window.addEventListener("flicks:post-created", handleCreatedPost);
     return () => window.removeEventListener("flicks:post-created", handleCreatedPost);
   }, [currentUserId, dataCache]);
+
+  useEffect(() => {
+    const handleReelUpdated = (event: Event) => {
+      const updated = (event as CustomEvent<any>).detail;
+      if (!updated?.id) return;
+      setPosts((previous) => {
+        const next = previous.map((post) =>
+          post.id === updated.id
+            ? normalizePostLikeCount({ ...post, ...updated })
+            : post,
+        );
+        dataCache.setCache("famePosts", { data: next, fetchedAt: Date.now() });
+        return next;
+      });
+    };
+    window.addEventListener("flicks:reel-updated", handleReelUpdated);
+    return () => window.removeEventListener("flicks:reel-updated", handleReelUpdated);
+  }, [dataCache]);
 
   // ── Admin Marketplace: fetch active items + live updates ──────────────────
   useEffect(() => {
@@ -4649,6 +4738,21 @@ const FameFeed = ({
                     >
                       {post.author_id === currentUserId && (
                         <>
+                          {isVideo && (
+                            <button
+                              onClick={() => {
+                                window.dispatchEvent(
+                                  new CustomEvent("flicks:open-reel-studio", {
+                                    detail: { reel: post },
+                                  }),
+                                );
+                                setOpenMenuId(null);
+                              }}
+                              className="w-full flex items-center gap-3 px-4 py-3.5 text-cyan-300 hover:bg-white/10 text-sm font-semibold border-b border-white/10"
+                            >
+                              <SlidersHorizontal size={15} /> Edit Reel
+                            </button>
+                          )}
                           <button
                             onClick={() => {
                               setEditingPost({
