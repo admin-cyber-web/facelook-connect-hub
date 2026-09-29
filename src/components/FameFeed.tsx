@@ -34,7 +34,6 @@ import {
   X,
   Volume2,
   VolumeX,
-  Image as ImageIcon,
   Play,
   Users,
   Film,
@@ -2057,8 +2056,6 @@ const FlickPlayerModal = ({
 
 // ── Main Feed ─────────────────────────────────────────────────────────────────
 interface FameFeedProps {
-  onPostClick?: () => void;
-  onImageSelect?: (file: File) => void;
   userProfile?: any;
   suggestions?: { id: string; full_name: string; avatar_url?: string }[];
   onNavigateToCircles?: () => void;
@@ -2260,8 +2257,6 @@ type FeedCommentMenuItem = {
 type FeedBlock = { type: string; post?: any; key: string; seed?: number };
 
 const FameFeed = ({
-  onPostClick,
-  onImageSelect,
   userProfile,
   suggestions = [],
   onNavigateToCircles,
@@ -2410,7 +2405,6 @@ const FameFeed = ({
   const [flicksLoaded, setFlicksLoaded] = useState(() => !!cachedFlicks?.data);
   const [flickModal, setFlickModal] = useState<any | null>(null);
   const [ownerNames, setOwnerNames] = useState<Record<string, string>>({});
-  const galleryInputRef = useRef<HTMLInputElement>(null);
   const [commentReactionBarId, setCommentReactionBarId] = useState<
     string | null
   >(null);
@@ -6000,57 +5994,6 @@ const FameFeed = ({
       className="bg-[#0F172A] min-h-screen pb-32"
       style={{ willChange: "transform", touchAction: "pan-y" }}
     >
-      {/* ── "What's on your mind" bar ──────────────────────────────────── */}
-      <div
-        className="flex items-center gap-3 px-4 py-3 border-b border-white/8"
-        style={{
-          background: "rgba(20,5,28,0.95)",
-          borderBottomColor: "rgba(255,255,255,0.06)",
-        }}
-      >
-        {userProfile?.avatar_url ? (
-          <img
-            src={userProfile.avatar_url}
-            loading="lazy"
-            className="w-10 h-10 rounded-full object-cover border border-white/20 cursor-pointer shrink-0"
-            onClick={onPostClick}
-           decoding="async"/>
-        ) : (
-          <div
-            onClick={onPostClick}
-            className="w-10 h-10 rounded-full bg-purple-900 flex items-center justify-center text-white font-black text-sm border border-white/10 cursor-pointer shrink-0"
-          >
-            {userProfile?.full_name?.[0] || "U"}
-          </div>
-        )}
-        <div
-          onClick={onPostClick}
-          className="flex-1 py-2.5 px-4 rounded-full text-white/30 text-sm font-medium border border-white/10 cursor-pointer"
-          style={{ background: "rgba(255,255,255,0.06)" }}
-        >
-          What's on your mind?
-        </div>
-        <button
-          className="p-2 active:scale-90 transition-transform shrink-0"
-          onClick={() => galleryInputRef.current?.click()}
-        >
-          <ImageIcon size={22} className="text-pink-400" />
-        </button>
-        <input
-          ref={galleryInputRef}
-          type="file"
-          accept="image/*,video/*"
-          className="hidden"
-          onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (!f) return;
-            onImageSelect?.(f);
-            onPostClick?.();
-            e.target.value = "";
-          }}
-        />
-      </div>
-
       {/* ── Hidden Posts Archive Banner (shows only when posts are hidden) ── */}
       {hiddenIds.size > 0 && (
         <motion.button
