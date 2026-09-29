@@ -156,6 +156,17 @@ interface Message {
   reactions?: Record<string, string[]>;
   is_edited?: boolean;
 }
+interface MessageReactionRow {
+  id?: string;
+  message_id: string;
+  user_id: string;
+  emoji: string;
+}
+type MessageRealtimePayload = {
+  eventType: "INSERT" | "UPDATE" | "DELETE";
+  new: unknown;
+  old: unknown;
+};
 interface Story {
   id: string;
   user_id: string;
@@ -783,18 +794,30 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
         if (msgIdsArr.length === 0) return;
         const { data } = await supabase
           .from("message_reactions")
-          .select("message_id, user_id, emoji")
+          .select("id, message_id, user_id, emoji")
           .in("message_id", msgIdsArr);
         if (!data) return;
         const map: Record<string, Record<string, string[]>> = {};
+        const rowsById = new Map<string, MessageReactionRow>();
         for (const row of data) {
+          if (row.id) {
+            rowsById.set(String(row.id), {
+              id: String(row.id),
+              message_id: String(row.message_id),
+              user_id: String(row.user_id),
+              emoji: String(row.emoji),
+            });
+          }
           if (!map[row.message_id]) map[row.message_id] = {};
           if (!map[row.message_id][row.emoji])
             map[row.message_id][row.emoji] = [];
           map[row.message_id][row.emoji].push(row.user_id);
         }
+        messageReactionRowsRef.current = rowsById;
         setMsgReactions(map);
-      } catch (_) {}
+      } catch (error) {
+        console.error("[Chat] fetch message reactions error:", error);
+      }
     },
     [],
   );
@@ -1116,6 +1139,10 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   const oldestMessageCursorRef = useRef<string | null>(null);
   const lastMessageLoadAtRef = useRef(0);
   const conversationKeyRef = useRef("");
+  const messagesRef = useRef<Message[]>([]);
+  const messageReactionRowsRef = useRef<Map<string, MessageReactionRow>>(
+    new Map(),
+  );
   const fileInputRef = useRef<HTMLInputElement>(null);
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const prevMsgCount = useRef(0);
@@ -1135,6 +1162,10 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   const pendingFileRef = useRef<File | null>(null);
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressMsgPos = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
 
   const T = THEME_CFG[theme];
   const { playPop, playSwoosh } = useSoundEffects();
@@ -2222,6 +2253,8 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     setHasOlderMessages(false);
     // Clear stale messages immediately so old chat doesn't flash on screen
     setMessages([]);
+    setMsgReactions({});
+    messageReactionRowsRef.current = new Map();
 
     const load = async () => {
       if (messageLoadInFlightRef.current) return;
@@ -2300,22 +2333,104 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
 
     load().then(() => fetchMsgReactions(myId, partnerId));
 
-    // ── Chat Realtime via custom-all-channel ─────────────────────────────────
+    // ── Chat Realtime: messages and reactions for this conversation ──────────
     const convKey = [myId, partnerId].sort().join("-");
+    const isConversationMessage = (row: Partial<Message> | undefined) => {
+      if (!row) return false;
+      const sid = String(row.sender_id || "").trim();
+      const rid = String(row.receiver_id || "").trim();
+      if (sid || rid) {
+        return (sid === myId && rid === partnerId) ||
+          (sid === partnerId && rid === myId);
+      }
+      return Boolean(row.id && messagesRef.current.some((m) => m.id === row.id));
+    };
+
+    const applyReactionChange = (payload: MessageRealtimePayload) => {
+      const nextRaw = payload.new as Partial<MessageReactionRow> | undefined;
+      const oldRaw = payload.old as Partial<MessageReactionRow> | undefined;
+      const oldFromCache = oldRaw?.id
+        ? messageReactionRowsRef.current.get(String(oldRaw.id))
+        : undefined;
+      const oldRow = oldRaw?.message_id
+        ? {
+            id: oldRaw.id ? String(oldRaw.id) : undefined,
+            message_id: String(oldRaw.message_id),
+            user_id: String(oldRaw.user_id || ""),
+            emoji: String(oldRaw.emoji || ""),
+          }
+        : oldFromCache;
+      const nextRow = nextRaw?.message_id
+        ? {
+            id: nextRaw.id ? String(nextRaw.id) : undefined,
+            message_id: String(nextRaw.message_id),
+            user_id: String(nextRaw.user_id || ""),
+            emoji: String(nextRaw.emoji || ""),
+          }
+        : undefined;
+      const messageId = nextRow?.message_id || oldRow?.message_id;
+
+      if (
+        !messageId ||
+        !messagesRef.current.some((message) => message.id === messageId)
+      ) {
+        return;
+      }
+
+      const removeReaction = (
+        current: Record<string, string[]>,
+        row?: MessageReactionRow,
+      ) => {
+        if (!row?.emoji || !row.user_id) return;
+        const users = current[row.emoji] || [];
+        const remaining = users.filter((id) => id !== row.user_id);
+        if (remaining.length) current[row.emoji] = remaining;
+        else delete current[row.emoji];
+      };
+      const addReaction = (
+        current: Record<string, string[]>,
+        row?: MessageReactionRow,
+      ) => {
+        if (!row?.emoji || !row.user_id) return;
+        const users = current[row.emoji] || [];
+        if (!users.includes(row.user_id)) {
+          current[row.emoji] = [...users, row.user_id];
+        }
+      };
+
+      if (oldRow?.id) messageReactionRowsRef.current.delete(oldRow.id);
+      if (nextRow?.id) messageReactionRowsRef.current.set(nextRow.id, nextRow);
+
+      setMsgReactions((previous) => {
+        const current = Object.fromEntries(
+          Object.entries(previous[messageId] || {}).map(([emoji, users]) => [
+            emoji,
+            [...users],
+          ]),
+        ) as Record<string, string[]>;
+        if (payload.eventType === "DELETE" || payload.eventType === "UPDATE") {
+          removeReaction(current, oldRow);
+        }
+        if (payload.eventType !== "DELETE") addReaction(current, nextRow);
+
+        const next = { ...previous };
+        if (Object.keys(current).length) next[messageId] = current;
+        else delete next[messageId];
+        return next;
+      });
+    };
+
     const createConversationChannel = () => supabase
       .channel(`conv-${convKey}`)
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "messages", filter: `receiver_id=eq.${myId}` },
+        { event: "INSERT", schema: "public", table: "messages" },
         (p) => {
           const msg = p.new as Message;
           const sid = String(msg.sender_id || "").trim();
           const rid = String(msg.receiver_id || "").trim();
-          const pid = partnerId;
-          const relevant =
-            (sid === myId && rid === pid) || (sid === pid && rid === myId);
 
-          if (!relevant) return;
+          if (!isConversationMessage(msg)) return;
 
           // Skip messages the user deleted for themselves — don't let realtime bounce them back
           if (deletedForMeIdsRef.current.has(msg.id)) return;
@@ -2329,7 +2444,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
           scheduleContactsRefresh();
 
           // Auto-mark as seen when the message is addressed to us
-          if (rid === myId && sid === pid) {
+            if (rid === myId && sid === partnerId) {
             supabase
               .from("messages")
               .update({ seen_at: new Date().toISOString() })
@@ -2396,28 +2511,45 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       )
       .on(
         "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "messages", filter: `receiver_id=eq.${myId}` },
+        { event: "UPDATE", schema: "public", table: "messages" },
         (p) => {
           const msg = p.new as Message;
-          const relevant =
-            msg.sender_id === myId || msg.receiver_id === myId;
-          if (relevant) {
+          if (isConversationMessage(msg)) {
             // Merge ALL updated fields (content, seen_at, any future fields)
             setMessages((prev) =>
               prev.map((m) => (m.id === msg.id ? { ...m, ...msg } : m)),
             );
+            scheduleContactsRefresh();
           }
         },
       )
       .on(
         "postgres_changes",
-        { event: "DELETE", schema: "public", table: "messages", filter: `receiver_id=eq.${myId}` },
+        { event: "DELETE", schema: "public", table: "messages" },
         (p) => {
-          const deletedId = (p.old as { id: string })?.id;
-          if (deletedId) {
+          const deleted = p.old as Partial<Message>;
+          const deletedId = String(deleted?.id || "");
+          if (deletedId && isConversationMessage(deleted)) {
             setMessages((prev) => prev.filter((m) => m.id !== deletedId));
+            setMsgReactions((prev) => {
+              if (!(deletedId in prev)) return prev;
+              const next = { ...prev };
+              delete next[deletedId];
+              return next;
+            });
+            for (const [reactionId, row] of messageReactionRowsRef.current) {
+              if (row.message_id === deletedId) {
+                messageReactionRowsRef.current.delete(reactionId);
+              }
+            }
+            scheduleContactsRefresh();
           }
         },
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "message_reactions" },
+        applyReactionChange,
       )
       .subscribe();
     const cleanupConversationChannel = subscribeWhileVisible(
