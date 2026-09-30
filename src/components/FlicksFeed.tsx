@@ -567,36 +567,68 @@ const FlickCard = memo(({ post, isActive, isPreloaded, currentUserId, onBridgeCh
     finally { setReporting(false); }
   };
 
+  const deletePostRow = async (): Promise<string> => {
+    const postId = post?._raw_id;
+    if (typeof postId !== "string" || !postId.trim()) {
+      throw new Error("Could not determine the Reel database ID.");
+    }
+
+    const { data, error } = await supabase
+      .from("posts")
+      .delete()
+      .eq("id", postId)
+      .select("id")
+      .maybeSingle();
+
+    if (error) throw error;
+    if (!data || data.id !== postId) {
+      throw new Error("The Reel was not deleted from the database.");
+    }
+    return postId;
+  };
+
+  const getDeleteErrorMessage = (error: unknown): string => {
+    if (error instanceof Error) return error.message;
+    if (typeof error === "object" && error !== null && "message" in error) {
+      return String(error.message);
+    }
+    return "Reel could not be deleted.";
+  };
+
   const handleAdminDelete = async () => {
     setMenuOpen(false);
-    if (!isAdmin) return;
+    if (!isAdmin || deleting) return;
     if (!window.confirm("ADMIN: Delete this video permanently?")) return;
-    const { error } = await supabase.from("posts").delete().eq("id", post._raw_id);
-    if (error) { toast.error("Could not delete"); return; }
-    toast.success("🗑️ Deleted");
-    onPostDeleted?.(post._raw_id);
+
+    setDeleting(true);
+    try {
+      const deletedId = await deletePostRow();
+      toast.success("Deleted permanently.");
+      onPostDeleted?.(deletedId);
+    } catch (error: unknown) {
+      console.error("[Flicks] admin reel delete failed:", error);
+      toast.error(getDeleteErrorMessage(error));
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const handleOwnerDelete = async () => {
-    setMenuOpen(false);
     if (!isOwner || !currentUserId || !post._raw_id || deleting) return;
+    setMenuOpen(false);
     if (!window.confirm("Delete this Reel permanently?")) return;
 
     setDeleting(true);
     try {
       // Supabase RLS remains the final authorization check. The UI owner
       // check only controls visibility of this action.
-      const { error } = await supabase
-        .from("posts")
-        .delete()
-        .eq("id", post._raw_id);
-      if (error) throw error;
+      const deletedId = await deletePostRow();
 
       toast.success("Reel deleted.");
-      onPostDeleted?.(post._raw_id);
+      onPostDeleted?.(deletedId);
     } catch (error: unknown) {
       console.error("[Flicks] owner reel delete failed:", error);
-      toast.error(error instanceof Error ? error.message : "Reel could not be deleted.");
+      toast.error(getDeleteErrorMessage(error));
     } finally {
       setDeleting(false);
     }
