@@ -17,6 +17,7 @@ export function attachReelAudioSync(
   video: HTMLVideoElement,
   audio: HTMLAudioElement,
   playbackRate: number,
+  shouldPlay: () => boolean = () => true,
 ): () => void {
   let frameId = 0;
   let disposed = false;
@@ -43,9 +44,48 @@ export function attachReelAudioSync(
     }
   };
 
+  const syncPlayback = () => {
+    if (disposed) return;
+    if (video.paused || video.ended || !shouldPlay()) {
+      audio.pause();
+      stopSync();
+      return;
+    }
+
+    syncPosition();
+    audio.loop = true;
+    audio.playbackRate = playbackRate;
+    if (audio.paused) audio.play().catch(() => {});
+    startSync();
+  };
+
+  const pauseAudio = () => {
+    audio.pause();
+    stopSync();
+  };
+
+  const handleAudioPlaying = () => {
+    if (video.paused || video.ended || !shouldPlay()) {
+      audio.pause();
+      return;
+    }
+    startSync();
+  };
+
+  const syncAfterMetadata = () => {
+    syncPosition();
+    syncPlayback();
+  };
+
   const tick = () => {
     frameId = 0;
-    if (disposed || video.paused || audio.paused || video.ended) return;
+    if (
+      disposed ||
+      video.paused ||
+      audio.paused ||
+      video.ended ||
+      !shouldPlay()
+    ) return;
 
     try {
       const drift = getDrift();
@@ -70,7 +110,14 @@ export function attachReelAudioSync(
   };
 
   const startSync = () => {
-    if (disposed || video.paused || audio.paused || frameId) return;
+    if (
+      disposed ||
+      video.paused ||
+      audio.paused ||
+      video.ended ||
+      !shouldPlay() ||
+      frameId
+    ) return;
     frameId = window.requestAnimationFrame(tick);
   };
   const stopSync = () => {
@@ -78,27 +125,34 @@ export function attachReelAudioSync(
     frameId = 0;
   };
 
-  video.addEventListener("playing", startSync);
-  audio.addEventListener("playing", startSync);
-  video.addEventListener("pause", stopSync);
+  video.addEventListener("playing", syncPlayback);
+  video.addEventListener("pause", pauseAudio);
+  video.addEventListener("ended", pauseAudio);
+  audio.addEventListener("playing", handleAudioPlaying);
   audio.addEventListener("pause", stopSync);
   video.addEventListener("seeking", syncPosition);
-  audio.addEventListener("loadedmetadata", syncPosition);
+  video.addEventListener("seeked", syncPlayback);
+  video.addEventListener("ratechange", syncPosition);
+  audio.addEventListener("loadedmetadata", syncAfterMetadata);
   audio.addEventListener("durationchange", syncPosition);
 
   syncPosition();
-  startSync();
+  syncPlayback();
 
   return () => {
     disposed = true;
     stopSync();
-    video.removeEventListener("playing", startSync);
-    audio.removeEventListener("playing", startSync);
-    video.removeEventListener("pause", stopSync);
+    video.removeEventListener("playing", syncPlayback);
+    video.removeEventListener("pause", pauseAudio);
+    video.removeEventListener("ended", pauseAudio);
+    audio.removeEventListener("playing", handleAudioPlaying);
     audio.removeEventListener("pause", stopSync);
     video.removeEventListener("seeking", syncPosition);
-    audio.removeEventListener("loadedmetadata", syncPosition);
+    video.removeEventListener("seeked", syncPlayback);
+    video.removeEventListener("ratechange", syncPosition);
+    audio.removeEventListener("loadedmetadata", syncAfterMetadata);
     audio.removeEventListener("durationchange", syncPosition);
+    audio.pause();
     try {
       audio.playbackRate = playbackRate;
     } catch {
