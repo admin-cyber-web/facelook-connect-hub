@@ -189,7 +189,7 @@ export default function ReelStudio({
 
     video.playbackRate = playbackRate;
     video.style.filter = selectedFilter.cssFilter;
-    video.muted = Boolean(audioPreviewUrl);
+    video.muted = true;
     if (audio) {
       audio.playbackRate = playbackRate;
       audio.loop = true;
@@ -245,7 +245,7 @@ export default function ReelStudio({
       return;
     }
 
-    video.muted = Boolean(audioPreviewUrl);
+    video.muted = true;
     video.playbackRate = playbackRate;
     await video.play().catch(() => {});
     if (audioPreviewUrl && audio) {
@@ -533,7 +533,7 @@ export default function ReelStudio({
                   style={{ filter: selectedFilter.cssFilter }}
                   playsInline
                   loop
-                  muted={Boolean(audioPreviewUrl)}
+                  muted
                   preload="metadata"
                   onEnded={() => {
                     previewAudioRef.current?.pause();

@@ -255,7 +255,6 @@ const FlickCard = memo(({ post, isActive, isPreloaded, currentUserId, onBridgeCh
   const reelSettings = useMemo(() => getReelSettings(post), [post]);
   const videoUrl = reelSettings.videoUrl || post.media_url || post.url;
   const hasBackgroundAudio = Boolean(reelSettings.audioUrl);
-  const previousAudioUrlRef = useRef(reelSettings.audioUrl);
 
   useEffect(() => {
     setLikedByMe(Boolean(post?.liked_by_me));
@@ -289,7 +288,9 @@ const FlickCard = memo(({ post, isActive, isPreloaded, currentUserId, onBridgeCh
     if (!vid) return;
     vid.playbackRate = reelSettings.playbackRate;
     vid.style.filter = reelSettings.cssFilter;
-    vid.muted = hasBackgroundAudio || !globalSoundEnabled;
+    // Reel source audio is never allowed to play. All audible sound comes
+    // from the separate, synchronized custom music element below.
+    vid.muted = true;
     if (audio) {
       audio.playbackRate = reelSettings.playbackRate;
       audio.loop = true;
@@ -300,14 +301,15 @@ const FlickCard = memo(({ post, isActive, isPreloaded, currentUserId, onBridgeCh
       setVideoError(null);
       vid.currentTime = 0;
       const wantSound = globalSoundEnabled;
-      vid.muted  = hasBackgroundAudio || !wantSound;
+      vid.muted = true;
       vid.volume = 1;
       setIsMuted(!wantSound);
       vid.play().catch((err) => {
-        // Android WebView/browser autoplay policy may still reject sound.
-        // Retry silently, without presenting a manual "tap to unmute" gate.
+        // The source remains muted even when video autoplay is rejected.
         if (err?.name === "NotAllowedError" || err?.name === "AbortError") {
           vid.muted = true;
+          audio?.pause();
+          if (audio) audio.muted = true;
           setIsMuted(true);
           vid.play().catch(() => {});
         }
@@ -315,8 +317,10 @@ const FlickCard = memo(({ post, isActive, isPreloaded, currentUserId, onBridgeCh
       });
       if (hasBackgroundAudio && audio) {
         audio.currentTime = getReelAudioTargetTime(vid, audio);
-        if (wantSound) audio.play().catch(() => {});
-        else audio.pause();
+        audio.muted = !wantSound;
+        // Start custom music in sync as soon as the active Reel plays. It
+        // remains muted until the viewer's first sound-enabling tap.
+        audio.play().catch(() => {});
       }
     } else {
       vid.pause();
@@ -328,37 +332,12 @@ const FlickCard = memo(({ post, isActive, isPreloaded, currentUserId, onBridgeCh
     const video = videoRef.current;
     const audio = audioRef.current;
     if (!video || !audio || !hasBackgroundAudio) return;
-    return attachReelAudioSync(video, audio, reelSettings.playbackRate);
-  }, [hasBackgroundAudio, reelSettings.audioUrl, reelSettings.playbackRate]);
-
-  useEffect(() => {
-    const audioUrlChanged = previousAudioUrlRef.current !== reelSettings.audioUrl;
-    previousAudioUrlRef.current = reelSettings.audioUrl;
-    const video = videoRef.current;
-    const audio = audioRef.current;
-    if (!audioUrlChanged || !isActive || !hasBackgroundAudio || !video || !audio) return;
-
-    let cancelled = false;
-    const startUpdatedTrack = () => {
-      if (
-        cancelled ||
-        !globalSoundEnabled ||
-        audio.readyState < HTMLMediaElement.HAVE_METADATA
-      ) return;
-      const expectedUrl = new URL(reelSettings.audioUrl!, document.baseURI).href;
-      if (audio.currentSrc && audio.currentSrc !== expectedUrl) return;
-      audio.muted = false;
-      audio.loop = true;
-      audio.playbackRate = reelSettings.playbackRate;
-      audio.play().catch(() => {});
-    };
-
-    audio.addEventListener("loadedmetadata", startUpdatedTrack);
-    startUpdatedTrack();
-    return () => {
-      cancelled = true;
-      audio.removeEventListener("loadedmetadata", startUpdatedTrack);
-    };
+    return attachReelAudioSync(
+      video,
+      audio,
+      reelSettings.playbackRate,
+      () => isActive,
+    );
   }, [
     hasBackgroundAudio,
     isActive,
@@ -474,7 +453,7 @@ const FlickCard = memo(({ post, isActive, isPreloaded, currentUserId, onBridgeCh
     if (!globalSoundEnabled) {
       globalSoundEnabled = true;
       if (isActive && videoRef.current) {
-        videoRef.current.muted = hasBackgroundAudio;
+        videoRef.current.muted = true;
         setIsMuted(false);
         videoRef.current.play().catch(() => {});
         if (hasBackgroundAudio && audioRef.current) {
@@ -483,6 +462,8 @@ const FlickCard = memo(({ post, isActive, isPreloaded, currentUserId, onBridgeCh
             videoRef.current,
             audioRef.current,
           );
+          audioRef.current.loop = true;
+          audioRef.current.playbackRate = reelSettings.playbackRate;
           audioRef.current.play().catch(() => {});
         }
       }
@@ -655,7 +636,7 @@ const FlickCard = memo(({ post, isActive, isPreloaded, currentUserId, onBridgeCh
         key={videoUrl}
         src={videoUrl}
         loop
-        muted={hasBackgroundAudio || isMuted}
+        muted
         playsInline
         autoPlay={false}
         preload={isActive ? "auto" : isPreloaded ? "metadata" : "none"}
@@ -685,6 +666,7 @@ const FlickCard = memo(({ post, isActive, isPreloaded, currentUserId, onBridgeCh
         <audio
           ref={audioRef}
           src={isActive ? reelSettings.audioUrl || undefined : undefined}
+          muted={isMuted}
           preload={isActive ? "auto" : "none"}
           loop
         />
@@ -1130,14 +1112,18 @@ export default function FlicksApp({
     const handleReelUpdated = (event: Event) => {
       const updated = (event as CustomEvent<any>).detail;
       if (!updated?.id) return;
+      const settings = getReelSettings(updated);
       setFlicks((previous) => {
         const next = previous.map((item) =>
           item._raw_id === updated.id || item.id === `post_${updated.id}`
             ? {
                 ...item,
                 ...updated,
-                media_url: getReelSettings(updated).videoUrl || updated.media_url || item.media_url,
-                video_url: getReelSettings(updated).videoUrl || updated.video_url || item.video_url,
+                media_url: settings.videoUrl || updated.media_url || item.media_url,
+                video_url: settings.videoUrl || updated.video_url || item.video_url,
+                audio_url: settings.audioUrl,
+                filters: settings.filter,
+                playback_rate: settings.playbackRate,
               }
             : item,
         );
