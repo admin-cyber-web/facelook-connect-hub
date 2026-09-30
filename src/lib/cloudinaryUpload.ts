@@ -24,6 +24,7 @@ export interface CloudinaryUploadResult {
 
 interface CloudinaryUploadOptions {
   resourceType?: "auto" | "video";
+  signal?: AbortSignal;
 }
 
 export async function uploadToCloudinaryDetailed(
@@ -45,6 +46,7 @@ export async function uploadToCloudinaryDetailed(
     {
       method: "POST",
       body: formData,
+      signal: options.signal,
     },
   );
 

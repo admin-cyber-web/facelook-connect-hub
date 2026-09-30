@@ -44,6 +44,11 @@ interface ReelStudioProps {
 }
 
 const PLAYBACK_RATES = [0.5, 1, 1.5, 2] as const;
+const REEL_UPLOAD_TIMEOUT_MS = 3 * 60 * 1000;
+const REEL_SAVE_TIMEOUT_MS = 30 * 1000;
+
+const getErrorMessage = (error: unknown) =>
+  error instanceof Error ? error.message : "Unknown error";
 
 const makeFallbackTracks = (): ReelMusicTrack[] => [];
 
@@ -260,13 +265,69 @@ export default function ReelStudio({
 
     setSaving(true);
     try {
+      const withTimeout = async <T,>(
+        label: string,
+        timeoutMs: number,
+        request: (signal: AbortSignal) => Promise<T>,
+      ): Promise<T> => {
+        const controller = new AbortController();
+        let timeoutId: ReturnType<typeof setTimeout> | undefined;
+        const timeoutError = new Error(
+          `${label} timed out. Please check your connection and try again.`,
+        );
+
+        try {
+          return await Promise.race([
+            request(controller.signal),
+            new Promise<T>((_, reject) => {
+              timeoutId = setTimeout(() => {
+                controller.abort();
+                reject(timeoutError);
+              }, timeoutMs);
+            }),
+          ]);
+        } catch (error) {
+          if (controller.signal.aborted) throw timeoutError;
+          throw error;
+        } finally {
+          if (timeoutId) clearTimeout(timeoutId);
+        }
+      };
+
+      const uploadFile = async (file: File, label: string) => {
+        try {
+          return await withTimeout(label, REEL_UPLOAD_TIMEOUT_MS, (signal) =>
+            uploadToCloudinaryDetailed(file, { resourceType: "video", signal }),
+          );
+        } catch (error) {
+          console.error(`[ReelStudio] ${label} failed`, error);
+          throw new Error(`${label} failed: ${getErrorMessage(error)}`);
+        }
+      };
+
+      const savePost = async (
+        label: string,
+        request: (signal: AbortSignal) => Promise<any>,
+      ) => {
+        try {
+          const result = await withTimeout(label, REEL_SAVE_TIMEOUT_MS, request);
+          if (result.error) {
+            console.error(`[ReelStudio] ${label} returned a database error`, result.error);
+          }
+          return result;
+        } catch (error) {
+          console.error(`[ReelStudio] ${label} failed`, error);
+          throw new Error(`${label} failed: ${getErrorMessage(error)}`);
+        }
+      };
+
       let videoUpload: CloudinaryUploadResult | null = null;
       let audioUpload: CloudinaryUploadResult | null = null;
       if (videoFile) {
-        videoUpload = await uploadToCloudinaryDetailed(videoFile, { resourceType: "video" });
+        videoUpload = await uploadFile(videoFile, "Video upload");
       }
       if (audioFile) {
-        audioUpload = await uploadToCloudinaryDetailed(audioFile, { resourceType: "video" });
+        audioUpload = await uploadFile(audioFile, "Audio upload");
       }
 
       const videoUrl = videoUpload?.secureUrl || reelSettings.videoUrl;
@@ -312,20 +373,26 @@ export default function ReelStudio({
       let savedRow: any = null;
       let saveError: any = null;
       if (isEditing) {
-        const result = await supabase
-          .from("posts")
-          .update(fullPayload)
-          .eq("id", reelId)
-          .select("*")
-          .maybeSingle();
+        const result = await savePost("Reel update", (signal) =>
+          supabase
+            .from("posts")
+            .update(fullPayload)
+            .eq("id", reelId)
+            .select("*")
+            .maybeSingle()
+            .abortSignal(signal),
+        );
         savedRow = result.data;
         saveError = result.error;
       } else {
-        const result = await supabase
-          .from("posts")
-          .insert([fullPayload])
-          .select("*")
-          .maybeSingle();
+        const result = await savePost("Reel publish", (signal) =>
+          supabase
+            .from("posts")
+            .insert([fullPayload])
+            .select("*")
+            .maybeSingle()
+            .abortSignal(signal),
+        );
         savedRow = result.data;
         saveError = result.error;
       }
@@ -343,8 +410,23 @@ export default function ReelStudio({
           metadata,
         };
         const result = isEditing
-          ? await supabase.from("posts").update(compatibilityPayload).eq("id", reelId).select("*").maybeSingle()
-          : await supabase.from("posts").insert([compatibilityPayload]).select("*").maybeSingle();
+          ? await savePost("Compatible Reel update", (signal) =>
+              supabase
+                .from("posts")
+                .update(compatibilityPayload)
+                .eq("id", reelId)
+                .select("*")
+                .maybeSingle()
+                .abortSignal(signal),
+            )
+          : await savePost("Compatible Reel publish", (signal) =>
+              supabase
+                .from("posts")
+                .insert([compatibilityPayload])
+                .select("*")
+                .maybeSingle()
+                .abortSignal(signal),
+            );
         savedRow = result.data;
         saveError = result.error;
         if (!saveError) {
