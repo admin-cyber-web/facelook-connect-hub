@@ -19,6 +19,7 @@ interface Props {
   placeholder?: string;
   className?: string;
   autoFocus?: boolean;
+  testId?: string;
   /** Resolved candidates user is allowed to tag (friends + circle members). */
   candidates: MentionCandidate[];
   /** Whether to show the @pin special token. */
@@ -35,6 +36,7 @@ export const MentionInput = ({
   placeholder,
   className,
   autoFocus,
+  testId,
   candidates,
   enablePin = true,
   enableTeam = true,
@@ -193,6 +195,7 @@ export const MentionInput = ({
         onKeyDown={handleKeyDown}
         onBlur={() => setTimeout(closeMenu, 120)}
         className={className}
+        data-testid={testId}
       />
 
       <AnimatePresence>
