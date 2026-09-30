@@ -654,15 +654,14 @@ const CreatePost = ({
             onClick={onClose}
           />
 
-          <div className="fixed inset-0 z-[999] flex items-end justify-center pointer-events-none sm:items-center">
+          <div className="fixed inset-0 z-[999] flex items-start justify-center pointer-events-none sm:items-center">
             <motion.div
-              initial={{ y: "100%", opacity: 0 }}
+              initial={{ y: -12, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
-              exit={{ y: "100%", opacity: 0 }}
+              exit={{ y: -12, opacity: 0 }}
               transition={{ type: "spring", damping: 28, stiffness: 220 }}
-              className="pointer-events-auto relative flex w-full flex-col overflow-hidden rounded-t-[2rem] border border-transparent bg-white shadow-[0_24px_80px_rgba(23,37,84,0.14)] sm:max-w-2xl sm:rounded-[2rem]"
+              className="pointer-events-auto relative flex h-[100dvh] max-h-[100dvh] w-full flex-col overflow-hidden rounded-none border border-transparent bg-white shadow-[0_24px_80px_rgba(23,37,84,0.14)] sm:h-[92dvh] sm:max-h-[92dvh] sm:max-w-2xl sm:rounded-[2rem]"
               style={{
-                maxHeight: "92dvh",
                 border: "1px solid transparent",
                 background: "linear-gradient(#fff,#fff) padding-box, linear-gradient(135deg,#e879f9,#60a5fa,#22d3ee) border-box",
                 boxShadow: "0 24px 80px rgba(23,37,84,.18), 0 0 32px rgba(139,92,246,.16)",
@@ -722,15 +721,12 @@ const CreatePost = ({
                     </div>
 
                     <div className="min-w-0 flex-1">
-                      <MentionInput
-                        autoFocus
-                        value={content}
-                        onChange={setContent}
-                        candidates={candidates}
-                        placeholder="Share your vibe today..."
-                        className="h-[3.35rem] min-h-[3.35rem] max-h-24 min-w-0 resize-none rounded-full border border-slate-200 bg-white/85 px-4 py-3 text-[16px] font-medium leading-snug text-[#172554] placeholder:text-slate-400 outline-none transition focus:border-violet-300 focus:ring-4 focus:ring-violet-100/70 pointer-events-auto"
-                        testId="input-post-content"
-                      />
+                      <p className="truncate text-sm font-black text-[#172554]">
+                        {userProfile?.full_name || "Your post"}
+                      </p>
+                      <p className="mt-0.5 text-xs font-medium text-slate-500">
+                        Write something worth sharing
+                      </p>
                     </div>
 
                     <div className="relative shrink-0">
@@ -773,6 +769,41 @@ const CreatePost = ({
                     />
                   </div>
 
+                  <div className="overflow-hidden rounded-[1.5rem] border border-slate-200 bg-[#fffefa] shadow-inner transition focus-within:border-violet-300 focus-within:ring-4 focus-within:ring-violet-100/70">
+                    <div className="flex items-center justify-between px-4 pb-1 pt-3">
+                      <span className="text-[10px] font-black uppercase tracking-[0.16em] text-violet-500">
+                        Your notebook
+                      </span>
+                      <span className="text-[11px] font-medium text-slate-400">
+                        Take your time
+                      </span>
+                    </div>
+                    <div className="relative">
+                      <div
+                        aria-hidden="true"
+                        className="pointer-events-none absolute inset-0"
+                        style={{
+                          backgroundImage:
+                            "repeating-linear-gradient(to bottom, transparent 0, transparent 27px, rgba(148,163,184,.24) 27px, rgba(148,163,184,.24) 28px)",
+                          backgroundSize: "100% 28px",
+                        }}
+                      />
+                      <div
+                        aria-hidden="true"
+                        className="pointer-events-none absolute bottom-0 left-8 top-0 w-px bg-rose-200/80"
+                      />
+                      <MentionInput
+                        autoFocus
+                        value={content}
+                        onChange={setContent}
+                        candidates={candidates}
+                        placeholder="Share your vibe today..."
+                        className="relative z-[1] box-border h-[min(38dvh,24rem)] min-h-[12rem] max-h-[42dvh] w-full resize-none overflow-y-auto border-0 bg-transparent py-2.5 pl-11 pr-4 text-[16px] font-medium leading-7 text-[#172554] placeholder:text-slate-400 outline-none pointer-events-auto"
+                        testId="input-post-content"
+                      />
+                    </div>
+                  </div>
+
                   <div className="flex gap-2.5 sm:gap-3">
                     <label className="relative flex min-w-0 flex-1 items-center gap-2 rounded-full border border-fuchsia-200 bg-gradient-to-r from-fuchsia-50 to-violet-50 px-3 py-2.5 shadow-[0_5px_16px_rgba(168,85,247,.09)] focus-within:ring-4 focus-within:ring-fuchsia-100">
                       <Smile size={21} className="shrink-0 text-violet-600" />
@@ -784,12 +815,12 @@ const CreatePost = ({
                         className="min-w-0 flex-1 appearance-none bg-transparent text-[14px] font-bold text-violet-800 outline-none"
                       >
                         <option value="">Mood</option>
-                        <option value="happy">Happy</option>
-                        <option value="excited">Excited</option>
-                        <option value="grateful">Grateful</option>
-                        <option value="chill">Chill</option>
-                        <option value="thoughtful">Thoughtful</option>
-                        <option value="inspired">Inspired</option>
+                        <option value="happy">Happy 😄</option>
+                        <option value="excited">Excited 🤩</option>
+                        <option value="grateful">Grateful 🙏</option>
+                        <option value="chill">Chill 😌</option>
+                        <option value="thoughtful">Thoughtful 🤔</option>
+                        <option value="inspired">Inspired ✨</option>
                       </select>
                       <ChevronDown size={16} className="pointer-events-none shrink-0 text-violet-600" />
                     </label>
