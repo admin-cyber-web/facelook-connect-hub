@@ -6,14 +6,12 @@ import {
   Send,
   Loader2,
   Globe,
-  Users,
-  Sparkles,
+  BarChart3,
   Gift,
   ChevronDown,
   MapPin,
   Smile,
   Camera,
-  Video,
   BookmarkPlus,
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
@@ -23,8 +21,6 @@ import MentionInput, { MentionCandidate } from "./MentionInput";
 import { extractMentionTokens, nameToUsername, Mention } from "@/lib/mentions";
 import { sanitizeText } from "@/lib/profanityFilter";
 import { generatePostSEO } from "@/lib/geminiClient";
-import { useSuggestion } from "@/hooks/useSuggestion";
-import SuggestionPanel from "./SuggestionPanel";
 import { uploadToCloudinary } from "@/lib/cloudinaryUpload";
 import { getSmartPostAsset } from "@/utils/smartAssets";
 
@@ -51,13 +47,14 @@ const CreatePost = ({
   const [loadingMsg, setLoadingMsg] = useState("Post Vibe");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
-  const videoInputRef = useRef<HTMLInputElement>(null);
   const [candidates, setCandidates] = useState<MentionCandidate[]>([]);
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [visibility, setVisibility] = useState<"public" | "friends_only">("public");
+  const [mood, setMood] = useState("");
   const [location, setLocation] = useState<string>("");
   const [showLocationInput, setShowLocationInput] = useState(false);
-  const [draft, setDraft] = useState(false);
+  const [pollEnabled, setPollEnabled] = useState(false);
+  const [pollQuestion, setPollQuestion] = useState("");
+  const [pollOptions, setPollOptions] = useState(["", ""]);
   const [surpriseEnabled, setSurpriseEnabled] = useState(false);
   const [surpriseTargetId, setSurpriseTargetId] = useState("");
   const [surpriseCustomMessage, setSurpriseCustomMessage] = useState("");
@@ -83,8 +80,6 @@ const CreatePost = ({
       const { data: { user } } = await supabase.auth.getUser();
       const uid = user?.id;
       if (!uid) return;
-      if (!cancelled) setCurrentUserId(uid);
-
       const friendCands: MentionCandidate[] = [];
       try {
         const { data: friendships } = await supabase
@@ -177,6 +172,10 @@ const CreatePost = ({
       setContent("");
       clearMediaSelection();
       setVisibility("public");
+      setMood("");
+      setPollEnabled(false);
+      setPollQuestion("");
+      setPollOptions(["", ""]);
       setLoadingMsg("Post Vibe");
        setSurpriseEnabled(false);
        setSurpriseTargetId("");
@@ -236,90 +235,90 @@ const CreatePost = ({
     e.target.value = "";
   };
 
-  const mediaType = useMemo<"image" | "video" | "youtube" | "text" | undefined>(() => {
-    if (files.length) {
-      if (files[0].type.startsWith("video/")) return "video";
-      return "image";
-    }
-    const url = content.match(/https?:\/\/[^\s]+/)?.[0] || "";
-    if (/youtu\.be\/|youtube\.com\/|\/shorts\//.test(url)) return "youtube";
-    return undefined;
-  }, [files, content]);
-
-  const { suggestions, loading: suggestLoading, error: suggestError, refresh } = useSuggestion({
-    text: content,
-    mediaType,
-    location: location || undefined,
-    enabled: isOpen,
-  });
-
-  const [autoMerged, setAutoMerged] = useState(false);
-  useEffect(() => {
-    if (suggestions && !autoMerged && suggestions.captions.length > 0 && content.trim()) {
-      const auto = suggestions.captions[suggestions.autoSelected] || suggestions.captions[0];
-      if (content.trim().length <= 60 && !content.includes(auto)) {
-        const newContent = content.trim() ? `${content.trim()} \u2014 ${auto}` : auto;
-        setContent(newContent);
-        setAutoMerged(true);
-      }
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [suggestions, autoMerged, content]);
-
   useEffect(() => {
     if (!isOpen) {
-      setAutoMerged(false);
       setLocation("");
       setShowLocationInput(false);
     }
   }, [isOpen]);
 
-  const appliedRef = useRef<Set<string>>(new Set());
-
-  const handleUseCaption = (caption: string) => {
-    const key = "use:" + caption;
-    if (appliedRef.current.has(key)) return;
-    appliedRef.current.add(key);
-    setContent((prev) => {
-      const trimmed = prev.trim();
-      if (!trimmed) return caption;
-      if (trimmed.includes(caption)) return prev;
-      return `${trimmed} \n${caption}`;
-    });
-    toast.success("✨ Suggestion Applied", { duration: 1500 });
-  };
-
-  const handleAddHashtags = (hashtags: string[]) => {
-    const tagStr = hashtags.join(" ");
-    const key = "tags:" + tagStr;
-    if (appliedRef.current.has(key)) return;
-    appliedRef.current.add(key);
-    setContent((prev) => {
-      const trimmed = prev.trim();
-      if (!trimmed) return tagStr;
-      if (trimmed.includes(tagStr)) return prev;
-      return `${trimmed} \n${tagStr}`;
-    });
-    toast.success("✨ Hashtags Added", { duration: 1500 });
-  };
-
-  const handleReplaceContent = (text: string) => {
-    const key = "replace:" + text;
-    if (appliedRef.current.has(key)) return;
-    appliedRef.current.add(key);
-    setContent(text);
-    toast.success("✨ Suggestion Applied", { duration: 1500 });
-  };
-
   const handleSaveDraft = () => {
-    if (!content && !files.length) return;
-    setDraft(true);
+    if (!content.trim() && !files.length) return;
     toast.success("Draft saved!", { duration: 2000 });
     onClose();
   };
 
+  const handleCreateSurvey = async () => {
+    if (loading) return;
+    const question = pollQuestion.trim();
+    const options = pollOptions.map((option) => option.trim()).filter(Boolean);
+    if (!question) {
+      toast.error("Add a question for your poll.");
+      return;
+    }
+    if (options.length < 2) {
+      toast.error("Add at least two poll choices.");
+      return;
+    }
+
+    setLoading(true);
+    setLoadingMsg("Publishing poll…");
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user?.id) throw new Error("Sign in to publish a poll.");
+
+      const { data: survey, error: surveyError } = await supabase
+        .from("surveys")
+        .insert({
+          question,
+          image_url: null,
+          user_id: user.id,
+        })
+        .select("id, question, user_id, created_at")
+        .single();
+      if (surveyError || !survey) {
+        throw surveyError || new Error("The poll could not be created.");
+      }
+
+      const { error: optionsError } = await supabase
+        .from("survey_options")
+        .insert(options.map((text) => ({ survey_id: survey.id, text })));
+      if (optionsError) {
+        const { error: cleanupError } = await supabase
+          .from("surveys")
+          .delete()
+          .eq("id", survey.id)
+          .eq("user_id", user.id);
+        if (cleanupError) {
+          console.error("[CreatePost] Could not clean up incomplete survey:", cleanupError);
+        }
+        throw optionsError;
+      }
+
+      window.dispatchEvent(new CustomEvent("flicks:survey-created", {
+        detail: { ...survey, options },
+      }));
+      toast.success("Poll published!");
+      setPollQuestion("");
+      setPollOptions(["", ""]);
+      setPollEnabled(false);
+      onClose();
+    } catch (err: any) {
+      console.error("[CreatePost] Poll publish failed:", err);
+      toast.error(err?.message || "Poll could not be published.");
+    } finally {
+      setLoading(false);
+      setLoadingMsg("Post Vibe");
+    }
+  };
+
   const handlePost = async () => {
-    if (!content && !files.length) return;
+    if (loading) return;
+    if (pollEnabled) {
+      await handleCreateSurvey();
+      return;
+    }
+    if (!content.trim() && !files.length) return;
     setLoading(true);
     setLoadingMsg("Posting…");
 
@@ -473,6 +472,8 @@ const CreatePost = ({
           mentions: resolvedMentions,
           has_pin: hasPin,
           has_team: hasTeam,
+          mood: mood || null,
+          location: location.trim() || null,
           smart_asset_source: smartAssetSource,
           smart_asset_key: smartAssetKey,
           ...(imageUrls.length ? { image_urls: imageUrls } : {}),
@@ -635,7 +636,10 @@ const CreatePost = ({
     }
   };
 
-  const canPost = !loading && (!!content || files.length > 0);
+  const validPollOptionCount = pollOptions.filter((option) => option.trim()).length;
+  const canPost = !loading && (pollEnabled
+    ? Boolean(pollQuestion.trim()) && validPollOptionCount >= 2
+    : Boolean(content.trim()) || files.length > 0);
 
   return (
     <AnimatePresence>
@@ -646,7 +650,7 @@ const CreatePost = ({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-[998] bg-slate-950/25 backdrop-blur-[2px]"
+            className="fixed inset-0 z-[998] bg-slate-950/55 backdrop-blur-[6px]"
             onClick={onClose}
           />
 
@@ -656,8 +660,13 @@ const CreatePost = ({
               animate={{ y: 0, opacity: 1 }}
               exit={{ y: "100%", opacity: 0 }}
               transition={{ type: "spring", damping: 28, stiffness: 220 }}
-              className="pointer-events-auto relative flex w-full flex-col overflow-hidden rounded-t-[2rem] border border-white bg-white shadow-[0_24px_80px_rgba(23,37,84,0.14)] sm:max-w-lg sm:rounded-[2rem]"
-              style={{ maxHeight: "92dvh" }}
+              className="pointer-events-auto relative flex w-full flex-col overflow-hidden rounded-t-[2rem] border border-transparent bg-white shadow-[0_24px_80px_rgba(23,37,84,0.14)] sm:max-w-2xl sm:rounded-[2rem]"
+              style={{
+                maxHeight: "92dvh",
+                border: "1px solid transparent",
+                background: "linear-gradient(#fff,#fff) padding-box, linear-gradient(135deg,#e879f9,#60a5fa,#22d3ee) border-box",
+                boxShadow: "0 24px 80px rgba(23,37,84,.18), 0 0 32px rgba(139,92,246,.16)",
+              }}
               onClick={(e) => e.stopPropagation()}
             >
               <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
@@ -666,8 +675,7 @@ const CreatePost = ({
                 <span className="absolute -left-16 top-28 h-28 w-28 rounded-full bg-[#FFE8EC]/35 blur-[54px]" />
               </div>
 
-              {/* Reference layout header: back arrow and centered title. */}
-              <header className="relative z-10 flex h-[4.75rem] flex-none items-center justify-between border-b border-slate-200/80 bg-white/90 px-4 backdrop-blur-md sm:px-6">
+              <header className="relative z-10 flex h-[4.25rem] flex-none items-center justify-between border-b border-slate-200/80 bg-white/90 px-4 backdrop-blur-md sm:px-6">
                 <button
                   type="button"
                   onClick={onClose}
@@ -679,76 +687,202 @@ const CreatePost = ({
                 <h1 className="pointer-events-none absolute left-1/2 -translate-x-1/2 whitespace-nowrap text-[22px] font-black tracking-[-0.03em] text-[#172554]">
                   Create a Post
                 </h1>
-                <span className="mr-1 h-3 w-3 rounded-full bg-[#22C55E] shadow-[0_0_0_4px_rgba(34,197,94,0.12)]" aria-label="Online" />
+                {Boolean(content || files.length) ? (
+                  <button
+                    type="button"
+                    onClick={handleSaveDraft}
+                    aria-label="Save draft"
+                    data-testid="button-save-draft"
+                    className="flex h-10 w-10 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100 active:scale-95"
+                  >
+                    <BookmarkPlus size={19} />
+                  </button>
+                ) : (
+                  <span className="mr-1 h-3 w-3 rounded-full bg-[#22C55E] shadow-[0_0_0_4px_rgba(34,197,94,0.12)]" aria-label="Online" />
+                )}
               </header>
 
               <div className="relative z-10 flex min-h-0 flex-1 flex-col">
-                <div className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain px-5 pb-5 pt-4 sm:px-7">
-                  {/* Dynamic user information and the real privacy selector. */}
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex min-w-0 items-center gap-3">
-                      <div className="relative h-[3.7rem] w-[3.7rem] shrink-0 rounded-full bg-[conic-gradient(from_210deg,#FF3B4D,#FFB0B8,#22C55E,#FF3B4D)] p-[3px]">
-                        <div className="h-full w-full rounded-full bg-white p-[2px]">
-                          <img
-                            src={
-                              userProfile?.avatar_url ||
-                              `https://ui-avatars.com/api/?name=${encodeURIComponent(userProfile?.full_name || "User")}&background=172554&color=fff`
-                            }
-                            className="h-full w-full rounded-full object-cover"
-                            alt="Avatar"
-                            decoding="async"
-                          />
-                        </div>
-                        <span className="absolute bottom-0 right-0 h-4 w-4 rounded-full border-[3px] border-white bg-[#22C55E]" aria-hidden="true" />
+                <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 pb-4 pt-4 sm:px-7">
+                  <div className="flex items-center gap-3 sm:gap-4">
+                    <div className="relative h-12 w-12 shrink-0 rounded-full bg-[conic-gradient(from_210deg,#d946ef,#60a5fa,#22d3ee,#d946ef)] p-[2.5px] shadow-[0_0_18px_rgba(139,92,246,.22)]">
+                      <div className="h-full w-full rounded-full bg-white p-[2px]">
+                        <img
+                          src={
+                            userProfile?.avatar_url ||
+                            `https://ui-avatars.com/api/?name=${encodeURIComponent(userProfile?.full_name || "User")}&background=172554&color=fff`
+                          }
+                          className="h-full w-full rounded-full object-cover"
+                          alt={`${userProfile?.full_name || "Your"} avatar`}
+                          decoding="async"
+                          data-testid="img-avatar-create-post"
+                        />
                       </div>
-                      <p className="truncate text-[20px] font-black tracking-[-0.02em] text-[#172554]">
-                        {userProfile?.full_name || "You"}
-                      </p>
+                      <span className="absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full border-[2px] border-white bg-[#22C55E]" aria-hidden="true" />
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                      <MentionInput
+                        autoFocus
+                        value={content}
+                        onChange={setContent}
+                        candidates={candidates}
+                        placeholder="Share your vibe today..."
+                        className="h-[3.35rem] min-h-[3.35rem] max-h-24 min-w-0 resize-none rounded-full border border-slate-200 bg-white/85 px-4 py-3 text-[16px] font-medium leading-snug text-[#172554] placeholder:text-slate-400 outline-none transition focus:border-violet-300 focus:ring-4 focus:ring-violet-100/70 pointer-events-auto"
+                        testId="input-post-content"
+                      />
                     </div>
 
                     <div className="relative shrink-0">
-                      <Globe size={19} className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-[#172554]" />
-                      <select
-                        aria-label="Post privacy"
-                        value={visibility}
-                        onChange={(e) => setVisibility(e.target.value as "public" | "friends_only")}
-                        className="h-12 appearance-none rounded-full border border-slate-200 bg-white py-2 pl-10 pr-10 text-[16px] font-semibold text-[#172554] shadow-[0_4px_14px_rgba(23,37,84,0.05)] outline-none transition focus:border-[#3B82F6] focus:ring-4 focus:ring-blue-100"
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        data-testid="button-add-media"
+                        className="flex h-[3.35rem] min-w-[6.25rem] items-center justify-center gap-2 rounded-full bg-gradient-to-r from-fuchsia-600 via-violet-600 to-sky-500 px-3 text-[12px] font-extrabold leading-tight text-white shadow-[0_8px_22px_rgba(124,58,237,.32)] transition hover:brightness-105 active:scale-95 sm:min-w-[7.5rem] sm:px-4 sm:text-sm"
                       >
-                        <option value="public">Public</option>
-                        <option value="friends_only">Friends</option>
-                      </select>
-                      <ChevronDown size={18} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#172554]" />
+                        <Camera size={20} strokeWidth={2.4} />
+                        <span>Media /<br className="sm:hidden" /> Photo</span>
+                      </button>
+                      <input
+                        id="gallery-picker"
+                        type="file"
+                        multiple
+                        className="hidden"
+                        accept="image/*,video/*"
+                        onChange={handleFileChange}
+                        ref={fileInputRef}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => cameraInputRef.current?.click()}
+                        aria-label="Open camera"
+                        data-testid="button-open-camera"
+                        className="absolute -right-1 -top-1 flex h-6 w-6 items-center justify-center rounded-full border-2 border-white bg-emerald-500 text-white shadow-md"
+                      >
+                        <Camera size={12} />
+                      </button>
                     </div>
-                  </div>
-
-                  <AnimatePresence>
-                    {visibility === "public" && (
-                      <motion.div
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: "auto" }}
-                        exit={{ opacity: 0, height: 0 }}
-                        className="flex items-start gap-2 rounded-2xl border border-amber-200/70 bg-[#FFF9EA] px-3 py-2.5"
-                      >
-                        <span className="mt-0.5 text-sm text-amber-500">⚠️</span>
-                        <p className="text-[11px] font-semibold leading-snug text-amber-800">
-                          You're posting publicly. Make sure your content follows community guidelines.
-                        </p>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-
-                  {/* Spacious editor with the reference's vertical red/green accent. */}
-                  <div className="flex min-h-[11rem] gap-3 rounded-2xl bg-white py-3">
-                    <span className="w-1 shrink-0 rounded-full bg-gradient-to-b from-[#FF3B4D] via-[#FF6B7A] to-[#22C55E]" aria-hidden="true" />
-                    <MentionInput
-                      autoFocus
-                      value={content}
-                      onChange={setContent}
-                      candidates={candidates}
-                      placeholder="What's on your mind?"
-                      className="w-full min-h-[10rem] resize-none bg-transparent px-0.5 text-[20px] font-medium leading-relaxed text-[#172554] placeholder:text-slate-400 outline-none pointer-events-auto"
+                    <input
+                      id="camera-picker"
+                      ref={cameraInputRef}
+                      type="file"
+                      className="hidden"
+                      accept="image/*"
+                      capture="environment"
+                      onChange={handleFileChange}
                     />
                   </div>
+
+                  <div className="flex gap-2.5 sm:gap-3">
+                    <label className="relative flex min-w-0 flex-1 items-center gap-2 rounded-full border border-fuchsia-200 bg-gradient-to-r from-fuchsia-50 to-violet-50 px-3 py-2.5 shadow-[0_5px_16px_rgba(168,85,247,.09)] focus-within:ring-4 focus-within:ring-fuchsia-100">
+                      <Smile size={21} className="shrink-0 text-violet-600" />
+                      <select
+                        aria-label="Post mood"
+                        data-testid="select-post-mood"
+                        value={mood}
+                        onChange={(e) => setMood(e.target.value)}
+                        className="min-w-0 flex-1 appearance-none bg-transparent text-[14px] font-bold text-violet-800 outline-none"
+                      >
+                        <option value="">Mood</option>
+                        <option value="happy">Happy</option>
+                        <option value="excited">Excited</option>
+                        <option value="grateful">Grateful</option>
+                        <option value="chill">Chill</option>
+                        <option value="thoughtful">Thoughtful</option>
+                        <option value="inspired">Inspired</option>
+                      </select>
+                      <ChevronDown size={16} className="pointer-events-none shrink-0 text-violet-600" />
+                    </label>
+
+                    <label className="relative flex min-w-0 flex-1 items-center gap-2 rounded-full border border-sky-200 bg-gradient-to-r from-sky-50 to-blue-50 px-3 py-2.5 shadow-[0_5px_16px_rgba(59,130,246,.08)] focus-within:ring-4 focus-within:ring-sky-100">
+                      <Globe size={20} className="shrink-0 text-blue-600" />
+                      <select
+                        aria-label="Post audience"
+                        data-testid="select-post-audience"
+                        value={visibility}
+                        onChange={(e) => setVisibility(e.target.value as "public" | "friends_only")}
+                        className="min-w-0 flex-1 appearance-none bg-transparent text-[14px] font-bold text-blue-900 outline-none"
+                      >
+                        <option value="public">Public &amp; Friends</option>
+                        <option value="friends_only">Friends only</option>
+                      </select>
+                      <ChevronDown size={16} className="pointer-events-none shrink-0 text-blue-700" />
+                    </label>
+                  </div>
+
+                  <AnimatePresence initial={false}>
+                    {pollEnabled && (
+                      <motion.section
+                        initial={{ opacity: 0, height: 0, y: -6 }}
+                        animate={{ opacity: 1, height: "auto", y: 0 }}
+                        exit={{ opacity: 0, height: 0, y: -6 }}
+                        className="overflow-hidden rounded-[1.35rem] border border-fuchsia-200/90 bg-gradient-to-br from-white via-fuchsia-50/70 to-sky-50/80 p-4 shadow-[0_10px_28px_rgba(139,92,246,.12)]"
+                        aria-label="Create a poll"
+                      >
+                        <div className="mb-3 flex items-center gap-2 text-violet-800">
+                          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-fuchsia-600 to-violet-600 text-white shadow-[0_5px_16px_rgba(139,92,246,.28)]">
+                            <BarChart3 size={18} />
+                          </span>
+                          <div>
+                            <h2 className="text-sm font-black">Poll &amp; Survey</h2>
+                            <p className="text-[11px] font-medium text-slate-500">Add a question and at least two choices.</p>
+                          </div>
+                        </div>
+                        <label className="block text-xs font-bold text-slate-600">
+                          Question
+                          <textarea
+                            value={pollQuestion}
+                            onChange={(e) => setPollQuestion(e.target.value)}
+                            maxLength={240}
+                            rows={2}
+                            placeholder="What would you like to ask?"
+                            data-testid="input-poll-question"
+                            className="mt-1.5 w-full resize-none rounded-xl border border-violet-200 bg-white/90 px-3 py-2.5 text-sm font-semibold text-[#172554] outline-none transition focus:border-violet-400 focus:ring-4 focus:ring-violet-100"
+                          />
+                        </label>
+                        <div className="mt-3 space-y-2">
+                          {pollOptions.map((option, index) => (
+                            <div key={index} className="flex items-center gap-2">
+                              <input
+                                type="text"
+                                value={option}
+                                onChange={(e) => setPollOptions((current) =>
+                                  current.map((value, optionIndex) =>
+                                    optionIndex === index ? e.target.value : value,
+                                  ),
+                                )}
+                                maxLength={120}
+                                placeholder={`Choice ${index + 1}`}
+                                aria-label={`Poll choice ${index + 1}`}
+                                data-testid={`input-poll-option-${index + 1}`}
+                                className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white/90 px-3 py-2.5 text-sm font-medium text-[#172554] outline-none transition focus:border-violet-400 focus:ring-4 focus:ring-violet-100"
+                              />
+                              {pollOptions.length > 2 && (
+                                <button
+                                  type="button"
+                                  onClick={() => setPollOptions((current) => current.filter((_, optionIndex) => optionIndex !== index))}
+                                  aria-label={`Remove choice ${index + 1}`}
+                                  data-testid={`button-remove-poll-option-${index + 1}`}
+                                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-slate-400 transition hover:bg-rose-50 hover:text-rose-600"
+                                >
+                                  <X size={16} />
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setPollOptions((current) => current.length < 6 ? [...current, ""] : current)}
+                          disabled={pollOptions.length >= 6}
+                          data-testid="button-add-poll-option"
+                          className="mt-3 rounded-full border border-violet-200 bg-white/80 px-3.5 py-2 text-xs font-extrabold text-violet-700 transition hover:bg-violet-50 disabled:cursor-not-allowed disabled:opacity-45"
+                        >
+                          + Add choice
+                        </button>
+                      </motion.section>
+                    )}
+                  </AnimatePresence>
 
                   <AnimatePresence>
                     {showLocationInput && (
@@ -764,6 +898,7 @@ const CreatePost = ({
                             value={location}
                             onChange={(e) => setLocation(e.target.value)}
                             placeholder="e.g. Delhi, Mumbai, Goa..."
+                            data-testid="input-post-location"
                             className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-10 pr-3 text-sm font-medium text-[#172554] outline-none transition-all focus:border-[#FF6B7A] focus:ring-2 focus:ring-[#FFE8EC]"
                           />
                         </div>
@@ -803,6 +938,7 @@ const CreatePost = ({
                                 }}
                                 className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-slate-950/70 text-white transition-colors hover:bg-[#FF3B4D] active:scale-90"
                                 aria-label={`Remove image ${index + 1}`}
+                                data-testid={`button-remove-media-${index + 1}`}
                               >
                                 <X size={14} strokeWidth={2.5} />
                               </button>
@@ -816,20 +952,23 @@ const CreatePost = ({
                         )}
                         <label
                           htmlFor="add-more-picker"
+                          data-testid="label-add-more-media"
                           className="absolute bottom-2 right-2 flex cursor-pointer items-center gap-1 rounded-full bg-slate-950/70 px-3 py-1.5 text-[11px] font-bold text-white transition-colors hover:bg-[#FF3B4D]"
                         >
                           <ImageIcon size={11} /> Add More
-                          <input id="add-more-picker" type="file" multiple className="hidden" accept="image/*" onChange={handleFileChange} />
+                          <input id="add-more-picker" type="file" multiple className="hidden" accept="image/*" onChange={handleFileChange} data-testid="input-add-more-media" />
                         </label>
                       </motion.div>
                     )}
                   </AnimatePresence>
 
-                  {/* Surprise Tag card: collapsed by default, expanded inputs remain unchanged. */}
+                  {/* The bottom-row Surprise action reveals these friend-tag fields. */}
+                  {surpriseEnabled && (
                   <div className="rounded-[1.35rem] border border-[#FF3B4D]/20 bg-gradient-to-br from-white via-[#FFF8FA] to-[#FFE8EC]/70 p-1 shadow-[0_12px_30px_rgba(255,59,77,0.08)]">
                     <button
                       type="button"
                       onClick={() => setSurpriseEnabled((enabled) => !enabled)}
+                      data-testid="button-expand-surprise-details"
                       className="flex min-h-[6.4rem] w-full items-center justify-between gap-3 rounded-[1.1rem] border-l-4 border-[#FF3B4D] px-4 py-3 text-left transition-colors hover:bg-white/70"
                       aria-pressed={surpriseEnabled}
                     >
@@ -865,6 +1004,7 @@ const CreatePost = ({
                             <select
                               value={surpriseTargetId}
                               onChange={(e) => setSurpriseTargetId(e.target.value)}
+                              data-testid="select-surprise-friend"
                               className="mt-1.5 w-full rounded-xl border border-[#FF3B4D]/15 bg-white px-3 py-2.5 text-sm font-bold text-[#172554] outline-none focus:border-[#FF6B7A] focus:ring-2 focus:ring-[#FFE8EC]"
                             >
                               <option value="">
@@ -885,6 +1025,7 @@ const CreatePost = ({
                               rows={2}
                               maxLength={240}
                               placeholder="Write something special..."
+                              data-testid="input-surprise-message"
                               className="mt-1.5 w-full resize-none rounded-xl border border-[#FF3B4D]/15 bg-white px-3 py-2.5 text-sm font-medium text-[#172554] outline-none focus:border-[#FF6B7A] focus:ring-2 focus:ring-[#FFE8EC]"
                             />
                           </label>
@@ -895,6 +1036,7 @@ const CreatePost = ({
                               value={surpriseGifUrl}
                               onChange={(e) => setSurpriseGifUrl(e.target.value)}
                               placeholder="https://media.giphy.com/..."
+                              data-testid="input-surprise-gif"
                               className="mt-1.5 w-full rounded-xl border border-[#FF3B4D]/15 bg-white px-3 py-2.5 text-sm font-medium text-[#172554] outline-none focus:border-[#FF6B7A] focus:ring-2 focus:ring-[#FFE8EC]"
                             />
                           </label>
@@ -905,109 +1047,73 @@ const CreatePost = ({
                       )}
                     </AnimatePresence>
                   </div>
+                  )}
 
-                  {/* The reference leaves breathing room before the AI card. */}
-                  <div className="h-16 sm:h-24" aria-hidden="true" />
-
-                  <SuggestionPanel
-                    suggestions={suggestions}
-                    loading={suggestLoading}
-                    error={suggestError}
-                    onRefresh={refresh}
-                    onUseCaption={handleUseCaption}
-                    onAddHashtags={handleAddHashtags}
-                    onReplaceContent={handleReplaceContent}
-                    existingText={content}
-                    onCollapse={() => {}}
-                  />
                 </div>
 
-                {/* Fixed bottom action tray with the reference icon layout. */}
-                <div className="relative z-10 flex-none border-t border-slate-200/80 bg-white/95 px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 shadow-[0_-10px_28px_rgba(23,37,84,0.07)] backdrop-blur-md sm:px-5">
-                  <div className="flex items-center gap-1.5 sm:gap-2">
-                    <div className="relative flex min-w-0 flex-1 flex-col items-center">
-                      <label
-                        htmlFor="gallery-picker"
-                        className="flex min-h-12 w-full cursor-pointer flex-col items-center justify-center gap-0.5 rounded-xl text-[#2563EB] transition hover:bg-blue-50 active:scale-95 touch-manipulation"
-                      >
-                        <ImageIcon size={22} strokeWidth={2} />
-                        <span className="text-[11px] font-semibold text-slate-500">Photo</span>
-                        <input id="gallery-picker" type="file" multiple className="hidden" accept="image/*,video/*" onChange={handleFileChange} ref={fileInputRef} />
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() => cameraInputRef.current?.click()}
-                        aria-label="Open camera"
-                        className="absolute right-0 top-0 flex h-5 w-5 items-center justify-center rounded-full bg-emerald-50 text-emerald-600"
-                      >
-                        <Camera size={11} />
-                      </button>
-                      <input
-                        id="camera-picker"
-                        ref={cameraInputRef}
-                        type="file"
-                        className="hidden"
-                        accept="image/*"
-                        capture="environment"
-                        onChange={handleFileChange}
-                      />
-                    </div>
-
-                    <label
-                      htmlFor="video-picker"
-                      className="flex min-h-12 min-w-0 flex-1 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-xl text-[#E83E8C] transition hover:bg-[#FFF0F7] active:scale-95 touch-manipulation"
-                    >
-                      <Video size={22} strokeWidth={2} />
-                      <span className="text-[11px] font-semibold text-slate-500">Reel</span>
-                      <input id="video-picker" type="file" className="hidden" accept="video/*" onChange={handleFileChange} ref={videoInputRef} />
-                    </label>
-
+                <div className="sticky bottom-0 z-20 flex-none border-t border-slate-200/80 bg-white/95 px-3 pt-2.5 pb-[calc(0.65rem+env(safe-area-inset-bottom))] shadow-[0_-10px_28px_rgba(23,37,84,0.09)] backdrop-blur-xl sm:px-5 sm:pt-3">
+                  <div className="grid grid-cols-[repeat(3,minmax(0,1fr))_minmax(7.1rem,1.5fr)] items-center gap-1.5 sm:gap-3">
                     <button
                       type="button"
-                      onClick={() => setShowLocationInput((p) => !p)}
-                      className={`flex min-h-12 min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-xl transition active:scale-95 touch-manipulation ${
-                        showLocationInput ? "bg-[#FFF0F2] text-[#FF3B4D]" : "text-[#FF3B4D] hover:bg-[#FFF0F2]"
+                      onClick={() => setPollEnabled((enabled) => !enabled)}
+                      aria-pressed={pollEnabled}
+                      data-testid="button-toggle-poll"
+                      className={`flex min-h-[3.75rem] min-w-0 flex-col items-center justify-center gap-1 rounded-2xl px-1 text-center transition active:scale-95 touch-manipulation ${
+                        pollEnabled ? "bg-fuchsia-50 text-fuchsia-700" : "text-violet-700 hover:bg-violet-50"
                       }`}
                     >
-                      <MapPin size={22} strokeWidth={2} />
-                      <span className="text-[11px] font-semibold text-slate-500">Location</span>
+                      <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-fuchsia-600 to-violet-600 text-white shadow-[0_4px_12px_rgba(139,92,246,.24)]">
+                        <BarChart3 size={17} strokeWidth={2.3} />
+                      </span>
+                      <span className="text-[10px] font-extrabold leading-[1.05] sm:text-[11px]">Poll &amp; Survey</span>
                     </button>
 
                     <button
                       type="button"
-                      onClick={() => setContent((p) => p + " 😊")}
-                      className="flex min-h-12 min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-xl text-amber-500 transition hover:bg-amber-50 active:scale-95 touch-manipulation"
+                      onClick={() => setShowLocationInput((open) => !open)}
+                      aria-pressed={showLocationInput}
+                      data-testid="button-toggle-location"
+                      className={`flex min-h-[3.75rem] min-w-0 flex-col items-center justify-center gap-1 rounded-2xl px-1 text-center transition active:scale-95 touch-manipulation ${
+                        showLocationInput ? "bg-sky-50 text-sky-700" : "text-sky-700 hover:bg-sky-50"
+                      }`}
                     >
-                      <Smile size={22} strokeWidth={2} />
-                      <span className="text-[11px] font-semibold text-slate-500">Emoji</span>
+                      <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-cyan-500 text-white shadow-[0_4px_12px_rgba(59,130,246,.24)]">
+                        <MapPin size={17} strokeWidth={2.3} />
+                      </span>
+                      <span className="text-[10px] font-extrabold leading-[1.05] sm:text-[11px]">Location</span>
                     </button>
 
-                    {Boolean(content || files.length) && (
-                      <button
-                        type="button"
-                        onClick={handleSaveDraft}
-                        aria-label="Save draft"
-                        className="flex h-10 w-9 shrink-0 items-center justify-center rounded-xl text-slate-500 transition hover:bg-slate-100 active:scale-95 touch-manipulation"
-                      >
-                        <BookmarkPlus size={18} />
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      onClick={() => setSurpriseEnabled((enabled) => !enabled)}
+                      aria-pressed={surpriseEnabled}
+                      data-testid="button-toggle-surprise"
+                      className={`flex min-h-[3.75rem] min-w-0 flex-col items-center justify-center gap-1 rounded-2xl px-1 text-center transition active:scale-95 touch-manipulation ${
+                        surpriseEnabled ? "bg-rose-50 text-rose-700" : "text-rose-600 hover:bg-rose-50"
+                      }`}
+                    >
+                      <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-rose-500 to-pink-500 text-white shadow-[0_4px_12px_rgba(244,63,94,.22)]">
+                        <Gift size={17} strokeWidth={2.3} />
+                      </span>
+                      <span className="text-[10px] font-extrabold leading-[1.05] sm:text-[11px]">Surprise</span>
+                    </button>
 
                     <button
                       type="button"
                       onClick={handlePost}
                       disabled={!canPost}
-                      className="flex min-h-12 min-w-[7.2rem] flex-[1.65] items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#2563EB] to-[#3B82F6] px-4 text-[15px] font-black text-white shadow-[0_10px_24px_rgba(37,99,235,0.23)] transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 touch-manipulation"
+                      data-testid="button-submit-post"
+                      className="flex min-h-[3.75rem] min-w-0 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-fuchsia-600 via-violet-600 to-blue-500 px-3 text-[14px] font-black text-white shadow-[0_8px_22px_rgba(124,58,237,.32)] transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45 touch-manipulation sm:px-5 sm:text-[15px]"
                     >
                       {loading ? (
                         <>
-                          <Loader2 size={16} className="shrink-0 animate-spin" />
+                          <Loader2 size={17} className="shrink-0 animate-spin" />
                           <span className="truncate">{loadingMsg}</span>
                         </>
                       ) : (
                         <>
-                          <span>Post Now</span>
-                          <Send size={18} strokeWidth={2.2} />
+                          <Send size={18} strokeWidth={2.3} />
+                          <span className="truncate">{pollEnabled ? "Publish Poll" : "Post"}</span>
                         </>
                       )}
                     </button>

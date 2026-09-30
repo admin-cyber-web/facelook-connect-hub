@@ -954,6 +954,11 @@ const SurveyFeed: React.FC<{ userId: string; highlightedSurveyId?: string | null
   }, [userId]);
 
   useEffect(() => { fetchSurveys(); }, [fetchSurveys]);
+  useEffect(() => {
+    const refreshAfterCreate = () => { void fetchSurveys(); };
+    window.addEventListener("flicks:survey-created", refreshAfterCreate);
+    return () => window.removeEventListener("flicks:survey-created", refreshAfterCreate);
+  }, [fetchSurveys]);
 
   const filtered = surveys.filter(s => {
     if (filter === "mine") return s.user_id === userId;
