@@ -13,6 +13,10 @@ import {
 import { MagnetButton } from "./MagnetSystem";
 import { toast } from "sonner";
 import { getReelSettings } from "@/lib/reelSettings";
+import {
+  attachReelAudioSync,
+  getReelAudioTargetTime,
+} from "@/lib/reelAudioSync";
 
 // ── Utilities ─────────────────────────────────────────────────────────────────
 const formatCount = (n: any): string => {
@@ -25,6 +29,22 @@ const formatCount = (n: any): string => {
 
 const SUPPORTED_VIDEO_EXTENSIONS = /\.(mp4|webm)(?:$|[?#])/i;
 let globalSoundEnabled = false;
+const FLICKS_POST_PROJECTION =
+  "id, author, author_id, content, media_url, type, metadata, cover_url, views_count, likes_count, comments_count, shares_count, meta_title, meta_description, created_at, author_profile:profiles!posts_author_id_fkey(avatar_url, full_name)";
+const FLICKS_POST_PROJECTION_WITH_AUDIO = `${FLICKS_POST_PROJECTION}, audio_url`;
+
+const isMissingAudioUrlColumn = (error: unknown) => {
+  if (typeof error !== "object" || error === null) return false;
+  const details = error as {
+    code?: unknown;
+    details?: unknown;
+    message?: unknown;
+  };
+  return (
+    (details.code === "PGRST204" || details.code === "42703") &&
+    /audio_url/i.test(`${details.message || ""} ${details.details || ""}`)
+  );
+};
 
 const isSupportedVideoUrl = (url: unknown, metadata?: any): boolean => {
   if (typeof url !== "string" || !url.trim()) return false;
@@ -235,6 +255,7 @@ const FlickCard = memo(({ post, isActive, isPreloaded, currentUserId, onBridgeCh
   const reelSettings = useMemo(() => getReelSettings(post), [post]);
   const videoUrl = reelSettings.videoUrl || post.media_url || post.url;
   const hasBackgroundAudio = Boolean(reelSettings.audioUrl);
+  const previousAudioUrlRef = useRef(reelSettings.audioUrl);
 
   useEffect(() => {
     setLikedByMe(Boolean(post?.liked_by_me));
@@ -293,8 +314,9 @@ const FlickCard = memo(({ post, isActive, isPreloaded, currentUserId, onBridgeCh
         // Other errors (NotSupportedError etc.) are handled by the onError handler below
       });
       if (hasBackgroundAudio && audio) {
-        audio.currentTime = vid.currentTime;
-        audio.play().catch(() => {});
+        audio.currentTime = getReelAudioTargetTime(vid, audio);
+        if (wantSound) audio.play().catch(() => {});
+        else audio.pause();
       }
     } else {
       vid.pause();
@@ -306,14 +328,43 @@ const FlickCard = memo(({ post, isActive, isPreloaded, currentUserId, onBridgeCh
     const video = videoRef.current;
     const audio = audioRef.current;
     if (!video || !audio || !hasBackgroundAudio) return;
-    const syncAudio = () => {
-      if (Math.abs(audio.currentTime - video.currentTime) > 0.18) {
-        audio.currentTime = video.currentTime;
-      }
+    return attachReelAudioSync(video, audio, reelSettings.playbackRate);
+  }, [hasBackgroundAudio, reelSettings.audioUrl, reelSettings.playbackRate]);
+
+  useEffect(() => {
+    const audioUrlChanged = previousAudioUrlRef.current !== reelSettings.audioUrl;
+    previousAudioUrlRef.current = reelSettings.audioUrl;
+    const video = videoRef.current;
+    const audio = audioRef.current;
+    if (!audioUrlChanged || !isActive || !hasBackgroundAudio || !video || !audio) return;
+
+    let cancelled = false;
+    const startUpdatedTrack = () => {
+      if (
+        cancelled ||
+        !globalSoundEnabled ||
+        audio.readyState < HTMLMediaElement.HAVE_METADATA
+      ) return;
+      const expectedUrl = new URL(reelSettings.audioUrl!, document.baseURI).href;
+      if (audio.currentSrc && audio.currentSrc !== expectedUrl) return;
+      audio.muted = false;
+      audio.loop = true;
+      audio.playbackRate = reelSettings.playbackRate;
+      audio.play().catch(() => {});
     };
-    video.addEventListener("timeupdate", syncAudio);
-    return () => video.removeEventListener("timeupdate", syncAudio);
-  }, [hasBackgroundAudio, reelSettings.audioUrl]);
+
+    audio.addEventListener("loadedmetadata", startUpdatedTrack);
+    startUpdatedTrack();
+    return () => {
+      cancelled = true;
+      audio.removeEventListener("loadedmetadata", startUpdatedTrack);
+    };
+  }, [
+    hasBackgroundAudio,
+    isActive,
+    reelSettings.audioUrl,
+    reelSettings.playbackRate,
+  ]);
 
   // ── Core like logic (used by button + double-tap) ─────────────────────
   const refreshLikeState = useCallback(async () => {
@@ -428,7 +479,10 @@ const FlickCard = memo(({ post, isActive, isPreloaded, currentUserId, onBridgeCh
         videoRef.current.play().catch(() => {});
         if (hasBackgroundAudio && audioRef.current) {
           audioRef.current.muted = false;
-          audioRef.current.currentTime = videoRef.current.currentTime;
+          audioRef.current.currentTime = getReelAudioTargetTime(
+            videoRef.current,
+            audioRef.current,
+          );
           audioRef.current.play().catch(() => {});
         }
       }
@@ -628,7 +682,12 @@ const FlickCard = memo(({ post, isActive, isPreloaded, currentUserId, onBridgeCh
         }}
       />
       {hasBackgroundAudio && (
-        <audio ref={audioRef} src={reelSettings.audioUrl || undefined} preload="metadata" loop />
+        <audio
+          ref={audioRef}
+          src={isActive ? reelSettings.audioUrl || undefined : undefined}
+          preload={isActive ? "auto" : "none"}
+          loop
+        />
       )}
 
       {/* ── Tap overlay — z-10, full-screen, catches single/double tap ── */}
@@ -948,14 +1007,19 @@ export default function FlicksApp({
         if (authError) throw authError;
         const viewerId = authData.user?.id ?? null;
         setCurrentUserId(viewerId);
-        const { data: postsData, error: postsErr } = await supabase
-          .from("posts")
-          .select("id, author, author_id, content, media_url, type, metadata, cover_url, views_count, likes_count, comments_count, shares_count, meta_title, meta_description, created_at, author_profile:profiles!posts_author_id_fkey(avatar_url, full_name)")
-          .in("type", ["video", "reel"])
-          .order("created_at", { ascending: false })
-          .limit(30);
-        if (postsErr) throw postsErr;
-        const rows = postsData || [];
+        const loadPosts = (projection: string) =>
+          supabase
+            .from("posts")
+            .select(projection)
+            .in("type", ["video", "reel"])
+            .order("created_at", { ascending: false })
+            .limit(30);
+        let postsResult = await loadPosts(FLICKS_POST_PROJECTION_WITH_AUDIO);
+        if (isMissingAudioUrlColumn(postsResult.error)) {
+          postsResult = await loadPosts(FLICKS_POST_PROJECTION);
+        }
+        if (postsResult.error) throw postsResult.error;
+        const rows = postsResult.data || [];
 
         const supportedRows = rows.filter((row: any) =>
           isSupportedVideoUrl(row.media_url, row.metadata),

@@ -24,6 +24,10 @@ import {
   REEL_FILTERS,
   type ReelFilterKey,
 } from "@/lib/reelSettings";
+import {
+  attachReelAudioSync,
+  getReelAudioTargetTime,
+} from "@/lib/reelAudioSync";
 
 export interface ReelMusicTrack {
   id: string;
@@ -49,6 +53,16 @@ const REEL_SAVE_TIMEOUT_MS = 30 * 1000;
 
 const getErrorMessage = (error: unknown) =>
   error instanceof Error ? error.message : "Unknown error";
+
+type ReelSaveResponse = {
+  data: unknown;
+  error: {
+    code?: string;
+    details?: string;
+    hint?: string;
+    message?: string;
+  } | null;
+};
 
 const makeFallbackTracks = (): ReelMusicTrack[] => [];
 
@@ -107,8 +121,8 @@ export default function ReelStudio({
     [videoFile, reelSettings.videoUrl],
   );
   const audioPreviewUrl = useMemo(
-    () => (audioFile ? URL.createObjectURL(audioFile) : audioUrl),
-    [audioFile, audioUrl],
+    () => (audioFile ? URL.createObjectURL(audioFile) : selectedTrack?.audio_url || audioUrl),
+    [audioFile, audioUrl, selectedTrack?.audio_url],
   );
   const selectedFilter = REEL_FILTERS.find((option) => option.key === filter) || REEL_FILTERS[0];
 
@@ -187,15 +201,38 @@ export default function ReelStudio({
     const video = previewVideoRef.current;
     const audio = previewAudioRef.current;
     if (!video || !audio || !audioPreviewUrl) return;
+    return attachReelAudioSync(video, audio, playbackRate);
+  }, [audioPreviewUrl, playbackRate]);
 
-    const syncAudio = () => {
-      if (Math.abs(audio.currentTime - video.currentTime) > 0.18) {
-        audio.currentTime = video.currentTime;
-      }
+  useEffect(() => {
+    const video = previewVideoRef.current;
+    const audio = previewAudioRef.current;
+    if (!isOpen || !video || !audio || !audioPreviewUrl) return;
+
+    video.muted = true;
+    audio.loop = true;
+    audio.muted = false;
+    audio.playbackRate = playbackRate;
+    if (!previewPlaying) {
+      audio.pause();
+      return;
+    }
+
+    let cancelled = false;
+    const startSelectedTrack = () => {
+      if (cancelled || !previewPlaying || audio.readyState < HTMLMediaElement.HAVE_METADATA) return;
+      const expectedUrl = new URL(audioPreviewUrl, document.baseURI).href;
+      if (audio.currentSrc && audio.currentSrc !== expectedUrl) return;
+      void audio.play().catch(() => {});
     };
-    video.addEventListener("timeupdate", syncAudio);
-    return () => video.removeEventListener("timeupdate", syncAudio);
-  }, [audioPreviewUrl]);
+
+    audio.addEventListener("loadedmetadata", startSelectedTrack);
+    startSelectedTrack();
+    return () => {
+      cancelled = true;
+      audio.removeEventListener("loadedmetadata", startSelectedTrack);
+    };
+  }, [audioPreviewUrl, isOpen, playbackRate, previewPlaying]);
 
   const togglePreview = async () => {
     const video = previewVideoRef.current;
@@ -212,7 +249,8 @@ export default function ReelStudio({
     video.playbackRate = playbackRate;
     await video.play().catch(() => {});
     if (audioPreviewUrl && audio) {
-      audio.currentTime = video.currentTime;
+      audio.muted = false;
+      audio.currentTime = getReelAudioTargetTime(video, audio);
       await audio.play().catch(() => {});
     }
     setPreviewPlaying(true);
@@ -268,7 +306,7 @@ export default function ReelStudio({
       const withTimeout = async <T,>(
         label: string,
         timeoutMs: number,
-        request: (signal: AbortSignal) => Promise<T>,
+        request: (signal: AbortSignal) => PromiseLike<T>,
       ): Promise<T> => {
         const controller = new AbortController();
         let timeoutId: ReturnType<typeof setTimeout> | undefined;
@@ -307,7 +345,7 @@ export default function ReelStudio({
 
       const savePost = async (
         label: string,
-        request: (signal: AbortSignal) => Promise<any>,
+        request: (signal: AbortSignal) => PromiseLike<ReelSaveResponse>,
       ) => {
         try {
           const result = await withTimeout(label, REEL_SAVE_TIMEOUT_MS, request);
@@ -331,7 +369,8 @@ export default function ReelStudio({
       }
 
       const videoUrl = videoUpload?.secureUrl || reelSettings.videoUrl;
-      const finalAudioUrl = audioUpload?.secureUrl || audioUrl || null;
+      const finalAudioUrl =
+        audioUpload?.secureUrl || selectedTrack?.audio_url || audioUrl || null;
       if (!videoUrl) throw new Error("The video upload did not return a secure URL.");
 
       const existingMetadata = parseMetadata(reel?.metadata);

@@ -92,7 +92,12 @@ export function getReelSettings(post: any) {
 
   return {
     videoUrl: firstNonBlank(post?.video_url, post?.media_url),
-    audioUrl: firstNonBlank(post?.audio_url, metadata.audio_url),
+    audioUrl: firstNonBlank(
+      post?.audio_url,
+      post?.music_track_url,
+      metadata.audio_url,
+      metadata.music_track_url,
+    ),
     filter,
     playbackRate,
     cssFilter:

@@ -12,3 +12,4 @@
 - [Package install manifest churn](package-install-manifest-churn.md) — provisioning Node packages through the workspace installer may rewrite unrelated dependency pins; inspect and restore manifest churn before finishing
 - [Android device validation prerequisites](android-device-validation.md) — native checks need Android SDK tooling and Java 21; otherwise report the device gap explicitly
 - [Chat realtime event coverage](chat-realtime-events.md) — filter active conversations in callbacks so both participants receive edits/deletes; cache reaction row metadata for DELETE events
+- [Reel audio persistence](reel-audio-persistence.md) — use `posts.audio_url` as canonical, retaining metadata and legacy URL fallbacks.
