@@ -12,6 +12,7 @@ import { useSoundEffects } from "../hooks/useSoundEffects";
 import { useProfileViewer } from "../context/ProfileViewerContext";
 import { useDataCache } from "../context/DataCacheContext";
 import { isAdminEmail } from "../lib/adminConfig";
+import { fetchProfileAdminFlag } from "../lib/adminProfile";
 import { MarketplaceFeedCard, AdminMarketplacePanel, type MarketplaceItem } from "./AdminMarketplace";
 import PeopleYouMayKnow from "./PeopleYouMayKnow";
 import NewInYourArea from "./NewInYourArea";
@@ -48,6 +49,7 @@ import {
   Link2,
   TrendingUp,
   Store,
+  SlidersHorizontal,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import SharePopup, { type SharePostData, type ShareAnchor, type ShareMode } from "./SharePopup";
@@ -2487,14 +2489,12 @@ const FameFeed = ({
   const [commentText, setCommentText] = useState("");
   const [currentUserId, setCurrentUserId] = useState<string | null>(currentUserIdProp ?? null);
   const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(currentUserEmailProp ?? null);
+  const [profileAdminUserId, setProfileAdminUserId] = useState<string | null>(null);
   const onlineUserIds = useOnlineUsers();
-  // Robust admin detection: direct email match (isAdminEmail also checks same list)
   const isAdmin =
     isAdminProp ||
-    (!!currentUserEmail &&
-      ["tiwarijhumki@gmail.com", "textilevikhyat@gmail.com"].includes(
-        currentUserEmail.trim().toLowerCase(),
-      ));
+    profileAdminUserId === currentUserId ||
+    isAdminEmail(currentUserEmail);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
@@ -3032,6 +3032,29 @@ const FameFeed = ({
         }
       })();
   }, [currentUserIdProp, currentUserEmailProp]);
+
+  useEffect(() => {
+    const userId = currentUserId;
+    if (!userId) {
+      setProfileAdminUserId(null);
+      return;
+    }
+
+    let cancelled = false;
+    fetchProfileAdminFlag(userId)
+      .then((isProfileAdmin) => {
+        if (!cancelled) setProfileAdminUserId(isProfileAdmin ? userId : null);
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        setProfileAdminUserId(null);
+        console.warn("[FameFeed] profile admin check failed:", error);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUserId]);
 
   // ── Fetch owner profile names once suggestions are loaded ─────────────────
   useEffect(() => {
@@ -4474,26 +4497,46 @@ const FameFeed = ({
   // RLS enforces auth.email() IN (...admin emails...) on the DB side — no user_id check.
   const handleAdminDelete = async (postId: string) => {
     setOpenMenuId(null);
-    if (!isAdmin) return;
+    if (!isAdmin) {
+      toast.error("Admin access could not be verified.");
+      return;
+    }
+    if (typeof postId !== "string" || !postId.trim()) {
+      toast.error("Could not determine the post database ID.");
+      return;
+    }
     if (!window.confirm("ADMIN: Delete this post permanently?")) return;
-    // Optimistic removal
-    const snapshot = [...posts];
-    setPosts((p) => p.filter((x) => x.id !== postId));
-    // Admin delete: filter only by post id — RLS uses auth.email(), not user_id
-    const { error } = await supabase.from("posts").delete().eq("id", postId);
-    if (!error) {
+
+    deletingPostIdsRef.current.add(postId);
+    try {
+      const { data, error } = await supabase
+        .from("posts")
+        .delete()
+        .eq("id", postId)
+        .select("id")
+        .maybeSingle();
+      if (error) throw error;
+      if (!data || data.id !== postId) {
+        throw new Error("Post was not deleted. Check the admin role and database policy.");
+      }
+
+      setPosts((previous) => {
+        const next = previous.filter((post) => post.id !== postId);
+        dataCache.setCache("famePosts", { data: next, fetchedAt: Date.now() });
+        return next;
+      });
       toast.success("🗑️ Post deleted by admin");
-    } else {
-      setPosts(snapshot);
-      const msg = error.message || error.details || error.hint || "Unknown error";
-      console.error(
-        "[FameFeed] Admin delete failed:",
-        "\n  message:", error.message,
-        "\n  code:",    error.code,
-        "\n  details:", error.details,
-        "\n  hint:",    error.hint,
-      );
-      toast.error(`Delete failed: ${msg}`);
+      setTimeout(() => deletingPostIdsRef.current.delete(postId), 10_000);
+    } catch (error: unknown) {
+      deletingPostIdsRef.current.delete(postId);
+      const message =
+        error instanceof Error
+          ? error.message
+          : typeof error === "object" && error !== null && "message" in error
+            ? String(error.message)
+            : "Unknown error";
+      console.error("[FameFeed] Admin delete failed:", error);
+      toast.error(`Delete failed: ${message}`);
     }
   };
 

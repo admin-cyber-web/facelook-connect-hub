@@ -5,6 +5,7 @@ import { supabase } from "../lib/supabaseClient";
 import { useProfileViewer } from "../context/ProfileViewerContext";
 import { useDataCache } from "../context/DataCacheContext";
 import { isAdminEmail } from "../lib/adminConfig";
+import { fetchProfileAdminFlag } from "../lib/adminProfile";
 import { useSoundEffects } from "../hooks/useSoundEffects";
 import {
   Heart, MessageCircle, Share2, Plus, X, Send,
@@ -1006,13 +1007,41 @@ export default function FlicksApp({
   const [loading,      setLoading]      = useState(() => !cachedFlicks?.data);
   const [currentUserId, setCurrentUserId] = useState<string | null>(currentUserIdProp ?? null);
   const [fetchedEmail,  setFetchedEmail]  = useState<string | null>(currentUserEmailProp ?? null);
-  const isAdmin = isAdminProp || isAdminEmail(currentUserEmailProp) || isAdminEmail(fetchedEmail);
+  const [profileAdminUserId, setProfileAdminUserId] = useState<string | null>(null);
+  const isAdmin =
+    isAdminProp ||
+    isAdminEmail(currentUserEmailProp) ||
+    isAdminEmail(fetchedEmail) ||
+    profileAdminUserId === currentUserId;
   const containerRef = useRef<HTMLDivElement>(null);
   const currentIndexRef = useRef(0);
   const scrollRafRef = useRef<number>(0);
 
   // Inject CSS keyframes once on mount
   useEffect(() => { injectFlicksStyles(); }, []);
+
+  useEffect(() => {
+    const userId = currentUserId;
+    if (!userId) {
+      setProfileAdminUserId(null);
+      return;
+    }
+
+    let cancelled = false;
+    fetchProfileAdminFlag(userId)
+      .then((isProfileAdmin) => {
+        if (!cancelled) setProfileAdminUserId(isProfileAdmin ? userId : null);
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        setProfileAdminUserId(null);
+        console.warn("[Flicks] profile admin check failed:", error);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUserId]);
 
   useEffect(() => {
     const fetchData = async () => {
