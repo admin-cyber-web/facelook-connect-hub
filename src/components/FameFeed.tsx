@@ -23,7 +23,11 @@ import AutoPlayMutedVideo from "./AutoPlayMutedVideo";
 import { maskProfanity, sanitizeText } from "../lib/profanityFilter";
 import { resolveMediaUrl } from "../lib/mediaUrl";
 import { getReelSettings } from "../lib/reelSettings";
-import { getPostVibeAudioUrl, resolvePostVibe } from "../lib/vibeMatcher";
+import {
+  getPostVibeAudioUrl,
+  resolvePostVibe,
+  type VibeTag,
+} from "../lib/vibeMatcher";
 import {
   getVibeAudioSnapshot,
   setVisibleVibeAudio,
@@ -237,7 +241,13 @@ const PostViewTracker = memo(({
       ([entry]) => {
         const visible = entry.isIntersecting && entry.intersectionRatio >= 0.1;
         setIsVisible(visible);
-        setVisibleVibeAudio(postId, vibeAudioUrl ?? null, visible, vibeAudioLoop);
+        setVisibleVibeAudio(
+          postId,
+          vibeAudioUrl ?? null,
+          visible,
+          vibeAudioLoop,
+          entry.intersectionRatio,
+        );
         if (entry.isIntersecting && entry.intersectionRatio >= 0.5 && !fired.current) {
           fired.current = true;
           onView(postId);
@@ -393,7 +403,35 @@ const PostImageCollage = memo(({ urls, onOpen }: { urls: string[]; onOpen: (inde
 });
 
 // ── Smart media renderer ───────────────────────────────────────────────────────
-const PostMedia = memo(({ post }: { post: any }) => {
+const VibeMediaFrame = memo(
+  ({
+    postId,
+    vibeTag,
+    children,
+  }: {
+    postId: string;
+    vibeTag?: VibeTag;
+    children: React.ReactNode;
+  }) => (
+    <div
+      className="vibe-media-frame"
+      data-vibe={vibeTag}
+      data-testid={`media-frame-${postId}`}
+    >
+      <div className="relative z-[1]">{children}</div>
+      {vibeTag && (
+        <div
+          className="vibe-media-overlay"
+          data-vibe={vibeTag}
+          data-testid={`vibe-overlay-${postId}`}
+          aria-hidden="true"
+        />
+      )}
+    </div>
+  ),
+);
+
+const PostMedia = memo(({ post, vibeTag }: { post: any; vibeTag?: VibeTag }) => {
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   const imageUrls = getPostImageUrls(post);
   const url = post.media_url || post.image_url || post.cover_url || null;
@@ -401,7 +439,9 @@ const PostMedia = memo(({ post }: { post: any }) => {
   if (imageUrls.length) {
     return (
       <>
-        <PostImageCollage urls={imageUrls} onOpen={setViewerIndex} />
+        <VibeMediaFrame postId={String(post.id)} vibeTag={vibeTag}>
+          <PostImageCollage urls={imageUrls} onOpen={setViewerIndex} />
+        </VibeMediaFrame>
         {viewerIndex !== null && (
           <PostImageViewer
             urls={imageUrls}
@@ -417,13 +457,15 @@ const PostMedia = memo(({ post }: { post: any }) => {
     post.metadata?.is_youtube ||
     url.includes("youtube.com") ||
     url.includes("youtu.be");
-  if (isYT) return <YouTubeEmbed url={url} />;
   const isVid =
     post.type === "video" ||
     /\.(mp4|webm|ogg|mov|m4v)/i.test(url.split("?")[0]) ||
     url.includes("rapidcdn.app");
-  if (isVid) return <FeedVideo src={url} />;
-  return (
+  const media = isYT ? (
+    <YouTubeEmbed url={url} />
+  ) : isVid ? (
+    <FeedVideo src={url} />
+  ) : (
     <div className="w-full bg-black" style={{ touchAction: "pan-y" }}>
       <img
         src={url}
@@ -431,8 +473,14 @@ const PostMedia = memo(({ post }: { post: any }) => {
         className="w-full object-cover"
         style={{ maxHeight: "70vh", touchAction: "pan-y" }}
         alt=""
-       decoding="async"/>
+        decoding="async"
+      />
     </div>
+  );
+  return (
+    <VibeMediaFrame postId={String(post.id)} vibeTag={vibeTag}>
+      {media}
+    </VibeMediaFrame>
   );
 });
 
@@ -5089,7 +5137,7 @@ const FameFeed = ({
               </>
             );
           })()}
-          <PostMedia post={post} />
+          <PostMedia post={post} vibeTag={primaryVibe?.tag} />
 
           {/* ── Magnet Voice Display (warning overlay / normal pill) ───── */}
           <PostVoiceStrip

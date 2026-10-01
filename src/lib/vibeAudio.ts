@@ -15,11 +15,64 @@ let state: VibeAudioState = {
 };
 let player: HTMLAudioElement | null = null;
 let visibilityListenerInstalled = false;
+let playGeneration = 0;
 const listeners = new Set<() => void>();
+const visiblePosts = new Map<
+  string,
+  { url: string | null; loop: boolean; ratio: number }
+>();
 
 const publish = (next: VibeAudioState) => {
   state = next;
   listeners.forEach((listener) => listener());
+};
+
+const pausePlayer = () => {
+  playGeneration += 1;
+  player?.pause();
+};
+
+const getMostVisiblePost = () => {
+  let best: {
+    postId: string;
+    url: string | null;
+    loop: boolean;
+    ratio: number;
+  } | null = null;
+
+  visiblePosts.forEach((post, postId) => {
+    if (
+      !best ||
+      post.ratio > best.ratio ||
+      (post.ratio === best.ratio && postId === state.activePostId)
+    ) {
+      best = { postId, ...post };
+    }
+  });
+  return best;
+};
+
+const syncVisiblePost = () => {
+  const candidate = getMostVisiblePost();
+  const nextPostId = candidate?.postId ?? null;
+  const nextUrl = candidate?.url ?? null;
+  const nextLoop = candidate?.loop ?? true;
+  const trackChanged =
+    state.activePostId !== nextPostId ||
+    state.activeUrl !== nextUrl ||
+    state.activeLoop !== nextLoop;
+
+  if (!trackChanged) return;
+
+  pausePlayer();
+  publish({
+    ...state,
+    activePostId: nextPostId,
+    activeUrl: nextUrl,
+    activeLoop: nextLoop,
+    failed: false,
+  });
+  if (state.enabled && nextUrl) void playCurrentTrack();
 };
 
 const getPlayer = (): HTMLAudioElement | null => {
@@ -37,7 +90,7 @@ const getPlayer = (): HTMLAudioElement | null => {
     if (typeof document !== "undefined" && !visibilityListenerInstalled) {
       document.addEventListener("visibilitychange", () => {
         if (document.visibilityState === "hidden") {
-          player?.pause();
+          pausePlayer();
         } else if (state.enabled && state.activeUrl) {
           void playCurrentTrack();
         }
@@ -48,14 +101,17 @@ const getPlayer = (): HTMLAudioElement | null => {
   return player;
 };
 
-const playCurrentTrack = async (): Promise<boolean> => {
+const playCurrentTrack = async (manualAttempt = false): Promise<boolean> => {
   const current = getPlayer();
-  if (!current || !state.activeUrl) return false;
+  if (!current || !state.activeUrl || !state.enabled) return false;
   if (typeof document !== "undefined" && document.visibilityState === "hidden") {
-    current.pause();
+    pausePlayer();
     return false;
   }
 
+  const attempt = ++playGeneration;
+  const expectedPostId = state.activePostId;
+  const expectedUrl = state.activeUrl;
   if (current.getAttribute("src") !== state.activeUrl) {
     current.pause();
     current.currentTime = 0;
@@ -66,11 +122,30 @@ const playCurrentTrack = async (): Promise<boolean> => {
 
   try {
     await current.play();
+    if (
+      attempt !== playGeneration ||
+      state.activePostId !== expectedPostId ||
+      state.activeUrl !== expectedUrl ||
+      !state.enabled
+    ) {
+      return false;
+    }
     publish({ ...state, failed: false });
     return true;
   } catch {
+    if (
+      attempt !== playGeneration ||
+      state.activePostId !== expectedPostId ||
+      state.activeUrl !== expectedUrl
+    ) {
+      return false;
+    }
     current.pause();
-    publish({ ...state, enabled: false, failed: true });
+    publish({
+      ...state,
+      enabled: manualAttempt ? false : state.enabled,
+      failed: true,
+    });
     return false;
   }
 };
@@ -89,29 +164,18 @@ export function setVisibleVibeAudio(
   url: string | null,
   visible: boolean,
   loop = true,
+  visibilityRatio = visible ? 1 : 0,
 ): void {
-  if (visible && url) {
-    const trackChanged =
-      state.activePostId !== postId ||
-      state.activeUrl !== url ||
-      state.activeLoop !== loop;
-    if (trackChanged) {
-      publish({
-        ...state,
-        activePostId: postId,
-        activeUrl: url,
-        activeLoop: loop,
-        failed: false,
-      });
-      if (state.enabled) void playCurrentTrack();
-    }
-    return;
+  if (visible) {
+    visiblePosts.set(postId, {
+      url,
+      loop,
+      ratio: Math.max(0, Math.min(1, visibilityRatio)),
+    });
+  } else {
+    visiblePosts.delete(postId);
   }
-
-  if (state.activePostId === postId) {
-    player?.pause();
-    publish({ ...state, activePostId: null, activeUrl: null });
-  }
+  syncVisiblePost();
 }
 
 export async function toggleVibeAudioForPost(
@@ -120,11 +184,12 @@ export async function toggleVibeAudioForPost(
   loop = true,
 ): Promise<boolean> {
   if (state.enabled && state.activePostId === postId) {
-    player?.pause();
+    pausePlayer();
     publish({ ...state, enabled: false, failed: false });
     return true;
   }
 
+  pausePlayer();
   publish({
     ...state,
     enabled: true,
@@ -133,5 +198,5 @@ export async function toggleVibeAudioForPost(
     activeLoop: loop,
     failed: false,
   });
-  return playCurrentTrack();
+  return playCurrentTrack(true);
 }

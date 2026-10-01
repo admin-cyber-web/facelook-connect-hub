@@ -1,0 +1,19 @@
+Fix and upgrade the "Smart Cinematic Vibe & Audio Aura" engine with the following critical changes:
+
+1. **Fix Mobile vs PC Audio Autoplay:**
+   - Resolve the issue where ambient audio plays on PC but remains muted on mobile browsers. Ensure robust handling of mobile audio contexts and user touch/scroll gestures so the pre-selected vibe audio plays reliably on mobile devices too.
+   - Maintain strict single-player audio handoff: when scrolling through the feed, the currently visible post's audio must play, and the previous post's audio must automatically pause. Audio should continue playing until the user manually toggles it off.
+
+2. **Move Animations from Border to Post Image Overlay (5-Second Cinematic Burst):**
+   - REMOVE the thin pencil-like border glow. The vibe animations must render directly **OVER/ON TOP of the post's image or video media container** so they are prominent and visually striking.
+   - These animations (e.g., Diwali sparkles, Good Morning sun/rays, Storm lightning, etc.) should play vividly over the media for the first 5 seconds when the post comes into view, and then gracefully fade into a subtle background aura.
+
+3. **Add Missing Vibes & Triggers:**
+   - **Travel / Trip (`wanderlust`):** Keywords: ghumne, trip, travel, vacation, flight, ticket, safar -> Travel visual effect & ambient journey tune.
+   - **Money / Finance (`money_flow`):** Keywords: paise, money, cash, salary, profit, wealth, dhan -> Money/cash sparkle animation & upbeat tone.
+   - **Love / Miss You (`love_romance`):** Keywords: love, miss you, pyaar, jaan, close to heart -> Heart floating animation & romantic melody.
+   - **Sad / Emotional (`moody_sad`):** Keywords: sad, dukh, rona, lonely, broken -> Tear/rain subtle sad overlay & acoustic tune.
+   - **Good Morning (`good_morning`):** Keywords: good morning, subah, gm, prabhat -> Full-image glowing sunrise/sun rays animation & fresh morning chime.
+   - **Good Night (`good_night`):** Keywords: good night, raat, gn, shubh ratri -> Full-image moonlight/stars animation & calm night lullaby.
+
+4. **Performance & Clean UI:** Ensure zero lag, 60fps performance on mobile, and keep all vibe detection completely silent (no debug texts).
