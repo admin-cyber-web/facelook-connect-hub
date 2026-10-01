@@ -23,6 +23,12 @@ import { sanitizeText } from "@/lib/profanityFilter";
 import { generatePostSEO } from "@/lib/geminiClient";
 import { uploadToCloudinary } from "@/lib/cloudinaryUpload";
 import { getSmartPostAsset } from "@/utils/smartAssets";
+import {
+  detectVibes,
+  resolveVibeSelection,
+  VIBE_PROFILES,
+  type VibeOverride,
+} from "@/lib/vibeMatcher";
 
 interface CreatePostProps {
   isOpen: boolean;
@@ -40,6 +46,12 @@ const CreatePost = ({
   onReelSelected,
 }: CreatePostProps) => {
   const [content, setContent] = useState("");
+  const [vibeOverride, setVibeOverride] = useState<VibeOverride>(null);
+  const detectedVibe = useMemo(() => detectVibes(content), [content]);
+  const selectedVibe = useMemo(
+    () => resolveVibeSelection(content, vibeOverride),
+    [content, vibeOverride],
+  );
   const [files, setFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
   const previewUrlsRef = useRef<string[]>([]);
@@ -170,6 +182,7 @@ const CreatePost = ({
   useEffect(() => {
     if (!isOpen) {
       setContent("");
+      setVibeOverride(null);
       clearMediaSelection();
       setVisibility("public");
       setMood("");
@@ -440,6 +453,7 @@ const CreatePost = ({
       if (hadProfanity) {
         toast.warning("Offensive words detected and masked automatically.");
       }
+      const postVibe = resolveVibeSelection(cleanContent, vibeOverride);
 
       // User-selected media always wins. Only text-only posts without an
       // existing direct/YouTube media URL receive an automatic image.
@@ -469,6 +483,10 @@ const CreatePost = ({
         seo_keywords: seo.seo_keywords,
         metadata: {
           is_youtube: isYoutube,
+          vibe_tag: postVibe.primary?.tag ?? null,
+          vibe_matches: postVibe.matches.map((profile) => profile.tag),
+          vibe_manual: postVibe.manual,
+          vibe_audio_url: postVibe.primary?.audioUrl ?? null,
           mentions: resolvedMentions,
           has_pin: hasPin,
           has_team: hasTeam,
@@ -802,6 +820,43 @@ const CreatePost = ({
                         testId="input-post-content"
                       />
                     </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-violet-200/80 bg-gradient-to-r from-violet-50 to-fuchsia-50 px-3 py-2.5">
+                    <div className="min-w-0" aria-live="polite" role="status">
+                      <p className="truncate text-[12px] font-extrabold text-violet-800">
+                        ✨ Auto Vibe Detected: {detectedVibe.primary?.label ?? "No match yet"}
+                      </p>
+                      {vibeOverride !== null && (
+                        <p className="mt-0.5 text-[10px] font-semibold text-violet-600">
+                          {selectedVibe.weatherOverride
+                            ? "Weather alerts take priority over this override."
+                            : selectedVibe.primary
+                              ? `Using ${selectedVibe.primary.label} instead.`
+                              : "Vibe effects are turned off for this post."}
+                        </p>
+                      )}
+                    </div>
+                    <label className="flex shrink-0 items-center gap-1.5 text-[10px] font-bold text-violet-700">
+                      <span>Vibe</span>
+                      <select
+                        aria-label="Choose post vibe"
+                        value={vibeOverride ?? "auto"}
+                        onChange={(event) => {
+                          const value = event.target.value;
+                          setVibeOverride(value === "auto" ? null : value as VibeOverride);
+                        }}
+                        className="max-w-[10rem] rounded-full border border-violet-200 bg-white/80 px-2.5 py-1.5 text-[11px] font-bold text-violet-800 outline-none focus:ring-2 focus:ring-violet-300"
+                      >
+                        <option value="auto">Automatic</option>
+                        <option value="none">No vibe</option>
+                        {VIBE_PROFILES.map((profile) => (
+                          <option key={profile.tag} value={profile.tag}>
+                            {profile.icon} {profile.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
                   </div>
 
                   <div className="flex gap-2.5 sm:gap-3">

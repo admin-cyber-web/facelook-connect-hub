@@ -1,0 +1,35 @@
+Implement a zero-load, fully automated frontend "Smart Cinematic Vibe & Audio Aura" engine for Flicks India. Do NOT use any heavy AI APIs or external servers; everything must run instantly using smart client-side regex, keyword mapping, priority rules, and CSS effects.
+
+### 1. Keyword & Vibe Engine (vibeMatcher.ts)
+Create a robust keyword scanner utility that analyzes post text in real-time as the user types (or when a post loads) and automatically maps it to a vibe profile:
+- **Weather / Emergency (High Priority):** 
+  - Keywords: aandhi, barish, storm, rain, bijli, toofan, flood.
+  - Vibe Tag: `storm_alert`
+  - Glow Style: Electric blue thunder border & moody cool gradient animation.
+  - Audio: Pre-defined free public domain/royalty-free storm ambient track URL (placeholder can be used, user will update links if needed).
+- **Festivals:**
+  - Keywords: diwali, deepawali, patake, fireworks, diya -> Vibe: `diwali_fest` (Golden sparkle glow + festive audio).
+  - Keywords: holi, rang, colors, pichkari -> Vibe: `holi_fest` (Multi-color splash gradient + dhol beats).
+  - Keywords: rakhi, rakshabandhan -> Vibe: `raksha_bandhan` (Silk red/gold glow + emotional tune).
+  - Keywords: gandhi jayanti, bapu, 15 august, republic day -> Vibe: `patriotic` (Tricolor waving border + classical flute/patriotic tone).
+- **Daily Life & Emotions (Aam Bol-Chal):**
+  - Keywords: coding, night shift, bug, hustle, late night -> Vibe: `deep_focus` (Midnight maroon & electric lemon neon glow + lo-fi beat).
+  - Keywords: party, maza, dance, chill, celebration -> Vibe: `hype_mode` (Vibrant pulsing neon glow + upbeat loop).
+  - Keywords: gussa, anger, aag, fire, fuming -> Vibe: `fury_fire` (Blazing orange/red ember border + intense beat).
+  - Keywords: travel, flight, airplane, safar, trip, ticket -> Vibe: `wanderlust` (Sky blue & golden horizon glow + ambient travel tune).
+  - Keywords: birthday, cake, party, saal gira -> Vibe: `birthday_bash` (Confetti sparkle glow + celebratory chime).
+
+### 2. Conflict & Mixed Sentence Resolution (Priority Matrix)
+- Handle sentences with multiple triggers (e.g., "Diwali ki raat me gajab aandhi aur barish aayi"). 
+- Implement **Severity Priority**: Live weather/emergency/danger triggers take precedence for audio/effects, but blend aesthetically with festive/daily context via hybrid CSS styling so nothing breaks.
+
+### 3. Music & Audio Handling (Free / CDN Direct URLs)
+- **Audio Assets:** Set up free standard royalty-free/public domain CDN URLs for each vibe config. If any link needs adjustment, the developer will provide custom Cloudinary links later.
+- **Audio & Video Sync in Feed:** 
+  - Each post card checks if a vibe has an associated `audio_url`.
+  - When the post is in view, play the ambient track via a background `<audio>` element matching the vibe, while keeping the main video strictly muted (`muted={true}`) so video background noise doesn't clash with the cinematic vibe music.
+  - Properly handle play/pause lifecycle when scrolling through the feed.
+
+### 4. UI / UX Integration
+- **Create Post Modal:** As the user types their post, show a subtle live badge: `✨ Auto Vibe Detected: [Vibe Name]`. Users can also manually override it if they choose.
+- **Feed Post Cards:** Render dynamic CSS glowing borders, custom icons, and ambient sound toggles based on the assigned `vibe_tag`. Ensure 60fps smooth performance on mobile and web with zero lag.
