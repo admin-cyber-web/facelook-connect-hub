@@ -14,10 +14,13 @@ import {
 import { MagnetButton } from "./MagnetSystem";
 import { toast } from "sonner";
 import { getReelSettings } from "@/lib/reelSettings";
+import { getPostVibeAudioUrl, resolvePostVibe } from "@/lib/vibeMatcher";
+import { setVisibleVibeAudio } from "@/lib/vibeAudio";
 import {
   attachReelAudioSync,
   getReelAudioTargetTime,
 } from "@/lib/reelAudioSync";
+import VibeAudioToggle from "./VibeAudioToggle";
 
 // ── Utilities ─────────────────────────────────────────────────────────────────
 const formatCount = (n: any): string => {
@@ -256,6 +259,12 @@ const FlickCard = memo(({ post, isActive, isPreloaded, currentUserId, onBridgeCh
   const reelSettings = useMemo(() => getReelSettings(post), [post]);
   const videoUrl = reelSettings.videoUrl || post.media_url || post.url;
   const hasBackgroundAudio = Boolean(reelSettings.audioUrl);
+  const vibe = useMemo(() => resolvePostVibe(post), [post]);
+  const secondaryVibe = vibe.matches.find(
+    (profile) => profile.tag !== vibe.primary?.tag,
+  );
+  const vibeAudioUrl = hasBackgroundAudio ? null : getPostVibeAudioUrl(post, vibe);
+  const vibePostId = String(post?._raw_id ?? post?.id ?? "");
 
   useEffect(() => {
     setLikedByMe(Boolean(post?.liked_by_me));
@@ -328,6 +337,11 @@ const FlickCard = memo(({ post, isActive, isPreloaded, currentUserId, onBridgeCh
       audio?.pause();
     }
   }, [hasBackgroundAudio, isActive, reelSettings.cssFilter, reelSettings.playbackRate]);
+
+  useEffect(() => {
+    setVisibleVibeAudio(vibePostId, vibeAudioUrl, isActive);
+    return () => setVisibleVibeAudio(vibePostId, vibeAudioUrl, false);
+  }, [isActive, vibeAudioUrl, vibePostId]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -659,8 +673,23 @@ const FlickCard = memo(({ post, isActive, isPreloaded, currentUserId, onBridgeCh
   return (
     /* Root card — explicit height, no flex layout so absolute children are unambiguous */
     <div
-      className="relative w-full bg-black snap-start overflow-hidden"
-      style={{ height: "100dvh", touchAction: "pan-y" }}
+      data-vibe={vibe.primary?.tag}
+      data-vibe-mix={secondaryVibe?.tag}
+      className={`relative w-full bg-black snap-start overflow-hidden ${
+        vibe.primary
+          ? `post-vibe-card${isActive ? " post-vibe-in-view" : ""}`
+          : ""
+      }`}
+      style={{
+        height: "100dvh",
+        touchAction: "pan-y",
+        ...(vibe.primary
+          ? {
+              "--vibe-accent": vibe.primary.glowColor,
+              "--vibe-secondary": secondaryVibe?.glowColor ?? vibe.primary.secondaryColor,
+            }
+          : {}),
+      } as React.CSSProperties}
     >
 
       {/* ── Video — absolute inset-0 so it is unambiguously at z=0 behind every overlay ── */}
@@ -907,6 +936,26 @@ const FlickCard = memo(({ post, isActive, isPreloaded, currentUserId, onBridgeCh
           <h3 className="font-black text-white text-[14px]" style={{ textShadow: "0 1px 8px rgba(0,0,0,0.9)" }}>@{post.author || "user"}</h3>
           <BadgeCheck size={13} className="text-cyan-400" />
         </div>
+        {vibe.primary && (
+          <div className="pointer-events-auto mb-1 inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-black/40 px-2 py-1">
+            <span
+              className="text-[10px] font-extrabold"
+              style={{ color: vibe.primary.glowColor }}
+            >
+              {vibe.primary.icon} {vibe.primary.label}
+              {vibe.matches.some((profile) => profile.tag !== vibe.primary?.tag) ? " +" : ""}
+            </span>
+            {vibeAudioUrl && (
+              <VibeAudioToggle
+                postId={vibePostId}
+                audioUrl={vibeAudioUrl}
+                vibeLabel={vibe.primary.label}
+                audioTitle={vibe.primary.audioTitle}
+                compact
+              />
+            )}
+          </div>
+        )}
         {editingCaption ? (
           <div onClick={e => e.stopPropagation()}>
             <textarea

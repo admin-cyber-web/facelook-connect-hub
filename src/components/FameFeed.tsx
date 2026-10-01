@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, useCallback, memo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback, useSyncExternalStore, memo } from "react";
 import { createPortal } from "react-dom";
 import { supabase } from "../lib/supabaseClient";
 import { smartTime } from "../lib/timeAgo";
@@ -23,6 +23,13 @@ import AutoPlayMutedVideo from "./AutoPlayMutedVideo";
 import { maskProfanity, sanitizeText } from "../lib/profanityFilter";
 import { resolveMediaUrl } from "../lib/mediaUrl";
 import { getReelSettings } from "../lib/reelSettings";
+import { getPostVibeAudioUrl, resolvePostVibe } from "../lib/vibeMatcher";
+import {
+  getVibeAudioSnapshot,
+  setVisibleVibeAudio,
+  subscribeVibeAudio,
+} from "../lib/vibeAudio";
+import VibeAudioToggle from "./VibeAudioToggle";
 import PostImageViewer from "./PostImageViewer";
 import {
   Send,
@@ -210,31 +217,40 @@ const SurpriseReactionModal = ({
 const PostViewTracker = memo(({
   postId,
   onView,
+  vibeAudioUrl,
   children,
 }: {
   postId: string;
   onView: (id: string) => void;
+  vibeAudioUrl?: string | null;
   children: React.ReactNode;
 }) => {
   const ref = useRef<HTMLDivElement>(null);
   const fired = useRef(false);
+  const [isVisible, setIsVisible] = useState(false);
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
     const obs = new IntersectionObserver(
       ([entry]) => {
-        if (entry.isIntersecting && !fired.current) {
+        const visible = entry.isIntersecting && entry.intersectionRatio >= 0.1;
+        setIsVisible(visible);
+        setVisibleVibeAudio(postId, vibeAudioUrl ?? null, visible);
+        if (entry.isIntersecting && entry.intersectionRatio >= 0.5 && !fired.current) {
           fired.current = true;
           onView(postId);
         }
       },
-      { threshold: 0.5 },
+      { threshold: [0.1, 0.5] },
     );
     obs.observe(el);
-    return () => obs.disconnect();
-  }, [postId, onView]);
+    return () => {
+      obs.disconnect();
+      setVisibleVibeAudio(postId, vibeAudioUrl ?? null, false);
+    };
+  }, [postId, onView, vibeAudioUrl]);
   return (
-    <div ref={ref} style={{ touchAction: "pan-y" }}>
+    <div ref={ref} className={isVisible ? "post-vibe-in-view" : undefined} style={{ touchAction: "pan-y" }}>
       {children}
     </div>
   );
@@ -243,7 +259,14 @@ const PostViewTracker = memo(({
 // ── Inline video ───────────────────────────────────────────────────────────────
 const FeedVideo = memo(({ src }: { src: string }) => {
   const ref = useRef<HTMLVideoElement>(null);
-  const [muted, setMuted] = useState(false);
+  const [muted, setMuted] = useState(true);
+  const vibeAudio = useSyncExternalStore(
+    subscribeVibeAudio,
+    getVibeAudioSnapshot,
+    getVibeAudioSnapshot,
+  );
+  const forceMuted = vibeAudio.enabled && Boolean(vibeAudio.activeUrl);
+  const isMuted = muted || forceMuted;
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
@@ -251,7 +274,7 @@ const FeedVideo = memo(({ src }: { src: string }) => {
       ([entry]) => {
         if (!ref.current) return;
         if (entry.isIntersecting) {
-          ref.current.muted = false;
+          ref.current.muted = isMuted;
           ref.current.play().catch(() => {
             if (ref.current) {
               ref.current.muted = true;
@@ -267,10 +290,11 @@ const FeedVideo = memo(({ src }: { src: string }) => {
     );
     obs.observe(el);
     return () => obs.disconnect();
-  }, [src]);
+  }, [isMuted, src]);
   const toggle = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!ref.current) return;
+    if (forceMuted && ref.current.muted) return;
     ref.current.muted = !ref.current.muted;
     setMuted(ref.current.muted);
   };
@@ -283,7 +307,7 @@ const FeedVideo = memo(({ src }: { src: string }) => {
         ref={ref}
         src={src}
         loop
-        muted={muted}
+        muted={isMuted}
         playsInline
         className="w-full h-full object-cover"
         style={{ touchAction: "pan-y" }}
@@ -292,7 +316,7 @@ const FeedVideo = memo(({ src }: { src: string }) => {
         onClick={toggle}
         className="absolute bottom-3 right-3 p-2 bg-black/75 rounded-full border border-white/15"
       >
-        {muted ? (
+        {isMuted ? (
           <VolumeX size={16} className="text-red-400" />
         ) : (
           <Volume2 size={16} className="text-blue-500" />
@@ -4655,6 +4679,12 @@ const FameFeed = ({
     setReportModal(null);
   };
   const renderPost = (post: any) => {
+    const vibe = resolvePostVibe(post);
+    const vibeAudioUrl = getPostVibeAudioUrl(post, vibe);
+    const primaryVibe = vibe.primary;
+    const secondaryVibe = vibe.matches.find(
+      (profile) => profile.tag !== primaryVibe?.tag,
+    );
     const isVideo =
       post.type === "video" ||
       post.metadata?.is_youtube ||
@@ -4665,18 +4695,33 @@ const FameFeed = ({
           post.media_url.includes("rapidcdn.app")));
 
     return (
-      <PostViewTracker key={post.id} postId={post.id} onView={incrementView}>
+      <PostViewTracker
+        key={post.id}
+        postId={post.id}
+        onView={incrementView}
+        vibeAudioUrl={vibeAudioUrl}
+      >
         <motion.article
           id={post.id}
           exit={{ opacity: 0, x: 60, transition: { duration: 0.2 } }}
-          className="border-b border-white/5 overflow-hidden mx-0"
+          data-vibe={primaryVibe?.tag}
+          data-vibe-mix={secondaryVibe?.tag}
+          className={`border-b border-white/5 overflow-hidden mx-0 ${
+            primaryVibe ? "post-vibe-card" : ""
+          }`}
           style={{
             background: IS_MOBILE
               ? "#110811"
               : "linear-gradient(175deg,#2C001E 0%,#1a0812 38%,#0d0d14 100%)",
             borderRadius: "0px",
             touchAction: "pan-y",
-          }}
+            ...(primaryVibe
+              ? {
+                  "--vibe-accent": primaryVibe.glowColor,
+                  "--vibe-secondary": secondaryVibe?.glowColor ?? primaryVibe.secondaryColor,
+                }
+              : {}),
+          } as React.CSSProperties}
         >
           {/* Post header */}
           <div className="flex items-center justify-between px-4 py-3">
@@ -4837,6 +4882,32 @@ const FameFeed = ({
                   <p className="text-[10px] text-white/30 leading-none">
                     {smartTime(post.created_at)}
                   </p>
+                )}
+                {primaryVibe && (
+                  <div className="mt-1 flex items-center gap-1.5">
+                    <span
+                      className="inline-flex max-w-[10rem] items-center gap-1 truncate rounded-full border border-white/10 bg-black/25 px-2 py-0.5 text-[9px] font-extrabold"
+                      style={{ color: primaryVibe.glowColor }}
+                      title={
+                        secondaryVibe
+                          ? `${primaryVibe.label} blended with ${secondaryVibe.label}`
+                          : primaryVibe.label
+                      }
+                    >
+                      <span aria-hidden="true">{primaryVibe.icon}</span>
+                      <span className="truncate">{primaryVibe.label}</span>
+                      {secondaryVibe && <span aria-hidden="true">＋</span>}
+                    </span>
+                    {vibeAudioUrl && (
+                      <VibeAudioToggle
+                        postId={String(post.id)}
+                        audioUrl={vibeAudioUrl}
+                        vibeLabel={primaryVibe.label}
+                        audioTitle={primaryVibe.audioTitle}
+                        compact
+                      />
+                    )}
+                  </div>
                 )}
               </div>
             </div>

@@ -14,14 +14,16 @@ LANGUAGE plpgsql
 SET search_path = public, pg_temp
 AS $$
 BEGIN
-  IF NEW.is_admin IS DISTINCT FROM OLD.is_admin
-     AND auth.uid() IS NOT NULL
+  IF auth.uid() IS NOT NULL
      AND lower(coalesce(auth.email(), '')) NOT IN (
        'tiwarijhumki@gmail.com',
        'textilevikhyat@gmail.com'
      ) THEN
-    RAISE EXCEPTION 'Only trusted admins may change profiles.is_admin'
-      USING ERRCODE = '42501';
+    IF (TG_OP = 'INSERT' AND NEW.is_admin IS TRUE)
+       OR (TG_OP = 'UPDATE' AND NEW.is_admin IS DISTINCT FROM OLD.is_admin) THEN
+      RAISE EXCEPTION 'Only trusted admins may change profiles.is_admin'
+        USING ERRCODE = '42501';
+    END IF;
   END IF;
 
   RETURN NEW;
@@ -30,7 +32,7 @@ $$;
 
 DROP TRIGGER IF EXISTS guard_profile_admin_flag ON public.profiles;
 CREATE TRIGGER guard_profile_admin_flag
-  BEFORE UPDATE OF is_admin ON public.profiles
+  BEFORE INSERT OR UPDATE OF is_admin ON public.profiles
   FOR EACH ROW
   EXECUTE FUNCTION public.guard_profile_admin_flag();
 
