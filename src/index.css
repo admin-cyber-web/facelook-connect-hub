@@ -9,19 +9,68 @@
   50% { opacity: 0.3; }
 }
 
+@keyframes vibe-storm-flash {
+  0%, 38%, 44%, 72%, 100% { opacity: 0.12; }
+  40%, 42% { opacity: 0.48; }
+  74% { opacity: 0.34; }
+}
+
+@keyframes vibe-sparkle-glow {
+  0%, 100% { opacity: 0.18; }
+  50% { opacity: 0.48; }
+}
+
+@keyframes vibe-holi-wash {
+  0%, 100% { opacity: 0.23; }
+  50% { opacity: 0.47; }
+}
+
+@keyframes vibe-focus-pulse {
+  0%, 100% { opacity: 0.14; }
+  50% { opacity: 0.38; }
+}
+
+@keyframes vibe-birthday-confetti {
+  0%, 100% { opacity: 0.2; }
+  50% { opacity: 0.52; }
+}
+
+@keyframes vibe-ember-glow {
+  0%, 100% { opacity: 0.18; }
+  48% { opacity: 0.48; }
+  62% { opacity: 0.3; }
+}
+
+@keyframes vibe-news-flash {
+  0%, 100% { opacity: 0.13; }
+  50% { opacity: 0.5; }
+}
+
+@keyframes vibe-holi-shift {
+  from { transform: translate3d(-2%, 1%, 0) scale(1); }
+  to { transform: translate3d(2%, -1%, 0) scale(1.04); }
+}
+
+@keyframes vibe-confetti-drift {
+  from { transform: translate3d(-0.5%, 1%, 0) rotate(-1deg); }
+  to { transform: translate3d(0.5%, -1%, 0) rotate(1deg); }
+}
+
 .post-vibe-card {
   position: relative;
   --vibe-accent: #38bdf8;
   --vibe-secondary: #1d4ed8;
+  --vibe-effect:
+    linear-gradient(118deg,
+      color-mix(in srgb, var(--vibe-accent) 8%, transparent),
+      transparent 48%,
+      color-mix(in srgb, var(--vibe-secondary) 7%, transparent));
+  --vibe-animation: post-vibe-edge-pulse 4.8s ease-in-out infinite;
   box-shadow:
     inset 0 1px 0 color-mix(in srgb, var(--vibe-accent) 60%, transparent),
-    inset 0 0 22px color-mix(in srgb, var(--vibe-accent) 7%, transparent);
-  background-image: linear-gradient(
-    118deg,
-    color-mix(in srgb, var(--vibe-accent) 8%, transparent),
-    transparent 48%,
-    color-mix(in srgb, var(--vibe-secondary) 7%, transparent)
-  );
+    inset 0 0 22px color-mix(in srgb, var(--vibe-accent) 7%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--vibe-accent) 32%, transparent);
+  background-image: var(--vibe-effect);
 }
 
 .post-vibe-card::after {
@@ -30,12 +79,7 @@
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  background: linear-gradient(
-    118deg,
-    color-mix(in srgb, var(--vibe-accent) 8%, transparent),
-    transparent 48%,
-    color-mix(in srgb, var(--vibe-secondary) 7%, transparent)
-  );
+  background: var(--vibe-effect);
   border-top: 1px solid color-mix(in srgb, var(--vibe-accent) 65%, transparent);
   box-shadow: inset 0 0 22px color-mix(in srgb, var(--vibe-secondary) 9%, transparent);
   opacity: 0.14;
@@ -43,13 +87,124 @@
 
 .post-vibe-in-view .post-vibe-card::after,
 .post-vibe-card.post-vibe-in-view::after {
-  animation: post-vibe-edge-pulse 4.8s ease-in-out infinite;
+  animation: var(--vibe-animation);
+  will-change: opacity;
+}
+
+.post-vibe-card[data-vibe="storm_alert"] {
+  --vibe-effect:
+    linear-gradient(112deg, rgba(2, 132, 199, .24), transparent 38%, rgba(30, 64, 175, .18)),
+    radial-gradient(ellipse at 88% 8%, rgba(56, 189, 248, .28), transparent 38%);
+  --vibe-animation: vibe-storm-flash 4.6s steps(1, end) infinite;
+  box-shadow: inset 0 0 0 1px rgba(56, 189, 248, .65), inset 0 0 26px rgba(14, 165, 233, .17);
+}
+
+.post-vibe-card[data-vibe="diwali_fest"] {
+  --vibe-effect:
+    radial-gradient(circle at 12% 18%, rgba(255, 241, 155, .95) 0 1px, transparent 3px),
+    radial-gradient(circle at 87% 28%, rgba(251, 191, 36, .85) 0 1px, transparent 4px),
+    radial-gradient(circle at 72% 82%, rgba(251, 146, 60, .8) 0 1px, transparent 4px),
+    radial-gradient(circle at 34% 92%, rgba(253, 230, 138, .75) 0 1px, transparent 3px),
+    linear-gradient(120deg, rgba(251, 191, 36, .2), transparent 45%, rgba(249, 115, 22, .16));
+  --vibe-animation: vibe-sparkle-glow 3.2s ease-in-out infinite;
+  box-shadow: inset 0 0 0 1px rgba(251, 191, 36, .66), inset 0 0 28px rgba(249, 115, 22, .16);
+}
+
+.post-vibe-card[data-vibe="holi_fest"] {
+  --vibe-effect:
+    radial-gradient(ellipse at 8% 16%, rgba(236, 72, 153, .3), transparent 35%),
+    radial-gradient(ellipse at 92% 28%, rgba(34, 211, 238, .26), transparent 38%),
+    radial-gradient(ellipse at 58% 96%, rgba(250, 204, 21, .24), transparent 42%),
+    linear-gradient(115deg, rgba(236, 72, 153, .12), rgba(250, 204, 21, .1), rgba(34, 211, 238, .14));
+  --vibe-animation: vibe-holi-wash 5s ease-in-out infinite;
+  box-shadow: inset 0 0 0 1px rgba(236, 72, 153, .52), inset 0 0 24px rgba(34, 211, 238, .12);
+}
+
+.post-vibe-card[data-vibe="holi_fest"]::before {
+  content: "";
+  position: absolute;
+  inset: -1.5rem;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse at 15% 20%, rgba(236, 72, 153, .22), transparent 38%),
+    radial-gradient(ellipse at 85% 35%, rgba(34, 211, 238, .2), transparent 40%),
+    radial-gradient(ellipse at 58% 88%, rgba(250, 204, 21, .18), transparent 43%);
+}
+
+.post-vibe-in-view .post-vibe-card[data-vibe="holi_fest"]::before,
+.post-vibe-card.post-vibe-in-view[data-vibe="holi_fest"]::before {
+  animation: vibe-holi-shift 8s ease-in-out infinite alternate;
+  will-change: transform;
+}
+
+.post-vibe-card[data-vibe="deep_focus"] {
+  --vibe-effect:
+    linear-gradient(112deg, rgba(101, 35, 65, .36), transparent 47%, rgba(217, 249, 157, .12)),
+    radial-gradient(ellipse at 75% 0%, rgba(217, 249, 157, .18), transparent 45%);
+  --vibe-animation: vibe-focus-pulse 4.4s ease-in-out infinite;
+  box-shadow: inset 0 0 0 1px rgba(217, 249, 157, .52), inset 0 0 28px rgba(190, 242, 100, .1);
+}
+
+.post-vibe-card[data-vibe="birthday_bash"] {
+  --vibe-effect:
+    radial-gradient(circle at 8% 16%, #f9a8d4 0 1.5px, transparent 4px),
+    radial-gradient(circle at 25% 82%, #fde047 0 1.5px, transparent 4px),
+    radial-gradient(circle at 46% 12%, #67e8f9 0 1.5px, transparent 4px),
+    radial-gradient(circle at 67% 91%, #c4b5fd 0 1.5px, transparent 4px),
+    radial-gradient(circle at 91% 24%, #fb7185 0 1.5px, transparent 4px),
+    linear-gradient(120deg, rgba(192, 132, 252, .14), transparent 52%, rgba(251, 113, 133, .16));
+  --vibe-animation: vibe-birthday-confetti 2.8s ease-in-out infinite;
+  box-shadow: inset 0 0 0 1px rgba(216, 180, 254, .62), inset 0 0 28px rgba(192, 132, 252, .14);
+}
+
+.post-vibe-card[data-vibe="birthday_bash"]::before {
+  content: "";
+  position: absolute;
+  inset: -1rem;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 16% 30%, rgba(249, 168, 212, .75) 0 1.5px, transparent 4px),
+    radial-gradient(circle at 38% 78%, rgba(253, 224, 71, .68) 0 1.5px, transparent 4px),
+    radial-gradient(circle at 74% 22%, rgba(103, 232, 249, .72) 0 1.5px, transparent 4px),
+    radial-gradient(circle at 88% 72%, rgba(196, 181, 253, .72) 0 1.5px, transparent 4px);
+}
+
+.post-vibe-in-view .post-vibe-card[data-vibe="birthday_bash"]::before,
+.post-vibe-card.post-vibe-in-view[data-vibe="birthday_bash"]::before {
+  animation: vibe-confetti-drift 5s ease-in-out infinite alternate;
+  will-change: transform;
+}
+
+.post-vibe-card[data-vibe="dussehra_fest"] {
+  --vibe-effect:
+    radial-gradient(ellipse at 16% 100%, rgba(249, 115, 22, .28), transparent 42%),
+    radial-gradient(ellipse at 86% 0%, rgba(250, 204, 21, .25), transparent 40%),
+    linear-gradient(115deg, rgba(194, 65, 12, .19), transparent 46%, rgba(251, 191, 36, .13));
+  --vibe-animation: vibe-ember-glow 3.8s ease-in-out infinite;
+  box-shadow: inset 0 0 0 1px rgba(251, 146, 60, .68), inset 0 0 28px rgba(234, 88, 12, .16);
+}
+
+.post-vibe-card[data-vibe="news_flash"] {
+  --vibe-effect:
+    repeating-linear-gradient(135deg, rgba(239, 68, 68, .23) 0 8px, rgba(248, 250, 252, .12) 8px 16px, transparent 16px 24px);
+  --vibe-animation: vibe-news-flash 1.7s steps(2, end) infinite;
+  box-shadow: inset 0 0 0 1px rgba(248, 250, 252, .62), inset 0 0 25px rgba(239, 68, 68, .18);
 }
 
 @media (prefers-reduced-motion: reduce) {
   .post-vibe-in-view .post-vibe-card::after,
   .post-vibe-card.post-vibe-in-view::after {
     animation: none;
+    will-change: auto;
+  }
+
+  .post-vibe-card[data-vibe="holi_fest"]::before,
+  .post-vibe-card[data-vibe="birthday_bash"]::before {
+    animation: none;
+    transform: none;
+    will-change: auto;
   }
 }
 

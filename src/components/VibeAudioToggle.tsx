@@ -10,16 +10,16 @@ import {
 interface VibeAudioToggleProps {
   postId: string;
   audioUrl: string;
-  vibeLabel: string;
   audioTitle?: string;
+  audioLoop?: boolean;
   compact?: boolean;
 }
 
 export default function VibeAudioToggle({
   postId,
   audioUrl,
-  vibeLabel,
   audioTitle,
+  audioLoop = true,
   compact = false,
 }: VibeAudioToggleProps) {
   const audioState = useSyncExternalStore(
@@ -31,11 +31,11 @@ export default function VibeAudioToggle({
 
   const toggle = async (event: MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
-    const didPlay = await toggleVibeAudioForPost(postId, audioUrl);
+    const didPlay = await toggleVibeAudioForPost(postId, audioUrl, audioLoop);
     if (!didPlay) toast.error("Could not play this vibe audio. Tap to try again.");
   };
 
-  const label = isPlaying ? `Turn off ${vibeLabel} audio` : `Play ${vibeLabel} audio`;
+  const label = isPlaying ? "Turn off ambient audio" : "Play ambient audio";
   return (
     <button
       type="button"

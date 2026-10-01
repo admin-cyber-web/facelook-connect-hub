@@ -24,7 +24,6 @@ import { generatePostSEO } from "@/lib/geminiClient";
 import { uploadToCloudinary } from "@/lib/cloudinaryUpload";
 import { getSmartPostAsset } from "@/utils/smartAssets";
 import {
-  detectVibes,
   resolveVibeSelection,
   VIBE_PROFILES,
   type VibeOverride,
@@ -47,11 +46,6 @@ const CreatePost = ({
 }: CreatePostProps) => {
   const [content, setContent] = useState("");
   const [vibeOverride, setVibeOverride] = useState<VibeOverride>(null);
-  const detectedVibe = useMemo(() => detectVibes(content), [content]);
-  const selectedVibe = useMemo(
-    () => resolveVibeSelection(content, vibeOverride),
-    [content, vibeOverride],
-  );
   const [files, setFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
   const previewUrlsRef = useRef<string[]>([]);
@@ -822,22 +816,8 @@ const CreatePost = ({
                     </div>
                   </div>
 
-                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-violet-200/80 bg-gradient-to-r from-violet-50 to-fuchsia-50 px-3 py-2.5">
-                    <div className="min-w-0" aria-live="polite" role="status">
-                      <p className="truncate text-[12px] font-extrabold text-violet-800">
-                        ✨ Auto Vibe Detected: {detectedVibe.primary?.label ?? "No match yet"}
-                      </p>
-                      {vibeOverride !== null && (
-                        <p className="mt-0.5 text-[10px] font-semibold text-violet-600">
-                          {selectedVibe.weatherOverride
-                            ? "Weather alerts take priority over this override."
-                            : selectedVibe.primary
-                              ? `Using ${selectedVibe.primary.label} instead.`
-                              : "Vibe effects are turned off for this post."}
-                        </p>
-                      )}
-                    </div>
-                    <label className="flex shrink-0 items-center gap-1.5 text-[10px] font-bold text-violet-700">
+                  <div className="flex justify-end">
+                    <label className="flex items-center gap-1.5 text-[10px] font-bold text-violet-700">
                       <span>Vibe</span>
                       <select
                         aria-label="Choose post vibe"
