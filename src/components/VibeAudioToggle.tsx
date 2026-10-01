@@ -27,7 +27,8 @@ export default function VibeAudioToggle({
     getVibeAudioSnapshot,
     getVibeAudioSnapshot,
   );
-  const isPlaying = audioState.enabled && audioState.activePostId === postId;
+  const isActivePost = audioState.enabled && audioState.activePostId === postId;
+  const isPlaying = isActivePost && !audioState.failed;
 
   const toggle = async (event: MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
@@ -35,13 +36,18 @@ export default function VibeAudioToggle({
     if (!didPlay) toast.error("Could not play this vibe audio. Tap to try again.");
   };
 
-  const label = isPlaying ? "Turn off ambient audio" : "Play ambient audio";
+  const label = audioState.failed && isActivePost
+    ? "Stop ambient audio"
+    : isPlaying
+      ? "Turn off ambient audio"
+      : "Play ambient audio";
   return (
     <button
       type="button"
+      data-testid={`button-vibe-audio-${postId}`}
       onClick={toggle}
       aria-label={label}
-      aria-pressed={isPlaying}
+      aria-pressed={isActivePost}
       title={`${label}${audioTitle ? ` — ${audioTitle}` : ""}`}
       className={`inline-flex shrink-0 items-center justify-center rounded-full border transition-colors ${
         compact

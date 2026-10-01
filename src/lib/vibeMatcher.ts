@@ -10,7 +10,12 @@ export type VibeTag =
   | "fury_fire"
   | "wanderlust"
   | "birthday_bash"
-  | "news_flash";
+  | "news_flash"
+  | "money_flow"
+  | "love_romance"
+  | "moody_sad"
+  | "good_morning"
+  | "good_night";
 
 export interface VibeProfile {
   tag: VibeTag;
@@ -26,22 +31,21 @@ export interface VibeProfile {
   audioLoop?: boolean;
 }
 
-// These small, public-domain Wikimedia tracks are fetched only after a viewer
-// opts into sound. Replace the URLs here with the production Cloudinary tracks
-// when those are available.
+// Public-domain ambient tracks are bundled as compact MP3s for broad mobile
+// browser support. They are fetched only after the viewer opts into sound.
 const PUBLIC_DOMAIN_AUDIO = {
   storm: {
-    url: "https://upload.wikimedia.org/wikipedia/commons/f/f3/Rain_thunder_and_other_noises.ogg",
+    url: "/audio/vibes/storm.mp3",
     title: "Rain, thunder and other noises — public domain",
     source: "https://commons.wikimedia.org/wiki/File:Rain_thunder_and_other_noises.ogg",
   },
   flute: {
-    url: "https://upload.wikimedia.org/wikipedia/commons/0/05/Flute.ogg",
+    url: "/audio/vibes/flute.mp3",
     title: "Flute — public domain",
     source: "https://commons.wikimedia.org/wiki/File:Flute.ogg",
   },
   applause: {
-    url: "https://upload.wikimedia.org/wikipedia/commons/0/09/Applause_ii.ogg",
+    url: "/audio/vibes/applause.mp3",
     title: "Applause II — public domain",
     source: "https://commons.wikimedia.org/wiki/File:Applause_ii.ogg",
   },
@@ -131,7 +135,6 @@ export const VIBE_PROFILES: VibeProfile[] = [
     audioUrl: "/notif.wav",
     audioTitle: "Celebration chime",
     audioSourceUrl: "",
-    audioLoop: false,
   },
   {
     tag: "news_flash",
@@ -173,10 +176,70 @@ export const VIBE_PROFILES: VibeProfile[] = [
     tag: "wanderlust",
     label: "Wanderlust",
     icon: "✈️",
-    keywords: ["travel", "flight", "airplane", "safar", "trip", "ticket"],
+    keywords: ["ghumne", "trip", "travel", "vacation", "flight", "ticket", "safar", "airplane"],
     priority: 39,
     glowColor: "#38bdf8",
     secondaryColor: "#facc15",
+    audioUrl: PUBLIC_DOMAIN_AUDIO.flute.url,
+    audioTitle: PUBLIC_DOMAIN_AUDIO.flute.title,
+    audioSourceUrl: PUBLIC_DOMAIN_AUDIO.flute.source,
+  },
+  {
+    tag: "money_flow",
+    label: "Money flow",
+    icon: "💸",
+    keywords: ["paise", "money", "cash", "salary", "profit", "wealth", "dhan"],
+    priority: 58,
+    glowColor: "#facc15",
+    secondaryColor: "#22c55e",
+    audioUrl: PUBLIC_DOMAIN_AUDIO.applause.url,
+    audioTitle: PUBLIC_DOMAIN_AUDIO.applause.title,
+    audioSourceUrl: PUBLIC_DOMAIN_AUDIO.applause.source,
+  },
+  {
+    tag: "love_romance",
+    label: "Love & romance",
+    icon: "💞",
+    keywords: ["love", "miss you", "pyaar", "jaan", "close to heart"],
+    priority: 57,
+    glowColor: "#fb7185",
+    secondaryColor: "#c084fc",
+    audioUrl: PUBLIC_DOMAIN_AUDIO.flute.url,
+    audioTitle: PUBLIC_DOMAIN_AUDIO.flute.title,
+    audioSourceUrl: PUBLIC_DOMAIN_AUDIO.flute.source,
+  },
+  {
+    tag: "moody_sad",
+    label: "Sad & emotional",
+    icon: "🌧️",
+    keywords: ["sad", "dukh", "rona", "lonely", "broken"],
+    priority: 56,
+    glowColor: "#94a3b8",
+    secondaryColor: "#60a5fa",
+    audioUrl: PUBLIC_DOMAIN_AUDIO.flute.url,
+    audioTitle: PUBLIC_DOMAIN_AUDIO.flute.title,
+    audioSourceUrl: PUBLIC_DOMAIN_AUDIO.flute.source,
+  },
+  {
+    tag: "good_morning",
+    label: "Good morning",
+    icon: "🌅",
+    keywords: ["good morning", "subah", "gm", "prabhat"],
+    priority: 53,
+    glowColor: "#fbbf24",
+    secondaryColor: "#fb923c",
+    audioUrl: "/notif.wav",
+    audioTitle: "Morning chime",
+    audioSourceUrl: "",
+  },
+  {
+    tag: "good_night",
+    label: "Good night",
+    icon: "🌙",
+    keywords: ["good night", "raat", "gn", "shubh ratri"],
+    priority: 52,
+    glowColor: "#818cf8",
+    secondaryColor: "#c4b5fd",
     audioUrl: PUBLIC_DOMAIN_AUDIO.flute.url,
     audioTitle: PUBLIC_DOMAIN_AUDIO.flute.title,
     audioSourceUrl: PUBLIC_DOMAIN_AUDIO.flute.source,
