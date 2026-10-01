@@ -2,13 +2,15 @@ export type VibeTag =
   | "storm_alert"
   | "diwali_fest"
   | "holi_fest"
+  | "dussehra_fest"
   | "raksha_bandhan"
   | "patriotic"
   | "deep_focus"
   | "hype_mode"
   | "fury_fire"
   | "wanderlust"
-  | "birthday_bash";
+  | "birthday_bash"
+  | "news_flash";
 
 export interface VibeProfile {
   tag: VibeTag;
@@ -18,9 +20,10 @@ export interface VibeProfile {
   priority: number;
   glowColor: string;
   secondaryColor: string;
-  audioUrl: string;
+  audioUrl: string | null;
   audioTitle: string;
   audioSourceUrl: string;
+  audioLoop?: boolean;
 }
 
 // These small, public-domain Wikimedia tracks are fetched only after a viewer
@@ -82,6 +85,18 @@ export const VIBE_PROFILES: VibeProfile[] = [
     audioSourceUrl: PUBLIC_DOMAIN_AUDIO.applause.source,
   },
   {
+    tag: "dussehra_fest",
+    label: "Dussehra",
+    icon: "🏹",
+    keywords: ["dussehra", "dussera", "dashara", "vijayadashami", "vijaya dashami"],
+    priority: 71,
+    glowColor: "#fb923c",
+    secondaryColor: "#facc15",
+    audioUrl: PUBLIC_DOMAIN_AUDIO.flute.url,
+    audioTitle: "Flute — public domain",
+    audioSourceUrl: PUBLIC_DOMAIN_AUDIO.flute.source,
+  },
+  {
     tag: "raksha_bandhan",
     label: "Raksha Bandhan",
     icon: "🧵",
@@ -109,13 +124,26 @@ export const VIBE_PROFILES: VibeProfile[] = [
     tag: "birthday_bash",
     label: "Birthday bash",
     icon: "🎂",
-    keywords: ["birthday", "cake", "saal gira"],
+    keywords: ["birthday", "cake", "saal gira", "party"],
     priority: 60,
     glowColor: "#c084fc",
     secondaryColor: "#fb7185",
-    audioUrl: PUBLIC_DOMAIN_AUDIO.applause.url,
-    audioTitle: PUBLIC_DOMAIN_AUDIO.applause.title,
-    audioSourceUrl: PUBLIC_DOMAIN_AUDIO.applause.source,
+    audioUrl: "/notif.wav",
+    audioTitle: "Celebration chime",
+    audioSourceUrl: "",
+    audioLoop: false,
+  },
+  {
+    tag: "news_flash",
+    label: "Breaking news",
+    icon: "🚨",
+    keywords: ["breaking news", "khabar", "alert", "update"],
+    priority: 80,
+    glowColor: "#ef4444",
+    secondaryColor: "#f8fafc",
+    audioUrl: null,
+    audioTitle: "",
+    audioSourceUrl: "",
   },
   {
     tag: "fury_fire",
@@ -307,5 +335,5 @@ export function getPostVibeAudioUrl(post: unknown, selection?: VibeSelection): s
   if (!resolvedVibe.primary) return null;
   const customUrl = metadata.vibe_audio_url;
   if (typeof customUrl === "string" && /^https?:\/\//i.test(customUrl)) return customUrl;
-  return resolvedVibe.primary.audioUrl;
+  return resolvedVibe.primary.audioUrl || null;
 }

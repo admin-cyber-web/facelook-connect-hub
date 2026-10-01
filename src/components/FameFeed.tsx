@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, useCallback, useSyncExternalStore, memo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback, memo } from "react";
 import { createPortal } from "react-dom";
 import { supabase } from "../lib/supabaseClient";
 import { smartTime } from "../lib/timeAgo";
@@ -218,11 +218,13 @@ const PostViewTracker = memo(({
   postId,
   onView,
   vibeAudioUrl,
+  vibeAudioLoop = true,
   children,
 }: {
   postId: string;
   onView: (id: string) => void;
   vibeAudioUrl?: string | null;
+  vibeAudioLoop?: boolean;
   children: React.ReactNode;
 }) => {
   const ref = useRef<HTMLDivElement>(null);
@@ -235,7 +237,7 @@ const PostViewTracker = memo(({
       ([entry]) => {
         const visible = entry.isIntersecting && entry.intersectionRatio >= 0.1;
         setIsVisible(visible);
-        setVisibleVibeAudio(postId, vibeAudioUrl ?? null, visible);
+        setVisibleVibeAudio(postId, vibeAudioUrl ?? null, visible, vibeAudioLoop);
         if (entry.isIntersecting && entry.intersectionRatio >= 0.5 && !fired.current) {
           fired.current = true;
           onView(postId);
@@ -246,9 +248,9 @@ const PostViewTracker = memo(({
     obs.observe(el);
     return () => {
       obs.disconnect();
-      setVisibleVibeAudio(postId, vibeAudioUrl ?? null, false);
+      setVisibleVibeAudio(postId, vibeAudioUrl ?? null, false, vibeAudioLoop);
     };
-  }, [postId, onView, vibeAudioUrl]);
+  }, [postId, onView, vibeAudioUrl, vibeAudioLoop]);
   return (
     <div ref={ref} className={isVisible ? "post-vibe-in-view" : undefined} style={{ touchAction: "pan-y" }}>
       {children}
@@ -259,14 +261,6 @@ const PostViewTracker = memo(({
 // ── Inline video ───────────────────────────────────────────────────────────────
 const FeedVideo = memo(({ src }: { src: string }) => {
   const ref = useRef<HTMLVideoElement>(null);
-  const [muted, setMuted] = useState(true);
-  const vibeAudio = useSyncExternalStore(
-    subscribeVibeAudio,
-    getVibeAudioSnapshot,
-    getVibeAudioSnapshot,
-  );
-  const forceMuted = vibeAudio.enabled && Boolean(vibeAudio.activeUrl);
-  const isMuted = muted || forceMuted;
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
@@ -274,11 +268,10 @@ const FeedVideo = memo(({ src }: { src: string }) => {
       ([entry]) => {
         if (!ref.current) return;
         if (entry.isIntersecting) {
-          ref.current.muted = isMuted;
+          ref.current.muted = true;
           ref.current.play().catch(() => {
             if (ref.current) {
               ref.current.muted = true;
-              setMuted(true);
               ref.current.play().catch(() => {});
             }
           });
@@ -290,14 +283,7 @@ const FeedVideo = memo(({ src }: { src: string }) => {
     );
     obs.observe(el);
     return () => obs.disconnect();
-  }, [isMuted, src]);
-  const toggle = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!ref.current) return;
-    if (forceMuted && ref.current.muted) return;
-    ref.current.muted = !ref.current.muted;
-    setMuted(ref.current.muted);
-  };
+  }, [src]);
   return (
     <div
       className="relative w-full bg-black"
@@ -307,21 +293,11 @@ const FeedVideo = memo(({ src }: { src: string }) => {
         ref={ref}
         src={src}
         loop
-        muted={isMuted}
+        muted={true}
         playsInline
         className="w-full h-full object-cover"
         style={{ touchAction: "pan-y" }}
        preload="none"/>
-      <button
-        onClick={toggle}
-        className="absolute bottom-3 right-3 p-2 bg-black/75 rounded-full border border-white/15"
-      >
-        {isMuted ? (
-          <VolumeX size={16} className="text-red-400" />
-        ) : (
-          <Volume2 size={16} className="text-blue-500" />
-        )}
-      </button>
     </div>
   );
 });
@@ -1981,7 +1957,7 @@ const SingleReelBlock = ({
             className="w-full h-full object-cover"
             style={{ touchAction: "pan-y", filter: reelSettings.cssFilter }}
             loop
-            muted={hasBackgroundAudio || muted}
+            muted={true}
             playsInline
             preload="metadata"
           />
@@ -1991,17 +1967,12 @@ const SingleReelBlock = ({
         </>
       )}
       <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none" />
-      {!isYT && (
+      {!isYT && hasBackgroundAudio && (
         <button
           onClick={() => {
-            if (ref.current) {
-              if (hasBackgroundAudio && audioRef.current) {
-                audioRef.current.muted = !audioRef.current.muted;
-                setMuted(audioRef.current.muted);
-              } else {
-                ref.current.muted = !ref.current.muted;
-                setMuted(ref.current.muted);
-              }
+            if (audioRef.current) {
+              audioRef.current.muted = !audioRef.current.muted;
+              setMuted(audioRef.current.muted);
             }
           }}
           className="absolute top-4 right-4 p-2 bg-black/40 backdrop-blur-sm rounded-full border border-white/10"
@@ -2198,8 +2169,7 @@ const FlickPlayerModal = ({
               src={reelVideoUrl}
               className="w-full h-full object-contain"
               autoPlay
-              controls
-              muted={Boolean(reelSettings.audioUrl)}
+              muted={true}
               playsInline
               style={{ maxHeight: "100dvh", filter: reelSettings.cssFilter }}
             />
@@ -4700,6 +4670,7 @@ const FameFeed = ({
         postId={post.id}
         onView={incrementView}
         vibeAudioUrl={vibeAudioUrl}
+        vibeAudioLoop={primaryVibe?.audioLoop ?? true}
       >
         <motion.article
           id={post.id}
@@ -4885,25 +4856,12 @@ const FameFeed = ({
                 )}
                 {primaryVibe && (
                   <div className="mt-1 flex items-center gap-1.5">
-                    <span
-                      className="inline-flex max-w-[10rem] items-center gap-1 truncate rounded-full border border-white/10 bg-black/25 px-2 py-0.5 text-[9px] font-extrabold"
-                      style={{ color: primaryVibe.glowColor }}
-                      title={
-                        secondaryVibe
-                          ? `${primaryVibe.label} blended with ${secondaryVibe.label}`
-                          : primaryVibe.label
-                      }
-                    >
-                      <span aria-hidden="true">{primaryVibe.icon}</span>
-                      <span className="truncate">{primaryVibe.label}</span>
-                      {secondaryVibe && <span aria-hidden="true">＋</span>}
-                    </span>
                     {vibeAudioUrl && (
                       <VibeAudioToggle
                         postId={String(post.id)}
                         audioUrl={vibeAudioUrl}
-                        vibeLabel={primaryVibe.label}
                         audioTitle={primaryVibe.audioTitle}
+                        audioLoop={primaryVibe.audioLoop}
                         compact
                       />
                     )}

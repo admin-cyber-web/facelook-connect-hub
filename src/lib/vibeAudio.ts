@@ -2,6 +2,7 @@ export interface VibeAudioState {
   enabled: boolean;
   activePostId: string | null;
   activeUrl: string | null;
+  activeLoop: boolean;
   failed: boolean;
 }
 
@@ -9,6 +10,7 @@ let state: VibeAudioState = {
   enabled: false,
   activePostId: null,
   activeUrl: null,
+  activeLoop: true,
   failed: false,
 };
 let player: HTMLAudioElement | null = null;
@@ -27,6 +29,11 @@ const getPlayer = (): HTMLAudioElement | null => {
     player.loop = true;
     player.preload = "none";
     player.volume = 0.35;
+    player.addEventListener("ended", () => {
+      if (!state.activeLoop && state.enabled) {
+        publish({ ...state, enabled: false, failed: false });
+      }
+    });
     if (typeof document !== "undefined" && !visibilityListenerInstalled) {
       document.addEventListener("visibilitychange", () => {
         if (document.visibilityState === "hidden") {
@@ -55,6 +62,7 @@ const playCurrentTrack = async (): Promise<boolean> => {
     current.src = state.activeUrl;
     current.load();
   }
+  current.loop = state.activeLoop;
 
   try {
     await current.play();
@@ -80,11 +88,21 @@ export function setVisibleVibeAudio(
   postId: string,
   url: string | null,
   visible: boolean,
+  loop = true,
 ): void {
   if (visible && url) {
-    const trackChanged = state.activePostId !== postId || state.activeUrl !== url;
+    const trackChanged =
+      state.activePostId !== postId ||
+      state.activeUrl !== url ||
+      state.activeLoop !== loop;
     if (trackChanged) {
-      publish({ ...state, activePostId: postId, activeUrl: url, failed: false });
+      publish({
+        ...state,
+        activePostId: postId,
+        activeUrl: url,
+        activeLoop: loop,
+        failed: false,
+      });
       if (state.enabled) void playCurrentTrack();
     }
     return;
@@ -99,6 +117,7 @@ export function setVisibleVibeAudio(
 export async function toggleVibeAudioForPost(
   postId: string,
   url: string,
+  loop = true,
 ): Promise<boolean> {
   if (state.enabled && state.activePostId === postId) {
     player?.pause();
@@ -111,6 +130,7 @@ export async function toggleVibeAudioForPost(
     enabled: true,
     activePostId: postId,
     activeUrl: url,
+    activeLoop: loop,
     failed: false,
   });
   return playCurrentTrack();
