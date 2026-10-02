@@ -720,7 +720,7 @@ const FlickCard = memo(({ post, isActive, isPreloaded, currentUserId, onBridgeCh
         playsInline
         autoPlay={false}
         preload={isActive ? "auto" : isPreloaded ? "metadata" : "none"}
-        className="absolute inset-0 w-full h-full object-cover"
+        className="absolute inset-0 w-full h-full object-contain"
         style={{
           backgroundColor: "#000",
           filter: reelSettings.cssFilter,
@@ -742,6 +742,16 @@ const FlickCard = memo(({ post, isActive, isPreloaded, currentUserId, onBridgeCh
           }
         }}
       />
+      {vibeAudioUrl && (
+        <VibeAudioToggle
+          postId={vibePostId}
+          audioUrl={vibeAudioUrl}
+          vibeLabel={vibe.primary?.label}
+          audioTitle={vibe.primary?.audioTitle}
+          compact
+          floating
+        />
+      )}
       {hasBackgroundAudio && (
         <audio
           ref={audioRef}
@@ -767,7 +777,7 @@ const FlickCard = memo(({ post, isActive, isPreloaded, currentUserId, onBridgeCh
         <div className="absolute inset-0 z-[25] flex flex-col items-center justify-center gap-4 bg-[#090b14] px-8">
           {post.thumb_url && (
             <img src={post.thumb_url} alt=""
-              className="absolute inset-0 w-full h-full object-cover opacity-20 blur-sm pointer-events-none" />
+              className="absolute inset-0 w-full h-full object-contain opacity-20 blur-sm pointer-events-none" />
           )}
           <div className="relative flex flex-col items-center gap-3 text-center">
             <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center">
@@ -955,7 +965,7 @@ const FlickCard = memo(({ post, isActive, isPreloaded, currentUserId, onBridgeCh
           <BadgeCheck size={13} className="text-cyan-400" />
         </div>
         {vibe.primary && (
-          <div className="pointer-events-auto mb-1 inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-black/40 px-2 py-1">
+          <div className="mb-1 inline-flex items-center rounded-full border border-white/15 bg-black/40 px-2 py-1">
             <span
               className="text-[10px] font-extrabold"
               style={{ color: vibe.primary.glowColor }}
@@ -963,15 +973,6 @@ const FlickCard = memo(({ post, isActive, isPreloaded, currentUserId, onBridgeCh
               {vibe.primary.icon} {vibe.primary.label}
               {vibe.matches.some((profile) => profile.tag !== vibe.primary?.tag) ? " +" : ""}
             </span>
-            {vibeAudioUrl && (
-              <VibeAudioToggle
-                postId={vibePostId}
-                audioUrl={vibeAudioUrl}
-                vibeLabel={vibe.primary.label}
-                audioTitle={vibe.primary.audioTitle}
-                compact
-              />
-            )}
           </div>
         )}
         {editingCaption ? (
