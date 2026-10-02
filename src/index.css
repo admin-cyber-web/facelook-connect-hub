@@ -229,18 +229,12 @@
 .vibe-media-frame {
   position: relative;
   isolation: isolate;
-  overflow: hidden;
   width: 100%;
 }
 
 .vibe-media-overlay {
   --vibe-overlay: linear-gradient(135deg, rgba(56, 189, 248, .3), transparent);
   --vibe-burst: vibe-media-burst;
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  overflow: hidden;
-  pointer-events: none;
   background: var(--vibe-overlay);
   opacity: .1;
 }
@@ -258,10 +252,38 @@
 }
 
 @keyframes vibe-storm-burst {
-  0%, 22%, 45%, 74%, 100% { opacity: .12; }
-  3%, 6% { opacity: .96; }
-  25%, 28% { opacity: .76; }
-  49% { opacity: .65; }
+  0%, 11%, 18%, 35%, 43%, 69%, 100% { opacity: .12; }
+  2%, 5% { opacity: 1; }
+  13%, 16% { opacity: .88; }
+  37%, 40% { opacity: .82; }
+  46%, 50% { opacity: .58; }
+}
+
+@keyframes vibe-lightning-flash {
+  0%, 10%, 20%, 33%, 100% { opacity: 0; }
+  2%, 4% { opacity: 1; }
+  12%, 14% { opacity: .82; }
+  22%, 25% { opacity: .64; }
+  35%, 38% { opacity: .42; }
+}
+
+@keyframes vibe-diwali-sparkles {
+  0% { opacity: .12; transform: scale(.92); }
+  8% { opacity: 1; transform: scale(1.04); }
+  18% { opacity: .52; transform: scale(.98); }
+  32% { opacity: .96; transform: scale(1.07); }
+  51% { opacity: .62; transform: scale(1); }
+  72% { opacity: .94; transform: scale(1.05); }
+  100% { opacity: .18; transform: scale(1); }
+}
+
+@keyframes vibe-holi-splash {
+  0% { opacity: .12; transform: scale(.72) rotate(-5deg); }
+  14% { opacity: .98; transform: scale(1.12) rotate(2deg); }
+  34% { opacity: .72; transform: scale(1.02) rotate(-1deg); }
+  56% { opacity: .96; transform: scale(1.1) rotate(3deg); }
+  78% { opacity: .56; transform: scale(1.03) rotate(-1deg); }
+  100% { opacity: .16; transform: scale(1) rotate(0); }
 }
 
 @keyframes vibe-holi-drift {
@@ -292,8 +314,10 @@
 }
 
 @keyframes vibe-sunrise-rise {
-  from { transform: translate3d(-50%, 16%, 0); }
-  to { transform: translate3d(-50%, -3%, 0); }
+  0% { opacity: .1; transform: translate3d(-50%, 16%, 0) scale(.86); }
+  18% { opacity: 1; transform: translate3d(-50%, 3%, 0) scale(1.04); }
+  58% { opacity: .84; transform: translate3d(-50%, -1%, 0) scale(1.02); }
+  100% { opacity: .2; transform: translate3d(-50%, -3%, 0) scale(1); }
 }
 
 .vibe-media-overlay[data-vibe="storm_alert"],
@@ -307,6 +331,21 @@
   --vibe-burst: vibe-storm-burst;
 }
 
+.vibe-media-overlay[data-vibe="storm_alert"]::before {
+  content: "";
+  position: absolute;
+  inset: -4% 14%;
+  opacity: 0;
+  background: linear-gradient(180deg, rgba(248, 250, 252, .98), rgba(125, 211, 252, .92) 55%, rgba(56, 189, 248, .18));
+  clip-path: polygon(56% 0, 67% 34%, 60% 34%, 76% 72%, 49% 48%, 56% 48%, 38% 14%);
+  filter: drop-shadow(0 0 12px rgba(125, 211, 252, .95));
+}
+
+.post-vibe-in-view .vibe-media-overlay[data-vibe="storm_alert"]::before {
+  animation: vibe-lightning-flash 5s steps(1, end) forwards;
+  will-change: opacity;
+}
+
 .vibe-media-overlay[data-vibe="diwali_fest"] {
   --vibe-overlay:
     radial-gradient(circle at 12% 18%, rgba(255, 241, 155, .98) 0 2px, transparent 5px),
@@ -314,6 +353,35 @@
     radial-gradient(circle at 72% 82%, rgba(251, 146, 60, .9) 0 2px, transparent 6px),
     radial-gradient(circle at 34% 92%, rgba(253, 230, 138, .86) 0 2px, transparent 5px),
     linear-gradient(125deg, rgba(251, 191, 36, .35), transparent 48%, rgba(249, 115, 22, .32));
+}
+
+.vibe-media-overlay[data-vibe="diwali_fest"]::before,
+.vibe-media-overlay[data-vibe="diwali_fest"]::after {
+  content: "";
+  position: absolute;
+  inset: -4%;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 12% 20%, rgba(255, 255, 224, 1) 0 2px, transparent 8px),
+    radial-gradient(circle at 28% 68%, rgba(255, 220, 94, .98) 0 2px, transparent 9px),
+    radial-gradient(circle at 51% 31%, rgba(255, 255, 255, .98) 0 2px, transparent 8px),
+    radial-gradient(circle at 76% 56%, rgba(255, 214, 79, 1) 0 2px, transparent 9px),
+    radial-gradient(circle at 91% 17%, rgba(255, 255, 224, .96) 0 2px, transparent 8px);
+}
+
+.vibe-media-overlay[data-vibe="diwali_fest"]::after {
+  transform: rotate(9deg) scale(1.04);
+  background:
+    radial-gradient(circle at 19% 46%, rgba(255, 255, 255, .98) 0 1px, transparent 7px),
+    radial-gradient(circle at 41% 18%, rgba(255, 220, 94, .98) 0 2px, transparent 8px),
+    radial-gradient(circle at 67% 82%, rgba(255, 255, 224, 1) 0 2px, transparent 8px),
+    radial-gradient(circle at 86% 39%, rgba(255, 214, 79, .98) 0 1px, transparent 7px);
+}
+
+.post-vibe-in-view .vibe-media-overlay[data-vibe="diwali_fest"]::before,
+.post-vibe-in-view .vibe-media-overlay[data-vibe="diwali_fest"]::after {
+  animation: vibe-diwali-sparkles 5s ease-out forwards;
+  will-change: opacity, transform;
 }
 
 .vibe-media-overlay[data-vibe="holi_fest"] {
@@ -324,21 +392,34 @@
     linear-gradient(115deg, rgba(236, 72, 153, .25), rgba(250, 204, 21, .22), rgba(34, 211, 238, .28));
 }
 
-.vibe-media-overlay[data-vibe="holi_fest"]::before,
-.vibe-media-overlay[data-vibe="birthday_bash"]::before {
+.vibe-media-overlay[data-vibe="holi_fest"]::before {
   content: "";
   position: absolute;
-  inset: -5%;
-  opacity: .75;
+  inset: -8%;
   pointer-events: none;
   background:
-    radial-gradient(ellipse at 18% 22%, rgba(255, 255, 255, .58), transparent 20%),
-    radial-gradient(ellipse at 82% 72%, rgba(255, 255, 255, .48), transparent 19%);
+    radial-gradient(ellipse at 18% 28%, rgba(255, 255, 255, .98) 0 2%, transparent 23%),
+    radial-gradient(ellipse at 28% 43%, rgba(236, 72, 153, .94) 0 5%, transparent 29%),
+    radial-gradient(ellipse at 63% 20%, rgba(250, 204, 21, .94) 0 4%, transparent 25%),
+    radial-gradient(ellipse at 79% 58%, rgba(34, 211, 238, .96) 0 5%, transparent 28%),
+    radial-gradient(ellipse at 50% 82%, rgba(168, 85, 247, .8) 0 4%, transparent 25%);
 }
 
-.post-vibe-in-view .vibe-media-overlay[data-vibe="holi_fest"]::before {
-  animation: vibe-holi-drift 5s ease-in-out forwards;
-  will-change: transform;
+.vibe-media-overlay[data-vibe="holi_fest"]::after {
+  content: "";
+  position: absolute;
+  inset: -6%;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse at 10% 72%, rgba(251, 113, 133, .92) 0 4%, transparent 25%),
+    radial-gradient(ellipse at 46% 32%, rgba(103, 232, 249, .94) 0 4%, transparent 25%),
+    radial-gradient(ellipse at 89% 23%, rgba(253, 224, 71, .94) 0 4%, transparent 24%);
+}
+
+.post-vibe-in-view .vibe-media-overlay[data-vibe="holi_fest"]::before,
+.post-vibe-in-view .vibe-media-overlay[data-vibe="holi_fest"]::after {
+  animation: vibe-holi-splash 5s cubic-bezier(.2, .75, .25, 1) forwards;
+  will-change: opacity, transform;
 }
 
 .vibe-media-overlay[data-vibe="dussehra_fest"] {
