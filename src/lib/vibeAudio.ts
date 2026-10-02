@@ -91,7 +91,11 @@ const getPlayer = (): HTMLAudioElement | null => {
     player = new Audio();
     player.loop = true;
     player.preload = "auto";
-    player.volume = 0.35;
+    try {
+      player.volume = 1.0;
+    } catch {
+      // Some mobile WebViews leave volume control to the device audio session.
+    }
     player.muted = false;
     player.addEventListener("ended", () => {
       if (!state.activeLoop && state.enabled) {
@@ -190,7 +194,7 @@ const playCurrentTrack = async (): Promise<boolean> => {
     current.loop = state.activeLoop;
     current.muted = false;
     try {
-      current.volume = 0.35;
+      current.volume = 1.0;
     } catch {
       // Some mobile WebViews leave volume control to the device audio session.
     }
