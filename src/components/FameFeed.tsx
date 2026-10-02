@@ -414,14 +414,14 @@ const VibeMediaFrame = memo(
     children: React.ReactNode;
   }) => (
     <div
-      className="vibe-media-frame"
+      className="vibe-media-frame relative"
       data-vibe={vibeTag}
       data-testid={`media-frame-${postId}`}
     >
       <div className="relative z-[1]">{children}</div>
       {vibeTag && (
         <div
-          className="vibe-media-overlay"
+          className="vibe-media-overlay absolute inset-0 z-30 pointer-events-none"
           data-vibe={vibeTag}
           data-testid={`vibe-overlay-${postId}`}
           aria-hidden="true"
@@ -4725,8 +4725,8 @@ const FameFeed = ({
           exit={{ opacity: 0, x: 60, transition: { duration: 0.2 } }}
           data-vibe={primaryVibe?.tag}
           data-vibe-mix={secondaryVibe?.tag}
-          className={`border-b border-white/5 overflow-hidden mx-0 ${
-            primaryVibe ? "post-vibe-card" : ""
+          className={`border-b border-white/5 mx-0 ${
+            primaryVibe ? "post-vibe-card" : "overflow-hidden"
           }`}
           style={{
             background: IS_MOBILE
