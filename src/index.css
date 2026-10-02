@@ -710,6 +710,229 @@
     linear-gradient(160deg, rgba(30, 27, 75, .56), rgba(49, 46, 129, .22));
 }
 
+/* Immersive, media-bound effects for the high-impact seasonal vibes. */
+@keyframes vibe-storm-cloud-roll {
+  0% { opacity: .12; transform: translate3d(3%, 0, 0) scale(.96); }
+  18% { opacity: .62; transform: translate3d(0, -1%, 0) scale(1.02); }
+  52% { opacity: .72; transform: translate3d(-3%, 1%, 0) scale(1.06); }
+  100% { opacity: .18; transform: translate3d(-6%, -1%, 0) scale(1.1); }
+}
+
+@keyframes vibe-storm-mist {
+  0% { opacity: .04; transform: translate3d(-2%, 2%, 0); }
+  22% { opacity: .42; transform: translate3d(1%, -1%, 0); }
+  58% { opacity: .34; transform: translate3d(4%, 1%, 0); }
+  100% { opacity: .08; transform: translate3d(7%, -2%, 0); }
+}
+
+@keyframes vibe-firework-smoke {
+  0% { opacity: .12; transform: scale(.88) translate3d(1%, 2%, 0); }
+  18% { opacity: .72; transform: scale(1.04) translate3d(-1%, 0, 0); }
+  52% { opacity: .58; transform: scale(1.12) translate3d(2%, -2%, 0); }
+  100% { opacity: .1; transform: scale(1.2) translate3d(4%, -4%, 0); }
+}
+
+@keyframes vibe-powder-cloud {
+  0% { opacity: .08; transform: scale(.76) translate3d(-1%, 2%, 0); }
+  16% { opacity: .68; transform: scale(1.02) translate3d(1%, 0, 0); }
+  48% { opacity: .6; transform: scale(1.12) translate3d(-2%, -1%, 0); }
+  100% { opacity: .12; transform: scale(1.2) translate3d(2%, -3%, 0); }
+}
+
+@keyframes vibe-morning-lens-flare {
+  0% { opacity: 0; transform: scale(.78) translate3d(0, 5%, 0); }
+  16% { opacity: .88; transform: scale(1.04) translate3d(0, 0, 0); }
+  34% { opacity: .52; transform: scale(.98) translate3d(0, -1%, 0); }
+  57% { opacity: .82; transform: scale(1.08) translate3d(1%, -2%, 0); }
+  100% { opacity: .12; transform: scale(1.16) translate3d(2%, -3%, 0); }
+}
+
+.vibe-media-overlay {
+  overflow: hidden;
+  border-radius: inherit;
+}
+
+.vibe-effect-canvas {
+  position: absolute;
+  z-index: 3;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  pointer-events: none;
+  mix-blend-mode: screen;
+  transition: opacity .12s ease-out;
+}
+
+.vibe-media-flare {
+  position: absolute;
+  z-index: 1;
+  inset: -14%;
+  pointer-events: none;
+  opacity: 0;
+  mix-blend-mode: screen;
+  transform-origin: 52% 82%;
+  background:
+    radial-gradient(ellipse at 52% 82%, rgba(255, 250, 224, .74), rgba(255, 197, 97, .22) 13%, transparent 34%),
+    radial-gradient(circle at 70% 36%, rgba(255, 255, 237, .74) 0 1.3%, rgba(255, 214, 143, .3) 2.4%, transparent 7%),
+    radial-gradient(circle at 34% 57%, rgba(255, 244, 206, .48) 0 1%, rgba(255, 181, 82, .24) 2.4%, transparent 7%),
+    radial-gradient(circle at 83% 22%, rgba(255, 236, 188, .36) 0 1%, transparent 5%),
+    linear-gradient(164deg, transparent 34%, rgba(255, 247, 215, .14) 49%, transparent 62%);
+  filter: blur(2px) saturate(1.25);
+}
+
+.vibe-media-overlay[data-vibe="diwali_fest"] .vibe-media-particles,
+.vibe-media-overlay[data-vibe="storm_alert"] .vibe-media-particles,
+.vibe-media-overlay[data-vibe="good_morning"] .vibe-media-particles,
+.vibe-media-overlay[data-vibe="holi_fest"] .vibe-media-particles {
+  display: none;
+}
+
+.vibe-media-overlay[data-vibe="storm_alert"] {
+  --vibe-overlay:
+    linear-gradient(180deg, rgba(3, 9, 24, .86), rgba(15, 28, 50, .46) 44%, rgba(2, 7, 18, .9)),
+    radial-gradient(ellipse at 22% 12%, rgba(112, 137, 161, .4), transparent 45%),
+    radial-gradient(ellipse at 78% 25%, rgba(47, 76, 120, .48), transparent 54%),
+    radial-gradient(ellipse at 51% 80%, rgba(30, 64, 110, .28), transparent 52%);
+}
+
+.vibe-media-overlay[data-vibe="storm_alert"]::before,
+.vibe-media-overlay[data-vibe="storm_alert"]::after {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  inset: -18%;
+  opacity: 0;
+  pointer-events: none;
+  clip-path: none;
+}
+
+.vibe-media-overlay[data-vibe="storm_alert"]::before {
+  background:
+    radial-gradient(ellipse at 23% 31%, rgba(102, 125, 148, .66) 0 9%, transparent 37%),
+    radial-gradient(ellipse at 57% 24%, rgba(56, 75, 101, .82) 0 13%, transparent 43%),
+    radial-gradient(ellipse at 82% 39%, rgba(114, 132, 151, .52) 0 8%, transparent 35%),
+    radial-gradient(ellipse at 42% 59%, rgba(23, 40, 64, .68) 0 12%, transparent 45%);
+  filter: blur(18px);
+}
+
+.vibe-media-overlay[data-vibe="storm_alert"]::after {
+  background:
+    radial-gradient(ellipse at 18% 72%, rgba(136, 184, 221, .26), transparent 34%),
+    radial-gradient(ellipse at 74% 64%, rgba(101, 157, 205, .3), transparent 37%),
+    linear-gradient(172deg, transparent 40%, rgba(107, 158, 200, .16) 67%, transparent 90%);
+  filter: blur(10px);
+}
+
+.post-vibe-in-view .vibe-media-overlay[data-vibe="storm_alert"]::before {
+  animation: vibe-storm-cloud-roll 5s ease-out forwards;
+}
+
+.post-vibe-in-view .vibe-media-overlay[data-vibe="storm_alert"]::after {
+  animation: vibe-storm-mist 5s ease-out forwards;
+}
+
+.vibe-media-overlay[data-vibe="diwali_fest"] {
+  --vibe-overlay:
+    linear-gradient(180deg, rgba(13, 7, 3, .68), rgba(38, 18, 3, .22) 48%, rgba(15, 7, 2, .72)),
+    radial-gradient(ellipse at 23% 34%, rgba(255, 173, 38, .42), transparent 42%),
+    radial-gradient(ellipse at 75% 31%, rgba(255, 196, 73, .36), transparent 44%),
+    radial-gradient(ellipse at 50% 88%, rgba(190, 79, 20, .24), transparent 50%);
+}
+
+.vibe-media-overlay[data-vibe="diwali_fest"]::before,
+.vibe-media-overlay[data-vibe="diwali_fest"]::after {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  inset: -12%;
+  opacity: 0;
+  pointer-events: none;
+  transform: none;
+  filter: blur(20px);
+}
+
+.vibe-media-overlay[data-vibe="diwali_fest"]::before {
+  background:
+    radial-gradient(ellipse at 18% 41%, rgba(74, 64, 58, .74) 0 7%, transparent 31%),
+    radial-gradient(ellipse at 34% 24%, rgba(105, 76, 52, .6) 0 9%, transparent 35%),
+    radial-gradient(ellipse at 77% 49%, rgba(78, 64, 53, .68) 0 8%, transparent 34%);
+}
+
+.vibe-media-overlay[data-vibe="diwali_fest"]::after {
+  background:
+    radial-gradient(ellipse at 68% 31%, rgba(255, 193, 95, .32) 0 5%, transparent 31%),
+    radial-gradient(ellipse at 29% 68%, rgba(245, 128, 43, .28) 0 7%, transparent 36%),
+    radial-gradient(ellipse at 83% 76%, rgba(255, 219, 143, .24) 0 6%, transparent 31%);
+  filter: blur(13px);
+}
+
+.post-vibe-in-view .vibe-media-overlay[data-vibe="diwali_fest"]::before,
+.post-vibe-in-view .vibe-media-overlay[data-vibe="diwali_fest"]::after {
+  animation: vibe-firework-smoke 5s ease-out forwards;
+}
+
+.vibe-media-overlay[data-vibe="holi_fest"] {
+  --vibe-overlay:
+    linear-gradient(135deg, rgba(33, 8, 37, .4), rgba(8, 28, 47, .18) 54%, rgba(43, 16, 7, .38)),
+    radial-gradient(ellipse at 8% 17%, rgba(242, 42, 127, .7), transparent 39%),
+    radial-gradient(ellipse at 92% 27%, rgba(27, 210, 235, .65), transparent 40%),
+    radial-gradient(ellipse at 56% 96%, rgba(255, 197, 30, .62), transparent 43%);
+}
+
+.vibe-media-overlay[data-vibe="holi_fest"]::before,
+.vibe-media-overlay[data-vibe="holi_fest"]::after {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  inset: -17%;
+  opacity: 0;
+  pointer-events: none;
+  filter: blur(19px) saturate(1.4);
+}
+
+.vibe-media-overlay[data-vibe="holi_fest"]::before {
+  background:
+    radial-gradient(ellipse at 16% 32%, rgba(255, 34, 119, .82) 0 7%, transparent 35%),
+    radial-gradient(ellipse at 62% 19%, rgba(255, 200, 31, .76) 0 8%, transparent 37%),
+    radial-gradient(ellipse at 77% 62%, rgba(34, 218, 235, .78) 0 8%, transparent 39%),
+    radial-gradient(ellipse at 44% 82%, rgba(165, 78, 245, .7) 0 7%, transparent 36%);
+}
+
+.vibe-media-overlay[data-vibe="holi_fest"]::after {
+  background:
+    radial-gradient(ellipse at 13% 72%, rgba(255, 102, 69, .74) 0 8%, transparent 36%),
+    radial-gradient(ellipse at 43% 42%, rgba(78, 234, 180, .62) 0 7%, transparent 33%),
+    radial-gradient(ellipse at 88% 21%, rgba(255, 83, 169, .68) 0 8%, transparent 35%);
+}
+
+.post-vibe-in-view .vibe-media-overlay[data-vibe="holi_fest"]::before,
+.post-vibe-in-view .vibe-media-overlay[data-vibe="holi_fest"]::after {
+  animation: vibe-powder-cloud 5s cubic-bezier(.18, .72, .22, 1) forwards;
+}
+
+.vibe-media-overlay[data-vibe="good_morning"] {
+  --vibe-overlay:
+    linear-gradient(0deg, rgba(101, 36, 5, .18), rgba(255, 165, 64, .4) 36%, transparent 79%),
+    radial-gradient(ellipse at 50% 97%, rgba(255, 214, 124, .5), transparent 55%),
+    radial-gradient(ellipse at 50% 30%, rgba(255, 236, 181, .2), transparent 65%);
+}
+
+.vibe-media-overlay[data-vibe="good_morning"]::before {
+  opacity: 0;
+  filter: drop-shadow(0 0 32px rgba(255, 192, 78, 1))
+    drop-shadow(0 0 72px rgba(249, 115, 22, .76));
+}
+
+.vibe-media-overlay[data-vibe="good_morning"]::after {
+  opacity: 0;
+  filter: blur(5px);
+}
+
+.post-vibe-in-view .vibe-media-flare {
+  animation: vibe-morning-lens-flare 5s ease-out forwards;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .post-vibe-in-view .vibe-media-overlay {
     animation: none;
@@ -729,6 +952,16 @@
     animation: none;
     transform: none;
     will-change: auto;
+  }
+
+  .post-vibe-in-view .vibe-effect-canvas {
+    display: none;
+  }
+
+  .post-vibe-in-view .vibe-media-flare {
+    animation: none;
+    opacity: .18;
+    transform: none;
   }
 }
 

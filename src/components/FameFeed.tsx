@@ -1,4 +1,13 @@
-import { useState, useEffect, useRef, useMemo, useCallback, memo } from "react";
+import {
+  createContext,
+  useState,
+  useEffect,
+  useRef,
+  useMemo,
+  useCallback,
+  memo,
+  useContext,
+} from "react";
 import { createPortal } from "react-dom";
 import { supabase } from "../lib/supabaseClient";
 import { smartTime } from "../lib/timeAgo";
@@ -34,6 +43,7 @@ import {
   subscribeVibeAudio,
 } from "../lib/vibeAudio";
 import VibeAudioToggle from "./VibeAudioToggle";
+import VibeEffectCanvas from "./VibeEffectCanvas";
 import PostImageViewer from "./PostImageViewer";
 import {
   Send,
@@ -218,6 +228,8 @@ const SurpriseReactionModal = ({
 };
 
 // ── PostViewTracker — fires onView once when post scrolls into view ─────────
+const VibeVisibilityContext = createContext(false);
+
 const PostViewTracker = memo(({
   postId,
   onView,
@@ -262,9 +274,11 @@ const PostViewTracker = memo(({
     };
   }, [postId, onView, vibeAudioUrl, vibeAudioLoop]);
   return (
-    <div ref={ref} className={isVisible ? "post-vibe-in-view" : undefined} style={{ touchAction: "pan-y" }}>
-      {children}
-    </div>
+    <VibeVisibilityContext.Provider value={isVisible}>
+      <div ref={ref} className={isVisible ? "post-vibe-in-view" : undefined} style={{ touchAction: "pan-y" }}>
+        {children}
+      </div>
+    </VibeVisibilityContext.Provider>
   );
 });
 
@@ -412,25 +426,32 @@ const VibeMediaFrame = memo(
     postId: string;
     vibeTag?: VibeTag;
     children: React.ReactNode;
-  }) => (
-    <div
-      className="vibe-media-frame relative"
-      data-vibe={vibeTag}
-      data-testid={`media-frame-${postId}`}
-    >
-      <div className="relative z-[1]">{children}</div>
-      {vibeTag && (
-        <div
-          className="vibe-media-overlay absolute inset-0 z-30 pointer-events-none"
-          data-vibe={vibeTag}
-          data-testid={`vibe-overlay-${postId}`}
-          aria-hidden="true"
-        >
-          <span className="vibe-media-particles" aria-hidden="true" />
-        </div>
-      )}
-    </div>
-  ),
+  }) => {
+    const active = useContext(VibeVisibilityContext);
+    return (
+      <div
+        className="vibe-media-frame relative"
+        data-vibe={vibeTag}
+        data-testid={`media-frame-${postId}`}
+      >
+        <div className="relative z-[1]">{children}</div>
+        {vibeTag && (
+          <div
+            className="vibe-media-overlay absolute inset-0 z-30 pointer-events-none"
+            data-vibe={vibeTag}
+            data-testid={`vibe-overlay-${postId}`}
+            aria-hidden="true"
+          >
+            <span className="vibe-media-particles" aria-hidden="true" />
+            {vibeTag === "good_morning" && (
+              <span className="vibe-media-flare" aria-hidden="true" />
+            )}
+            <VibeEffectCanvas active={active} vibeTag={vibeTag} />
+          </div>
+        )}
+      </div>
+    );
+  },
 );
 
 const PostMedia = memo(({ post, vibeTag }: { post: any; vibeTag?: VibeTag }) => {
