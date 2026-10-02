@@ -14,6 +14,9 @@ export type VibeTag =
   | "money_flow"
   | "love_romance"
   | "moody_sad"
+  | "miss_you"
+  | "summer_vibe"
+  | "devotional"
   | "good_morning"
   | "good_night";
 
@@ -31,8 +34,7 @@ export interface VibeProfile {
   audioLoop?: boolean;
 }
 
-// Public-domain ambient tracks are bundled as compact MP3s for broad mobile
-// browser support. They are fetched only after the viewer opts into sound.
+// Compact local tracks remain available for profiles without a dedicated vibe track.
 const PUBLIC_DOMAIN_AUDIO = {
   storm: {
     url: "/audio/vibes/storm.mp3",
@@ -51,30 +53,49 @@ const PUBLIC_DOMAIN_AUDIO = {
   },
 };
 
+const VIBE_AUDIO_URLS = {
+  goodMorning:
+    "https://res.cloudinary.com/dzlazqbvf/video/upload/v1790930871/alex-morgan-slow-morning-ritual-537463_ssqaxc.mp3",
+  goodNight:
+    "https://res.cloudinary.com/dzlazqbvf/video/upload/v1790930853/juliush-late-in-the-evening-short-piano-music-180518_kk3skm.mp3",
+  missYou:
+    "https://res.cloudinary.com/dzlazqbvf/video/upload/v1790930849/alex-morgan-diwali-festival-lights-celebration-575884_nkmcqt.mp3",
+  diwali:
+    "https://res.cloudinary.com/dzlazqbvf/video/upload/v1790930831/tanweraman-cracker-sound-261119_jdl5mr.mp3",
+  summer:
+    "https://res.cloudinary.com/dzlazqbvf/video/upload/v1790930827/bombinsound-happy-ukulele-version-4-537782_ojokrj.mp3",
+  devotional:
+    "https://res.cloudinary.com/dzlazqbvf/video/upload/v1790930824/donaravind-24-jan-1200-293552_tojjcf.mp3",
+  storm:
+    "https://res.cloudinary.com/dzlazqbvf/video/upload/v1790930812/freesound_community-thunderstorm-with-heavy-rain1wav-14586_swfjtt.mp3",
+  hype:
+    "https://res.cloudinary.com/dzlazqbvf/video/upload/v1790930808/h-beats-music-box-beat-effect-410596_chcmqm.mp3",
+} as const;
+
 export const VIBE_PROFILES: VibeProfile[] = [
   {
     tag: "storm_alert",
     label: "Storm alert",
     icon: "⛈️",
-    keywords: ["aandhi", "barish", "storm", "rain", "bijli", "toofan", "flood"],
+    keywords: ["aandhi", "barish", "storm", "rain", "bijli", "toofan", "flood", "weather alert"],
     priority: 100,
     glowColor: "#38bdf8",
     secondaryColor: "#1d4ed8",
-    audioUrl: PUBLIC_DOMAIN_AUDIO.storm.url,
-    audioTitle: PUBLIC_DOMAIN_AUDIO.storm.title,
-    audioSourceUrl: PUBLIC_DOMAIN_AUDIO.storm.source,
+    audioUrl: VIBE_AUDIO_URLS.storm,
+    audioTitle: "Thunderstorm with heavy rain",
+    audioSourceUrl: VIBE_AUDIO_URLS.storm,
   },
   {
     tag: "diwali_fest",
     label: "Diwali",
     icon: "🪔",
-    keywords: ["diwali", "deepawali", "patake", "fireworks", "diya"],
+    keywords: ["diwali", "deepawali", "patake", "fireworks", "diya", "crackers"],
     priority: 70,
     glowColor: "#fbbf24",
     secondaryColor: "#f97316",
-    audioUrl: PUBLIC_DOMAIN_AUDIO.applause.url,
-    audioTitle: PUBLIC_DOMAIN_AUDIO.applause.title,
-    audioSourceUrl: PUBLIC_DOMAIN_AUDIO.applause.source,
+    audioUrl: VIBE_AUDIO_URLS.diwali,
+    audioTitle: "Diwali crackers",
+    audioSourceUrl: VIBE_AUDIO_URLS.diwali,
   },
   {
     tag: "holi_fest",
@@ -128,7 +149,7 @@ export const VIBE_PROFILES: VibeProfile[] = [
     tag: "birthday_bash",
     label: "Birthday bash",
     icon: "🎂",
-    keywords: ["birthday", "cake", "saal gira", "party"],
+    keywords: ["birthday", "cake", "saal gira"],
     priority: 60,
     glowColor: "#c084fc",
     secondaryColor: "#fb7185",
@@ -200,7 +221,7 @@ export const VIBE_PROFILES: VibeProfile[] = [
     tag: "love_romance",
     label: "Love & romance",
     icon: "💞",
-    keywords: ["love", "miss you", "pyaar", "jaan", "close to heart"],
+    keywords: ["love", "pyaar", "jaan", "close to heart"],
     priority: 57,
     glowColor: "#fb7185",
     secondaryColor: "#c084fc",
@@ -221,44 +242,84 @@ export const VIBE_PROFILES: VibeProfile[] = [
     audioSourceUrl: PUBLIC_DOMAIN_AUDIO.flute.source,
   },
   {
+    tag: "miss_you",
+    label: "Miss you & nostalgia",
+    icon: "💭",
+    keywords: ["yaad", "miss you", "purane din", "purani yaadein", "purana safar", "woh din"],
+    priority: 59,
+    glowColor: "#a78bfa",
+    secondaryColor: "#f472b6",
+    audioUrl: VIBE_AUDIO_URLS.missYou,
+    audioTitle: "Nostalgia",
+    audioSourceUrl: VIBE_AUDIO_URLS.missYou,
+  },
+  {
+    tag: "summer_vibe",
+    label: "Summer vibe",
+    icon: "☀️",
+    keywords: ["garmi", "summer", "dhoop", "mausam", "sunny", "happy"],
+    priority: 45,
+    glowColor: "#facc15",
+    secondaryColor: "#fb923c",
+    audioUrl: VIBE_AUDIO_URLS.summer,
+    audioTitle: "Happy ukulele",
+    audioSourceUrl: VIBE_AUDIO_URLS.summer,
+  },
+  {
+    tag: "devotional",
+    label: "Devotional & puja",
+    icon: "🙏",
+    keywords: ["mandir", "puja", "bhagwan", "god", "temple", "prarthana", "aarti"],
+    priority: 54,
+    glowColor: "#fbbf24",
+    secondaryColor: "#f97316",
+    audioUrl: VIBE_AUDIO_URLS.devotional,
+    audioTitle: "Devotional",
+    audioSourceUrl: VIBE_AUDIO_URLS.devotional,
+  },
+  {
     tag: "good_morning",
     label: "Good morning",
     icon: "🌅",
-    keywords: ["good morning", "subah", "gm", "prabhat"],
+    keywords: ["good morning", "subah", "gm", "prabhat", "sunrise"],
     priority: 53,
     glowColor: "#fbbf24",
     secondaryColor: "#fb923c",
-    audioUrl: "/notif.wav",
-    audioTitle: "Morning chime",
-    audioSourceUrl: "",
+    audioUrl: VIBE_AUDIO_URLS.goodMorning,
+    audioTitle: "Slow morning ritual",
+    audioSourceUrl: VIBE_AUDIO_URLS.goodMorning,
   },
   {
     tag: "good_night",
     label: "Good night",
     icon: "🌙",
-    keywords: ["good night", "raat", "gn", "shubh ratri"],
+    keywords: ["good night", "raat", "gn", "shubh ratri", "sleep"],
     priority: 52,
     glowColor: "#818cf8",
     secondaryColor: "#c4b5fd",
-    audioUrl: PUBLIC_DOMAIN_AUDIO.flute.url,
-    audioTitle: PUBLIC_DOMAIN_AUDIO.flute.title,
-    audioSourceUrl: PUBLIC_DOMAIN_AUDIO.flute.source,
+    audioUrl: VIBE_AUDIO_URLS.goodNight,
+    audioTitle: "Late evening piano",
+    audioSourceUrl: VIBE_AUDIO_URLS.goodNight,
   },
   {
     tag: "hype_mode",
     label: "Hype mode",
     icon: "🎉",
-    keywords: ["party", "maza", "dance", "chill", "celebration"],
+    keywords: ["party", "maza", "dance", "chill", "celebration", "club", "fun"],
     priority: 30,
     glowColor: "#e879f9",
     secondaryColor: "#22d3ee",
-    audioUrl: PUBLIC_DOMAIN_AUDIO.applause.url,
-    audioTitle: PUBLIC_DOMAIN_AUDIO.applause.title,
-    audioSourceUrl: PUBLIC_DOMAIN_AUDIO.applause.source,
+    audioUrl: VIBE_AUDIO_URLS.hype,
+    audioTitle: "Celebration beat",
+    audioSourceUrl: VIBE_AUDIO_URLS.hype,
   },
 ];
 
 const PROFILES_BY_TAG = new Map(VIBE_PROFILES.map((profile) => [profile.tag, profile]));
+const VIBE_TAG_ALIASES: Record<string, VibeTag> = {
+  nostalgia: "miss_you",
+  puja: "devotional",
+};
 const SEVERE_PRIORITY = 100;
 
 export type VibeOverride = VibeTag | "none" | null;
@@ -289,7 +350,8 @@ const keywordMatches = (text: string, keyword: string): boolean => {
 
 export function getVibeProfile(tag: string | null | undefined): VibeProfile | null {
   if (!tag) return null;
-  return PROFILES_BY_TAG.get(tag as VibeTag) ?? null;
+  const canonicalTag = VIBE_TAG_ALIASES[tag] ?? (tag as VibeTag);
+  return PROFILES_BY_TAG.get(canonicalTag) ?? null;
 }
 
 export function detectVibes(text: string): VibeDetection {
