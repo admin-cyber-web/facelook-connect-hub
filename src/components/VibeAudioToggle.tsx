@@ -1,6 +1,5 @@
 import { useSyncExternalStore, type MouseEvent } from "react";
 import { Volume2, VolumeX } from "lucide-react";
-import { toast } from "sonner";
 import {
   getVibeAudioSnapshot,
   subscribeVibeAudio,
@@ -27,27 +26,26 @@ export default function VibeAudioToggle({
     getVibeAudioSnapshot,
     getVibeAudioSnapshot,
   );
-  const isActivePost = audioState.enabled && audioState.activePostId === postId;
-  const isPlaying = isActivePost && !audioState.failed;
+  const isActivePost = audioState.activePostId === postId;
+  const isPlaying = isActivePost && audioState.playing && audioState.enabled;
+  const isWaitingForGesture =
+    isActivePost && audioState.awaitingGesture && audioState.enabled;
 
-  const toggle = async (event: MouseEvent<HTMLButtonElement>) => {
+  const toggle = (event: MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
-    const didPlay = await toggleVibeAudioForPost(postId, audioUrl, audioLoop);
-    if (!didPlay) toast.error("Could not play this vibe audio. Tap to try again.");
+    // The manager calls play() synchronously from this user gesture so browsers
+    // that blocked autoplay can start the track immediately and unmuted.
+    void toggleVibeAudioForPost(postId, audioUrl, audioLoop);
   };
 
-  const label = audioState.failed && isActivePost
-    ? "Stop ambient audio"
-    : isPlaying
-      ? "Turn off ambient audio"
-      : "Play ambient audio";
+  const label = isPlaying ? "Mute ambient audio" : "Play ambient audio";
   return (
     <button
       type="button"
       data-testid={`button-vibe-audio-${postId}`}
       onClick={toggle}
       aria-label={label}
-      aria-pressed={isActivePost}
+      aria-pressed={isPlaying}
       title={`${label}${audioTitle ? ` — ${audioTitle}` : ""}`}
       className={`inline-flex shrink-0 items-center justify-center rounded-full border transition-colors ${
         compact
@@ -56,7 +54,11 @@ export default function VibeAudioToggle({
       } ${isPlaying ? "border-cyan-300/60 text-cyan-200" : ""}`}
     >
       {isPlaying ? <Volume2 size={compact ? 13 : 12} /> : <VolumeX size={compact ? 13 : 12} />}
-      {!compact && <span>{isPlaying ? "Audio on" : "Audio"}</span>}
+      {!compact && (
+        <span>
+          {isPlaying ? "Audio on" : isWaitingForGesture ? "Tap audio" : "Audio"}
+        </span>
+      )}
     </button>
   );
 }
