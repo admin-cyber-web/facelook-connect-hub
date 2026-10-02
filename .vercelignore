@@ -1,0 +1,17 @@
+.git/
+.vercel/
+node_modules/
+dist/
+build/
+.gradle/
+app/build/
+coverage/
+*.apk
+*.aab
+*.idsig
+*.zip
+gradle-*.zip
+local.properties
+.env
+.env.*
+!.env.example

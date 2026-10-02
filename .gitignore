@@ -1,6 +1,10 @@
-.gradle/
-build/
-app/build/
+/.gradle/
+/build/
+/app/build/
+/dist/
+/node_modules/
+/.vercel/
+/coverage/
 .DS_Store
 android.keystore
 *.apk
@@ -8,24 +12,9 @@ android.keystore
 !public/app.apk
 *.aab
 *.idsig
-dist/
+*.zip
+gradle-*.zip
 local.properties
-<<<<<<< HEAD
-
-*.zip
-gradle-*.zip
-
-*.zip
-gradle-*.zip
-
-*.zip
-gradle-*.zip
-
-*.zip
-gradle-*.zip
-=======
-*.zip
-gradle-*.zip
-.gradle/
->>>>>>> 120e3f5 (Preserve full commit history and cleanup gradle zip)
-node_modules
+.env
+.env.*
+!.env.example
