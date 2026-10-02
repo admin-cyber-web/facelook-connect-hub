@@ -1823,16 +1823,92 @@ const SuggestionPlaceholder = ({
 );
 
 // ── Single Full-Width Vertical Reel ───────────────────────────────────────────
+let activeFameFeedVideo: HTMLVideoElement | null = null;
+let activeFameFeedAudio: HTMLAudioElement | null = null;
+
+const FeedReelComments = ({
+  post,
+  comments,
+  value,
+  setValue,
+  replyingTo,
+  onClose,
+  onSubmit,
+  onReply,
+}: {
+  post: any;
+  comments: any[] | undefined;
+  value: string;
+  setValue: (value: string) => void;
+  replyingTo: { author: string } | null;
+  onClose: () => void;
+  onSubmit: () => void;
+  onReply: (comment: any) => void;
+}) => {
+  const topLevel = (comments ?? []).filter((comment) => !comment.parent_id);
+  return (
+    <div className="absolute inset-x-0 bottom-0 z-20 max-h-[72%] overflow-hidden rounded-t-xl border-t border-white/15 bg-black/90 text-white backdrop-blur-xl">
+      <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+        <span className="flex items-center gap-2 text-sm font-bold">
+          <MessageCircle size={16} className="text-pink-400" />
+          Comments <span className="text-white/45">({topLevel.length})</span>
+        </span>
+        <button type="button" onClick={onClose} aria-label="Close comments" className="p-1 text-white/70">
+          <X size={18} />
+        </button>
+      </div>
+      <div className="max-h-[calc(72vh-112px)] overflow-y-auto px-4 py-3">
+        {comments === undefined ? (
+          <Loader2 size={22} className="mx-auto my-8 animate-spin text-pink-400" />
+        ) : topLevel.length === 0 ? (
+          <p className="py-8 text-center text-sm text-white/50">Be the first to comment.</p>
+        ) : topLevel.map((comment) => (
+          <div key={comment.id} className="py-2">
+            <p className="text-xs font-bold text-pink-200">{comment.author || "User"}</p>
+            <p className="mt-1 whitespace-pre-wrap break-words text-sm text-white/85">{comment.content}</p>
+            <button type="button" onClick={() => onReply(comment)} className="mt-1 text-xs font-semibold text-sky-300">Reply</button>
+            {comments.filter((reply) => reply.parent_id === comment.id).map((reply) => (
+              <div key={reply.id} className="ml-4 mt-2 border-l border-white/15 pl-3">
+                <p className="text-xs font-bold text-pink-200">{reply.author || "User"}</p>
+                <p className="mt-1 whitespace-pre-wrap break-words text-sm text-white/75">{reply.content}</p>
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+      <form
+        className="flex items-center gap-2 border-t border-white/10 bg-black/95 px-3 py-3"
+        onSubmit={(event) => { event.preventDefault(); onSubmit(); }}
+      >
+        <input
+          value={value}
+          onChange={(event) => setValue(event.target.value)}
+          placeholder={replyingTo ? `Reply to ${replyingTo.author}...` : "Write a comment..."}
+          aria-label={`Comment on ${post.author || "post"}`}
+          className="min-w-0 flex-1 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-sm text-white outline-none placeholder:text-white/40"
+        />
+        <button type="submit" disabled={!value.trim()} aria-label="Send comment" className="rounded-full bg-pink-600 p-2.5 text-white disabled:opacity-40">
+          <Send size={16} />
+        </button>
+      </form>
+    </div>
+  );
+};
+
 const SingleReelBlock = ({
   post,
   currentUserId,
+  commentCount,
+  onOpenComments,
 }: {
   post: any;
   currentUserId: string | null;
+  commentCount: number;
+  onOpenComments: () => void;
 }) => {
   const ref = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
-  const [muted, setMuted] = useState(true);
+  const [muted, setMuted] = useState(false);
   const [likedByMe, setLikedByMe] = useState(false);
   const [likeCount, setLikeCount] = useState(() => totalLikesFrom(post));
   const [likePending, setLikePending] = useState(false);
@@ -1966,31 +2042,60 @@ const SingleReelBlock = ({
     if (!el) return;
     el.playbackRate = reelSettings.playbackRate;
     el.style.filter = reelSettings.cssFilter;
+    let isActive = false;
+    const retryPlayback = () => {
+      if (!isActive || activeFameFeedVideo !== el || document.visibilityState === "hidden") return;
+      el.muted = muted;
+      el.volume = 1;
+      if (el.paused) el.play().catch(() => {});
+      const audio = audioRef.current;
+      if (audio && hasBackgroundAudio) {
+        audio.muted = muted;
+        audio.volume = 1;
+        if (audio.paused) audio.play().catch(() => {});
+      }
+    };
+    const gestureEvents = ["pointerdown", "touchstart", "click", "scroll", "wheel"] as const;
+    gestureEvents.forEach((eventName) => document.addEventListener(eventName, retryPlayback, { capture: true, passive: true }));
     const obs = new IntersectionObserver(
       ([entry]) => {
         if (!ref.current) return;
         if (entry.isIntersecting) {
-          ref.current.muted = true;
+          isActive = true;
+          if (activeFameFeedVideo && activeFameFeedVideo !== ref.current) activeFameFeedVideo.pause();
+          if (activeFameFeedAudio && activeFameFeedAudio !== audioRef.current) activeFameFeedAudio.pause();
+          activeFameFeedVideo = ref.current;
+          activeFameFeedAudio = audioRef.current;
+          ref.current.muted = muted;
+          ref.current.volume = 1;
           if (audioRef.current && hasBackgroundAudio) {
-            // Start muted so the feed remains autoplay-safe; the volume
-            // control unmutes the background track without ever unmuting the
-            // video's original audio.
-            audioRef.current.muted = true;
+            audioRef.current.muted = muted;
+            audioRef.current.volume = 1;
             audioRef.current.currentTime = ref.current.currentTime;
             audioRef.current.play().catch(() => {});
-            setMuted(true);
           }
           ref.current.play().catch(() => {});
         } else {
+          isActive = false;
           ref.current.pause();
           audioRef.current?.pause();
+          if (activeFameFeedVideo === ref.current) activeFameFeedVideo = null;
+          if (activeFameFeedAudio === audioRef.current) activeFameFeedAudio = null;
         }
       },
       { threshold: 0.5 },
     );
     obs.observe(el);
-    return () => obs.disconnect();
-  }, [hasBackgroundAudio, reelSettings.cssFilter, reelSettings.playbackRate, reelVideoUrl]);
+    return () => {
+      isActive = false;
+      obs.disconnect();
+      gestureEvents.forEach((eventName) => document.removeEventListener(eventName, retryPlayback, true));
+      el.pause();
+      audioRef.current?.pause();
+      if (activeFameFeedVideo === el) activeFameFeedVideo = null;
+      if (activeFameFeedAudio === audioRef.current) activeFameFeedAudio = null;
+    };
+  }, [hasBackgroundAudio, muted, reelSettings.cssFilter, reelSettings.playbackRate, reelVideoUrl]);
 
   useEffect(() => {
     const video = ref.current;
@@ -2014,7 +2119,7 @@ const SingleReelBlock = ({
   return (
     <div
       className="bg-black relative w-full feed-reel"
-      style={{ aspectRatio: "9/16", maxHeight: "80vh", touchAction: "pan-y" }}
+      style={{ aspectRatio: "9/16", height: "100svh", minHeight: "100svh", maxHeight: "100svh", touchAction: "pan-y" }}
     >
       {isYT ? (
         <div className="w-full h-full flex items-center justify-center bg-zinc-900">
@@ -2028,7 +2133,7 @@ const SingleReelBlock = ({
             className="w-full h-full object-cover"
             style={{ touchAction: "pan-y", filter: reelSettings.cssFilter }}
             loop
-            muted={true}
+            muted={muted}
             playsInline
             preload="metadata"
           />
@@ -2038,13 +2143,15 @@ const SingleReelBlock = ({
         </>
       )}
       <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none" />
-      {!isYT && hasBackgroundAudio && (
+      {!isYT && (
         <button
           onClick={() => {
-            if (audioRef.current) {
-              audioRef.current.muted = !audioRef.current.muted;
-              setMuted(audioRef.current.muted);
-            }
+            setMuted((current) => {
+              const nextMuted = !current;
+              if (ref.current) ref.current.muted = nextMuted;
+              if (audioRef.current) audioRef.current.muted = nextMuted;
+              return nextMuted;
+            });
           }}
           className="absolute top-4 right-4 p-2 bg-black/40 backdrop-blur-sm rounded-full border border-white/10"
         >
@@ -2055,12 +2162,12 @@ const SingleReelBlock = ({
           )}
         </button>
       )}
-      <div className="absolute bottom-4 left-4 right-14 text-white pointer-events-none">
+      <div className="absolute bottom-5 left-4 right-16 max-h-[35%] overflow-y-auto overscroll-contain rounded-lg bg-black/40 p-3 text-white backdrop-blur-sm">
         <p className="font-bold text-sm drop-shadow-lg">
-          @{post.author || "user"}
+          @{post.author_profile?.full_name || post.author || "user"}
         </p>
         {post.content && (
-          <p className="text-xs opacity-80 mt-1 line-clamp-2">
+          <p className="mt-1 whitespace-pre-wrap break-words text-xs leading-relaxed text-white/90">
             {maskProfanity(post.content)}
           </p>
         )}
@@ -2100,6 +2207,15 @@ const SingleReelBlock = ({
         >
           <Share2 size={24} fill="white" className="text-white" />
           <span className="text-white text-[10px] font-bold mt-1">Share</span>
+        </button>
+        <button
+          type="button"
+          onClick={onOpenComments}
+          aria-label={`Open ${commentCount} comments`}
+          className="flex flex-col items-center"
+        >
+          <MessageCircle size={24} className="text-white" />
+          <span className="mt-1 text-[10px] font-bold text-white">{commentCount}</span>
         </button>
       </div>
     </div>
@@ -3813,19 +3929,6 @@ const FameFeed = ({
       }));
   }, [onlineUserIds, authorNames, authorAvatars, currentUserId]);
 
-  const videoPosts = useMemo(
-    () =>
-      visiblePosts.filter(
-        (p) =>
-          p.media_url &&
-          (/\.(mp4|webm|ogg|mov|m4v)/i.test(p.media_url.split("?")[0]) ||
-            p.media_url.includes("youtube.com") ||
-            p.media_url.includes("youtu.be") ||
-            p.media_url.includes("rapidcdn.app")),
-      ),
-    [visiblePosts],
-  );
-
   // Memoize the joined post-ID string so this effect only fires when posts are
   // ADDED or REMOVED — not on every realtime likes_count/views_count mutation.
   // (visiblePosts is a new array ref on every setPosts call, but the IDs only
@@ -4734,6 +4837,62 @@ const FameFeed = ({
           post.media_url.includes("youtube.com") ||
           post.media_url.includes("youtu.be") ||
           post.media_url.includes("rapidcdn.app")));
+
+    if (isVideo) {
+      const isCommentsOpen = commentSheetId === post.id;
+      const isReplying = replyingTo?.postId === post.id;
+      return (
+        <PostViewTracker
+          key={post.id}
+          postId={post.id}
+          onView={incrementView}
+          vibeAudioUrl={vibeAudioUrl}
+          vibeAudioLoop={primaryVibe?.audioLoop ?? true}
+        >
+          <div className="relative">
+            <SingleReelBlock
+              post={post}
+              currentUserId={currentUserId}
+              commentCount={commentsMap[post.id]?.length ?? post.comments_count ?? 0}
+              onOpenComments={() => {
+                const isOpening = !isCommentsOpen;
+                setCommentSheetId(isOpening ? post.id : null);
+                setActiveComment(null);
+                setReplyingTo(null);
+                setReplyText("");
+                setCommentText("");
+                if (isOpening) {
+                  loadedCommentsRef.current.delete(post.id);
+                  loadComments(post.id, true);
+                }
+              }}
+            />
+            <AnimatePresence>
+              {isCommentsOpen && (
+                <FeedReelComments
+                  post={post}
+                  comments={commentsMap[post.id]}
+                  value={isReplying ? replyText : commentText}
+                  setValue={isReplying ? setReplyText : setCommentText}
+                  replyingTo={isReplying ? replyingTo : null}
+                  onClose={() => {
+                    setCommentSheetId(null);
+                    setReplyingTo(null);
+                    setReplyText("");
+                    setCommentText("");
+                  }}
+                  onSubmit={() => handleAddComment(post.id, isReplying ? replyingTo?.commentId : null)}
+                  onReply={(comment) => {
+                    setReplyingTo({ postId: post.id, commentId: comment.id, author: comment.author });
+                    setReplyText("");
+                  }}
+                />
+              )}
+            </AnimatePresence>
+          </div>
+        </PostViewTracker>
+      );
+    }
 
     return (
       <PostViewTracker
@@ -6269,8 +6428,6 @@ const FameFeed = ({
     let pageSeed = 13;
     let peopleSeed = 31;
     let flickSeed = 5;
-    let reelCursor = 0;
-
     visiblePosts.forEach((post, idx) => {
       const postNum = idx + 1; // 1-based
 
@@ -6306,20 +6463,11 @@ const FameFeed = ({
             seed: pageSeed++,
           });
         }
-        // Full-width video reel pinned after every circles widget (if real videos exist)
-        if (wType === "circles-row" && videoPosts.length > 0) {
-          blocks.push({
-            type: "single-reel",
-            post: videoPosts[reelCursor % videoPosts.length],
-            key: `sr-${postNum}`,
-          });
-          reelCursor++;
-        }
       }
     });
 
     return blocks;
-  }, [visiblePosts, videoPosts, flicksLoaded]);
+  }, [visiblePosts, flicksLoaded]);
 
   return (
     <div
@@ -6605,19 +6753,6 @@ const FameFeed = ({
               <LatestSurveysWidget
                 currentUserId={currentUserId || ""}
                 onNavigateToSurveys={onNavigateToSurveys}
-              />
-              <FeedDivider />
-            </div>
-          );
-        }
-
-        // ── Single full-width reel separator ───────────────────────
-        if (block.type === "single-reel" && block.post) {
-          return (
-            <div key={block.key}>
-              <SingleReelBlock
-                post={block.post}
-                currentUserId={currentUserId}
               />
               <FeedDivider />
             </div>
