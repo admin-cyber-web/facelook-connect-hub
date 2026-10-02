@@ -12,6 +12,7 @@ interface VibeAudioToggleProps {
   audioTitle?: string;
   audioLoop?: boolean;
   compact?: boolean;
+  floating?: boolean;
 }
 
 export default function VibeAudioToggle({
@@ -20,6 +21,7 @@ export default function VibeAudioToggle({
   audioTitle,
   audioLoop = true,
   compact = false,
+  floating = false,
 }: VibeAudioToggleProps) {
   const audioState = useSyncExternalStore(
     subscribeVibeAudio,
@@ -47,13 +49,21 @@ export default function VibeAudioToggle({
       aria-label={label}
       aria-pressed={isPlaying}
       title={`${label}${audioTitle ? ` — ${audioTitle}` : ""}`}
-      className={`inline-flex shrink-0 items-center justify-center rounded-full border transition-colors ${
-        compact
-          ? "h-7 w-7 border-white/15 bg-black/35 text-white/80 hover:bg-white/15"
-          : "gap-1.5 border-white/15 bg-black/35 px-2.5 py-1 text-[10px] font-bold text-white/85 hover:bg-white/15"
-      } ${isPlaying ? "border-cyan-300/60 text-cyan-200" : ""}`}
+      className={`inline-flex shrink-0 items-center justify-center rounded-full transition-colors ${
+        floating
+          ? "absolute top-3 right-3 z-40 bg-black/60 backdrop-blur-md text-white p-2.5 shadow-lg hover:bg-black/75"
+          : `border ${
+              compact
+                ? "h-7 w-7 border-white/15 bg-black/35 text-white/80 hover:bg-white/15"
+                : "gap-1.5 border-white/15 bg-black/35 px-2.5 py-1 text-[10px] font-bold text-white/85 hover:bg-white/15"
+            }`
+      } ${isPlaying ? (floating ? "ring-2 ring-cyan-300/70" : "border-cyan-300/60 text-cyan-200") : ""}`}
     >
-      {isPlaying ? <Volume2 size={compact ? 13 : 12} /> : <VolumeX size={compact ? 13 : 12} />}
+      {isPlaying ? (
+        <Volume2 size={floating ? 20 : compact ? 13 : 12} />
+      ) : (
+        <VolumeX size={floating ? 20 : compact ? 13 : 12} />
+      )}
       {!compact && (
         <span>
           {isPlaying ? "Audio on" : isWaitingForGesture ? "Tap audio" : "Audio"}
