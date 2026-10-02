@@ -1,0 +1,38 @@
+Update the vibe audio configuration map (vibeAudio.ts or vibeMatcher.ts) in Flicks India with these exact Cloudinary direct audio URLs and map them correctly to their respective vibes and trigger keywords:
+
+1. **Good Morning (`good_morning`)**
+   - Keywords: good morning, subah, gm, prabhat, sunrise
+   - Audio URL: https://res.cloudinary.com/dzlazqbvf/video/upload/v1790930871/alex-morgan-slow-morning-ritual-537463_ssqaxc.mp3
+
+2. **Good Night (`good_night`)**
+   - Keywords: good night, raat, gn, shubh ratri, sleep
+   - Audio URL: https://res.cloudinary.com/dzlazqbvf/video/upload/v1790930853/juliush-late-in-the-evening-short-piano-music-180518_kk3skm.mp3
+
+3. **Miss You / Yaad / Nostalgia (`miss_you` / `nostalgia`)**
+   - Keywords: yaad, miss you, purane din, purani yaadein, purana safar, woh din
+   - Audio URL: https://res.cloudinary.com/dzlazqbvf/video/upload/v1790930849/alex-morgan-diwali-festival-lights-celebration-575884_nkmcqt.mp3
+
+4. **Happy Diwali / Festival (`diwali_fest`)**
+   - Keywords: diwali, deepawali, patake, fireworks, diya, crackers
+   - Audio URL: https://res.cloudinary.com/dzlazqbvf/video/upload/v1790930831/tanweraman-cracker-sound-261119_jdl5mr.mp3
+
+5. **Summer / Garmi / Happy Weather (`summer_vibe`)**
+   - Keywords: garmi, summer, dhoop, mausam, sunny, happy
+   - Audio URL: https://res.cloudinary.com/dzlazqbvf/video/upload/v1790930827/bombinsound-happy-ukulele-version-4-537782_ojokrj.mp3
+
+6. **Mandir / Puja / Devotional (`devotional` / `puja`)**
+   - Keywords: mandir, puja, bhagwan, god, temple, prarthana, aarti
+   - Audio URL: https://res.cloudinary.com/dzlazqbvf/video/upload/v1790930824/donaravind-24-jan-1200-293552_tojjcf.mp3
+
+7. **Storm / Thunder / Heavy Rain / Aandhi (`storm_alert`)**
+   - Keywords: aandhi, barish, storm, rain, bijli, toofan, flood, weather alert
+   - Audio URL: https://res.cloudinary.com/dzlazqbvf/video/upload/v1790930812/freesound_community-thunderstorm-with-heavy-rain1wav-14586_swfjtt.mp3
+
+8. **Party / Celebration / Enjoy (`hype_mode`)**
+   - Keywords: party, maza, dance, chill, celebration, club, fun
+   - Audio URL: https://res.cloudinary.com/dzlazqbvf/video/upload/v1790930808/h-beats-music-box-beat-effect-410596_chcmqm.mp3
+
+---
+**Technical Requirements for Audio:**
+- Set `audioElement.volume = 1.0` so all these tracks play loud, clear, and punchy.
+- Ensure they auto-play unmuted seamlessly when the post is in view, handling browser rules with touch/scroll retries and single-player handoff.
