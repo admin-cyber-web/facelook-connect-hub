@@ -310,8 +310,8 @@ const FeedVideo = memo(({ src }: { src: string }) => {
   }, [src]);
   return (
     <div
-      className="relative w-full bg-black"
-      style={{ aspectRatio: "9/16", maxHeight: "85vh", touchAction: "pan-y" }}
+      className="relative aspect-[4/5] w-full overflow-hidden bg-[#09090b]"
+      style={{ touchAction: "pan-y" }}
     >
       <video
         ref={ref}
@@ -335,8 +335,8 @@ const YouTubeEmbed = memo(({ url }: { url: string }) => {
   if (!id) return null;
   return (
     <div
-      className="w-full bg-black"
-      style={{ aspectRatio: "16/9", touchAction: "pan-y" }}
+      className="aspect-[4/5] w-full overflow-hidden bg-[#09090b]"
+      style={{ touchAction: "pan-y" }}
     >
       <iframe
         src={`https://www.youtube.com/embed/${id}?controls=1&modestbranding=1`}
@@ -387,13 +387,13 @@ const PostImageCollage = memo(({ urls, onOpen }: { urls: string[]; onOpen: (inde
           : "grid-cols-2 grid-rows-2";
 
   return (
-    <div className={`grid aspect-[16/10] w-full gap-1 overflow-hidden bg-black ${layout}`} style={{ touchAction: "pan-y" }}>
+    <div className={`grid aspect-[4/5] w-full gap-1 overflow-hidden bg-[#09090b] ${layout}`} style={{ touchAction: "pan-y" }}>
       {visibleUrls.map((url, index) => (
         <button
           key={`${url}-${index}`}
           type="button"
           onClick={() => onOpen(index)}
-          className={`group relative min-h-0 overflow-hidden bg-slate-950 ${
+          className={`group relative min-h-0 overflow-hidden bg-[#09090b] ${
             count === 3 && index === 0 ? "col-span-2" : ""
           }`}
           aria-label={`Open image ${index + 1} of ${urls.length}`}
@@ -489,12 +489,12 @@ const PostMedia = memo(({ post, vibeTag }: { post: any; vibeTag?: VibeTag }) => 
   ) : isVid ? (
     <FeedVideo src={url} />
   ) : (
-    <div className="w-full bg-black" style={{ touchAction: "pan-y" }}>
+    <div className="relative aspect-[4/5] w-full overflow-hidden bg-[#09090b]" style={{ touchAction: "pan-y" }}>
       <img
         src={url}
         loading="lazy"
-        className="w-full object-cover"
-        style={{ maxHeight: "70vh", touchAction: "pan-y" }}
+        className="absolute inset-0 h-full w-full object-cover"
+        style={{ touchAction: "pan-y" }}
         alt=""
         decoding="async"
       />
@@ -1847,7 +1847,7 @@ const FeedReelComments = ({
 }) => {
   const topLevel = (comments ?? []).filter((comment) => !comment.parent_id);
   return (
-    <div className="absolute inset-x-0 bottom-0 z-20 max-h-[72%] overflow-hidden rounded-t-xl border-t border-white/15 bg-black/90 text-white backdrop-blur-xl">
+    <div className="absolute inset-x-0 bottom-0 z-20 max-h-[72%] overflow-hidden rounded-t-xl border-t border-white/15 bg-black/95 text-white">
       <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
         <span className="flex items-center gap-2 text-sm font-bold">
           <MessageCircle size={16} className="text-pink-400" />
@@ -2153,7 +2153,7 @@ const SingleReelBlock = ({
               return nextMuted;
             });
           }}
-          className="absolute top-4 right-4 p-2 bg-black/40 backdrop-blur-sm rounded-full border border-white/10"
+          className="absolute top-4 right-4 p-2 bg-black/75 rounded-full border border-white/10"
         >
           {muted ? (
             <VolumeX size={16} className="text-white" />
@@ -2162,7 +2162,7 @@ const SingleReelBlock = ({
           )}
         </button>
       )}
-      <div className="absolute bottom-5 left-4 right-16 max-h-[35%] overflow-y-auto overscroll-contain rounded-lg bg-black/40 p-3 text-white backdrop-blur-sm">
+      <div className="absolute bottom-5 left-4 right-16 max-h-[35%] overflow-y-auto overscroll-contain rounded-lg bg-black/75 p-3 text-white">
         <p className="font-bold text-sm drop-shadow-lg">
           @{post.author_profile?.full_name || post.author || "user"}
         </p>
