@@ -32,10 +32,21 @@ const formatCount = (n: any): string => {
 };
 
 const SUPPORTED_VIDEO_EXTENSIONS = /\.(mp4|webm)(?:$|[?#])/i;
-let globalSoundEnabled = false;
 const FLICKS_POST_PROJECTION =
   "id, author, author_id, content, media_url, type, metadata, cover_url, views_count, likes_count, comments_count, shares_count, meta_title, meta_description, created_at, author_profile:profiles!posts_author_id_fkey(avatar_url, full_name)";
 const FLICKS_POST_PROJECTION_WITH_AUDIO = `${FLICKS_POST_PROJECTION}, audio_url`;
+
+const requestUnmutedPlayback = (media: HTMLMediaElement) => {
+  media.muted = false;
+  media.volume = 1;
+  try {
+    void media.play().catch(() => {
+      // A rejected autoplay is retried from the active card's gesture listeners.
+    });
+  } catch {
+    // Wait for the next user gesture if play() throws synchronously.
+  }
+};
 
 const isMissingAudioUrlColumn = (error: unknown) => {
   if (typeof error !== "object" || error === null) return false;
@@ -237,7 +248,6 @@ const FlickCard = memo(({ post, isActive, isPreloaded, currentUserId, onBridgeCh
   const likeBusyRef = useRef(false);
   const heartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const [isMuted,           setIsMuted]           = useState(!globalSoundEnabled);
   const [likedByMe,         setLikedByMe]         = useState(false);
   const [liveLikes,         setLiveLikes]          = useState(Number(post?.likes_count || 0));
   const [liveCommentsCount, setLiveCommentsCount]  = useState(Number(post?.comments_count || 0));
@@ -298,45 +308,71 @@ const FlickCard = memo(({ post, isActive, isPreloaded, currentUserId, onBridgeCh
     if (!vid) return;
     vid.playbackRate = reelSettings.playbackRate;
     vid.style.filter = reelSettings.cssFilter;
-    // Reel source audio is never allowed to play. All audible sound comes
-    // from the separate, synchronized custom music element below.
-    vid.muted = true;
+    // Keep source audio enabled for every Reel; attached music remains synced
+    // through the separate audio element below.
+    vid.muted = false;
+    vid.volume = 1;
     if (audio) {
       audio.playbackRate = reelSettings.playbackRate;
       audio.loop = true;
-      audio.muted = !globalSoundEnabled;
+      audio.muted = false;
+      audio.volume = 1;
     }
-    if (isActive) {
-      // Reset transient error/loading on each activation (e.g. user scrolled away and back)
-      setVideoError(null);
-      vid.currentTime = 0;
-      const wantSound = globalSoundEnabled;
-      vid.muted = true;
-      vid.volume = 1;
-      setIsMuted(!wantSound);
-      vid.play().catch((err) => {
-        // The source remains muted even when video autoplay is rejected.
-        if (err?.name === "NotAllowedError" || err?.name === "AbortError") {
-          vid.muted = true;
-          audio?.pause();
-          if (audio) audio.muted = true;
-          setIsMuted(true);
-          vid.play().catch(() => {});
-        }
-        // Other errors (NotSupportedError etc.) are handled by the onError handler below
-      });
-      if (hasBackgroundAudio && audio) {
-        audio.currentTime = getReelAudioTargetTime(vid, audio);
-        audio.muted = !wantSound;
-        // Start custom music in sync as soon as the active Reel plays. It
-        // remains muted until the viewer's first sound-enabling tap.
-        audio.play().catch(() => {});
-      }
-    } else {
+    if (!isActive) {
       vid.pause();
       audio?.pause();
+      return;
     }
-  }, [hasBackgroundAudio, isActive, reelSettings.cssFilter, reelSettings.playbackRate]);
+
+    // Reset transient error/loading on each activation (e.g. after scrolling away and back).
+    setVideoError(null);
+    vid.currentTime = 0;
+    if (hasBackgroundAudio && audio) {
+      audio.currentTime = getReelAudioTargetTime(vid, audio);
+    }
+
+    const retryActivePlayback = () => {
+      if (document.visibilityState === "hidden") return;
+      const activeVideo = videoRef.current;
+      if (!activeVideo || !activeVideo.isConnected) return;
+      activeVideo.muted = false;
+      activeVideo.volume = 1;
+      if (activeVideo.paused) requestUnmutedPlayback(activeVideo);
+
+      const activeAudio = audioRef.current;
+      if (hasBackgroundAudio && activeAudio) {
+        activeAudio.muted = false;
+        activeAudio.volume = 1;
+        if (activeAudio.paused) {
+          activeAudio.currentTime = getReelAudioTargetTime(activeVideo, activeAudio);
+          requestUnmutedPlayback(activeAudio);
+        }
+      }
+    };
+    const gestureEvents = ["pointerdown", "touchstart", "click", "scroll", "wheel"] as const;
+    gestureEvents.forEach((eventName) =>
+      document.addEventListener(eventName, retryActivePlayback, {
+        capture: true,
+        passive: true,
+      }),
+    );
+
+    requestUnmutedPlayback(vid);
+    if (hasBackgroundAudio && audio) requestUnmutedPlayback(audio);
+
+    return () => {
+      gestureEvents.forEach((eventName) =>
+        document.removeEventListener(eventName, retryActivePlayback, true),
+      );
+    };
+  }, [
+    hasBackgroundAudio,
+    isActive,
+    reelSettings.audioUrl,
+    reelSettings.cssFilter,
+    reelSettings.playbackRate,
+    videoUrl,
+  ]);
 
   useEffect(() => {
     setVisibleVibeAudio(vibePostId, vibeAudioUrl, isActive);
@@ -465,24 +501,6 @@ const FlickCard = memo(({ post, isActive, isPreloaded, currentUserId, onBridgeCh
 
   // ── Tap handler: double-tap anywhere on the video = like ────────────────
   const handleVideoTap = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!globalSoundEnabled) {
-      globalSoundEnabled = true;
-      if (isActive && videoRef.current) {
-        videoRef.current.muted = true;
-        setIsMuted(false);
-        videoRef.current.play().catch(() => {});
-        if (hasBackgroundAudio && audioRef.current) {
-          audioRef.current.muted = false;
-          audioRef.current.currentTime = getReelAudioTargetTime(
-            videoRef.current,
-            audioRef.current,
-          );
-          audioRef.current.loop = true;
-          audioRef.current.playbackRate = reelSettings.playbackRate;
-          audioRef.current.play().catch(() => {});
-        }
-      }
-    }
     const now = Date.now();
     if (now - lastTap.current < 300) {
       // Double-tap detected
@@ -698,7 +716,7 @@ const FlickCard = memo(({ post, isActive, isPreloaded, currentUserId, onBridgeCh
         key={videoUrl}
         src={videoUrl}
         loop
-        muted
+        muted={false}
         playsInline
         autoPlay={false}
         preload={isActive ? "auto" : isPreloaded ? "metadata" : "none"}
@@ -728,7 +746,7 @@ const FlickCard = memo(({ post, isActive, isPreloaded, currentUserId, onBridgeCh
         <audio
           ref={audioRef}
           src={isActive ? reelSettings.audioUrl || undefined : undefined}
-          muted={isMuted}
+          muted={false}
           preload={isActive ? "auto" : "none"}
           loop
         />
@@ -765,7 +783,7 @@ const FlickCard = memo(({ post, isActive, isPreloaded, currentUserId, onBridgeCh
                 e.stopPropagation();
                 setVideoError(null);
                 const vid = videoRef.current;
-                if (vid) { vid.load(); vid.play().catch(() => {}); }
+                if (vid) { vid.load(); requestUnmutedPlayback(vid); }
               }}>
               Retry
             </button>
@@ -982,7 +1000,7 @@ const FlickCard = memo(({ post, isActive, isPreloaded, currentUserId, onBridgeCh
             backdropFilter: "blur(16px)",
             borderTop: "1px solid rgba(255,255,255,0.07)",
           }}>
-           <AudioCassette spinning={!isMuted || hasBackgroundAudio} />
+           <AudioCassette spinning={isActive} />
           {/* Neon rule */}
           <div className="shrink-0 w-px h-4 rounded-full" style={{ background: "rgba(0,255,230,0.55)", boxShadow: "0 0 5px rgba(0,255,230,0.55)" }} />
           <Ticker text={tickerText} isActive={isActive} />
