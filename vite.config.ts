@@ -191,6 +191,12 @@ export default defineConfig({
   },
 
   build: {
+    outDir: "dist",
+    emptyOutDir: true,
+    sourcemap: false,
+    minify: "esbuild",
+    cssMinify: "esbuild",
+    reportCompressedSize: false,
     chunkSizeWarningLimit: 600,
     rollupOptions: {
       external: ["onnxruntime-web", "onnxruntime-web/webgpu", "@imgly/background-removal", "@google/generative-ai"],
