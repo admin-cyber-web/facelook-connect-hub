@@ -13,3 +13,4 @@
 - [Android device validation prerequisites](android-device-validation.md) — native checks need Android SDK tooling and Java 21; otherwise report the device gap explicitly
 - [Chat realtime event coverage](chat-realtime-events.md) — filter active conversations in callbacks so both participants receive edits/deletes; cache reaction row metadata for DELETE events
 - [Reel audio persistence](reel-audio-persistence.md) — use `posts.audio_url` as canonical, retaining metadata and legacy URL fallbacks.
+- [Vibe audio playback policy](vibe-audio-playback-policy.md) — audible autoplay by default; browser blocks recover through user gestures, and manual mute persists across feed handoffs.

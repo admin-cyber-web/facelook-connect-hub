@@ -425,7 +425,9 @@ const VibeMediaFrame = memo(
           data-vibe={vibeTag}
           data-testid={`vibe-overlay-${postId}`}
           aria-hidden="true"
-        />
+        >
+          <span className="vibe-media-particles" aria-hidden="true" />
+        </div>
       )}
     </div>
   ),
