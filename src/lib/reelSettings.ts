@@ -97,6 +97,7 @@ export function getReelSettings(post: any) {
       post?.music_track_url,
       metadata.audio_url,
       metadata.music_track_url,
+      metadata.vibe_audio_url,
     ),
     filter,
     playbackRate,

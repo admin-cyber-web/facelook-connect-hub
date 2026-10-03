@@ -1954,6 +1954,7 @@ const SingleReelBlock = ({
   const ref = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const [muted, setMuted] = useState(false);
+  const [audioNeedsGesture, setAudioNeedsGesture] = useState(false);
   const [likedByMe, setLikedByMe] = useState(false);
   const [likeCount, setLikeCount] = useState(() => totalLikesFrom(post));
   const [likePending, setLikePending] = useState(false);
@@ -2090,14 +2091,16 @@ const SingleReelBlock = ({
     let isActive = false;
     const retryPlayback = () => {
       if (!isActive || activeFameFeedVideo !== el || document.visibilityState === "hidden") return;
-      el.muted = muted;
+      el.muted = hasBackgroundAudio || muted;
       el.volume = 1;
       if (el.paused) el.play().catch(() => {});
       const audio = audioRef.current;
       if (audio && hasBackgroundAudio) {
         audio.muted = muted;
         audio.volume = 1;
-        if (audio.paused) audio.play().catch(() => {});
+        if (audio.paused) {
+          void audio.play().then(() => setAudioNeedsGesture(false)).catch(() => setAudioNeedsGesture(true));
+        }
       }
     };
     const gestureEvents = ["pointerdown", "touchstart", "click", "scroll", "wheel"] as const;
@@ -2111,13 +2114,13 @@ const SingleReelBlock = ({
           if (activeFameFeedAudio && activeFameFeedAudio !== audioRef.current) activeFameFeedAudio.pause();
           activeFameFeedVideo = ref.current;
           activeFameFeedAudio = audioRef.current;
-          ref.current.muted = muted;
+          ref.current.muted = hasBackgroundAudio || muted;
           ref.current.volume = 1;
           if (audioRef.current && hasBackgroundAudio) {
             audioRef.current.muted = muted;
             audioRef.current.volume = 1;
             audioRef.current.currentTime = ref.current.currentTime;
-            audioRef.current.play().catch(() => {});
+            void audioRef.current.play().then(() => setAudioNeedsGesture(false)).catch(() => setAudioNeedsGesture(true));
           }
           ref.current.play().catch(() => {});
         } else {
@@ -2178,7 +2181,7 @@ const SingleReelBlock = ({
             className="w-full h-full object-cover"
             style={{ touchAction: "pan-y", filter: reelSettings.cssFilter }}
             loop
-            muted={muted}
+            muted={hasBackgroundAudio || muted}
             playsInline
             preload="metadata"
           />
@@ -2190,17 +2193,30 @@ const SingleReelBlock = ({
       <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none" />
       {!isYT && (
         <button
+          type="button"
+          aria-label={audioNeedsGesture ? "Play selected background audio" : muted ? "Unmute video" : "Mute video"}
+          title={audioNeedsGesture ? "Tap to play selected background audio" : undefined}
           onClick={() => {
-            setMuted((current) => {
-              const nextMuted = !current;
-              if (ref.current) ref.current.muted = nextMuted;
-              if (audioRef.current) audioRef.current.muted = nextMuted;
-              return nextMuted;
-            });
+            if (hasBackgroundAudio && audioNeedsGesture && !muted && audioRef.current) {
+              const audio = audioRef.current;
+              audio.muted = false;
+              audio.volume = 1;
+              void audio.play().then(() => setAudioNeedsGesture(false)).catch(() => setAudioNeedsGesture(true));
+              return;
+            }
+            const nextMuted = !muted;
+            setMuted(nextMuted);
+            if (ref.current) ref.current.muted = hasBackgroundAudio || nextMuted;
+            if (audioRef.current) audioRef.current.muted = nextMuted;
+            if (hasBackgroundAudio && !nextMuted && audioRef.current) {
+              const audio = audioRef.current;
+              audio.volume = 1;
+              void audio.play().then(() => setAudioNeedsGesture(false)).catch(() => setAudioNeedsGesture(true));
+            }
           }}
           className="absolute top-4 right-4 p-2 bg-black/75 rounded-full border border-white/10"
         >
-          {muted ? (
+          {muted || audioNeedsGesture ? (
             <VolumeX size={16} className="text-white" />
           ) : (
             <Volume2 size={16} className="text-white" />
@@ -4886,12 +4902,13 @@ const FameFeed = ({
     if (isVideo) {
       const isCommentsOpen = commentSheetId === post.id;
       const isReplying = replyingTo?.postId === post.id;
+      const hasReelAudio = Boolean(getReelSettings(post).audioUrl);
       return (
         <PostViewTracker
           key={post.id}
           postId={post.id}
           onView={incrementView}
-          vibeAudioUrl={vibeAudioUrl}
+          vibeAudioUrl={hasReelAudio ? null : vibeAudioUrl}
           vibeAudioLoop={primaryVibe?.audioLoop ?? true}
         >
           <div className="relative">
@@ -5129,17 +5146,15 @@ const FameFeed = ({
                     {smartTime(post.created_at)}
                   </p>
                 )}
-                {primaryVibe && (
+                {vibeAudioUrl && (
                   <div className="mt-1 flex items-center gap-1.5">
-                    {vibeAudioUrl && (
-                      <VibeAudioToggle
-                        postId={String(post.id)}
-                        audioUrl={vibeAudioUrl}
-                        audioTitle={primaryVibe.audioTitle}
-                        audioLoop={primaryVibe.audioLoop}
-                        compact
-                      />
-                    )}
+                    <VibeAudioToggle
+                      postId={String(post.id)}
+                      audioUrl={vibeAudioUrl}
+                      audioTitle={post.metadata?.vibe_audio_title || primaryVibe?.audioTitle || "Selected track"}
+                      audioLoop={post.metadata?.vibe_audio_loop ?? primaryVibe?.audioLoop ?? true}
+                      compact
+                    />
                   </div>
                 )}
               </div>

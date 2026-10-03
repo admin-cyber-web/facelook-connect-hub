@@ -457,8 +457,8 @@ export function getPostVibeAudioUrl(post: unknown, selection?: VibeSelection): s
   const row = post && typeof post === "object" ? (post as Record<string, unknown>) : {};
   const metadata = objectMetadata(row.metadata);
   const resolvedVibe = selection ?? resolvePostVibe(post);
-  if (!resolvedVibe.primary) return null;
   const customUrl = metadata.vibe_audio_url;
   if (typeof customUrl === "string" && /^https?:\/\//i.test(customUrl)) return customUrl;
+  if (!resolvedVibe.primary) return null;
   return resolvedVibe.primary.audioUrl || null;
 }

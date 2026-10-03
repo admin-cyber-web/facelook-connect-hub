@@ -14,6 +14,7 @@ import {
   Camera,
   BookmarkPlus,
   Clapperboard,
+  Music2,
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { toast } from "sonner";
@@ -39,6 +40,13 @@ interface CreatePostProps {
   onReelSelected?: (file: File) => void;
 }
 
+interface ComposerMusicTrack {
+  id: string;
+  title: string;
+  artist: string;
+  audio_url: string;
+}
+
 const CreatePost = ({
   isOpen,
   onClose,
@@ -55,6 +63,7 @@ const CreatePost = ({
   const [loadingMsg, setLoadingMsg] = useState("Post Vibe");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
+  const audioFileInputRef = useRef<HTMLInputElement>(null);
   const [candidates, setCandidates] = useState<MentionCandidate[]>([]);
   const [visibility, setVisibility] = useState<"public" | "friends_only">("public");
   const [mood, setMood] = useState("");
@@ -73,6 +82,10 @@ const CreatePost = ({
     photos: [null, null],
     companionId: "",
   });
+  const [musicTracks, setMusicTracks] = useState<ComposerMusicTrack[]>([]);
+  const [selectedMusicTrack, setSelectedMusicTrack] = useState<ComposerMusicTrack | null>(null);
+  const [musicFile, setMusicFile] = useState<File | null>(null);
+  const [musicPickerOpen, setMusicPickerOpen] = useState(false);
 
   const replaceMediaSelection = (nextFiles: File[]) => {
     previewUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
@@ -162,6 +175,21 @@ const CreatePost = ({
     return () => { cancelled = true; };
   }, [isOpen]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    supabase
+      .from("reel_music_tracks")
+      .select("id, title, artist, audio_url")
+      .eq("is_active", true)
+      .order("created_at", { ascending: false })
+      .limit(24)
+      .then(({ data }) => {
+        if (!cancelled) setMusicTracks((data || []) as ComposerMusicTrack[]);
+      });
+    return () => { cancelled = true; };
+  }, [isOpen]);
+
   const teamMarker = useMemo(
     () => candidates.find(c => c.kind === "team"),
     [candidates],
@@ -190,6 +218,9 @@ const CreatePost = ({
       setMood("");
       setSceneVaultOpen(false);
       setSceneVaultDraft({ mood: "love", photos: [null, null], companionId: "" });
+      setSelectedMusicTrack(null);
+      setMusicFile(null);
+      setMusicPickerOpen(false);
       setPollEnabled(false);
       setPollQuestion("");
       setPollOptions(["", ""]);
@@ -329,7 +360,8 @@ const CreatePost = ({
     }
   };
 
-  const handlePost = async (publishScene = false) => {
+  const handlePost = async (options?: { publishScene?: boolean }) => {
+    const publishScene = options?.publishScene === true;
     if (loading) return;
     if (pollEnabled && !publishScene) {
       await handleCreateSurvey();
@@ -465,6 +497,13 @@ const CreatePost = ({
         }
       }
 
+      const canAttachComposerAudio = publishScene || files.some((file) => file.type.startsWith("image/"));
+      let selectedAudioUrl = canAttachComposerAudio ? selectedMusicTrack?.audio_url || null : null;
+      if (canAttachComposerAudio && musicFile) {
+        setLoadingMsg("Uploading background audio…");
+        selectedAudioUrl = await uploadToCloudinary(musicFile);
+      }
+
       const tokens = extractMentionTokens(content);
       const friendByUsername = new Map<string, MentionCandidate>();
       candidates.forEach(c => {
@@ -547,7 +586,9 @@ const CreatePost = ({
           vibe_tag: postVibe.primary?.tag ?? null,
           vibe_matches: postVibe.matches.map((profile) => profile.tag),
           vibe_manual: postVibe.manual,
-          vibe_audio_url: postVibe.primary?.audioUrl ?? null,
+          vibe_audio_url: selectedAudioUrl || postVibe.primary?.audioUrl || null,
+          vibe_audio_title: musicFile?.name || selectedMusicTrack?.title || postVibe.primary?.audioTitle || null,
+          ...(selectedAudioUrl ? { audio_url: selectedAudioUrl, vibe_audio_loop: true } : {}),
           mentions: resolvedMentions,
           has_pin: hasPin,
           has_team: hasTeam,
@@ -729,6 +770,9 @@ const CreatePost = ({
       clearMediaSelection();
       setSceneVaultOpen(false);
       setSceneVaultDraft({ mood: "love", photos: [null, null], companionId: "" });
+      setSelectedMusicTrack(null);
+      setMusicFile(null);
+      setMusicPickerOpen(false);
       onClose();
     } catch (err: any) {
       console.error("Error Details:", err);
@@ -1070,7 +1114,7 @@ const CreatePost = ({
                     isPublishing={loading}
                     onDraftChange={setSceneVaultDraft}
                     onClose={() => setSceneVaultOpen(false)}
-                    onPublish={() => { void handlePost(true); }}
+                    onPublish={() => { void handlePost({ publishScene: true }); }}
                   />
 
                   <AnimatePresence>
@@ -1128,6 +1172,83 @@ const CreatePost = ({
                       </motion.div>
                     )}
                   </AnimatePresence>
+
+                  {(files.some((file) => file.type.startsWith("image/")) || sceneVaultDraft.photos.some(Boolean)) && (
+                    <section className="rounded-2xl border border-pink-200 bg-gradient-to-r from-white to-rose-50/70 p-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex min-w-0 items-center gap-2.5">
+                          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-pink-500 to-violet-600 text-white"><Music2 size={17} /></span>
+                          <span className="min-w-0">
+                            <span className="block text-xs font-black text-slate-800">{musicFile?.name || selectedMusicTrack?.title || "Add Song / Audio"}</span>
+                            <span className="mt-0.5 block truncate text-[10px] text-slate-500">{musicFile ? "Your uploaded track" : selectedMusicTrack ? selectedMusicTrack.artist : "Background music for this photo post"}</span>
+                          </span>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-2">
+                          {(musicFile || selectedMusicTrack) && (
+                            <button type="button" onClick={() => { setMusicFile(null); setSelectedMusicTrack(null); }} className="text-[10px] font-bold text-slate-500 hover:text-rose-600">Clear</button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => setMusicPickerOpen((open) => !open)}
+                            aria-expanded={musicPickerOpen}
+                            aria-label="Add Song / Audio"
+                            data-testid="button-toggle-post-audio"
+                            className="rounded-full bg-gradient-to-r from-pink-600 to-violet-600 px-3 py-2 text-[10px] font-black text-white shadow-sm"
+                          >
+                            {musicPickerOpen ? "Close" : "🎵 Add Song / Audio"}
+                          </button>
+                        </div>
+                      </div>
+                      <AnimatePresence initial={false}>
+                        {musicPickerOpen && (
+                          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
+                            <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto]">
+                              <label className="sr-only" htmlFor="post-music-track">Choose a background track</label>
+                              <select
+                                id="post-music-track"
+                                value={selectedMusicTrack?.id || ""}
+                                onChange={(event) => {
+                                  const track = musicTracks.find(({ id }) => id === event.target.value) || null;
+                                  setSelectedMusicTrack(track);
+                                  if (track) setMusicFile(null);
+                                }}
+                                data-testid="select-post-music-track"
+                                className="h-10 min-w-0 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 outline-none focus:border-pink-400"
+                              >
+                                <option value="">{musicTracks.length ? "Choose from music library" : "No curated tracks available"}</option>
+                                {musicTracks.map((track) => <option key={track.id} value={track.id}>{track.title} · {track.artist}</option>)}
+                              </select>
+                              <button type="button" onClick={() => audioFileInputRef.current?.click()} className="flex h-10 items-center justify-center gap-2 rounded-xl border border-dashed border-pink-300 bg-white px-3 text-xs font-bold text-pink-700 hover:bg-pink-50">
+                                <Music2 size={14} /> Upload MP3
+                              </button>
+                              <input
+                                ref={audioFileInputRef}
+                                type="file"
+                                accept=".mp3,audio/mpeg,audio/mp3"
+                                className="hidden"
+                                data-testid="input-post-music-file"
+                                onChange={(event) => {
+                                  const file = event.target.files?.[0];
+                                  if (file) {
+                                    if (!(file.type === "audio/mpeg" || file.type === "audio/mp3" || file.name.toLowerCase().endsWith(".mp3"))) {
+                                      toast.error("Choose an MP3 audio file.");
+                                    } else if (file.size > 25 * 1024 * 1024) {
+                                      toast.error("Audio files must be 25 MB or smaller.");
+                                    } else {
+                                      setMusicFile(file);
+                                      setSelectedMusicTrack(null);
+                                    }
+                                  }
+                                  event.target.value = "";
+                                }}
+                              />
+                            </div>
+                            <p className="mt-2 text-[10px] text-slate-400">A selected song replaces the video’s recorded audio when attached to a video post.</p>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </section>
+                  )}
 
                   {/* The bottom-row Surprise action reveals these friend-tag fields. */}
                   {surpriseEnabled && (
@@ -1283,7 +1404,7 @@ const CreatePost = ({
 
                     <button
                       type="button"
-                      onClick={handlePost}
+                      onClick={() => { void handlePost(); }}
                       disabled={!canPost}
                       data-testid="button-submit-post"
                       className="flex min-h-[3.75rem] min-w-0 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-fuchsia-600 via-violet-600 to-blue-500 px-3 text-[14px] font-black text-white shadow-[0_8px_22px_rgba(124,58,237,.32)] transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45 touch-manipulation sm:px-5 sm:text-[15px]"
