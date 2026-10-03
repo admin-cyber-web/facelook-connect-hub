@@ -25,6 +25,7 @@ const LoginScreen   = lazy(() => import("./components/LoginScreen"));
 const PostDetail    = lazy(() => import("./pages/PostDetail"));
 const SurveyDetail  = lazy(() => import("./pages/SurveyDetail"));
 const InviteLanding = lazy(() => import("./pages/InviteLanding"));
+const DesignPreview = lazy(() => import("./pages/DesignPreview"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -365,6 +366,7 @@ const App = () => {
                   <Suspense fallback={<PageLoader />}>
                     {!session ? (
                       <Routes>
+                        <Route path="/design-preview" element={<DesignPreview />} />
                         <Route path="/privacy"     element={<Privacy />} />
                         <Route path="/terms"       element={<Terms />} />
                         <Route path="/data-info"   element={<DataInfo />} />
@@ -374,6 +376,7 @@ const App = () => {
                       </Routes>
                     ) : (
                       <Routes>
+                        <Route path="/design-preview" element={<DesignPreview />} />
                         <Route path="/"            element={<Index session={session} />} />
                         <Route path="/privacy"     element={<Privacy />} />
                         <Route path="/terms"       element={<Terms />} />

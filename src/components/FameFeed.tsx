@@ -1945,16 +1945,23 @@ const SingleReelBlock = ({
   currentUserId,
   commentCount,
   onOpenComments,
+  onEdit,
+  onDelete,
+  onReport,
 }: {
   post: any;
   currentUserId: string | null;
   commentCount: number;
   onOpenComments: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+  onReport: () => void;
 }) => {
   const ref = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const [muted, setMuted] = useState(false);
   const [audioNeedsGesture, setAudioNeedsGesture] = useState(false);
+  const [showReelMenu, setShowReelMenu] = useState(false);
   const [likedByMe, setLikedByMe] = useState(false);
   const [likeCount, setLikeCount] = useState(() => totalLikesFrom(post));
   const [likePending, setLikePending] = useState(false);
@@ -1962,6 +1969,7 @@ const SingleReelBlock = ({
   const reelSettings = getReelSettings(post);
   const reelVideoUrl = reelSettings.videoUrl || post.media_url;
   const hasBackgroundAudio = Boolean(reelSettings.audioUrl);
+  const isOwner = Boolean(currentUserId && post.author_id === currentUserId);
 
   const refreshLikeState = useCallback(async () => {
     const countRequest = supabase
@@ -2191,6 +2199,44 @@ const SingleReelBlock = ({
         </>
       )}
       <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none" />
+      <button
+        type="button"
+        aria-label="Reel actions"
+        aria-expanded={showReelMenu}
+        onClick={(event) => {
+          event.stopPropagation();
+          setShowReelMenu((open) => !open);
+        }}
+        className="absolute right-16 top-4 z-20 grid h-9 w-9 place-items-center rounded-full border border-white/15 bg-black/70 text-white backdrop-blur-sm transition hover:bg-black/90"
+      >
+        <MoreVertical size={18} />
+      </button>
+      {showReelMenu && (
+        <>
+          <button
+            type="button"
+            aria-label="Close Reel actions"
+            onClick={() => setShowReelMenu(false)}
+            className="fixed inset-0 z-20 cursor-default"
+          />
+          <div role="menu" className="absolute right-4 top-14 z-30 min-w-44 overflow-hidden rounded-xl border border-white/10 bg-[#160d12]/95 py-1 shadow-2xl backdrop-blur-xl">
+            {isOwner ? (
+              <>
+                <button type="button" role="menuitem" onClick={() => { setShowReelMenu(false); onEdit(); }} className="flex w-full items-center gap-2.5 px-3.5 py-3 text-left text-xs font-bold text-white/80 transition hover:bg-white/10">
+                  <SlidersHorizontal size={15} className="text-cyan-200" /> Edit Reel
+                </button>
+                <button type="button" role="menuitem" onClick={() => { setShowReelMenu(false); onDelete(); }} className="flex w-full items-center gap-2.5 border-t border-white/[0.07] px-3.5 py-3 text-left text-xs font-bold text-rose-300 transition hover:bg-rose-500/10">
+                  <Trash2 size={15} /> Delete Reel
+                </button>
+              </>
+            ) : (
+              <button type="button" role="menuitem" onClick={() => { setShowReelMenu(false); onReport(); }} className="flex w-full items-center gap-2.5 px-3.5 py-3 text-left text-xs font-bold text-orange-200 transition hover:bg-orange-500/10">
+                <Flag size={15} /> Report Reel
+              </button>
+            )}
+          </div>
+        </>
+      )}
       {!isYT && (
         <button
           type="button"
@@ -4911,11 +4957,23 @@ const FameFeed = ({
           vibeAudioUrl={hasReelAudio ? null : vibeAudioUrl}
           vibeAudioLoop={primaryVibe?.audioLoop ?? true}
         >
-          <div className="relative">
+          <div className="relative mb-5 overflow-hidden border-y border-white/10 bg-[#10090d] sm:mb-7 sm:rounded-lg sm:border">
             <SingleReelBlock
               post={post}
               currentUserId={currentUserId}
               commentCount={commentsMap[post.id]?.length ?? post.comments_count ?? 0}
+              onEdit={() => window.dispatchEvent(new CustomEvent("flicks:open-reel-studio", { detail: { reel: post } }))}
+              onDelete={() => {
+                if (window.confirm("Delete this Reel permanently? This cannot be undone.")) {
+                  void handleDelete(post.id);
+                }
+              }}
+              onReport={() => setReportModal({
+                postId: post.id,
+                targetId: post.author_id,
+                reason: "",
+                anchor: { top: Math.max(8, Math.min(window.innerHeight - 360, window.innerHeight / 2 - 170)), right: 16 },
+              })}
               onOpenComments={() => {
                 const isOpening = !isCommentsOpen;
                 setCommentSheetId(isOpening ? post.id : null);

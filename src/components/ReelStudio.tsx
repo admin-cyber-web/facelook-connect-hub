@@ -107,6 +107,7 @@ export default function ReelStudio({
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [selectedTrack, setSelectedTrack] = useState<ReelMusicTrack | null>(null);
+  const [caption, setCaption] = useState(reel?.content || "");
   const [filter, setFilter] = useState<ReelFilterKey>("none");
   const [playbackRate, setPlaybackRate] = useState<number>(1);
   const [musicOpen, setMusicOpen] = useState(false);
@@ -129,6 +130,7 @@ export default function ReelStudio({
   useEffect(() => {
     if (!isOpen) return;
     setVideoFile(initialVideoFile || null);
+    setCaption(reel?.content || "");
     setAudioFile(null);
     setSelectedTrack(null);
     setFilter(reelSettings.filter);
@@ -140,6 +142,7 @@ export default function ReelStudio({
   }, [
     initialVideoFile,
     isOpen,
+    reel?.content,
     reel?.id,
     reelSettings.audioUrl,
     reelSettings.filter,
@@ -396,11 +399,11 @@ export default function ReelStudio({
         ...(isEditing ? {} : {
           author_id: userId,
           author: userProfile?.full_name || "User",
-          content: reel?.content || "",
           type: "video",
           post_type: "fame",
           visibility: "public",
         }),
+        content: caption.trim(),
         media_url: videoUrl,
         video_url: videoUrl,
         audio_url: finalAudioUrl,
@@ -441,10 +444,10 @@ export default function ReelStudio({
           ...(isEditing ? {} : {
             author_id: userId,
             author: userProfile?.full_name || "User",
-            content: reel?.content || "",
             type: "video",
             visibility: "public",
           }),
+          content: caption.trim(),
           media_url: videoUrl,
           metadata,
         };
@@ -568,33 +571,44 @@ export default function ReelStudio({
             </div>
 
             <div className="space-y-5">
-              {!isEditing && (
-                <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.04] p-3">
-                  <div className="flex min-w-0 items-center gap-3">
-                    <FileVideo size={18} className="shrink-0 text-cyan-300" />
-                    <span className="truncate text-xs font-bold text-white/75">
-                      {videoFile?.name || "No video selected"}
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => videoInputRef.current?.click()}
-                    className="shrink-0 rounded-full bg-white/10 px-3 py-2 text-[10px] font-black text-white/80"
-                  >
-                    Change
-                  </button>
-                  <input
-                    ref={videoInputRef}
-                    type="file"
-                    accept="video/*"
-                    className="hidden"
-                    onChange={(event) => {
-                      handleVideoFile(event.target.files?.[0]);
-                      event.target.value = "";
-                    }}
-                  />
+              <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.04] p-3">
+                <div className="flex min-w-0 items-center gap-3">
+                  <FileVideo size={18} className="shrink-0 text-cyan-300" />
+                  <span className="truncate text-xs font-bold text-white/75">
+                    {videoFile?.name || (isEditing ? "Current video" : "No video selected")}
+                  </span>
                 </div>
-              )}
+                <button
+                  type="button"
+                  onClick={() => videoInputRef.current?.click()}
+                  className="shrink-0 rounded-full bg-white/10 px-3 py-2 text-[10px] font-black text-white/80"
+                >
+                  {isEditing ? "Replace" : "Choose"}
+                </button>
+                <input
+                  ref={videoInputRef}
+                  type="file"
+                  accept="video/*"
+                  className="hidden"
+                  onChange={(event) => {
+                    handleVideoFile(event.target.files?.[0]);
+                    event.target.value = "";
+                  }}
+                />
+              </div>
+
+              <section>
+                <label htmlFor="reel-caption" className="mb-2 block text-xs font-black uppercase tracking-widest text-white/75">Caption</label>
+                <textarea
+                  id="reel-caption"
+                  value={caption}
+                  onChange={(event) => setCaption(event.target.value)}
+                  maxLength={2200}
+                  rows={3}
+                  placeholder="Add a caption to your Reel…"
+                  className="w-full resize-y rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm text-white outline-none placeholder:text-white/35 focus:border-cyan-300/50"
+                />
+              </section>
 
               <section>
                 <div className="mb-2 flex items-center gap-2">
@@ -671,7 +685,7 @@ export default function ReelStudio({
                   onClick={() => audioInputRef.current?.click()}
                   className="mt-2 flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-white/15 py-3 text-xs font-bold text-white/55 hover:border-pink-300/50 hover:text-white"
                 >
-                  <Upload size={14} /> Upload MP3 to Cloudinary
+                  <Upload size={14} /> 📱 Phone Upload
                 </button>
                 <input
                   ref={audioInputRef}
