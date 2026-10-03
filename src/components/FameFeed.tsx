@@ -60,6 +60,7 @@ import {
   Volume2,
   VolumeX,
   ChevronDown,
+  Sparkles,
   Play,
   Users,
   Film,
