@@ -1890,31 +1890,65 @@ type FameFeedReelCandidate = {
 const visibleFameFeedReels = new Map<HTMLVideoElement, FameFeedReelCandidate>();
 let lastCenteredFameFeedVideo: HTMLVideoElement | null = null;
 
+const isConnectedMediaElement = (element: HTMLMediaElement | null): element is HTMLMediaElement =>
+  Boolean(element && element.isConnected && typeof element.pause === "function");
+
+const pauseAndMuteFameFeedReel = (video: HTMLVideoElement | null, audio: HTMLAudioElement | null) => {
+  if (isConnectedMediaElement(video)) {
+    try {
+      video.pause();
+      video.muted = true;
+    } catch {}
+  }
+  if (isConnectedMediaElement(audio)) {
+    try {
+      audio.pause();
+      audio.muted = true;
+    } catch {}
+  }
+};
+
 const syncCenteredFameFeedReel = () => {
   [...visibleFameFeedReels.entries()].forEach(([video, reel]) => {
+    if (!isConnectedMediaElement(video)) {
+      visibleFameFeedReels.delete(video);
+      if (isConnectedMediaElement(reel.audio)) {
+        try {
+          reel.audio.pause();
+          reel.audio.muted = true;
+        } catch {}
+      }
+      return;
+    }
     const rect = video.getBoundingClientRect();
     const visibleHeight = Math.max(0, Math.min(rect.bottom, window.innerHeight) - Math.max(rect.top, 0));
     const ratio = rect.height > 0 ? visibleHeight / rect.height : 0;
     const centerDistance = Math.abs(rect.top + rect.height / 2 - window.innerHeight / 2);
-    if (ratio < 0.35 || centerDistance > window.innerHeight * 0.42) {
+    if (ratio <= 0) {
       visibleFameFeedReels.delete(video);
     } else {
       visibleFameFeedReels.set(video, { ...reel, ratio, centerDistance });
     }
   });
   const candidate = [...visibleFameFeedReels.entries()]
-    .filter(([, reel]) => reel.ratio >= 0.35 && reel.centerDistance <= window.innerHeight * 0.42)
+    .filter(([video, reel]) => isConnectedMediaElement(video) && reel.ratio > 0)
     .sort(([, first], [, second]) => first.centerDistance - second.centerDistance || second.ratio - first.ratio)[0];
   const activeVideo = candidate?.[0] ?? null;
   const activeReel = candidate?.[1] ?? null;
 
   visibleFameFeedReels.forEach((reel, video) => {
     if (video === activeVideo) return;
-    video.pause();
-    video.muted = true;
-    if (reel.audio) {
-      reel.audio.pause();
-      reel.audio.muted = true;
+    if (isConnectedMediaElement(video)) {
+      try {
+        video.pause();
+        video.muted = true;
+      } catch {}
+    }
+    if (isConnectedMediaElement(reel.audio)) {
+      try {
+        reel.audio.pause();
+        reel.audio.muted = true;
+      } catch {}
     }
   });
 
@@ -1924,27 +1958,37 @@ const syncCenteredFameFeedReel = () => {
     lastCenteredFameFeedVideo = activeVideo;
     activeReel?.settings.current.onActivate();
   }
-  if (!activeVideo || !activeReel) return;
+  if (!isConnectedMediaElement(activeVideo) || !activeReel) return;
 
   const settings = activeReel.settings.current;
-  activeVideo.muted = settings.hasBackgroundAudio || settings.muted;
-  activeVideo.volume = 1;
-  if (activeVideo.paused) void activeVideo.play().catch(() => {});
+  try {
+    activeVideo.muted = settings.hasBackgroundAudio || settings.muted;
+    activeVideo.volume = 1;
+    if (activeVideo.paused) void activeVideo.play().catch(() => {});
+  } catch {}
 
-  if (!activeReel.audio || !settings.hasBackgroundAudio) return;
-  activeReel.audio.muted = settings.muted;
-  activeReel.audio.volume = 1;
-  if (settings.muted) {
-    activeReel.audio.pause();
+  if (!isConnectedMediaElement(activeReel.audio) || !settings.hasBackgroundAudio) return;
+  try {
+    activeReel.audio.muted = settings.muted;
+    activeReel.audio.volume = 1;
+  } catch {
     return;
   }
-  if (Math.abs(activeReel.audio.currentTime - activeVideo.currentTime) > 0.18) {
-    activeReel.audio.currentTime = activeVideo.currentTime;
+  if (settings.muted) {
+    try { activeReel.audio.pause(); } catch {}
+    return;
   }
-  if (activeReel.audio.paused) {
-    void activeReel.audio.play()
-      .then(() => settings.setAudioNeedsGesture(false))
-      .catch(() => settings.setAudioNeedsGesture(true));
+  try {
+    if (Math.abs(activeReel.audio.currentTime - activeVideo.currentTime) > 0.18) {
+      activeReel.audio.currentTime = activeVideo.currentTime;
+    }
+    if (activeReel.audio.paused) {
+      void activeReel.audio.play()
+        .then(() => settings.setAudioNeedsGesture(false))
+        .catch(() => settings.setAudioNeedsGesture(true));
+    }
+  } catch {
+    settings.setAudioNeedsGesture(true);
   }
 };
 
@@ -2242,29 +2286,44 @@ const SingleReelBlock = ({
     el.style.filter = reelSettings.cssFilter;
     const retryPlayback = () => {
       const settings = playbackSettingsRef.current;
-      if (activeFameFeedVideo !== el || document.visibilityState === "hidden") return;
-      el.muted = settings.hasBackgroundAudio || settings.muted;
-      el.volume = 1;
-      if (el.paused) el.play().catch(() => {});
+      if (!isConnectedMediaElement(ref.current) || activeFameFeedVideo !== ref.current || document.visibilityState === "hidden") return;
+      const activeVideo = ref.current;
+      try {
+        activeVideo.muted = settings.hasBackgroundAudio || settings.muted;
+        activeVideo.volume = 1;
+        if (activeVideo.paused) void activeVideo.play().catch(() => {});
+      } catch {}
       const audio = audioRef.current;
-      if (audio && settings.hasBackgroundAudio) {
-        audio.muted = settings.muted;
-        audio.volume = 1;
-        if (!settings.muted && audio.paused) {
-          void audio.play().then(() => settings.setAudioNeedsGesture(false)).catch(() => settings.setAudioNeedsGesture(true));
+      if (isConnectedMediaElement(audio) && settings.hasBackgroundAudio) {
+        try {
+          audio.muted = settings.muted;
+          audio.volume = 1;
+          if (!settings.muted && audio.paused) {
+            void audio.play().then(() => settings.setAudioNeedsGesture(false)).catch(() => settings.setAudioNeedsGesture(true));
+          }
+        } catch {
+          settings.setAudioNeedsGesture(true);
         }
       }
     };
     const gestureEvents = ["pointerdown", "touchstart", "click", "scroll", "wheel"] as const;
     gestureEvents.forEach((eventName) => document.addEventListener(eventName, retryPlayback, { capture: true, passive: true }));
     const obs = new IntersectionObserver(
-      ([entry]) => {
+      (entries) => {
+        const entry = entries[0];
         const video = ref.current;
-        if (!video) return;
+        if (!entry || !isConnectedMediaElement(video)) {
+          if (video) {
+            visibleFameFeedReels.delete(video);
+            pauseAndMuteFameFeedReel(video, audioRef.current);
+          }
+          syncCenteredFameFeedReel();
+          return;
+        }
         const centerDistance = Math.abs(
           entry.boundingClientRect.top + entry.boundingClientRect.height / 2 - window.innerHeight / 2,
         );
-        if (entry.isIntersecting && entry.intersectionRatio >= 0.35 && centerDistance <= window.innerHeight * 0.42) {
+        if (entry.isIntersecting && entry.intersectionRatio > 0) {
           visibleFameFeedReels.set(video, {
             ratio: entry.intersectionRatio,
             centerDistance,
@@ -2273,16 +2332,22 @@ const SingleReelBlock = ({
           });
         } else {
           visibleFameFeedReels.delete(video);
+          pauseAndMuteFameFeedReel(video, audioRef.current);
         }
         syncCenteredFameFeedReel();
       },
       { threshold: [0, 0.35, 0.5, 0.75, 1] },
     );
-    obs.observe(el);
+    try {
+      if (el.isConnected) obs.observe(el);
+    } catch {
+      visibleFameFeedReels.delete(el);
+    }
     return () => {
       obs.disconnect();
       gestureEvents.forEach((eventName) => document.removeEventListener(eventName, retryPlayback, true));
       visibleFameFeedReels.delete(el);
+      pauseAndMuteFameFeedReel(el, audioRef.current);
       syncCenteredFameFeedReel();
     };
   }, [reelSettings.cssFilter, reelSettings.playbackRate, reelVideoUrl]);
@@ -2290,13 +2355,14 @@ const SingleReelBlock = ({
   useEffect(() => {
     const video = ref.current;
     const audio = audioRef.current;
-    if (!video || !audio || !hasBackgroundAudio) return;
+    if (!isConnectedMediaElement(video) || !isConnectedMediaElement(audio) || !hasBackgroundAudio) return;
     audio.playbackRate = reelSettings.playbackRate;
     audio.loop = true;
     const syncAudio = () => {
-      if (Math.abs(audio.currentTime - video.currentTime) > 0.18) {
-        audio.currentTime = video.currentTime;
-      }
+      if (!isConnectedMediaElement(audio) || !isConnectedMediaElement(video)) return;
+      try {
+        if (Math.abs(audio.currentTime - video.currentTime) > 0.18) audio.currentTime = video.currentTime;
+      } catch {}
     };
     video.addEventListener("timeupdate", syncAudio);
     return () => video.removeEventListener("timeupdate", syncAudio);
