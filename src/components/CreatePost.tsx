@@ -1219,7 +1219,7 @@ const CreatePost = ({
                                 {musicTracks.map((track) => <option key={track.id} value={track.id}>{track.title} · {track.artist}</option>)}
                               </select>
                               <button type="button" onClick={() => audioFileInputRef.current?.click()} className="flex h-10 items-center justify-center gap-2 rounded-xl border border-dashed border-pink-300 bg-white px-3 text-xs font-bold text-pink-700 hover:bg-pink-50">
-                                <Music2 size={14} /> Upload MP3
+                                <Music2 size={14} /> 📱 Phone Upload
                               </button>
                               <input
                                 ref={audioFileInputRef}
