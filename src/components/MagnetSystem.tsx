@@ -1779,11 +1779,13 @@ interface MagnetButtonProps {
   dark?: boolean;
   myName?: string;
   onMagnetLoad?: (d: { linkers: Array<{ full_name: string; avatar_url: string | null }>; voices: MagnetVoice[] }) => void;
+  label?: string;
 }
 
 export function MagnetButton({
   postId, postType, postOwnerId, currentUserId, onBridgeChat, dark = true, myName = "Someone",
   onMagnetLoad,
+  label,
 }: MagnetButtonProps) {
   const [showModal, setShowModal] = useState(false);
   const {
@@ -1829,7 +1831,7 @@ export function MagnetButton({
           className="text-base leading-none"
         >🔗</motion.span>
         <span className={`text-[10px] font-black leading-none ${textCls}`}>
-          {loading ? "…" : formatReach(reach)}
+          {label ? `${label} · ` : ""}{loading ? "…" : formatReach(reach)}
         </span>
         {/* Last linker badge — inline avatar to the right of the count */}
         <AnimatePresence>

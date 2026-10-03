@@ -1871,6 +1871,96 @@ const SuggestionPlaceholder = ({
 let activeFameFeedVideo: HTMLVideoElement | null = null;
 let activeFameFeedAudio: HTMLAudioElement | null = null;
 
+type FameFeedReelSettingsRef = {
+  current: {
+    muted: boolean;
+    hasBackgroundAudio: boolean;
+    setAudioNeedsGesture: (blocked: boolean) => void;
+    onActivate: () => void;
+  };
+};
+
+type FameFeedReelCandidate = {
+  ratio: number;
+  centerDistance: number;
+  audio: HTMLAudioElement | null;
+  settings: FameFeedReelSettingsRef;
+};
+
+const visibleFameFeedReels = new Map<HTMLVideoElement, FameFeedReelCandidate>();
+let lastCenteredFameFeedVideo: HTMLVideoElement | null = null;
+
+const syncCenteredFameFeedReel = () => {
+  [...visibleFameFeedReels.entries()].forEach(([video, reel]) => {
+    const rect = video.getBoundingClientRect();
+    const visibleHeight = Math.max(0, Math.min(rect.bottom, window.innerHeight) - Math.max(rect.top, 0));
+    const ratio = rect.height > 0 ? visibleHeight / rect.height : 0;
+    const centerDistance = Math.abs(rect.top + rect.height / 2 - window.innerHeight / 2);
+    if (ratio < 0.35 || centerDistance > window.innerHeight * 0.42) {
+      visibleFameFeedReels.delete(video);
+    } else {
+      visibleFameFeedReels.set(video, { ...reel, ratio, centerDistance });
+    }
+  });
+  const candidate = [...visibleFameFeedReels.entries()]
+    .filter(([, reel]) => reel.ratio >= 0.35 && reel.centerDistance <= window.innerHeight * 0.42)
+    .sort(([, first], [, second]) => first.centerDistance - second.centerDistance || second.ratio - first.ratio)[0];
+  const activeVideo = candidate?.[0] ?? null;
+  const activeReel = candidate?.[1] ?? null;
+
+  visibleFameFeedReels.forEach((reel, video) => {
+    if (video === activeVideo) return;
+    video.pause();
+    video.muted = true;
+    if (reel.audio) {
+      reel.audio.pause();
+      reel.audio.muted = true;
+    }
+  });
+
+  activeFameFeedVideo = activeVideo;
+  activeFameFeedAudio = activeReel?.audio ?? null;
+  if (lastCenteredFameFeedVideo !== activeVideo) {
+    lastCenteredFameFeedVideo = activeVideo;
+    activeReel?.settings.current.onActivate();
+  }
+  if (!activeVideo || !activeReel) return;
+
+  const settings = activeReel.settings.current;
+  activeVideo.muted = settings.hasBackgroundAudio || settings.muted;
+  activeVideo.volume = 1;
+  if (activeVideo.paused) void activeVideo.play().catch(() => {});
+
+  if (!activeReel.audio || !settings.hasBackgroundAudio) return;
+  activeReel.audio.muted = settings.muted;
+  activeReel.audio.volume = 1;
+  if (settings.muted) {
+    activeReel.audio.pause();
+    return;
+  }
+  if (Math.abs(activeReel.audio.currentTime - activeVideo.currentTime) > 0.18) {
+    activeReel.audio.currentTime = activeVideo.currentTime;
+  }
+  if (activeReel.audio.paused) {
+    void activeReel.audio.play()
+      .then(() => settings.setAudioNeedsGesture(false))
+      .catch(() => settings.setAudioNeedsGesture(true));
+  }
+};
+
+let fameReelSyncFrame = 0;
+const scheduleCenteredFameFeedReelSync = () => {
+  if (fameReelSyncFrame) return;
+  fameReelSyncFrame = window.requestAnimationFrame(() => {
+    fameReelSyncFrame = 0;
+    syncCenteredFameFeedReel();
+  });
+};
+if (typeof window !== "undefined") {
+  window.addEventListener("scroll", scheduleCenteredFameFeedReelSync, { passive: true });
+  window.addEventListener("resize", scheduleCenteredFameFeedReelSync, { passive: true });
+}
+
 const FeedReelComments = ({
   post,
   comments,
@@ -1940,28 +2030,55 @@ const FeedReelComments = ({
   );
 };
 
+const ReelCommentsTicker = ({ items, onOpen }: {
+  items: Array<{ author: string; content: string }>;
+  onOpen: () => void;
+}) => (
+  <button type="button" onClick={onOpen} aria-label="Open live Reel comments" className="reel-comments-ticker">
+    {items.length ? (
+      <div className="reel-comments-track" aria-live="polite">
+        {[...items, ...items].map((comment, index) => (
+          <span key={`${comment.author}-${index}`} className="reel-comment-item">
+            <MessageCircle size={12} className="shrink-0 text-[#b6ec57]" />
+            <strong>{comment.author || "Someone"}</strong>
+            <span>{comment.content}</span>
+          </span>
+        ))}
+      </div>
+    ) : (
+      <span className="reel-comments-empty"><MessageCircle size={12} />No comments yet. Be the first to spark the vibe! <Sparkles size={12} /></span>
+    )}
+  </button>
+);
+
 const SingleReelBlock = ({
   post,
   currentUserId,
   commentCount,
+  commentTickerItems,
   onOpenComments,
   onEdit,
   onDelete,
   onReport,
+  onNextReel,
 }: {
   post: any;
   currentUserId: string | null;
   commentCount: number;
+  commentTickerItems: Array<{ author: string; content: string }>;
   onOpenComments: () => void;
   onEdit: () => void;
   onDelete: () => void;
   onReport: () => void;
+  onNextReel: () => void;
 }) => {
   const ref = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const [muted, setMuted] = useState(false);
   const [audioNeedsGesture, setAudioNeedsGesture] = useState(false);
   const [showReelMenu, setShowReelMenu] = useState(false);
+  const [viewerPreviews, setViewerPreviews] = useState<Array<{ id: string; full_name: string; avatar_url: string | null }>>([]);
+  const viewerPreviewLoadedRef = useRef(false);
   const [likedByMe, setLikedByMe] = useState(false);
   const [likeCount, setLikeCount] = useState(() => totalLikesFrom(post));
   const [likePending, setLikePending] = useState(false);
@@ -1970,6 +2087,33 @@ const SingleReelBlock = ({
   const reelVideoUrl = reelSettings.videoUrl || post.media_url;
   const hasBackgroundAudio = Boolean(reelSettings.audioUrl);
   const isOwner = Boolean(currentUserId && post.author_id === currentUserId);
+  const loadViewerPreviews = useCallback(async () => {
+    if (viewerPreviewLoadedRef.current) return;
+    viewerPreviewLoadedRef.current = true;
+    try {
+      const { data: viewRows, error: viewError } = await supabase
+        .from("post_views")
+        .select("user_id")
+        .eq("post_id", post.id)
+        .not("user_id", "is", null)
+        .order("viewed_at", { ascending: false })
+        .limit(6);
+      if (viewError || !viewRows?.length) return;
+      const viewerIds = [...new Set(viewRows.map((row: any) => row.user_id).filter((id: string) => id && id !== currentUserId))].slice(0, 3);
+      if (!viewerIds.length) return;
+      const { data: profiles, error: profilesError } = await supabase
+        .from("profiles")
+        .select("id, full_name, avatar_url")
+        .in("id", viewerIds);
+      if (profilesError || !profiles) return;
+      const profilesById = new Map(profiles.map((profile: any) => [profile.id, profile]));
+      setViewerPreviews(viewerIds.map((id) => profilesById.get(id)).filter(Boolean) as Array<{ id: string; full_name: string; avatar_url: string | null }>);
+    } catch (error) {
+      console.warn("[FameFeed] reel audience preview failed:", error);
+    }
+  }, [currentUserId, post.id]);
+  const playbackSettingsRef = useRef({ muted, hasBackgroundAudio, setAudioNeedsGesture, onActivate: loadViewerPreviews });
+  playbackSettingsRef.current = { muted, hasBackgroundAudio, setAudioNeedsGesture, onActivate: loadViewerPreviews };
 
   const refreshLikeState = useCallback(async () => {
     const countRequest = supabase
@@ -2096,18 +2240,18 @@ const SingleReelBlock = ({
     if (!el) return;
     el.playbackRate = reelSettings.playbackRate;
     el.style.filter = reelSettings.cssFilter;
-    let isActive = false;
     const retryPlayback = () => {
-      if (!isActive || activeFameFeedVideo !== el || document.visibilityState === "hidden") return;
-      el.muted = hasBackgroundAudio || muted;
+      const settings = playbackSettingsRef.current;
+      if (activeFameFeedVideo !== el || document.visibilityState === "hidden") return;
+      el.muted = settings.hasBackgroundAudio || settings.muted;
       el.volume = 1;
       if (el.paused) el.play().catch(() => {});
       const audio = audioRef.current;
-      if (audio && hasBackgroundAudio) {
-        audio.muted = muted;
+      if (audio && settings.hasBackgroundAudio) {
+        audio.muted = settings.muted;
         audio.volume = 1;
-        if (audio.paused) {
-          void audio.play().then(() => setAudioNeedsGesture(false)).catch(() => setAudioNeedsGesture(true));
+        if (!settings.muted && audio.paused) {
+          void audio.play().then(() => settings.setAudioNeedsGesture(false)).catch(() => settings.setAudioNeedsGesture(true));
         }
       }
     };
@@ -2115,43 +2259,33 @@ const SingleReelBlock = ({
     gestureEvents.forEach((eventName) => document.addEventListener(eventName, retryPlayback, { capture: true, passive: true }));
     const obs = new IntersectionObserver(
       ([entry]) => {
-        if (!ref.current) return;
-        if (entry.isIntersecting) {
-          isActive = true;
-          if (activeFameFeedVideo && activeFameFeedVideo !== ref.current) activeFameFeedVideo.pause();
-          if (activeFameFeedAudio && activeFameFeedAudio !== audioRef.current) activeFameFeedAudio.pause();
-          activeFameFeedVideo = ref.current;
-          activeFameFeedAudio = audioRef.current;
-          ref.current.muted = hasBackgroundAudio || muted;
-          ref.current.volume = 1;
-          if (audioRef.current && hasBackgroundAudio) {
-            audioRef.current.muted = muted;
-            audioRef.current.volume = 1;
-            audioRef.current.currentTime = ref.current.currentTime;
-            void audioRef.current.play().then(() => setAudioNeedsGesture(false)).catch(() => setAudioNeedsGesture(true));
-          }
-          ref.current.play().catch(() => {});
+        const video = ref.current;
+        if (!video) return;
+        const centerDistance = Math.abs(
+          entry.boundingClientRect.top + entry.boundingClientRect.height / 2 - window.innerHeight / 2,
+        );
+        if (entry.isIntersecting && entry.intersectionRatio >= 0.35 && centerDistance <= window.innerHeight * 0.42) {
+          visibleFameFeedReels.set(video, {
+            ratio: entry.intersectionRatio,
+            centerDistance,
+            audio: audioRef.current,
+            settings: playbackSettingsRef,
+          });
         } else {
-          isActive = false;
-          ref.current.pause();
-          audioRef.current?.pause();
-          if (activeFameFeedVideo === ref.current) activeFameFeedVideo = null;
-          if (activeFameFeedAudio === audioRef.current) activeFameFeedAudio = null;
+          visibleFameFeedReels.delete(video);
         }
+        syncCenteredFameFeedReel();
       },
-      { threshold: 0.5 },
+      { threshold: [0, 0.35, 0.5, 0.75, 1] },
     );
     obs.observe(el);
     return () => {
-      isActive = false;
       obs.disconnect();
       gestureEvents.forEach((eventName) => document.removeEventListener(eventName, retryPlayback, true));
-      el.pause();
-      audioRef.current?.pause();
-      if (activeFameFeedVideo === el) activeFameFeedVideo = null;
-      if (activeFameFeedAudio === audioRef.current) activeFameFeedAudio = null;
+      visibleFameFeedReels.delete(el);
+      syncCenteredFameFeedReel();
     };
-  }, [hasBackgroundAudio, muted, reelSettings.cssFilter, reelSettings.playbackRate, reelVideoUrl]);
+  }, [reelSettings.cssFilter, reelSettings.playbackRate, reelVideoUrl]);
 
   useEffect(() => {
     const video = ref.current;
@@ -2173,6 +2307,7 @@ const SingleReelBlock = ({
     reelVideoUrl?.includes("youtu.be");
 
   return (
+    <>
     <div
       className="bg-black relative w-full feed-reel"
       style={{ aspectRatio: "9/16", height: "100svh", minHeight: "100svh", maxHeight: "100svh", touchAction: "pan-y" }}
@@ -2189,12 +2324,12 @@ const SingleReelBlock = ({
             className="w-full h-full object-cover"
             style={{ touchAction: "pan-y", filter: reelSettings.cssFilter }}
             loop
-            muted={hasBackgroundAudio || muted}
+            muted
             playsInline
             preload="metadata"
           />
           {hasBackgroundAudio && (
-            <audio ref={audioRef} src={reelSettings.audioUrl || undefined} preload="metadata" loop />
+            <audio ref={audioRef} src={reelSettings.audioUrl || undefined} preload="metadata" loop muted />
           )}
         </>
       )}
@@ -2297,25 +2432,6 @@ const SingleReelBlock = ({
           </span>
         </button>
         <button
-          className="flex flex-col items-center"
-          onClick={() => {
-            void sharePost({
-              postId: post.id,
-              caption: post.content,
-              mediaUrl: post.media_url,
-              mediaType: post.type || (post.media_url ? "image" : null),
-              authorName: post.author,
-              metaTitle: post.meta_title,
-              metaDescription: post.meta_description,
-            }).then((outcome) => {
-              if (outcome === "copied") toast.success("Link copied!");
-            });
-          }}
-        >
-          <Share2 size={24} fill="white" className="text-white" />
-          <span className="text-white text-[10px] font-bold mt-1">Share</span>
-        </button>
-        <button
           type="button"
           onClick={onOpenComments}
           aria-label={`Open ${commentCount} comments`}
@@ -2326,6 +2442,27 @@ const SingleReelBlock = ({
         </button>
       </div>
     </div>
+    <section className="reel-engagement-footer" aria-label="Reel engagement">
+      <div className="flex min-w-0 items-center gap-2">
+        <div className="flex -space-x-2" aria-hidden="true">
+          {viewerPreviews.length ? (
+            viewerPreviews.map((viewer) => <span key={viewer.id} title={viewer.full_name} className="grid h-6 w-6 place-items-center overflow-hidden rounded-full border-2 border-[#120b0f] bg-[#45313a] text-[8px] font-bold text-white/75">{viewer.avatar_url ? <img src={viewer.avatar_url} alt="" className="h-full w-full object-cover" /> : viewer.full_name?.[0]?.toUpperCase() || "?"}</span>)
+          ) : (
+            Array.from({ length: Math.min(3, Math.max(1, Number(post.views_count || 0) ? 3 : 1)) }, (_, index) => <span key={index} className="grid h-6 w-6 place-items-center rounded-full border-2 border-[#120b0f] bg-[#45313a] text-[8px] font-bold text-white/60"><Users size={11} /></span>)
+          )}
+        </div>
+        <span className="truncate text-[10px] font-semibold text-white/55">Seen by <strong className="text-white/80">{Number(post.views_count || 0).toLocaleString()}</strong> people</span>
+      </div>
+      <ReelCommentsTicker items={commentTickerItems.slice(0, 4)} onOpen={onOpenComments} />
+      <div className="reel-footer-actions">
+        <button type="button" onClick={toggleReelLike} disabled={likePending} aria-pressed={likedByMe} className={`reel-footer-action ${likedByMe ? "is-liked" : ""}`}><Heart size={15} fill={likedByMe ? "currentColor" : "none"} />Like <span>{likeCount}</span></button>
+        <button type="button" onClick={onOpenComments} className="reel-footer-action"><MessageCircle size={15} />Comments <span>{commentCount}</span></button>
+        <button type="button" onClick={() => { void sharePost({ postId: post.id, caption: post.content, mediaUrl: post.media_url, mediaType: post.type || (post.media_url ? "image" : null), authorName: post.author, metaTitle: post.meta_title, metaDescription: post.meta_description }).then((outcome) => { if (outcome === "copied") toast.success("Link copied!"); }); }} className="reel-footer-action"><Share2 size={15} />Share</button>
+        <MagnetButton postId={post.id} postType="post" postOwnerId={post.author_id || ""} currentUserId={currentUserId} dark label="Magnet" />
+        <button type="button" onClick={onNextReel} className="reel-footer-next"><ChevronDown size={14} className="-rotate-90" />Next Reel</button>
+      </div>
+    </section>
+    </>
   );
 };
 
@@ -4704,6 +4841,13 @@ const FameFeed = ({
             authorId: currentUserId,
           },
         }));
+        setCommentTickerMap((prev) => ({
+          ...prev,
+          [postId]: [
+            { author: authorName, content: text, authorId: currentUserId },
+            ...(prev[postId] || []).filter((comment) => comment.content !== text || comment.authorId !== currentUserId),
+          ].slice(0, 4),
+        }));
       }
     }
 
@@ -4948,20 +5092,24 @@ const FameFeed = ({
     if (isVideo) {
       const isCommentsOpen = commentSheetId === post.id;
       const isReplying = replyingTo?.postId === post.id;
-      const hasReelAudio = Boolean(getReelSettings(post).audioUrl);
       return (
         <PostViewTracker
           key={post.id}
           postId={post.id}
           onView={incrementView}
-          vibeAudioUrl={hasReelAudio ? null : vibeAudioUrl}
+          vibeAudioUrl={null}
           vibeAudioLoop={primaryVibe?.audioLoop ?? true}
         >
-          <div className="relative mb-5 overflow-hidden border-y border-white/10 bg-[#10090d] sm:mb-7 sm:rounded-lg sm:border">
+          <div id={`feed-reel-${post.id}`} data-feed-reel-card data-post-id={post.id} className="relative mb-5 overflow-hidden border-y border-white/10 bg-[#10090d] sm:mb-7 sm:rounded-lg sm:border">
             <SingleReelBlock
               post={post}
               currentUserId={currentUserId}
               commentCount={commentsMap[post.id]?.length ?? post.comments_count ?? 0}
+              commentTickerItems={commentTickerMap[post.id]?.length
+                ? commentTickerMap[post.id]
+                : latestCommentPreviews[post.id]
+                  ? [latestCommentPreviews[post.id]]
+                  : []}
               onEdit={() => window.dispatchEvent(new CustomEvent("flicks:open-reel-studio", { detail: { reel: post } }))}
               onDelete={() => {
                 if (window.confirm("Delete this Reel permanently? This cannot be undone.")) {
@@ -4974,6 +5122,12 @@ const FameFeed = ({
                 reason: "",
                 anchor: { top: Math.max(8, Math.min(window.innerHeight - 360, window.innerHeight / 2 - 170)), right: 16 },
               })}
+              onNextReel={() => {
+                const reelCards = Array.from(document.querySelectorAll<HTMLElement>("[data-feed-reel-card]"));
+                const currentCard = document.getElementById(`feed-reel-${post.id}`);
+                const nextCard = reelCards[reelCards.indexOf(currentCard as HTMLElement) + 1];
+                nextCard?.scrollIntoView({ behavior: "smooth", block: "center" });
+              }}
               onOpenComments={() => {
                 const isOpening = !isCommentsOpen;
                 setCommentSheetId(isOpening ? post.id : null);
