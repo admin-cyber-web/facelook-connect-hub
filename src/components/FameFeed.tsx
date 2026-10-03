@@ -59,6 +59,7 @@ import {
   X,
   Volume2,
   VolumeX,
+  ChevronDown,
   Play,
   Users,
   Film,
