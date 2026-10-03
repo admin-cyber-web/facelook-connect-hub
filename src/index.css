@@ -698,6 +698,246 @@
   will-change: opacity, transform;
 }
 
+@keyframes mood-scene-impact {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  16% { transform: translate3d(-5px, 1px, 0); }
+  32% { transform: translate3d(5px, -1px, 0); }
+  48% { transform: translate3d(-3px, 0, 0); }
+  64% { transform: translate3d(2px, 0, 0); }
+}
+
+@keyframes mood-scene-enter-left {
+  from { transform: translate3d(-36px, 0, 0); opacity: .45; }
+  to { transform: translate3d(0, 0, 0); opacity: 1; }
+}
+
+@keyframes mood-scene-enter-right {
+  from { transform: translate3d(36px, 0, 0); opacity: .45; }
+  to { transform: translate3d(0, 0, 0); opacity: 1; }
+}
+
+@keyframes mood-scene-clash-flash {
+  0%, 100% { opacity: 0; }
+  17% { opacity: .28; }
+  26% { opacity: .05; }
+}
+
+@keyframes mood-scene-heartbeat {
+  0%, 100% { transform: scale(1); }
+  9% { transform: scale(1.025); }
+  18% { transform: scale(1); }
+  29% { transform: scale(1.04); }
+  42% { transform: scale(1); }
+}
+
+@keyframes mood-scene-particle-drift {
+  0% { transform: translate3d(0, 16px, 0); opacity: 0; }
+  25% { opacity: .62; }
+  78% { opacity: .36; }
+  100% { transform: translate3d(0, -22px, 0); opacity: 0; }
+}
+
+@keyframes mood-scene-glide {
+  from { transform: translate3d(-12%, 0, 0); }
+  to { transform: translate3d(12%, 0, 0); }
+}
+
+@keyframes mood-scene-rainfall {
+  from { transform: translate3d(0, -32px, 0); opacity: 0; }
+  18% { opacity: .55; }
+  to { transform: translate3d(-7px, 280px, 0); opacity: 0; }
+}
+
+.mood-vault {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse at 72% 4%, rgba(30, 108, 119, .18), transparent 35%),
+    radial-gradient(ellipse at 12% 50%, rgba(95, 67, 46, .12), transparent 32%),
+    linear-gradient(155deg, #0a1117 0%, #080b10 54%, #101318 100%);
+  font-family: "DM Sans", sans-serif;
+}
+
+.mood-vault-grain {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: .12;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.24'/%3E%3C/svg%3E");
+}
+
+.mood-vault-back,
+.mood-vault-pill,
+.mood-tag-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: color .2s ease, background-color .2s ease, border-color .2s ease, transform .2s ease;
+}
+
+.mood-vault-back {
+  min-height: 38px;
+  color: rgba(255,255,255,.67);
+  font-size: 12px;
+}
+
+.mood-vault-back:hover { color: white; }
+.mood-vault-back:active, .mood-vault-pill:active, .mood-tag-button:active { transform: scale(.97); }
+
+.mood-vault-pill {
+  min-height: 39px;
+  flex: 0 0 auto;
+  padding: 0 14px;
+  border: 1px solid rgba(255,255,255,.11);
+  border-radius: 999px;
+  background: rgba(255,255,255,.045);
+  color: rgba(255,255,255,.64);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.mood-vault-pill:hover { border-color: rgba(255,255,255,.25); color: white; }
+.mood-vault-pill.is-active { border-color: rgba(164,228,226,.42); background: rgba(118,197,197,.16); color: #d9fffb; box-shadow: inset 0 1px rgba(255,255,255,.08), 0 4px 20px rgba(32,125,128,.1); }
+
+.mood-scene {
+  min-height: 330px;
+  aspect-ratio: 2.15 / 1;
+  background: #101820;
+  box-shadow: 0 22px 70px rgba(0,0,0,.3), inset 0 1px rgba(255,255,255,.06);
+}
+
+.mood-scene-backdrop,
+.mood-scene-vignette,
+.mood-scene-images,
+.mood-scene-lines,
+.mood-scene-rain,
+.mood-scene-flash { position: absolute; inset: 0; pointer-events: none; }
+
+.mood-scene-backdrop {
+  z-index: 0;
+  background:
+    linear-gradient(112deg, rgba(11,17,23,.84), rgba(18,37,41,.3) 52%, rgba(10,14,18,.84)),
+    radial-gradient(ellipse at 52% 42%, rgba(196,150,105,.18), transparent 48%),
+    linear-gradient(145deg, #29383a, #111a21 52%, #191516);
+}
+
+.mood-scene--travel .mood-scene-backdrop {
+  background-image: linear-gradient(180deg, rgba(8,17,25,.12), rgba(7,14,20,.7)), url("https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=1800&q=85");
+  background-size: cover;
+  background-position: center 54%;
+}
+
+.mood-scene--sad .mood-scene-backdrop,
+.mood-scene--missing .mood-scene-backdrop {
+  background:
+    linear-gradient(110deg, rgba(6,14,24,.7), rgba(12,27,42,.43) 48%, rgba(4,13,23,.73)),
+    radial-gradient(ellipse at 50% 0%, rgba(146,180,198,.24), transparent 52%),
+    linear-gradient(155deg, #253440, #101a25 52%, #101520);
+}
+
+.mood-scene-images { z-index: 1; }
+
+.mood-scene-photo {
+  position: absolute;
+  top: 8%;
+  width: min(35%, 310px);
+  height: 76%;
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,.38);
+  background: #263038;
+  box-shadow: 0 18px 38px rgba(0,0,0,.38), 0 0 0 5px rgba(255,255,255,.055), inset 0 1px rgba(255,255,255,.3);
+  will-change: transform;
+}
+
+.mood-scene-photo img { width: 100%; height: 100%; object-fit: cover; }
+.mood-scene-photo--one { left: 9%; transform: rotate(-2deg); }
+.mood-scene-photo--two { right: 9%; transform: rotate(2deg); }
+.mood-scene-vignette { z-index: 2; background: linear-gradient(90deg, rgba(4,8,12,.05) 25%, rgba(4,8,12,.04) 55%, rgba(4,8,12,.25)), linear-gradient(0deg, rgba(4,8,12,.81), transparent 57%); }
+.mood-scene-copy { position: absolute; z-index: 4; left: clamp(20px, 4vw, 46px); bottom: clamp(22px, 4vw, 42px); max-width: 76%; text-shadow: 0 2px 18px rgba(0,0,0,.4); }
+
+.mood-scene--angry .mood-scene-images { animation: mood-scene-impact .46s cubic-bezier(.36,.07,.19,.97) .35s both; }
+.mood-scene--angry .mood-scene-photo--one { animation: mood-scene-enter-left .42s cubic-bezier(.2,.78,.22,1) both; transform: translateX(8%) rotate(-3deg); }
+.mood-scene--angry .mood-scene-photo--two { animation: mood-scene-enter-right .42s cubic-bezier(.2,.78,.22,1) both; transform: translateX(-8%) rotate(3deg); }
+.mood-scene--angry .mood-scene-photo img { filter: saturate(.72) contrast(1.08); }
+.mood-scene--angry .mood-scene-flash { z-index: 3; background: rgba(255,245,228,.7); mix-blend-mode: screen; animation: mood-scene-clash-flash .5s ease-out .34s both; }
+
+.mood-scene--love::before,
+.mood-scene--love::after {
+  content: "";
+  position: absolute;
+  z-index: 3;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #fff3d6;
+  box-shadow: 0 0 13px 3px rgba(255,231,178,.55);
+  animation: mood-scene-particle-drift 4.4s ease-in-out infinite;
+}
+.mood-scene--love::before { left: 48%; top: 25%; animation-delay: -1.2s; }
+.mood-scene--love::after { left: 64%; top: 34%; animation-delay: -3.1s; }
+.mood-scene--love .mood-scene-photo { top: 11%; width: min(34%, 300px); height: 73%; border: 2px solid rgba(255,240,223,.88); border-radius: 0; -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath fill='white' d='M50,91C43,84,8,58,8,35C8,17,28,10,41,20L50,28L59,20C72,10,92,17,92,35C92,58,57,84,50,91Z'/%3E%3C/svg%3E") center / 100% 100% no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath fill='white' d='M50,91C43,84,8,58,8,35C8,17,28,10,41,20L50,28L59,20C72,10,92,17,92,35C92,58,57,84,50,91Z'/%3E%3C/svg%3E") center / 100% 100% no-repeat; }
+.mood-scene--love .mood-scene-photo--one { left: 22%; transform: rotate(-7deg) scale(.96); }
+.mood-scene--love .mood-scene-photo--two { right: 22%; transform: rotate(7deg) scale(.96); }
+.mood-scene--love .mood-scene-photo img { filter: saturate(.84) brightness(.88); }
+.mood-scene-heart-mark { position: absolute; z-index: 5; left: 50%; top: 45%; display: grid; width: 42px; height: 42px; place-items: center; border: 1px solid rgba(255,255,255,.42); border-radius: 50%; color: #ffe4dc; background: rgba(79,24,32,.48); box-shadow: 0 0 24px rgba(255,141,132,.3); backdrop-filter: blur(8px); transform: translate(-50%,-50%); animation: mood-scene-heartbeat 2.4s ease-in-out infinite; }
+
+.mood-scene--travel .mood-scene-photo { top: 14%; width: 25%; height: 62%; border-color: rgba(255,255,255,.23); }
+.mood-scene--travel .mood-scene-photo--one { left: 7%; transform: rotate(-3deg); }
+.mood-scene--travel .mood-scene-photo--two { right: 7%; transform: rotate(3deg); }
+.mood-scene-lines { z-index: 2; display: none; overflow: hidden; background: repeating-linear-gradient(0deg, transparent 0 39px, rgba(255,255,255,.18) 40px 41px, transparent 42px 76px); mask-image: linear-gradient(90deg, transparent, black 20%, black 78%, transparent); }
+.mood-scene--travel .mood-scene-lines { display: block; opacity: .3; animation: mood-scene-glide 5.5s ease-in-out infinite alternate; }
+
+.mood-scene-rain { z-index: 3; display: none; overflow: hidden; }
+.mood-scene-rain i { position: absolute; top: -34px; left: calc(3% + var(--drop-index) * 5.4%); width: 1px; height: 25px; background: linear-gradient(transparent, rgba(212,232,245,.62), transparent); opacity: 0; animation: mood-scene-rainfall 1.4s linear calc(var(--drop-index) * -0.17s) infinite; }
+.mood-scene--sad .mood-scene-rain, .mood-scene--missing .mood-scene-rain { display: block; }
+.mood-scene--sad .mood-scene-photo img, .mood-scene--missing .mood-scene-photo img { filter: saturate(.58) brightness(.74) contrast(1.04); }
+.mood-scene--missing .mood-scene-photo--one { left: 13%; }
+.mood-scene--missing .mood-scene-photo--two { right: 13%; }
+
+.mood-vault-panel { border: 1px solid rgba(255,255,255,.09); border-radius: 6px; background: rgba(255,255,255,.035); box-shadow: inset 0 1px rgba(255,255,255,.035); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); }
+.mood-photo-upload { position: relative; display: block; height: 88px; overflow: hidden; border: 1px solid rgba(255,255,255,.12); border-radius: 4px; background: rgba(255,255,255,.04); cursor: pointer; }
+.mood-photo-upload img { width: 100%; height: 100%; object-fit: cover; opacity: .73; transition: transform .35s ease, opacity .35s ease; }
+.mood-photo-upload:hover img { transform: scale(1.04); opacity: .95; }
+.mood-photo-upload span { position: absolute; inset: auto 0 0; display: flex; align-items: center; gap: 6px; padding: 8px 9px; background: linear-gradient(transparent, rgba(0,0,0,.78)); color: white; font-size: 10px; font-weight: 600; }
+.mood-photo-upload:focus-within { outline: 2px solid rgba(165,243,252,.7); outline-offset: 2px; }
+.mood-tag-button { min-width: 74px; min-height: 42px; border: 1px solid rgba(163,230,230,.25); border-radius: 4px; background: rgba(107,190,190,.12); color: #d6fbf6; font-size: 12px; font-weight: 700; }
+.mood-tag-button:hover:not(:disabled) { background: rgba(107,190,190,.2); }
+.mood-tag-button:disabled { cursor: not-allowed; opacity: .4; }
+.mood-vault-toast { position: fixed; z-index: 999; top: max(16px, env(safe-area-inset-top)); right: max(16px, env(safe-area-inset-right)); display: flex; align-items: center; gap: 16px; max-width: min(420px, calc(100vw - 32px)); padding: 12px 14px; border: 1px solid rgba(255,255,255,.16); border-radius: 5px; background: rgba(12,20,26,.94); box-shadow: 0 12px 44px rgba(0,0,0,.42); color: rgba(255,255,255,.82); font-size: 12px; backdrop-filter: blur(16px); }
+.mood-vault-toast button { flex: 0 0 auto; color: rgba(255,255,255,.56); }
+.mood-vault-entry { border: 1px solid rgba(255,255,255,.09); border-radius: 8px; background: linear-gradient(105deg, #121b20, #192222 54%, #15171b); color: #f7faf9; box-shadow: 0 4px 18px rgba(0,0,0,.14); }
+
+@media (max-width: 640px) {
+  .mood-vault-pills { flex-wrap: wrap; overflow: visible; }
+  .mood-scene { min-height: 300px; aspect-ratio: 1.12 / 1; }
+  .mood-scene-photo { top: 9%; height: 66%; width: 39%; }
+  .mood-scene-photo--one { left: 5%; }
+  .mood-scene-photo--two { right: 5%; }
+  .mood-scene--love .mood-scene-photo { top: 9%; width: 43%; height: 69%; }
+  .mood-scene--love .mood-scene-photo--one { left: 11%; }
+  .mood-scene--love .mood-scene-photo--two { right: 11%; }
+  .mood-scene--travel .mood-scene-photo { top: 15%; width: 29%; height: 53%; }
+  .mood-scene--travel .mood-scene-photo--one { left: 2%; }
+  .mood-scene--travel .mood-scene-photo--two { right: 2%; }
+  .mood-scene-copy { max-width: 90%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mood-vault *, .mood-vault *::before, .mood-vault *::after,
+  .mood-vault-entry, .mood-vault-back, .mood-vault-pill, .mood-tag-button {
+    scroll-behavior: auto !important;
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+}
+
 .vibe-media-overlay[data-vibe="good_night"] {
   --vibe-particle-hot: rgba(255, 255, 240, 1);
   --vibe-particle-cool: rgba(167, 139, 250, 1);
