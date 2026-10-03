@@ -1049,6 +1049,58 @@
 .scene-vault-post--missing .scene-vault-post-frame--right { right: 13%; }
 .scene-vault-post-rain { position: absolute; z-index: 3; inset: -10%; pointer-events: none; opacity: .5; background: repeating-linear-gradient(103deg, transparent 0 22px, rgba(207,229,243,.36) 23px 24px, transparent 25px 39px); animation: mood-scene-rainfall 1.8s linear infinite; }
 
+@keyframes reel-comment-marquee {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(-50%, 0, 0); }
+}
+
+.reel-engagement-footer {
+  display: grid;
+  gap: 10px;
+  padding: 12px 14px 14px;
+  border-top: 1px solid rgba(255,255,255,.07);
+  background: linear-gradient(180deg, #171014, #10090d);
+}
+.reel-comments-ticker {
+  display: flex;
+  min-width: 0;
+  height: 34px;
+  align-items: center;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,.07);
+  border-radius: 5px;
+  background: rgba(255,255,255,.025);
+  text-align: left;
+}
+.reel-comments-track { display: flex; width: max-content; min-width: 100%; animation: reel-comment-marquee 24s linear infinite; }
+.reel-comments-ticker:hover .reel-comments-track { animation-play-state: paused; }
+.reel-comment-item { display: inline-flex; max-width: 360px; align-items: center; gap: 7px; padding: 0 18px; color: rgba(255,255,255,.55); font-size: 10px; white-space: nowrap; }
+.reel-comment-item strong { color: rgba(255,255,255,.82); }
+.reel-comment-item > span { max-width: 260px; overflow: hidden; text-overflow: ellipsis; }
+.reel-comments-empty { display: inline-flex; width: 100%; align-items: center; justify-content: center; gap: 7px; padding: 0 10px; color: rgba(255,255,255,.4); font-size: 10px; animation: pulse 2.8s ease-in-out infinite; }
+.reel-footer-actions { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; gap: 7px; }
+.reel-footer-action { display: inline-flex; min-height: 32px; align-items: center; gap: 5px; border: 1px solid rgba(255,255,255,.08); border-radius: 5px; padding: 0 9px; color: rgba(255,255,255,.66); font-size: 10px; font-weight: 700; transition: color .18s ease, background-color .18s ease, border-color .18s ease; }
+.reel-footer-action:hover { border-color: rgba(182,236,87,.26); background: rgba(182,236,87,.07); color: #d8ff8d; }
+.reel-footer-action.is-liked { border-color: rgba(239,140,157,.24); color: #ef8c9d; }
+.reel-footer-action > span { color: rgba(255,255,255,.42); font-variant-numeric: tabular-nums; }
+.reel-footer-next { display: inline-flex; min-height: 32px; align-items: center; gap: 5px; margin-left: auto; border: 1px solid rgba(182,236,87,.24); border-radius: 5px; padding: 0 10px; background: rgba(182,236,87,.08); color: #d8ff8d; font-size: 10px; font-weight: 800; transition: background-color .18s ease, transform .18s ease; }
+.reel-footer-next:hover { background: rgba(182,236,87,.15); }
+.reel-footer-next:active { transform: scale(.97); }
+[data-feed-reel-card] { scroll-margin-block: 8vh; }
+
+@media (max-width: 420px) {
+  .reel-engagement-footer { padding-inline: 10px; }
+  .reel-footer-actions { gap: 5px; }
+  .reel-footer-action { gap: 4px; padding-inline: 7px; font-size: 9px; }
+  .reel-footer-next { margin-left: 0; padding-inline: 8px; font-size: 9px; }
+  .reel-comments-empty { justify-content: flex-start; font-size: 9px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reel-comments-track,
+  .reel-comments-empty { animation: none !important; }
+}
+
 @media (max-width: 480px) {
   .scene-vault-mood-pill { min-height: 34px; gap: 4px; padding-inline: 8px; font-size: 10px; }
   .scene-vault-mini-preview { min-height: 148px; }
