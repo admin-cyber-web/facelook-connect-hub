@@ -86,7 +86,6 @@ const ReelStudio     = lazy(() => import("@/components/ReelStudio"));
 const AntakshariArena = lazy(() => import("@/components/AntakshariArena"));
 const ConnectionPanel= lazy(() => import("@/components/ConnectionPanel"));
 const CreatePost     = lazy(() => import("@/components/CreatePost"));
-const MoodSceneVault = lazy(() => import("@/components/MoodSceneVault"));
 // ── Reusable styled blocks ───────────────────────────────────────────────────
 const GlassCard = ({ children, className = "", noPadding = false }: any) => (
   <div
@@ -3912,7 +3911,6 @@ const PersonalizationView = React.memo(({
                       { label: "Flicks",       emoji: "🎬", feature: "Flicks"       },
                       { label: "Surveys",      emoji: "📊", feature: "Task"         },
                       { label: "Quotes Maker", emoji: "💬", feature: "QuotesMaker"  },
-                      { label: "Mood & Scene Vault", emoji: "♡", feature: "MoodSceneVault" },
                     ] as const).map(({ label, emoji, feature }) => (
                       <button
                         key={feature}
@@ -3964,18 +3962,6 @@ const PersonalizationView = React.memo(({
 
                 {/* ══ CENTER COLUMN ════════════════════════════════════════════ */}
                 <div className="min-w-0">
-
-                <button
-                  type="button"
-                  onClick={() => setActiveFeature("MoodSceneVault")}
-                  className="mood-vault-entry mx-3 mb-3 flex w-[calc(100%-1.5rem)] items-center justify-between px-4 py-3 text-left lg:hidden"
-                >
-                  <span className="flex items-center gap-3">
-                    <span className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.07]"><Heart size={17} /></span>
-                    <span><span className="block text-sm font-semibold">Mood &amp; Scene Vault</span><span className="mt-0.5 block text-[11px] text-white/55">Make a scene from the feeling</span></span>
-                  </span>
-                  <ChevronRight size={17} className="text-white/45" />
-                </button>
 
                 {/* ── Stories Strip ─────────────────────────────────────────── */}
                 <StoryBar userProfile={profile} />
@@ -4720,17 +4706,6 @@ const PersonalizationView = React.memo(({
                   setActiveFeature("Fame");
                 }}
               />
-              </Suspense>
-              </ErrorBoundary>
-            )}
-
-            {activeFeature === "MoodSceneVault" && (
-              <ErrorBoundary>
-              <Suspense fallback={<SectionLoader />}>
-                <MoodSceneVault
-                  onClose={() => setActiveFeature("Fame")}
-                  userName={profile.full_name || profile.username || "You"}
-                />
               </Suspense>
               </ErrorBoundary>
             )}

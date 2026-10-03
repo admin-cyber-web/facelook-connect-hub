@@ -45,6 +45,7 @@ import {
 import VibeAudioToggle from "./VibeAudioToggle";
 import VibeEffectCanvas from "./VibeEffectCanvas";
 import PostImageViewer from "./PostImageViewer";
+import type { SceneMood } from "./SceneVaultAttachment";
 import {
   Send,
   Heart,
@@ -456,8 +457,52 @@ const VibeMediaFrame = memo(
 
 const PostMedia = memo(({ post, vibeTag }: { post: any; vibeTag?: VibeTag }) => {
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
+  const sceneVault = post?.metadata?.scene_vault;
+  const scenePhotos = Array.isArray(sceneVault?.photos)
+    ? sceneVault.photos.filter((url: unknown): url is string => typeof url === "string" && /^https?:\/\//i.test(url)).slice(0, 2)
+    : [];
   const imageUrls = getPostImageUrls(post);
   const url = post.media_url || post.image_url || post.cover_url || null;
+  if (scenePhotos.length === 2) {
+    const supportedMoods: SceneMood[] = ["love", "angry", "travel", "sad", "missing"];
+    const mood: SceneMood = supportedMoods.includes(sceneVault.mood) ? sceneVault.mood : "love";
+    return (
+      <>
+        <VibeMediaFrame postId={String(post.id)} vibeTag={vibeTag}>
+          <div className={`scene-vault-post scene-vault-post--${mood}`} data-scene-mood={mood}>
+            <div className="scene-vault-post-atmosphere" aria-hidden="true" />
+            <div className="scene-vault-post-frames">
+              {scenePhotos.map((photo, index) => (
+                <button
+                  key={`${photo}-${index}`}
+                  type="button"
+                  onClick={() => setViewerIndex(index)}
+                  aria-label={`Open ${mood} scene photo ${index + 1}`}
+                  className={`scene-vault-post-frame scene-vault-post-frame--${index === 0 ? "left" : "right"}`}
+                >
+                  <img src={photo} alt="" loading={index === 0 ? "eager" : "lazy"} decoding="async" />
+                </button>
+              ))}
+            </div>
+            <div className="scene-vault-post-grain" aria-hidden="true" />
+            <div className="scene-vault-post-caption" aria-hidden="true">{mood === "angry" ? "FIGHT MODE" : mood.toUpperCase()}</div>
+            {mood === "love" && <span className="scene-vault-post-heart" aria-hidden="true">♥</span>}
+            {mood === "travel" && <span className="scene-vault-post-motion" aria-hidden="true" />}
+            {(mood === "sad" || mood === "missing") && <span className="scene-vault-post-rain" aria-hidden="true" />}
+            {mood === "angry" && <span className="scene-vault-post-flash" aria-hidden="true" />}
+          </div>
+        </VibeMediaFrame>
+        {viewerIndex !== null && (
+          <PostImageViewer
+            urls={scenePhotos}
+            index={viewerIndex}
+            onIndexChange={setViewerIndex}
+            onClose={() => setViewerIndex(null)}
+          />
+        )}
+      </>
+    );
+  }
   if (!url && !imageUrls.length) return null;
   if (imageUrls.length) {
     return (

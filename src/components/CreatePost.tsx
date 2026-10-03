@@ -13,6 +13,7 @@ import {
   Smile,
   Camera,
   BookmarkPlus,
+  Clapperboard,
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { toast } from "sonner";
@@ -22,6 +23,7 @@ import { extractMentionTokens, nameToUsername, Mention } from "@/lib/mentions";
 import { sanitizeText } from "@/lib/profanityFilter";
 import { generatePostSEO } from "@/lib/geminiClient";
 import { uploadToCloudinary } from "@/lib/cloudinaryUpload";
+import SceneVaultAttachment, { type SceneMood, type SceneVaultDraft } from "./SceneVaultAttachment";
 import { getSmartPostAsset } from "@/utils/smartAssets";
 import {
   resolveVibeSelection,
@@ -65,6 +67,12 @@ const CreatePost = ({
   const [surpriseTargetId, setSurpriseTargetId] = useState("");
   const [surpriseCustomMessage, setSurpriseCustomMessage] = useState("");
   const [surpriseGifUrl, setSurpriseGifUrl] = useState("");
+  const [sceneVaultOpen, setSceneVaultOpen] = useState(false);
+  const [sceneVaultDraft, setSceneVaultDraft] = useState<SceneVaultDraft>({
+    mood: "love",
+    photos: [null, null],
+    companionId: "",
+  });
 
   const replaceMediaSelection = (nextFiles: File[]) => {
     previewUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
@@ -180,6 +188,8 @@ const CreatePost = ({
       clearMediaSelection();
       setVisibility("public");
       setMood("");
+      setSceneVaultOpen(false);
+      setSceneVaultDraft({ mood: "love", photos: [null, null], companionId: "" });
       setPollEnabled(false);
       setPollQuestion("");
       setPollOptions(["", ""]);
@@ -319,13 +329,27 @@ const CreatePost = ({
     }
   };
 
-  const handlePost = async () => {
+  const handlePost = async (publishScene = false) => {
     if (loading) return;
-    if (pollEnabled) {
+    if (pollEnabled && !publishScene) {
       await handleCreateSurvey();
       return;
     }
-    if (!content.trim() && !files.length) return;
+    if (publishScene && !sceneVaultDraft.photos.every((photo) =>
+      photo && photo.type.startsWith("image/") && photo.size <= 12 * 1024 * 1024,
+    )) {
+      toast.error("Choose two valid image files, each 12 MB or smaller.");
+      return;
+    }
+    if (publishScene && files.some((file) => file.type.startsWith("video/"))) {
+      toast.error("Remove the video to publish a Scene Vault photo post.");
+      return;
+    }
+    if (publishScene && (pollEnabled || surpriseEnabled)) {
+      toast.error("Turn off Poll & Survey and Surprise before publishing a Scene Vault post.");
+      return;
+    }
+    if (!content.trim() && !files.length && !publishScene) return;
     setLoading(true);
     setLoadingMsg("Posting…");
 
@@ -333,6 +357,9 @@ const CreatePost = ({
       const { data: { user } } = await supabase.auth.getUser();
       const surpriseTarget = surpriseEnabled
         ? friendCandidates.find((candidate) => candidate.id === surpriseTargetId)
+        : null;
+      const sceneCompanion = publishScene
+        ? friendCandidates.find((candidate) => candidate.id === sceneVaultDraft.companionId)
         : null;
 
       if (surpriseEnabled) {
@@ -364,6 +391,23 @@ const CreatePost = ({
         }
       }
 
+      if (publishScene && sceneVaultDraft.companionId) {
+        if (!user?.id || !sceneCompanion) {
+          throw new Error("Choose a connected friend for the scene tag.");
+        }
+        const { data: friendshipRows, error: friendshipError } = await supabase
+          .from("friendships")
+          .select("id")
+          .eq("status", "accepted")
+          .or(
+            `and(sender_id.eq.${user.id},receiver_id.eq.${sceneCompanion.id}),and(sender_id.eq.${sceneCompanion.id},receiver_id.eq.${user.id})`,
+          )
+          .limit(1);
+        if (friendshipError || !friendshipRows?.length) {
+          throw new Error("Scene tags are available only for connected friends.");
+        }
+      }
+
       let savedName = userProfile?.full_name;
       if (!savedName && user?.id) {
         const { data: freshProfile } = await supabase
@@ -385,6 +429,7 @@ const CreatePost = ({
       let smartAssetSource: "keyword" | "fallback" | null = null;
       let smartAssetKey: string | null = null;
       let imageUrls: string[] = [];
+      let scenePhotoUrls: string[] = [];
 
       if (!files.length) {
         const detection = getMediaInfoFromUrl(content);
@@ -406,6 +451,18 @@ const CreatePost = ({
           finalMediaUrl = imageUrls[0] || "";
         }
         isYoutube = false;
+      }
+
+      if (publishScene) {
+        setLoadingMsg("Uploading scene photos…");
+        scenePhotoUrls = await Promise.all(
+          sceneVaultDraft.photos.map((selectedFile) => uploadToCloudinary(selectedFile as File)),
+        );
+        if (!files.length) {
+          mediaType = "image";
+          finalMediaUrl = scenePhotoUrls[0] || "";
+          imageUrls = scenePhotoUrls;
+        }
       }
 
       const tokens = extractMentionTokens(content);
@@ -447,7 +504,17 @@ const CreatePost = ({
       if (hadProfanity) {
         toast.warning("Offensive words detected and masked automatically.");
       }
-      const postVibe = resolveVibeSelection(cleanContent, vibeOverride);
+      const sceneVibeTag: Record<SceneMood, VibeOverride> = {
+        love: "love_romance",
+        angry: "hype_mode",
+        travel: "wanderlust",
+        sad: "moody_sad",
+        missing: "miss_you",
+      };
+      const postVibe = resolveVibeSelection(
+        cleanContent,
+        publishScene ? sceneVibeTag[sceneVaultDraft.mood] : vibeOverride,
+      );
 
       // User-selected media always wins. Only text-only posts without an
       // existing direct/YouTube media URL receive an automatic image.
@@ -484,11 +551,28 @@ const CreatePost = ({
           mentions: resolvedMentions,
           has_pin: hasPin,
           has_team: hasTeam,
-          mood: mood || null,
+          mood: publishScene ? sceneVaultDraft.mood : mood || null,
           location: location.trim() || null,
           smart_asset_source: smartAssetSource,
           smart_asset_key: smartAssetKey,
           ...(imageUrls.length ? { image_urls: imageUrls } : {}),
+          ...(publishScene
+            ? {
+                scene_vault: {
+                  version: 1,
+                  mood: sceneVaultDraft.mood,
+                  photos: scenePhotoUrls,
+                  companion: sceneCompanion
+                    ? { id: sceneCompanion.id, name: sceneCompanion.name, username: sceneCompanion.username }
+                    : null,
+                  animation_state: {
+                    preset: sceneVaultDraft.mood,
+                    trigger: "feed-entry",
+                    started_at: new Date().toISOString(),
+                  },
+                },
+              }
+            : {}),
           // SEO also stored inside metadata as fallback in case columns aren't migrated yet
           meta_title: seo.meta_title,
           meta_description: seo.meta_description,
@@ -608,6 +692,9 @@ const CreatePost = ({
             .filter(c => c.kind === "friend" && c.id && c.id !== user?.id)
             .forEach(c => notifierIds.add(c.id));
         }
+        if (sceneCompanion?.id && sceneCompanion.id !== user?.id) {
+          notifierIds.add(sceneCompanion.id);
+        }
         if (hasTeam && teamMarker?.circle_id) {
           const { data: members } = await supabase
             .from("circle_members")
@@ -621,6 +708,8 @@ const CreatePost = ({
           const isPriority = hasPin || hasTeam;
           const notifText = isPriority
             ? "pinned you in a priority post"
+            : sceneCompanion && nid === sceneCompanion.id
+              ? `tagged you in a ${sceneVaultDraft.mood} scene`
             : "mentioned you in a post";
           const rows = Array.from(notifierIds).map(nid => ({
             notifier_id: nid,
@@ -638,6 +727,8 @@ const CreatePost = ({
 
       setContent("");
       clearMediaSelection();
+      setSceneVaultOpen(false);
+      setSceneVaultDraft({ mood: "love", photos: [null, null], companionId: "" });
       onClose();
     } catch (err: any) {
       console.error("Error Details:", err);
@@ -972,6 +1063,16 @@ const CreatePost = ({
                     )}
                   </AnimatePresence>
 
+                  <SceneVaultAttachment
+                    isOpen={sceneVaultOpen}
+                    draft={sceneVaultDraft}
+                    companions={friendCandidates.map(({ id, name, username }) => ({ id, name, username }))}
+                    isPublishing={loading}
+                    onDraftChange={setSceneVaultDraft}
+                    onClose={() => setSceneVaultOpen(false)}
+                    onPublish={() => { void handlePost(true); }}
+                  />
+
                   <AnimatePresence>
                     {previews.length > 0 && (
                       <motion.div
@@ -1118,7 +1219,7 @@ const CreatePost = ({
                 </div>
 
                 <div className="sticky bottom-0 z-20 flex-none border-t border-slate-200/80 bg-white/95 px-3 pt-2.5 pb-[calc(0.65rem+env(safe-area-inset-bottom))] shadow-[0_-10px_28px_rgba(23,37,84,0.09)] backdrop-blur-xl sm:px-5 sm:pt-3">
-                  <div className="grid grid-cols-[repeat(3,minmax(0,1fr))_minmax(7.1rem,1.5fr)] items-center gap-1.5 sm:gap-3">
+                  <div className="grid grid-cols-[repeat(4,minmax(0,1fr))_minmax(6rem,1.35fr)] items-center gap-1 sm:gap-3">
                     <button
                       type="button"
                       onClick={() => setPollEnabled((enabled) => !enabled)}
@@ -1162,6 +1263,22 @@ const CreatePost = ({
                         <Gift size={17} strokeWidth={2.3} />
                       </span>
                       <span className="text-[10px] font-extrabold leading-[1.05] sm:text-[11px]">Surprise</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setSceneVaultOpen((open) => !open)}
+                      aria-pressed={sceneVaultOpen}
+                      aria-expanded={sceneVaultOpen}
+                      data-testid="button-toggle-scene-vault"
+                      className={`flex min-h-[3.75rem] min-w-0 flex-col items-center justify-center gap-1 rounded-2xl px-1 text-center transition active:scale-95 touch-manipulation ${
+                        sceneVaultOpen ? "bg-cyan-50 text-cyan-800" : "text-cyan-800 hover:bg-cyan-50"
+                      }`}
+                    >
+                      <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-slate-700 to-cyan-700 text-white shadow-[0_4px_12px_rgba(8,145,178,.2)]">
+                        <Clapperboard size={17} strokeWidth={2.2} />
+                      </span>
+                      <span className="text-[9px] font-extrabold leading-[1.05] sm:text-[11px]">Scene Vault</span>
                     </button>
 
                     <button
