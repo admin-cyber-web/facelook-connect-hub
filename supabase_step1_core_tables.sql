@@ -17,6 +17,7 @@ create table if not exists profiles (
   profile_locked   boolean default false,
   profile_hidden   boolean default false,
   is_private_mode  boolean default false,
+  active_hide      boolean not null default false,
   last_seen        timestamptz default now(),
   account_status   text not null default 'active',
   suspension_reason text,

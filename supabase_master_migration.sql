@@ -17,6 +17,7 @@ create table if not exists profiles (
   profile_locked   boolean default false,
   profile_hidden   boolean default false,
   is_private_mode  boolean default false,
+  active_hide      boolean not null default false,
   last_seen        timestamptz default now(),
   account_status   text not null default 'active',
   suspension_reason text,
@@ -1050,12 +1051,22 @@ create policy if not exists "Users can unblock others"
 --  FLICKS INDIA — PRIVACY SYSTEM SCHEMA (Run once in Supabase SQL Editor)
 -- ═══════════════════════════════════════════════════════════════════════════
 
--- 1) profiles: add is_private_mode + last_seen
+-- 1) profiles: add privacy and Active Status preferences
 alter table profiles
   add column if not exists is_private_mode boolean default false,
+  add column if not exists active_hide boolean not null default false,
   add column if not exists last_seen timestamptz default now();
 
 comment on column profiles.is_private_mode is 'When true, only accepted friends can view timeline/interact.';
+comment on column profiles.active_hide is 'When true, do not publish this profile in application online presence.';
+
+do $$
+begin
+  alter publication supabase_realtime add table public.profiles;
+exception
+  when duplicate_object then null;
+end
+$$;
 comment on column profiles.last_seen is 'Updated on every user activity heartbeat for green-dot online status.';
 
 -- 2) posts: add visibility column

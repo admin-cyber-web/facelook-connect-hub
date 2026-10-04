@@ -6,6 +6,7 @@ import { X, MapPin, GraduationCap, BriefcaseBusiness, FileText, UserPlus, Messag
 import { useProfileViewer } from "../context/ProfileViewerContext";
 import { toast } from "sonner";
 import { memGet, memSet } from "../lib/memCache";
+import { useOnlineUsers } from "../context/OnlineUsersContext";
 
 interface Props {
   userId: string;
@@ -44,6 +45,7 @@ interface Friend {
 
 const UserProfileModal = ({ userId, currentUserId, isAdmin: isAdminProp = false, onClose }: Props) => {
   const { openProfile } = useProfileViewer();
+  const onlineUserIds = useOnlineUsers();
   // ProfileViewerContext already derives this from the authenticated session
   // email. Do not issue another auth request just to repeat that check.
   const isAdmin = isAdminProp;
@@ -505,7 +507,7 @@ const UserProfileModal = ({ userId, currentUserId, isAdmin: isAdminProp = false,
                         </div>
                       </div>
                     </div>
-                    {profile.last_seen && (Date.now() - new Date(profile.last_seen).getTime()) < 5 * 60 * 1000 && (
+                    {onlineUserIds.has(profile.id) && (
                       <span className="absolute bottom-2 right-2 h-5 w-5 rounded-full border-[3px] border-[#130b22] bg-emerald-400 shadow-[0_0_14px_rgba(52,211,153,0.9)]" />
                     )}
                   </div>

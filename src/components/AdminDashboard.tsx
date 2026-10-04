@@ -46,6 +46,7 @@ interface UserRow {
   account_status: string | null;
   suspension_reason: string | null;
   last_seen: string | null;
+  active_hide?: boolean;
   welcomed_at: string | null;
   is_verified: boolean | null;
 }
@@ -156,7 +157,7 @@ const AdminDashboard: React.FC<Props> = ({
       const { data } = await supabase
         .from("profiles")
         .select(
-          "id, full_name, username, avatar_url, created_at, account_status, suspension_reason, last_seen, welcomed_at, is_verified",
+          "id, full_name, username, avatar_url, created_at, account_status, suspension_reason, last_seen, active_hide, welcomed_at, is_verified",
         )
         .or(`full_name.ilike.%${q}%,username.ilike.%${q}%,id.eq.${q}`)
         .limit(30);
@@ -190,7 +191,7 @@ const AdminDashboard: React.FC<Props> = ({
       const [usersRes, postsRes, reportsRes, countRes] = await Promise.all([
         supabase
           .from("profiles")
-          .select("id, full_name, username, avatar_url, created_at, account_status, suspension_reason, last_seen, welcomed_at, is_verified")
+          .select("id, full_name, username, avatar_url, created_at, account_status, suspension_reason, last_seen, active_hide, welcomed_at, is_verified")
           .order("created_at", { ascending: false })
           .limit(500),
         supabase.from("posts").select("id", { count: "exact", head: true }),
@@ -1005,6 +1006,7 @@ const AdminDashboard: React.FC<Props> = ({
                     { day: "2-digit", month: "short", year: "numeric" },
                   );
                   const isLive =
+                    !u.active_hide &&
                     u.last_seen &&
                     now - new Date(u.last_seen).getTime() < LIVE_WINDOW_MS;
                   const alreadyWelcomed = !!u.welcomed_at;

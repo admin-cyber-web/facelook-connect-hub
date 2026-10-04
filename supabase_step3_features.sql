@@ -121,7 +121,15 @@ ALTER PUBLICATION supabase_realtime ADD TABLE post_magnet_voice;
 
 -- ── 3. PRIVACY + FRIENDSHIPS ───────────────────────────────────────────────────────────────
 alter table profiles add column if not exists is_private_mode boolean default false,
+  add column if not exists active_hide boolean not null default false,
   add column if not exists last_seen timestamptz default now();
+do $$
+begin
+  alter publication supabase_realtime add table public.profiles;
+exception
+  when duplicate_object then null;
+end
+$$;
 alter table posts add column if not exists visibility text default 'public';
 
 create table if not exists friendships (
