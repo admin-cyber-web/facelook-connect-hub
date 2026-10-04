@@ -59,7 +59,6 @@ import {
   X,
   Volume2,
   VolumeX,
-  ChevronDown,
   Sparkles,
   Play,
   Users,
@@ -2106,7 +2105,6 @@ const SingleReelBlock = ({
   onEdit,
   onDelete,
   onReport,
-  onNextReel,
 }: {
   post: any;
   currentUserId: string | null;
@@ -2116,7 +2114,6 @@ const SingleReelBlock = ({
   onEdit: () => void;
   onDelete: () => void;
   onReport: () => void;
-  onNextReel: () => void;
 }) => {
   const ref = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -2482,7 +2479,7 @@ const SingleReelBlock = ({
           </p>
         )}
       </div>
-      <div className="absolute right-3 bottom-16 flex flex-col items-center gap-4">
+      <div className="reel-side-actions absolute right-3 bottom-16 flex flex-col items-center gap-4">
         <button
           onClick={toggleReelLike}
           disabled={likePending}
@@ -2508,6 +2505,18 @@ const SingleReelBlock = ({
           <MessageCircle size={24} className="text-white" />
           <span className="mt-1 text-[10px] font-bold text-white">{commentCount}</span>
         </button>
+        <button
+          type="button"
+          aria-label="Share Reel"
+          onClick={() => { void sharePost({ postId: post.id, caption: post.content, mediaUrl: post.media_url, mediaType: post.type || (post.media_url ? "image" : null), authorName: post.author, metaTitle: post.meta_title, metaDescription: post.meta_description }).then((outcome) => { if (outcome === "copied") toast.success("Link copied!"); }); }}
+          className="flex flex-col items-center text-white"
+        >
+          <Share2 size={23} />
+          <span className="mt-1 text-[10px] font-bold">Share</span>
+        </button>
+        <div className="reel-side-magnet">
+          <MagnetButton postId={post.id} postType="post" postOwnerId={post.author_id || ""} currentUserId={currentUserId} dark label="Magnet" />
+        </div>
       </div>
     </div>
     <section className="reel-engagement-footer" aria-label="Reel engagement">
@@ -2522,13 +2531,6 @@ const SingleReelBlock = ({
         <span className="truncate text-[10px] font-semibold text-white/55">Seen by <strong className="text-white/80">{Number(post.views_count || 0).toLocaleString()}</strong> people</span>
       </div>
       <ReelCommentsTicker items={commentTickerItems.slice(0, 4)} onOpen={onOpenComments} />
-      <div className="reel-footer-actions">
-        <button type="button" onClick={toggleReelLike} disabled={likePending} aria-pressed={likedByMe} className={`reel-footer-action ${likedByMe ? "is-liked" : ""}`}><Heart size={15} fill={likedByMe ? "currentColor" : "none"} />Like <span>{likeCount}</span></button>
-        <button type="button" onClick={onOpenComments} className="reel-footer-action"><MessageCircle size={15} />Comments <span>{commentCount}</span></button>
-        <button type="button" onClick={() => { void sharePost({ postId: post.id, caption: post.content, mediaUrl: post.media_url, mediaType: post.type || (post.media_url ? "image" : null), authorName: post.author, metaTitle: post.meta_title, metaDescription: post.meta_description }).then((outcome) => { if (outcome === "copied") toast.success("Link copied!"); }); }} className="reel-footer-action"><Share2 size={15} />Share</button>
-        <MagnetButton postId={post.id} postType="post" postOwnerId={post.author_id || ""} currentUserId={currentUserId} dark label="Magnet" />
-        <button type="button" onClick={onNextReel} className="reel-footer-next"><ChevronDown size={14} className="-rotate-90" />Next Reel</button>
-      </div>
     </section>
     </>
   );
@@ -5190,12 +5192,6 @@ const FameFeed = ({
                 reason: "",
                 anchor: { top: Math.max(8, Math.min(window.innerHeight - 360, window.innerHeight / 2 - 170)), right: 16 },
               })}
-              onNextReel={() => {
-                const reelCards = Array.from(document.querySelectorAll<HTMLElement>("[data-feed-reel-card]"));
-                const currentCard = document.getElementById(`feed-reel-${post.id}`);
-                const nextCard = reelCards[reelCards.indexOf(currentCard as HTMLElement) + 1];
-                nextCard?.scrollIntoView({ behavior: "smooth", block: "center" });
-              }}
               onOpenComments={() => {
                 const isOpening = !isCommentsOpen;
                 setCommentSheetId(isOpening ? post.id : null);
