@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Camera } from "lucide-react";
+import { useOnlineUsers } from "../context/OnlineUsersContext";
+import ActiveStatusAvatar from "./ActiveStatusAvatar";
 
 const PROMPT = "Share your vibe today...";
 
 interface ShareVibeComposerProps {
+  userId: string;
   userProfile?: {
     full_name?: string | null;
     avatar_url?: string | null;
@@ -91,6 +94,7 @@ function useTypewriterPrompt() {
 }
 
 export default function ShareVibeComposer({
+  userId,
   userProfile,
   onOpen,
   onMediaSelect,
@@ -98,6 +102,7 @@ export default function ShareVibeComposer({
   const { text, stop, prefersReducedMotion } = useTypewriterPrompt();
   const displayName = userProfile?.full_name?.trim() || "your";
   const mediaInputRef = useRef<HTMLInputElement>(null);
+  const onlineUserIds = useOnlineUsers();
 
   const openComposer = () => {
     stop();
@@ -114,27 +119,12 @@ export default function ShareVibeComposer({
         className="absolute inset-0 rounded-[26px] bg-gradient-to-r from-cyan-400 via-blue-500 to-pink-500 opacity-90"
       />
       <div className="relative flex items-center gap-3 rounded-[25px] bg-white px-3 py-3.5 sm:gap-4 sm:px-4">
-        <div className="relative shrink-0 rounded-full bg-gradient-to-br from-cyan-400 via-indigo-500 to-pink-500 p-[2px] shadow-[0_0_14px_rgba(34,211,238,0.35)]">
-          <div className="h-11 w-11 overflow-hidden rounded-full border-2 border-white bg-slate-100 sm:h-12 sm:w-12">
-            {userProfile?.avatar_url ? (
-              <img
-                src={userProfile.avatar_url}
-                alt={`${displayName} avatar`}
-                className="h-full w-full object-cover"
-                loading="lazy"
-                decoding="async"
-              />
-            ) : (
-              <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-indigo-100 to-cyan-100 text-base font-black text-indigo-700">
-                {displayName[0]?.toUpperCase() || "U"}
-              </div>
-            )}
-          </div>
-          <span
-            aria-label="Online"
-            className="absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full border-2 border-white bg-emerald-500 shadow-sm"
-          />
-        </div>
+        <ActiveStatusAvatar
+          src={userProfile?.avatar_url}
+          name={displayName}
+          size={48}
+          online={onlineUserIds.has(userId)}
+        />
 
         <button
           type="button"

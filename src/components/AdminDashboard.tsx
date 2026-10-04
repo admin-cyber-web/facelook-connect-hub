@@ -51,8 +51,6 @@ interface UserRow {
   is_verified: boolean | null;
 }
 
-const LIVE_WINDOW_MS = 10 * 60 * 1000; // "Active" = seen within last 10 minutes
-
 interface ReportRow {
   id: string;
   post_id: string | null;
@@ -1005,10 +1003,7 @@ const AdminDashboard: React.FC<Props> = ({
                     "en-IN",
                     { day: "2-digit", month: "short", year: "numeric" },
                   );
-                  const isLive =
-                    !u.active_hide &&
-                    u.last_seen &&
-                    now - new Date(u.last_seen).getTime() < LIVE_WINDOW_MS;
+                  const isLive = onlineUserIds.has(u.id);
                   const alreadyWelcomed = !!u.welcomed_at;
 
                   return (
@@ -1018,23 +1013,14 @@ const AdminDashboard: React.FC<Props> = ({
                     >
                       <button
                         onClick={() => openProfile(u.id)}
-                        className="relative w-10 h-10 rounded-full overflow-hidden shrink-0 border border-white/15"
-                        style={{ background: GRAD(u.id) }}
+                        className="shrink-0 overflow-visible"
                       >
-                        {u.avatar_url ? (
-                          <img
-                            src={u.avatar_url}
-                            className="w-full h-full object-cover"
-                            loading="lazy"
-                           decoding="async"/>
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center text-white font-black text-sm">
-                            {(u.full_name || "U")[0]}
-                          </div>
-                        )}
-                        {isLive && (
-                          <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-emerald-400 ring-2 ring-[#050312]" />
-                        )}
+                        <ActiveStatusAvatar
+                          src={u.avatar_url}
+                          name={u.full_name}
+                          size={40}
+                          online={isLive}
+                        />
                       </button>
 
                       <button

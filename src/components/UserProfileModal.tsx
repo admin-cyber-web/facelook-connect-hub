@@ -7,6 +7,7 @@ import { useProfileViewer } from "../context/ProfileViewerContext";
 import { toast } from "sonner";
 import { memGet, memSet } from "../lib/memCache";
 import { useOnlineUsers } from "../context/OnlineUsersContext";
+import ActiveStatusAvatar from "./ActiveStatusAvatar";
 
 interface Props {
   userId: string;
@@ -493,23 +494,13 @@ const UserProfileModal = ({ userId, currentUserId, isAdmin: isAdminProp = false,
                   <div className="pointer-events-none absolute -left-20 -top-20 h-48 w-48 rounded-full bg-pink-500/15 blur-3xl" />
                   <div className="pointer-events-none absolute -bottom-24 -right-10 h-56 w-56 rounded-full bg-cyan-400/10 blur-3xl" />
 
-                  <div className="relative mx-auto w-fit">
-                    <div className="h-[142px] w-[142px] rounded-full bg-gradient-to-br from-[#ff2d95] via-[#a855f7] to-[#22d3ee] p-[3px] shadow-[0_0_26px_rgba(255,45,149,0.42),0_0_50px_rgba(34,211,238,0.18)]">
-                      <div className="h-full w-full rounded-full bg-[#0e0a1b] p-[4px]">
-                        <div className="h-full w-full overflow-hidden rounded-full bg-gradient-to-br from-pink-700 to-violet-900">
-                          {profile.avatar_url ? (
-                            <img src={profile.avatar_url} className="h-full w-full object-cover" alt={profile.full_name} decoding="async" />
-                          ) : (
-                            <div className="flex h-full w-full items-center justify-center text-4xl font-black text-white">
-                              {(profile.full_name || "?")[0].toUpperCase()}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                    {onlineUserIds.has(profile.id) && (
-                      <span className="absolute bottom-2 right-2 h-5 w-5 rounded-full border-[3px] border-[#130b22] bg-emerald-400 shadow-[0_0_14px_rgba(52,211,153,0.9)]" />
-                    )}
+                  <div className="relative mx-auto w-fit py-2">
+                    <ActiveStatusAvatar
+                      src={profile.avatar_url}
+                      name={profile.full_name}
+                      size={142}
+                      online={onlineUserIds.has(profile.id)}
+                    />
                   </div>
 
                   <h2 className="relative mt-4 text-center text-2xl font-black leading-tight text-white [text-shadow:0_0_18px_rgba(255,45,149,0.35)]">
