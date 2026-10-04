@@ -2115,6 +2115,7 @@ const SingleReelBlock = ({
   onDelete: () => void;
   onReport: () => void;
 }) => {
+  const onlineUserIds = useOnlineUsers();
   const ref = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const [muted, setMuted] = useState(false);
@@ -2470,9 +2471,23 @@ const SingleReelBlock = ({
         </button>
       )}
       <div className="absolute bottom-5 left-4 right-16 max-h-[35%] overflow-y-auto overscroll-contain rounded-lg bg-black/75 p-3 text-white">
-        <p className="font-bold text-sm drop-shadow-lg">
+        <div className="mb-1.5 flex items-center gap-2">
+          <div className="relative h-7 w-7 shrink-0 overflow-hidden rounded-full border border-white/30 bg-white/10">
+            {post.author_profile?.avatar_url || post.author_avatar ? (
+              <img src={post.author_profile?.avatar_url || post.author_avatar} className="h-full w-full object-cover" alt="" />
+            ) : (
+              <span className="flex h-full w-full items-center justify-center text-xs font-black">
+                {(post.author_profile?.full_name || post.author || "U")[0]?.toUpperCase()}
+              </span>
+            )}
+            {onlineUserIds.has(post.author_id || "") && (
+              <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-black bg-green-400" />
+            )}
+          </div>
+          <p className="font-bold text-sm drop-shadow-lg">
           @{post.author_profile?.full_name || post.author || "user"}
-        </p>
+          </p>
+        </div>
         {post.content && (
           <p className="mt-1 whitespace-pre-wrap break-words text-xs leading-relaxed text-white/90">
             {maskProfanity(post.content)}
@@ -6470,8 +6485,11 @@ const FameFeed = ({
                                       const uid = c.user_id ?? c.author_id;
                                       if (uid) openProfile(uid);
                                     }}
-                                    className="w-8 h-8 rounded-full bg-pink-900/50 flex items-center justify-center text-[10px] font-black text-pink-300 shrink-0 overflow-hidden border border-white/10 active:scale-90 transition-transform"
+                                    className="relative w-8 h-8 rounded-full bg-pink-900/50 flex items-center justify-center text-[10px] font-black text-pink-300 shrink-0 overflow-hidden border border-white/10 active:scale-90 transition-transform"
                                   >
+                                    {onlineUserIds.has(c.user_id ?? c.author_id ?? "") && (
+                                      <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-[#1a0812] bg-green-400" />
+                                    )}
                                     {authorAvatars[
                                       c.user_id ?? c.author_id ?? ""
                                     ] ? (

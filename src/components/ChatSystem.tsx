@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { ReactionBar, ReactionBubbles } from "./ReactionBar";
 import { useSoundEffects } from "../hooks/useSoundEffects";
 import { useProfileViewer } from "../context/ProfileViewerContext";
+import { useActiveHide } from "../context/OnlineUsersContext";
 import { motion, AnimatePresence } from "framer-motion";
 import AdminDashboard from "./AdminDashboard";
 import { isAdminEmail } from "../lib/adminConfig";
@@ -419,9 +420,9 @@ const Avatar = ({
           {name?.[0]?.toUpperCase() || "?"}
         </div>
       )}
-      {online !== undefined && (
+      {online === true && (
         <span
-          className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white ${online ? "bg-green-400 animate-pulse" : "bg-red-400"}`}
+          className="absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white bg-green-400"
         />
       )}
     </div>
@@ -1169,6 +1170,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
 
   const T = THEME_CFG[theme];
   const { playPop, playSwoosh } = useSoundEffects();
+  const isActiveHidden = useActiveHide();
 
   // ── Persist ───────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -1989,7 +1991,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
           });
         setOnlineUsers(ids);
       }).subscribe(async (status) => {
-        if (status === "SUBSCRIBED" && activeStatus) {
+        if (status === "SUBSCRIBED" && activeStatus && !isActiveHidden) {
           await ch.track({ user_id: userId });
         }
       });
@@ -2000,18 +2002,18 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       cleanup();
       presenceChannelRef.current = null;
     };
-  }, [isOpen, userId]);
+  }, [isOpen, userId, activeStatus, isActiveHidden]);
 
   // ── When activeStatus toggles, update presence tracking ───────────────────
   useEffect(() => {
     const ch = presenceChannelRef.current;
     if (!ch) return;
-    if (activeStatus) {
+    if (activeStatus && !isActiveHidden) {
       ch.track({ user_id: userId });
     } else {
       ch.untrack();
     }
-  }, [activeStatus, userId]);
+  }, [activeStatus, userId, isActiveHidden]);
 
   // ── Realtime: friendships ─────────────────────────────────────────────────
   useEffect(() => {
@@ -5828,7 +5830,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                           url={myProfile.avatar_url}
                           name={myProfile.full_name}
                           size="lg"
-                          online={activeStatus}
+                          online={activeStatus && !isActiveHidden}
                         />
                         <div>
                           <p className={`text-base font-black ${T.text1}`}>
@@ -6215,17 +6217,17 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                             Active Status
                           </p>
                           <p className={`text-xs ${T.text3}`}>
-                            {activeStatus
+                            {activeStatus && !isActiveHidden
                               ? "You appear Online 🟢"
                               : "You appear Offline 🔴"}
                           </p>
                         </div>
                         <button
                           onClick={() => setActiveStatus(!activeStatus)}
-                          className={`relative w-12 h-6 rounded-full transition-all border ${activeStatus ? "bg-green-500 border-green-400" : "bg-gray-500 border-gray-400"}`}
+                          className={`relative w-12 h-6 rounded-full transition-all border ${activeStatus && !isActiveHidden ? "bg-green-500 border-green-400" : "bg-gray-500 border-gray-400"}`}
                         >
                           <div
-                            className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${activeStatus ? "left-6" : "left-0.5"}`}
+                            className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${activeStatus && !isActiveHidden ? "left-6" : "left-0.5"}`}
                           />
                         </button>
                       </div>

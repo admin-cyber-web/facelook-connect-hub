@@ -2268,6 +2268,17 @@ const Index = ({ session, initialAdminOpen, isGuest = false }: { session: Sessio
   const [profileLocked, setProfileLocked] = useState(false);
   const [profileHidden, setProfileHidden] = useState(false);
   const [isPrivateMode, setIsPrivateMode] = useState(false);
+  const [activeHide, setActiveHide] = useState(false);
+  useEffect(() => {
+    const handleActiveHideChange = (event: Event) => {
+      const nextValue = (event as CustomEvent<boolean>).detail;
+      if (typeof nextValue !== "boolean") return;
+      setActiveHide(nextValue);
+      if (userId) memDel(`profile_${userId}`);
+    };
+    window.addEventListener("flicks:active-hide-changed", handleActiveHideChange);
+    return () => window.removeEventListener("flicks:active-hide-changed", handleActiveHideChange);
+  }, [userId]);
   const [resetSent, setResetSent] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deleteSubmitted, setDeleteSubmitted] = useState(false);
@@ -2478,48 +2489,14 @@ const Index = ({ session, initialAdminOpen, isGuest = false }: { session: Sessio
     };
   }, [userId]);
 
-  // ── Live presence heartbeat: stamps profiles.last_seen so the Admin
-  //    Dashboard can show "Live now" (active in last 5 minutes).
-  //    Wrapped in try/catch so a missing table never crashes the tab.
-  useEffect(() => {
-    if (!userId) return;
-    let lastPingAt = 0;
-    const ping = () => {
-      if (document.visibilityState !== "visible") return;
-      const now = Date.now();
-      if (now - lastPingAt < 60 * 1000) return;
-      lastPingAt = now;
-      try {
-        supabase.from("profiles")
-          .update({ last_seen: new Date().toISOString() })
-          .eq("id", userId)
-          .then(() => {});
-      } catch {
-        void 0;
-      }
-    };
-    ping();
-    const activityEvents = ["pointerdown", "keydown", "touchstart"] as const;
-    activityEvents.forEach((event) => {
-      window.addEventListener(event, ping, { passive: true });
-    });
-    document.addEventListener("visibilitychange", ping);
-    return () => {
-      activityEvents.forEach((event) => {
-        window.removeEventListener(event, ping);
-      });
-      document.removeEventListener("visibilitychange", ping);
-    };
-  }, [userId]);
-
-
   // Yahan se fetchProfile shuru ho raha hai — BULLETPROOF VERSION
   const fetchProfile = async () => {
     // Serve from cache instantly if fresh — skip DB hit
     const profileCacheKey = `profile_${userId}`;
     const cachedProfile = memGet<any>(profileCacheKey);
-    if (cachedProfile) {
+    if (cachedProfile && typeof cachedProfile.active_hide === "boolean") {
       setProfile((prev) => ({ ...prev, ...cachedProfile }));
+      setActiveHide(cachedProfile.active_hide === true);
       setPersonalForm({
         full_name: cachedProfile.full_name || "",
         bio: cachedProfile.bio || "",
@@ -2542,7 +2519,7 @@ const Index = ({ session, initialAdminOpen, isGuest = false }: { session: Sessio
       // Step A: fetch existing profile (safe even if table missing)
       const { data, error: fetchErr } = await supabase
         .from("profiles")
-        .select("id,full_name,username,avatar_url,bio,location,state,district,city,pincode,interests,rec_local_first,rec_people_nearby,rec_interests,rec_new_users,school,mobile,profile_locked,profile_hidden,is_private_mode,account_status,suspension_reason,last_seen,fame_points,updated_at")
+        .select("id,full_name,username,avatar_url,bio,location,state,district,city,pincode,interests,rec_local_first,rec_people_nearby,rec_interests,rec_new_users,school,mobile,profile_locked,profile_hidden,is_private_mode,active_hide,account_status,suspension_reason,last_seen,fame_points,updated_at")
         .eq("id", userId)
         .maybeSingle();
 
@@ -2613,13 +2590,11 @@ const Index = ({ session, initialAdminOpen, isGuest = false }: { session: Sessio
         setProfileLocked(data.profile_locked || false);
         setProfileHidden(data.profile_hidden || false);
         setIsPrivateMode(data.is_private_mode || false);
+        setActiveHide(data.active_hide === true);
         setAccountStatus(data.account_status || "active");
         setSuspensionReason(data.suspension_reason || "");
         dataCache.setCache("profile", { data: merged, fetchedAt: Date.now() });
         memSet(profileCacheKey, merged);
-
-        // Update last_seen on every profile fetch so the DB stays fresh (fire-and-forget)
-        supabase.from("profiles").update({ last_seen: new Date().toISOString() }).eq("id", userId).then(() => {});
 
         // Silently patch missing avatar/name into DB (fire-and-forget)
         if (!data.avatar_url || !data.full_name) {
@@ -2641,6 +2616,7 @@ const Index = ({ session, initialAdminOpen, isGuest = false }: { session: Sessio
           school: "",
           mobile: "",
           is_private_mode: false,
+          active_hide: false,
           last_seen: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         };
@@ -2815,6 +2791,32 @@ const Index = ({ session, initialAdminOpen, isGuest = false }: { session: Sessio
     // Bust own suggestion cache so others won't see stale private profiles
     if (userId) memDel(`smartPeople_${userId}`);
     window.dispatchEvent(new CustomEvent("flicks:rec-prefs-changed"));
+  };
+
+  const handleToggleActiveHide = async () => {
+    if (!userId) {
+      toast.error("Sign in to change your Active Hide setting.");
+      return;
+    }
+    const next = !activeHide;
+    const { error } = await supabase
+      .from("profiles")
+      .update(next ? { active_hide: next, last_seen: null } : { active_hide: next })
+      .eq("id", userId);
+    if (error) {
+      console.error("[Profile] Active Hide update failed:", error.message);
+      toast.error("Active Hide could not be updated. Please try again.");
+      return;
+    }
+    setActiveHide(next);
+    memDel(`profile_${userId}`);
+    window.dispatchEvent(new CustomEvent("flicks:active-hide-changed", { detail: next }));
+    if ("BroadcastChannel" in window) {
+      const channel = new BroadcastChannel("flicks-active-hide");
+      channel.postMessage(next);
+      channel.close();
+    }
+    toast.success(next ? "Active status hidden." : "Active status visible.");
   };
 
   const handleSaveInterests = async (newInterests: string[]) => {
@@ -3447,6 +3449,14 @@ const PersonalizationView = React.memo(({
               color="violet"
               onClick={handleTogglePrivateMode}
               right={<Toggle on={isPrivateMode} onToggle={handleTogglePrivateMode} />}
+            />
+            <SettingRow
+              icon={<EyeOff size={16} />}
+              title="Active Hide"
+              desc={activeHide ? "Your active status is hidden" : "Your active status is visible when online"}
+              color="emerald"
+              onClick={handleToggleActiveHide}
+              right={<Toggle on={activeHide} onToggle={handleToggleActiveHide} />}
             />
             <SettingRow
               icon={<Ban size={16} />}

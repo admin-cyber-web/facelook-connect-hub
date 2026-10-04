@@ -184,7 +184,7 @@ function OnlineDot({ authorId }: { authorId: string }) {
   if (!onlineIds.has(authorId)) return null;
   return (
     <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 z-10"
-      style={{ background: "#00F0FF", borderColor: "#090a0f", boxShadow: "0 0 6px #00F0FF" }} />
+      style={{ background: "#34d399", borderColor: "#090a0f", boxShadow: "0 0 6px #34d399" }} />
   );
 }
 
@@ -355,6 +355,7 @@ type MemberRole = "admin" | "moderator" | "member";
 
 export default function CirclePage({ userProfile, currentUserId }: Props) {
   const { openProfile } = useProfileViewer();
+  const onlineIds = useOnlineUsers();
   const dataCache = useDataCache();
   const cachedGroups = dataCache.cacheRef.current.circleList;
   const [view, setView] = useState<"dashboard" | "group">("dashboard");
@@ -3876,8 +3877,9 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
                         onPointerCancel={() => { if (longPressCommentTimer.current) { clearTimeout(longPressCommentTimer.current); longPressCommentTimer.current = null; } }}
                         className={`flex gap-2.5 rounded-xl transition-colors select-none ${isLongPressed ? "bg-black/5" : ""}`}
                       >
-                        <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-black text-xs overflow-hidden shrink-0 mt-0.5">
+                        <div className="relative w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-black text-xs overflow-hidden shrink-0 mt-0.5">
                           {comment.author_avatar ? <img src={comment.author_avatar} className="w-full h-full object-cover" alt="" loading="lazy"  decoding="async"/> : (comment.author_name || "M")[0]}
+                          {onlineIds.has(comment.author_id || "") && <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-white bg-green-400" />}
                         </div>
                         <div className={`rounded-2xl px-3 py-2 flex-1 ${(comment as any).is_hidden && !isPostOwner && !canModerate ? "bg-gray-50 border border-dashed border-gray-200" : "bg-gray-100"}`}>
                           <p style={{ color: "#800000", fontSize: 12, fontWeight: 900 }}>{comment.author_name}</p>

@@ -3,6 +3,7 @@ import { supabase } from "../lib/supabaseClient";
 import { memGet, memSet } from "../lib/memCache";
 import { resolveMediaUrl } from "../lib/mediaUrl";
 import { toast } from "sonner";
+import { useOnlineUsers } from "../context/OnlineUsersContext";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus, X, ChevronLeft, ChevronRight, Eye, Loader2, Music, Mic, Download, Share2, Heart, ChevronUp, MessageCircle, Send, Volume2, VolumeX } from "lucide-react";
 
@@ -278,13 +279,16 @@ const StoryCommentSheet = ({
             )}
             {comments.map((c: any) => (
               <div key={c.id} className="flex items-start gap-2.5">
-                {c.profiles?.avatar_url ? (
-                  <img src={c.profiles.avatar_url} className="w-8 h-8 rounded-full object-cover shrink-0 mt-0.5" loading="lazy" crossOrigin="anonymous" referrerPolicy="no-referrer" decoding="async"/>
-                ) : (
-                  <div className="w-8 h-8 rounded-full bg-white/15 flex items-center justify-center shrink-0 mt-0.5">
-                    <span className="text-white font-bold text-sm">{(c.profiles?.full_name || "U")[0]}</span>
-                  </div>
-                )}
+                <div className="relative h-8 w-8 shrink-0 mt-0.5">
+                  {c.profiles?.avatar_url ? (
+                    <img src={c.profiles.avatar_url} className="h-8 w-8 rounded-full object-cover" loading="lazy" crossOrigin="anonymous" referrerPolicy="no-referrer" decoding="async"/>
+                  ) : (
+                    <div className="h-8 w-8 rounded-full bg-white/15 flex items-center justify-center">
+                      <span className="text-white font-bold text-sm">{(c.profiles?.full_name || "U")[0]}</span>
+                    </div>
+                  )}
+                  {onlineUserIds.has(c.user_id) && <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-[#120b0f] bg-green-400" />}
+                </div>
                 <div className="flex-1 min-w-0">
                   <span className="text-white/55 text-[11px] font-bold">{c.profiles?.full_name || "User"}</span>
                   <p className="text-white text-[13px] leading-snug mt-0.5">{c.comment_text}</p>
@@ -338,6 +342,7 @@ const StoryViewer = ({
   currentUserId: string | null;
   onClose: () => void;
 }) => {
+  const onlineUserIds = useOnlineUsers();
   const [groupIdx, setGroupIdx] = useState(startGroupIdx);
   const [storyIdx, setStoryIdx] = useState(startStoryIdx);
   const [elapsed, setElapsed] = useState(0);
@@ -1458,6 +1463,7 @@ const StoryBubble = ({
   const avatarUrl = group?.profile?.avatar_url;
   const userId = group?.user_id || "";
   const firstName = profileName.split(" ")[0];
+  const onlineUserIds = useOnlineUsers();
 
   return (
     <motion.button
@@ -1467,7 +1473,7 @@ const StoryBubble = ({
       style={{ width: "calc((100vw - 28px) / 4.2)", maxWidth: 84 }}
     >
       <div
-        className={`rounded-full p-0.5 ${
+        className={`relative rounded-full p-0.5 ${
           hasStory
             ? "bg-gradient-to-tr from-orange-400 via-pink-500 to-purple-600"
             : "bg-white/20"
@@ -1493,6 +1499,9 @@ const StoryBubble = ({
             </div>
           )}
         </div>
+        {onlineUserIds.has(userId) && (
+          <span className="absolute bottom-1 right-1 h-3 w-3 rounded-full border-2 border-[#0F172A] bg-green-400" />
+        )}
       </div>
       <span className="text-[11px] font-semibold text-white/90 truncate w-full text-center leading-tight">
         {isSelf ? "Your Story" : firstName}

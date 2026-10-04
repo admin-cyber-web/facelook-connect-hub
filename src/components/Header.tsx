@@ -34,6 +34,7 @@ import { subscribeWhileVisible } from "@/lib/realtimeVisibility";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import { useProfileViewer } from "@/context/ProfileViewerContext";
+import { useOnlineUsers } from "@/context/OnlineUsersContext";
 import {
   canViewPrivateProfile,
   searchVisibleProfiles,
@@ -485,6 +486,7 @@ const SearchModal = ({
   userId?: string;
 }) => {
   const { openProfile } = useProfileViewer();
+  const onlineUserIds = useOnlineUsers();
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [people, setPeople] = useState<any[]>([]);
@@ -828,16 +830,9 @@ const SearchModal = ({
                               </div>
                             )}
                           </div>
-                          {(() => {
-                            const online =
-                              person.last_seen &&
-                              Date.now() -
-                                new Date(person.last_seen).getTime() <
-                                5 * 60 * 1000;
-                            return online ? (
-                              <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-green-500 border-2 border-[#0f172a]" />
-                            ) : null;
-                          })()}
+                          {onlineUserIds.has(person.id) && (
+                            <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-green-500 border-2 border-[#0f172a]" />
+                          )}
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-white font-bold text-[13px] truncate">
@@ -1080,15 +1075,9 @@ const SearchModal = ({
                           </div>
                         )}
                       </div>
-                      {(() => {
-                        const online =
-                          person.last_seen &&
-                          Date.now() - new Date(person.last_seen).getTime() <
-                            5 * 60 * 1000;
-                        return online ? (
-                          <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-green-500 border-2 border-[#0f172a]" />
-                        ) : null;
-                      })()}
+                      {onlineUserIds.has(person.id) && (
+                        <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-green-500 border-2 border-[#0f172a]" />
+                      )}
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-white font-bold text-[13px] truncate">
