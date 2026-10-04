@@ -645,7 +645,7 @@ const DEMO_HINDI_CIRCLES = [
     cover_url:
       "https://images.unsplash.com/photo-1614294149010-950b698f72c0?w=400&q=80",
     member_count: 2198,
-    description: "Chill karo, game karo, hangout karo",
+    description: "Chill karo, hangout karo",
   },
 ];
 

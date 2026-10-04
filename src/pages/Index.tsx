@@ -83,7 +83,6 @@ const AdminDashboard = lazy(() => import("@/components/AdminDashboard"));
 const MagnetDashboard= lazy(() => import("@/components/MagnetDashboard"));
 const FlicksStudio   = lazy(() => import("@/components/FlicksStudio"));
 const ReelStudio     = lazy(() => import("@/components/ReelStudio"));
-const AntakshariArena = lazy(() => import("@/components/AntakshariArena"));
 const ConnectionPanel= lazy(() => import("@/components/ConnectionPanel"));
 const CreatePost     = lazy(() => import("@/components/CreatePost"));
 // ── Reusable styled blocks ───────────────────────────────────────────────────
@@ -4747,20 +4746,7 @@ const PersonalizationView = React.memo(({
               </ErrorBoundary>
             )}
 
-            {/* ANTAKSHARI ARENA ──────────────────────────────────────────────── */}
-            {activeFeature === "Antakshari" && (
-              <ErrorBoundary>
-              <Suspense fallback={<SectionLoader />}>
-                <AntakshariArena
-                  userId={userId}
-                  userProfile={profile}
-                  onBack={() => setActiveFeature("Fame")}
-                />
-              </Suspense>
-              </ErrorBoundary>
-            )}
-
-            {/* 6. SETTINGS ─────────────────────────────────────────────────── */}
+            {/* 6. SETTINGS ─────────────────────────────────────────────────── */ }
             {activeFeature === "Settings" && (
               <ErrorBoundary>
               <div className="w-full min-h-screen pb-32" style={{ background: "#09090B" }}>
@@ -4901,13 +4887,6 @@ const PersonalizationView = React.memo(({
         onFeatureChange={(f) => {
           if (f === "Admin") {
             if (isAppAdmin) setIsAdminPanelOpen(true);
-            return;
-          }
-          if (f === "Antakshari") {
-            toast.info("🎤 Coming Soon: Antakshari — August 2026", {
-              description: "Sing-along battles with your friends are on the way!",
-              duration: 4000,
-            });
             return;
           }
           if (f === "Circle") { setActiveFeature("Circle"); return; }
