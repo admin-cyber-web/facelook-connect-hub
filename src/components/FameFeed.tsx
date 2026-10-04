@@ -12,6 +12,7 @@ import { createPortal } from "react-dom";
 import { supabase } from "../lib/supabaseClient";
 import { smartTime } from "../lib/timeAgo";
 import { useOnlineUsers } from "../context/OnlineUsersContext";
+import ActiveStatusAvatar from "./ActiveStatusAvatar";
 import { memGet, memSet } from "../lib/memCache";
 import { toast } from "sonner";
 import { ReactionBar, ReactionBubbles } from "./ReactionBar";
@@ -2472,18 +2473,12 @@ const SingleReelBlock = ({
       )}
       <div className="absolute bottom-5 left-4 right-16 max-h-[35%] overflow-y-auto overscroll-contain rounded-lg bg-black/75 p-3 text-white">
         <div className="mb-1.5 flex items-center gap-2">
-          <div className="relative h-7 w-7 shrink-0 overflow-hidden rounded-full border border-white/30 bg-white/10">
-            {post.author_profile?.avatar_url || post.author_avatar ? (
-              <img src={post.author_profile?.avatar_url || post.author_avatar} className="h-full w-full object-cover" alt="" />
-            ) : (
-              <span className="flex h-full w-full items-center justify-center text-xs font-black">
-                {(post.author_profile?.full_name || post.author || "U")[0]?.toUpperCase()}
-              </span>
-            )}
-            {onlineUserIds.has(post.author_id || "") && (
-              <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-black bg-green-400" />
-            )}
-          </div>
+          <ActiveStatusAvatar
+            src={post.author_profile?.avatar_url || post.author_avatar}
+            name={post.author_profile?.full_name || post.author}
+            size={28}
+            online={onlineUserIds.has(post.author_id || "")}
+          />
           <p className="font-bold text-sm drop-shadow-lg">
           @{post.author_profile?.full_name || post.author || "user"}
           </p>
@@ -5285,7 +5280,7 @@ const FameFeed = ({
                   e.stopPropagation();
                   if (post.author_id) openProfile(post.author_id);
                 }}
-                className="w-10 h-10 rounded-full bg-purple-900 flex items-center justify-center text-white font-black text-sm shrink-0 border border-white/10 active:scale-90 transition-transform overflow-hidden"
+                className="w-10 h-10 rounded-full bg-purple-900 flex items-center justify-center text-white font-black text-sm shrink-0 border border-transparent active:scale-90 transition-transform overflow-visible"
               >
                 {(() => {
                   // Priority order:
@@ -5299,23 +5294,12 @@ const FameFeed = ({
                     post.author_avatar;
                   const online = onlineUserIds.has(post.author_id || "");
                   return (
-                    <div className="relative w-full h-full">
-                      {avatarSrc ? (
-                        <img
-                          src={avatarSrc}
-                          className="w-full h-full object-cover"
-                          loading="lazy"
-                          alt=""
-                         decoding="async"/>
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-white font-black text-sm">
-                          {post.author?.[0]?.toUpperCase() || "V"}
-                        </div>
-                      )}
-                      {online && (
-                        <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-green-400 border-2 border-[#1a0812]" />
-                      )}
-                    </div>
+                    <ActiveStatusAvatar
+                      src={avatarSrc}
+                      name={post.author}
+                      size={40}
+                      online={online}
+                    />
                   );
                 })()}
               </button>
@@ -5764,6 +5748,7 @@ const FameFeed = ({
             const memberPool = liveTickerMembers.length > 0 ? liveTickerMembers : feedAuthors;
             const rightIdx = memberPool.length > 0 ? ((postSeed * 7 + tickerIdx) % memberPool.length) : 0;
             const topMember = memberPool.length > 0 ? memberPool[rightIdx] : null;
+            const topMemberOnline = topMember ? onlineUserIds.has(topMember.id) : false;
 
             return (
               <div className="mx-3 mb-2" style={{
@@ -5905,28 +5890,22 @@ const FameFeed = ({
                   >
                     {topMember ? (
                       <>
-                        <div
-                          className="w-6 h-6 rounded-full overflow-hidden mb-[2px] shrink-0 flex items-center justify-center"
-                          style={{ background: "linear-gradient(135deg,#06b6d4,#8b5cf6)", border: "1.5px solid rgba(0,200,255,0.35)" }}
-                        >
-                          {topMember.avatar ? (
-                            <img src={topMember.avatar} className="w-full h-full object-cover" alt="" decoding="async" loading="lazy" />
-                          ) : (
-                            <span className="text-[8px] font-black text-white">
-                              {topMember.name?.[0]?.toUpperCase() ?? "?"}
-                            </span>
-                          )}
-                        </div>
-                        {/* green pulse dot */}
+                        <ActiveStatusAvatar
+                          src={topMember.avatar}
+                          name={topMember.name}
+                          size={26}
+                          online={topMemberOnline}
+                          className="mb-[2px]"
+                        />
                         <span className="text-[8.5px] font-black truncate w-full text-center leading-tight"
                           style={{ color: "rgba(255,255,255,0.8)" }}>
                           {topMember.name.split(" ")[0]}
                         </span>
-                        <span className="text-[7px] font-semibold flex items-center gap-[2px]"
-                          style={{ color: "#00c8ff66" }}>
-                          <span className="w-[5px] h-[5px] rounded-full bg-green-400 inline-block" />
-                          online
-                        </span>
+                        {topMemberOnline && (
+                          <span className="text-[7px] font-black tracking-wide" style={{ color: "#86efac" }}>
+                            LIVE
+                          </span>
+                        )}
                       </>
                     ) : (
                       <>
@@ -6485,27 +6464,14 @@ const FameFeed = ({
                                       const uid = c.user_id ?? c.author_id;
                                       if (uid) openProfile(uid);
                                     }}
-                                    className="relative w-8 h-8 rounded-full bg-pink-900/50 flex items-center justify-center text-[10px] font-black text-pink-300 shrink-0 overflow-hidden border border-white/10 active:scale-90 transition-transform"
+                                    className="active:scale-90 transition-transform"
                                   >
-                                    {onlineUserIds.has(c.user_id ?? c.author_id ?? "") && (
-                                      <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-[#1a0812] bg-green-400" />
-                                    )}
-                                    {authorAvatars[
-                                      c.user_id ?? c.author_id ?? ""
-                                    ] ? (
-                                      <img
-                                        src={
-                                          authorAvatars[
-                                            c.user_id ?? c.author_id ?? ""
-                                          ]
-                                        }
-                                        className="w-full h-full object-cover"
-                                        loading="lazy"
-                                        alt=""
-                                       decoding="async"/>
-                                    ) : (
-                                      c.author?.[0]
-                                    )}
+                                    <ActiveStatusAvatar
+                                      src={authorAvatars[c.user_id ?? c.author_id ?? ""]}
+                                      name={c.author}
+                                      size={32}
+                                      online={onlineUserIds.has(c.user_id ?? c.author_id ?? "")}
+                                    />
                                   </button>
                                   <div
                                     className={`flex-1 min-w-0 rounded-2xl px-3 py-2 ${c.is_hidden && !isPostOwner ? "border border-dashed border-white/10" : ""}`}

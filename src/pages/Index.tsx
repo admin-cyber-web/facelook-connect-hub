@@ -68,6 +68,8 @@ import ShareVibeComposer from "@/components/ShareVibeComposer";
 import { isAdminEmail } from "@/lib/adminConfig";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { useDataCache } from "@/context/DataCacheContext";
+import { useOnlineUsers } from "@/context/OnlineUsersContext";
+import ActiveStatusAvatar from "@/components/ActiveStatusAvatar";
 
 // ── Lazy-loaded feature sections (breaks circular deps + improves load time) ──
 const FameFeed       = lazy(() => import("@/components/FameFeed"));
@@ -2106,6 +2108,7 @@ const PersonalInfoView = React.memo(({
 
 // ── Component ────────────────────────────────────────────────────────────────
 const Index = ({ session, initialAdminOpen, isGuest = false }: { session: Session; initialAdminOpen?: boolean; isGuest?: boolean }) => {
+  const onlineUserIds = useOnlineUsers();
   const userId = session.user.id;
   const userEmail = session.user.email || "";
   const isAppAdmin = isAdminEmail(userEmail);
@@ -3267,25 +3270,11 @@ const PersonalizationView = React.memo(({
               <div className="flex items-center gap-4">
                 {/* Avatar */}
                 <div className="relative shrink-0">
-                  <div
-                    className="w-[60px] h-[60px] rounded-2xl overflow-hidden flex items-center justify-center"
-                    style={{ border: "2px solid rgba(139,92,246,0.45)", boxShadow: "0 0 18px rgba(139,92,246,0.2)" }}
-                  >
-                    {profile.avatar_url ? (
-                      <img src={profile.avatar_url} className="w-full h-full object-cover" alt="" loading="lazy" decoding="async" />
-                    ) : (
-                      <div
-                        className="w-full h-full flex items-center justify-center text-xl font-black text-white"
-                        style={{ background: "linear-gradient(135deg,#8B5CF6,#EC4899)" }}
-                      >
-                        {(profile.full_name || userEmail || "U")[0].toUpperCase()}
-                      </div>
-                    )}
-                  </div>
-                  {/* Online dot */}
-                  <div
-                    className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-emerald-400"
-                    style={{ border: "2px solid #09090B", boxShadow: "0 0 6px rgba(52,211,153,0.5)" }}
+                  <ActiveStatusAvatar
+                    src={profile.avatar_url}
+                    name={profile.full_name || userEmail}
+                    size={60}
+                    online={onlineUserIds.has(userId)}
                   />
                 </div>
 
@@ -3976,6 +3965,7 @@ const PersonalizationView = React.memo(({
                 <StoryBar userProfile={profile} />
 
                 <ShareVibeComposer
+                  userId={userId}
                   userProfile={profile}
                   onOpen={() => setIsPostOpen(true)}
                   onMediaSelect={(file) => {

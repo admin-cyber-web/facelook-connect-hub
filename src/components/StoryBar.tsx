@@ -4,6 +4,7 @@ import { memGet, memSet } from "../lib/memCache";
 import { resolveMediaUrl } from "../lib/mediaUrl";
 import { toast } from "sonner";
 import { useOnlineUsers } from "../context/OnlineUsersContext";
+import ActiveStatusAvatar from "./ActiveStatusAvatar";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus, X, ChevronLeft, ChevronRight, Eye, Loader2, Music, Mic, Download, Share2, Heart, ChevronUp, MessageCircle, Send, Volume2, VolumeX } from "lucide-react";
 
@@ -279,16 +280,13 @@ const StoryCommentSheet = ({
             )}
             {comments.map((c: any) => (
               <div key={c.id} className="flex items-start gap-2.5">
-                <div className="relative h-8 w-8 shrink-0 mt-0.5">
-                  {c.profiles?.avatar_url ? (
-                    <img src={c.profiles.avatar_url} className="h-8 w-8 rounded-full object-cover" loading="lazy" crossOrigin="anonymous" referrerPolicy="no-referrer" decoding="async"/>
-                  ) : (
-                    <div className="h-8 w-8 rounded-full bg-white/15 flex items-center justify-center">
-                      <span className="text-white font-bold text-sm">{(c.profiles?.full_name || "U")[0]}</span>
-                    </div>
-                  )}
-                  {onlineUserIds.has(c.user_id) && <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-[#120b0f] bg-green-400" />}
-                </div>
+                <ActiveStatusAvatar
+                  src={c.profiles?.avatar_url}
+                  name={c.profiles?.full_name}
+                  size={32}
+                  online={onlineUserIds.has(c.user_id)}
+                  className="mt-0.5"
+                />
                 <div className="flex-1 min-w-0">
                   <span className="text-white/55 text-[11px] font-bold">{c.profiles?.full_name || "User"}</span>
                   <p className="text-white text-[13px] leading-snug mt-0.5">{c.comment_text}</p>
@@ -1464,6 +1462,7 @@ const StoryBubble = ({
   const userId = group?.user_id || "";
   const firstName = profileName.split(" ")[0];
   const onlineUserIds = useOnlineUsers();
+  const online = onlineUserIds.has(userId);
 
   return (
     <motion.button
@@ -1480,7 +1479,11 @@ const StoryBubble = ({
         }`}
         style={{ width: "calc((100vw - 28px) / 4.2 - 10px)", height: "calc((100vw - 28px) / 4.2 - 10px)", maxWidth: 74, maxHeight: 74 }}
       >
-        <div className="w-full h-full rounded-full overflow-hidden bg-[#0F172A] p-0.5">
+        {online && <span className="active-status-avatar__badge">LIVE</span>}
+        <div
+          className="w-full h-full rounded-full overflow-hidden bg-[#0F172A] p-0.5"
+          style={online ? { boxShadow: "0 0 0 2px rgba(74,222,128,.85), 0 0 14px rgba(74,222,128,.75)" } : undefined}
+        >
           {isSelf && !avatarUrl ? (
             <div
               className="w-full h-full rounded-full flex items-center justify-center relative"
@@ -1499,9 +1502,6 @@ const StoryBubble = ({
             </div>
           )}
         </div>
-        {onlineUserIds.has(userId) && (
-          <span className="absolute bottom-1 right-1 h-3 w-3 rounded-full border-2 border-[#0F172A] bg-green-400" />
-        )}
       </div>
       <span className="text-[11px] font-semibold text-white/90 truncate w-full text-center leading-tight">
         {isSelf ? "Your Story" : firstName}

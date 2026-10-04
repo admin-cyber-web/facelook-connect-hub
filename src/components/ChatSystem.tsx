@@ -3,6 +3,7 @@ import { ReactionBar, ReactionBubbles } from "./ReactionBar";
 import { useSoundEffects } from "../hooks/useSoundEffects";
 import { useProfileViewer } from "../context/ProfileViewerContext";
 import { useActiveHide } from "../context/OnlineUsersContext";
+import ActiveStatusAvatar from "./ActiveStatusAvatar";
 import { motion, AnimatePresence } from "framer-motion";
 import AdminDashboard from "./AdminDashboard";
 import { isAdminEmail } from "../lib/adminConfig";
@@ -398,35 +399,8 @@ const Avatar = ({
   size?: "sm" | "md" | "lg";
   online?: boolean;
 }) => {
-  const dim =
-    size === "sm"
-      ? "w-9 h-9 text-xs"
-      : size === "lg"
-        ? "w-14 h-14 text-xl"
-        : "w-11 h-11 text-sm";
-  return (
-    <div className="relative shrink-0">
-      {url ? (
-        <img
-          src={url}
-          className={`${dim} rounded-full object-cover border-2 border-white/20`}
-          decoding="async"
-          crossOrigin="anonymous"
-        />
-      ) : (
-        <div
-          className={`${dim} rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-black`}
-        >
-          {name?.[0]?.toUpperCase() || "?"}
-        </div>
-      )}
-      {online === true && (
-        <span
-          className="absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white bg-green-400"
-        />
-      )}
-    </div>
-  );
+  const dim = size === "sm" ? 36 : size === "lg" ? 56 : 44;
+  return <ActiveStatusAvatar src={url} name={name} size={dim} online={online === true} />;
 };
 
 // ── MediaBubble (memoized to prevent re-renders during scroll) ───────────────
@@ -4774,7 +4748,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                         </p>
                       ) : (
                         <p
-                          className={`text-[11px] font-semibold ${onlineUsers.has(selectedUser.id) ? "text-green-400" : "text-red-400"}`}
+                          className={`text-[11px] font-semibold ${onlineUsers.has(selectedUser.id) ? "text-green-400" : "text-white/45"}`}
                         >
                           {onlineUsers.has(selectedUser.id)
                             ? "● Online"

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback, memo } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { smartTime } from "../lib/timeAgo";
 import { useOnlineUsers } from "../context/OnlineUsersContext";
+import ActiveStatusAvatar from "./ActiveStatusAvatar";
 import { memGet, memSet } from "../lib/memCache";
 import { useProfileViewer } from "../context/ProfileViewerContext";
 import { useDataCache } from "../context/DataCacheContext";
@@ -179,33 +180,24 @@ interface PostCardProps {
   onViewers: (postId: string) => void;
 }
 
-function OnlineDot({ authorId }: { authorId: string }) {
-  const onlineIds = useOnlineUsers();
-  if (!onlineIds.has(authorId)) return null;
-  return (
-    <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 z-10"
-      style={{ background: "#34d399", borderColor: "#090a0f", boxShadow: "0 0 6px #34d399" }} />
-  );
-}
-
 const CirclePostCard = memo(({
   post, currentUserId, canModerate, canAdmin,
   likedPostIds, viewCounts, groupOwnerId, latestComment,
   onLike, onComment, onShare, onOptions, onReview, onViewers,
 }: PostCardProps) => {
+  const onlineIds = useOnlineUsers();
   const canEdit = post.author_id === currentUserId || canModerate;
   return (
     <div className="mx-3 mb-3 rounded-3xl overflow-hidden border border-white/[0.08]"
       style={{ background: "rgba(255,255,255,0.03)", backdropFilter: "blur(20px)", boxShadow: "0 8px 32px rgba(0,0,0,0.45)" }}>
       {/* Header */}
       <div className="flex items-center gap-3 px-4 py-3">
-        <div className="relative w-10 h-10 rounded-full overflow-hidden shrink-0 flex items-center justify-center text-white font-black text-sm"
-          style={{ boxShadow: "0 0 0 2px rgba(0,240,255,0.35), 0 0 12px rgba(0,240,255,0.15)", background: "linear-gradient(135deg,#1e3a8a,#2563eb)" }}>
-          {post.author_avatar
-            ? <img src={post.author_avatar} className="w-full h-full object-cover" alt="" loading="lazy" decoding="async"/>
-            : (post.author_name || "M")[0].toUpperCase()}
-          <OnlineDot authorId={post.author_id} />
-        </div>
+        <ActiveStatusAvatar
+          src={post.author_avatar}
+          name={post.author_name}
+          size={40}
+          online={onlineIds.has(post.author_id)}
+        />
         <div className="flex-1">
           <div className="flex items-center gap-1.5">
             <p className="text-white font-bold text-sm leading-none">{post.author_name}</p>
@@ -2905,26 +2897,20 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
                   className="flex flex-col items-center p-4 rounded-3xl border border-white/[0.08] relative"
                   style={{ background: "rgba(255,255,255,0.03)", backdropFilter: "blur(20px)", boxShadow: "0 8px 32px rgba(0,0,0,0.35)" }}>
                   {/* Avatar */}
-                  <div className="relative mb-2">
-                    <div
-                      className="w-16 h-16 rounded-full bg-blue-700 flex items-center justify-center text-white font-black text-xl overflow-hidden cursor-pointer"
-                      style={{
-                        boxShadow: m.role === "admin"
-                          ? "0 0 0 2.5px #f59e0b, 0 0 14px rgba(245,158,11,0.35)"
-                          : m.role === "moderator"
-                            ? "0 0 0 2.5px #3b82f6, 0 0 14px rgba(59,130,246,0.35)"
-                            : "0 0 0 2px rgba(0,240,255,0.35), 0 0 12px rgba(0,240,255,0.1)"
-                      }}
-                      onClick={() => m.user_id && openProfile(m.user_id)}
-                    >
-                      {m.profiles?.avatar_url ? (
-                        <img src={m.profiles.avatar_url} className="w-full h-full object-cover" alt="" loading="lazy" decoding="async"/>
-                      ) : (
-                        (m.profiles?.full_name || "M")[0].toUpperCase()
-                      )}
-                    </div>
-                    <OnlineDot authorId={m.user_id} />
-                  </div>
+                  <button
+                    type="button"
+                    className="mb-2 rounded-full"
+                    onClick={() => m.user_id && openProfile(m.user_id)}
+                    aria-label={`Open ${m.profiles?.full_name || "member"} profile`}
+                  >
+                    <ActiveStatusAvatar
+                      src={m.profiles?.avatar_url}
+                      name={m.profiles?.full_name}
+                      size={64}
+                      online={onlineIds.has(m.user_id)}
+                      className="cursor-pointer"
+                    />
+                  </button>
                   {/* Name */}
                   <p className="text-[12px] font-bold text-white truncate w-full text-center leading-tight">
                     {m.profiles?.full_name || "Member"}
@@ -3877,10 +3863,13 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
                         onPointerCancel={() => { if (longPressCommentTimer.current) { clearTimeout(longPressCommentTimer.current); longPressCommentTimer.current = null; } }}
                         className={`flex gap-2.5 rounded-xl transition-colors select-none ${isLongPressed ? "bg-black/5" : ""}`}
                       >
-                        <div className="relative w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-black text-xs overflow-hidden shrink-0 mt-0.5">
-                          {comment.author_avatar ? <img src={comment.author_avatar} className="w-full h-full object-cover" alt="" loading="lazy"  decoding="async"/> : (comment.author_name || "M")[0]}
-                          {onlineIds.has(comment.author_id || "") && <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-white bg-green-400" />}
-                        </div>
+                        <ActiveStatusAvatar
+                          src={comment.author_avatar}
+                          name={comment.author_name}
+                          size={32}
+                          online={onlineIds.has(comment.author_id || "")}
+                          className="mt-0.5"
+                        />
                         <div className={`rounded-2xl px-3 py-2 flex-1 ${(comment as any).is_hidden && !isPostOwner && !canModerate ? "bg-gray-50 border border-dashed border-gray-200" : "bg-gray-100"}`}>
                           <p style={{ color: "#800000", fontSize: 12, fontWeight: 900 }}>{comment.author_name}</p>
                           {(comment as any).is_hidden && !isPostOwner && !canModerate ? (

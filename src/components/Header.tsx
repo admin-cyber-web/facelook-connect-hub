@@ -35,6 +35,7 @@ import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import { useProfileViewer } from "@/context/ProfileViewerContext";
 import { useOnlineUsers } from "@/context/OnlineUsersContext";
+import ActiveStatusAvatar from "./ActiveStatusAvatar";
 import {
   canViewPrivateProfile,
   searchVisibleProfiles,
@@ -815,25 +816,12 @@ const SearchModal = ({
                           onClose();
                         }}
                       >
-                        <div className="relative shrink-0">
-                          <div className="w-11 h-11 rounded-full bg-blue-600 overflow-hidden border border-white/10">
-                            {person.avatar_url ? (
-                              <img
-                                src={person.avatar_url}
-                                className="w-full h-full object-cover"
-                                alt=""
-                                decoding="async"
-                              />
-                            ) : (
-                              <div className="w-full h-full flex items-center justify-center text-white font-black text-sm">
-                                {person.full_name?.[0]}
-                              </div>
-                            )}
-                          </div>
-                          {onlineUserIds.has(person.id) && (
-                            <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-green-500 border-2 border-[#0f172a]" />
-                          )}
-                        </div>
+                        <ActiveStatusAvatar
+                          src={person.avatar_url}
+                          name={person.full_name}
+                          size={44}
+                          online={onlineUserIds.has(person.id)}
+                        />
                         <div className="flex-1 min-w-0">
                           <p className="text-white font-bold text-[13px] truncate">
                             {person.full_name}
@@ -1060,25 +1048,12 @@ const SearchModal = ({
                     key={person.id}
                     className="flex items-center gap-3 px-4 py-3 border-b border-white/5 hover:bg-white/5 transition-colors"
                   >
-                    <div className="relative shrink-0">
-                      <div className="w-11 h-11 rounded-full bg-blue-600 overflow-hidden border border-white/10">
-                        {person.avatar_url ? (
-                          <img
-                            src={person.avatar_url}
-                            className="w-full h-full object-cover"
-                            alt=""
-                            decoding="async"
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center text-white font-black text-sm">
-                            {person.full_name?.[0]}
-                          </div>
-                        )}
-                      </div>
-                      {onlineUserIds.has(person.id) && (
-                        <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-green-500 border-2 border-[#0f172a]" />
-                      )}
-                    </div>
+                    <ActiveStatusAvatar
+                      src={person.avatar_url}
+                      name={person.full_name}
+                      size={44}
+                      online={onlineUserIds.has(person.id)}
+                    />
                     <div className="flex-1 min-w-0">
                       <p className="text-white font-bold text-[13px] truncate">
                         {person.full_name}

@@ -10,6 +10,7 @@
  * zero mobile heating. The track is duplicated so the loop is seamless.
  */
 import { memo, useEffect, useState, useMemo } from "react";
+import ActiveStatusAvatar from "./ActiveStatusAvatar";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 export interface TickerProfile {
@@ -161,29 +162,12 @@ const Sep = () => (
 // ── User chip ─────────────────────────────────────────────────────────────────
 const UserChip = ({ p }: { p: TickerProfile }) => (
   <span className="inline-flex items-center gap-1.5 shrink-0">
-    {/* Avatar */}
-    <span
-      className="w-[18px] h-[18px] rounded-full overflow-hidden shrink-0 inline-flex items-center justify-center text-[8px] font-black"
-      style={{
-        background: p.isOnline
-          ? "linear-gradient(135deg,#00F0FF,#2563eb)"
-          : "rgba(255,255,255,0.12)",
-        boxShadow: p.isOnline ? "0 0 6px rgba(0,240,255,0.5)" : "none",
-        color: "#fff",
-      }}
-    >
-      {p.avatar_url ? (
-        <img
-          src={p.avatar_url}
-          className="w-full h-full object-cover"
-          alt=""
-          loading="lazy"
-          decoding="async"
-        />
-      ) : (
-        (p.full_name?.[0] ?? "U").toUpperCase()
-      )}
-    </span>
+    <ActiveStatusAvatar
+      src={p.avatar_url}
+      name={p.full_name}
+      size={18}
+      online={p.isOnline}
+    />
     {/* Name */}
     <span
       className="text-[10px] font-bold tracking-tight"
@@ -191,12 +175,6 @@ const UserChip = ({ p }: { p: TickerProfile }) => (
     >
       {p.full_name?.split(" ")[0] ?? "Member"}
     </span>
-    {p.isOnline && (
-      <span
-        className="w-1.5 h-1.5 rounded-full shrink-0"
-        style={{ background: "#00F0FF", boxShadow: "0 0 4px #00F0FF" }}
-      />
-    )}
   </span>
 );
 

@@ -26,6 +26,8 @@ import { generatePostSEO } from "@/lib/geminiClient";
 import { uploadToCloudinary } from "@/lib/cloudinaryUpload";
 import SceneVaultAttachment, { type SceneMood, type SceneVaultDraft } from "./SceneVaultAttachment";
 import { getSmartPostAsset } from "@/utils/smartAssets";
+import { useOnlineUsers } from "../context/OnlineUsersContext";
+import ActiveStatusAvatar from "./ActiveStatusAvatar";
 import {
   resolveVibeSelection,
   VIBE_PROFILES,
@@ -54,6 +56,7 @@ const CreatePost = ({
   initialFile,
   onReelSelected,
 }: CreatePostProps) => {
+  const onlineUserIds = useOnlineUsers();
   const [content, setContent] = useState("");
   const [vibeOverride, setVibeOverride] = useState<VibeOverride>(null);
   const [files, setFiles] = useState<File[]>([]);
@@ -844,28 +847,21 @@ const CreatePost = ({
                     <BookmarkPlus size={19} />
                   </button>
                 ) : (
-                  <span className="mr-1 h-3 w-3 rounded-full bg-[#22C55E] shadow-[0_0_0_4px_rgba(34,197,94,0.12)]" aria-label="Online" />
+                  <span className="mr-1 h-3 w-3" aria-hidden="true" />
                 )}
               </header>
 
               <div className="relative z-10 flex min-h-0 flex-1 flex-col">
                 <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 pb-4 pt-4 sm:px-7">
                   <div className="flex items-center gap-3 sm:gap-4">
-                    <div className="relative h-12 w-12 shrink-0 rounded-full bg-[conic-gradient(from_210deg,#d946ef,#60a5fa,#22d3ee,#d946ef)] p-[2.5px] shadow-[0_0_18px_rgba(139,92,246,.22)]">
-                      <div className="h-full w-full rounded-full bg-white p-[2px]">
-                        <img
-                          src={
-                            userProfile?.avatar_url ||
-                            `https://ui-avatars.com/api/?name=${encodeURIComponent(userProfile?.full_name || "User")}&background=172554&color=fff`
-                          }
-                          className="h-full w-full rounded-full object-cover"
-                          alt={`${userProfile?.full_name || "Your"} avatar`}
-                          decoding="async"
-                          data-testid="img-avatar-create-post"
-                        />
-                      </div>
-                      <span className="absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full border-[2px] border-white bg-[#22C55E]" aria-hidden="true" />
-                    </div>
+                    <ActiveStatusAvatar
+                      src={userProfile?.avatar_url}
+                      name={userProfile?.full_name || "Your"}
+                      size={48}
+                      online={onlineUserIds.has(userProfile?.id || "")}
+                      className="shrink-0"
+                      imageTestId="img-avatar-create-post"
+                    />
 
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-black text-[#172554]">
