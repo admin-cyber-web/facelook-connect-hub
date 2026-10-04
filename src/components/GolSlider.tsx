@@ -1,12 +1,11 @@
 import { useState, useEffect, useRef } from "react";
-import { Film, Anchor, CheckSquare, Users, Star, Shield, ChevronUp, ChevronDown, Clapperboard, Mic2 } from "lucide-react";
+import { Film, Anchor, CheckSquare, Users, Star, Shield, ChevronUp, ChevronDown, Clapperboard } from "lucide-react";
 
 const BASE_NAV_ITEMS = [
   { label: "Flicks",      feature: "Flicks",      Icon: Film          },
   { label: "Hooks",       feature: "Hooks",       Icon: Anchor        },
   { label: "Task",        feature: "Task",        Icon: CheckSquare   },
   { label: "Circle",      feature: "Circle",      Icon: Users         },
-  { label: "Antak",       feature: "Antakshari",  Icon: Mic2            },
   { label: "Fame",        feature: "QuotesMaker", Icon: Star          },
   { label: "Studio",      feature: "Studio",      Icon: Clapperboard  },
 ] as const;
@@ -16,7 +15,6 @@ const LIGHTNING_WORDS = [
   { word: "Hooks",      color: "#ff2d78", glow: "rgba(255,45,120,0.85)" },
   { word: "Task",       color: "#ffd600", glow: "rgba(255,214,0,0.85)"  },
   { word: "Circle",     color: "#00ff88", glow: "rgba(0,255,136,0.85)"  },
-  { word: "Antakshari", color: "#ff6b35", glow: "rgba(255,107,53,0.85)" },
   { word: "Fame",       color: "#bf5af2", glow: "rgba(191,90,242,0.85)" },
   { word: "Studio",     color: "#EF4444", glow: "rgba(239,68,68,0.85)"  },
 ];

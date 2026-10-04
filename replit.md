@@ -9,7 +9,7 @@ Global helper for resolving Supabase storage references to public URLs.
 - `isVideoUrl(url)`, `isAudioUrl(url)`, `isYouTubeUrl(url)`, `getYouTubeEmbedUrl(url)` — type-detection helpers
 - Supported buckets: `posts`, `flicks`, `avatars`, `circles`, `hooks`, `chat-images`
 
-## Task Board (TaskBoard.tsx) — replaces MovieGame
+## Task Board (TaskBoard.tsx)
 Personal task manager accessible from GolSlider → "Task" tab.
 - **CRUD**: Create tasks with title, description, priority (High/Medium/Low), due date → stored in `user_tasks` Supabase table
 - **Toggle done**: tap checkbox to mark complete/incomplete, optimistic UI update
@@ -87,46 +87,6 @@ Full-screen messenger with 6 modules:
 - Set `VITE_SUPABASE_URL` to the existing Supabase project URL and set `VITE_SUPABASE_ANON_KEY` as a Replit Secret. Both are required for the frontend to initialize. Other integrations (for example Gemini and Agora) need their own credentials to use those features.
 - Development: run the existing **Start application** workflow (`npm run dev`, port 5000). Open the Replit web preview.
 - Build: `npm run build`
-
-## KBC Quiz Battle (Task Section)
-- **Location**: GolSlider → "Task" tab
-- **Files**: `src/components/MovieGame.tsx`, `src/data/quizData.ts`
-- **40 questions** across 4 categories: 🎬 Bollywood, 🔢 Math, 🦅 Birds, 🎵 Trending Songs
-- **10 rounds per match** — questions deterministically shuffled from session ID (same order for both players)
-- **Scoring**: Fast answer (≤15s) = +18, Slow answer (>15s) = +10, Wrong = 0
-- **Global sync**: Host drives round progression via `game_sessions.round_start_time` + `current_round`; Guest follows via Supabase Realtime + 3s polling fallback
-- **Audio**: Preloaded correct/wrong/match/BGM sounds (Mixkit CDN) via Audio refs
-- **UI**: KBC-style dark purple/blue gradient, circular red countdown timer, A/B/C/D option buttons, reveal animations
-- **Matchmaking**: Supabase `game_sessions` table + Realtime subscriptions
-- **Points**: -10 entry fee (profiles.fame_points), +18 winner, +2 admin_earnings per match
-- **Sound effects**: Mixkit CDN (correct taali, wrong buzz, match found)
-- **Requires Supabase table**:
-  ```sql
-  create table game_sessions (
-    id uuid primary key default gen_random_uuid(),
-    host_id uuid references profiles(id),
-    guest_id uuid references profiles(id),
-    status text default 'waiting',
-    host_score int default 0,
-    guest_score int default 0,
-    current_round int default 1,
-    movie_indices int[] default '{}',
-    winner_id uuid references profiles(id),
-    created_at timestamptz default now()
-  );
-  alter table game_sessions enable row level security;
-  create policy "allow all" on game_sessions for all using (true);
-  ```
-  Also add `admin_earnings` table if not present:
-  ```sql
-  create table if not exists admin_earnings (
-    id uuid primary key default gen_random_uuid(),
-    session_id uuid,
-    amount int,
-    reason text,
-    created_at timestamptz default now()
-  );
-  ```
 
 ## Flicks (Reels) Upgrade — Viral Engagement Engine
 - **File**: `src/components/FlicksFeed.tsx` (complete rewrite)

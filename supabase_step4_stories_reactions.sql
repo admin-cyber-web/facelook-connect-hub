@@ -142,29 +142,3 @@ create policy "gmr_delete_own" on group_message_reactions for delete using (auth
 do $$ begin
   begin alter publication supabase_realtime add table group_message_reactions; exception when duplicate_object then null; end;
 end $$;
-
--- ── 3. KBC QUIZ (Game Sessions + Admin Earnings) ────────────────────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS game_sessions (
-  id uuid primary key default gen_random_uuid(),
-  host_id uuid references profiles(id),
-  guest_id uuid references profiles(id),
-  status text default 'waiting',
-  host_score int default 0,
-  guest_score int default 0,
-  current_round int default 1,
-  movie_indices int[] default '{}',
-  winner_id uuid references profiles(id),
-  created_at timestamptz default now()
-);
-ALTER TABLE game_sessions ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "allow all" ON game_sessions FOR ALL USING (true);
-
-CREATE TABLE IF NOT EXISTS admin_earnings (
-  id uuid primary key default gen_random_uuid(),
-  session_id uuid,
-  amount int,
-  reason text,
-  created_at timestamptz default now()
-);
-ALTER TABLE admin_earnings ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "allow all" ON admin_earnings FOR ALL USING (true);
