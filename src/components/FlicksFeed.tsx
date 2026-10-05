@@ -249,7 +249,7 @@ const CommentDrawer = ({ post, currentUserId, onClose, onCommentAdded }: any) =>
 };
 
 // ── FlickCard ─────────────────────────────────────────────────────────────────
-const FlickCard = memo(({ post, isActive, isPreloaded, currentUserId, onBridgeChat, isAdmin, onPostDeleted, onUserBanned, onVideoInvalid }: any) => {
+const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, onBridgeChat, isAdmin, onPostDeleted, onUserBanned, onVideoInvalid }: any) => {
   const videoRef   = useRef<HTMLVideoElement>(null);
   const audioRef   = useRef<HTMLAudioElement>(null);
   const tapTimer   = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -324,8 +324,8 @@ const FlickCard = memo(({ post, isActive, isPreloaded, currentUserId, onBridgeCh
     vid.style.filter = reelSettings.cssFilter;
     // A reel with attached music uses its dedicated audio element, so its
     // camera/source audio must stay muted to prevent overlapping tracks.
-    vid.muted = hasBackgroundAudio;
-    vid.volume = hasBackgroundAudio ? 0 : 1;
+    vid.muted = true;
+    vid.volume = 1;
     if (audio) {
       audio.playbackRate = reelSettings.playbackRate;
       audio.loop = true;
@@ -341,9 +341,6 @@ const FlickCard = memo(({ post, isActive, isPreloaded, currentUserId, onBridgeCh
     // Reset transient error/loading on each activation (e.g. after scrolling away and back).
     setVideoError(null);
     vid.currentTime = 0;
-    if (hasBackgroundAudio && audio) {
-      audio.currentTime = getReelAudioTargetTime(vid, audio);
-    }
 
     const retryActivePlayback = () => {
       if (document.visibilityState === "hidden") return;
@@ -351,14 +348,17 @@ const FlickCard = memo(({ post, isActive, isPreloaded, currentUserId, onBridgeCh
       if (!activeVideo || !activeVideo.isConnected) return;
       activeVideo.muted = hasBackgroundAudio;
       activeVideo.volume = hasBackgroundAudio ? 0 : 1;
-      if (activeVideo.paused) requestPlayback(activeVideo, hasBackgroundAudio);
+      const videoWasPaused = activeVideo.paused;
+      if (videoWasPaused) requestPlayback(activeVideo, hasBackgroundAudio);
 
       const activeAudio = audioRef.current;
-      if (hasBackgroundAudio && activeAudio) {
+      if (hasBackgroundAudio && activeAudio && !videoWasPaused) {
         activeAudio.muted = false;
         activeAudio.volume = 1;
         if (activeAudio.paused) {
-          activeAudio.currentTime = getReelAudioTargetTime(activeVideo, activeAudio);
+          if (activeAudio.readyState >= HTMLMediaElement.HAVE_METADATA) {
+            activeAudio.currentTime = getReelAudioTargetTime(activeVideo, activeAudio);
+          }
           requestPlayback(activeAudio);
         }
       }
@@ -371,8 +371,7 @@ const FlickCard = memo(({ post, isActive, isPreloaded, currentUserId, onBridgeCh
       }),
     );
 
-    requestPlayback(vid, hasBackgroundAudio);
-    if (hasBackgroundAudio && audio) requestPlayback(audio);
+    requestPlayback(vid, true);
 
     return () => {
       gestureEvents.forEach((eventName) =>
@@ -408,6 +407,7 @@ const FlickCard = memo(({ post, isActive, isPreloaded, currentUserId, onBridgeCh
     isActive,
     reelSettings.audioUrl,
     reelSettings.playbackRate,
+    videoUrl,
   ]);
 
   // ── Core like logic (used by button + double-tap) ─────────────────────
@@ -729,9 +729,9 @@ const FlickCard = memo(({ post, isActive, isPreloaded, currentUserId, onBridgeCh
         vibe.primary
           ? `post-vibe-card${isActive ? " post-vibe-in-view" : ""}`
           : ""
-      }`}
+      } snap-always`}
       style={{
-        height: "100dvh",
+        height: "100%",
         touchAction: "pan-y",
         ...(vibe.primary
           ? {
@@ -747,11 +747,12 @@ const FlickCard = memo(({ post, isActive, isPreloaded, currentUserId, onBridgeCh
         ref={videoRef}
         key={videoUrl}
         src={videoUrl}
+        poster={post.thumb_url || post.cover_url || undefined}
         loop
-        muted={hasBackgroundAudio}
+        muted
         playsInline
         autoPlay={false}
-        preload={isActive ? "auto" : isPreloaded ? "metadata" : "none"}
+        preload={isActive || isNext ? "auto" : isPreloaded ? "metadata" : "none"}
         className="absolute inset-0 w-full h-full object-contain"
         style={{
           backgroundColor: "#000",
@@ -787,10 +788,13 @@ const FlickCard = memo(({ post, isActive, isPreloaded, currentUserId, onBridgeCh
       {hasBackgroundAudio && (
         <audio
           ref={audioRef}
-          src={isActive ? reelSettings.audioUrl || undefined : undefined}
+          src={isPreloaded ? reelSettings.audioUrl || undefined : undefined}
           muted={false}
-          preload={isActive ? "auto" : "none"}
+          preload={isActive || isNext ? "auto" : isPreloaded ? "metadata" : "none"}
           loop
+          onError={() => {
+            console.warn("[Flicks] custom audio track failed to load:", reelSettings.audioUrl);
+          }}
         />
       )}
 
@@ -1153,12 +1157,9 @@ export default function FlicksApp({
   }, [currentUserId]);
 
   useEffect(() => {
+    let cancelled = false;
     const fetchData = async () => {
       try {
-        const { data: authData, error: authError } = await supabase.auth.getUser();
-        if (authError) throw authError;
-        const viewerId = authData.user?.id ?? null;
-        setCurrentUserId(viewerId);
         const loadPosts = (projection: string) =>
           supabase
             .from("posts")
@@ -1177,66 +1178,105 @@ export default function FlicksApp({
           isSupportedVideoUrl(row.media_url, row.metadata),
         );
         const postIds = supportedRows.map((row: any) => row.id).filter(Boolean);
-        const likedIds = new Set<string>();
-        const likeCounts = new Map<string, number>();
-        if (postIds.length > 0) {
-          const [likedResult, likeRowsResult] = await Promise.all([
-            viewerId
-              ? supabase.from("likes").select("post_id").eq("user_id", viewerId).in("post_id", postIds)
-              : Promise.resolve({ data: [], error: null }),
-            supabase.from("likes").select("post_id").in("post_id", postIds),
-          ]);
 
-          (likedResult.data || []).forEach((row: any) => likedIds.add(row.post_id));
-          if (likeRowsResult.error) {
-            console.warn("[Flicks] like count fetch failed; using posts.likes_count:", likeRowsResult.error.message);
-          } else {
-            (likeRowsResult.data || []).forEach((row: any) => {
-              likeCounts.set(row.post_id, (likeCounts.get(row.post_id) || 0) + 1);
-            });
-          }
-        }
+        const normalized = supportedRows.map((p: any) => {
+          const settings = getReelSettings(p);
+          return {
+            id: `post_${p.id}`,
+            _raw_id: p.id,
+            _source: "posts",
+            user_id: p.author_id || p.user_id,
+            author_id: p.author_id || p.user_id,
+            author: p.author_profile?.full_name || p.author || "User",
+            author_avatar: p.author_profile?.avatar_url || null,
+            content: p.content || p.caption || "",
+            media_url: settings.videoUrl || p.media_url,
+            video_url: settings.videoUrl || p.media_url,
+            audio_url: settings.audioUrl,
+            filters: settings.filter,
+            playback_rate: settings.playbackRate,
+            metadata: p.metadata,
+            thumb_url: p.cover_url || p.thumb_url || null,
+            likes_count: Math.max(Number(p.likes_count) || 0, 0),
+            views_count: p.views_count || 0,
+            comments_count: Math.max(Number(p.comments_count) || 0, 0),
+            shares_count: Math.max(Number(p.shares_count) || 0, 0),
+            liked_by_me: false,
+            meta_title: p.meta_title || null,
+            meta_description: p.meta_description || null,
+            created_at: p.created_at,
+          };
+        });
 
-        const normalized = supportedRows.map((p: any) => ({
-          id: `post_${p.id}`,
-          _raw_id: p.id,
-          _source: "posts",
-          // The posts table stores the creator as author_id. Normalize that
-          // value to user_id for the Reel card ownership contract.
-          user_id: p.author_id || p.user_id,
-          author_id: p.author_id || p.user_id,
-          author: p.author_profile?.full_name || p.author || "User",
-          author_avatar: p.author_profile?.avatar_url || null,
-          content: p.content || p.caption || "",
-          media_url: getReelSettings(p).videoUrl || p.media_url,
-          video_url: getReelSettings(p).videoUrl || p.media_url,
-          audio_url: getReelSettings(p).audioUrl,
-          filters: getReelSettings(p).filter,
-          playback_rate: getReelSettings(p).playbackRate,
-          metadata: p.metadata,
-          thumb_url: p.cover_url || p.thumb_url || null,
-          likes_count: Math.max(
-            likeCounts.has(p.id) ? likeCounts.get(p.id)! : Number(p.likes_count) || 0,
-            0,
-          ),
-          views_count: p.views_count || 0,
-          comments_count: Math.max(Number(p.comments_count) || 0, 0),
-          shares_count: Math.max(Number(p.shares_count) || 0, 0),
-          liked_by_me: likedIds.has(p.id),
-          meta_title: p.meta_title || null,
-          meta_description: p.meta_description || null,
-          created_at: p.created_at,
-        }));
-
+        if (cancelled) return;
         setFlicks(normalized);
         dataCache.setCache("flicksFeed", { data: normalized, fetchedAt: Date.now() });
-      } catch (err) { console.error("[FlicksApp] fetch error:", err); }
-      finally { setLoading(false); }
+        setLoading(false);
+
+        void (async () => {
+          try {
+            const { data: authData, error: authError } = await supabase.auth.getUser();
+            if (authError) throw authError;
+            const viewerId = authData.user?.id ?? null;
+            if (cancelled || postIds.length === 0) return;
+            setCurrentUserId(viewerId);
+
+            const [likedResult, likeRowsResult] = await Promise.all([
+              viewerId
+                ? supabase.from("likes").select("post_id").eq("user_id", viewerId).in("post_id", postIds)
+                : Promise.resolve({ data: [], error: null }),
+              supabase.from("likes").select("post_id").in("post_id", postIds),
+            ]);
+            if (cancelled) return;
+
+            const likedIds = new Set(
+              (likedResult.data || []).map((row: any) => row.post_id),
+            );
+            const likeCounts = new Map<string, number>();
+            if (likeRowsResult.error) {
+              console.warn(
+                "[Flicks] like count fetch failed; using posts.likes_count:",
+                likeRowsResult.error.message,
+              );
+            } else {
+              (likeRowsResult.data || []).forEach((row: any) => {
+                likeCounts.set(row.post_id, (likeCounts.get(row.post_id) || 0) + 1);
+              });
+            }
+
+            setFlicks((previous) => {
+              const refreshed = previous.map((item) => {
+                if (!postIds.includes(item._raw_id)) return item;
+                return {
+                  ...item,
+                  liked_by_me: likedIds.has(item._raw_id),
+                  likes_count: likeRowsResult.error
+                    ? item.likes_count
+                    : likeCounts.get(item._raw_id) || 0,
+                };
+              });
+              dataCache.setCache("flicksFeed", {
+                data: refreshed,
+                fetchedAt: Date.now(),
+              });
+              return refreshed;
+            });
+          } catch (error) {
+            console.error("[Flicks] engagement state refresh failed:", error);
+          }
+        })();
+      } catch (err) {
+        if (!cancelled) console.error("[FlicksApp] fetch error:", err);
+        if (!cancelled) setLoading(false);
+      }
     };
 
     setCurrentUserId(currentUserIdProp ?? null);
     setFetchedEmail(currentUserEmailProp ?? null);
-    fetchData();
+    void fetchData();
+    return () => {
+      cancelled = true;
+    };
   }, [currentUserIdProp, currentUserEmailProp]);
 
   // RAF-throttled scroll → update active index
@@ -1262,6 +1302,11 @@ export default function FlicksApp({
     scrollRafRef.current = 0;
     scrollTicking.current = false;
   }, []);
+
+  useEffect(() => {
+    window.addEventListener("resize", onScroll, { passive: true });
+    return () => window.removeEventListener("resize", onScroll);
+  }, [onScroll]);
 
   useEffect(() => {
     if (flicks.length === 0 || currentIndex < flicks.length) return;
@@ -1365,7 +1410,7 @@ export default function FlicksApp({
             // DOM virtualization: only mount ±2 from active index
             const isNear = Math.abs(i - currentIndex) <= 2;
             if (!isNear) {
-              return <div key={f.id} className="w-full bg-black snap-start shrink-0" style={{ height: "100dvh" }} />;
+              return <div key={f.id} className="w-full h-full bg-black snap-start snap-always shrink-0" />;
             }
             return (
               <React.Fragment key={f.id}>
@@ -1373,6 +1418,7 @@ export default function FlicksApp({
                   post={f}
                   isActive={i === currentIndex}
                   isPreloaded={Math.abs(i - currentIndex) <= 1}
+                  isNext={i === currentIndex + 1}
                   currentUserId={currentUserId}
                   onBridgeChat={onBridgeChat}
                   isAdmin={isAdmin}
