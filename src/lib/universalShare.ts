@@ -259,7 +259,7 @@ export async function universalShare(
 
   // ── Step 4: Copy link to clipboard ────────────────────────────────────────
   try {
-    await navigator.clipboard.writeText(`${text}\n${url}`);
+    await navigator.clipboard.writeText(text);
     return "copied";
   } catch {
     return "error";

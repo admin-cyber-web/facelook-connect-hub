@@ -1093,12 +1093,12 @@
 }
 .active-status-avatar__badge {
   position: absolute;
-  top: -5px;
-  right: -2px;
+  top: 50%;
+  left: 50%;
   z-index: 2;
   border: 1px solid rgba(134,239,172,.65);
   border-radius: 9999px;
-  padding: 2px 4px;
+  padding: 3px 5px;
   background: #14532d;
   box-shadow: 0 0 8px rgba(74,222,128,.55);
   color: #dcfce7;
@@ -1106,11 +1106,14 @@
   font-weight: 900;
   letter-spacing: .06em;
   line-height: 1;
-  animation: active-status-pulse 2.4s ease-in-out infinite;
+  white-space: nowrap;
+  transform: translate(-50%, -50%);
+  animation: active-status-blink 10s ease-in-out infinite;
 }
-@keyframes active-status-pulse {
-  0%, 100% { opacity: .78; }
-  50% { opacity: 1; box-shadow: 0 0 11px rgba(74,222,128,.8); }
+@keyframes active-status-blink {
+  0%, 48% { opacity: 1; visibility: visible; box-shadow: 0 0 11px rgba(74,222,128,.8); }
+  50%, 98% { opacity: 0; visibility: hidden; box-shadow: 0 0 0 rgba(74,222,128,0); }
+  100% { opacity: 1; visibility: visible; box-shadow: 0 0 11px rgba(74,222,128,.8); }
 }
 
 .reel-engagement-footer {

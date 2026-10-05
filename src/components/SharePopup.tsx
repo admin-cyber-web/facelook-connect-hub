@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Link2, Share2, Check, X, Loader2, ImageIcon } from "lucide-react";
 import { toast } from "sonner";
 import {
+  buildShareText,
   universalShare,
   resolveShareMediaUrl,
   type PostType,
@@ -171,7 +172,10 @@ const SharePopup: React.FC<SharePopupProps> = ({
 
   const { top, left, above } = calcPosition(anchor);
 
-  const thumbnail = post.media_url || post.cover_url || null;
+  const isReel = post.type === "reel" || post.type === "video";
+  const thumbnail = isReel
+    ? post.cover_url || post.meta_image || post.media_url || null
+    : post.media_url || post.cover_url || post.meta_image || null;
   const caption =
     post.meta_title || post.content?.slice(0, 72) || "Check this out on Flicks!";
   const shareUrl = `${window.location.origin}/?post=${post.id}`;
@@ -199,7 +203,9 @@ const SharePopup: React.FC<SharePopupProps> = ({
   const handlePlatformClick = async (mode: ShareMode) => {
     if (mode === "copy") {
       try {
-        await navigator.clipboard.writeText(shareUrl);
+        await navigator.clipboard.writeText(
+          buildShareText(post.content || caption, shareUrl),
+        );
         toast.success("Link copied to clipboard!");
         setCopied(true);
         onShare(mode, post);
