@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "../lib/supabaseClient";
 import { useProfileViewer } from "../context/ProfileViewerContext";
 import { useDataCache } from "../context/DataCacheContext";
+import { useOnlineUsers } from "../context/OnlineUsersContext";
 import { isAdminEmail } from "../lib/adminConfig";
 import { fetchProfileAdminFlag } from "../lib/adminProfile";
 import { useSoundEffects } from "../hooks/useSoundEffects";
@@ -13,6 +14,11 @@ import {
 } from "lucide-react";
 import { MagnetButton } from "./MagnetSystem";
 import { toast } from "sonner";
+import SharePopup, {
+  type ShareAnchor,
+  type ShareMode,
+  type SharePostData,
+} from "./SharePopup";
 import { getReelSettings } from "@/lib/reelSettings";
 import { getPostVibeAudioUrl, resolvePostVibe } from "@/lib/vibeMatcher";
 import { setVisibleVibeAudio } from "@/lib/vibeAudio";
@@ -21,6 +27,7 @@ import {
   getReelAudioTargetTime,
 } from "@/lib/reelAudioSync";
 import VibeAudioToggle from "./VibeAudioToggle";
+import ActiveStatusAvatar from "./ActiveStatusAvatar";
 
 // ── Utilities ─────────────────────────────────────────────────────────────────
 const formatCount = (n: any): string => {
@@ -36,8 +43,8 @@ const FLICKS_POST_PROJECTION =
   "id, author, author_id, content, media_url, type, metadata, cover_url, views_count, likes_count, comments_count, shares_count, meta_title, meta_description, created_at, author_profile:profiles!posts_author_id_fkey(avatar_url, full_name)";
 const FLICKS_POST_PROJECTION_WITH_AUDIO = `${FLICKS_POST_PROJECTION}, audio_url`;
 
-const requestUnmutedPlayback = (media: HTMLMediaElement) => {
-  media.muted = false;
+const requestPlayback = (media: HTMLMediaElement, muted = false) => {
+  media.muted = muted;
   media.volume = 1;
   try {
     void media.play().catch(() => {
@@ -148,6 +155,7 @@ const Ticker = ({ text, isActive }: { text: string; isActive: boolean }) => {
 
 // ── Comment Drawer ────────────────────────────────────────────────────────────
 const CommentDrawer = ({ post, currentUserId, onClose, onCommentAdded }: any) => {
+  const onlineUserIds = useOnlineUsers();
   const [comments, setComments] = useState<any[]>([]);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
@@ -213,11 +221,12 @@ const CommentDrawer = ({ post, currentUserId, onClose, onCommentAdded }: any) =>
           const commentUsername = profile?.username || profile?.full_name || "User";
           return (
           <div key={c.id || i} className="flex gap-3 items-start">
-            <div className="w-9 h-9 rounded-full overflow-hidden bg-zinc-800 flex-shrink-0">
-              {profile?.avatar_url
-                ? <img src={profile.avatar_url} className="w-full h-full object-cover" alt="dp" decoding="async" />
-                : <div className="w-full h-full bg-gradient-to-tr from-cyan-500 to-blue-500 flex items-center justify-center text-white font-black">{commentUsername[0] || "U"}</div>}
-            </div>
+            <ActiveStatusAvatar
+              src={profile?.avatar_url}
+              name={profile?.full_name || commentUsername}
+              size={36}
+              online={onlineUserIds.has(c.user_id || "")}
+            />
             <div>
               <span className="text-white/40 text-[10px] font-bold uppercase">{commentUsername}</span>
               <p className="text-white/90 text-sm leading-relaxed">{c.content}</p>
@@ -264,8 +273,13 @@ const FlickCard = memo(({ post, isActive, isPreloaded, currentUserId, onBridgeCh
   const [localContent,      setLocalContent]       = useState(post?.content || "");
   // ── Video health states ────────────────────────────────────────────────
   const [videoError,        setVideoError]         = useState<string | null>(null);
+  const [sharePopupData, setSharePopupData] = useState<{
+    post: SharePostData;
+    anchor: ShareAnchor;
+  } | null>(null);
   const sounds = useSoundEffects();
   const { openProfile } = useProfileViewer();
+  const onlineUserIds = useOnlineUsers();
   const reelSettings = useMemo(() => getReelSettings(post), [post]);
   const videoUrl = reelSettings.videoUrl || post.media_url || post.url;
   const hasBackgroundAudio = Boolean(reelSettings.audioUrl);
@@ -308,10 +322,10 @@ const FlickCard = memo(({ post, isActive, isPreloaded, currentUserId, onBridgeCh
     if (!vid) return;
     vid.playbackRate = reelSettings.playbackRate;
     vid.style.filter = reelSettings.cssFilter;
-    // Keep source audio enabled for every Reel; attached music remains synced
-    // through the separate audio element below.
-    vid.muted = false;
-    vid.volume = 1;
+    // A reel with attached music uses its dedicated audio element, so its
+    // camera/source audio must stay muted to prevent overlapping tracks.
+    vid.muted = hasBackgroundAudio;
+    vid.volume = hasBackgroundAudio ? 0 : 1;
     if (audio) {
       audio.playbackRate = reelSettings.playbackRate;
       audio.loop = true;
@@ -335,9 +349,9 @@ const FlickCard = memo(({ post, isActive, isPreloaded, currentUserId, onBridgeCh
       if (document.visibilityState === "hidden") return;
       const activeVideo = videoRef.current;
       if (!activeVideo || !activeVideo.isConnected) return;
-      activeVideo.muted = false;
-      activeVideo.volume = 1;
-      if (activeVideo.paused) requestUnmutedPlayback(activeVideo);
+      activeVideo.muted = hasBackgroundAudio;
+      activeVideo.volume = hasBackgroundAudio ? 0 : 1;
+      if (activeVideo.paused) requestPlayback(activeVideo, hasBackgroundAudio);
 
       const activeAudio = audioRef.current;
       if (hasBackgroundAudio && activeAudio) {
@@ -345,7 +359,7 @@ const FlickCard = memo(({ post, isActive, isPreloaded, currentUserId, onBridgeCh
         activeAudio.volume = 1;
         if (activeAudio.paused) {
           activeAudio.currentTime = getReelAudioTargetTime(activeVideo, activeAudio);
-          requestUnmutedPlayback(activeAudio);
+          requestPlayback(activeAudio);
         }
       }
     };
@@ -357,8 +371,8 @@ const FlickCard = memo(({ post, isActive, isPreloaded, currentUserId, onBridgeCh
       }),
     );
 
-    requestUnmutedPlayback(vid);
-    if (hasBackgroundAudio && audio) requestUnmutedPlayback(audio);
+    requestPlayback(vid, hasBackgroundAudio);
+    if (hasBackgroundAudio && audio) requestPlayback(audio);
 
     return () => {
       gestureEvents.forEach((eventName) =>
@@ -520,52 +534,70 @@ const FlickCard = memo(({ post, isActive, isPreloaded, currentUserId, onBridgeCh
     }
   };
 
-  const handleShare = async (e: React.MouseEvent) => {
+  const handleShare = (e: React.MouseEvent<HTMLButtonElement>) => {
     e.stopPropagation();
-    const mediaUrl = post.media_url || post.video_url || post.cover_url;
-    const postUrl  = `${window.location.origin}/?post=${post._raw_id || post.id}`;
-    const { universalShare } = await import("../lib/universalShare");
-    const titleLine = post.meta_title || post.content?.slice(0, 72) || "Watch this Flick!";
-    const bodyLine  = post.meta_description
-      || (post.content && post.content.length > 72 ? post.content.slice(72, 220) : "")
-      || "";
-    const captionText = [titleLine, bodyLine].filter(Boolean).join("\n");
-    const outcome = await universalShare({
-      title: titleLine,
-      text: captionText,
-      url: postUrl, mediaUrl, type: "reel",
+    const rect = e.currentTarget.getBoundingClientRect();
+    const id = String(post._raw_id || post.id);
+    setSharePopupData({
+      post: {
+        id,
+        title: post.meta_title || localContent.slice(0, 72) || "Watch this Flick!",
+        content: `${localContent.slice(0, 180)}${localContent.trim() ? "\n\n" : ""}via Flicks India`,
+        media_url: post.media_url || post.video_url,
+        video_url: post.video_url || post.media_url,
+        cover_url: post.thumb_url || post.cover_url,
+        meta_image: post.thumb_url || post.cover_url,
+        type: "reel",
+        author: post.author,
+        meta_title: post.meta_title,
+        meta_description: post.meta_description,
+        shares_count: liveShares,
+      },
+      anchor: { x: rect.left, y: rect.top, width: rect.width, height: rect.height },
     });
-    if (outcome === "copied") toast.success("Link copied!");
-    if (["shared-with-file", "shared-url-only", "copied"].includes(outcome || "")) {
-      const pid = post._raw_id || post.id;
-      if (currentUserId) {
-        const { error: shareError } = await supabase
-          .from("shares")
-          .insert({ post_id: pid, user_id: currentUserId });
-        if (shareError) {
-          console.warn("[Flicks] share insert failed:", shareError.message);
-        }
-      }
-      const { count: shareCount, error: shareCountError } = await supabase
+  };
+
+  const completeShare = async (sharedPost: SharePostData) => {
+    setSharePopupData(null);
+    const pid = sharedPost.id;
+    if (currentUserId) {
+      const { error: shareError } = await supabase
         .from("shares")
-        .select("id", { count: "exact", head: true })
-        .eq("post_id", pid);
-      if (!shareCountError) {
-        const accurateShareCount = Number(shareCount) || 0;
-        setLiveShares(accurateShareCount);
-        const { error: counterError } = await supabase
-          .from("posts")
-          .update({ shares_count: accurateShareCount })
-          .eq("id", pid);
-        if (counterError) console.warn("[Flicks] shares_count sync skipped:", counterError.message);
-      }
-      if (post.author_id && currentUserId && post.author_id !== currentUserId) {
-        const { data: me } = await supabase.from("profiles").select("full_name").eq("id", currentUserId).maybeSingle();
-        await supabase.from("notifications").insert({
-          notifier_id: post.author_id, actor_id: currentUserId, type: "share", entity_id: pid,
-          content: JSON.stringify({ text: `${me?.full_name || "Someone"} ne tumhara Reel share kiya.`, thumbnail_url: mediaUrl || null }),
-          is_read: false,
-        });
+        .insert({ post_id: pid, user_id: currentUserId });
+      if (shareError) console.warn("[Flicks] share insert failed:", shareError.message);
+    }
+    const { count: shareCount, error: shareCountError } = await supabase
+      .from("shares")
+      .select("id", { count: "exact", head: true })
+      .eq("post_id", pid);
+    if (!shareCountError) {
+      const accurateShareCount = Number(shareCount) || 0;
+      setLiveShares(accurateShareCount);
+      const { error: counterError } = await supabase
+        .from("posts")
+        .update({ shares_count: accurateShareCount })
+        .eq("id", pid);
+      if (counterError) console.warn("[Flicks] shares_count sync skipped:", counterError.message);
+    }
+    if (post.author_id && currentUserId && post.author_id !== currentUserId) {
+      const { data: me } = await supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("id", currentUserId)
+        .maybeSingle();
+      const { error: notificationError } = await supabase.from("notifications").insert({
+        notifier_id: post.author_id,
+        actor_id: currentUserId,
+        type: "share",
+        entity_id: pid,
+        content: JSON.stringify({
+          text: `${me?.full_name || "Someone"} ne tumhara Reel share kiya.`,
+          thumbnail_url: sharedPost.cover_url || sharedPost.meta_image || null,
+        }),
+        is_read: false,
+      });
+      if (notificationError) {
+        console.warn("[Flicks] share notification failed:", notificationError.message);
       }
     }
   };
@@ -716,7 +748,7 @@ const FlickCard = memo(({ post, isActive, isPreloaded, currentUserId, onBridgeCh
         key={videoUrl}
         src={videoUrl}
         loop
-        muted={false}
+        muted={hasBackgroundAudio}
         playsInline
         autoPlay={false}
         preload={isActive ? "auto" : isPreloaded ? "metadata" : "none"}
@@ -793,7 +825,7 @@ const FlickCard = memo(({ post, isActive, isPreloaded, currentUserId, onBridgeCh
                 e.stopPropagation();
                 setVideoError(null);
                 const vid = videoRef.current;
-                if (vid) { vid.load(); requestUnmutedPlayback(vid); }
+                if (vid) { vid.load(); requestPlayback(vid, hasBackgroundAudio); }
               }}>
               Retry
             </button>
@@ -893,17 +925,17 @@ const FlickCard = memo(({ post, isActive, isPreloaded, currentUserId, onBridgeCh
 
         {/* Author avatar + follow */}
         <div className="relative mb-1">
-          <div
-            className="w-10 h-10 rounded-full overflow-hidden cursor-pointer shrink-0"
-            style={{ border: "2px solid rgba(255,255,255,0.9)", boxShadow: "0 0 8px rgba(0,255,230,0.3)" }}
+          <button
+            type="button"
+            className="overflow-visible cursor-pointer shrink-0"
             onClick={e => { e.stopPropagation(); openProfile?.(post.author_id); }}>
-            {post.author_avatar
-              ? <img src={post.author_avatar} className="w-full h-full object-cover" alt="" decoding="async" />
-              : <div className="w-full h-full bg-gradient-to-br from-cyan-600 to-indigo-700 flex items-center justify-center text-white font-black text-sm uppercase">
-                  {post.author?.[0] || "V"}
-                </div>
-            }
-          </div>
+            <ActiveStatusAvatar
+              src={post.author_avatar}
+              name={post.author}
+              size={40}
+              online={onlineUserIds.has(post.author_id || "")}
+            />
+          </button>
           {/* Follow '+' badge */}
           <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-[18px] h-[18px] bg-cyan-500 rounded-full flex items-center justify-center border-[1.5px] border-black shadow-md">
             <Plus size={10} className="text-white" strokeWidth={3.5} />
@@ -1056,6 +1088,15 @@ const FlickCard = memo(({ post, isActive, isPreloaded, currentUserId, onBridgeCh
           </>
         )}
       </AnimatePresence>
+      {sharePopupData && createPortal(
+        <SharePopup
+          post={sharePopupData.post}
+          anchor={sharePopupData.anchor}
+          onClose={() => setSharePopupData(null)}
+          onShare={(_mode, sharedPost) => void completeShare(sharedPost)}
+        />,
+        document.body,
+      )}
     </div>
   );
 });
