@@ -87,6 +87,7 @@ const FlicksStudio   = lazy(() => import("@/components/FlicksStudio"));
 const ReelStudio     = lazy(() => import("@/components/ReelStudio"));
 const ConnectionPanel= lazy(() => import("@/components/ConnectionPanel"));
 const CreatePost     = lazy(() => import("@/components/CreatePost"));
+const Chat19         = lazy(() => import("@/components/Chat19"));
 // ── Reusable styled blocks ───────────────────────────────────────────────────
 const GlassCard = ({ children, className = "", noPadding = false }: any) => (
   <div
@@ -2185,6 +2186,9 @@ const Index = ({ session, initialAdminOpen, isGuest = false }: { session: Sessio
   // Magnet Dashboard
   const [showMagnetDashboard, setShowMagnetDashboard] = useState(false);
 
+  // Chat 19 — anonymous city radar chat (Velvet-Red & Deep Charcoal)
+  const [showChat19, setShowChat19] = useState(false);
+
   // Onboarding (first-run modal for new users missing location/interests)
   const [showOnboarding, setShowOnboarding] = useState(false);
 
@@ -3773,6 +3777,24 @@ const PersonalizationView = React.memo(({
         )}
       </AnimatePresence>
 
+      {/* ── Chat 19 overlay — anonymous city radar chat (Velvet-Red) ──────── */}
+      <AnimatePresence>
+        {showChat19 && (
+          <motion.div
+            key="chat19"
+            initial={{ opacity: 0, scale: 0.97 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.98 }}
+            transition={{ type: "spring", stiffness: 320, damping: 32 }}
+            className="fixed inset-0 z-[9999] overflow-hidden touch-scroll-y"
+          >
+            <Suspense fallback={<SectionLoader />}>
+              <Chat19 onClose={() => setShowChat19(false)} />
+            </Suspense>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* ── Frame Mode overlay (slides in from right, covers everything) ──── */}
       <AnimatePresence>
         {isFrameMode && (
@@ -4108,6 +4130,59 @@ const PersonalizationView = React.memo(({
                         Viral Engine
                       </div>
                       <p className="text-[9px] text-gray-400 font-semibold">Public · Anyone can view</p>
+                    </div>
+                  </motion.button>
+                </div>
+
+                {/* ── Chat 19 — Anonymous City Radar (Velvet-Red) ──────────── */}
+                <div className="px-3 pb-1">
+                  <motion.button
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => setShowChat19(true)}
+                    className="w-full flex items-center gap-3 rounded-2xl px-4 py-3 overflow-hidden text-left"
+                    style={{
+                      background: "linear-gradient(120deg,#1A0A10 0%,#12060B 60%,#0D0407 100%)",
+                      border: "1.5px solid rgba(225,29,72,.38)",
+                      boxShadow:
+                        "0 0 18px rgba(225,29,72,.18), inset 0 1px 0 rgba(255,255,255,.05)",
+                    }}
+                  >
+                    <div
+                      className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 text-xl"
+                      style={{
+                        background: "linear-gradient(135deg,#A01030,#4E0516)",
+                        boxShadow: "0 0 14px rgba(225,29,72,.5)",
+                      }}
+                    >
+                      📡
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p
+                        className="text-[13px] font-black leading-none"
+                        style={{ color: "#FFE9ED" }}
+                      >
+                        CHAT 19
+                      </p>
+                      <p
+                        className="text-[10px] mt-1 truncate"
+                        style={{ color: "rgba(255,110,135,.85)" }}
+                      >
+                        Anonymous city radar · Velvet-Red secret chat
+                      </p>
+                    </div>
+                    <div className="flex flex-col items-end gap-1 shrink-0">
+                      <span
+                        className="px-2 py-0.5 rounded-full text-[9px] font-black text-white"
+                        style={{ background: "linear-gradient(90deg,#A01030,#E11D48)" }}
+                      >
+                        LIVE RADAR
+                      </span>
+                      <span
+                        className="text-[9px] font-semibold"
+                        style={{ color: "rgba(255,255,255,.45)" }}
+                      >
+                        10 free scans / day
+                      </span>
                     </div>
                   </motion.button>
                 </div>

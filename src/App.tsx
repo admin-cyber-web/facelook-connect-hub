@@ -26,6 +26,7 @@ const PostDetail    = lazy(() => import("./pages/PostDetail"));
 const SurveyDetail  = lazy(() => import("./pages/SurveyDetail"));
 const InviteLanding = lazy(() => import("./pages/InviteLanding"));
 const DesignPreview = lazy(() => import("./pages/DesignPreview"));
+const Chat19        = lazy(() => import("./components/Chat19"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -382,6 +383,7 @@ const App = () => {
                         <Route path="/terms"       element={<Terms />} />
                         <Route path="/data-info"   element={<DataInfo />} />
                         <Route path="/post/:id"    element={<PostDetail />} />
+                        <Route path="/chat-19"     element={<Chat19 />} />
                         <Route path="/survey/:id"  element={<SurveyDetail />} />
                         <Route path="/invite"      element={<InviteLanding />} />
                         <Route
