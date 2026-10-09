@@ -25,6 +25,7 @@ import {
   Lock,
   MapPin,
   MessageCircle,
+  Pencil,
   Radar as RadarIcon,
   Search,
   Send,
@@ -508,6 +509,12 @@ const Chat19 = ({ onClose }: Chat19Props) => {
   const [gender, setGender] = useState<Gender>("secret");
   const [preference, setPreference] = useState<Preference>("everyone");
   const [avatarIdx, setAvatarIdx] = useState(0);
+  // FIX 2 · full profile editing — remembers where the edit started
+  const [editReturn, setEditReturn] = useState<Step | null>(null);
+  const openEditProfile = (from: Step) => {
+    setEditReturn(from);
+    setStep("onboard");
+  };
 
   // City form
   const [cityQuery, setCityQuery] = useState("");
@@ -543,10 +550,35 @@ const Chat19 = ({ onClose }: Chat19Props) => {
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const profileRef = useRef<Chat19Profile | null>(profile);
   profileRef.current = profile;
+  // FIX 3 · only auto-seed the fake-name base ONCE — never refill after clear
+  const nameSeededRef = useRef(false);
+  // FIX 3 · tracks real typing so an in-flight linked-name fetch can't refill a cleared field
+  const nameTouchedRef = useRef(false);
 
   const schedule = useCallback((fn: () => void, ms: number) => {
     const id = window.setTimeout(fn, ms);
     timersRef.current.push(id);
+  }, []);
+
+  // ── FIX 1 · Lock mobile auto-zoom while Chat 19 is open ───────────────────
+  // iOS Safari zooms when any input < 16px receives focus. The composer + name
+  // inputs now use 16px, and as a belt-and-braces guard we scope a temporary
+  // `maximum-scale=1, user-scalable=no` lock to this module's lifetime only
+  // (restored on unmount — editing index.html would hurt a11y app-wide).
+  useEffect(() => {
+    const meta = document.querySelector<HTMLMetaElement>('meta[name="viewport"]');
+    if (!meta) return;
+    const prev = meta.getAttribute("content") || "";
+    const locked = /maximum-scale\s*=\s*1/.test(prev) && /user-scalable\s*=\s*no/.test(prev);
+    if (!locked) {
+      meta.setAttribute(
+        "content",
+        `${prev.replace(/,\s*$/, "")}, maximum-scale=1.0, user-scalable=no`,
+      );
+    }
+    return () => {
+      meta.setAttribute("content", prev);
+    };
   }, []);
 
   // ── Link the signed-in Flicks account ─────────────────────────────────────
@@ -585,13 +617,23 @@ const Chat19 = ({ onClose }: Chat19Props) => {
     };
   }, []);
 
-  // Auto-seed the fake-name base from the linked account (first word only)
+  // Auto-seed the fake-name base from the linked account (first word only) —
+  // FIX 3 · seed exactly ONCE so clearing the field never refills a stale word.
+  // Skips entirely once the user has typed (nameTouchedRef) — an in-flight
+  // linked-name fetch resolving late must not resurrect a cleared field.
   useEffect(() => {
-    if (!baseName && linked?.name) {
+    if (nameSeededRef.current || nameTouchedRef.current) return;
+    if (profile) return; // edit flow is handled by the pre-fill effect below
+    if (baseName) {
+      nameSeededRef.current = true;
+      return;
+    }
+    if (linked?.name) {
       const first = sanitizeBase(linked.name.split(" ")[0]);
       if (first) setBaseName(first);
+      nameSeededRef.current = true;
     }
-  }, [linked, baseName]);
+  }, [linked, baseName, profile]);
 
   // STRICT REAL-NAME HIDING — keep the scrubber in sync with linked identity
   useEffect(() => {
@@ -610,6 +652,8 @@ const Chat19 = ({ onClose }: Chat19Props) => {
   }, [profile]);
 
   // Pre-fill the identity form when editing an existing profile
+  // FIX 2 · also runs when opened via Edit Profile (editReturn set); seed-once
+  // guard is satisfied via nameSeededRef so manual clears are never refilled.
   useEffect(() => {
     if (!profile || step !== "onboard") return;
     const [base, sfx] = profile.fakeName.split("#");
@@ -618,6 +662,10 @@ const Chat19 = ({ onClose }: Chat19Props) => {
     setGender(profile.gender);
     setPreference(profile.preference);
     setAvatarIdx(profile.avatar);
+    setPickedCity(profile.city || null);
+    setManualOn(profile.manualCity);
+    setManualCity(profile.manualCity ? profile.city : "");
+    nameSeededRef.current = true;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step]);
 
@@ -780,7 +828,9 @@ const Chat19 = ({ onClose }: Chat19Props) => {
 
   // ── ACTIONS ────────────────────────────────────────────────────────────────
 
-  /** Step 1 → saves the anonymous identity (fake name + auto-unique suffix). */
+  /** Step 1 → saves the anonymous identity (fake name + auto-unique suffix).
+   * FIX 2 · when opened via Edit Profile, city edits save inline too and the
+   * user returns to where they started (radar/chat) instead of the city step. */
   const finishOnboard = () => {
     const base = sanitizeBase(baseName);
     if (base.length < 2) {
@@ -793,6 +843,7 @@ const Chat19 = ({ onClose }: Chat19Props) => {
     if (taken.has(fakeName.toUpperCase())) fakeName = makeUniqueFakeName(base, taken);
     registerFakeName(fakeName);
 
+    const editedCity = manualOn ? manualCity.trim() : pickedCity;
     const next: Chat19Profile = {
       linkedId: linked?.id || profile?.linkedId || "guest",
       linkedEmail: linked?.email || profile?.linkedEmail || "",
@@ -802,12 +853,21 @@ const Chat19 = ({ onClose }: Chat19Props) => {
       gender,
       preference,
       avatar: avatarIdx,
-      city: profile?.city || "",
-      manualCity: profile?.manualCity || false,
+      city: editReturn ? editedCity || profile?.city || "" : profile?.city || "",
+      manualCity: editReturn ? (manualOn || profile?.manualCity || false) : profile?.manualCity || false,
       createdAt: profile?.createdAt || Date.now(),
     };
     setProfile(next);
     lsSet(STORAGE_PROFILE, next);
+    if (editReturn) {
+      const back = editReturn === "city" ? "city" : next.city ? editReturn : "city";
+      setEditReturn(null);
+      setScanned(false);
+      setSelectedPing(null);
+      setStep(back);
+      toast.success(`Profile updated: ${fakeName}`);
+      return;
+    }
     setStep(next.city ? "radar" : "city");
     toast.success(`Identity locked: ${fakeName}`);
   };
@@ -1197,10 +1257,13 @@ const Chat19 = ({ onClose }: Chat19Props) => {
                 <div className="flex gap-2 mt-2.5">
                   <input
                     value={baseName}
-                    onChange={(e) => setBaseName(sanitizeBase(e.target.value))}
+                    onChange={(e) => {
+                      nameTouchedRef.current = true;
+                      setBaseName(sanitizeBase(e.target.value));
+                    }}
                     placeholder="e.g. VelvetRider"
                     maxLength={14}
-                    className="flex-1 min-w-0 px-3 py-2.5 rounded-xl text-[13px] font-bold outline-none"
+                    className="flex-1 min-w-0 px-3 py-2.5 rounded-xl text-[16px] font-bold outline-none"
                     style={inputStyle}
                   />
                   <button
