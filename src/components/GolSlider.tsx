@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Film, Anchor, CheckSquare, Users, Star, Shield, ChevronUp, ChevronDown, Clapperboard } from "lucide-react";
+import { Film, Anchor, CheckSquare, Users, Star, Shield, ChevronUp, ChevronDown, Clapperboard, Heart } from "lucide-react";
 
 const BASE_NAV_ITEMS = [
   { label: "Flicks",      feature: "Flicks",      Icon: Film          },
@@ -8,6 +8,7 @@ const BASE_NAV_ITEMS = [
   { label: "Circle",      feature: "Circle",      Icon: Users         },
   { label: "Fame",        feature: "QuotesMaker", Icon: Star          },
   { label: "Studio",      feature: "Studio",      Icon: Clapperboard  },
+  { label: "Chat 19",     feature: "Chat19",      Icon: Heart         },
 ] as const;
 
 const LIGHTNING_WORDS = [
@@ -17,6 +18,7 @@ const LIGHTNING_WORDS = [
   { word: "Circle",     color: "#00ff88", glow: "rgba(0,255,136,0.85)"  },
   { word: "Fame",       color: "#bf5af2", glow: "rgba(191,90,242,0.85)" },
   { word: "Studio",     color: "#EF4444", glow: "rgba(239,68,68,0.85)"  },
+  { word: "Chat 19",    color: "#FF4D6D", glow: "rgba(225,29,72,0.90)"  },
 ];
 
 interface GolSliderProps {
@@ -28,6 +30,9 @@ interface GolSliderProps {
 
 const CYAN     = "#00e5ff";
 const CYAN_DIM = "rgba(0,229,255,0.55)";
+const C19_RED       = "#FF2D55";
+const C19_RED_GLOW  = "rgba(225,29,72,0.90)";
+const C19_RED_DIM   = "rgba(225,29,72,0.35)";
 const BG_DARK  = "#0b0d12";
 const BG_TRAY  = "rgba(11,13,18,0.96)";
 
@@ -63,6 +68,14 @@ function injectKeyframes() {
     @keyframes gol-chevron-pulse {
       0%, 100% { transform: scale(1); opacity: .6; }
       50% { transform: scale(1.25); opacity: 1; }
+    }
+    @keyframes c19-tab-glow {
+      0%, 100% { box-shadow: 0 2px 10px rgba(225,29,72,0.55), 0 0 14px rgba(225,29,72,0.25); }
+      50% { box-shadow: 0 2px 18px rgba(225,29,72,0.95), 0 0 26px rgba(225,29,72,0.45); }
+    }
+    @keyframes c19-badge-pulse {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.35); opacity: .75; }
     }
   `;
   document.head.appendChild(s);
@@ -198,6 +211,93 @@ const GolSlider = ({ onFeatureChange, activeFeature, hidden, isAdmin }: GolSlide
           {NAV_ITEMS.map(({ label, feature, Icon }, idx) => {
             const isActive = activeFeature === feature;
             const isLast   = idx === NAV_ITEMS.length - 1;
+            const isC19    = feature === "Chat19";
+            // Chat 19 — distinct prominent glowing velvet-red entry (never cyan)
+            if (isC19) {
+              return (
+                <button
+                  key={feature}
+                  onClick={() => {
+                    onFeatureChange?.(feature);
+                    setIsOpen(false);
+                  }}
+                  style={{
+                    flex: 1.18,
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 5,
+                    background: "linear-gradient(180deg, rgba(225,29,72,.22) 0%, rgba(160,16,48,.16) 100%)",
+                    borderRadius: 12,
+                    border: "1.5px solid rgba(255,77,110,.65)",
+                    borderRight: "1.5px solid rgba(255,77,110,.65)",
+                    borderBottom: "2px solid #FF2D55",
+                    margin: "6px 4px",
+                    position: "relative",
+                    cursor: "pointer",
+                    transition: "transform 200ms ease",
+                    animation: "c19-tab-glow 2.2s ease-in-out infinite",
+                  }}
+                  className="active:scale-95"
+                  aria-label="Open Chat 19 anonymous radar"
+                >
+                  <span style={{ position: "relative", display: "flex", zIndex: 1 }}>
+                    <Icon
+                      size={23}
+                      strokeWidth={2.4}
+                      fill="#FF2D55"
+                      style={{
+                        color: "#FF8FA5",
+                        filter: "drop-shadow(0 0 7px rgba(255,45,85,.95)) drop-shadow(0 0 16px rgba(225,29,72,.6))",
+                        position: "relative",
+                        zIndex: 1,
+                      }}
+                    />
+                    {/* glowing heart / notification badge */}
+                    <span
+                      style={{
+                        position: "absolute",
+                        top: -5,
+                        right: -9,
+                        minWidth: 16,
+                        height: 16,
+                        padding: "0 4px",
+                        borderRadius: 99,
+                        background: "linear-gradient(135deg,#FF2D55,#A01030)",
+                        border: "1.5px solid rgba(255,255,255,.9)",
+                        boxShadow: "0 0 10px rgba(255,45,85,.95)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: 8,
+                        fontWeight: 900,
+                        color: "#fff",
+                        lineHeight: 1,
+                        animation: "c19-badge-pulse 1.8s ease-in-out infinite",
+                      }}
+                    >
+                      ♥
+                    </span>
+                  </span>
+                  <span
+                    style={{
+                      fontSize: 9,
+                      fontWeight: 900,
+                      letterSpacing: "0.08em",
+                      textTransform: "uppercase",
+                      lineHeight: 1,
+                      color: "#FFB3C2",
+                      textShadow: "0 0 8px rgba(255,45,85,.9)",
+                      position: "relative",
+                      zIndex: 1,
+                    }}
+                  >
+                    {label}
+                  </span>
+                </button>
+              );
+            }
             return (
               <button
                 key={feature}
