@@ -9,7 +9,7 @@ import { isAdminEmail } from "../lib/adminConfig";
 import { fetchProfileAdminFlag } from "../lib/adminProfile";
 import { useSoundEffects } from "../hooks/useSoundEffects";
 import {
-  Heart, MessageCircle, Share2, Plus, X, Send,
+  Heart, MessageCircle, Share2, X, Send, ChevronLeft, Search,
   BadgeCheck, Loader2, Flag, Trash2, Ban, Pencil, MoreVertical,
 } from "lucide-react";
 import { MagnetButton } from "./MagnetSystem";
@@ -96,40 +96,67 @@ function injectFlicksStyles() {
   document.head.appendChild(s);
 }
 
-// ── Spinning Cassette SVG ─────────────────────────────────────────────────────
+// ── Spinning Cassette SVG (crimson/charcoal reels palette) ───────────────────
 const Reel = ({ cx, cy, spinning }: { cx: number; cy: number; spinning: boolean }) => (
   <>
-    <circle cx={cx} cy={cy} r={4.2} fill="#0d0d22" stroke="rgba(0,255,230,0.45)" strokeWidth="0.9" />
-    <circle cx={cx} cy={cy} r={1.6} fill="rgba(0,255,230,0.75)" />
+    <circle cx={cx} cy={cy} r={4.2} fill="#16060c" stroke="rgba(255,45,85,0.5)" strokeWidth="0.9" />
+    <circle cx={cx} cy={cy} r={1.6} fill="rgba(255,77,110,0.8)" />
     <g style={{
       transformOrigin: `${cx}px ${cy}px`,
       animation: spinning ? "flick-reel 0.85s linear infinite" : "none",
     }}>
-      <line x1={cx}       y1={cy - 4.2} x2={cx}       y2={cy - 1.9} stroke="rgba(0,255,230,0.6)" strokeWidth="0.85" />
-      <line x1={cx + 3.6} y1={cy - 2.1} x2={cx + 1.6} y2={cy - 0.9} stroke="rgba(0,255,230,0.6)" strokeWidth="0.85" />
-      <line x1={cx + 3.6} y1={cy + 2.1} x2={cx + 1.6} y2={cy + 0.9} stroke="rgba(0,255,230,0.6)" strokeWidth="0.85" />
+      <line x1={cx}       y1={cy - 4.2} x2={cx}       y2={cy - 1.9} stroke="rgba(255,77,110,0.65)" strokeWidth="0.85" />
+      <line x1={cx + 3.6} y1={cy - 2.1} x2={cx + 1.6} y2={cy - 0.9} stroke="rgba(255,77,110,0.65)" strokeWidth="0.85" />
+      <line x1={cx + 3.6} y1={cy + 2.1} x2={cx + 1.6} y2={cy + 0.9} stroke="rgba(255,77,110,0.65)" strokeWidth="0.85" />
     </g>
   </>
 );
 
-const AudioCassette = ({ spinning }: { spinning: boolean }) => (
-  <svg width="40" height="28" viewBox="0 0 40 28" fill="none" className="shrink-0">
+const AudioCassette = ({ spinning, compact = false }: { spinning: boolean; compact?: boolean }) => (
+  <svg
+    width={compact ? 28 : 40}
+    height={compact ? 20 : 28}
+    viewBox="0 0 40 28"
+    fill="none"
+    className="shrink-0"
+  >
     {/* Body */}
-    <rect x="0.5" y="0.5" width="39" height="27" rx="3.5" fill="#09091f" stroke="rgba(0,255,230,0.35)" strokeWidth="1" />
+    <rect x="0.5" y="0.5" width="39" height="27" rx="3.5" fill="#14060b" stroke="rgba(255,45,85,0.4)" strokeWidth="1" />
     {/* Tape window */}
-    <rect x="7.5" y="7" width="25" height="14" rx="2" fill="#040413" stroke="rgba(255,255,255,0.08)" strokeWidth="0.6" />
+    <rect x="7.5" y="7" width="25" height="14" rx="2" fill="#0b0407" stroke="rgba(255,255,255,0.08)" strokeWidth="0.6" />
     {/* Reels */}
     <Reel cx={13} cy={14} spinning={spinning} />
     <Reel cx={27} cy={14} spinning={spinning} />
     {/* Center hub bar */}
-    <rect x="15.5" y="13.2" width="9" height="1.6" rx="0.8" fill="rgba(0,255,230,0.2)" />
+    <rect x="15.5" y="13.2" width="9" height="1.6" rx="0.8" fill="rgba(255,45,85,0.25)" />
     {/* Screw holes */}
-    <circle cx={4}  cy={4}  r={1.4} fill="#111128" />
-    <circle cx={36} cy={4}  r={1.4} fill="#111128" />
-    <circle cx={4}  cy={24} r={1.4} fill="#111128" />
-    <circle cx={36} cy={24} r={1.4} fill="#111128" />
+    <circle cx={4}  cy={4}  r={1.4} fill="#24101a" />
+    <circle cx={36} cy={4}  r={1.4} fill="#24101a" />
+    <circle cx={4}  cy={24} r={1.4} fill="#24101a" />
+    <circle cx={36} cy={24} r={1.4} fill="#24101a" />
     {/* Label strip */}
-    <rect x="9" y="21.5" width="22" height="3" rx="1.2" fill="rgba(0,255,230,0.12)" />
+    <rect x="9" y="21.5" width="22" height="3" rx="1.2" fill="rgba(255,45,85,0.16)" />
+  </svg>
+);
+
+// ── Interlocking double-hook icon — Hooks action button (glowing crimson) ────
+const DoubleHookIcon = ({ size = 19 }: { size?: number }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2.1"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    {/* Upper hook — stem down, U-bend bottom-left, barbed tip up */}
+    <path d="M10 3v8a3 3 0 1 1-6 0V9.5" />
+    <path d="M8.5 5.5h3" />
+    {/* Lower hook — mirrored, interlocking through the first bend */}
+    <path d="M14 21v-8a3 3 0 1 1 6 0V14.5" />
+    <path d="M12.5 18.5h3" />
   </svg>
 );
 
@@ -146,8 +173,8 @@ const Ticker = ({ text, isActive }: { text: string; isActive: boolean }) => {
           willChange: "transform",
         }}
       >
-        <span className="text-[11px] font-bold text-white/80 tracking-wide">{text}</span>
-        <span className="text-[11px] font-bold text-white/80 tracking-wide" style={{ marginLeft: "5rem" }}>{text}</span>
+        <span className="text-[10px] font-bold tracking-wide" style={{ color: "rgba(255,180,195,0.85)" }}>{text}</span>
+        <span className="text-[10px] font-bold tracking-wide" style={{ color: "rgba(255,180,195,0.85)", marginLeft: "5rem" }}>{text}</span>
       </div>
     </div>
   );
@@ -249,7 +276,7 @@ const CommentDrawer = ({ post, currentUserId, onClose, onCommentAdded }: any) =>
 };
 
 // ── FlickCard ─────────────────────────────────────────────────────────────────
-const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, onBridgeChat, isAdmin, onPostDeleted, onUserBanned, onVideoInvalid }: any) => {
+const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, onBridgeChat, isAdmin, onPostDeleted, onUserBanned, onVideoInvalid, onOpenHooks }: any) => {
   const videoRef   = useRef<HTMLVideoElement>(null);
   const audioRef   = useRef<HTMLAudioElement>(null);
   const tapTimer   = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -715,6 +742,10 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, on
   if (!post) return null;
 
   const tickerText = `♪  @${post.author || "user"}  —  ${localContent || "No caption"}`;
+  // Single-line music title — mockup-style "Artist • Original Audio"
+  const musicTitle = vibe.primary?.audioTitle
+    ? `${vibe.primary.audioTitle} • Original Audio`
+    : `${post.author || "Flicks"} • Original Audio`;
   // The Reel creator is `author_id` on posts, matching Fame Feed's owner
   // contract. Keep user_id as a fallback for older cached Reel objects.
   const reelOwnerId = post.author_id || post.user_id;
@@ -753,7 +784,7 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, on
         playsInline
         autoPlay={false}
         preload={isActive || isNext ? "auto" : isPreloaded ? "metadata" : "none"}
-        className="absolute inset-0 w-full h-full object-contain"
+        className="absolute inset-0 w-full h-full object-cover"
         style={{
           backgroundColor: "#000",
           filter: reelSettings.cssFilter,
@@ -854,134 +885,137 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, on
         )}
       </AnimatePresence>
 
-      {/* ── 3-dot menu (top-right, above action bar) ── */}
-      <div className="absolute top-12 right-3 z-50" onClick={e => e.stopPropagation()}>
-        <button onClick={() => setMenuOpen(v => !v)}
-          className="w-9 h-9 rounded-full bg-black/40 backdrop-blur-md border border-white/12 flex items-center justify-center">
-          <MoreVertical size={16} className="text-white/80" />
-        </button>
-        <AnimatePresence>
-          {menuOpen && (
-            <>
-              <div className="fixed inset-0 z-[60]" onClick={() => setMenuOpen(false)} />
-              <motion.div initial={{ opacity: 0, scale: 0.9, y: -6 }} animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.9, y: -6 }} transition={{ duration: 0.12 }}
-                className="absolute right-0 top-11 z-[70] w-52 bg-zinc-900/95 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
-                {isOwner && (
-                  <button
-                    onClick={() => {
-                      setMenuOpen(false);
-                      window.dispatchEvent(new CustomEvent("flicks:open-reel-studio", { detail: { reel: post } }));
-                    }}
-                    className="w-full flex items-center gap-3 px-4 py-3.5 text-cyan-300 hover:bg-white/5 text-sm font-bold border-b border-white/5"
-                  >
-                    <Pencil size={14} /> Edit Reel
-                  </button>
-                )}
-                {isOwner && (
-                  <button onClick={() => { setMenuOpen(false); setEditingCaption(true); }}
-                    className="w-full flex items-center gap-3 px-4 py-3.5 text-blue-400 hover:bg-white/5 text-sm font-bold border-b border-white/5">
-                    <Pencil size={14} /> Edit Post
-                  </button>
-                )}
-                {isOwner && (
-                  <button
-                    onClick={handleOwnerDelete}
-                    disabled={deleting}
-                    className="w-full flex items-center gap-3 px-4 py-3.5 text-red-400 hover:bg-red-500/10 text-sm font-bold border-b border-white/5 disabled:cursor-wait disabled:opacity-60"
-                  >
-                    {deleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-                    {deleting ? "Deleting Reel…" : "Delete Reel"}
-                  </button>
-                )}
-                <button onClick={e => {
-                  const popupH = 240;
-                  const spaceBelow = window.innerHeight - e.clientY;
-                  const top = spaceBelow >= popupH + 16 ? e.clientY + 8 : Math.max(8, e.clientY - popupH - 8);
-                  setMenuOpen(false); setReportAnchor({ top, right: 16 }); setReportOpen(true);
-                }} className="w-full flex items-center gap-3 px-4 py-3.5 text-orange-400 hover:bg-white/5 text-sm font-bold border-b border-white/5">
-                  <Flag size={14} /> Report Video
-                </button>
-                {isAdmin && (
-                  <>
-                    <button onClick={handleAdminDelete}
-                      className="w-full flex items-center gap-3 px-4 py-3.5 text-red-400 hover:bg-red-500/10 text-sm font-bold border-b border-white/5">
-                      <Trash2 size={14} /> Delete (Admin)
-                    </button>
-                    {post.author_id && post.author_id !== currentUserId && (
-                      <button onClick={handleAdminBan}
-                        className="w-full flex items-center gap-3 px-4 py-3.5 text-red-500 hover:bg-red-500/10 text-sm font-bold">
-                        <Ban size={14} /> Ban User (Admin)
-                      </button>
-                    )}
-                  </>
-                )}
-              </motion.div>
-            </>
-          )}
-        </AnimatePresence>
-      </div>
 
-      {/* ── COMPACT Right-side Action Bar ── */}
-      {/* Sits at bottom:80 — above the cassette bar (bottom:60, ~40px tall) with breathing room */}
-      <div className="absolute right-2.5 z-40 flex flex-col items-center gap-3"
-        style={{ bottom: 110 }}>
 
-        {/* Author avatar + follow */}
-        <div className="relative mb-1">
-          <button
-            type="button"
-            className="overflow-visible cursor-pointer shrink-0"
-            onClick={e => { e.stopPropagation(); openProfile?.(post.author_id); }}>
-            <ActiveStatusAvatar
-              src={post.author_avatar}
-              name={post.author}
-              size={40}
-              online={onlineUserIds.has(post.author_id || "")}
-            />
-          </button>
-          {/* Follow '+' badge */}
-          <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-[18px] h-[18px] bg-cyan-500 rounded-full flex items-center justify-center border-[1.5px] border-black shadow-md">
-            <Plus size={10} className="text-white" strokeWidth={3.5} />
-          </div>
-        </div>
+      {/* ── Consolidated Right-side Interaction Bar (crimson/charcoal) ── */}
+      {/* Like → Comment → Share → Hooks → 3-dots report menu; bottom-anchored above the nav handle with safe-area clearance */}
+      <div className="absolute right-2.5 z-40 flex flex-col items-center gap-2.5"
+        style={{ bottom: "calc(56px + env(safe-area-inset-bottom, 0px))" }}>
 
-        {/* Like */}
+        {/* Like — detailed red heart + count */}
         <button
           onClick={e => { e.stopPropagation(); triggerLike(); }}
+          aria-label="Like"
           className="flex flex-col items-center gap-0.5 z-50">
-          <div className="w-9 h-9 rounded-full flex items-center justify-center"
-            style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(12px)", border: "1px solid rgba(255,255,255,0.13)", boxShadow: likedByMe ? "0 0 10px rgba(255,45,85,0.55)" : "none" }}>
-            <Heart size={18} fill={likedByMe ? "#ff2d55" : "none"} className={likedByMe ? "text-[#ff2d55]" : "text-white"} />
+          <div className="w-10 h-10 rounded-full flex items-center justify-center"
+            style={{ background: "rgba(12,10,14,0.55)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", border: "1px solid rgba(225,29,72,0.30)", boxShadow: likedByMe ? "0 0 12px rgba(255,45,85,0.55)" : "none" }}>
+            <Heart size={19} fill={likedByMe ? "#FF2D55" : "none"}
+              style={{ color: "#FF3355", filter: "drop-shadow(0 0 6px rgba(255,45,85,0.75))" }} />
           </div>
           <span className="text-[9px] font-black text-white/90" style={{ textShadow: "0 1px 4px rgba(0,0,0,0.9)" }}>
             {formatCount(liveLikes)}
           </span>
         </button>
 
-        {/* Comment */}
+        {/* Comment — detailed crimson bubble + count */}
         <button
           onClick={e => { e.stopPropagation(); setShowComments(true); }}
+          aria-label="Comment"
           className="flex flex-col items-center gap-0.5 z-50">
-          <div className="w-9 h-9 rounded-full flex items-center justify-center"
-            style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(12px)", border: "1px solid rgba(255,255,255,0.13)" }}>
-            <MessageCircle size={18} className="text-white" />
+          <div className="w-10 h-10 rounded-full flex items-center justify-center"
+            style={{ background: "rgba(12,10,14,0.55)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", border: "1px solid rgba(225,29,72,0.28)" }}>
+            <MessageCircle size={19}
+              style={{ color: "#FF4D6D", filter: "drop-shadow(0 0 6px rgba(225,29,72,0.6))" }} />
           </div>
           <span className="text-[9px] font-black text-white/90" style={{ textShadow: "0 1px 4px rgba(0,0,0,0.9)" }}>
             {formatCount(liveCommentsCount)}
           </span>
         </button>
 
-        {/* Share */}
-        <button onClick={handleShare} className="flex flex-col items-center gap-0.5 z-50">
-          <div className="w-9 h-9 rounded-full flex items-center justify-center"
-            style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(12px)", border: "1px solid rgba(255,255,255,0.13)" }}>
-            <Share2 size={17} className="text-white" />
+        {/* Share — crimson looping arrow + count */}
+        <button onClick={handleShare} aria-label="Share" className="flex flex-col items-center gap-0.5 z-50">
+          <div className="w-10 h-10 rounded-full flex items-center justify-center"
+            style={{ background: "rgba(12,10,14,0.55)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", border: "1px solid rgba(225,29,72,0.28)" }}>
+            <Share2 size={18}
+              style={{ color: "#FF5C7A", filter: "drop-shadow(0 0 6px rgba(225,29,72,0.6))" }} />
           </div>
           <span className="text-[9px] font-black text-white/90" style={{ textShadow: "0 1px 4px rgba(0,0,0,0.9)" }}>
             {formatCount(liveShares)}
           </span>
         </button>
+
+        {/* Hooks — interlocking double-hook, glowing crimson (directly below Share, above the 3-dots) */}
+        <button
+          onClick={e => { e.stopPropagation(); onOpenHooks?.(); }}
+          aria-label="Open Hooks"
+          className="flex flex-col items-center gap-0.5 z-50">
+          <div className="w-10 h-10 rounded-full flex items-center justify-center"
+            style={{ background: "rgba(12,10,14,0.55)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", border: "1px solid rgba(225,29,72,0.40)", boxShadow: "0 0 14px rgba(225,29,72,0.45)" }}>
+            <span style={{ color: "#FF3355", display: "flex", filter: "drop-shadow(0 0 7px rgba(255,45,85,0.95)) drop-shadow(0 0 14px rgba(225,29,72,0.55))" }}>
+              <DoubleHookIcon size={19} />
+            </span>
+          </div>
+        </button>
+
+        {/* Reports — single crimson vertical 3-dots report/menu (dropdown opens upward) */}
+        <div className="relative z-50" onClick={e => e.stopPropagation()}>
+          <button onClick={() => setMenuOpen(v => !v)}
+            aria-label="Report and options"
+            className="w-10 h-10 rounded-full flex items-center justify-center"
+            style={{ background: "rgba(12,10,14,0.55)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", border: "1px solid rgba(225,29,72,0.30)" }}>
+            <MoreVertical size={18} style={{ color: "#FF4D6D" }} />
+          </button>
+          <AnimatePresence>
+            {menuOpen && (
+              <>
+                <div className="fixed inset-0 z-[60]" onClick={() => setMenuOpen(false)} />
+                <motion.div initial={{ opacity: 0, scale: 0.9, y: 6 }} animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.9, y: 6 }} transition={{ duration: 0.12 }}
+                  className="absolute right-0 bottom-12 z-[70] w-52 bg-zinc-900/95 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
+                  {isOwner && (
+                    <button
+                      onClick={() => {
+                        setMenuOpen(false);
+                        window.dispatchEvent(new CustomEvent("flicks:open-reel-studio", { detail: { reel: post } }));
+                      }}
+                      className="w-full flex items-center gap-3 px-4 py-3.5 text-[#FF8FA5] hover:bg-white/5 text-sm font-bold border-b border-white/5"
+                    >
+                      <Pencil size={14} /> Edit Reel
+                    </button>
+                  )}
+                  {isOwner && (
+                    <button onClick={() => { setMenuOpen(false); setEditingCaption(true); }}
+                      className="w-full flex items-center gap-3 px-4 py-3.5 text-[#FF6B85] hover:bg-white/5 text-sm font-bold border-b border-white/5">
+                      <Pencil size={14} /> Edit Post
+                    </button>
+                  )}
+                  {isOwner && (
+                    <button
+                      onClick={handleOwnerDelete}
+                      disabled={deleting}
+                      className="w-full flex items-center gap-3 px-4 py-3.5 text-red-400 hover:bg-red-500/10 text-sm font-bold border-b border-white/5 disabled:cursor-wait disabled:opacity-60"
+                    >
+                      {deleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                      {deleting ? "Deleting Reel…" : "Delete Reel"}
+                    </button>
+                  )}
+                  <button onClick={e => {
+                    const popupH = 240;
+                    const spaceBelow = window.innerHeight - e.clientY;
+                    const top = spaceBelow >= popupH + 16 ? e.clientY + 8 : Math.max(8, e.clientY - popupH - 8);
+                    setMenuOpen(false); setReportAnchor({ top, right: 16 }); setReportOpen(true);
+                  }} className="w-full flex items-center gap-3 px-4 py-3.5 text-[#FF4D6D] hover:bg-white/5 text-sm font-bold border-b border-white/5">
+                    <Flag size={14} /> Report Video
+                  </button>
+                  {isAdmin && (
+                    <>
+                      <button onClick={handleAdminDelete}
+                        className="w-full flex items-center gap-3 px-4 py-3.5 text-red-400 hover:bg-red-500/10 text-sm font-bold border-b border-white/5">
+                        <Trash2 size={14} /> Delete (Admin)
+                      </button>
+                      {post.author_id && post.author_id !== currentUserId && (
+                        <button onClick={handleAdminBan}
+                          className="w-full flex items-center gap-3 px-4 py-3.5 text-red-500 hover:bg-red-500/10 text-sm font-bold">
+                          <Ban size={14} /> Ban User (Admin)
+                        </button>
+                      )}
+                    </>
+                  )}
+                </motion.div>
+              </>
+            )}
+          </AnimatePresence>
+        </div>
 
         {/* Magnet */}
         <div className="z-50" onClick={e => e.stopPropagation()}>
@@ -990,59 +1024,106 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, on
         </div>
       </div>
 
-      {/* ── Bottom info: username + caption ── */}
-      {/* right: 68 leaves room for the action bar (≈44px wide) + gutter */}
+      {/* ── Bottom-left translucent info panel: avatar · © username · Follow ·
+          caption · crimson music title · miniature spinning cassette ── */}
       <div
         className={`absolute left-3 z-40 ${editingCaption ? "pointer-events-auto" : "pointer-events-none"}`}
-        style={{ bottom: 108, right: 68 }}
+        style={{
+          bottom: "calc(46px + env(safe-area-inset-bottom, 0px))",
+          right: 72,
+          maxWidth: "calc(100vw - 92px)",
+        }}
         onClick={e => editingCaption && e.stopPropagation()}>
-        <div className="flex items-center gap-1.5 mb-0.5 pointer-events-none">
-          <h3 className="font-black text-white text-[14px]" style={{ textShadow: "0 1px 8px rgba(0,0,0,0.9)" }}>@{post.author || "user"}</h3>
-          <BadgeCheck size={13} className="text-cyan-400" />
-        </div>
-        {vibe.primary && (
-          <div className="mb-1 inline-flex items-center rounded-full border border-white/15 bg-black/40 px-2 py-1">
-            <span
-              className="text-[10px] font-extrabold"
-              style={{ color: vibe.primary.glowColor }}
-            >
-              {vibe.primary.icon} {vibe.primary.label}
-              {vibe.matches.some((profile) => profile.tag !== vibe.primary?.tag) ? " +" : ""}
-            </span>
-          </div>
-        )}
-        {editingCaption ? (
-          <div onClick={e => e.stopPropagation()}>
-            <textarea
-              className="w-full bg-black/60 backdrop-blur-md border border-white/30 rounded-xl px-3 py-2 text-sm text-white outline-none resize-none"
-              rows={2} value={localContent} onChange={e => setLocalContent(e.target.value)} autoFocus />
-            <div className="flex gap-2 mt-1.5">
-              <button onClick={() => { setLocalContent(post.content || ""); setEditingCaption(false); }}
-                className="flex-1 py-1.5 rounded-xl bg-white/15 text-white/80 text-[11px] font-bold">Cancel</button>
-              <button onClick={saveCaption} className="flex-1 py-1.5 rounded-xl bg-blue-500 text-white text-[11px] font-bold">Save</button>
-            </div>
-          </div>
-        ) : (
-          <p className="text-[11.5px] text-white/80 line-clamp-2 leading-snug font-medium" style={{ textShadow: "0 1px 6px rgba(0,0,0,0.9)" }}>{localContent}</p>
-        )}
-      </div>
-
-      {/* ── Cassette + Ticker Bar — pushed to the very bottom edge (above nav) ── */}
-      {/* pointer-events-none on wrapper: purely decorative, taps pass through to z-10 overlay */}
-      {isActive && !editingCaption && (
-        <div className="absolute left-0 right-0 z-40 flex items-center gap-2.5 px-3 py-1 pointer-events-none"
+        <div
+          className="rounded-2xl px-3 pt-2.5 pb-2"
           style={{
-            bottom: 60,
-            background: "rgba(0,0,0,0.55)",
-            backdropFilter: "blur(16px)",
-            borderTop: "1px solid rgba(255,255,255,0.07)",
+            background: "rgba(12,11,16,0.30)",
+            backdropFilter: "blur(10px)",
+            WebkitBackdropFilter: "blur(10px)",
+            border: "1px solid rgba(30,27,35,0.8)",
+            boxShadow: "inset 0 0 0 1px rgba(225,29,72,0.12), 0 10px 26px rgba(0,0,0,0.38)",
           }}>
-           <AudioCassette spinning={isActive} />
-          {/* Neon rule */}
-          <div className="shrink-0 w-px h-4 rounded-full" style={{ background: "rgba(0,255,230,0.55)", boxShadow: "0 0 5px rgba(0,255,230,0.55)" }} />
-          <Ticker text={tickerText} isActive={isActive} />
+
+          {/* Avatar · © username · verified badge · Follow — one line */}
+          <div className="flex items-center gap-1.5 mb-1">
+            <button
+              type="button"
+              className="pointer-events-auto shrink-0"
+              onClick={e => { e.stopPropagation(); openProfile?.(post.author_id); }}
+              aria-label={`Open ${post.author || "user"} profile`}>
+              <ActiveStatusAvatar
+                src={post.author_avatar}
+                name={post.author}
+                size={28}
+                online={onlineUserIds.has(post.author_id || "")}
+              />
+            </button>
+            <h3
+              className="font-black text-white text-[12.5px] truncate"
+              style={{ textShadow: "0 1px 8px rgba(0,0,0,0.9)" }}>
+              © {post.author || "user"}
+            </h3>
+            <BadgeCheck size={13} className="text-[#FF4D6D] shrink-0"
+              style={{ filter: "drop-shadow(0 0 6px rgba(255,45,85,0.75))" }} />
+            <button
+              type="button"
+              className="pointer-events-auto ml-0.5 shrink-0 text-[11px] font-black tracking-wide active:scale-95 transition-transform"
+              style={{ color: "#FF3355", textShadow: "0 0 10px rgba(255,45,85,0.95)" }}
+              onClick={e => { e.stopPropagation(); openProfile?.(post.author_id); }}>
+              Follow
+            </button>
+          </div>
+
+          {vibe.primary && (
+            <div className="mb-1 inline-flex items-center rounded-full border border-white/15 bg-black/40 px-2 py-1">
+              <span
+                className="text-[10px] font-extrabold"
+                style={{ color: vibe.primary.glowColor }}
+              >
+                {vibe.primary.icon} {vibe.primary.label}
+                {vibe.matches.some((profile) => profile.tag !== vibe.primary?.tag) ? " +" : ""}
+              </span>
+            </div>
+          )}
+
+          {/* Multi-line description */}
+          {editingCaption ? (
+            <div onClick={e => e.stopPropagation()}>
+              <textarea
+                className="w-full bg-black/60 backdrop-blur-md border border-white/30 rounded-xl px-3 py-2 text-sm text-white outline-none resize-none"
+                style={{ fontSize: 16 }}
+                rows={2} value={localContent} onChange={e => setLocalContent(e.target.value)} autoFocus />
+              <div className="flex gap-2 mt-1.5">
+                <button onClick={() => { setLocalContent(post.content || ""); setEditingCaption(false); }}
+                  className="flex-1 py-1.5 rounded-xl bg-white/15 text-white/80 text-[11px] font-bold">Cancel</button>
+                <button onClick={saveCaption} className="flex-1 py-1.5 rounded-xl text-white text-[11px] font-bold"
+                  style={{ background: "linear-gradient(135deg,#E11D48,#A01030)" }}>Save</button>
+              </div>
+            </div>
+          ) : (
+            <p className="text-[11.5px] text-white/80 line-clamp-2 leading-snug font-medium" style={{ textShadow: "0 1px 6px rgba(0,0,0,0.9)" }}>{localContent}</p>
+          )}
+
+          {/* Single-line music title — transparent crimson outline effect */}
+          <p
+            className="mt-1 text-[11px] font-black tracking-wide truncate select-none"
+            style={{
+              color: "transparent",
+              WebkitTextStroke: "0.7px rgba(255,45,85,0.95)",
+              textShadow: "0 0 12px rgba(225,29,72,0.40)",
+            }}>
+            ♪ {musicTitle}
+          </p>
+
+          {/* Miniature spinning cassette + scrolling song title — nested in the panel's bottom corner */}
+          <div className="flex items-center gap-1.5 mt-1.5">
+            <AudioCassette spinning={isActive && !editingCaption} compact />
+            <div className="shrink-0 w-px h-3 rounded-full"
+              style={{ background: "rgba(255,45,85,0.55)", boxShadow: "0 0 5px rgba(255,45,85,0.55)" }} />
+            <Ticker text={tickerText} isActive={isActive && !editingCaption} />
+          </div>
         </div>
-      )}
+      </div>
 
       {/* ── Report Modal (portal) ── */}
       {createPortal(
@@ -1109,6 +1190,7 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, on
 export default function FlicksApp({
   onBack,
   onBridgeChat,
+  onOpenHooks,
   isAdmin: isAdminProp = false,
   currentUserEmail: currentUserEmailProp,
   currentUserId: currentUserIdProp,
@@ -1129,6 +1211,17 @@ export default function FlicksApp({
   const containerRef = useRef<HTMLDivElement>(null);
   const currentIndexRef = useRef(0);
   const scrollRafRef = useRef<number>(0);
+
+  // Compact header search — client-side filter over author + caption
+  const [searchQuery, setSearchQuery] = useState("");
+  const visibleFlicks = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return flicks;
+    return flicks.filter((f: any) =>
+      String(f.author || "").toLowerCase().includes(q) ||
+      String(f.content || "").toLowerCase().includes(q),
+    );
+  }, [flicks, searchQuery]);
 
   // Inject CSS keyframes once on mount
   useEffect(() => { injectFlicksStyles(); }, []);
@@ -1309,11 +1402,11 @@ export default function FlicksApp({
   }, [onScroll]);
 
   useEffect(() => {
-    if (flicks.length === 0 || currentIndex < flicks.length) return;
-    const nextIndex = flicks.length - 1;
+    if (visibleFlicks.length === 0 || currentIndex < visibleFlicks.length) return;
+    const nextIndex = visibleFlicks.length - 1;
     currentIndexRef.current = nextIndex;
     setCurrentIndex(nextIndex);
-  }, [currentIndex, flicks.length]);
+  }, [currentIndex, visibleFlicks.length]);
 
   const handlePostDeleted = useCallback((rawId: string) => {
     setFlicks((previous) => {
@@ -1391,22 +1484,73 @@ export default function FlicksApp({
 
   return (
     <div className="fixed inset-0 bg-black z-[100]" style={{ touchAction: "pan-y" }}>
-      {/* Back button — minimal, ghost style like TikTok/Instagram; no heavy border or background */}
-      {onBack && (
-        <button onClick={onBack}
-          className="fixed top-12 left-3 z-[110] p-1.5 text-white/70 hover:text-white transition-opacity"
-          style={{ textShadow: "0 1px 6px rgba(0,0,0,0.9)" }}
-          aria-label="Close Flicks">
-          <X size={20} strokeWidth={2.5} />
-        </button>
-      )}
+      {/* ── Translucent safe-area header — back · centered "Reels" · compact search ── */}
+      <div
+        className="fixed top-0 left-0 right-0 z-[120]"
+        style={{
+          paddingTop: "env(safe-area-inset-top, 0px)",
+          background: "rgba(11,10,14,0.55)",
+          backdropFilter: "blur(18px)",
+          WebkitBackdropFilter: "blur(18px)",
+          borderBottom: "1px solid rgba(255,255,255,0.06)",
+        }}
+      >
+        <div className="relative flex items-center justify-between h-12 px-3">
+          {onBack ? (
+            <button
+              onClick={onBack}
+              aria-label="Back"
+              className="w-9 h-9 -ml-1 rounded-xl flex items-center justify-center active:scale-95 transition-transform"
+            >
+              <ChevronLeft size={22} className="text-white/85" />
+            </button>
+          ) : (
+            <span className="w-9 h-9" />
+          )}
+          {/* Centered title — clean bold white/red accent */}
+          <p
+            className="pointer-events-none absolute left-1/2 -translate-x-1/2 text-[16px] font-black tracking-[0.1em]"
+            style={{
+              background: "linear-gradient(90deg,#ffffff 35%,#FF4D6D 100%)",
+              WebkitBackgroundClip: "text",
+              backgroundClip: "text",
+              color: "transparent",
+              filter: "drop-shadow(0 0 10px rgba(255,45,85,0.45))",
+            }}
+          >
+            Reels
+          </p>
+          {/* Compact search pill — far right, inside the safe area */}
+          <div
+            className="flex items-center gap-1.5 rounded-full pl-2.5 pr-3 h-8 shrink-0"
+            style={{
+              background: "rgba(255,255,255,0.08)",
+              border: "1px solid rgba(255,255,255,0.10)",
+              width: 124,
+            }}
+          >
+            <Search size={13} className="text-white/55 shrink-0" />
+            <input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search"
+              aria-label="Search reels"
+              className="w-full min-w-0 bg-transparent text-white outline-none placeholder:text-white/45"
+              style={{ fontSize: 16 }}
+            />
+          </div>
+        </div>
+      </div>
+
       <div ref={containerRef} onScroll={onScroll}
         className="h-full overflow-y-scroll snap-y snap-mandatory scrollbar-hide"
         style={{ touchAction: "pan-y" }}>
-        {flicks.length === 0 ? (
-          <div className="h-full flex items-center justify-center text-white/20 font-bold">NO VIDEOS FOUND.</div>
+        {visibleFlicks.length === 0 ? (
+          <div className="h-full flex items-center justify-center text-white/20 font-bold">
+            {searchQuery.trim() ? "NO REELS MATCH YOUR SEARCH." : "NO VIDEOS FOUND."}
+          </div>
         ) : (
-          flicks.map((f, i) => {
+          visibleFlicks.map((f, i) => {
             // DOM virtualization: only mount ±2 from active index
             const isNear = Math.abs(i - currentIndex) <= 2;
             if (!isNear) {
@@ -1421,6 +1565,7 @@ export default function FlicksApp({
                   isNext={i === currentIndex + 1}
                   currentUserId={currentUserId}
                   onBridgeChat={onBridgeChat}
+                  onOpenHooks={onOpenHooks}
                   isAdmin={isAdmin}
                   onPostDeleted={handlePostDeleted}
                   onUserBanned={(authorId: string) => setFlicks(prev => prev.filter(x => x.author_id !== authorId))}

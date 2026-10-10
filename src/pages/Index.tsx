@@ -4786,9 +4786,10 @@ const PersonalizationView = React.memo(({
             {activeFeature === "Flicks" && (
               <ErrorBoundary>
               <Suspense fallback={<SectionLoader />}>
-              <div className="fixed inset-0 z-[300] bg-black touch-scroll-y" data-reels-feed>
+              <div className="fixed inset-0 z-[190] bg-black touch-scroll-y" data-reels-feed>
                 <FlicksFeed
                   onBack={() => setActiveFeature("Fame")}
+                  onOpenHooks={() => setActiveFeature("Hooks")}
                   isAdmin={isAppAdmin}
                   currentUserId={userId}
                   currentUserEmail={userEmail}
