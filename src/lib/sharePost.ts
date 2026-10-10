@@ -11,6 +11,12 @@ export interface SharePostOptions {
   postId: string;
   caption?: string | null;
   mediaUrl?: string | null;
+  previewUrl?: string | null;
+  imageUrl?: string | null;
+  imageUrls?: string[] | null;
+  videoUrl?: string | null;
+  coverUrl?: string | null;
+  thumbnailUrl?: string | null;
   mediaType?: string | null; // "image" | "video" | etc.
   authorName?: string | null;
   /** AI-generated SEO title from posts.meta_title — used as the share headline */
@@ -251,6 +257,12 @@ export async function sharePost(opts: SharePostOptions): Promise<"shared" | "cop
     text: parts.join("\n\n"),
     url: postUrl,
     mediaUrl: mediaUrl || undefined,
+    previewUrl: opts.previewUrl || undefined,
+    imageUrl: opts.imageUrl || undefined,
+    image_urls: opts.imageUrls || undefined,
+    video_url: opts.videoUrl || undefined,
+    cover_url: opts.coverUrl || undefined,
+    thumbnail_url: opts.thumbnailUrl || undefined,
     type: mediaType?.toLowerCase().startsWith("video") ? "reel" : "post",
   });
 

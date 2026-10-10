@@ -15,6 +15,7 @@
 export type PostType = "post" | "reel" | "circle" | "hook" | "quote" | "story";
 
 const FLICKS_BASE_URL = "https://flicksindia.online";
+const PROMO_PREVIEW_URL = "https://i.ibb.co/HT7RvFxs/flicksindia.png";
 
 export function buildPostShareUrl(postId: string): string {
   return `${FLICKS_BASE_URL}/post/${encodeURIComponent(postId)}`;
@@ -170,14 +171,10 @@ export async function launchShareTarget(
   }
 }
 
-export interface UniversalShareInput {
+export interface UniversalShareInput extends ShareMediaFields {
   title: string;
   text: string;
   url: string;
-  /** Exact image/video preview URL to expose to Web Share and social intents. */
-  previewUrl?: string;
-  /** Original media URL; retained for native media bridges and file sharing. */
-  mediaUrl?: string;
   authorName?: string;
   canvas?: HTMLCanvasElement;
   type?: PostType;
@@ -302,6 +299,8 @@ function canvasToFileSync(canvas: HTMLCanvasElement): File | null {
  */
 type ShareMediaFields = {
   type?: string;
+  media_type?: string;
+  mediaType?: string;
   media_url?: string;
   mediaUrl?: string;
   image_url?: string;
@@ -343,7 +342,7 @@ function firstMediaUrl(...values: unknown[]): string | undefined {
       }
 
       const firstUrl = candidate.split(/,(?=https?:\/\/)/, 1)[0]?.trim();
-      if (firstUrl) return firstUrl;
+      if (firstUrl && !isStaticAppShareImage(firstUrl)) return firstUrl;
       continue;
     }
 
@@ -369,6 +368,20 @@ function firstMediaUrl(...values: unknown[]): string | undefined {
   return undefined;
 }
 
+function isStaticAppShareImage(candidate: string): boolean {
+  try {
+    const parsed = new URL(candidate, FLICKS_BASE_URL);
+    const promo = new URL(PROMO_PREVIEW_URL);
+    return (
+      (parsed.hostname === promo.hostname && parsed.pathname === promo.pathname) ||
+      (parsed.hostname.toLowerCase() === "flicksindia.online" &&
+        ["/logo.png", "/app-icon.png"].includes(parsed.pathname.toLowerCase()))
+    );
+  } catch {
+    return false;
+  }
+}
+
 function shareMetadata(post: ShareMediaFields): Record<string, unknown> {
   return post.metadata && typeof post.metadata === "object"
     ? (post.metadata as Record<string, unknown>)
@@ -377,7 +390,11 @@ function shareMetadata(post: ShareMediaFields): Record<string, unknown> {
 
 function isVideoShare(post: ShareMediaFields): boolean {
   const metadata = shareMetadata(post);
-  if (["reel", "video"].includes(post.type?.toLowerCase() ?? "")) return true;
+  if (
+    ["reel", "video"].includes(post.type?.toLowerCase() ?? "") ||
+    post.media_type?.toLowerCase().startsWith("video") ||
+    post.mediaType?.toLowerCase().startsWith("video")
+  ) return true;
   if (metadata.is_video === true || metadata.isVideo === true) return true;
 
   if (
@@ -580,7 +597,9 @@ async function copyTextToClipboard(text: string): Promise<boolean> {
 export async function universalShare(
   input: UniversalShareInput,
 ): Promise<ShareOutcome> {
-  const { title, url, mediaUrl, previewUrl, canvas, type = "post" } = input;
+  const { title, url, canvas, type = "post" } = input;
+  const mediaUrl = resolveShareMediaUrl(input);
+  const previewUrl = resolveSharePreviewUrl(input);
   const text = buildShareText(input.text, url, input.authorName);
   const shareUrl = previewUrl || mediaUrl || url;
   const shareData: ShareData = { title, text, url: shareUrl };
