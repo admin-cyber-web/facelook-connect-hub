@@ -14,6 +14,7 @@ import {
   launchShareTarget,
   universalShare,
   resolveShareMediaUrl,
+  buildPostShareUrl,
   type PostType,
   type ShareTarget,
   type ShareOutcome,
@@ -194,8 +195,7 @@ const SharePopup: React.FC<SharePopupProps> = ({
     : post.media_url || post.cover_url || post.meta_image || null;
   const caption =
     post.meta_title || post.content?.slice(0, 72) || "Check this out on Flicks!";
-  const shareUrl =
-    post.share_url || `${window.location.origin}/post/${encodeURIComponent(post.id)}`;
+  const shareUrl = buildPostShareUrl(post.id);
   const shareBody = post.content || post.meta_description || caption;
 
   // Resolve the best media URL for this post type
@@ -283,6 +283,8 @@ const SharePopup: React.FC<SharePopupProps> = ({
       setTimeout(onClose, 300);
     } else if (outcome === "cancelled") {
       setMediaOutcome(null); // User cancelled — keep popup open
+    } else if (outcome === "copied") {
+      toast.success("Share text copied to clipboard.");
     } else {
       toast.error("Share failed. Try Copy Link instead.");
     }

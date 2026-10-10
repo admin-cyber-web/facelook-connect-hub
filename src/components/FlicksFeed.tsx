@@ -1362,6 +1362,12 @@ export default function FlicksApp({
     };
 
     const container = containerRef.current;
+    const isAtTop = () =>
+      Boolean(
+        container &&
+        currentIndexRef.current === 0 &&
+        container.scrollTop === 0,
+      );
     let touchStart: { x: number; y: number } | null = null;
     let startedAtTop = false;
     let gesture: "undecided" | "pulling" | "blocked" = "blocked";
@@ -1389,9 +1395,7 @@ export default function FlicksApp({
       if (
         event.touches.length !== 1 ||
         reelsRefreshingRef.current ||
-        currentIndexRef.current !== 0 ||
-        !container ||
-        container.scrollTop > 2 ||
+        !isAtTop() ||
         target?.closest('button, a, input, textarea, select, [contenteditable], [data-no-pull-refresh]')
       ) {
         resetPull();
@@ -1407,6 +1411,12 @@ export default function FlicksApp({
     };
     const onTouchMove = (event: TouchEvent) => {
       if (!touchStart || !startedAtTop || event.touches.length !== 1) return;
+      if (!isAtTop()) {
+        gesture = "blocked";
+        pullDistanceRef.current = 0;
+        if (!cancelled) setPullDistance(0);
+        return;
+      }
       const dx = event.touches[0].clientX - touchStart.x;
       const dy = event.touches[0].clientY - touchStart.y;
       const directionLock = 8;
@@ -1428,6 +1438,7 @@ export default function FlicksApp({
       const shouldRefresh =
         gesture === "pulling" &&
         startedAtTop &&
+        isAtTop() &&
         pullDistanceRef.current >= 72 &&
         !reelsRefreshingRef.current;
       if (shouldRefresh) void refreshReels();

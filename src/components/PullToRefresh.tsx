@@ -54,21 +54,20 @@ export default function PullToRefresh({
      * on document.scrollingElement, documentElement, or body. Check all of
      * them instead of choosing one at mount time.
      */
-    const getDocumentScrollTop = (): number => {
+    const getDocumentScrollTops = (): number[] => {
       const scrollingElement = document.scrollingElement;
-      return Math.max(
+      return [
         window.scrollY,
         window.pageYOffset,
         scrollingElement?.scrollTop ?? 0,
         document.documentElement.scrollTop,
         document.body.scrollTop,
-        0,
-      );
+      ];
     };
 
     /**
-     * Return every scrollable ancestor between the touch target and this
-     * wrapper. Nested scroll surfaces must be at their exact top too.
+     * Return every scrollable ancestor between the touch target and page root.
+     * Nested scroll surfaces must be at their exact top too.
      */
     const getScrollableAncestors = (target: EventTarget | null): HTMLElement[] => {
       const ancestors: HTMLElement[] = [];
@@ -79,23 +78,20 @@ export default function PullToRefresh({
             ? target.parentElement
             : el;
 
-      while (node) {
-        if (node !== document.body && node !== document.documentElement) {
-          const { overflowY } = window.getComputedStyle(node);
-          const canScrollY = /(auto|scroll|overlay)/.test(overflowY);
-          if (canScrollY && node.scrollHeight > node.clientHeight) {
-            ancestors.push(node);
-          }
+      while (node && node !== document.body && node !== document.documentElement) {
+        const { overflowY } = window.getComputedStyle(node);
+        const canScrollY = /(auto|scroll|overlay)/.test(overflowY);
+        if (canScrollY && node.scrollHeight > node.clientHeight) {
+          ancestors.push(node);
         }
-        if (node === el) break;
         node = node.parentElement;
       }
       return ancestors;
     };
 
     const isAtTop = (target: EventTarget | null = touchTargetRef.current): boolean =>
-      getDocumentScrollTop() <= 1 &&
-      getScrollableAncestors(target).every((node) => node.scrollTop <= 1);
+      getDocumentScrollTops().every((scrollTop) => scrollTop === 0) &&
+      getScrollableAncestors(target).every((node) => node.scrollTop === 0);
 
     const isExcludedTarget = (target: EventTarget | null): boolean => {
       const node = target instanceof Element ? target : null;
@@ -126,7 +122,12 @@ export default function PullToRefresh({
 
     const onTouchStart = (e: TouchEvent) => {
       touchTargetRef.current = e.target;
-       if (e.touches.length !== 1 || refreshingRef.current || isExcludedTarget(e.target) || !isAtTop(e.target)) {
+      if (
+        e.touches.length !== 1 ||
+        refreshingRef.current ||
+        isExcludedTarget(e.target) ||
+        !isAtTop(e.target)
+      ) {
         startedAtTopRef.current = false;
         resetPull();
         return;
@@ -152,6 +153,15 @@ export default function PullToRefresh({
         return;
       }
 
+      // If the browser has moved the page or a nested surface off the exact
+      // top boundary, immediately hand the gesture back to native scrolling.
+      if (!isAtTop()) {
+        gestureState.current = "blocked";
+        pullDistanceRef.current = 0;
+        paintPull(0);
+        return;
+      }
+
       const dx = e.touches[0].clientX - startPoint.current.x;
       const dy = e.touches[0].clientY - startPoint.current.y;
 
@@ -167,8 +177,6 @@ export default function PullToRefresh({
         return;
       }
 
-      // Remember the top boundary from touchstart. WebViews can report a tiny
-      // transient scroll offset while a downward edge gesture is being claimed.
       if (!startedAtTopRef.current) {
         gestureState.current = "blocked";
         pullDistanceRef.current = 0;
@@ -195,6 +203,7 @@ export default function PullToRefresh({
         gestureState.current === "pulling" &&
         pullDistance >= threshold &&
         startedAtTopRef.current &&
+        isAtTop() &&
         !refreshingRef.current;
       startPoint.current = null;
       startedAtTopRef.current = false;
@@ -258,6 +267,7 @@ export default function PullToRefresh({
     <div
       ref={wrapperRef}
       className="relative"
+      style={{ touchAction: "pan-y" }}
     >
       {/* Indicator */}
       <div

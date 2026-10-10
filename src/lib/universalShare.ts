@@ -16,32 +16,49 @@
 
 export type PostType = "post" | "reel" | "circle" | "hook" | "quote" | "story";
 
-const BRANDING_CTA = "Join Flicks India: https://flicksindia.online";
+const FLICKS_BASE_URL = "https://flicksindia.online";
+
+export function buildPostShareUrl(postId: string): string {
+  return `${FLICKS_BASE_URL}/post/${encodeURIComponent(postId)}`;
+}
+
+function canonicalPostUrl(url?: string | null): string {
+  const value = (url || "").trim();
+  if (!value) return FLICKS_BASE_URL;
+
+  try {
+    const parsed = new URL(value, FLICKS_BASE_URL);
+    const pathParts = parsed.pathname.split("/").filter(Boolean);
+    const postIndex = pathParts.findIndex((part) => part.toLowerCase() === "post");
+    const postId =
+      (postIndex >= 0 ? pathParts[postIndex + 1] : undefined) ||
+      parsed.searchParams.get("post") ||
+      parsed.searchParams.get("id");
+    return postId ? buildPostShareUrl(decodeURIComponent(postId)) : value;
+  } catch {
+    return value;
+  }
+}
 
 /**
  * Build the same rich share payload for native shares and platform intents.
- * The caption is limited to a few lines so the post link and source media URL
- * remain visible in messaging apps.
+ * The caption is shortened when needed, followed by a consistent author credit
+ * and canonical post link.
  */
 export function buildShareText(
   body?: string | null,
   url?: string | null,
   authorName?: string | null,
-  mediaUrl?: string | null,
 ): string {
   const trimmed = (body || "").trim().replace(/\r\n/g, "\n");
-  const urlStr = (url || "").trim();
   const lines = trimmed.split("\n");
   let snippet = lines.slice(0, 3).join("\n").slice(0, 280).trim();
   const hasMore = lines.length > 3 || trimmed.length > snippet.length;
-  if (snippet && hasMore) snippet += "...Read More";
+  if (snippet && hasMore) snippet += "... Read More";
 
-  const sections = [snippet];
-  if (authorName?.trim()) sections.push(`Posted by: ${authorName.trim()}`);
-  if (mediaUrl?.trim()) sections.push(`Image/Video: ${mediaUrl.trim()}`);
-  if (urlStr && !sections.join("\n\n").includes(urlStr)) sections.push(urlStr);
-  sections.push(BRANDING_CTA);
-  return sections.filter(Boolean).join("\n\n");
+  const author = authorName?.trim() || "Flicks India";
+  const attribution = `📸 Posted by: ${author}\n🔗 Join Flicks India: ${canonicalPostUrl(url)}`;
+  return snippet ? `${snippet}\n\n${attribution}` : attribution;
 }
 
 export type ShareTarget =
@@ -98,14 +115,8 @@ export async function launchShareTarget(
     input.text,
     input.url,
     input.authorName,
-    input.mediaUrl,
   );
-  const platformText = buildShareText(
-    input.text,
-    platform === "whatsapp" ? input.url : undefined,
-    input.authorName,
-    input.mediaUrl,
-  );
+  const platformText = nativeText;
 
   if (typeof window.AndroidShare?.shareToPlatform === "function") {
     try {
@@ -329,6 +340,33 @@ export async function shareViaAndroid(
   }
 }
 
+async function copyTextToClipboard(text: string): Promise<boolean> {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    // Try the legacy WebView-compatible clipboard path below.
+  }
+
+  try {
+    const textarea = document.createElement("textarea");
+    textarea.value = text;
+    textarea.setAttribute("readonly", "");
+    textarea.style.position = "fixed";
+    textarea.style.opacity = "0";
+    textarea.style.pointerEvents = "none";
+    document.body.appendChild(textarea);
+    textarea.select();
+    const copied = document.execCommand("copy");
+    textarea.remove();
+    return copied;
+  } catch {
+    return false;
+  }
+}
+
 // ── Core share function ───────────────────────────────────────────────────────
 
 /**
@@ -356,66 +394,57 @@ export async function universalShare(
   input: UniversalShareInput,
 ): Promise<ShareOutcome> {
   const { title, url, mediaUrl, canvas, type = "post" } = input;
-  const text = buildShareText(input.text, url, input.authorName, mediaUrl);
+  const text = buildShareText(input.text, url, input.authorName);
+  const shareUrl = mediaUrl || url;
+  const shareData: ShareData = { title, text, url: shareUrl };
+  let sharedWithFile = false;
 
-  // Canvas data is already local, so convert it synchronously and keep Web
-  // Share inside the original click activation.
-  if (canvas && typeof navigator.share === "function") {
-    const file = canvasToFileSync(canvas);
-    if (file) {
-      const shareData: ShareData = { title, text, url, files: [file] };
-      const canShare =
-        typeof navigator.canShare === "function"
-          ? navigator.canShare(shareData)
-          : true;
-      if (canShare) {
+  // Call Web Share first while the user's click activation is still live.
+  // Canvas conversion is synchronous so it can join that same activation.
+  if (typeof navigator.share === "function") {
+    if (canvas) {
+      const file = canvasToFileSync(canvas);
+      if (file) {
+        const fileShareData: ShareData = { ...shareData, files: [file] };
         try {
-          const sharePromise = navigator.share(shareData);
-          await sharePromise;
-          return "shared-with-file";
-        } catch (err) {
-          if ((err as DOMException)?.name === "AbortError") return "cancelled";
-          return "error";
+          if (!navigator.canShare || navigator.canShare(fileShareData)) {
+            Object.assign(shareData, fileShareData);
+            sharedWithFile = true;
+          }
+        } catch {
+          // Share the rich text and URL if file sharing is unavailable.
         }
       }
+    }
+
+    try {
+      await navigator.share(shareData);
+      return sharedWithFile ? "shared-with-file" : "shared-url-only";
+    } catch (err) {
+      if ((err as DOMException)?.name === "AbortError") return "cancelled";
+      // Native sharing can be disabled or reject in Android WebViews; continue
+      // through the native bridge and clipboard fallbacks.
     }
   }
 
   // Android handles remote media without making the WebView download it again.
   if (mediaUrl && typeof window.AndroidShare?.shareMedia === "function") {
     try {
-      const result = window.AndroidShare.shareMedia(text, mediaUrl, type);
-      if (result === true || result === undefined) return "shared-with-file";
-      if (result && typeof (result as Promise<unknown>).then === "function") {
-        if (await result) return "shared-with-file";
-      }
+      const result = await window.AndroidShare.shareMedia(text, mediaUrl, type);
+      if (result !== false) return "shared-with-file";
     } catch {
-      // Continue to the browser's native share path.
-    }
-  } else if (!mediaUrl && typeof window.AndroidShare?.shareText === "function") {
-    try {
-      const result = window.AndroidShare.shareText(title, text, url);
-      if (result === true || result === undefined) return "shared-url-only";
-      if (result && typeof (result as Promise<unknown>).then === "function") {
-        if (await result) return "shared-url-only";
-      }
-    } catch {
-      // Continue to the browser's native share path.
+      // Continue to text bridge or clipboard.
     }
   }
 
-  // Call Web Share immediately while the user's click activation is still live.
-  if (typeof navigator.share === "function") {
+  if (typeof window.AndroidShare?.shareText === "function") {
     try {
-      const sharePromise = navigator.share({ title, text, url });
-      await sharePromise;
-      return "shared-url-only";
-    } catch (err) {
-      if ((err as DOMException)?.name === "AbortError") return "cancelled";
-      return "error";
+      const result = await window.AndroidShare.shareText(title, text, url);
+      if (result !== false) return "shared-url-only";
+    } catch {
+      // Continue to clipboard.
     }
   }
 
-  // Never copy implicitly; copying is available through the explicit Copy Link action.
-  return "error";
+  return (await copyTextToClipboard(text)) ? "copied" : "error";
 }
