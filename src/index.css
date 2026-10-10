@@ -1787,3 +1787,46 @@ body.body-locked {
 .live-ticker-track:hover {
   animation-play-state: paused;
 }
+
+/* Chat 19 banner: compositor-only language, badge, and CTA motion. */
+@keyframes chat19-language-en {
+  0%, 50%, 100% { opacity: 0; transform: translateY(8px); }
+  6%, 44% { opacity: 1; transform: translateY(0); }
+}
+@keyframes chat19-language-hi {
+  0%, 50%, 100% { opacity: 0; transform: translateY(8px); }
+  56%, 94% { opacity: 1; transform: translateY(0); }
+}
+@keyframes chat19-badge-glow {
+  0%, 100% { box-shadow: 0 0 5px rgba(255,255,255,.05); }
+  50% { box-shadow: 0 0 12px rgba(255,255,255,.22), 0 0 18px rgba(244,63,94,.16); }
+}
+@keyframes chat19-cta-glow {
+  0%, 100% {
+    background-position: 0% 50%;
+    box-shadow: 0 0 10px rgba(236,72,153,.35), 0 4px 12px rgba(79,70,229,.25);
+  }
+  50% {
+    background-position: 100% 50%;
+    box-shadow: 0 0 20px rgba(168,85,247,.55), 0 4px 18px rgba(79,70,229,.4);
+  }
+}
+.chat19-language-en { animation: chat19-language-en 7s ease-in-out infinite; }
+.chat19-language-hi { animation: chat19-language-hi 7s ease-in-out infinite; }
+.chat19-badge-glow { animation: chat19-badge-glow 2.8s ease-in-out infinite; }
+.chat19-badge-glow:nth-child(2) { animation-delay: -0.9s; }
+.chat19-badge-glow:nth-child(3) { animation-delay: -1.8s; }
+.chat19-cta-glow {
+  background-size: 220% 220%;
+  animation: chat19-cta-glow 2.6s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .chat19-language-en,
+  .chat19-language-hi,
+  .chat19-badge-glow,
+  .chat19-cta-glow {
+    animation: none !important;
+  }
+  .chat19-language-en { opacity: 1; transform: none; }
+  .chat19-language-hi { opacity: 0; transform: none; }
+}

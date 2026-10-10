@@ -4239,30 +4239,71 @@ const PersonalizationView = React.memo(({
                   </motion.button>
                 </div>
 
-                {/* ── Chat 19 promo banner — clean clickable promotional image below
-                    magnet dashboard (opens the romantic heart popup; the private
-                    module lives in the bottom nav "Chat 19") */}
+                {/* ── Chat 19 promo banner — full-card click opens the existing promo flow */}
                 <div className="px-3 pb-1">
                   <motion.button
                     type="button"
-                    whileTap={{ scale: 0.98 }}
+                    whileTap={{ scale: 0.985 }}
                     onClick={() => setShowChat19Promo(true)}
-                    aria-label="Open Chat 19 promo"
-                    className="w-full relative block rounded-2xl overflow-hidden"
+                    aria-label="Open Chat 19. Private and secure, free chat with your ID hidden."
+                    className="relative block h-[194px] w-full overflow-hidden rounded-2xl text-left sm:h-[204px]"
                     style={{
                       border: "1.5px solid rgba(255,77,110,.55)",
-                      boxShadow: "0 0 22px rgba(225,29,72,.35)",
-                      background: "#12060B",
+                      boxShadow: "0 0 22px rgba(225,29,72,.35), 0 8px 28px rgba(38,8,33,.16)",
+                      background: "linear-gradient(110deg,#f7d9c5 0%,#8a4e5b 58%,#24112c 100%)",
                     }}
                   >
                     <img
-                      src="https://res.cloudinary.com/dzlazqbvf/image/upload/v1791612497/Gemini_Generated_Image_aoaezaoaezaoaeza-100kb_wejgm9.jpg"
-                      alt="Chat 19 — unveil your secret vibe"
-                      className="w-full block select-none"
+                      src="https://res.cloudinary.com/dzlazqbvf/image/upload/v1791658289/Gemini_Generated_Image_aoaezaoaezaoaeza-100kb-removebg-preview_t771na.png"
+                      alt=""
+                      aria-hidden="true"
+                      className="absolute inset-0 h-full w-full select-none object-cover object-[26%_center]"
                       loading="lazy"
                       decoding="async"
                       draggable={false}
                     />
+                    <div
+                      aria-hidden="true"
+                      className="pointer-events-none absolute inset-0"
+                      style={{
+                        background:
+                          "linear-gradient(90deg, rgba(21,8,23,.12) 0%, rgba(21,8,23,.04) 48%, rgba(21,8,23,.18) 100%)",
+                      }}
+                    />
+                    <div
+                      aria-hidden="true"
+                      className="absolute inset-y-2 left-2 z-10 flex w-[55%] max-w-[200px] flex-col justify-between gap-1.5 rounded-xl border border-white/35 bg-[#190d20]/70 p-2.5 shadow-[0_8px_26px_rgba(15,5,22,.26)] backdrop-blur-md sm:inset-y-2.5 sm:left-2.5 sm:w-[46%] sm:max-w-[280px] sm:gap-2 sm:p-3"
+                    >
+                      <div className="grid grid-cols-3 gap-1">
+                        <span className="chat19-badge-glow flex min-h-[25px] items-center justify-center gap-0.5 rounded-lg border border-emerald-200/30 bg-emerald-400/15 px-1 text-center text-[7px] font-extrabold leading-[1.05] text-white sm:text-[8px]">
+                          <span>🔒</span><span>Private &amp; Secure</span>
+                        </span>
+                        <span className="chat19-badge-glow flex min-h-[25px] items-center justify-center gap-0.5 rounded-lg border border-amber-200/30 bg-amber-300/15 px-1 text-center text-[7px] font-extrabold leading-[1.05] text-white sm:text-[8px]">
+                          <span>⚡</span><span>100% Free</span>
+                        </span>
+                        <span className="chat19-badge-glow flex min-h-[25px] items-center justify-center gap-0.5 rounded-lg border border-sky-200/30 bg-sky-300/15 px-1 text-center text-[7px] font-extrabold leading-[1.05] text-white sm:text-[8px]">
+                          <span>🆔</span><span>ID Hidden</span>
+                        </span>
+                      </div>
+
+                      <div className="relative min-h-0 flex-1 overflow-hidden py-1">
+                        <p className="chat19-language-en absolute inset-0 flex items-center text-[9px] font-bold leading-[1.25] tracking-tight text-white drop-shadow-[0_1px_3px_rgba(0,0,0,.8)] sm:text-[11px]">
+                          ✨ Want to have fun with friends or new people? Your chat is 100% PRIVATE &amp; SECURE. ID is HIDDEN!
+                        </p>
+                        <p className="chat19-language-hi absolute inset-0 flex items-center text-[9px] font-bold leading-[1.25] tracking-tight text-white drop-shadow-[0_1px_3px_rgba(0,0,0,.8)] sm:text-[11px]">
+                          🔥 क्या दोस्तों या अनजाने लोगों के साथ मज़े करना चाहते हैं? आपकी चैट पूरी तरह प्राइवेट और सुरक्षित है, आपकी आईडी कोई नहीं देख सकता!
+                        </p>
+                      </div>
+
+                      <span className="chat19-cta-glow inline-flex min-h-[27px] self-start items-center justify-center rounded-lg bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 px-3 text-[10px] font-black tracking-wide text-white shadow-lg sm:text-[11px]">
+                        Open Now ↗
+                      </span>
+                    </div>
+                    <span className="sr-only">
+                      Want to have fun with friends or new people? Your chat is 100% private and secure. ID is hidden.
+                      क्या दोस्तों या अनजाने लोगों के साथ मज़े करना चाहते हैं? आपकी चैट पूरी तरह प्राइवेट और सुरक्षित है, आपकी आईडी कोई नहीं देख सकता!
+                      Open Now.
+                    </span>
                   </motion.button>
                 </div>
 
