@@ -27,6 +27,7 @@ export default function PullToRefresh({
   const onRefreshRef = useRef(onRefresh);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const touchTargetRef = useRef<EventTarget | null>(null);
+  const startedAtTopRef = useRef(false);
 
   useEffect(() => {
     onRefreshRef.current = onRefresh;
@@ -93,15 +94,15 @@ export default function PullToRefresh({
     };
 
     const isAtTop = (target: EventTarget | null = touchTargetRef.current): boolean =>
-       getDocumentScrollTop() === 0 &&
-       getScrollableAncestors(target).every((node) => node.scrollTop === 0);
+      getDocumentScrollTop() <= 1 &&
+      getScrollableAncestors(target).every((node) => node.scrollTop <= 1);
 
-     const isExcludedTarget = (target: EventTarget | null): boolean => {
-       const node = target instanceof Element ? target : null;
-       return Boolean(node?.closest(
-         'input, textarea, select, [contenteditable], [role="textbox"], video, .feed-reel, [data-no-pull-refresh], [data-reels-feed]',
-       ));
-     };
+    const isExcludedTarget = (target: EventTarget | null): boolean => {
+      const node = target instanceof Element ? target : null;
+      const excluded =
+        'input, textarea, select, [contenteditable], [role="textbox"], button, a, [data-no-pull-refresh]';
+      return Boolean(node?.closest(excluded));
+    };
 
     const paintPull = (value: number) => {
       pullYRef.current = value;
@@ -118,6 +119,7 @@ export default function PullToRefresh({
       pullDistanceRef.current = 0;
       startPoint.current = null;
       touchTargetRef.current = null;
+      startedAtTopRef.current = false;
       gestureState.current = "blocked";
       paintPull(0);
     };
@@ -125,10 +127,12 @@ export default function PullToRefresh({
     const onTouchStart = (e: TouchEvent) => {
       touchTargetRef.current = e.target;
        if (e.touches.length !== 1 || refreshingRef.current || isExcludedTarget(e.target) || !isAtTop(e.target)) {
+        startedAtTopRef.current = false;
         resetPull();
         return;
       }
 
+      startedAtTopRef.current = true;
       startPoint.current = {
         x: e.touches[0].clientX,
         y: e.touches[0].clientY,
@@ -163,9 +167,9 @@ export default function PullToRefresh({
         return;
       }
 
-      // Avoid taking over if native scrolling has already moved the document
-      // or any nested scroll surface away from its absolute top.
-      if (!isAtTop(touchTargetRef.current || e.target)) {
+      // Remember the top boundary from touchstart. WebViews can report a tiny
+      // transient scroll offset while a downward edge gesture is being claimed.
+      if (!startedAtTopRef.current) {
         gestureState.current = "blocked";
         pullDistanceRef.current = 0;
         paintPull(0);
@@ -177,8 +181,9 @@ export default function PullToRefresh({
       gestureState.current = "pulling";
       pullDistanceRef.current = dy;
 
-       // Observe the gesture without cancelling native scrolling, selection,
-       // or video navigation. The raw distance controls the trigger.
+      // Once a downward pull wins at the top boundary, prevent the WebView
+      // from consuming the rest of the gesture as overscroll.
+      if (e.cancelable) e.preventDefault();
       const damped = Math.min(dy * 0.7, threshold * 1.35);
       paintPull(damped);
     };
@@ -189,9 +194,10 @@ export default function PullToRefresh({
       const shouldRefresh =
         gestureState.current === "pulling" &&
         pullDistance >= threshold &&
-        isAtTop(touchTargetRef.current) &&
+        startedAtTopRef.current &&
         !refreshingRef.current;
       startPoint.current = null;
+      startedAtTopRef.current = false;
       gestureState.current = "blocked";
 
       if (shouldRefresh) {
@@ -218,13 +224,13 @@ export default function PullToRefresh({
       }
     };
 
-    // Passive bubble listeners observe only this static feed. They never
-    // cancel native scrolling, selection, clicks, or video navigation.
+    // Keep touchstart passive; touchmove becomes non-passive so an accepted
+    // pull can be claimed reliably in Android WebViews.
     el.addEventListener("touchstart", onTouchStart, {
       passive: true,
     });
     el.addEventListener("touchmove", onTouchMove, {
-      passive: true,
+      passive: false,
     });
     el.addEventListener("touchend", onTouchEnd, {
       passive: true,

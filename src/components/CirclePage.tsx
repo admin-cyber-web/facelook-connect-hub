@@ -8,6 +8,7 @@ import { useProfileViewer } from "../context/ProfileViewerContext";
 import { useDataCache } from "../context/DataCacheContext";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
+import { requestShareModal } from "../lib/shareModal";
 import { MagnetButton } from "./MagnetSystem";
 import { maskProfanity, sanitizeText } from "../lib/profanityFilter";
 import {
@@ -174,7 +175,7 @@ interface PostCardProps {
   latestComment?: CircleComment | null;
   onLike: (post: GroupPost) => void;
   onComment: (post: GroupPost) => void;
-  onShare: (post: GroupPost) => void;
+  onShare: (post: GroupPost, anchor: HTMLElement) => void;
   onOptions: (post: GroupPost) => void;
   onReview: (postId: string, status: "approved" | "rejected") => void;
   onViewers: (postId: string) => void;
@@ -274,7 +275,7 @@ const CirclePostCard = memo(({
           <MessageCircle size={19} className={post.comments_muted ? "text-amber-500" : "text-gray-600"} />
           <span className="text-xs font-bold text-gray-500">{post.comments_count || 0}</span>
         </button>
-        <button onClick={() => onShare(post)} className="flex items-center gap-1.5 active:scale-90 transition-transform">
+        <button onClick={(event) => onShare(post, event.currentTarget)} className="flex items-center gap-1.5 active:scale-90 transition-transform">
           <Share2 size={18} className="text-gray-600" />
           <span className="text-xs font-bold text-gray-500">{post.shares_count || 0}</span>
         </button>
@@ -1025,27 +1026,25 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
   };
 
   // ── Share Circle (single unified native share, original media, English) ─────
-  const shareCircle = async (group: Group) => {
+  const shareCircle = (group: Group, anchor: HTMLElement) => {
     const link = `${window.location.origin}?circle=${group.id}`;
     const titleLine = group.name;
     const bodyLine  = (group as any).description
       ? ((group as any).description as string).slice(0, 140)
       : `Join the "${group.name}" circle and connect with the community on Flicks.`;
     const mediaUrl = (group as any).cover_url || (group as any).avatar_url || "";
-    try {
-      const { universalShare } = await import("../lib/universalShare");
-      const result = await universalShare({
+    requestShareModal(
+      {
+        id: `circle-${group.id}`,
         title: titleLine,
-        text: `${titleLine}\n${bodyLine}`,
-        url: link,
-        mediaUrl: mediaUrl || undefined,
+        content: `${titleLine}\n${bodyLine}`,
+        cover_url: mediaUrl || undefined,
         type: "circle",
-      });
-      if (result === "copied") toast.success("Link copied to clipboard");
-    } catch {
-      navigator.clipboard.writeText(link).catch(() => {});
-      toast.success("Link copied to clipboard");
-    }
+        author: "Flicks India",
+        share_url: link,
+      },
+      anchor,
+    );
   };
 
   // ── Robust member fetch: tries FK join, falls back to separate profiles query ─
@@ -1628,22 +1627,29 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
     toast.success("Comment updated.");
   };
 
-  const sharePost = async (post: GroupPost) => {
+  const sharePost = (post: GroupPost, anchor: HTMLElement) => {
     const url = `${window.location.origin}?circle=${selectedGroup?.id}&post=${post.id}`;
     const circleName = selectedGroup?.name || "Circle";
     const titleLine = circleName;
     const bodyLine  = post.content
       ? post.content.slice(0, 160)
       : `New post from "${circleName}" — check it out on Flicks.`;
-    const { universalShare } = await import("../lib/universalShare");
-    const outcome = await universalShare({
-      title: titleLine,
-      text: `${titleLine}\n${bodyLine}`,
-      url,
-      mediaUrl: post.media_url || (selectedGroup as any)?.cover_url,
-      type: "circle",
-    });
-    if (outcome === "copied") toast.success("Link copied to clipboard");
+    requestShareModal(
+      {
+        id: `circle-post-${post.id}`,
+        title: titleLine,
+        content: `${titleLine}\n${bodyLine}`,
+        media_url: post.media_url || (selectedGroup as any)?.cover_url,
+        type: "circle",
+        author: (post as any).author || (post as any).author_name || circleName,
+        share_url: url,
+      },
+      anchor,
+      { onShare: () => void recordCirclePostShare(post, circleName) },
+    );
+  };
+
+  const recordCirclePostShare = async (post: GroupPost, circleName: string) => {
     const nextCount = (post.shares_count || 0) + 1;
     await supabase.from("circle_posts").update({ shares_count: nextCount }).eq("id", post.id);
     setGroupPosts(prev => prev.map(p => p.id === post.id ? { ...p, shares_count: nextCount } : p));
@@ -3020,7 +3026,7 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
                 <p className="text-[12px] font-black text-white mb-1">Invite more members</p>
                 <p className="text-[11px] text-white/40 mb-3">Share this Circle so others can join</p>
                 <button
-                  onClick={() => shareCircle(selectedGroup)}
+                  onClick={(event) => shareCircle(selectedGroup, event.currentTarget)}
                   className="w-full flex items-center justify-center gap-1.5 text-[#090a0f] py-2.5 rounded-xl text-[12px] font-black active:scale-95 transition-transform"
                   style={{ background: "linear-gradient(135deg,#00F0FF,#2563eb)" }}
                 >
@@ -3045,7 +3051,7 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
               <div className="divide-y divide-white/[0.04]">
                 {/* Follow/Unfollow — share the circle */}
                 <button
-                  onClick={() => shareCircle(selectedGroup)}
+                  onClick={(event) => shareCircle(selectedGroup, event.currentTarget)}
                   className="w-full flex items-center gap-3 px-4 py-3.5 active:bg-white/[0.06] transition-colors text-left"
                 >
                   <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 text-[#00F0FF]"
@@ -3389,7 +3395,7 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
               <p className="text-[12px] font-black text-white mb-1">Invite friends to this Circle</p>
               <p className="text-[11px] text-white/40 mb-3">Share so more people can join and participate</p>
               <button
-                onClick={() => shareCircle(selectedGroup)}
+                onClick={(event) => shareCircle(selectedGroup, event.currentTarget)}
                 className="w-full flex items-center justify-center gap-1.5 text-[#090a0f] py-2.5 rounded-xl text-[12px] font-black active:scale-95 transition-transform"
                 style={{ background: "linear-gradient(135deg,#00F0FF,#2563eb)" }}
               >

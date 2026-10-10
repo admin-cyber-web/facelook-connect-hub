@@ -1,0 +1,23 @@
+Please execute these urgent fixes for the Flicks India application:
+
+1. Fix Pull-to-Refresh Functionality Across Feeds:
+   - Resolve the broken pull-to-refresh touch gesture across FameFeed, Reels, and home screens.
+   - Attach a reliable touch-drag lifecycle (or integrate 'react-pull-to-refresh' / custom touch handlers) to re-trigger feed fetching and state updates.
+   - Ensure native Android WebView scroll boundaries do not lock or block the refresh trigger.
+
+2. Unified Share Popup Modal (App-Wide Standardisation):
+   - Replace all basic or isolated share buttons across the ENTIRE application (including Flicks Frame, Help cards, Posts, and Reels) with the standardized Share Modal Popup currently used in FameFeed.
+   - Ensure clicking share anywhere opens this visual modal containing direct platform options (WhatsApp, Instagram, X, Facebook, Direct Message, and Copy Link).
+
+3. Fix Direct App Sharing (Prevent Default "Link Copied" Behavior):
+   - Fix the bug where clicking specific app icons (like WhatsApp or Instagram) inside the share modal falls back to a simple "Link Copied" toast instead of opening the target native app.
+   - Implement direct intent URLs (e.g., 'https://api.whatsapp.com/send?text=...', 'instagram://...', etc.) and ensure 'navigator.share()' correctly passes rich text and URLs without defaulting to clipboard copy unless explicitly requested.
+
+4. Dynamic Rich Share Payload & Android WebView Compatibility:
+   - Dynamic Content Payload:
+     * Image URL: Include the exact Cloudinary / media source URL so native apps and social platforms generate a visual image preview card.
+     * Creator Name: Append 'Posted by: [Author/User Display Name]' clearly in the message body.
+     * Text Snippet: Include the first few lines of the caption/description followed by '...Read More'.
+     * CTA Branding: Always append 'Join Flicks India: https://flicksindia.online' (or appropriate dynamic URL) at the end.
+   - Native Android Studio Compatibility:
+     * Ensure Web Share API and deep-link intents work seamlessly inside Android WebViews without breaking native web interfaces.

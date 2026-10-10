@@ -27,7 +27,7 @@ import { MarketplaceFeedCard, AdminMarketplacePanel, type MarketplaceItem } from
 import PeopleYouMayKnow from "./PeopleYouMayKnow";
 import NewInYourArea from "./NewInYourArea";
 import type { LocalProfile } from "../lib/recommendationEngine";
-import { sharePost } from "../lib/sharePost";
+import { requestShareModal } from "../lib/shareModal";
 import { RichCaption } from "./RichCaption";
 import AutoPlayMutedVideo from "./AutoPlayMutedVideo";
 import { maskProfanity, sanitizeText } from "../lib/profanityFilter";
@@ -2543,7 +2543,23 @@ const SingleReelBlock = ({
         <button
           type="button"
           aria-label="Share Reel"
-          onClick={() => { void sharePost({ postId: post.id, caption: post.content, mediaUrl: post.media_url, mediaType: post.type || (post.media_url ? "image" : null), authorName: post.author, metaTitle: post.meta_title, metaDescription: post.meta_description }).then((outcome) => { if (outcome === "copied") toast.success("Link copied!"); }); }}
+          onClick={(event) => {
+            event.stopPropagation();
+            requestShareModal(
+              {
+                id: String(post.id),
+                title: post.meta_title || post.content?.slice(0, 72) || "Flicks Reel",
+                content: post.content || post.meta_description || "",
+                media_url: post.media_url,
+                video_url: post.video_url,
+                cover_url: post.cover_url,
+                type: post.type || "reel",
+                author: post.author || post.author_name || "Flicks India",
+                share_url: `${window.location.origin}/post/${encodeURIComponent(post.id)}`,
+              },
+              event.currentTarget,
+            );
+          }}
           className="flex flex-col items-center text-white"
         >
           <Share2 size={23} />
@@ -4637,33 +4653,8 @@ const FameFeed = ({
     });
   };
 
-  const executeShare = async (post: any, mode: ShareMode) => {
+  const executeShare = async (post: any, _mode: ShareMode) => {
     setSharePopupData(null);
-    const shareUrl = `${window.location.origin}/?post=${post.id}`;
-    const posterName =
-      post.author ||
-      post.metadata?.author_name ||
-      post.author_profile?.full_name ||
-      "Flicks User";
-    const shareText =
-      post.meta_title ||
-      `${posterName} posted: ${(post.content || "").slice(0, 80) || "Check this out on Flicks!"}`;
-
-    if (mode === "copy") {
-      // Clipboard copy — used when native share is unavailable
-      try {
-        await navigator.clipboard.writeText(shareUrl);
-        toast.success("Link copied to clipboard!");
-      } catch {
-        toast.error("Copy nahi ho saka.");
-        return;
-      }
-    } else if (mode === "system") {
-      // SharePopup already completed the native share; counter update runs below.
-      // Do NOT call universalShare again — that would open a duplicate share dialog.
-    }
-    // All other platform modes (whatsapp, facebook, telegram, etc.) are now handled
-    // by SharePopup via the OS native share sheet and arrive here as mode==="system".
 
     await supabase
       .from("posts")

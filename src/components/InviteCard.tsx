@@ -6,7 +6,8 @@
  */
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Copy, Check, Share2, MessageCircle } from "lucide-react";
+import { Copy, Check, Share2 } from "lucide-react";
+import { requestShareModal } from "../lib/shareModal";
 
 interface Props {
   userId: string;
@@ -37,25 +38,17 @@ export default function InviteCard({ userId, username, compact = false }: Props)
     setTimeout(() => setCopied(false), 2200);
   };
 
-  const handleWhatsApp = () => {
-    const msg = encodeURIComponent(
-      `🎬 Yaar, Flicks India join kar — India ka real social app!\n✅ No Fake News  ✅ Real Connections  ✅ Full Privacy\n👉 ${inviteUrl}`
+  const handleNativeShare = (anchor: HTMLElement) => {
+    requestShareModal(
+      {
+        id: `invite-${userId}`,
+        title: "Join me on Flicks India!",
+        content: `${username ? `${username} is inviting you to ` : ""}Flicks India — India's real social app. No fake news, real connections!`,
+        author: username || "Flicks India",
+        share_url: inviteUrl,
+      },
+      anchor,
     );
-    window.open(`https://wa.me/?text=${msg}`, "_blank");
-  };
-
-  const handleNativeShare = async () => {
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: "Join me on Flicks India! 🎬",
-          text: `${username ? `${username} is inviting you to ` : ""}Flicks India — India's real social app. No fake news, real connections!`,
-          url: inviteUrl,
-        });
-      } catch { /* user cancelled */ }
-    } else {
-      handleWhatsApp();
-    }
   };
 
   // ── COMPACT version (inside MagnetSystem / small panels) ──────────────────
@@ -113,7 +106,7 @@ export default function InviteCard({ userId, username, compact = false }: Props)
         <div style={{ display:"flex", gap:6 }}>
           <motion.button
             whileTap={{ scale: 0.95 }}
-            onClick={handleWhatsApp}
+            onClick={handleCopy}
             style={{
               flex:1, padding:"9px 0", borderRadius:10,
               background:"linear-gradient(135deg,#25D366,#128C7E)",
@@ -122,11 +115,11 @@ export default function InviteCard({ userId, username, compact = false }: Props)
               display:"flex", alignItems:"center", justifyContent:"center", gap:6,
             }}
           >
-            <MessageCircle size={12} /> WhatsApp
+            <Copy size={12} /> Copy Link
           </motion.button>
           <motion.button
             whileTap={{ scale: 0.95 }}
-            onClick={handleNativeShare}
+            onClick={(event) => handleNativeShare(event.currentTarget)}
             style={{
               flex:1, padding:"9px 0", borderRadius:10,
               background:"rgba(204,255,0,0.1)", border:"1.5px solid rgba(204,255,0,0.3)",
@@ -309,7 +302,7 @@ export default function InviteCard({ userId, username, compact = false }: Props)
       <div style={{ padding:"0 14px 16px", display:"flex", gap:8 }}>
         <motion.button
           whileTap={{ scale: 0.96 }}
-          onClick={handleWhatsApp}
+          onClick={handleCopy}
           style={{
             flex:1, padding:"11px 0", borderRadius:14,
             background:"linear-gradient(135deg,#25D366,#128C7E)",
@@ -319,11 +312,11 @@ export default function InviteCard({ userId, username, compact = false }: Props)
             boxShadow:"0 4px 16px rgba(37,211,102,0.3)",
           }}
         >
-          <MessageCircle size={14} /> WhatsApp
+          <Copy size={14} /> Copy Link
         </motion.button>
         <motion.button
           whileTap={{ scale: 0.96 }}
-          onClick={handleNativeShare}
+          onClick={(event) => handleNativeShare(event.currentTarget)}
           style={{
             flex:1, padding:"11px 0", borderRadius:14,
             background:"rgba(204,255,0,0.08)",

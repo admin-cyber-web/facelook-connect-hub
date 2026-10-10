@@ -22,6 +22,7 @@ import {
   Check,
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
+import { requestShareModal } from "../lib/shareModal";
 import { toast } from "sonner";
 import {
   CATEGORIES,
@@ -188,7 +189,6 @@ const QuotesMaker: React.FC<Props> = ({ userId, userName = "", onClose, onPostSu
   // UI state
   const [tab, setTab]               = useState<"text" | "design">("text");
   const [posting, setPosting]       = useState(false);
-  const [sharing, setSharing]       = useState(false);
   const [postingStory, setPostingStory] = useState(false);
 
   const canvasRef  = useRef<HTMLCanvasElement>(null);
@@ -384,30 +384,20 @@ const QuotesMaker: React.FC<Props> = ({ userId, userName = "", onClose, onPostSu
   };
 
   // ── Web Share / Download ──────────────────────────────────────────────────
-  const handleShare = async () => {
+  const handleShare = (event: React.MouseEvent<HTMLButtonElement>) => {
     if (!displayText) return toast.error("Pehle koi quote select karo!");
-    setSharing(true);
-    try {
-      const blob = await getBlob();
-      const file = new File([blob], "flicks-quote.jpg", { type: "image/jpeg" });
-      if (navigator.canShare?.({ files: [file] })) {
-        await navigator.share({
-          files: [file],
-          title: "Flicks India — Quote",
-          text:  `${displayText}\n\n— flicksindia.online`,
-        });
-      } else {
-        const url = URL.createObjectURL(blob);
-        const a   = document.createElement("a");
-        a.href = url; a.download = "flicks-quote.jpg"; a.click();
-        URL.revokeObjectURL(url);
-        toast.success("Image download ho gayi!");
-      }
-    } catch (err: any) {
-      if (err?.name !== "AbortError") toast.error("Share nahi ho saka");
-    } finally {
-      setSharing(false);
-    }
+    requestShareModal(
+      {
+        id: `quote-${userId}`,
+        title: "Flicks India — Quote",
+        content: displayText,
+        type: "quote",
+        author: userName || "Flicks India",
+        share_url: window.location.href,
+      },
+      event.currentTarget,
+      { canvas: canvasRef.current },
+    );
   };
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -823,12 +813,10 @@ const QuotesMaker: React.FC<Props> = ({ userId, userName = "", onClose, onPostSu
           <motion.button
             whileTap={{ scale: 0.94 }}
             onClick={handleShare}
-            disabled={sharing || !displayText}
+            disabled={!displayText}
             className="flex-1 flex items-center justify-center gap-1.5 py-3 rounded-2xl font-semibold text-sm text-white border border-white/20 bg-white/8 disabled:opacity-40 transition-all"
           >
-            {sharing
-              ? <span className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-              : <Share2 size={14} />}
+            <Share2 size={14} />
             Share
           </motion.button>
 

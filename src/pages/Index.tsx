@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, lazy, Suspense } from "react";
 import { createPortal } from "react-dom";
+import { requestShareModal } from "../lib/shareModal";
 import { motion, AnimatePresence } from "framer-motion";
 import type { Session } from "@supabase/supabase-js";
 import {
@@ -1026,31 +1027,33 @@ function FrameModePage({ onBack, userProfile, userEmail }: { onBack: () => void;
     } catch (_) {}
   };
 
-  const handleShare = async () => {
-    try {
-      if (navigator.share) {
-        await navigator.share({ title: "Flicks Frame", text: "Zarooratmand ki madad karein!", url: window.location.origin });
-      } else {
-        await navigator.clipboard.writeText(window.location.origin);
-        alert("Link copy ho gaya! Share karein apne doston ke saath 🤝");
-      }
-    } catch (_) {}
+  const handleShare = (anchor: HTMLElement) => {
+    requestShareModal(
+      {
+        id: "flicks-frame",
+        title: "Flicks Frame",
+        content: "Zarooratmand ki madad karein!",
+        author: "Flicks Frame",
+        share_url: "https://flicksindia.online",
+      },
+      anchor,
+    );
   };
 
-  const handleShareRequest = async (req: FrameRequest) => {
-    const shareText = `🙏 *Madad Karen!* — Flicks Frame\n\n👤 Zarooratmand: *${req.needy_name}*\n📦 Zaroorat: *${req.category}*\n🎯 Target Amount: *₹${req.target_amount}*\n📍 Address: ${req.address}\n\nAd dekh kar help karein ya share karein:\n🔗 ${window.location.origin}\n\n🆔 Request Code: *#${req.request_code}*\n\n— Flicks Frame Team 🤝`;
-    try {
-      if (navigator.share) {
-        await navigator.share({
-          title: `Help ${req.needy_name} — Flicks Frame`,
-          text: shareText,
-          url: window.location.origin,
-        });
-      } else {
-        await navigator.clipboard.writeText(shareText);
-        alert("WhatsApp share text copy ho gaya! 🤝");
-      }
-    } catch (_) {}
+  const handleShareRequest = (req: FrameRequest, anchor: HTMLElement) => {
+    const shareUrl = `${window.location.origin}/?frame=${encodeURIComponent(req.request_code)}`;
+    requestShareModal(
+      {
+        id: `frame-${req.id}`,
+        title: `Help ${req.needy_name} — Flicks Frame`,
+        content: `🙏 Madad Karen! — Flicks Frame\nZarooratmand: ${req.needy_name}\nZaroorat: ${req.category}\nTarget Amount: ₹${req.target_amount}\nAddress: ${req.address}\nRequest Code: #${req.request_code}`,
+        media_url: req.needy_photo_url || undefined,
+        type: "post",
+        author: req.user_name || "Flicks Frame",
+        share_url: shareUrl,
+      },
+      anchor,
+    );
   };
 
   const handleDeleteRequest = async (reqId: string) => {
@@ -1508,7 +1511,7 @@ function FrameModePage({ onBack, userProfile, userEmail }: { onBack: () => void;
                     <Heart size={13} fill={isSupp ? "#D97706" : "none"} stroke={isSupp ? "#D97706" : "currentColor"} />
                     {req.support_count}
                   </button>
-                  <motion.button whileTap={{ scale: 0.95 }} onClick={() => handleShareRequest(req)}
+                  <motion.button whileTap={{ scale: 0.95 }} onClick={(event) => handleShareRequest(req, event.currentTarget)}
                     className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-green-50 border border-green-200 text-green-700 text-xs font-black shrink-0"
                   >
                     <Share2 size={13} /> Share
@@ -3534,14 +3537,18 @@ const PersonalizationView = React.memo(({
             {/* ── Share App ──────────────────────────────────────── */}
             <div className="px-4 pb-3">
               <button
-                onClick={() => {
-                  const shareText = "Flicks India par aao! India ka apna social platform 🇮🇳";
-                  if (navigator.share) {
-                    navigator.share({ title: "Flicks India", text: shareText, url: "https://flicksindia.online" });
-                  } else {
-                    navigator.clipboard.writeText(shareText + "\nhttps://flicksindia.online").then(() => toast.success("Link copied!"));
-                  }
-                }}
+                onClick={(event) =>
+                  requestShareModal(
+                    {
+                      id: "flicks-india",
+                      title: "Flicks India",
+                      content: "Flicks India par aao! India ka apna social platform 🇮🇳",
+                      share_url: "https://flicksindia.online",
+                      author: "Flicks India",
+                    },
+                    event.currentTarget,
+                  )
+                }
                 className="w-full flex items-center gap-3.5 p-4 rounded-2xl transition-all active:scale-[0.98] group"
                 style={{ background: "rgba(204,255,0,0.05)", border: "1px solid rgba(204,255,0,0.15)" }}
               >

@@ -9,7 +9,7 @@ import { isAdminEmail } from "../lib/adminConfig";
 import { fetchProfileAdminFlag } from "../lib/adminProfile";
 import { useSoundEffects } from "../hooks/useSoundEffects";
 import {
-  Heart, MessageCircle, Share2, X, Send, ChevronLeft, Search,
+  Heart, MessageCircle, Share2, X, Send, ChevronLeft, Search, RefreshCw,
   BadgeCheck, Loader2, Flag, Trash2, Ban, Pencil, MoreVertical,
 } from "lucide-react";
 import { MagnetButton } from "./MagnetSystem";
@@ -1200,9 +1200,13 @@ export default function FlicksApp({
   const containerRef = useRef<HTMLDivElement>(null);
   const currentIndexRef = useRef(0);
   const scrollRafRef = useRef<number>(0);
+  const pullDistanceRef = useRef(0);
+  const reelsRefreshingRef = useRef(false);
   // Bumped when the shared media cache gains a new blob so mounted cards can
   // swap their pending <video>/<audio> src to the cached copy.
   const [prefetchTick, setPrefetchTick] = useState(0);
+  const [pullDistance, setPullDistance] = useState(0);
+  const [reelsRefreshing, setReelsRefreshing] = useState(false);
   useEffect(() => onMediaPrefetched(() => setPrefetchTick((tick) => tick + 1)), []);
 
   // Compact header search — client-side filter over author + caption
@@ -1357,11 +1361,99 @@ export default function FlicksApp({
       }
     };
 
+    const container = containerRef.current;
+    let touchStart: { x: number; y: number } | null = null;
+    let startedAtTop = false;
+    let gesture: "undecided" | "pulling" | "blocked" = "blocked";
+    const resetPull = () => {
+      touchStart = null;
+      startedAtTop = false;
+      gesture = "blocked";
+      pullDistanceRef.current = 0;
+      if (!cancelled) setPullDistance(0);
+    };
+    const refreshReels = async () => {
+      if (reelsRefreshingRef.current) return;
+      reelsRefreshingRef.current = true;
+      if (!cancelled) setReelsRefreshing(true);
+      try {
+        await fetchData();
+      } finally {
+        reelsRefreshingRef.current = false;
+        if (!cancelled) setReelsRefreshing(false);
+        resetPull();
+      }
+    };
+    const onTouchStart = (event: TouchEvent) => {
+      const target = event.target instanceof Element ? event.target : null;
+      if (
+        event.touches.length !== 1 ||
+        reelsRefreshingRef.current ||
+        currentIndexRef.current !== 0 ||
+        !container ||
+        container.scrollTop > 2 ||
+        target?.closest('button, a, input, textarea, select, [contenteditable], [data-no-pull-refresh]')
+      ) {
+        resetPull();
+        return;
+      }
+      startedAtTop = true;
+      touchStart = {
+        x: event.touches[0].clientX,
+        y: event.touches[0].clientY,
+      };
+      gesture = "undecided";
+      pullDistanceRef.current = 0;
+    };
+    const onTouchMove = (event: TouchEvent) => {
+      if (!touchStart || !startedAtTop || event.touches.length !== 1) return;
+      const dx = event.touches[0].clientX - touchStart.x;
+      const dy = event.touches[0].clientY - touchStart.y;
+      const directionLock = 8;
+      if (Math.abs(dx) > Math.abs(dy) || dy <= 0) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) >= directionLock) {
+          gesture = "blocked";
+          pullDistanceRef.current = 0;
+          if (!cancelled) setPullDistance(0);
+        }
+        return;
+      }
+      if (dy < directionLock || gesture === "blocked") return;
+      gesture = "pulling";
+      pullDistanceRef.current = dy;
+      if (event.cancelable) event.preventDefault();
+      if (!cancelled) setPullDistance(Math.min(dy, 100));
+    };
+    const onTouchEnd = () => {
+      const shouldRefresh =
+        gesture === "pulling" &&
+        startedAtTop &&
+        pullDistanceRef.current >= 72 &&
+        !reelsRefreshingRef.current;
+      if (shouldRefresh) void refreshReels();
+      else resetPull();
+    };
+    const onTouchCancel = () => resetPull();
+    const onRefreshEvent = (event: Event) => {
+      const complete = (event as CustomEvent<{ complete?: () => void }>).detail?.complete;
+      void fetchData().finally(() => complete?.());
+    };
+
     setCurrentUserId(currentUserIdProp ?? null);
     setFetchedEmail(currentUserEmailProp ?? null);
     void fetchData();
+    container?.addEventListener("touchstart", onTouchStart, { passive: true });
+    container?.addEventListener("touchmove", onTouchMove, { passive: false });
+    container?.addEventListener("touchend", onTouchEnd, { passive: true });
+    container?.addEventListener("touchcancel", onTouchCancel, { passive: true });
+    window.addEventListener("flicks-reels-pull-refresh", onRefreshEvent);
     return () => {
       cancelled = true;
+      container?.removeEventListener("touchstart", onTouchStart);
+      container?.removeEventListener("touchmove", onTouchMove);
+      container?.removeEventListener("touchend", onTouchEnd);
+      container?.removeEventListener("touchcancel", onTouchCancel);
+      window.removeEventListener("flicks-reels-pull-refresh", onRefreshEvent);
     };
   }, [currentUserIdProp, currentUserEmailProp]);
 
@@ -1566,6 +1658,26 @@ export default function FlicksApp({
           </div>
         </div>
       </div>
+
+      {(pullDistance > 0 || reelsRefreshing) && (
+        <div
+          className="fixed left-1/2 z-[220] flex -translate-x-1/2 items-center gap-2 rounded-full border border-white/15 bg-black/85 px-3 py-2 text-[11px] font-semibold text-white shadow-lg"
+          style={{ top: "calc(var(--cap-safe-top, 0px) + 58px)", pointerEvents: "none" }}
+          role={reelsRefreshing ? "status" : undefined}
+          aria-live={reelsRefreshing ? "polite" : undefined}
+        >
+          <RefreshCw
+            size={14}
+            className={reelsRefreshing ? "animate-spin text-pink-300" : "text-white/70"}
+            style={!reelsRefreshing ? { transform: `rotate(${Math.min(pullDistance / 72, 1) * 360}deg)` } : undefined}
+          />
+          {reelsRefreshing
+            ? "Refreshing reels…"
+            : pullDistance >= 72
+              ? "Release to refresh"
+              : "Pull to refresh"}
+        </div>
+      )}
 
       <div ref={containerRef} onScroll={onScroll}
         className="h-full overflow-y-scroll snap-y snap-mandatory scrollbar-hide"

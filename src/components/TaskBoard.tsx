@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type MouseEvent } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import {
@@ -11,6 +11,7 @@ import {
   Reply,
 } from "lucide-react";
 import { toast } from "sonner";
+import { requestShareModal } from "../lib/shareModal";
 
 const COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444"];
 
@@ -33,6 +34,22 @@ export default function SurveyEngine({ survey }) {
     setComments([...comments, newComment]);
     setComment("");
     toast.info("Comment posted!");
+  };
+
+  const handleShare = (event: MouseEvent<HTMLButtonElement>) => {
+    const surveyUrl = `${window.location.origin}/?survey=${encodeURIComponent(survey.id || survey.question)}`;
+    requestShareModal(
+      {
+        id: `survey-${survey.id || survey.question}`,
+        title: survey.question,
+        content: survey.question,
+        media_url: survey.image_url || undefined,
+        type: "post",
+        author: survey.author || "Flicks India",
+        share_url: surveyUrl,
+      },
+      event.currentTarget,
+    );
   };
 
   return (
@@ -110,12 +127,7 @@ export default function SurveyEngine({ survey }) {
           <MessageSquare size={20} /> {comments.length}
         </button>
         <button
-          onClick={() =>
-            navigator.share({
-              title: survey.question,
-              url: window.location.href,
-            })
-          }
+          onClick={handleShare}
           className="text-blue-600"
         >
           <Share2 size={20} />

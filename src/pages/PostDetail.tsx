@@ -3,8 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { supabase } from "@/lib/supabaseClient";
 import { Loader2, ArrowLeft } from "lucide-react";
-import { sharePost } from "@/lib/sharePost";
-import { toast } from "sonner";
+import { requestShareModal } from "@/lib/shareModal";
 
 const BASE_URL     = "https://flicksindia.online";
 const DEFAULT_IMAGE = "https://i.ibb.co/HT7RvFxs/flicksindia.png";
@@ -186,20 +185,22 @@ const PostDetail = () => {
 
             {/* Share again */}
             <button
-              onClick={() => {
-                void sharePost({
-                  postId:          post.id,
-                  caption:         post.content,
-                  mediaUrl:        post.media_url,
-                  mediaType:       post.type || (post.media_url ? "image" : null),
-                  authorName:      post.author,
-                  metaTitle:       post.meta_title,
-                  metaDescription: post.meta_description,
-                }).then((outcome) => {
-                  if (outcome === "copied") toast.success("Link copied!");
-                  if (outcome === "cancelled") return;
-                });
-              }}
+              onClick={(event) =>
+                requestShareModal(
+                  {
+                    id: String(post.id),
+                    title: post.meta_title || post.content?.slice(0, 72) || "Flicks India post",
+                    content: post.content || post.meta_description || "",
+                    media_url: post.media_url,
+                    video_url: post.video_url,
+                    cover_url: post.cover_url,
+                    type: post.type || "post",
+                    author: post.author || "Flicks India",
+                    share_url: `${BASE_URL}/post/${encodeURIComponent(post.id)}`,
+                  },
+                  event.currentTarget,
+                )
+              }
               className="w-full mt-2 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold transition"
             >
               Share this Post

@@ -3,6 +3,7 @@ import { supabase } from "../lib/supabaseClient";
 import { memGet, memSet } from "../lib/memCache";
 import { resolveMediaUrl } from "../lib/mediaUrl";
 import { toast } from "sonner";
+import { requestShareModal } from "../lib/shareModal";
 import { useOnlineUsers } from "../context/OnlineUsersContext";
 import ActiveStatusAvatar from "./ActiveStatusAvatar";
 import { motion, AnimatePresence } from "framer-motion";
@@ -604,13 +605,20 @@ const StoryViewer = ({
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
   };
 
-  const handleShare = () => {
-    if (navigator.share) {
-      navigator.share({ title: "Flicks Story", url: storyPublicUrl }).catch(() => {});
-    } else {
-      navigator.clipboard.writeText(storyPublicUrl);
-      toast.success("Link copied!");
-    }
+  const handleShare = (anchor: HTMLElement) => {
+    if (!story) return;
+    requestShareModal(
+      {
+        id: `story-${story.id}`,
+        title: "Flicks Story",
+        content: story.caption || "Watch this story on Flicks India.",
+        media_url: storyPublicUrl,
+        type: "story",
+        author: story.profile?.full_name || "Flicks India",
+        share_url: `${window.location.origin}/?story=${encodeURIComponent(story.id)}`,
+      },
+      anchor,
+    );
   };
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -838,7 +846,7 @@ const StoryViewer = ({
             {/* 5 — Share */}
             <motion.button
               whileTap={{ scale: 0.82 }}
-              onClick={e => { e.stopPropagation(); handleShare(); }}
+              onClick={e => { e.stopPropagation(); handleShare(e.currentTarget); }}
               className="w-11 h-11 rounded-full bg-black/50 backdrop-blur-md flex items-center justify-center border border-white/20 active:scale-90 transition-transform"
             >
               <Share2 size={18} className="text-white" />

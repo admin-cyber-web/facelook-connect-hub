@@ -1,12 +1,21 @@
 import React, { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Link2, Share2, Check, X, Loader2, ImageIcon } from "lucide-react";
+import {
+  Link2,
+  Share2,
+  Check,
+  X,
+  Loader2,
+  ImageIcon,
+  MessageCircle,
+} from "lucide-react";
 import { toast } from "sonner";
 import {
-  buildShareText,
+  launchShareTarget,
   universalShare,
   resolveShareMediaUrl,
   type PostType,
+  type ShareTarget,
   type ShareOutcome,
 } from "../lib/universalShare";
 
@@ -25,6 +34,7 @@ export interface SharePostData {
   meta_title?: string;
   meta_description?: string;
   shares_count?: number;
+  share_url?: string;
 }
 
 export interface ShareAnchor {
@@ -149,6 +159,12 @@ const PLATFORM_OPTIONS: {
     ),
   },
   {
+    mode: "system",
+    label: "Direct Message",
+    bg: "linear-gradient(135deg, #475569, #64748b)",
+    icon: <MessageCircle size={19} className="text-white" />,
+  },
+  {
     mode: "copy",
     label: "Copy Link",
     bg: "rgba(255,255,255,0.12)",
@@ -178,7 +194,9 @@ const SharePopup: React.FC<SharePopupProps> = ({
     : post.media_url || post.cover_url || post.meta_image || null;
   const caption =
     post.meta_title || post.content?.slice(0, 72) || "Check this out on Flicks!";
-  const shareUrl = `${window.location.origin}/?post=${post.id}`;
+  const shareUrl =
+    post.share_url || `${window.location.origin}/post/${encodeURIComponent(post.id)}`;
+  const shareBody = post.content || post.meta_description || caption;
 
   // Resolve the best media URL for this post type
   const mediaUrl = canvas
@@ -199,13 +217,16 @@ const SharePopup: React.FC<SharePopupProps> = ({
     return () => document.removeEventListener("keydown", handleKey);
   }, [onClose]);
 
-  // ── Platform buttons — trigger respective platform share URL or intent ──
+  // ── Platform buttons — open the selected destination directly ───────────
   const handlePlatformClick = async (mode: ShareMode) => {
+    if (mode === "system") {
+      await handleMediaShare();
+      return;
+    }
+
     if (mode === "copy") {
       try {
-        await navigator.clipboard.writeText(
-          buildShareText(post.content || caption, shareUrl),
-        );
+        await navigator.clipboard.writeText(shareUrl);
         toast.success("Link copied to clipboard!");
         setCopied(true);
         onShare(mode, post);
@@ -216,10 +237,22 @@ const SharePopup: React.FC<SharePopupProps> = ({
       return;
     }
 
-    // Every social platform button (WhatsApp, Instagram, Twitter, Telegram, Facebook, Messenger)
-    // or system share invokes handleMediaShare so the actual post image/video file and
-    // formatted caption text are passed together to the device's native share sheet or AndroidShare bridge.
-    await handleMediaShare();
+    setMediaSharing(true);
+    const opened = await launchShareTarget(mode as ShareTarget, {
+      title: caption,
+      text: shareBody,
+      url: shareUrl,
+      mediaUrl,
+      authorName: post.author,
+      type: (post.type as PostType) || "post",
+    });
+    setMediaSharing(false);
+    if (opened) {
+      onShare(mode, post);
+      setTimeout(onClose, 350);
+    } else {
+      toast.error(`Couldn't open ${mode}. Try Direct Message or Copy Link.`);
+    }
   };
 
   // ── File-based native share (opens OS sheet WITH the image/video) ─────────
@@ -233,9 +266,10 @@ const SharePopup: React.FC<SharePopupProps> = ({
         post.meta_title ||
         post.content?.slice(0, 60) ||
         "Check this out on Flicks!",
-      text: post.content || "",
+      text: shareBody,
       url: shareUrl,
       mediaUrl,
+      authorName: post.author,
       canvas: canvas ?? undefined,
       type: (post.type as PostType) || "post",
     });
@@ -247,10 +281,6 @@ const SharePopup: React.FC<SharePopupProps> = ({
       // Increment share count via parent handler then close
       onShare("system", post);
       setTimeout(onClose, 300);
-    } else if (outcome === "copied") {
-      toast.success("Link copied to clipboard!");
-      onShare("copy", post);
-      setTimeout(onClose, 1200);
     } else if (outcome === "cancelled") {
       setMediaOutcome(null); // User cancelled — keep popup open
     } else {
@@ -264,7 +294,7 @@ const SharePopup: React.FC<SharePopupProps> = ({
     if (mediaOutcome === "shared-url-only") return "Shared ✓";
     if (mediaOutcome === "copied") return "Link copied ✓";
     const hasMedia = !!(canvas || mediaUrl);
-    return hasMedia ? "Share with Image / Video" : "Share via…";
+    return hasMedia ? "Share media & caption" : "Share caption & link";
   };
 
   return (
@@ -412,7 +442,9 @@ const SharePopup: React.FC<SharePopupProps> = ({
               <span>{mediaButtonLabel()}</span>
             </motion.button>
             <p className="text-center text-white/30 text-[9px] mt-1.5 mb-0.5 leading-none">
-              Opens your device share sheet · image attached
+              {mediaUrl && window.AndroidShare?.shareMedia
+                ? "Opens the share sheet with media attached"
+                : "Shares the caption, media URL, and post link"}
             </p>
           </div>
 
