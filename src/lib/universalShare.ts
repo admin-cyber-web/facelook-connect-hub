@@ -25,10 +25,7 @@ export type ShareTarget =
   | "twitter"
   | "telegram";
 
-// ── Promo footer appended to every share ──────────────────────────────────────
 const FLICKS_BASE_URL = "https://flicksindia.online";
-const PROMO_FOOTER =
-  "🎬 Join Flicks and update every time, everywhere.\n— Flicks India · flicksindia.online";
 
 export function buildPostShareUrl(postId: string): string {
   return `${FLICKS_BASE_URL}/post/${encodeURIComponent(postId)}`;
@@ -57,20 +54,15 @@ function canonicalShareUrl(value: string): string {
 export function buildShareText(
   body?: string | null,
   url?: string | null,
-  mediaUrl?: string | null,
+  _mediaUrl?: string | null,
 ): string {
   const trimmed = (body || "").trim();
   const urlStr = (url || "").trim();
-  const mediaUrlStr = (mediaUrl || "").trim();
   const parts = [trimmed];
 
   if (urlStr && !trimmed.includes(urlStr)) {
     parts.push(`🔗 Open on Flicks India: ${urlStr}`);
   }
-  if (mediaUrlStr && !trimmed.includes(mediaUrlStr)) {
-    parts.push(`📸 View Media: ${mediaUrlStr}`);
-  }
-  parts.push(PROMO_FOOTER);
 
   return parts.filter(Boolean).join("\n\n");
 }
@@ -101,17 +93,11 @@ export function launchShareTarget(
   input: ShareTargetInput,
 ): boolean {
   const shareUrl = canonicalShareUrl(input.url);
-  const mediaUrl = input.mediaUrl || input.previewUrl;
-  const shareText = buildShareText(input.text, shareUrl, mediaUrl);
-  const bodyWithMedia = [
-    input.text.trim(),
-    mediaUrl ? `📸 View Media: ${mediaUrl}` : "",
-  ]
-    .filter(Boolean)
-    .join("\n\n");
+  const shareText = buildShareText(input.text, shareUrl);
+  const bodyText = input.text.trim();
   const encodedUrl = encodeURIComponent(shareUrl);
   const encodedText = encodeURIComponent(shareText);
-  const encodedBody = encodeURIComponent(bodyWithMedia);
+  const encodedBody = encodeURIComponent(bodyText);
 
   let targetUrl: string;
   switch (platform) {
@@ -312,8 +298,8 @@ export async function universalShare(
   const url = canonicalShareUrl(input.url);
   const mediaUrl = input.mediaUrl || input.previewUrl;
 
-  // Keep the crawler-ready URL first and include the direct media URL in the text.
-  const text = buildShareText(input.text, url, mediaUrl);
+  // Keep the crawler-ready post URL in text; media is attached separately when supported.
+  const text = buildShareText(input.text, url);
 
   // Android handles the remote media natively. Do this before fetching a blob
   // so the WebView does not duplicate the media download in JavaScript.
