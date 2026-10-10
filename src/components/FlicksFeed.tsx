@@ -573,6 +573,8 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, on
         title: post.meta_title || localContent.slice(0, 72) || "Watch this Flick!",
         content: `${localContent.slice(0, 180)}${localContent.trim() ? "\n\n" : ""}via Flicks India`,
         media_url: post.media_url || post.video_url,
+        image_url: post.image_url,
+        image_urls: post.image_urls,
         video_url: post.video_url || post.media_url,
         cover_url: post.thumb_url || post.cover_url,
         meta_image: post.thumb_url || post.cover_url,
