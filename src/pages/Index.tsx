@@ -4212,57 +4212,30 @@ const PersonalizationView = React.memo(({
                   </motion.button>
                 </div>
 
-                {/* ── Chat 19 promo banner — high-engagement teaser below magnet dashboard ──
-                    (Opens the cinematic heart popup; the private module lives in
-                    the bottom nav "Chat 19" — core Chat19.tsx logic untouched) */}
+                {/* ── Chat 19 promo banner — clean clickable promotional image below
+                    magnet dashboard (opens the romantic heart popup; the private
+                    module lives in the bottom nav "Chat 19") */}
                 <div className="px-3 pb-1">
-                  <style>{`@keyframes c19-banner-pan { 0% { background-position: 0% 40%; } 50% { background-position: 100% 60%; } 100% { background-position: 0% 40%; } } @keyframes c19-banner-pulse { 0%,100% { box-shadow: 0 0 18px rgba(225,29,72,.30), 0 0 46px rgba(225,29,72,.14), inset 0 1px 0 rgba(255,255,255,.06); } 50% { box-shadow: 0 0 30px rgba(255,45,85,.55), 0 0 80px rgba(225,29,72,.25), inset 0 1px 0 rgba(255,255,255,.10); } } @keyframes c19-banner-shimmer { 0% { transform: translateX(-120%) skewX(-18deg); } 100% { transform: translateX(240%) skewX(-18deg); } }`}</style>
                   <motion.button
+                    type="button"
                     whileTap={{ scale: 0.98 }}
                     onClick={() => setShowChat19Promo(true)}
-                    className="w-full relative flex items-center gap-3 rounded-2xl px-4 py-3.5 overflow-hidden text-left"
+                    aria-label="Open Chat 19 promo"
+                    className="w-full relative block rounded-2xl overflow-hidden"
                     style={{
-                      background: "linear-gradient(120deg,#2A0713,#12060B 55%,#3A0518), radial-gradient(420px 160px at 88% -30%, rgba(255,77,110,.35), transparent 65%), radial-gradient(300px 200px at -10% 120%, rgba(160,16,48,.45), transparent 60%)",
-                      border: "1.5px solid rgba(255,77,110,.65)",
-                      animation: "c19-banner-pulse 2.6s ease-in-out infinite",
+                      border: "1.5px solid rgba(255,77,110,.55)",
+                      boxShadow: "0 0 22px rgba(225,29,72,.35)",
+                      background: "#12060B",
                     }}
                   >
-                    {/* rotating abstract / sensual glow orbs */}
-                    <div className="pointer-events-none absolute inset-0" style={{ background: "radial-gradient(180px 180px at 12% 20%, rgba(255,77,110,.28), transparent 70%), radial-gradient(220px 220px at 85% 80%, rgba(225,29,72,.35), transparent 70%), radial-gradient(140px 140px at 60% 10%, rgba(255,150,170,.18), transparent 70%)", backgroundSize: "200% 200%", animation: "c19-banner-pan 9s ease-in-out infinite" }} />
-                    {/* shimmer sweep */}
-                    <div className="pointer-events-none absolute inset-y-0 w-1/2" style={{ background: "linear-gradient(90deg, transparent, rgba(255,255,255,.10), transparent)", animation: "c19-banner-shimmer 3.4s ease-in-out infinite" }} />
-                    <div
-                      className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0 text-xl relative"
-                      style={{
-                        background: "linear-gradient(135deg,#E11D48,#4E0516)",
-                        boxShadow: "0 0 16px rgba(255,45,85,.8)",
-                        border: "1px solid rgba(255,150,170,.5)",
-                      }}
-                    >
-                      💋
-                    </div>
-                    <div className="flex-1 min-w-0 relative">
-                      <p
-                        className="text-[13px] font-black leading-none"
-                        style={{ color: "#FFE9ED", textShadow: "0 0 14px rgba(255,45,85,.7)" }}
-                      >
-                        Chat 19: Unveil Your Secret Vibe
-                      </p>
-                      <p
-                        className="text-[10px] mt-1 truncate"
-                        style={{ color: "rgba(255,170,190,.9)" }}
-                      >
-                        Anonymous city radar · Velvet-Red secret chat · 10 free scans
-                      </p>
-                    </div>
-                    <div className="flex flex-col items-end gap-1 shrink-0 relative">
-                      <span
-                        className="px-3 py-1.5 rounded-full text-[10px] font-black text-white"
-                        style={{ background: "linear-gradient(90deg,#A01030,#E11D48)", boxShadow: "0 0 16px rgba(255,45,85,.75)", border: "1px solid rgba(255,255,255,.35)" }}
-                      >
-                        Explore Chat 19
-                      </span>
-                    </div>
+                    <img
+                      src="https://res.cloudinary.com/dzlazqbvf/image/upload/v1791612497/Gemini_Generated_Image_aoaezaoaezaoaeza-100kb_wejgm9.jpg"
+                      alt="Chat 19 — unveil your secret vibe"
+                      className="w-full block select-none"
+                      loading="lazy"
+                      decoding="async"
+                      draggable={false}
+                    />
                   </motion.button>
                 </div>
 
