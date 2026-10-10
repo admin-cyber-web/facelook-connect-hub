@@ -4246,56 +4246,47 @@ const PersonalizationView = React.memo(({
                     whileTap={{ scale: 0.985 }}
                     onClick={() => setShowChat19Promo(true)}
                     aria-label="Open Chat 19. Private and secure, free chat with your ID hidden."
-                    className="relative block h-[194px] w-full overflow-hidden rounded-2xl text-left sm:h-[204px]"
+                    className="relative block h-[67px] w-full overflow-hidden rounded-2xl text-left"
                     style={{
                       border: "1.5px solid rgba(255,77,110,.55)",
                       boxShadow: "0 0 22px rgba(225,29,72,.35), 0 8px 28px rgba(38,8,33,.16)",
-                      background: "linear-gradient(110deg,#f7d9c5 0%,#8a4e5b 58%,#24112c 100%)",
                     }}
                   >
                     <img
                       src="https://res.cloudinary.com/dzlazqbvf/image/upload/v1791658289/Gemini_Generated_Image_aoaezaoaezaoaeza-100kb-removebg-preview_t771na.png"
                       alt=""
                       aria-hidden="true"
-                      className="absolute inset-0 h-full w-full select-none object-cover object-[26%_center]"
+                      className="absolute inset-0 h-full w-full select-none object-contain object-right"
                       loading="lazy"
                       decoding="async"
                       draggable={false}
                     />
                     <div
                       aria-hidden="true"
-                      className="pointer-events-none absolute inset-0"
-                      style={{
-                        background:
-                          "linear-gradient(90deg, rgba(21,8,23,.12) 0%, rgba(21,8,23,.04) 48%, rgba(21,8,23,.18) 100%)",
-                      }}
-                    />
-                    <div
-                      aria-hidden="true"
-                      className="absolute inset-y-2 left-2 z-10 flex w-[55%] max-w-[200px] flex-col justify-between gap-1.5 rounded-xl border border-white/35 bg-[#190d20]/70 p-2.5 shadow-[0_8px_26px_rgba(15,5,22,.26)] backdrop-blur-md sm:inset-y-2.5 sm:left-2.5 sm:w-[46%] sm:max-w-[280px] sm:gap-2 sm:p-3"
+                      className="absolute inset-y-[2px] left-2 z-10 flex w-[54%] max-w-[190px] flex-col justify-between gap-0 sm:w-[47%] sm:max-w-[240px]"
                     >
                       <div className="grid grid-cols-3 gap-1">
-                        <span className="chat19-badge-glow flex min-h-[25px] items-center justify-center gap-0.5 rounded-lg border border-emerald-200/30 bg-emerald-400/15 px-1 text-center text-[7px] font-extrabold leading-[1.05] text-white sm:text-[8px]">
+                        <span className="chat19-badge-glow flex min-h-[16px] items-center justify-center gap-0.5 rounded-md border border-emerald-700/20 bg-emerald-200/70 px-0.5 text-center text-[6px] font-black leading-[1.05] text-slate-950 sm:text-[7px]">
                           <span>🔒</span><span>Private &amp; Secure</span>
                         </span>
-                        <span className="chat19-badge-glow flex min-h-[25px] items-center justify-center gap-0.5 rounded-lg border border-amber-200/30 bg-amber-300/15 px-1 text-center text-[7px] font-extrabold leading-[1.05] text-white sm:text-[8px]">
+                        <span className="chat19-badge-glow flex min-h-[16px] items-center justify-center gap-0.5 rounded-md border border-amber-700/20 bg-amber-200/80 px-0.5 text-center text-[6px] font-black leading-[1.05] text-slate-950 sm:text-[7px]">
                           <span>⚡</span><span>100% Free</span>
                         </span>
-                        <span className="chat19-badge-glow flex min-h-[25px] items-center justify-center gap-0.5 rounded-lg border border-sky-200/30 bg-sky-300/15 px-1 text-center text-[7px] font-extrabold leading-[1.05] text-white sm:text-[8px]">
+                        <span className="chat19-badge-glow flex min-h-[16px] items-center justify-center gap-0.5 rounded-md border border-sky-700/20 bg-sky-200/80 px-0.5 text-center text-[6px] font-black leading-[1.05] text-slate-950 sm:text-[7px]">
                           <span>🆔</span><span>ID Hidden</span>
                         </span>
                       </div>
 
-                      <div className="relative min-h-0 flex-1 overflow-hidden py-1">
-                        <p className="chat19-language-en absolute inset-0 flex items-center text-[9px] font-bold leading-[1.25] tracking-tight text-white drop-shadow-[0_1px_3px_rgba(0,0,0,.8)] sm:text-[11px]">
+                      <div className="relative min-h-0 flex-1 overflow-hidden py-px">
+                        <p className="chat19-language-en absolute inset-0 flex items-center text-[7px] font-black leading-[1.05] tracking-tight text-slate-950 drop-shadow-[0_1px_1px_rgba(255,255,255,.75)] sm:text-[8px]">
                           ✨ Want to have fun with friends or new people? Your chat is 100% PRIVATE &amp; SECURE. ID is HIDDEN!
                         </p>
-                        <p className="chat19-language-hi absolute inset-0 flex items-center text-[9px] font-bold leading-[1.25] tracking-tight text-white drop-shadow-[0_1px_3px_rgba(0,0,0,.8)] sm:text-[11px]">
+                        <p className="chat19-language-hi absolute inset-0 flex items-center text-[7px] font-black leading-[1.05] tracking-tight text-slate-950 drop-shadow-[0_1px_1px_rgba(255,255,255,.75)] sm:text-[8px]">
                           🔥 क्या दोस्तों या अनजाने लोगों के साथ मज़े करना चाहते हैं? आपकी चैट पूरी तरह प्राइवेट और सुरक्षित है, आपकी आईडी कोई नहीं देख सकता!
                         </p>
                       </div>
 
-                      <span className="chat19-cta-glow inline-flex min-h-[27px] self-start items-center justify-center rounded-lg bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 px-3 text-[10px] font-black tracking-wide text-white shadow-lg sm:text-[11px]">
+                      <span className="chat19-cta-glow inline-flex min-h-[16px] self-start items-center justify-center rounded-md bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 px-2 text-[8px] font-black tracking-wide text-white shadow sm:min-h-[18px] sm:text-[9px]">
                         Open Now ↗
                       </span>
                     </div>
