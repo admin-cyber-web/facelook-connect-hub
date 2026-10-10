@@ -59,7 +59,17 @@ const PostDetail = () => {
     : "No Fake News | New India Social App | Full Protected Security | 24 Hours Help Desk";
 
   const ogKeywords = post?.seo_keywords?.trim() || "flicks india, social post, trending";
-  const ogImage    = post ? resolveSharePreviewUrl(post) || DEFAULT_IMAGE : DEFAULT_IMAGE;
+  const postPreviewUrl =
+    post?.cover_url ||
+    post?.image_urls?.[0] ||
+    post?.image_url ||
+    post?.metadata?.preview_url ||
+    post?.metadata?.previewUrl ||
+    post?.media_url ||
+    post?.video_url;
+  const ogImage = post
+    ? resolveSharePreviewUrl(postPreviewUrl) || DEFAULT_IMAGE
+    : DEFAULT_IMAGE;
   const ogUrl      = `${BASE_URL}/post/${id}`;
 
   if (loading) {
