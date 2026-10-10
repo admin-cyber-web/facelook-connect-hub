@@ -48,6 +48,7 @@ export function buildShareText(
   body?: string | null,
   url?: string | null,
   authorName?: string | null,
+  mediaUrl?: string | null,
 ): string {
   const trimmed = (body || "").trim().replace(/\r\n/g, "\n");
   const lines = trimmed.split("\n");
@@ -56,7 +57,14 @@ export function buildShareText(
   if (snippet && hasMore) snippet += "... Read More";
 
   const author = authorName?.trim() || "Flicks India";
-  const attribution = `📸 Posted by: ${author}\n🔗 Join Flicks India: ${canonicalPostUrl(url)}`;
+  const attribution = [
+    `📸 Posted by: ${author}`,
+    mediaUrl ? `📸 View Media: ${mediaUrl}` : null,
+    `👉 Join Flicks India: ${FLICKS_BASE_URL}`,
+    `🔗 View Post: ${canonicalPostUrl(url)}`,
+  ]
+    .filter(Boolean)
+    .join("\n");
   return snippet ? `${snippet}\n\n${attribution}` : attribution;
 }
 
@@ -111,23 +119,25 @@ export async function launchShareTarget(
   platform: ShareTarget,
   input: ShareTargetInput,
 ): Promise<boolean> {
+  const mediaUrl =
+    firstMediaUrl(input.mediaUrl) || firstMediaUrl(input.previewUrl);
+  const previewUrl = mediaUrl
+    ? firstMediaUrl(input.previewUrl) || mediaUrl
+    : PROMO_PREVIEW_URL;
   const nativeText = buildShareText(
     input.text,
     input.url,
     input.authorName,
+    mediaUrl,
   );
-  const previewUrl = input.previewUrl || input.mediaUrl;
-  const platformText =
-    platform === "whatsapp" && previewUrl
-      ? `${nativeText}\n\n${previewUrl}`
-      : nativeText;
+  const platformText = nativeText;
 
   if (typeof window.AndroidShare?.shareToPlatform === "function") {
     try {
       const result = window.AndroidShare.shareToPlatform(
         platform,
         nativeText,
-        input.mediaUrl || input.previewUrl || "",
+        mediaUrl || previewUrl,
         input.type || "post",
       );
       if (result === true) return true;
@@ -139,7 +149,7 @@ export async function launchShareTarget(
     }
   }
 
-  const encodedUrl = encodeURIComponent(previewUrl || input.url);
+  const encodedUrl = encodeURIComponent(previewUrl || input.url || PROMO_PREVIEW_URL);
   const encodedText = encodeURIComponent(platformText);
   switch (platform) {
     case "whatsapp":
@@ -322,6 +332,10 @@ type ShareMediaFields = {
   video_thumbnail_url?: string;
   videoThumbnailUrl?: string;
   metadata?: unknown;
+  post?: {
+    media_url?: string;
+    image_url?: string;
+  };
 };
 
 function firstMediaUrl(...values: unknown[]): string | undefined {
@@ -598,10 +612,28 @@ export async function universalShare(
   input: UniversalShareInput,
 ): Promise<ShareOutcome> {
   const { title, url, canvas, type = "post" } = input;
-  const mediaUrl = resolveShareMediaUrl(input);
-  const previewUrl = resolveSharePreviewUrl(input);
-  const text = buildShareText(input.text, url, input.authorName);
-  const shareUrl = previewUrl || mediaUrl || url;
+  const payload = input;
+  const mediaUrl =
+    payload.imageUrl ||
+    payload.media_url ||
+    payload.coverUrl ||
+    payload.post?.media_url ||
+    payload.post?.image_url;
+  const resolvedMediaUrl =
+    firstMediaUrl(mediaUrl) ||
+    firstMediaUrl(payload.mediaUrl) ||
+    resolveShareMediaUrl(payload);
+  const resolvedPreviewUrl = resolveSharePreviewUrl(payload);
+  const previewUrl = resolvedMediaUrl
+    ? firstMediaUrl(resolvedPreviewUrl) || resolvedMediaUrl
+    : PROMO_PREVIEW_URL;
+  const text = buildShareText(
+    input.text,
+    url,
+    input.authorName,
+    resolvedMediaUrl,
+  );
+  const shareUrl = previewUrl || resolvedMediaUrl || PROMO_PREVIEW_URL;
   const shareData: ShareData = { title, text, url: shareUrl };
   let sharedWithFile = false;
 
@@ -634,7 +666,7 @@ export async function universalShare(
   }
 
   // Android handles remote media without making the WebView download it again.
-  const bridgeMediaUrl = mediaUrl || previewUrl;
+  const bridgeMediaUrl = resolvedMediaUrl || previewUrl;
   if (bridgeMediaUrl && typeof window.AndroidShare?.shareMedia === "function") {
     try {
       const result = await window.AndroidShare.shareMedia(text, bridgeMediaUrl, type);
