@@ -33,7 +33,9 @@ function canonicalPostUrl(url?: string | null): string {
       (postIndex >= 0 ? pathParts[postIndex + 1] : undefined) ||
       parsed.searchParams.get("post") ||
       parsed.searchParams.get("id");
-    return postId ? buildPostShareUrl(decodeURIComponent(postId)) : value;
+    return postId
+      ? buildPostShareUrl(decodeURIComponent(postId))
+      : parsed.toString();
   } catch {
     return value;
   }
@@ -59,9 +61,9 @@ export function buildShareText(
   const author = authorName?.trim() || "Flicks India";
   const attribution = [
     `📸 Posted by: ${author}`,
+    `🔗 Open on Flicks India: ${canonicalPostUrl(url)}`,
     mediaUrl ? `📸 View Media: ${mediaUrl}` : null,
     `👉 Join Flicks India: ${FLICKS_BASE_URL}`,
-    `🔗 View Post: ${canonicalPostUrl(url)}`,
   ]
     .filter(Boolean)
     .join("\n");
@@ -149,7 +151,7 @@ export async function launchShareTarget(
     }
   }
 
-  const encodedUrl = encodeURIComponent(previewUrl || input.url || PROMO_PREVIEW_URL);
+  const encodedUrl = encodeURIComponent(canonicalPostUrl(input.url));
   const encodedText = encodeURIComponent(platformText);
   switch (platform) {
     case "whatsapp":
@@ -633,7 +635,7 @@ export async function universalShare(
     input.authorName,
     resolvedMediaUrl,
   );
-  const shareUrl = previewUrl || resolvedMediaUrl || PROMO_PREVIEW_URL;
+  const shareUrl = canonicalPostUrl(url);
   const shareData: ShareData = { title, text, url: shareUrl };
   let sharedWithFile = false;
 
@@ -678,7 +680,7 @@ export async function universalShare(
 
   if (typeof window.AndroidShare?.shareText === "function") {
     try {
-      const result = await window.AndroidShare.shareText(title, text, url);
+      const result = await window.AndroidShare.shareText(title, text, shareUrl);
       if (result !== false) return "shared-url-only";
     } catch {
       // Continue to clipboard.

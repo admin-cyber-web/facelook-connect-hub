@@ -2,6 +2,7 @@ import { defineConfig, Plugin } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import fs from "fs";
+import { createDynamicShareResponse } from "./src/lib/serverShareMetadata";
 
 // ── Sitemap middleware plugin ──────────────────────────────────────────────────
 // Serves /sitemap.xml in dev + preview with a 1-hour in-memory cache so
@@ -122,6 +123,49 @@ function sitemapPlugin(): Plugin {
   };
 }
 
+// Vite's dev and preview servers are also the Replit deployment runtime.
+// Serve raw per-item metadata to social crawlers before the SPA fallback runs.
+function socialShareMetadataPlugin(): Plugin {
+  function attachShareMetadataHandler(middlewares: any) {
+    middlewares.use(async (req: any, res: any, next: any) => {
+      if (req.method !== "GET" && req.method !== "HEAD") {
+        next();
+        return;
+      }
+
+      try {
+        const requestUrl = new URL(req.url || "/", "http://localhost").toString();
+        const response = await createDynamicShareResponse(
+          requestUrl,
+          String(req.headers?.["user-agent"] || ""),
+          process.env,
+        );
+        if (!response) {
+          next();
+          return;
+        }
+
+        res.statusCode = response.status;
+        response.headers.forEach((value, key) => res.setHeader(key, value));
+        res.end(req.method === "HEAD" ? undefined : await response.text());
+      } catch (error) {
+        console.error("[share-metadata] request failed:", error);
+        next();
+      }
+    });
+  }
+
+  return {
+    name: "flicks-social-share-metadata",
+    configureServer(server) {
+      attachShareMetadataHandler(server.middlewares);
+    },
+    configurePreviewServer(server) {
+      attachShareMetadataHandler(server.middlewares);
+    },
+  };
+}
+
 // ── APK download middleware plugin ────────────────────────────────────────────
 // Serves /download/apk → app-release-signed.apk (or public/app.apk fallback)
 // with correct Content-Type and Content-Disposition so browsers trigger a save.
@@ -178,7 +222,7 @@ export default defineConfig({
     allowedHosts: true,
   },
 
-  plugins: [react(), sitemapPlugin(), apkDownloadPlugin()],
+  plugins: [react(), socialShareMetadataPlugin(), sitemapPlugin(), apkDownloadPlugin()],
 
   resolve: {
     alias: { "@": path.resolve(__dirname, "./src") },
