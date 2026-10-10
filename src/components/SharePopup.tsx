@@ -14,6 +14,7 @@ import {
   launchShareTarget,
   universalShare,
   resolveShareMediaUrl,
+  resolveSharePreviewUrl,
   buildPostShareUrl,
   type PostType,
   type ShareTarget,
@@ -31,7 +32,13 @@ export interface SharePostData {
   image_urls?: string[];
   video_url?: string;
   cover_url?: string;
+  thumb_url?: string;
+  thumbnail_url?: string;
+  poster_url?: string;
+  preview_url?: string;
+  video_thumbnail_url?: string;
   meta_image?: string;
+  metadata?: Record<string, unknown> | null;
   type?: string;
   author?: string;
   meta_title?: string;
@@ -191,27 +198,17 @@ const SharePopup: React.FC<SharePopupProps> = ({
 
   const { top, left, above } = calcPosition(anchor);
 
-  const isReel = post.type === "reel" || post.type === "video";
-  const thumbnail = isReel
-    ? post.cover_url || post.meta_image || post.media_url || null
-    : post.media_url || post.image_url || post.image_urls?.[0] || post.cover_url || post.meta_image || null;
+  const thumbnail = canvas ? null : resolveSharePreviewUrl(post) || null;
   const caption =
     post.meta_title || post.content?.slice(0, 72) || "Check this out on Flicks!";
   const shareUrl = post.share_url || buildPostShareUrl(post.id);
   const shareBody = post.content || post.meta_description || caption;
 
   // Resolve the best media URL for this post type
-  const mediaUrl = canvas
+  const mediaUrl = canvas ? undefined : resolveShareMediaUrl(post);
+  const previewUrl = canvas
     ? undefined
-    : resolveShareMediaUrl({
-        type: post.type,
-        media_url: post.media_url,
-        image_url: post.image_url,
-        image_urls: post.image_urls,
-         video_url: post.video_url,
-        cover_url: post.cover_url,
-        meta_image: post.meta_image,
-      });
+    : resolveSharePreviewUrl(post);
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
@@ -223,7 +220,7 @@ const SharePopup: React.FC<SharePopupProps> = ({
 
   // ── Platform buttons — open the selected destination directly ───────────
   const handlePlatformClick = async (mode: ShareMode) => {
-    if (mode === "system") {
+    if (mode === "system" || mode === "instagram") {
       await handleMediaShare();
       return;
     }
@@ -247,6 +244,7 @@ const SharePopup: React.FC<SharePopupProps> = ({
       text: shareBody,
       url: shareUrl,
       mediaUrl,
+      previewUrl,
       authorName: post.author,
       type: (post.type as PostType) || "post",
     });
@@ -273,6 +271,7 @@ const SharePopup: React.FC<SharePopupProps> = ({
       text: shareBody,
       url: shareUrl,
       mediaUrl,
+      previewUrl,
       authorName: post.author,
       canvas: canvas ?? undefined,
       type: (post.type as PostType) || "post",
@@ -299,7 +298,7 @@ const SharePopup: React.FC<SharePopupProps> = ({
     if (mediaOutcome === "shared-with-file") return "Shared with image ✓";
     if (mediaOutcome === "shared-url-only") return "Shared ✓";
     if (mediaOutcome === "copied") return "Link copied ✓";
-    const hasMedia = !!(canvas || mediaUrl);
+    const hasMedia = !!(canvas || mediaUrl || previewUrl);
     return hasMedia ? "Share media & caption" : "Share caption & link";
   };
 
@@ -448,7 +447,7 @@ const SharePopup: React.FC<SharePopupProps> = ({
               <span>{mediaButtonLabel()}</span>
             </motion.button>
             <p className="text-center text-white/30 text-[9px] mt-1.5 mb-0.5 leading-none">
-              {mediaUrl && window.AndroidShare?.shareMedia
+              {(mediaUrl || previewUrl) && window.AndroidShare?.shareMedia
                 ? "Opens the share sheet with media attached"
                 : "Shares the caption, media URL, and post link"}
             </p>

@@ -864,6 +864,7 @@ interface FrameRequest {
   user_avatar: string;
   needy_name: string;
   needy_photo_url: string;
+  imageUrl?: string;
   image_url?: string;
   image_urls?: string[];
   address: string;
@@ -1049,8 +1050,8 @@ function FrameModePage({ onBack, userProfile, userEmail }: { onBack: () => void;
         id: `frame-${req.id}`,
         title: `Help ${req.needy_name} — Flicks Frame`,
         content: `🙏 Madad Karen! — Flicks Frame\nZarooratmand: ${req.needy_name}\nZaroorat: ${req.category}\nTarget Amount: ₹${req.target_amount}\nAddress: ${req.address}\nRequest Code: #${req.request_code}`,
-        media_url: req.needy_photo_url || req.image_url || req.image_urls?.[0] || undefined,
-        image_url: req.image_url,
+        media_url: req.needy_photo_url || req.imageUrl || req.image_url || req.image_urls?.[0] || undefined,
+        image_url: req.imageUrl || req.image_url,
         image_urls: req.image_urls,
         type: "post",
         author: req.user_name || "Flicks Frame",
