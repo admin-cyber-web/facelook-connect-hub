@@ -573,7 +573,7 @@ const Chat19 = ({ onClose }: Chat19Props) => {
     if (!locked) {
       meta.setAttribute(
         "content",
-        `${prev.replace(/,\s*$/, "")}, maximum-scale=1.0, user-scalable=no`,
+        `${prev.replace(/,\s*$/, "")}, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content`,
       );
     }
     return () => {
@@ -1043,7 +1043,9 @@ const Chat19 = ({ onClose }: Chat19Props) => {
   // ── RENDER ─────────────────────────────────────────────────────────────────
   const stepTitle =
     step === "onboard"
-      ? "IDENTITY SETUP"
+      ? editReturn
+        ? "EDIT PROFILE"
+        : "IDENTITY SETUP"
       : step === "city"
         ? "LOCATION SYSTEM"
         : step === "radar"
@@ -1051,6 +1053,13 @@ const Chat19 = ({ onClose }: Chat19Props) => {
           : "PRIVATE ROOM";
 
   const handleBack = () => {
+    // Edit Profile opened from radar/chat — Back returns to that screen
+    if (step === "onboard" && editReturn) {
+      const backTo = editReturn;
+      setEditReturn(null);
+      setStep(backTo);
+      return;
+    }
     if (step === "chat") {
       setStep("radar");
       setActivePeer(null);
@@ -1076,6 +1085,9 @@ const Chat19 = ({ onClose }: Chat19Props) => {
     background: "rgba(0,0,0,.38)",
     border: "1.5px solid rgba(225,29,72,.30)",
     color: "#fff",
+    // FIX 1 · iPhone zooms <16px inputs on focus; lock scale + prevent taps from zooming
+    WebkitTextSizeAdjust: "100%",
+    fontSizeAdjust: "100%",
   };
   const labelCls = "text-[10px] font-black tracking-[.2em] text-white/55";
 
@@ -1135,6 +1147,20 @@ const Chat19 = ({ onClose }: Chat19Props) => {
               ID HIDDEN
             </span>
           </div>
+        )}
+        {profile && step !== "onboard" && (
+          <button
+            type="button"
+            onClick={() => openEditProfile(step)}
+            aria-label="Edit Chat 19 profile"
+            className="h-9 shrink-0 px-3 rounded-xl flex items-center gap-1.5 active:scale-95 transition-transform"
+            style={{ background: "rgba(225,29,72,.12)", border: "1px solid rgba(225,29,72,.32)" }}
+          >
+            <Pencil size={13} className="text-[#FF6B85]" />
+            <span className="text-[10px] font-black tracking-wider" style={{ color: "#FF9AB0" }}>
+              EDIT
+            </span>
+          </button>
         )}
         <button
           type="button"
@@ -1340,6 +1366,84 @@ const Chat19 = ({ onClose }: Chat19Props) => {
                 </div>
               </div>
 
+              {/* 6 · Update city — only shown inside the Edit Profile flow */}
+              {editReturn && (
+                <div className="rounded-2xl p-4 mb-5" style={cardStyle}>
+                  <div className="flex items-center gap-2 mb-1">
+                    <MapPin size={14} className="text-[#FF6B85]" />
+                    <p className={labelCls}>6 · UPDATE CITY</p>
+                  </div>
+                  <p className="text-[11px] text-white/40">
+                    Radar sirf is city ke andar scan karega.
+                  </p>
+                  <div className="relative mt-3">
+                    <Search
+                      size={13}
+                      className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30"
+                    />
+                    <input
+                      value={cityQuery}
+                      onChange={(e) => setCityQuery(e.target.value)}
+                      placeholder="Search city…"
+                      className="w-full pl-9 pr-3 py-2.5 rounded-xl text-[16px] outline-none"
+                      style={inputStyle}
+                    />
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 mt-3">
+                    {filteredCities.map((c) => (
+                      <Chip
+                        key={c}
+                        active={!manualOn && pickedCity === c}
+                        onClick={() => {
+                          setPickedCity(c);
+                          setManualOn(false);
+                        }}
+                      >
+                        {c}
+                      </Chip>
+                    ))}
+                    {!filteredCities.length && (
+                      <p className="col-span-3 text-[11px] text-white/35">
+                        No match — switch on manual override below ↓
+                      </p>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setManualOn((v) => !v)}
+                    className="w-full flex items-center justify-between gap-3 mt-4"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="text-[13px]">🛠</span>
+                      <p className="text-[12px] font-black tracking-wide">MANUAL OVERRIDE</p>
+                    </div>
+                    <span
+                      className="w-11 h-6 rounded-full relative shrink-0 transition-all"
+                      style={{
+                        background: manualOn
+                          ? "linear-gradient(90deg,#A01030,#E11D48)"
+                          : "rgba(255,255,255,.12)",
+                        boxShadow: manualOn ? "0 0 12px rgba(225,29,72,.5)" : "none",
+                      }}
+                    >
+                      <span
+                        className="absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all"
+                        style={{ left: manualOn ? 22 : 2 }}
+                      />
+                    </span>
+                  </button>
+                  {manualOn && (
+                    <input
+                      value={manualCity}
+                      onChange={(e) => setManualCity(e.target.value.slice(0, 24))}
+                      placeholder="Type any city… (e.g. Azamgarh)"
+                      className="w-full mt-3 px-3 py-2.5 rounded-xl text-[16px] outline-none"
+                      style={inputStyle}
+                    />
+                  )}
+                </div>
+              )}
+
               <GlowBtn onClick={finishOnboard}>
                 {profile ? "SAVE IDENTITY" : "ENTER CHAT 19"} <ChevronRight size={15} />
               </GlowBtn>
@@ -1376,7 +1480,7 @@ const Chat19 = ({ onClose }: Chat19Props) => {
                     value={cityQuery}
                     onChange={(e) => setCityQuery(e.target.value)}
                     placeholder="Search city…"
-                    className="w-full pl-9 pr-3 py-2.5 rounded-xl text-[13px] outline-none"
+                    className="w-full pl-9 pr-3 py-2.5 rounded-xl text-[16px] outline-none"
                     style={inputStyle}
                   />
                 </div>
@@ -1432,7 +1536,7 @@ const Chat19 = ({ onClose }: Chat19Props) => {
                     value={manualCity}
                     onChange={(e) => setManualCity(e.target.value.slice(0, 24))}
                     placeholder="Type any city… (e.g. Azamgarh)"
-                    className="w-full mt-3 px-3 py-2.5 rounded-xl text-[13px] outline-none"
+                    className="w-full mt-3 px-3 py-2.5 rounded-xl text-[16px] outline-none"
                     style={inputStyle}
                   />
                 )}
@@ -1947,6 +2051,7 @@ const Chat19 = ({ onClose }: Chat19Props) => {
                 style={{
                   background: "rgba(10,9,11,.96)",
                   borderTop: "1px solid rgba(225,29,72,.22)",
+                  paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))",
                 }}
               >
                 <div className="flex items-end gap-2">
@@ -1961,7 +2066,7 @@ const Chat19 = ({ onClose }: Chat19Props) => {
                     }}
                     placeholder="Type anonymously…"
                     maxLength={500}
-                    className="flex-1 min-w-0 px-4 py-3 rounded-2xl text-[13.5px] outline-none"
+                    className="flex-1 min-w-0 px-4 py-3 rounded-2xl text-[16px] outline-none"
                     style={{
                       background: "rgba(255,255,255,.05)",
                       border: "1.5px solid rgba(225,29,72,.30)",
