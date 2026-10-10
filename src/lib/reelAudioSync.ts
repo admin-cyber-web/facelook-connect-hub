@@ -77,7 +77,8 @@ export function attachReelAudioSync(
     syncPlayback();
   };
 
-  const tick = () => {
+  let lastCheckAt = 0;
+  const tick = (now: number) => {
     frameId = 0;
     if (
       disposed ||
@@ -87,23 +88,23 @@ export function attachReelAudioSync(
       !shouldPlay()
     ) return;
 
-    try {
-      const drift = getDrift();
-      if (Math.abs(drift) >= 0.75) {
-        audio.currentTime = getReelAudioTargetTime(video, audio);
-        audio.playbackRate = playbackRate;
-      } else {
-        const adjustment = Math.max(
-          -playbackRate * 0.03,
-          Math.min(playbackRate * 0.03, drift * 0.2),
-        );
-        const correctedRate = playbackRate + adjustment;
-        if (Math.abs(audio.playbackRate - correctedRate) >= 0.005) {
-          audio.playbackRate = correctedRate;
+    // Drift checks are throttled to ~4/s — keeps CPU cost flat on mobile
+    // while still recovering quickly from seeks and stream discontinuities.
+    if (now - lastCheckAt >= 250) {
+      lastCheckAt = now;
+      try {
+        const drift = getDrift();
+        // Snap only on real discontinuities. The old continuous ±3%
+        // playback-rate wobble warped the decode buffer into audible
+        // scratching/cracking, so the rate is now pinned to the exact value
+        // and sub-threshold drift is tolerated silently.
+        if (Math.abs(drift) >= 0.4) {
+          audio.currentTime = getReelAudioTargetTime(video, audio);
+          audio.playbackRate = playbackRate;
         }
+      } catch {
+        // Ignore transient seek/rate errors and keep the next frame attempt.
       }
-    } catch {
-      // Ignore transient seek/rate errors and keep the next frame attempt.
     }
 
     frameId = window.requestAnimationFrame(tick);

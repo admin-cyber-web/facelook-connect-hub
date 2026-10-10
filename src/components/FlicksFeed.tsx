@@ -26,6 +26,7 @@ import {
   attachReelAudioSync,
   getReelAudioTargetTime,
 } from "@/lib/reelAudioSync";
+import { getMediaSrc, onMediaPrefetched, prefetchReelMedia } from "@/lib/reelPrefetch";
 import VibeAudioToggle from "./VibeAudioToggle";
 import ActiveStatusAvatar from "./ActiveStatusAvatar";
 
@@ -96,18 +97,18 @@ function injectFlicksStyles() {
   document.head.appendChild(s);
 }
 
-// ── Spinning Cassette SVG (crimson/charcoal reels palette) ───────────────────
+// ── Spinning Cassette SVG (vibrant deep-orange palette) ──────────────────────
 const Reel = ({ cx, cy, spinning }: { cx: number; cy: number; spinning: boolean }) => (
   <>
-    <circle cx={cx} cy={cy} r={4.2} fill="#16060c" stroke="rgba(255,45,85,0.5)" strokeWidth="0.9" />
-    <circle cx={cx} cy={cy} r={1.6} fill="rgba(255,77,110,0.8)" />
+    <circle cx={cx} cy={cy} r={4.2} fill="#1a0c02" stroke="rgba(255,120,20,0.55)" strokeWidth="0.9" />
+    <circle cx={cx} cy={cy} r={1.6} fill="rgba(255,141,0,0.9)" />
     <g style={{
       transformOrigin: `${cx}px ${cy}px`,
       animation: spinning ? "flick-reel 0.85s linear infinite" : "none",
     }}>
-      <line x1={cx}       y1={cy - 4.2} x2={cx}       y2={cy - 1.9} stroke="rgba(255,77,110,0.65)" strokeWidth="0.85" />
-      <line x1={cx + 3.6} y1={cy - 2.1} x2={cx + 1.6} y2={cy - 0.9} stroke="rgba(255,77,110,0.65)" strokeWidth="0.85" />
-      <line x1={cx + 3.6} y1={cy + 2.1} x2={cx + 1.6} y2={cy + 0.9} stroke="rgba(255,77,110,0.65)" strokeWidth="0.85" />
+      <line x1={cx}       y1={cy - 4.2} x2={cx}       y2={cy - 1.9} stroke="rgba(255,141,0,0.7)" strokeWidth="0.85" />
+      <line x1={cx + 3.6} y1={cy - 2.1} x2={cx + 1.6} y2={cy - 0.9} stroke="rgba(255,141,0,0.7)" strokeWidth="0.85" />
+      <line x1={cx + 3.6} y1={cy + 2.1} x2={cx + 1.6} y2={cy + 0.9} stroke="rgba(255,141,0,0.7)" strokeWidth="0.85" />
     </g>
   </>
 );
@@ -119,44 +120,24 @@ const AudioCassette = ({ spinning, compact = false }: { spinning: boolean; compa
     viewBox="0 0 40 28"
     fill="none"
     className="shrink-0"
+    style={{ filter: "drop-shadow(0 0 4px rgba(255,109,0,0.45))" }}
   >
     {/* Body */}
-    <rect x="0.5" y="0.5" width="39" height="27" rx="3.5" fill="#14060b" stroke="rgba(255,45,85,0.4)" strokeWidth="1" />
+    <rect x="0.5" y="0.5" width="39" height="27" rx="3.5" fill="#190d02" stroke="rgba(255,109,0,0.6)" strokeWidth="1" />
     {/* Tape window */}
-    <rect x="7.5" y="7" width="25" height="14" rx="2" fill="#0b0407" stroke="rgba(255,255,255,0.08)" strokeWidth="0.6" />
+    <rect x="7.5" y="7" width="25" height="14" rx="2" fill="#0d0602" stroke="rgba(255,255,255,0.08)" strokeWidth="0.6" />
     {/* Reels */}
     <Reel cx={13} cy={14} spinning={spinning} />
     <Reel cx={27} cy={14} spinning={spinning} />
     {/* Center hub bar */}
-    <rect x="15.5" y="13.2" width="9" height="1.6" rx="0.8" fill="rgba(255,45,85,0.25)" />
+    <rect x="15.5" y="13.2" width="9" height="1.6" rx="0.8" fill="rgba(255,109,0,0.3)" />
     {/* Screw holes */}
-    <circle cx={4}  cy={4}  r={1.4} fill="#24101a" />
-    <circle cx={36} cy={4}  r={1.4} fill="#24101a" />
-    <circle cx={4}  cy={24} r={1.4} fill="#24101a" />
-    <circle cx={36} cy={24} r={1.4} fill="#24101a" />
+    <circle cx={4}  cy={4}  r={1.4} fill="#2a1405" />
+    <circle cx={36} cy={4}  r={1.4} fill="#2a1405" />
+    <circle cx={4}  cy={24} r={1.4} fill="#2a1405" />
+    <circle cx={36} cy={24} r={1.4} fill="#2a1405" />
     {/* Label strip */}
-    <rect x="9" y="21.5" width="22" height="3" rx="1.2" fill="rgba(255,45,85,0.16)" />
-  </svg>
-);
-
-// ── Interlocking double-hook icon — Hooks action button (glowing crimson) ────
-const DoubleHookIcon = ({ size = 19 }: { size?: number }) => (
-  <svg
-    width={size}
-    height={size}
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2.1"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    {/* Upper hook — stem down, U-bend bottom-left, barbed tip up */}
-    <path d="M10 3v8a3 3 0 1 1-6 0V9.5" />
-    <path d="M8.5 5.5h3" />
-    {/* Lower hook — mirrored, interlocking through the first bend */}
-    <path d="M14 21v-8a3 3 0 1 1 6 0V14.5" />
-    <path d="M12.5 18.5h3" />
+    <rect x="9" y="21.5" width="22" height="3" rx="1.2" fill="rgba(255,141,0,0.2)" />
   </svg>
 );
 
@@ -276,7 +257,7 @@ const CommentDrawer = ({ post, currentUserId, onClose, onCommentAdded }: any) =>
 };
 
 // ── FlickCard ─────────────────────────────────────────────────────────────────
-const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, onBridgeChat, isAdmin, onPostDeleted, onUserBanned, onVideoInvalid, onOpenHooks }: any) => {
+const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, onBridgeChat, isAdmin, onPostDeleted, onUserBanned, onVideoInvalid, prefetchTick }: any) => {
   const videoRef   = useRef<HTMLVideoElement>(null);
   const audioRef   = useRef<HTMLAudioElement>(null);
   const tapTimer   = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -310,6 +291,26 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, on
   const reelSettings = useMemo(() => getReelSettings(post), [post]);
   const videoUrl = reelSettings.videoUrl || post.media_url || post.url;
   const hasBackgroundAudio = Boolean(reelSettings.audioUrl);
+  // Shared media cache — blobs warmed by the feed are used for instant,
+  // zero-buffer playback of both the video and its attached music track.
+  const [mediaSrc, setMediaSrc] = useState(() => getMediaSrc(videoUrl) || videoUrl);
+  const [attachedAudioSrc, setAttachedAudioSrc] = useState<string | undefined>(
+    () => getMediaSrc(reelSettings.audioUrl) || reelSettings.audioUrl || undefined,
+  );
+  useEffect(() => {
+    setMediaSrc((prev) => {
+      const next = getMediaSrc(videoUrl) || videoUrl;
+      if (prev === next) return prev;
+      const playingVideo = videoRef.current;
+      // Never swap the source beneath a card that is already mid-playback.
+      if (playingVideo && !playingVideo.paused && playingVideo.currentTime > 0.25) return prev;
+      return next;
+    });
+    setAttachedAudioSrc((prev) => {
+      const next = getMediaSrc(reelSettings.audioUrl) || reelSettings.audioUrl || undefined;
+      return prev === next ? prev : next;
+    });
+  }, [videoUrl, reelSettings.audioUrl, prefetchTick]);
   const vibe = useMemo(() => resolvePostVibe(post), [post]);
   const secondaryVibe = vibe.matches.find(
     (profile) => profile.tag !== vibe.primary?.tag,
@@ -351,7 +352,8 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, on
     vid.style.filter = reelSettings.cssFilter;
     // A reel with attached music uses its dedicated audio element, so its
     // camera/source audio must stay muted to prevent overlapping tracks.
-    vid.muted = true;
+    // Reels WITHOUT a custom track keep their own audio — always-on sound.
+    vid.muted = hasBackgroundAudio;
     vid.volume = 1;
     if (audio) {
       audio.playbackRate = reelSettings.playbackRate;
@@ -398,7 +400,7 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, on
       }),
     );
 
-    requestPlayback(vid, true);
+    requestPlayback(vid, hasBackgroundAudio);
 
     return () => {
       gestureEvents.forEach((eventName) =>
@@ -777,13 +779,13 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, on
       <video
         ref={videoRef}
         key={videoUrl}
-        src={videoUrl}
+        src={mediaSrc}
         poster={post.thumb_url || post.cover_url || undefined}
         loop
         muted
         playsInline
         autoPlay={false}
-        preload={isActive || isNext ? "auto" : isPreloaded ? "metadata" : "none"}
+        preload="auto"
         className="absolute inset-0 w-full h-full object-cover"
         style={{
           backgroundColor: "#000",
@@ -819,9 +821,9 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, on
       {hasBackgroundAudio && (
         <audio
           ref={audioRef}
-          src={isPreloaded ? reelSettings.audioUrl || undefined : undefined}
+          src={attachedAudioSrc}
           muted={false}
-          preload={isActive || isNext ? "auto" : isPreloaded ? "metadata" : "none"}
+          preload="auto"
           loop
           onError={() => {
             console.warn("[Flicks] custom audio track failed to load:", reelSettings.audioUrl);
@@ -932,19 +934,6 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, on
           <span className="text-[9px] font-black text-white/90" style={{ textShadow: "0 1px 4px rgba(0,0,0,0.9)" }}>
             {formatCount(liveShares)}
           </span>
-        </button>
-
-        {/* Hooks — interlocking double-hook, glowing crimson (directly below Share, above the 3-dots) */}
-        <button
-          onClick={e => { e.stopPropagation(); onOpenHooks?.(); }}
-          aria-label="Open Hooks"
-          className="flex flex-col items-center gap-0.5 z-50">
-          <div className="w-10 h-10 rounded-full flex items-center justify-center"
-            style={{ background: "rgba(12,10,14,0.55)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", border: "1px solid rgba(225,29,72,0.40)", boxShadow: "0 0 14px rgba(225,29,72,0.45)" }}>
-            <span style={{ color: "#FF3355", display: "flex", filter: "drop-shadow(0 0 7px rgba(255,45,85,0.95)) drop-shadow(0 0 14px rgba(225,29,72,0.55))" }}>
-              <DoubleHookIcon size={19} />
-            </span>
-          </div>
         </button>
 
         {/* Reports — single crimson vertical 3-dots report/menu (dropdown opens upward) */}
@@ -1119,7 +1108,7 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, on
           <div className="flex items-center gap-1.5 mt-1.5">
             <AudioCassette spinning={isActive && !editingCaption} compact />
             <div className="shrink-0 w-px h-3 rounded-full"
-              style={{ background: "rgba(255,45,85,0.55)", boxShadow: "0 0 5px rgba(255,45,85,0.55)" }} />
+              style={{ background: "rgba(255,120,20,0.6)", boxShadow: "0 0 5px rgba(255,120,20,0.6)" }} />
             <Ticker text={tickerText} isActive={isActive && !editingCaption} />
           </div>
         </div>
@@ -1190,7 +1179,7 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, on
 export default function FlicksApp({
   onBack,
   onBridgeChat,
-  onOpenHooks,
+  initialPostId,
   isAdmin: isAdminProp = false,
   currentUserEmail: currentUserEmailProp,
   currentUserId: currentUserIdProp,
@@ -1211,6 +1200,10 @@ export default function FlicksApp({
   const containerRef = useRef<HTMLDivElement>(null);
   const currentIndexRef = useRef(0);
   const scrollRafRef = useRef<number>(0);
+  // Bumped when the shared media cache gains a new blob so mounted cards can
+  // swap their pending <video>/<audio> src to the cached copy.
+  const [prefetchTick, setPrefetchTick] = useState(0);
+  useEffect(() => onMediaPrefetched(() => setPrefetchTick((tick) => tick + 1)), []);
 
   // Compact header search — client-side filter over author + caption
   const [searchQuery, setSearchQuery] = useState("");
@@ -1408,6 +1401,38 @@ export default function FlicksApp({
     setCurrentIndex(nextIndex);
   }, [currentIndex, visibleFlicks.length]);
 
+  // Aggressive pre-fetch: warm the next few reels (video + attached track)
+  // into the shared media cache so each swipe starts instantly with zero
+  // buffering, stuttering, or delay.
+  useEffect(() => {
+    visibleFlicks.slice(currentIndex, currentIndex + 4).forEach((f: any, offset: number) => {
+      const settings = getReelSettings(f);
+      const video = settings.videoUrl || f.media_url;
+      if (video) prefetchReelMedia(video, offset === 0 ? "high" : "normal");
+      if (settings.audioUrl) prefetchReelMedia(settings.audioUrl, offset === 0 ? "high" : "normal");
+    });
+  }, [visibleFlicks, currentIndex]);
+
+  // FameFeed handoff — jump straight to the tapped video when the overlay
+  // opens with an initialPostId (Facebook-style transition).
+  const initialScrollDoneRef = useRef(false);
+  useEffect(() => {
+    initialScrollDoneRef.current = false;
+  }, [initialPostId]);
+  useEffect(() => {
+    if (!initialPostId || loading || initialScrollDoneRef.current) return;
+    const el = containerRef.current;
+    if (!el || visibleFlicks.length === 0) return;
+    const idx = visibleFlicks.findIndex(
+      (f: any) => f._raw_id === initialPostId || f.id === initialPostId,
+    );
+    if (idx < 0) return;
+    initialScrollDoneRef.current = true;
+    currentIndexRef.current = idx;
+    setCurrentIndex(idx);
+    el.scrollTop = idx * el.clientHeight;
+  }, [initialPostId, loading, visibleFlicks]);
+
   const handlePostDeleted = useCallback((rawId: string) => {
     setFlicks((previous) => {
       const next = previous.filter((item) => item._raw_id !== rawId);
@@ -1565,7 +1590,7 @@ export default function FlicksApp({
                   isNext={i === currentIndex + 1}
                   currentUserId={currentUserId}
                   onBridgeChat={onBridgeChat}
-                  onOpenHooks={onOpenHooks}
+                  prefetchTick={prefetchTick}
                   isAdmin={isAdmin}
                   onPostDeleted={handlePostDeleted}
                   onUserBanned={(authorId: string) => setFlicks(prev => prev.filter(x => x.author_id !== authorId))}
