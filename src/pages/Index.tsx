@@ -4218,23 +4218,41 @@ const PersonalizationView = React.memo(({
                   <motion.button
                     whileTap={{ scale: 0.98 }}
                     onClick={() => setShowMagnetDashboard(true)}
-                    className="w-full flex items-center gap-3 bg-white rounded-2xl px-4 py-3 overflow-hidden"
-                    style={{ border: "1.5px solid #e5e7eb", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}
+                    aria-label="Open Magnet Dashboard. See your sent and received magnets and viral chain stats."
+                    className="relative block h-[67px] w-full overflow-hidden rounded-2xl text-left"
+                    style={{
+                      border: "1.5px solid #e5e7eb",
+                      backgroundColor: "#8d666b",
+                      boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
+                    }}
                   >
-                    <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-                      style={{ background: "linear-gradient(135deg,#7c3aed,#db2777)" }}>
-                      <span className="text-xl">🧲</span>
-                    </div>
-                    <div className="flex-1 text-left">
-                      <p className="text-[13px] font-black text-gray-800 leading-none">Magnet Dashboard</p>
-                      <p className="text-[10px] text-gray-400 mt-0.5">See your sent & received magnets · Viral chain stats</p>
-                    </div>
-                    <div className="flex flex-col items-end gap-1 shrink-0">
-                      <div className="px-2 py-0.5 rounded-full text-[9px] font-black text-white"
-                        style={{ background: "linear-gradient(90deg,#7c3aed,#db2777)" }}>
-                        Viral Engine
+                    <img
+                      src="https://res.cloudinary.com/dzlazqbvf/image/upload/v1791661480/Gemini_Generated_Image_2vsq7v2vsq7v2vsq-100kb_lx8msw.jpg"
+                      alt=""
+                      aria-hidden="true"
+                      className="absolute inset-0 h-full w-full select-none object-contain object-left"
+                      loading="lazy"
+                      decoding="async"
+                      draggable={false}
+                    />
+                    <div className="absolute right-2 top-1/2 z-10 flex w-[45%] -translate-y-1/2 flex-col gap-0.5 text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.85)] sm:right-3 sm:w-[48%]">
+                      <p className="text-[11px] font-black leading-none sm:text-[13px]">
+                        Magnet Dashboard
+                      </p>
+                      <p className="text-[8px] font-semibold leading-tight sm:text-[9px]">
+                        See your sent &amp; received magnets · Viral chain stats
+                      </p>
+                      <div className="flex flex-col items-start gap-0.5">
+                        <span
+                          className="rounded-full px-2 py-0.5 text-[8px] font-black leading-none text-white"
+                          style={{ background: "linear-gradient(90deg,#7c3aed,#db2777)" }}
+                        >
+                          Viral Engine
+                        </span>
+                        <span className="text-[7px] font-semibold leading-none sm:text-[8px]">
+                          Public · Anyone can view
+                        </span>
                       </div>
-                      <p className="text-[9px] text-gray-400 font-semibold">Public · Anyone can view</p>
                     </div>
                   </motion.button>
                 </div>
