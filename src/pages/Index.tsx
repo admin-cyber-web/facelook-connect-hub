@@ -2190,6 +2190,8 @@ const Index = ({ session, initialAdminOpen, isGuest = false }: { session: Sessio
   const [showChat19, setShowChat19] = useState(false);
   // Chat 19 — cinematic heart popup (promo banner → bottom-nav hint)
   const [showChat19Promo, setShowChat19Promo] = useState(false);
+  // Flicks Reels — post id to start at when FameFeed video posts open the overlay
+  const [flicksStartPostId, setFlicksStartPostId] = useState<string | null>(null);
 
   // Onboarding (first-run modal for new users missing location/interests)
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -2380,6 +2382,19 @@ const Index = ({ session, initialAdminOpen, isGuest = false }: { session: Sessio
     window.addEventListener("flicks:open-reel-studio", handleOpenReelStudio);
     return () => window.removeEventListener("flicks:open-reel-studio", handleOpenReelStudio);
   }, [openReelStudio]);
+
+  // FameFeed → full-screen Reels transition (Facebook-style): a tapped video
+  // post opens the Flicks overlay starting precisely at that video, and the
+  // user can keep swiping vertically through the whole Reels feed from there.
+  useEffect(() => {
+    const openReelsAt = (event: Event) => {
+      const postId = (event as CustomEvent<{ postId?: string }>).detail?.postId || null;
+      setFlicksStartPostId(postId);
+      setActiveFeature("Flicks");
+    };
+    window.addEventListener("flicks:open-reels", openReelsAt as EventListener);
+    return () => window.removeEventListener("flicks:open-reels", openReelsAt as EventListener);
+  }, []);
 
   const handleReelFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -4789,7 +4804,7 @@ const PersonalizationView = React.memo(({
               <div className="fixed inset-0 z-[190] bg-black touch-scroll-y" data-reels-feed>
                 <FlicksFeed
                   onBack={() => setActiveFeature("Fame")}
-                  onOpenHooks={() => setActiveFeature("Hooks")}
+                  initialPostId={flicksStartPostId}
                   isAdmin={isAppAdmin}
                   currentUserId={userId}
                   currentUserEmail={userEmail}

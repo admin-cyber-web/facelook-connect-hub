@@ -33,6 +33,7 @@ import AutoPlayMutedVideo from "./AutoPlayMutedVideo";
 import { maskProfanity, sanitizeText } from "../lib/profanityFilter";
 import { resolveMediaUrl } from "../lib/mediaUrl";
 import { getReelSettings } from "../lib/reelSettings";
+import { prefetchReelMedia } from "../lib/reelPrefetch";
 import {
   getPostVibeAudioUrl,
   resolvePostVibe,
@@ -1057,6 +1058,11 @@ const LatestSurveysWidget = ({
       </div>
     </div>
   );
+};
+
+/** Facebook-style handoff: open the full-screen Flicks Reels overlay at a post. */
+const openFullReelsAt = (postId: string) => {
+  window.dispatchEvent(new CustomEvent("flicks:open-reels", { detail: { postId } }));
 };
 
 // Pure display component — data is fetched once at FameFeed level, no per-instance channels
@@ -2132,6 +2138,13 @@ const SingleReelBlock = ({
   const reelVideoUrl = reelSettings.videoUrl || post.media_url;
   const hasBackgroundAudio = Boolean(reelSettings.audioUrl);
   const isOwner = Boolean(currentUserId && post.author_id === currentUserId);
+  // Warm the shared media cache so the full-screen Reels overlay (and later
+  // scroll position on this reel) starts instantly with the attached track.
+  useEffect(() => {
+    if (reelVideoUrl) prefetchReelMedia(reelVideoUrl);
+    if (reelSettings.audioUrl) prefetchReelMedia(reelSettings.audioUrl);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reelVideoUrl, reelSettings.audioUrl]);
   const loadViewerPreviews = useCallback(async () => {
     if (viewerPreviewLoadedRef.current) return;
     viewerPreviewLoadedRef.current = true;
@@ -2401,6 +2414,18 @@ const SingleReelBlock = ({
         </>
       )}
       <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none" />
+      {/* Tap anywhere on the video → seamless transition into the full-screen
+          Flicks Reels overlay starting at this exact post. z-10 sits below the
+          menu/mute/caption/action controls (z-20+) so they stay clickable. */}
+      <button
+        type="button"
+        aria-label="Open in full-screen Reels"
+        onClick={(event) => {
+          event.stopPropagation();
+          openFullReelsAt(String(post.id));
+        }}
+        className="absolute inset-0 z-10"
+      />
       <button
         type="button"
         aria-label="Reel actions"
@@ -2462,7 +2487,7 @@ const SingleReelBlock = ({
               void audio.play().then(() => setAudioNeedsGesture(false)).catch(() => setAudioNeedsGesture(true));
             }
           }}
-          className="absolute top-4 right-4 p-2 bg-black/75 rounded-full border border-white/10"
+          className="absolute top-4 right-4 z-20 p-2 bg-black/75 rounded-full border border-white/10"
         >
           {muted || audioNeedsGesture ? (
             <VolumeX size={16} className="text-white" />
@@ -2471,7 +2496,7 @@ const SingleReelBlock = ({
           )}
         </button>
       )}
-      <div className="absolute bottom-5 left-4 right-16 max-h-[35%] overflow-y-auto overscroll-contain rounded-lg bg-black/75 p-3 text-white">
+      <div className="absolute bottom-5 left-4 right-16 z-20 max-h-[35%] overflow-y-auto overscroll-contain rounded-lg bg-black/75 p-3 text-white">
         <div className="mb-1.5 flex items-center gap-2">
           <ActiveStatusAvatar
             src={post.author_profile?.avatar_url || post.author_avatar}
@@ -2489,7 +2514,7 @@ const SingleReelBlock = ({
           </p>
         )}
       </div>
-      <div className="reel-side-actions absolute right-3 bottom-16 flex flex-col items-center gap-4">
+      <div className="reel-side-actions absolute right-3 bottom-16 z-20 flex flex-col items-center gap-4">
         <button
           onClick={toggleReelLike}
           disabled={likePending}
@@ -4187,6 +4212,14 @@ const FameFeed = ({
       }));
 
       setTrendingFlicks(enriched);
+      // Warm the shared reel media cache for the trending row videos — the
+      // full-screen Reels overlay reads from the same cache for instant start.
+      enriched.slice(0, 10).forEach((f: any) => {
+        const url = String(f.media_url || "");
+        if (url && /\.(mp4|webm|ogg|mov|m4v)/i.test(url.split("?")[0])) {
+          prefetchReelMedia(url);
+        }
+      });
       dataCache.setCache("fameFlicks", {
         data: enriched,
         fetchedAt: Date.now(),
@@ -6918,7 +6951,19 @@ const FameFeed = ({
               <TrendingFlicksRow
                 flicks={shuffled}
                 loaded={flicksLoaded}
-                onFlickClick={(flick) => setFlickModal(flick)}
+                onFlickClick={(flick) => {
+                  const url = String(flick.media_url || "");
+                  const isVid =
+                    flick.type === "video" ||
+                    /\.(mp4|webm|ogg|mov|m4v)/i.test(url.split("?")[0]);
+                  // Video flicks jump straight into the full-screen Reels
+                  // overlay at that video; images keep the legacy modal.
+                  if (isVid) {
+                    openFullReelsAt(String(flick._raw_id || flick.id));
+                    return;
+                  }
+                  setFlickModal(flick);
+                }}
               />
               <FeedDivider />
             </div>
