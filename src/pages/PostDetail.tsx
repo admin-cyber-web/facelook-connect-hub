@@ -4,6 +4,7 @@ import { Helmet } from "react-helmet-async";
 import { supabase } from "@/lib/supabaseClient";
 import { Loader2, ArrowLeft } from "lucide-react";
 import { requestShareModal } from "@/lib/shareModal";
+import { resolveSharePreviewUrl } from "@/lib/universalShare";
 
 const BASE_URL     = "https://flicksindia.online";
 const DEFAULT_IMAGE = "https://i.ibb.co/HT7RvFxs/flicksindia.png";
@@ -20,7 +21,7 @@ const PostDetail = () => {
     (async () => {
       const { data, error: fetchErr } = await supabase
         .from("posts")
-        .select("id, author, author_id, content, media_url, cover_url, type, created_at, meta_title, meta_description, seo_keywords")
+        .select("id, author, author_id, content, media_url, image_url, image_urls, metadata, video_url, cover_url, media_type, type, created_at, meta_title, meta_description, seo_keywords")
         .eq("id", id)
         .single();
 
@@ -58,7 +59,7 @@ const PostDetail = () => {
     : "No Fake News | New India Social App | Full Protected Security | 24 Hours Help Desk";
 
   const ogKeywords = post?.seo_keywords?.trim() || "flicks india, social post, trending";
-  const ogImage    = post?.media_url || post?.cover_url || DEFAULT_IMAGE;
+  const ogImage    = post ? resolveSharePreviewUrl(post) || DEFAULT_IMAGE : DEFAULT_IMAGE;
   const ogUrl      = `${BASE_URL}/post/${id}`;
 
   if (loading) {
@@ -192,6 +193,9 @@ const PostDetail = () => {
                     title: post.meta_title || post.content?.slice(0, 72) || "Flicks India post",
                     content: post.content || post.meta_description || "",
                     media_url: post.media_url,
+                    image_url: post.image_url,
+                    image_urls: post.image_urls,
+                    metadata: post.metadata,
                     video_url: post.video_url,
                     cover_url: post.cover_url,
                     type: post.type || "post",
