@@ -6,12 +6,10 @@
  * Platform buttons open their selected destination. The clipboard is reserved
  * for an explicit Copy Link action.
  *
- * Media resolution by post type:
- *   post / story → media_url (image or video)
- *   reel         → media_url/video_url (actual media), then cover_url
- *   circle       → cover_url (banner)
- *   hook         → cover_url (page banner)
- *   quote        → caller passes HTMLCanvasElement directly
+ * The original media URL is kept separate from the direct share-preview URL:
+ * reels use their video as original media and a poster/cover as the preview.
+ * Default meta images are intentionally excluded so app logos cannot replace
+ * an item's actual media.
  */
 
 export type PostType = "post" | "reel" | "circle" | "hook" | "quote" | "story";
@@ -74,6 +72,7 @@ export interface ShareTargetInput {
   text: string;
   url: string;
   mediaUrl?: string;
+  previewUrl?: string;
   authorName?: string;
   type?: PostType;
 }
@@ -116,14 +115,18 @@ export async function launchShareTarget(
     input.url,
     input.authorName,
   );
-  const platformText = nativeText;
+  const previewUrl = input.previewUrl || input.mediaUrl;
+  const platformText =
+    platform === "whatsapp" && previewUrl
+      ? `${nativeText}\n\n${previewUrl}`
+      : nativeText;
 
   if (typeof window.AndroidShare?.shareToPlatform === "function") {
     try {
       const result = window.AndroidShare.shareToPlatform(
         platform,
         nativeText,
-        input.mediaUrl || "",
+        input.mediaUrl || input.previewUrl || "",
         input.type || "post",
       );
       if (result === true) return true;
@@ -135,7 +138,7 @@ export async function launchShareTarget(
     }
   }
 
-  const encodedUrl = encodeURIComponent(input.url);
+  const encodedUrl = encodeURIComponent(previewUrl || input.url);
   const encodedText = encodeURIComponent(platformText);
   switch (platform) {
     case "whatsapp":
@@ -171,6 +174,9 @@ export interface UniversalShareInput {
   title: string;
   text: string;
   url: string;
+  /** Exact image/video preview URL to expose to Web Share and social intents. */
+  previewUrl?: string;
+  /** Original media URL; retained for native media bridges and file sharing. */
   mediaUrl?: string;
   authorName?: string;
   canvas?: HTMLCanvasElement;
@@ -290,39 +296,206 @@ function canvasToFileSync(canvas: HTMLCanvasElement): File | null {
 // ── Media URL resolver ────────────────────────────────────────────────────────
 
 /**
- * Given a raw post object, returns the most appropriate media URL for sharing.
- * Reels → media_url/video_url (actual media), then cover_url (thumbnail).
- * Posts/Stories → media_url. Falls back through available fields.
+ * Given a post or request object, returns the original media URL.
+ * For video posts this remains the actual video source; use
+ * resolveSharePreviewUrl when preparing the Web Share URL.
  */
-export function resolveShareMediaUrl(post: {
+type ShareMediaFields = {
   type?: string;
   media_url?: string;
+  mediaUrl?: string;
   image_url?: string;
-  image_urls?: string[];
+  imageUrl?: string;
+  image_urls?: unknown;
+  imageUrls?: unknown;
   video_url?: string;
+  videoUrl?: string;
   cover_url?: string;
-  meta_image?: string;
-}): string | undefined {
-  const t = post.type?.toLowerCase() ?? "";
+  coverUrl?: string;
+  thumb_url?: string;
+  thumbUrl?: string;
+  thumbnail_url?: string;
+  thumbnailUrl?: string;
+  poster_url?: string;
+  posterUrl?: string;
+  preview_url?: string;
+  previewUrl?: string;
+  video_thumbnail_url?: string;
+  videoThumbnailUrl?: string;
+  metadata?: unknown;
+};
 
-  if (t === "reel" || t === "video") {
-    return (
-      post.media_url ||
-      post.video_url ||
-      post.image_url ||
-      post.image_urls?.[0] ||
-      post.cover_url
-    );
+function firstMediaUrl(...values: unknown[]): string | undefined {
+  for (const value of values) {
+    if (typeof value === "string") {
+      const candidate = value.trim();
+      if (!candidate) continue;
+
+      if (candidate.startsWith("[") || candidate.startsWith("{")) {
+        try {
+          const parsed: unknown = JSON.parse(candidate);
+          const nested = firstMediaUrl(parsed);
+          if (nested) return nested;
+          continue;
+        } catch {
+          // Treat malformed JSON-like strings as a literal URL below.
+        }
+      }
+
+      const firstUrl = candidate.split(/,(?=https?:\/\/)/, 1)[0]?.trim();
+      if (firstUrl) return firstUrl;
+      continue;
+    }
+
+    if (Array.isArray(value)) {
+      const nested = firstMediaUrl(...value);
+      if (nested) return nested;
+      continue;
+    }
+
+    if (value && typeof value === "object") {
+      const objectValue = value as Record<string, unknown>;
+      const nested = firstMediaUrl(
+        objectValue.url,
+        objectValue.secure_url,
+        objectValue.publicUrl,
+        objectValue.image_url,
+        objectValue.media_url,
+        objectValue.video_url,
+      );
+      if (nested) return nested;
+    }
   }
-  if (t === "circle" || t === "hook") {
-    return post.cover_url || post.media_url;
+  return undefined;
+}
+
+function shareMetadata(post: ShareMediaFields): Record<string, unknown> {
+  return post.metadata && typeof post.metadata === "object"
+    ? (post.metadata as Record<string, unknown>)
+    : {};
+}
+
+function isVideoShare(post: ShareMediaFields): boolean {
+  const metadata = shareMetadata(post);
+  if (["reel", "video"].includes(post.type?.toLowerCase() ?? "")) return true;
+  if (metadata.is_video === true || metadata.isVideo === true) return true;
+
+  if (
+    firstMediaUrl(
+      post.video_url,
+      post.videoUrl,
+      metadata.video_url,
+      metadata.videoUrl,
+    )
+  ) {
+    return true;
   }
-  return (
-    post.media_url ||
-    post.image_url ||
-    post.image_urls?.[0] ||
-    post.cover_url ||
-    post.meta_image
+
+  const source = firstMediaUrl(
+    post.media_url,
+    post.mediaUrl,
+    metadata.media_url,
+    metadata.mediaUrl,
+  );
+  return !!source && /\/video\/upload\/|\.(?:mp4|m4v|mov|webm|ogg|m3u8)(?:[?#]|$)/i.test(source);
+}
+
+function shareImageCandidates(post: ShareMediaFields): unknown[] {
+  const metadata = shareMetadata(post);
+  return [
+    post.image_url,
+    post.imageUrl,
+    post.image_urls,
+    post.imageUrls,
+    metadata.image_url,
+    metadata.imageUrl,
+    metadata.image_urls,
+    metadata.imageUrls,
+  ];
+}
+
+function sharePreviewCandidates(post: ShareMediaFields): unknown[] {
+  const metadata = shareMetadata(post);
+  return [
+    post.preview_url,
+    post.previewUrl,
+    post.video_thumbnail_url,
+    post.videoThumbnailUrl,
+    post.thumbnail_url,
+    post.thumbnailUrl,
+    post.thumb_url,
+    post.thumbUrl,
+    post.poster_url,
+    post.posterUrl,
+    post.cover_url,
+    post.coverUrl,
+    metadata.preview_url,
+    metadata.previewUrl,
+    metadata.video_thumbnail_url,
+    metadata.videoThumbnailUrl,
+    metadata.thumbnail_url,
+    metadata.thumbnailUrl,
+    metadata.thumb_url,
+    metadata.thumbUrl,
+    metadata.poster_url,
+    metadata.posterUrl,
+    metadata.cover_url,
+    metadata.coverUrl,
+  ];
+}
+
+export function resolveShareMediaUrl(post: ShareMediaFields): string | undefined {
+  const metadata = shareMetadata(post);
+  const isVideo = isVideoShare(post);
+  const imageCandidates = shareImageCandidates(post);
+  const videoCandidates = [
+    post.video_url,
+    post.videoUrl,
+    metadata.video_url,
+    metadata.videoUrl,
+  ];
+  const mediaCandidates = [
+    post.media_url,
+    post.mediaUrl,
+    metadata.media_url,
+    metadata.mediaUrl,
+  ];
+
+  return firstMediaUrl(
+    ...(isVideo
+      ? [...videoCandidates, ...mediaCandidates, ...imageCandidates]
+      : [...imageCandidates, ...mediaCandidates, ...videoCandidates]),
+    ...sharePreviewCandidates(post),
+  );
+}
+
+/**
+ * Returns the most useful direct visual URL for a web/native share preview.
+ * For video, prefer its poster/thumbnail over the video file itself.
+ */
+export function resolveSharePreviewUrl(
+  post: ShareMediaFields,
+): string | undefined {
+  const metadata = shareMetadata(post);
+  const isVideo = isVideoShare(post);
+  const videoCandidates = [
+    post.video_url,
+    post.videoUrl,
+    metadata.video_url,
+    metadata.videoUrl,
+  ];
+  const mediaCandidates = [
+    post.media_url,
+    post.mediaUrl,
+    metadata.media_url,
+    metadata.mediaUrl,
+  ];
+  const imageCandidates = shareImageCandidates(post);
+
+  return firstMediaUrl(
+    ...(isVideo
+      ? [...sharePreviewCandidates(post), ...imageCandidates, ...videoCandidates, ...mediaCandidates]
+      : [...imageCandidates, ...mediaCandidates, ...sharePreviewCandidates(post), ...videoCandidates]),
   );
 }
 
@@ -407,9 +580,9 @@ async function copyTextToClipboard(text: string): Promise<boolean> {
 export async function universalShare(
   input: UniversalShareInput,
 ): Promise<ShareOutcome> {
-  const { title, url, mediaUrl, canvas, type = "post" } = input;
+  const { title, url, mediaUrl, previewUrl, canvas, type = "post" } = input;
   const text = buildShareText(input.text, url, input.authorName);
-  const shareUrl = mediaUrl || url;
+  const shareUrl = previewUrl || mediaUrl || url;
   const shareData: ShareData = { title, text, url: shareUrl };
   let sharedWithFile = false;
 
@@ -442,9 +615,10 @@ export async function universalShare(
   }
 
   // Android handles remote media without making the WebView download it again.
-  if (mediaUrl && typeof window.AndroidShare?.shareMedia === "function") {
+  const bridgeMediaUrl = mediaUrl || previewUrl;
+  if (bridgeMediaUrl && typeof window.AndroidShare?.shareMedia === "function") {
     try {
-      const result = await window.AndroidShare.shareMedia(text, mediaUrl, type);
+      const result = await window.AndroidShare.shareMedia(text, bridgeMediaUrl, type);
       if (result !== false) return "shared-with-file";
     } catch {
       // Continue to text bridge or clipboard.

@@ -41,7 +41,7 @@ const formatCount = (n: any): string => {
 
 const SUPPORTED_VIDEO_EXTENSIONS = /\.(mp4|webm)(?:$|[?#])/i;
 const FLICKS_POST_PROJECTION =
-  "id, author, author_id, content, media_url, type, metadata, cover_url, views_count, likes_count, comments_count, shares_count, meta_title, meta_description, created_at, author_profile:profiles!posts_author_id_fkey(avatar_url, full_name)";
+  "id, author, author_id, content, media_url, image_url, image_urls, type, metadata, cover_url, views_count, likes_count, comments_count, shares_count, meta_title, meta_description, created_at, author_profile:profiles!posts_author_id_fkey(avatar_url, full_name)";
 const FLICKS_POST_PROJECTION_WITH_AUDIO = `${FLICKS_POST_PROJECTION}, audio_url`;
 
 const requestPlayback = (media: HTMLMediaElement, muted = false) => {
@@ -583,6 +583,12 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, on
         meta_title: post.meta_title,
         meta_description: post.meta_description,
         shares_count: liveShares,
+        metadata: post.metadata,
+        thumb_url: post.thumb_url,
+        thumbnail_url: post.thumbnail_url,
+        poster_url: post.poster_url,
+        preview_url: post.preview_url,
+        video_thumbnail_url: post.video_thumbnail_url,
       },
       anchor: { x: rect.left, y: rect.top, width: rect.width, height: rect.height },
     });
@@ -1288,6 +1294,8 @@ export default function FlicksApp({
             filters: settings.filter,
             playback_rate: settings.playbackRate,
             metadata: p.metadata,
+            image_url: p.image_url || null,
+            image_urls: p.image_urls,
             thumb_url: p.cover_url || p.thumb_url || null,
             likes_count: Math.max(Number(p.likes_count) || 0, 0),
             views_count: p.views_count || 0,
