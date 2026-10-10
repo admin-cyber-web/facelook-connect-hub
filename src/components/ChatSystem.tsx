@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import AdminDashboard from "./AdminDashboard";
 import { isAdminEmail } from "../lib/adminConfig";
 import { resolveMediaUrl } from "../lib/mediaUrl";
+import { requestShareModal } from "../lib/shareModal";
 import {
   canViewPrivateProfile,
   searchVisibleProfiles,
@@ -3973,14 +3974,18 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                               onClick={(e) => {
                                 e.stopPropagation();
                                 const url = getStoryMediaUrl(story.image_url);
-                                if (navigator.share) {
-                                  navigator
-                                    .share({ title: "Flicks Story", url })
-                                    .catch(() => {});
-                                } else {
-                                  navigator.clipboard.writeText(url);
-                                  toast.success("Link copied!");
-                                }
+                                requestShareModal(
+                                  {
+                                    id: `story-${story.id}`,
+                                    title: "Flicks Story",
+                                    content: story.caption || "Watch this story on Flicks India.",
+                                    media_url: url,
+                                    type: "story",
+                                    author: story.profile?.full_name || "Flicks India",
+                                    share_url: `${window.location.origin}/?story=${encodeURIComponent(story.id)}`,
+                                  },
+                                  e.currentTarget,
+                                );
                               }}
                               className="w-9 h-9 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center border border-white/20"
                             >

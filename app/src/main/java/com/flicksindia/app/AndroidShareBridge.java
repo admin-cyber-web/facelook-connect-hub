@@ -4,7 +4,6 @@ import android.app.Activity;
 import android.content.ActivityNotFoundException;
 import android.content.ClipData;
 import android.content.Intent;
-import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.text.TextUtils;
 import android.webkit.JavascriptInterface;
@@ -18,7 +17,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -48,12 +46,88 @@ public final class AndroidShareBridge {
         executor.execute(() -> downloadAndShare(
                 caption == null ? "" : caption,
                 mediaUrl,
-                mediaType == null ? "" : mediaType
+                mediaType == null ? "" : mediaType,
+                null
         ));
         return true;
     }
 
-    private void downloadAndShare(String caption, String mediaUrl, String mediaType) {
+    @JavascriptInterface
+    public boolean shareText(final String title, final String caption, final String url) {
+        String body = caption == null ? "" : caption;
+        if (!TextUtils.isEmpty(url) && !body.contains(url)) {
+            body = body.isEmpty() ? url : body + "\n\n" + url;
+        }
+        final String finalBody = body;
+        final String chooserTitle = TextUtils.isEmpty(title) ? "Share Flicks post" : title;
+        activity.runOnUiThread(() -> {
+            try {
+                Intent sendIntent = new Intent(Intent.ACTION_SEND);
+                sendIntent.setType("text/plain");
+                sendIntent.putExtra(Intent.EXTRA_TEXT, finalBody);
+                activity.startActivity(Intent.createChooser(sendIntent, chooserTitle));
+            } catch (ActivityNotFoundException error) {
+                showToast("No compatible sharing app is installed.");
+            } catch (Exception error) {
+                showToast("Couldn't open the share sheet. Please try again.");
+            }
+        });
+        return true;
+    }
+
+    @JavascriptInterface
+    public boolean shareToPlatform(
+            final String platform,
+            final String caption,
+            final String mediaUrl,
+            final String mediaType
+    ) {
+        final String targetPackage = packageForPlatform(platform);
+        if (targetPackage == null) return false;
+
+        if (TextUtils.isEmpty(mediaUrl)) {
+            activity.runOnUiThread(() -> launchTextIntent(caption, targetPackage));
+            return true;
+        }
+
+        executor.execute(() -> downloadAndShare(
+                caption == null ? "" : caption,
+                mediaUrl,
+                mediaType == null ? "" : mediaType,
+                targetPackage
+        ));
+        return true;
+    }
+
+    private String packageForPlatform(String platform) {
+        if (platform == null) return null;
+        switch (platform.toLowerCase()) {
+            case "whatsapp": return "com.whatsapp";
+            case "messenger": return "com.facebook.orca";
+            case "facebook": return "com.facebook.katana";
+            case "instagram": return "com.instagram.android";
+            case "twitter": return "com.twitter.android";
+            case "telegram": return "org.telegram.messenger";
+            default: return null;
+        }
+    }
+
+    private void launchTextIntent(String caption, String targetPackage) {
+        try {
+            if (activity.isFinishing() || activity.isDestroyed()) return;
+            Intent sendIntent = new Intent(Intent.ACTION_SEND);
+            sendIntent.setType("text/plain");
+            sendIntent.putExtra(Intent.EXTRA_TEXT, caption == null ? "" : caption);
+            sendIntent.setPackage(targetPackage);
+            activity.startActivity(sendIntent);
+        } catch (ActivityNotFoundException error) {
+            showToast("That app is not installed.");
+        } catch (Exception error) {
+            showToast("Couldn't open that app. Please try again.");
+        }
+    }
+
+    private void downloadAndShare(String caption, String mediaUrl, String mediaType, String targetPackage) {
         HttpURLConnection connection = null;
         File mediaFile = null;
         try {
@@ -101,7 +175,7 @@ public final class AndroidShareBridge {
 
             final File fileForShare = mediaFile;
             final String finalMimeType = mimeType;
-            activity.runOnUiThread(() -> launchShareIntent(caption, fileForShare, finalMimeType));
+            activity.runOnUiThread(() -> launchShareIntent(caption, fileForShare, finalMimeType, targetPackage));
             mediaFile = null;
         } catch (Exception error) {
             if (mediaFile != null) {
@@ -116,7 +190,7 @@ public final class AndroidShareBridge {
         }
     }
 
-    private void launchShareIntent(String caption, File mediaFile, String mimeType) {
+    private void launchShareIntent(String caption, File mediaFile, String mimeType, String targetPackage) {
         try {
             if (activity.isFinishing() || activity.isDestroyed()) {
                 return;
@@ -134,13 +208,9 @@ public final class AndroidShareBridge {
             sendIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
             sendIntent.setClipData(ClipData.newRawUri("Flicks post media", contentUri));
 
-            PackageManager packageManager = activity.getPackageManager();
-            List<?> targets = packageManager.queryIntentActivities(
-                    sendIntent,
-                    PackageManager.MATCH_DEFAULT_ONLY
-            );
-            if (targets == null || targets.isEmpty()) {
-                showToast("No app installed can share this media.");
+            if (!TextUtils.isEmpty(targetPackage)) {
+                sendIntent.setPackage(targetPackage);
+                activity.startActivity(sendIntent);
                 return;
             }
 

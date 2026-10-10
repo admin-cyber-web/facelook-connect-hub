@@ -11,6 +11,7 @@ import { registerPushPlayer } from "@/lib/oneSignalPush";
 import { Plus } from "lucide-react";
 import AdminPostPanel from "./components/AdminPostPanel";
 import CurvedEdgeOverlay from "./components/CurvedEdgeOverlay";
+import SharePopupHost from "./components/SharePopupHost";
 import { ProfileViewerProvider } from "./context/ProfileViewerContext";
 import { DataCacheProvider } from "./context/DataCacheContext";
 import { OnlineUsersProvider } from "./context/OnlineUsersContext";
@@ -399,6 +400,7 @@ const App = () => {
                     )}
                   </Suspense>
                 </BrowserRouter>
+                <SharePopupHost />
               </DataCacheProvider>
             </OnlineUsersProvider>
           </ProfileViewerProvider>

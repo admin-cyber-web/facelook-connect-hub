@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabaseClient";
+import { requestShareModal } from "../lib/shareModal";
 import { smartTime } from "@/lib/timeAgo";
 import { memGet, memSet } from "@/lib/memCache";
 import { MagnetButton } from "./MagnetSystem";
@@ -395,40 +396,46 @@ const HookModal = ({ pageId, pageName, userId, onClose }:
 };
 
 // ── Unified Share (single native share intent, original media, English only) ───
-const shareHookPage = async (page: HookPage) => {
+const shareHookPage = (page: HookPage, anchor: HTMLElement) => {
   const pageUrl = `${window.location.origin}/?page=${page.id}`;
   const media = page.cover_url || page.avatar_url || "";
-  const { universalShare } = await import("../lib/universalShare");
   const titleLine = page.name;
   const bodyLine  = (page as any).description
     ? ((page as any).description as string).slice(0, 140)
     : `Follow "${page.name}" for the latest updates on Flicks.`;
-  const outcome = await universalShare({
-    title: titleLine,
-    text: `${titleLine}\n${bodyLine}`,
-    url: pageUrl,
-    mediaUrl: media || undefined,
-    type: "hook",
-  });
-  if (outcome === "copied") toast.success("Link copied to clipboard");
+  requestShareModal(
+    {
+      id: `hook-${page.id}`,
+      title: titleLine,
+      content: `${titleLine}\n${bodyLine}`,
+      cover_url: media || undefined,
+      type: "hook",
+      author: "Flicks India",
+      share_url: pageUrl,
+    },
+    anchor,
+  );
 };
 
-const shareHookPost = async (page: HookPage, post: PagePost) => {
+const shareHookPost = (page: HookPage, post: PagePost, anchor: HTMLElement) => {
   const pageUrl = `${window.location.origin}/?hook=${page.id}&post=${post.id}`;
   const media = post.media_url || page.cover_url || page.avatar_url || "";
-  const { universalShare } = await import("../lib/universalShare");
   const titleLine = page.name;
   const bodyLine  = post.content
     ? post.content.slice(0, 160)
     : `New post from "${page.name}" — check it out on Flicks.`;
-  const outcome = await universalShare({
-    title: titleLine,
-    text: `${titleLine}\n${bodyLine}`,
-    url: pageUrl,
-    mediaUrl: media || undefined,
-    type: "post",
-  });
-  if (outcome === "copied") toast.success("Link copied to clipboard");
+  requestShareModal(
+    {
+      id: `hook-post-${post.id}`,
+      title: titleLine,
+      content: `${titleLine}\n${bodyLine}`,
+      media_url: media || undefined,
+      type: "post",
+      author: "Flicks India",
+      share_url: pageUrl,
+    },
+    anchor,
+  );
 };
 
 // ── Rich Media Post Modal ──────────────────────────────────────────────────────
@@ -1247,7 +1254,7 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
               </motion.button>
             </>
           )}
-          <motion.button whileTap={{ scale: 0.93 }} onClick={() => shareHookPage(livePage)}
+          <motion.button whileTap={{ scale: 0.93 }} onClick={(event) => shareHookPage(livePage, event.currentTarget)}
             className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-[11px] font-black text-white"
             style={{ background: "rgba(255,255,255,0.13)", backdropFilter: "blur(10px)", border: "1px solid rgba(255,255,255,0.18)" }}>
             <Share2 size={13} /> Share
@@ -1697,7 +1704,7 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
                     currentUserId={userId}
                     dark={false}
                   />
-                  <motion.button whileTap={{ scale: 0.88 }} onClick={() => shareHookPost(livePage, post)}
+                  <motion.button whileTap={{ scale: 0.88 }} onClick={(event) => shareHookPost(livePage, post, event.currentTarget)}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[12px] font-black text-blue-400"
                     style={{ background: "rgba(37,99,235,0.13)", border: "1px solid rgba(37,99,235,0.25)" }}>
                     <Share2 size={13} /> Share

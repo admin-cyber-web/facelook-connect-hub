@@ -14,6 +14,7 @@ import {
 import { Helmet } from "react-helmet-async";
 import { supabase } from "@/lib/supabaseClient";
 import { resolveMediaUrl } from "@/lib/mediaUrl";
+import { requestShareModal } from "../lib/shareModal";
 import { toast } from "sonner";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -451,16 +452,20 @@ const SurveyCard: React.FC<{ survey: Survey; userId: string; onUpdate: () => voi
     setPosting(false);
   };
 
-  const handleShare = async () => {
+  const handleShare = (event: React.MouseEvent<HTMLButtonElement>) => {
     const deepLink = `${FLICKS_BASE}/survey/${survey.id}`;
-    const text = `📊 ${survey.question}\n${total} votes on FlicksIndia! Vote now 👇`;
-    if (navigator.share) {
-      try {
-        await navigator.share({ title: `Survey: ${survey.question}`, text, url: deepLink });
-        return;
-      } catch { /* fallthrough to drawer */ }
-    }
-    setShowShareDrawer(true);
+    requestShareModal(
+      {
+        id: `survey-${survey.id}`,
+        title: `Survey: ${survey.question}`,
+        content: `📊 ${survey.question}\n${total} votes on Flicks India! Vote now.`,
+        media_url: survey.image_url || undefined,
+        type: "post",
+        author: survey.profiles?.full_name || "Flicks India",
+        share_url: deepLink,
+      },
+      event.currentTarget,
+    );
   };
 
   return (
