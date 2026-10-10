@@ -18,23 +18,61 @@
  */
 
 export type PostType = "post" | "reel" | "circle" | "hook" | "quote" | "story";
+export type ShareTarget =
+  | "whatsapp"
+  | "messenger"
+  | "facebook"
+  | "twitter"
+  | "telegram";
 
 // ── Promo footer appended to every share ──────────────────────────────────────
+const FLICKS_BASE_URL = "https://flicksindia.online";
 const PROMO_FOOTER =
   "🎬 Join Flicks and update every time, everywhere.\n— Flicks India · flicksindia.online";
+
+export function buildPostShareUrl(postId: string): string {
+  return `${FLICKS_BASE_URL}/post/${encodeURIComponent(postId)}`;
+}
+
+function canonicalShareUrl(value: string): string {
+  try {
+    const parsed = new URL(value, FLICKS_BASE_URL);
+    const postPath = parsed.pathname.match(/\/post\/([^/]+)/);
+    const postId =
+      postPath?.[1] ||
+      parsed.searchParams.get("post") ||
+      parsed.searchParams.get("id");
+
+    if (postId) return buildPostShareUrl(decodeURIComponent(postId));
+    return parsed.toString();
+  } catch {
+    return value;
+  }
+}
 
 /**
  * Build the final share text: body + link (optional) + blank line + promo footer.
  * Safe to call with empty/null body/url.
  */
-export function buildShareText(body?: string | null, url?: string | null): string {
+export function buildShareText(
+  body?: string | null,
+  url?: string | null,
+  mediaUrl?: string | null,
+): string {
   const trimmed = (body || "").trim();
   const urlStr = (url || "").trim();
-  let text = trimmed;
+  const mediaUrlStr = (mediaUrl || "").trim();
+  const parts = [trimmed];
+
   if (urlStr && !trimmed.includes(urlStr)) {
-    text = text ? `${text}\n\n${urlStr}` : urlStr;
+    parts.push(`🔗 Open on Flicks India: ${urlStr}`);
   }
-  return text ? `${text}\n\n${PROMO_FOOTER}` : PROMO_FOOTER;
+  if (mediaUrlStr && !trimmed.includes(mediaUrlStr)) {
+    parts.push(`📸 View Media: ${mediaUrlStr}`);
+  }
+  parts.push(PROMO_FOOTER);
+
+  return parts.filter(Boolean).join("\n\n");
 }
 
 export interface UniversalShareInput {
@@ -42,8 +80,65 @@ export interface UniversalShareInput {
   text: string;
   url: string;
   mediaUrl?: string;
+  previewUrl?: string;
+  authorName?: string;
   canvas?: HTMLCanvasElement;
   type?: PostType;
+}
+
+export interface ShareTargetInput {
+  title: string;
+  text: string;
+  url: string;
+  mediaUrl?: string;
+  previewUrl?: string;
+  authorName?: string;
+  type?: PostType;
+}
+
+export function launchShareTarget(
+  platform: ShareTarget,
+  input: ShareTargetInput,
+): boolean {
+  const shareUrl = canonicalShareUrl(input.url);
+  const mediaUrl = input.mediaUrl || input.previewUrl;
+  const shareText = buildShareText(input.text, shareUrl, mediaUrl);
+  const bodyWithMedia = [
+    input.text.trim(),
+    mediaUrl ? `📸 View Media: ${mediaUrl}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+  const encodedUrl = encodeURIComponent(shareUrl);
+  const encodedText = encodeURIComponent(shareText);
+  const encodedBody = encodeURIComponent(bodyWithMedia);
+
+  let targetUrl: string;
+  switch (platform) {
+    case "whatsapp":
+      targetUrl = `https://wa.me/?text=${encodedText}`;
+      break;
+    case "messenger":
+      targetUrl = `https://www.facebook.com/dialog/send?link=${encodedUrl}`;
+      break;
+    case "facebook":
+      targetUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`;
+      break;
+    case "twitter":
+      targetUrl = `https://twitter.com/intent/tweet?text=${encodedBody}&url=${encodedUrl}`;
+      break;
+    case "telegram":
+      targetUrl = `https://t.me/share/url?url=${encodedUrl}&text=${encodedBody}`;
+      break;
+  }
+
+  if (typeof window === "undefined") return false;
+  try {
+    window.open(targetUrl, "_blank", "noopener,noreferrer");
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 declare global {
@@ -154,6 +249,11 @@ export function resolveShareMediaUrl(post: {
   return post.media_url || post.cover_url || post.meta_image;
 }
 
+export const resolveSharePreviewUrl = (url?: string): string => {
+  if (!url) return "";
+  return url;
+};
+
 /**
  * Use the Android WebView bridge when the native app provides it.
  *
@@ -208,10 +308,12 @@ export async function shareViaAndroid(
 export async function universalShare(
   input: UniversalShareInput,
 ): Promise<ShareOutcome> {
-  const { title, url, mediaUrl, canvas, type = "post" } = input;
+  const { title, canvas, type = "post" } = input;
+  const url = canonicalShareUrl(input.url);
+  const mediaUrl = input.mediaUrl || input.previewUrl;
 
-  // Always include link and promo footer in share text
-  const text = buildShareText(input.text, url);
+  // Keep the crawler-ready URL first and include the direct media URL in the text.
+  const text = buildShareText(input.text, url, mediaUrl);
 
   // Android handles the remote media natively. Do this before fetching a blob
   // so the WebView does not duplicate the media download in JavaScript.

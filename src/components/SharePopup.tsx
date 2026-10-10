@@ -210,7 +210,31 @@ const SharePopup: React.FC<SharePopupProps> = ({
 
   const { top, left, above } = calcPosition(anchor);
 
-  const thumbnail = canvas ? null : resolveSharePreviewUrl(post) || null;
+  const previewSource =
+    post.previewUrl ||
+    post.preview_url ||
+    post.videoThumbnailUrl ||
+    post.video_thumbnail_url ||
+    post.posterUrl ||
+    post.poster_url ||
+    post.thumbnailUrl ||
+    post.thumbnail_url ||
+    post.thumbUrl ||
+    post.thumb_url ||
+    post.coverUrl ||
+    post.cover_url ||
+    post.imageUrl ||
+    post.image_url ||
+    post.imageUrls?.[0] ||
+    post.image_urls?.[0] ||
+    post.meta_image ||
+    post.mediaUrl ||
+    post.media_url ||
+    post.videoUrl ||
+    post.video_url ||
+    resolveShareMediaUrl(post);
+  const resolvedPreviewUrl = resolveSharePreviewUrl(previewSource);
+  const thumbnail = canvas ? null : resolvedPreviewUrl || null;
   const caption =
     post.meta_title || post.content?.slice(0, 72) || "Check this out on Flicks!";
   const shareUrl = post.share_url || buildPostShareUrl(post.id);
@@ -218,9 +242,7 @@ const SharePopup: React.FC<SharePopupProps> = ({
 
   // Resolve the best media URL for this post type
   const mediaUrl = canvas ? undefined : resolveShareMediaUrl(post);
-  const previewUrl = canvas
-    ? undefined
-    : resolveSharePreviewUrl(post);
+  const previewUrl = canvas ? undefined : resolvedPreviewUrl;
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
