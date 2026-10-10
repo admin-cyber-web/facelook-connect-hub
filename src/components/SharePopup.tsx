@@ -27,6 +27,8 @@ export interface SharePostData {
   title?: string;
   content?: string;
   media_url?: string;
+  image_url?: string;
+  image_urls?: string[];
   video_url?: string;
   cover_url?: string;
   meta_image?: string;
@@ -192,10 +194,10 @@ const SharePopup: React.FC<SharePopupProps> = ({
   const isReel = post.type === "reel" || post.type === "video";
   const thumbnail = isReel
     ? post.cover_url || post.meta_image || post.media_url || null
-    : post.media_url || post.cover_url || post.meta_image || null;
+    : post.media_url || post.image_url || post.image_urls?.[0] || post.cover_url || post.meta_image || null;
   const caption =
     post.meta_title || post.content?.slice(0, 72) || "Check this out on Flicks!";
-  const shareUrl = buildPostShareUrl(post.id);
+  const shareUrl = post.share_url || buildPostShareUrl(post.id);
   const shareBody = post.content || post.meta_description || caption;
 
   // Resolve the best media URL for this post type
@@ -204,6 +206,8 @@ const SharePopup: React.FC<SharePopupProps> = ({
     : resolveShareMediaUrl({
         type: post.type,
         media_url: post.media_url,
+        image_url: post.image_url,
+        image_urls: post.image_urls,
          video_url: post.video_url,
         cover_url: post.cover_url,
         meta_image: post.meta_image,
@@ -309,7 +313,7 @@ const SharePopup: React.FC<SharePopupProps> = ({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.15 }}
-          className="fixed inset-0 z-[490]"
+          className="fixed inset-0 z-[10000]"
           style={{ background: "rgba(0,0,0,0.45)" }}
           onClick={onClose}
         />
@@ -322,7 +326,7 @@ const SharePopup: React.FC<SharePopupProps> = ({
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.82, y: above ? 8 : -8 }}
           transition={{ type: "spring", damping: 22, stiffness: 380 }}
-          className="fixed z-[500] select-none"
+          className="fixed z-[10001] select-none"
           style={{
             top,
             left,

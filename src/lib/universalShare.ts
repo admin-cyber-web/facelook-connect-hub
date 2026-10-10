@@ -297,6 +297,8 @@ function canvasToFileSync(canvas: HTMLCanvasElement): File | null {
 export function resolveShareMediaUrl(post: {
   type?: string;
   media_url?: string;
+  image_url?: string;
+  image_urls?: string[];
   video_url?: string;
   cover_url?: string;
   meta_image?: string;
@@ -304,12 +306,24 @@ export function resolveShareMediaUrl(post: {
   const t = post.type?.toLowerCase() ?? "";
 
   if (t === "reel" || t === "video") {
-    return post.media_url || post.video_url || post.cover_url;
+    return (
+      post.media_url ||
+      post.video_url ||
+      post.image_url ||
+      post.image_urls?.[0] ||
+      post.cover_url
+    );
   }
   if (t === "circle" || t === "hook") {
     return post.cover_url || post.media_url;
   }
-  return post.media_url || post.cover_url || post.meta_image;
+  return (
+    post.media_url ||
+    post.image_url ||
+    post.image_urls?.[0] ||
+    post.cover_url ||
+    post.meta_image
+  );
 }
 
 /**
