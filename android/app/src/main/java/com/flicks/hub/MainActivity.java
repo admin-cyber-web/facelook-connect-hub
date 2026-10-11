@@ -11,6 +11,7 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        registerPlugin(ProximityBlePlugin.class);
         super.onCreate(savedInstanceState);
 
         WebView webView = getBridge() != null ? getBridge().getWebView() : null;
