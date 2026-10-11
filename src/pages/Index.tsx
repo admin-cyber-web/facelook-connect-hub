@@ -78,6 +78,7 @@ const FameFeed       = lazy(() => import("@/components/FameFeed"));
 const StoryBar       = lazy(() => import("@/components/StoryBar"));
 const FlicksFeed     = lazy(() => import("@/components/FlicksFeed"));
 const ChatSystem     = lazy(() => import("@/components/ChatSystem"));
+const ProximitySatellite = lazy(() => import("@/components/ProximitySatellite"));
 const CirclePage     = lazy(() => import("@/components/CirclePage"));
 const HooksHub       = lazy(() => import("@/components/HooksHub"));
 const SurveyFeed     = lazy(() => import("@/components/SurveyFeed"));
@@ -4327,7 +4328,7 @@ const PersonalizationView = React.memo(({
                       </div>
 
                       <div>
-                        <div className="grid grid-cols-2 gap-2">
+                        <div className="grid grid-cols-2 gap-2 translate-y-1">
                           {[
                             { icon: <Utensils size={8} className="text-yellow-300" />, label: "Food" },
                             { icon: <Pill size={8} className="text-yellow-300" />, label: "Medicine" },
@@ -4346,17 +4347,6 @@ const PersonalizationView = React.memo(({
                           ))}
                         </div>
 
-                        <div className="mt-1 flex items-center gap-1">
-                          <div className="h-1 flex-1 overflow-hidden rounded-full bg-white/50">
-                            <div className="h-full w-1/2 rounded-full bg-yellow-300" />
-                          </div>
-                          <HelpCircle size={9} className="shrink-0 text-yellow-300" />
-                          <span className="whitespace-nowrap text-[9px] font-black leading-none sm:text-[10px]">₹250 / ₹500</span>
-                        </div>
-                        <div className="mt-0.5 flex items-center justify-between">
-                          <span className="text-[9px] font-black tracking-widest text-yellow-300 sm:text-[10px]">FREE</span>
-                          <span className="text-[9px] font-black leading-none text-white sm:text-[10px]">₹250 / ₹500</span>
-                        </div>
                       </div>
                     </div>
                   </motion.button>
@@ -5208,6 +5198,25 @@ const PersonalizationView = React.memo(({
           </motion.div>
         </AnimatePresence>
       </main>
+
+      {!isGuest && userId && (
+        <ErrorBoundary>
+          <Suspense fallback={null}>
+            <ProximitySatellite
+              userId={userId}
+              profile={profile}
+              canAdvertise={
+                recPeopleNearby &&
+                !profileLocked &&
+                !profileHidden &&
+                !isPrivateMode &&
+                !activeHide &&
+                accountStatus === "active"
+              }
+            />
+          </Suspense>
+        </ErrorBoundary>
+      )}
 
       {/* Chat System ───────────────────────────────────────────────────────── */}
       <ErrorBoundary onError={() => setIsChatOpen(false)}>

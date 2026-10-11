@@ -4835,6 +4835,37 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                           >
                             🙈 Hide Chat
                           </button>
+                          {friendshipMap.get(selectedUser.id)?.status === "accepted" && (
+                            <button
+                              disabled={actionLoading === friendshipMap.get(selectedUser.id)?.id}
+                              onClick={async () => {
+                                const friendship = friendshipMap.get(selectedUser.id);
+                                if (!friendship || friendship.status !== "accepted") return;
+                                setActionLoading(friendship.id);
+                                try {
+                                  const { error } = await supabase
+                                    .from("friendships")
+                                    .delete()
+                                    .eq("id", friendship.id);
+                                  if (error) {
+                                    toast.error("Could not disconnect this connection.");
+                                    return;
+                                  }
+                                  await Promise.all([fetchFriendships(), fetchContacts()]);
+                                  toggleArchive(selectedUser.id);
+                                  setSelectedUser(null);
+                                  setMessages([]);
+                                  setShowChatMenu(false);
+                                  toast.success("Connection removed.");
+                                } finally {
+                                  setActionLoading("");
+                                }
+                              }}
+                              className="flex w-full items-center gap-2 px-4 py-3 text-sm font-bold text-red-300 hover:bg-red-500/10 disabled:opacity-50"
+                            >
+                              <UserX size={15} /> Disconnect connection
+                            </button>
+                          )}
                           <button
                             onClick={() => {
                               setPanicMode(true);
