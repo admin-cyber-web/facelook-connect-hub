@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, lazy, Suspense } from "react";
 import { createPortal } from "react-dom";
+import videoCallBanner from "../../attached_assets/0_video_call_1791702689997.jpg";
 import { requestShareModal } from "../lib/shareModal";
 import { motion, AnimatePresence } from "framer-motion";
 import type { Session } from "@supabase/supabase-js";
@@ -4112,48 +4113,104 @@ const PersonalizationView = React.memo(({
                   <motion.button
                     whileTap={{ scale: 0.97 }}
                     onClick={() => setIsVideoCallOpen(true)}
-                    className="flex flex-col items-start text-left bg-white rounded-2xl overflow-hidden"
-                    style={{ border: "1.5px solid #e5e7eb", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}
+                    aria-label="Open Fun Video Call and start a live stranger call"
+                    className="relative flex flex-col items-start text-left bg-white rounded-2xl overflow-hidden"
+                    style={{
+                      border: "1.5px solid #e5e7eb",
+                      boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
+                      backgroundColor: "#98c0b8",
+                    }}
                   >
-                    {/* Header row */}
-                    <div className="flex items-center gap-1.5 px-3 pt-3 pb-1.5 w-full border-b border-gray-100">
-                      <div className="w-6 h-6 rounded-lg bg-violet-100 flex items-center justify-center shrink-0">
-                        <Video size={13} className="text-violet-600" />
+                    {/* Preserve the original card's intrinsic dimensions. */}
+                    <div aria-hidden="true" className="invisible flex w-full flex-col items-start">
+                      {/* Header row */}
+                      <div className="flex items-center gap-1.5 px-3 pt-3 pb-1.5 w-full border-b border-gray-100">
+                        <div className="w-6 h-6 rounded-lg bg-violet-100 flex items-center justify-center shrink-0">
+                          <Video size={13} className="text-violet-600" />
+                        </div>
+                        <span className="text-[11px] font-black text-gray-800 leading-none">Fun Video Call</span>
                       </div>
-                      <span className="text-[11px] font-black text-gray-800 leading-none">Fun Video Call</span>
+
+                      {/* Emoji row */}
+                      <div className="flex items-center justify-center gap-1 py-2 w-full">
+                        <span
+                          className="perf-float text-[22px] leading-none"
+                          style={{ "--perf-duration": "1.6s" } as React.CSSProperties}
+                        >😊</span>
+                        <span
+                          className="perf-float text-[18px] leading-none"
+                          style={{ "--perf-duration": "1.4s", "--perf-delay": "0.3s", "--perf-y": "-5px" } as React.CSSProperties}
+                        >🎉</span>
+                        <span
+                          className="perf-float text-[20px] leading-none"
+                          style={{ "--perf-duration": "1.8s", "--perf-delay": "0.6s" } as React.CSSProperties}
+                        >✨</span>
+                      </div>
+
+                      {/* Buttons */}
+                      <div className="flex flex-col gap-1.5 px-2.5 pb-3 w-full">
+                        <div
+                          className="flex items-center justify-center gap-1.5 py-1.5 rounded-full"
+                          style={{ background: "linear-gradient(90deg,#7c3aed,#6366f1)", boxShadow: "0 2px 8px rgba(99,102,241,0.35)" }}
+                        >
+                          <UserRound size={11} className="text-white" />
+                          <span className="text-[10px] font-black text-white tracking-wide">Stranger Call</span>
+                        </div>
+                        <div
+                          className="flex items-center justify-center gap-1.5 py-1.5 rounded-full"
+                          style={{ background: "linear-gradient(90deg,#ef4444,#f97316)", boxShadow: "0 2px 8px rgba(239,68,68,0.30)" }}
+                        >
+                          <Radio size={11} className="text-white" />
+                          <span className="text-[10px] font-black text-white tracking-wide">Live</span>
+                        </div>
+                      </div>
                     </div>
 
-                    {/* Emoji row */}
-                    <div className="flex items-center justify-center gap-1 py-2 w-full">
-                      <span
-                        className="perf-float text-[22px] leading-none"
-                        style={{ "--perf-duration": "1.6s" } as React.CSSProperties}
-                      >😊</span>
-                      <span
-                        className="perf-float text-[18px] leading-none"
-                        style={{ "--perf-duration": "1.4s", "--perf-delay": "0.3s", "--perf-y": "-5px" } as React.CSSProperties}
-                      >🎉</span>
-                      <span
-                        className="perf-float text-[20px] leading-none"
-                        style={{ "--perf-duration": "1.8s", "--perf-delay": "0.6s" } as React.CSSProperties}
-                      >✨</span>
-                    </div>
-
-                    {/* Buttons */}
-                    <div className="flex flex-col gap-1.5 px-2.5 pb-3 w-full">
-                      <div
-                        className="flex items-center justify-center gap-1.5 py-1.5 rounded-full"
-                        style={{ background: "linear-gradient(90deg,#7c3aed,#6366f1)", boxShadow: "0 2px 8px rgba(99,102,241,0.35)" }}
-                      >
-                        <UserRound size={11} className="text-white" />
-                        <span className="text-[10px] font-black text-white tracking-wide">Stranger Call</span>
+                    <img
+                      src={videoCallBanner}
+                      alt=""
+                      aria-hidden="true"
+                      className="absolute inset-0 h-full w-full select-none object-contain object-left"
+                      decoding="async"
+                      draggable={false}
+                    />
+                    <div
+                      aria-hidden="true"
+                      className="pointer-events-none absolute inset-y-2 left-[52%] right-2 z-10 flex min-w-0 flex-col justify-center gap-1.5 text-[#103b35] drop-shadow-[0_1px_1px_rgba(255,255,255,0.85)]"
+                    >
+                      <span className="whitespace-nowrap text-[clamp(7px,2.2vw,9px)] font-black leading-tight">
+                        Fun Video Call
+                      </span>
+                      <div className="flex h-4 items-center gap-1">
+                        <span
+                          className="perf-float text-[13px] leading-none"
+                          style={{ "--perf-duration": "1.6s" } as React.CSSProperties}
+                        >😊</span>
+                        <span
+                          className="perf-float text-[11px] leading-none"
+                          style={{ "--perf-duration": "1.4s", "--perf-delay": "0.3s", "--perf-y": "-3px" } as React.CSSProperties}
+                        >🎉</span>
+                        <span
+                          className="perf-float text-[12px] leading-none"
+                          style={{ "--perf-duration": "1.8s", "--perf-delay": "0.6s" } as React.CSSProperties}
+                        >✨</span>
                       </div>
-                      <div
-                        className="flex items-center justify-center gap-1.5 py-1.5 rounded-full"
-                        style={{ background: "linear-gradient(90deg,#ef4444,#f97316)", boxShadow: "0 2px 8px rgba(239,68,68,0.30)" }}
-                      >
-                        <Radio size={11} className="text-white" />
-                        <span className="text-[10px] font-black text-white tracking-wide">Live</span>
+                      <div className="flex items-center gap-0.5 whitespace-nowrap">
+                        <span className="relative flex h-3.5 w-3.5 shrink-0 items-center justify-center">
+                          <span className="absolute inset-0 animate-ping rounded-full border border-violet-800/70" />
+                          <PhoneCall size={9} className="relative text-violet-900" />
+                        </span>
+                        <span className="text-[clamp(6px,1.7vw,8px)] font-black leading-none">
+                          Stranger Call
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1 whitespace-nowrap">
+                        <span className="relative flex h-2 w-2 shrink-0 items-center justify-center">
+                          <span className="absolute h-2 w-2 animate-ping rounded-full bg-rose-500/70" />
+                          <span className="relative h-1.5 w-1.5 rounded-full bg-rose-600 shadow-[0_0_6px_rgba(225,29,72,0.9)]" />
+                        </span>
+                        <Radio size={10} className="animate-pulse text-rose-800" />
+                        <span className="text-[8px] font-black leading-none">Live</span>
                       </div>
                     </div>
                   </motion.button>
