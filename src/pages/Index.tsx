@@ -2141,7 +2141,7 @@ const RotatingFrameHelpTagline = () => {
           animate={{ opacity: 1, y: 0, rotateX: 0 }}
           exit={{ opacity: 0, y: -5, rotateX: 24 }}
           transition={{ duration: 0.3, ease: "easeOut" }}
-          className="absolute inset-0 flex items-center text-[7px] font-bold leading-tight text-slate-950"
+          className="absolute inset-0 flex items-center text-[7px] font-black leading-tight text-white"
         >
           {FRAME_HELP_TAGLINES[activeTagline]}
         </motion.span>
@@ -4306,19 +4306,22 @@ const PersonalizationView = React.memo(({
                     </div>
 
                     <img
-                      src="https://res.cloudinary.com/dzlazqbvf/image/upload/v1791711122/help_poor_vdohwp.jpg"
+                      src="https://res.cloudinary.com/dzlazqbvf/image/upload/v1791712547/help_hand_aurpup.jpg"
                       alt=""
                       aria-hidden="true"
-                      className="absolute inset-0 h-full w-full select-none object-contain"
+                      className="absolute inset-0 h-full w-full select-none object-cover object-left"
                       loading="lazy"
                       decoding="async"
                       draggable={false}
                     />
-                    <div className="pointer-events-none absolute inset-0 z-10 flex flex-col justify-between p-2 text-slate-950 drop-shadow-[0_1px_2px_rgba(255,255,255,0.95)]">
+                    <div
+                      className="pointer-events-none absolute inset-y-0 left-0 z-10 flex w-[48%] flex-col justify-between p-2 text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]"
+                      style={{ textShadow: "0 1px 2px rgba(0,0,0,0.95), 0 0 5px rgba(0,0,0,0.75)" }}
+                    >
                       <div>
                         <div className="flex items-center gap-1">
-                          <HelpCircle size={11} className="shrink-0 text-blue-800" />
-                          <span className="text-[9px] font-black leading-none">Flicks Frame</span>
+                          <HelpCircle size={11} className="shrink-0 text-yellow-300" />
+                          <span className="text-[9px] font-black leading-none text-white">Flicks Frame</span>
                         </div>
                         <RotatingFrameHelpTagline />
                       </div>
@@ -4326,28 +4329,28 @@ const PersonalizationView = React.memo(({
                       <div>
                         <div className="grid grid-cols-4 gap-1">
                           {[
-                            { icon: <Utensils size={10} className="text-blue-800" />, label: "Food" },
-                            { icon: <Pill size={10} className="text-blue-800" />, label: "Med" },
-                            { icon: <Shirt size={10} className="text-blue-800" />, label: "Clothes" },
-                            { icon: <GraduationCap size={10} className="text-blue-800" />, label: "School" },
+                            { icon: <Utensils size={9} className="text-yellow-300" />, label: "Food" },
+                            { icon: <Pill size={9} className="text-yellow-300" />, label: "Med" },
+                            { icon: <Shirt size={9} className="text-yellow-300" />, label: "Clothes" },
+                            { icon: <GraduationCap size={9} className="text-yellow-300" />, label: "School" },
                           ].map(({ icon, label }) => (
                             <div key={label} className="flex flex-col items-center gap-0.5">
                               <div className="flex h-3 w-4 items-center justify-center">{icon}</div>
-                              <span className="text-[6px] font-black leading-none text-slate-950">{label}</span>
+                              <span className="text-[6px] font-black leading-none text-white">{label}</span>
                             </div>
                           ))}
                         </div>
 
                         <div className="mt-1 flex items-center gap-1">
-                          <div className="h-1 flex-1 overflow-hidden rounded-full bg-slate-950/25">
-                            <div className="h-full w-1/2 rounded-full bg-blue-800" />
+                          <div className="h-1 flex-1 overflow-hidden rounded-full bg-white/50">
+                            <div className="h-full w-1/2 rounded-full bg-yellow-300" />
                           </div>
-                          <HelpCircle size={9} className="shrink-0 text-blue-800" />
+                          <HelpCircle size={9} className="shrink-0 text-yellow-300" />
                           <span className="whitespace-nowrap text-[7px] font-black leading-none">₹250 / ₹500</span>
                         </div>
                         <div className="mt-0.5 flex items-center justify-between">
-                          <span className="text-[8px] font-black tracking-widest text-amber-900">FREE</span>
-                          <span className="text-[7px] font-bold leading-none">₹250 / ₹500</span>
+                          <span className="text-[8px] font-black tracking-widest text-yellow-300">FREE</span>
+                          <span className="text-[7px] font-black leading-none text-white">₹250 / ₹500</span>
                         </div>
                       </div>
                     </div>
