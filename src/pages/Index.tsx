@@ -2116,6 +2116,40 @@ const PersonalInfoView = React.memo(({
   );
 });
 
+const FRAME_HELP_TAGLINES = [
+  "एक छोटी मदद, बड़ा बदलाव ❤️",
+  "आगे आएं, मदद का हाथ बढ़ाएं 🤝",
+  "साथ मिलकर किसी की राह आसान करें ✨",
+];
+
+const RotatingFrameHelpTagline = () => {
+  const [activeTagline, setActiveTagline] = useState(0);
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      setActiveTagline((current) => (current + 1) % FRAME_HELP_TAGLINES.length);
+    }, 2800);
+    return () => window.clearInterval(intervalId);
+  }, []);
+
+  return (
+    <div aria-live="off" className="relative mt-0.5 h-5 overflow-hidden">
+      <AnimatePresence initial={false} mode="wait">
+        <motion.span
+          key={activeTagline}
+          initial={{ opacity: 0, y: 5, rotateX: -24 }}
+          animate={{ opacity: 1, y: 0, rotateX: 0 }}
+          exit={{ opacity: 0, y: -5, rotateX: 24 }}
+          transition={{ duration: 0.3, ease: "easeOut" }}
+          className="absolute inset-0 flex items-center text-[7px] font-bold leading-tight text-slate-950"
+        >
+          {FRAME_HELP_TAGLINES[activeTagline]}
+        </motion.span>
+      </AnimatePresence>
+    </div>
+  );
+};
+
 // ── Component ────────────────────────────────────────────────────────────────
 const Index = ({ session, initialAdminOpen, isGuest = false }: { session: Session; initialAdminOpen?: boolean; isGuest?: boolean }) => {
   const onlineUserIds = useOnlineUsers();
@@ -4219,52 +4253,102 @@ const PersonalizationView = React.memo(({
                   <motion.button
                     whileTap={{ scale: 0.97 }}
                     onClick={() => setIsFrameMode(true)}
-                    className="flex flex-col items-start text-left bg-white rounded-2xl overflow-hidden"
+                    className="relative flex flex-col items-start text-left bg-white rounded-2xl overflow-hidden"
                     style={{ border: "1.5px solid #e5e7eb", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}
                   >
-                    {/* Header row */}
-                    <div className="flex items-center gap-1.5 px-3 pt-3 pb-1.5 w-full border-b border-gray-100">
-                      <div className="w-6 h-6 rounded-lg bg-blue-100 flex items-center justify-center shrink-0">
-                        <HelpCircle size={13} className="text-blue-600" />
+                    {/* Retain the original content flow so the card keeps its exact size. */}
+                    <div aria-hidden="true" className="invisible flex w-full flex-col items-start">
+                      {/* Header row */}
+                      <div className="flex items-center gap-1.5 px-3 pt-3 pb-1.5 w-full border-b border-gray-100">
+                        <div className="w-6 h-6 rounded-lg bg-blue-100 flex items-center justify-center shrink-0">
+                          <HelpCircle size={13} className="text-blue-600" />
+                        </div>
+                        <span className="text-[11px] font-black text-gray-800 leading-none">Flicks Frame</span>
                       </div>
-                      <span className="text-[11px] font-black text-gray-800 leading-none">Flicks Frame</span>
-                    </div>
 
-                    {/* Category icons — 4-grid */}
-                    <div className="grid grid-cols-4 gap-0 px-2 pt-2 pb-1 w-full">
-                      {[
-                        { icon: <Utensils size={12} className="text-blue-500" />, label: "Food" },
-                        { icon: <Pill size={12} className="text-blue-500" />, label: "Med" },
-                        { icon: <Shirt size={12} className="text-blue-500" />, label: "Clothes" },
-                        { icon: <GraduationCap size={12} className="text-blue-500" />, label: "School" },
-                      ].map(({ icon, label }) => (
-                        <div key={label} className="flex flex-col items-center gap-0.5">
-                          <div className="w-6 h-6 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center">
-                            {icon}
+                      {/* Category icons — 4-grid */}
+                      <div className="grid grid-cols-4 gap-0 px-2 pt-2 pb-1 w-full">
+                        {[
+                          { icon: <Utensils size={12} className="text-blue-500" />, label: "Food" },
+                          { icon: <Pill size={12} className="text-blue-500" />, label: "Med" },
+                          { icon: <Shirt size={12} className="text-blue-500" />, label: "Clothes" },
+                          { icon: <GraduationCap size={12} className="text-blue-500" />, label: "School" },
+                        ].map(({ icon, label }) => (
+                          <div key={label} className="flex flex-col items-center gap-0.5">
+                            <div className="w-6 h-6 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center">
+                              {icon}
+                            </div>
+                            <span className="text-[7px] font-bold text-blue-400 leading-none">{label}</span>
                           </div>
-                          <span className="text-[7px] font-bold text-blue-400 leading-none">{label}</span>
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* Progress bar */}
-                    <div className="px-2.5 pt-1 pb-0.5 w-full">
-                      <div className="flex items-center gap-1">
-                        <div className="flex-1 h-1.5 rounded-full bg-gray-100 overflow-hidden">
-                          <div className="h-full rounded-full bg-blue-500" style={{ width: "50%" }} />
-                        </div>
-                        <HelpCircle size={9} className="text-blue-400 shrink-0" />
+                        ))}
                       </div>
-                      <p className="text-[8px] text-gray-400 font-bold mt-0.5">₹250 / ₹500</p>
+
+                      {/* Progress bar */}
+                      <div className="px-2.5 pt-1 pb-0.5 w-full">
+                        <div className="flex items-center gap-1">
+                          <div className="flex-1 h-1.5 rounded-full bg-gray-100 overflow-hidden">
+                            <div className="h-full rounded-full bg-blue-500" style={{ width: "50%" }} />
+                          </div>
+                          <HelpCircle size={9} className="text-blue-400 shrink-0" />
+                        </div>
+                        <p className="text-[8px] text-gray-400 font-bold mt-0.5">₹250 / ₹500</p>
+                      </div>
+
+                      {/* FREE badge */}
+                      <div className="px-2.5 pb-3 w-full">
+                        <div className="flex items-center gap-1.5">
+                          <div className="px-2 py-0.5 rounded" style={{ background: "#fef9c3" }}>
+                            <span className="text-[9px] font-black text-yellow-700 tracking-widest">FREE</span>
+                          </div>
+                          <span className="text-[8px] text-gray-400 font-semibold">₹250 / ₹500</span>
+                        </div>
+                      </div>
                     </div>
 
-                    {/* FREE badge */}
-                    <div className="px-2.5 pb-3 w-full">
-                      <div className="flex items-center gap-1.5">
-                        <div className="px-2 py-0.5 rounded" style={{ background: "#fef9c3" }}>
-                          <span className="text-[9px] font-black text-yellow-700 tracking-widest">FREE</span>
+                    <img
+                      src="https://res.cloudinary.com/dzlazqbvf/image/upload/v1791711122/help_poor_vdohwp.jpg"
+                      alt=""
+                      aria-hidden="true"
+                      className="absolute inset-0 h-full w-full select-none object-contain"
+                      loading="lazy"
+                      decoding="async"
+                      draggable={false}
+                    />
+                    <div className="pointer-events-none absolute inset-0 z-10 flex flex-col justify-between p-2 text-slate-950 drop-shadow-[0_1px_2px_rgba(255,255,255,0.95)]">
+                      <div>
+                        <div className="flex items-center gap-1">
+                          <HelpCircle size={11} className="shrink-0 text-blue-800" />
+                          <span className="text-[9px] font-black leading-none">Flicks Frame</span>
                         </div>
-                        <span className="text-[8px] text-gray-400 font-semibold">₹250 / ₹500</span>
+                        <RotatingFrameHelpTagline />
+                      </div>
+
+                      <div>
+                        <div className="grid grid-cols-4 gap-1">
+                          {[
+                            { icon: <Utensils size={10} className="text-blue-800" />, label: "Food" },
+                            { icon: <Pill size={10} className="text-blue-800" />, label: "Med" },
+                            { icon: <Shirt size={10} className="text-blue-800" />, label: "Clothes" },
+                            { icon: <GraduationCap size={10} className="text-blue-800" />, label: "School" },
+                          ].map(({ icon, label }) => (
+                            <div key={label} className="flex flex-col items-center gap-0.5">
+                              <div className="flex h-3 w-4 items-center justify-center">{icon}</div>
+                              <span className="text-[6px] font-black leading-none text-slate-950">{label}</span>
+                            </div>
+                          ))}
+                        </div>
+
+                        <div className="mt-1 flex items-center gap-1">
+                          <div className="h-1 flex-1 overflow-hidden rounded-full bg-slate-950/25">
+                            <div className="h-full w-1/2 rounded-full bg-blue-800" />
+                          </div>
+                          <HelpCircle size={9} className="shrink-0 text-blue-800" />
+                          <span className="whitespace-nowrap text-[7px] font-black leading-none">₹250 / ₹500</span>
+                        </div>
+                        <div className="mt-0.5 flex items-center justify-between">
+                          <span className="text-[8px] font-black tracking-widest text-amber-900">FREE</span>
+                          <span className="text-[7px] font-bold leading-none">₹250 / ₹500</span>
+                        </div>
                       </div>
                     </div>
                   </motion.button>
