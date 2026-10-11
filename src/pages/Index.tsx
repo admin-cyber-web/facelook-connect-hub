@@ -2133,7 +2133,7 @@ const RotatingFrameHelpTagline = () => {
   }, []);
 
   return (
-    <div aria-live="off" className="relative mt-0.5 h-5 overflow-hidden">
+    <div aria-live="off" className="relative mt-0.5 h-8 overflow-hidden">
       <AnimatePresence initial={false} mode="wait">
         <motion.span
           key={activeTagline}
@@ -2141,7 +2141,7 @@ const RotatingFrameHelpTagline = () => {
           animate={{ opacity: 1, y: 0, rotateX: 0 }}
           exit={{ opacity: 0, y: -5, rotateX: 24 }}
           transition={{ duration: 0.3, ease: "easeOut" }}
-          className="absolute inset-0 flex items-center text-[7px] font-black leading-tight text-white"
+          className="absolute inset-0 flex items-center text-[10px] font-black leading-tight text-white sm:text-xs"
         >
           {FRAME_HELP_TAGLINES[activeTagline]}
         </motion.span>
@@ -4321,22 +4321,27 @@ const PersonalizationView = React.memo(({
                       <div>
                         <div className="flex items-center gap-1">
                           <HelpCircle size={11} className="shrink-0 text-yellow-300" />
-                          <span className="text-[9px] font-black leading-none text-white">Flicks Frame</span>
+                          <span className="text-[11px] font-black leading-tight text-white sm:text-xs">Flicks Frame</span>
                         </div>
                         <RotatingFrameHelpTagline />
                       </div>
 
                       <div>
-                        <div className="grid grid-cols-4 gap-1">
+                        <div className="grid grid-cols-2 gap-2">
                           {[
-                            { icon: <Utensils size={9} className="text-yellow-300" />, label: "Food" },
-                            { icon: <Pill size={9} className="text-yellow-300" />, label: "Med" },
-                            { icon: <Shirt size={9} className="text-yellow-300" />, label: "Clothes" },
-                            { icon: <GraduationCap size={9} className="text-yellow-300" />, label: "School" },
+                            { icon: <Utensils size={8} className="text-yellow-300" />, label: "Food" },
+                            { icon: <Pill size={8} className="text-yellow-300" />, label: "Medicine" },
+                            { icon: <Shirt size={8} className="text-yellow-300" />, label: "Clothes" },
+                            { icon: <GraduationCap size={8} className="text-yellow-300" />, label: "School" },
                           ].map(({ icon, label }) => (
-                            <div key={label} className="flex flex-col items-center gap-0.5">
-                              <div className="flex h-3 w-4 items-center justify-center">{icon}</div>
-                              <span className="text-[6px] font-black leading-none text-white">{label}</span>
+                            <div
+                              key={label}
+                              className="flex min-w-0 flex-col items-center justify-center gap-px rounded-full border border-white/75 px-1 py-0.5"
+                            >
+                              <div className="flex h-2 w-full items-center justify-center">{icon}</div>
+                              <span className="text-[8px] font-black leading-none text-center text-white tracking-tighter sm:text-[9px]">
+                                {label}
+                              </span>
                             </div>
                           ))}
                         </div>
@@ -4346,11 +4351,11 @@ const PersonalizationView = React.memo(({
                             <div className="h-full w-1/2 rounded-full bg-yellow-300" />
                           </div>
                           <HelpCircle size={9} className="shrink-0 text-yellow-300" />
-                          <span className="whitespace-nowrap text-[7px] font-black leading-none">₹250 / ₹500</span>
+                          <span className="whitespace-nowrap text-[9px] font-black leading-none sm:text-[10px]">₹250 / ₹500</span>
                         </div>
                         <div className="mt-0.5 flex items-center justify-between">
-                          <span className="text-[8px] font-black tracking-widest text-yellow-300">FREE</span>
-                          <span className="text-[7px] font-black leading-none text-white">₹250 / ₹500</span>
+                          <span className="text-[9px] font-black tracking-widest text-yellow-300 sm:text-[10px]">FREE</span>
+                          <span className="text-[9px] font-black leading-none text-white sm:text-[10px]">₹250 / ₹500</span>
                         </div>
                       </div>
                     </div>
