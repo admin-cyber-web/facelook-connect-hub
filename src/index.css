@@ -1830,3 +1830,15 @@ body.body-locked {
   .chat19-language-en { opacity: 1; transform: none; }
   .chat19-language-hi { opacity: 0; transform: none; }
 }
+
+@keyframes fun-call-phone-float {
+  0%, 100% { transform: translateY(0) rotate(-3deg); }
+  50% { transform: translateY(-4px) rotate(3deg); }
+}
+.fun-call-phone-float {
+  animation: fun-call-phone-float 2.8s ease-in-out infinite;
+  will-change: transform;
+}
+@media (prefers-reduced-motion: reduce) {
+  .fun-call-phone-float { animation: none; }
+}

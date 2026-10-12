@@ -4164,8 +4164,20 @@ const PersonalizationView = React.memo(({
                     />
                     <div
                       aria-hidden="true"
-                      className="pointer-events-none absolute inset-y-0 left-0 z-10 flex w-[36%] min-w-0 flex-col justify-center gap-1 pl-2 pr-1 text-left"
+                      className="pointer-events-none absolute inset-y-0 left-0 z-10 flex w-[47%] min-w-0 flex-col justify-between p-2 text-left text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]"
+                      style={{ textShadow: "0 1px 2px rgba(0,0,0,0.95), 0 0 5px rgba(0,0,0,0.75)" }}
                     >
+                      <span className="whitespace-nowrap text-[11px] font-black leading-tight text-white sm:text-xs">
+                        Fun Video Call
+                      </span>
+                      <div className="flex min-h-0 flex-1 items-center justify-center py-1">
+                        <div className="fun-call-phone-float relative flex h-[38px] w-[25px] items-center justify-center rounded-[6px] border-2 border-slate-900 bg-white/95 shadow-md">
+                          <span className="absolute inset-[3px] rounded-[3px] bg-sky-100" />
+                          <span className="absolute top-[2px] z-10 h-[2px] w-[6px] rounded-full bg-slate-900" />
+                          <PhoneCall size={11} className="relative z-10 text-blue-600" />
+                          <span className="absolute bottom-[2px] z-10 h-[2px] w-[5px] rounded-full bg-slate-900" />
+                        </div>
+                      </div>
                       <motion.p
                         initial={{ opacity: 0, x: -8 }}
                         animate={{ opacity: 1, x: 0 }}
