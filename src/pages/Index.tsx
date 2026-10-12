@@ -4166,19 +4166,14 @@ const PersonalizationView = React.memo(({
                       aria-hidden="true"
                       className="pointer-events-none absolute inset-y-0 left-0 z-10 flex w-[36%] min-w-0 flex-col justify-center gap-1 pl-2 pr-1 text-left"
                     >
-                      <span
-                        className="text-[clamp(42px,12vw,54px)] font-black leading-[0.82] text-white"
-                        style={{
-                          WebkitTextStroke: "2px #1685ff",
-                          paintOrder: "stroke fill",
-                          textShadow: "0 2px 1px rgba(0,0,0,0.12)",
-                        }}
+                      <motion.p
+                        initial={{ opacity: 0, x: -8 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ duration: 0.3, ease: "easeOut" }}
+                        className="text-[clamp(9px,2vw,11px)] font-black leading-[1.1] text-[#3a2b08]"
                       >
-                        2
-                      </span>
-                      <p className="text-[clamp(7px,2vw,9px)] font-black leading-[1.08] text-[#3a2b08]">
-                        No profile views yet? Let&apos;s check some online profiles or profiles near you.
-                      </p>
+                        fun video call any where anyone
+                      </motion.p>
                     </div>
                   </motion.button>
 
@@ -4186,7 +4181,7 @@ const PersonalizationView = React.memo(({
                   <motion.button
                     whileTap={{ scale: 0.97 }}
                     onClick={() => setIsFrameMode(true)}
-                    className="relative flex flex-col items-start text-left bg-white rounded-2xl overflow-hidden"
+                    className="relative flex h-[132px] w-full flex-col items-start overflow-hidden rounded-2xl bg-white p-0 text-left"
                     style={{ border: "1.5px solid #e5e7eb", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}
                   >
                     {/* Retain the original content flow so the card keeps its exact size. */}
