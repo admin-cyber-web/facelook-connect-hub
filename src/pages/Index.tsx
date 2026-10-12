@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef, lazy, Suspense } from "react";
 import { createPortal } from "react-dom";
-import videoCallBanner from "../../attached_assets/0_video_call_1791702689997.jpg";
 import { requestShareModal } from "../lib/shareModal";
 import { motion, AnimatePresence } from "framer-motion";
 import type { Session } from "@supabase/supabase-js";
@@ -91,6 +90,7 @@ const ReelStudio     = lazy(() => import("@/components/ReelStudio"));
 const ConnectionPanel= lazy(() => import("@/components/ConnectionPanel"));
 const CreatePost     = lazy(() => import("@/components/CreatePost"));
 const Chat19         = lazy(() => import("@/components/Chat19"));
+const videoCallBanner = "https://res.cloudinary.com/dzlazqbvf/image/upload/v1791806121/fun_call_ori_jxmngl.jpg";
 // ── Reusable styled blocks ───────────────────────────────────────────────────
 const GlassCard = ({ children, className = "", noPadding = false }: any) => (
   <div
