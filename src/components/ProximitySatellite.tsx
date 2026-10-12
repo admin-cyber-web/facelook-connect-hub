@@ -3,8 +3,6 @@ import { createPortal } from "react-dom";
 import { Capacitor, registerPlugin, type PluginListenerHandle } from "@capacitor/core";
 import {
   Bluetooth,
-  ChevronDown,
-  ChevronUp,
   Loader2,
   Satellite,
   ShieldCheck,
@@ -151,13 +149,14 @@ export default function ProximitySatellite({
   );
   const [expanded, setExpanded] = useState(false);
   const [status, setStatus] = useState(
-    androidNative ? "Starting local Bluetooth…" : "Use the Android app for automatic BLE",
+    androidNative ? "Starting local Bluetooth…" : "Browser fallback simulation · BLE unavailable",
   );
   const [nativeReady, setNativeReady] = useState(false);
   const [preparedProfile, setPreparedProfile] = useState<AdvertisedProfile | null>(
     () => readCachedProfile(userId),
   );
   const [activeSignals, setActiveSignals] = useState<Set<string>>(() => new Set());
+  const [nearbyDevices, setNearbyDevices] = useState<NearbyPeer[]>([]);
   const [peerQueue, setPeerQueue] = useState<NearbyPeer[]>([]);
   const [busy, setBusy] = useState(false);
   const announcedTokens = useRef(new Set<string>());
@@ -248,6 +247,7 @@ export default function ProximitySatellite({
               next.delete(token);
               return next;
             });
+            setNearbyDevices((current) => current.filter((peer) => peer.peerToken !== token));
           }),
         );
         listeners.push(
@@ -269,6 +269,10 @@ export default function ProximitySatellite({
               approximateMeters: Number(rawPeer.approximateMeters) || undefined,
             };
             setPeerQueue((current) => [...current.filter((item) => item.peerToken !== peerToken), peer]);
+            setNearbyDevices((current) => [
+              ...current.filter((item) => item.peerToken !== peerToken),
+              peer,
+            ]);
           }),
         );
 
@@ -454,94 +458,158 @@ export default function ProximitySatellite({
 
   return createPortal(
     <>
-      <div className={`proximity-satellite ${alerting ? "proximity-satellite--alert" : ""}`}>
+      <div className="proximity-satellite">
         <AnimatePresence>
           {expanded && (
+            <motion.button
+              key="satellite-outside"
+              type="button"
+              className="proximity-satellite__outside"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setExpanded(false)}
+              aria-label="Collapse satellite tray"
+            />
+          )}
+          {expanded && (
             <motion.section
-              className="proximity-satellite__panel"
-              initial={{ opacity: 0, x: 14, scale: 0.96 }}
-              animate={{ opacity: 1, x: 0, scale: 1 }}
-              exit={{ opacity: 0, x: 14, scale: 0.96 }}
-              transition={{ duration: 0.16 }}
+              key="satellite-tray"
+              className="proximity-satellite__tray"
+              initial={{ x: "105%" }}
+              animate={{ x: 0 }}
+              exit={{ x: "105%" }}
+              transition={{ type: "spring", stiffness: 290, damping: 30, mass: 0.82 }}
               aria-label="Satellite proximity controls"
             >
-              <div className="proximity-satellite__panel-head">
-                <div className="proximity-satellite__panel-icon"><Satellite size={17} /></div>
-                <div className="min-w-0">
-                  <p className="text-sm font-black text-white">Local Satellite</p>
-                  <p className="text-[10px] text-white/55">Automatic Bluetooth discovery</p>
+                <div className="proximity-satellite__tray-rail" aria-hidden="true" />
+                <div className="proximity-satellite__panel-head">
+                  <div className="proximity-satellite__panel-icon"><Satellite size={17} /></div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-black text-white">SATELLITE / LOCAL</p>
+                    <p className="text-[10px] text-white/50">Proximity control deck</p>
+                  </div>
+                  <button
+                    type="button"
+                    className="proximity-satellite__close"
+                    onClick={() => setExpanded(false)}
+                    aria-label="Collapse tray"
+                  >
+                    <X size={16} />
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  className="proximity-satellite__close"
-                  onClick={() => setExpanded(false)}
-                  aria-label="Collapse satellite controls"
-                >
-                  <X size={15} />
-                </button>
-              </div>
 
-              <div className="proximity-satellite__status-card">
-                <span className={`proximity-satellite__status-dot ${alerting ? "is-red" : "is-blue"}`} />
-                <div className="min-w-0">
-                  <p className="text-xs font-bold text-white">{androidNative ? "This phone" : "Android app required"}</p>
-                  <p className="text-[10px] leading-relaxed text-white/55">
-                    {androidNative ? status : "The browser cannot scan or broadcast BLE automatically."}
-                  </p>
+                <div className="proximity-satellite__tray-status">
+                  <span className={`proximity-satellite__status-led ${alerting ? "is-red" : "is-blue"}`} />
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-white/45">
+                      Scan status
+                    </p>
+                    <p className="mt-1 truncate text-xs font-bold text-white">
+                      {androidNative ? status : "Browser fallback simulation"}
+                    </p>
+                    {!androidNative && (
+                      <p className="mt-1 text-[10px] leading-relaxed text-white/40">
+                        This preview does not scan or simulate nearby devices.
+                      </p>
+                    )}
+                  </div>
+                  <span className="proximity-satellite__status-tag">
+                    {androidNative ? "LOCAL" : "DEMO"}
+                  </span>
                 </div>
-              </div>
 
-              <div className="proximity-satellite__stat-row">
-                <span><Bluetooth size={13} /> Scanner</span>
-                <strong className={androidNative ? "text-sky-300" : "text-white/45"}>
-                  {androidNative ? "Auto" : "Unavailable"}
-                </strong>
-              </div>
-              <div className="proximity-satellite__stat-row">
-                <span><Satellite size={13} /> Nearby signals</span>
-                <strong className={alerting ? "text-red-300" : "text-white/75"}>
-                  {stealth ? "Muted" : activeSignals.size}
-                </strong>
-              </div>
-              <div className="proximity-satellite__privacy-note">
-                <ShieldCheck size={13} />
-                <span>Proximity and profile exchange stay on-device. Connection requests sync when online.</span>
-              </div>
+                <div className="proximity-satellite__tray-metrics">
+                  <div>
+                    <span>NEARBY SIGNALS</span>
+                    <strong className={alerting ? "is-alert" : ""}>{activeSignals.size}</strong>
+                  </div>
+                  <div>
+                    <span>DISCOVERY</span>
+                    <strong>{androidNative ? "AUTO" : "SIMULATION"}</strong>
+                  </div>
+                </div>
 
-              <label className="proximity-satellite__stealth">
-                <span className="flex items-center gap-2 text-xs font-bold text-white">
-                  {stealth ? <VolumeX size={15} /> : <Volume2 size={15} />}
-                  Stealth / Mute alerts
-                </span>
-                <input
-                  type="checkbox"
-                  checked={stealth}
-                  onChange={toggleStealth}
-                  aria-label="Mute proximity audio, vibration, and red signal"
-                />
-                <span className="proximity-satellite__switch" aria-hidden="true" />
-              </label>
-              <p className="proximity-satellite__stealth-help">
-                Discovery remains active; mute hides the red alert and silences sound and vibration.
-              </p>
+                <div className="proximity-satellite__device-section">
+                  <div className="proximity-satellite__section-title">
+                    <span>Nearby devices</span>
+                    <span>{nearbyDevices.length.toString().padStart(2, "0")}</span>
+                  </div>
+                  {nearbyDevices.length > 0 ? (
+                    <div className="proximity-satellite__device-list">
+                      {nearbyDevices.map((peer) => (
+                        <div className="proximity-satellite__device" key={peer.peerToken}>
+                          {peer.avatarData ? (
+                            <img src={peer.avatarData} alt="" className="proximity-satellite__avatar" />
+                          ) : (
+                            <span className="proximity-satellite__avatar-fallback">
+                              {peer.name.slice(0, 1).toUpperCase()}
+                            </span>
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-xs font-bold text-white">{peer.name}</p>
+                            <p className="truncate text-[10px] text-white/40">
+                              {peer.username ? `@${peer.username}` : "Flicks device"}
+                            </p>
+                          </div>
+                          <span className="proximity-satellite__device-signal" aria-label="Signal active" />
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="proximity-satellite__empty">
+                      <span className="proximity-satellite__empty-ring"><Bluetooth size={15} /></span>
+                      <span>{androidNative ? "Listening for nearby Flicks devices" : "No simulated devices"}</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="proximity-satellite__tray-footer">
+                  <div>
+                    <p className="flex items-center gap-2 text-xs font-bold text-white">
+                      {stealth ? <VolumeX size={15} /> : <Volume2 size={15} />}
+                      Stealth / mute alerts
+                    </p>
+                    <p className="mt-1 text-[10px] text-white/40">Discovery remains active</p>
+                  </div>
+                  <label className="proximity-satellite__stealth">
+                    <input
+                      type="checkbox"
+                      checked={stealth}
+                      onChange={toggleStealth}
+                      aria-label="Mute proximity audio, vibration, and red signal"
+                    />
+                    <span className="proximity-satellite__switch" aria-hidden="true" />
+                  </label>
+                </div>
+                <div className="proximity-satellite__tray-note">
+                  <ShieldCheck size={13} />
+                  <span>Profile exchange is local. Connection requests sync when online.</span>
+                </div>
             </motion.section>
           )}
         </AnimatePresence>
 
-        <button
-          type="button"
-          className="proximity-satellite__button"
-          onClick={() => setExpanded((value) => !value)}
-          aria-expanded={expanded}
-          aria-label={expanded ? "Collapse Satellite widget" : "Expand Satellite widget"}
-          title="Local Satellite"
-        >
-          <span className={`proximity-satellite__signal ${alerting ? "proximity-satellite__signal--red" : "proximity-satellite__signal--blue"}`} />
-          <Satellite size={21} strokeWidth={2.1} />
-          <span className="proximity-satellite__expand-icon">
-            {expanded ? <ChevronDown size={12} /> : <ChevronUp size={12} />}
-          </span>
-        </button>
+        {!expanded && (
+          <button
+            type="button"
+            className="proximity-satellite__edge-trigger"
+            onClick={() => setExpanded(true)}
+            aria-expanded={false}
+            aria-label="Open satellite tray"
+            title="Open satellite controls"
+          >
+            <span
+              className={`proximity-satellite__wall-led ${
+                stealth ? "is-stealth" : alerting ? "is-alert" : "is-scanning"
+              }`}
+              aria-hidden="true"
+            >
+              <i className="proximity-satellite__led-blue" />
+              <i className="proximity-satellite__led-red" />
+            </span>
+          </button>
+        )}
       </div>
 
       <AnimatePresence>

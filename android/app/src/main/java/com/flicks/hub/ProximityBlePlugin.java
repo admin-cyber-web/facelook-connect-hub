@@ -9,6 +9,8 @@ import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.os.Build;
 
+import androidx.core.content.ContextCompat;
+
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
@@ -24,8 +26,7 @@ import org.json.JSONObject;
     name = "ProximityBle",
     permissions = {
         @Permission(alias = "bleScan", strings = {
-            Manifest.permission.BLUETOOTH_SCAN,
-            Manifest.permission.ACCESS_FINE_LOCATION
+            Manifest.permission.BLUETOOTH_SCAN
         }),
         @Permission(alias = "bleAdvertise", strings = {
             Manifest.permission.BLUETOOTH_ADVERTISE
@@ -102,7 +103,8 @@ public class ProximityBlePlugin extends Plugin {
     }
 
     private boolean has(String permission) {
-        return getContext().checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED;
+        return ContextCompat.checkSelfPermission(getContext(), permission)
+            == PackageManager.PERMISSION_GRANTED;
     }
 
     private void startService(PluginCall call) {
