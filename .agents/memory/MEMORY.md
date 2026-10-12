@@ -16,3 +16,4 @@
 - [Vibe audio playback policy](vibe-audio-playback-policy.md) — audible autoplay by default; browser blocks recover through user gestures, and manual mute persists across feed handoffs.
 - [Vibe effects visual policy](vibe-effects-visual-policy.md) — keep vibe overlays immersive and high-impact, with realistic effect-specific motion that resolves within five seconds.
 - [Dynamic social previews](dynamic-social-previews.md) — crawlers need server-rendered Open Graph tags for post paths and query-based Frame share links; client Helmet tags are not enough.
+- [Proximity discovery policy](proximity-discovery-policy.md) — Android-only offline BLE; Stealth mutes alerts but does not hide the user from discovery.
