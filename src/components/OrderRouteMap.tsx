@@ -13,6 +13,7 @@ interface RoutePoint {
 }
 
 const STATUS_PROGRESS: Record<string, number> = {
+  "Verification Pending": 0,
   Pending: 0,
   Confirmed: 0,
   Packed: 1,
@@ -71,17 +72,18 @@ export function OrderRouteMap({
     ? destinationCity
     : milestoneLabels[progressIndex] || sourceCity;
   const displayedLocation = currentLocation?.trim() || defaultLocation;
+  const sourceLabelWidth = Math.min(118, Math.max(22, sourceCity.trim().length * 4.8));
+  const destinationLabelWidth = Math.min(118, Math.max(22, destinationCity.trim().length * 4.8));
 
   return (
     <section
-      aria-label={`Illustrative order route from ${sourceCity} to ${destinationCity}`}
+      aria-label={`Order route from ${sourceCity} to ${destinationCity}`}
       data-testid="order-route-map"
       className="overflow-hidden rounded-2xl border border-slate-200 bg-white"
     >
       <div className="flex items-center justify-between gap-2 px-3.5 pt-3">
         <div className="min-w-0">
           <p className="truncate text-[11px] font-black text-slate-900">Shipment route</p>
-          <p className="mt-0.5 text-[9px] font-bold text-slate-500">Illustrative schematic · not to scale</p>
         </div>
         <span className="shrink-0 rounded-full border border-blue-100 bg-blue-50 px-2 py-1 text-[9px] font-black text-[#1457A6]">
           {status}
@@ -169,11 +171,11 @@ export function OrderRouteMap({
           />
           <circle cx={currentPoint.x} cy={currentPoint.y} r="4.5" fill="#1457A6" stroke="#FFFFFF" strokeWidth="1.5" />
 
-          <text x="28" y={Math.min(176, startY + 24)} textAnchor="middle" fill="#475569" fontSize="8" fontWeight="800">
-            ORIGIN
+          <text x="28" y={Math.min(176, startY + 24)} textAnchor="start" textLength={sourceLabelWidth} lengthAdjust="spacingAndGlyphs" fill="#475569" fontSize="8" fontWeight="800">
+            {sourceCity}
           </text>
-          <text x="332" y={Math.max(12, endY - 12)} textAnchor="middle" fill="#475569" fontSize="8" fontWeight="800">
-            DESTINATION
+          <text x="332" y={Math.max(12, endY - 12)} textAnchor="end" textLength={destinationLabelWidth} lengthAdjust="spacingAndGlyphs" fill="#475569" fontSize="8" fontWeight="800">
+            {destinationCity}
           </text>
         </svg>
       </div>
