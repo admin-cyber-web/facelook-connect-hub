@@ -4,13 +4,13 @@ import { AnimatePresence, motion } from "framer-motion";
 import {
   ArrowLeft, Check, ClipboardList, Copy, CreditCard,
   Image as ImageIcon, Loader2, MapPin, Package, Pencil, Plus, RefreshCw,
-  Share2, ShoppingBag, Store, Trash2, User, X, Palette, Ruler, Truck,
+  Share2, ShoppingBag, Store, Trash2, User, X, Palette, Ruler, Truck, Phone, Clock3,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "../lib/supabaseClient";
 import { subscribeWhileVisible } from "../lib/realtimeVisibility";
 import { OrderRouteMap } from "./OrderRouteMap";
-import type { User } from "@supabase/supabase-js";
+import type { User as SupabaseUser } from "@supabase/supabase-js";
 
 const PHONEPAY_UPI_ID = "manoj@ybl";
 const PHONEPAY_QR_PATH = "/phonepay-qr.jpg";
@@ -92,6 +92,7 @@ export interface MarketplaceOrder {
   address?: string | null;
   item_id?: string | null;
   item_image_url?: string | null;
+  item_details?: string | null;
   item_title: string;
   item_price?: string | null;
   selected_size?: string | null;
@@ -103,6 +104,9 @@ export interface MarketplaceOrder {
   source_city?: string | null;
   destination_city?: string | null;
   current_location?: string | null;
+  delivery_partner_name?: string | null;
+  delivery_partner_phone?: string | null;
+  estimated_delivery_at?: string | null;
   created_at: string;
 }
 
@@ -114,6 +118,42 @@ function isUpiAwaitingVerification(order: Pick<MarketplaceOrder, "payment_method
 
 function canCancelMarketplaceOrder(order: Pick<MarketplaceOrder, "status">): boolean {
   return order.status !== "Cancelled" && !SHIPPED_ORDER_STATUSES.has(order.status);
+}
+
+const TRACKING_MILESTONES = [
+  { title: "Order Dispatch", icon: "📦", etaOffsetDays: 3 },
+  { title: "In Transit", icon: "🚚", etaOffsetDays: 2 },
+  { title: "Hub Arrived", icon: "🏬", etaOffsetDays: 1 },
+  { title: "Out for Delivery", icon: "🏠", etaOffsetDays: 0 },
+] as const;
+
+function getTrackingMilestoneIndex(status: string): number {
+  switch (status) {
+    case "Packed": return 0;
+    case "Shipped": return 1;
+    case "In Transit": return 1;
+    case "At Regional Hub": return 2;
+    case "Out for Delivery": return 3;
+    case "Delivered": return 4;
+    default: return -1;
+  }
+}
+
+function formatMilestoneEstimate(estimatedDeliveryAt: string | null | undefined, milestoneIndex: number): string {
+  if (!estimatedDeliveryAt) return "ETA not set";
+  const eta = new Date(estimatedDeliveryAt);
+  if (Number.isNaN(eta.getTime())) return "ETA not set";
+  eta.setDate(eta.getDate() - TRACKING_MILESTONES[milestoneIndex].etaOffsetDays);
+  return `Est. ${new Intl.DateTimeFormat("en-IN", {
+    weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
+  }).format(eta)}`;
+}
+
+function toDateTimeLocal(value: string | null | undefined): string {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
 }
 
 async function requestMarketplaceOrderCancellation(orderId: string) {
@@ -298,7 +338,7 @@ function CheckoutDrawer({
   const [utrId, setUtrId] = useState("");
   const [placing, setPlacing] = useState(false);
   const [upiCopied, setUpiCopied] = useState(false);
-  const authUserRef = useRef<User | null>(null);
+  const authUserRef = useRef<SupabaseUser | null>(null);
   const authUserReadyRef = useRef<ReturnType<typeof supabase.auth.getUser> | null>(null);
   const sizes = itemSizes(item);
   const volumes = itemVolumes(item);
@@ -341,13 +381,15 @@ function CheckoutDrawer({
         user_name: name.trim(), phone: phone.trim(), address: address.trim(),
         source_city: sourceCity, destination_city: destinationCity.trim(),
         item_id: item.id, item_title: item.title, item_price: displayPrice(item),
+        item_image_url: itemImage(item, selectedColor || undefined),
+        item_details: item.description?.trim() || null,
         selected_size: selectedSize || null, selected_volume: selectedVolume || null,
         selected_color: selectedColor || null, payment_method: paymentMethod,
         utr_id: paymentMethod === "UPI" ? utrId.trim() : null,
         status: paymentMethod === "UPI" ? "Verification Pending" : "Pending",
       };
       const { data, error } = await supabase.from("marketplace_orders").insert([payload])
-        .select("id,tracking_code,user_id,user_email,user_name,phone,address,source_city,destination_city,current_location,item_id,item_title,item_price,selected_size,selected_volume,selected_color,payment_method,utr_id,status,created_at")
+        .select("id,tracking_code,user_id,user_email,user_name,phone,address,source_city,destination_city,current_location,item_id,item_image_url,item_details,item_title,item_price,selected_size,selected_volume,selected_color,payment_method,utr_id,status,delivery_partner_name,delivery_partner_phone,estimated_delivery_at,created_at")
         .single();
       if (error) throw error;
       onSuccess(data as MarketplaceOrder);
@@ -480,7 +522,7 @@ function OrderSuccessModal({
         <div className="px-5 pb-5">
           {!awaitingUpiVerification && order.status !== "Cancelled" && showRoute && order.source_city && order.destination_city && (
             <div className="mb-4" data-testid="success-shipment-route">
-              <OrderRouteMap sourceCity={order.source_city} destinationCity={order.destination_city} currentLocation={order.current_location} status={order.status} />
+              <OrderRouteMap sourceCity={order.source_city} destinationCity={order.destination_city} destinationAddress={order.address} currentLocation={order.current_location} status={order.status} />
             </div>
           )}
           {!awaitingUpiVerification && order.status !== "Cancelled" && order.source_city && order.destination_city && (
@@ -556,14 +598,16 @@ export function MyOrdersDrawer({
     setLoading(true);
     setLoadError("");
     supabase.from("marketplace_orders")
-      .select("id,tracking_code,user_id,user_email,user_name,phone,address,source_city,destination_city,current_location,item_id,item_title,item_price,selected_size,selected_volume,selected_color,payment_method,utr_id,status,created_at")
+      .select("id,tracking_code,user_id,user_email,user_name,phone,address,source_city,destination_city,current_location,item_id,item_image_url,item_details,item_title,item_price,selected_size,selected_volume,selected_color,payment_method,utr_id,status,delivery_partner_name,delivery_partner_phone,estimated_delivery_at,created_at")
       .eq("user_id", userId).order("created_at", { ascending: false }).limit(100)
       .then(({ data, error }) => {
         if (!active) return;
         if (error) setLoadError("Could not load your orders. Please try again.");
         else setOrders((data ?? []) as MarketplaceOrder[]);
         setLoading(false);
-      }).catch(() => { if (active) { setLoadError("Could not load your orders. Please try again."); setLoading(false); } });
+      }, () => {
+        if (active) { setLoadError("Could not load your orders. Please try again."); setLoading(false); }
+      });
     return () => { active = false; };
   }, [userId, refreshCount]);
 
@@ -617,36 +661,111 @@ export function MyOrdersDrawer({
           : loading ? <div className="space-y-3" aria-label="Loading orders">{[0, 1].map(value => <div key={value} className="h-40 animate-pulse rounded-2xl border border-slate-100 bg-white" />)}</div>
           : loadError && !orders.length ? <div className="rounded-2xl border border-rose-200 bg-white p-7 text-center"><p className="font-bold text-[#8B1E2D]">{loadError}</p><button type="button" data-testid="button-retry-my-orders" onClick={() => setRefreshCount(count => count + 1)} className={`${secondaryButton} mt-4`}>Retry</button></div>
           : !orders.length ? <div className="rounded-2xl border border-slate-200 bg-white px-5 py-12 text-center"><Package size={28} className="mx-auto mb-3 text-slate-300" /><p className="font-extrabold text-slate-800">No orders yet</p><p className="mt-1 text-xs text-slate-500">Your purchases and tracking details will appear here.</p></div>
-          : orders.map(order => (
-            <article id={`marketplace-order-${order.id}`} key={order.id} data-testid={`card-my-order-${order.id}`} className={`space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm ${focusOrderId === order.id ? "ring-2 ring-blue-500 ring-offset-2" : ""}`}>
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0"><p className="truncate text-sm font-extrabold text-slate-900">{order.item_title}</p><p className="mt-1 text-[11px] text-slate-500">{order.tracking_code} · {formatOrderTime(order.created_at)}</p><p className="mt-1 text-sm font-bold text-[#1457A6]">{order.item_price || ""}</p>
-                  {[order.selected_size, order.selected_volume, order.selected_color].filter(Boolean).length > 0 && <p className="mt-1 text-xs text-slate-500">{[order.selected_size, order.selected_volume, order.selected_color].filter(Boolean).join(" · ")}</p>}
-                </div>
-                <span data-testid={`status-order-${order.id}`} className="shrink-0 rounded-full border px-2.5 py-1 text-[10px] font-extrabold" style={{ color: STATUS_COLORS[order.status] || BLUE, borderColor: `${STATUS_COLORS[order.status] || BLUE}35`, background: `${STATUS_COLORS[order.status] || BLUE}0c` }}>{order.status}</span>
-              </div>
-              {isUpiAwaitingVerification(order)
-                ? <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900">Payment verification is pending. Shipment updates will appear here after the submitted UTR is matched.</p>
-                : order.status === "Cancelled"
-                  ? <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-[#8B1E2D]">This order was cancelled.</p>
-                : order.source_city?.trim() && order.destination_city?.trim()
-                  ? <OrderRouteMap sourceCity={order.source_city} destinationCity={order.destination_city} currentLocation={order.current_location} status={order.status} />
-                  : <p className="rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-800">Route unavailable: source or delivery city was not recorded.</p>}
-              {order.address && <p className="text-xs text-slate-500"><span className="font-bold text-slate-700">Delivery address:</span> {order.address}</p>}
-              {canCancelMarketplaceOrder(order) && (
-                <button
-                  type="button"
-                  data-testid={`button-cancel-order-${order.id}`}
-                  disabled={cancellingOrderId === order.id}
-                  onClick={() => void cancelOrder(order)}
-                  className="flex w-full items-center justify-center gap-2 rounded-xl border border-rose-300 bg-rose-50 px-4 py-3 text-sm font-extrabold text-[#8B1E2D] hover:bg-rose-100 disabled:opacity-60"
-                >
-                  {cancellingOrderId === order.id ? <Loader2 size={16} className="animate-spin" /> : <X size={16} />}
-                  {cancellingOrderId === order.id ? "Cancelling…" : "Cancel Order"}
-                </button>
-              )}
-            </article>
-          ))}
+           : orders.map(order => {
+             const milestoneIndex = getTrackingMilestoneIndex(order.status);
+             const partnerPhone = order.delivery_partner_phone?.trim();
+             const callHref = partnerPhone?.replace(/[^\d+]/g, "");
+             return (
+               <article id={`marketplace-order-${order.id}`} key={order.id} data-testid={`card-my-order-${order.id}`} className={`space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm ${focusOrderId === order.id ? "ring-2 ring-blue-500 ring-offset-2" : ""}`}>
+                 <div className="flex items-start justify-between gap-3">
+                   <div className="min-w-0">
+                     <p className="text-[10px] font-black uppercase tracking-[.14em] text-[#8B1E2D]">Flicks Marketplace</p>
+                     <p className="mt-1 truncate font-mono text-xs font-extrabold text-slate-700">{order.tracking_code}</p>
+                     <p className="mt-1 text-[10px] text-slate-500">Placed {formatOrderTime(order.created_at)}</p>
+                   </div>
+                   <span data-testid={`status-order-${order.id}`} className="shrink-0 rounded-full border px-2.5 py-1 text-[10px] font-extrabold" style={{ color: STATUS_COLORS[order.status] || BLUE, borderColor: `${STATUS_COLORS[order.status] || BLUE}35`, background: `${STATUS_COLORS[order.status] || BLUE}0c` }}>{order.status}</span>
+                 </div>
+
+                 {isUpiAwaitingVerification(order)
+                   ? <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900">Payment verification is pending. Shipment updates will appear here after the submitted UTR is matched.</p>
+                   : order.status === "Cancelled"
+                     ? <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-[#8B1E2D]">This order was cancelled.</p>
+                     : order.source_city?.trim() && order.destination_city?.trim()
+                       ? <OrderRouteMap sourceCity={order.source_city} destinationCity={order.destination_city} destinationAddress={order.address} currentLocation={order.current_location} status={order.status} />
+                       : <p className="rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-800">Route unavailable: source or delivery city was not recorded.</p>}
+
+                 {order.status !== "Cancelled" && !isUpiAwaitingVerification(order) && (
+                   <>
+                     <section aria-label="Shipment milestones" className="rounded-2xl border border-slate-100 bg-slate-50/80 p-3">
+                       <div className="mb-3 flex items-center justify-between gap-2">
+                         <h3 className="text-xs font-extrabold text-slate-900">Tracking milestones</h3>
+                         <span className="flex items-center gap-1 text-[10px] font-bold text-slate-500"><Clock3 size={12} />{order.estimated_delivery_at ? formatMilestoneEstimate(order.estimated_delivery_at, 3) : "Delivery ETA pending"}</span>
+                       </div>
+                       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                         {TRACKING_MILESTONES.map((milestone, index) => {
+                           const complete = order.status === "Delivered" || (milestoneIndex >= 0 && index < milestoneIndex);
+                           const active = order.status !== "Delivered" && milestoneIndex === index;
+                           const badge = complete ? "Complete" : active ? "Current" : "Upcoming";
+                           return (
+                             <div key={milestone.title} data-testid={`milestone-${index}-${order.id}`} className={`min-w-0 rounded-xl border p-2.5 ${active ? "border-blue-200 bg-blue-50" : complete ? "border-emerald-100 bg-emerald-50/70" : "border-slate-200 bg-white"}`}>
+                               <div className="flex items-center justify-between gap-1"><span className="text-base" aria-hidden="true">{milestone.icon}</span><span className={`truncate rounded-full px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wide ${complete ? "bg-emerald-100 text-emerald-700" : active ? "bg-blue-100 text-[#1457A6]" : "bg-slate-100 text-slate-500"}`}>{badge}</span></div>
+                               <p className="mt-2 text-[10px] font-extrabold leading-tight text-slate-800">{milestone.title}</p>
+                               <p className="mt-1 text-[9px] font-medium text-slate-500">{formatMilestoneEstimate(order.estimated_delivery_at, index)}</p>
+                             </div>
+                           );
+                         })}
+                       </div>
+                     </section>
+
+                     <div className="grid gap-3 sm:grid-cols-[1.2fr_.8fr]">
+                       <section className="min-w-0 overflow-hidden rounded-2xl border border-slate-200">
+                         <div className="border-b border-slate-200 bg-slate-50 px-3 py-2">
+                           <h3 className="text-xs font-extrabold text-slate-900">Product specifications</h3>
+                         </div>
+                         <div className="overflow-x-auto">
+                           <table className="w-full min-w-[600px] border-collapse text-left text-[10px]">
+                             <thead><tr className="bg-white">{["Item", "Color", "Size", "Volume", "Details"].map(label => <th key={label} className="border-b border-r border-slate-200 px-2.5 py-2 font-extrabold uppercase tracking-wide text-slate-500 last:border-r-0">{label}</th>)}</tr></thead>
+                             <tbody><tr className="align-top">
+                               <td className="max-w-[130px] border-r border-slate-200 px-2.5 py-2.5 font-bold text-slate-800">{order.item_title}</td>
+                               <td className="border-r border-slate-200 px-2.5 py-2.5 text-slate-700">{order.selected_color || "—"}</td>
+                               <td className="border-r border-slate-200 px-2.5 py-2.5 text-slate-700">{order.selected_size || "—"}</td>
+                               <td className="border-r border-slate-200 px-2.5 py-2.5 text-slate-700">{order.selected_volume || "—"}</td>
+                               <td className="max-w-[230px] px-2.5 py-2.5 leading-relaxed text-slate-600">{order.item_details?.trim() || "No additional product details"}</td>
+                             </tr></tbody>
+                           </table>
+                         </div>
+                       </section>
+
+                       <section className="flex min-w-0 items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3">
+                         <div className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-gradient-to-br from-blue-100 to-rose-100 text-[#1457A6]"><User size={20} /></div>
+                         <div className="min-w-0 flex-1">
+                           <p className="text-[9px] font-black uppercase tracking-wide text-slate-400">Delivery Boy</p>
+                           <p className="truncate text-xs font-extrabold text-slate-900">{order.delivery_partner_name || "Not assigned yet"}</p>
+                           <p className="truncate text-[10px] text-slate-500">{partnerPhone || "Contact appears after assignment"}</p>
+                         </div>
+                         {callHref
+                           ? <a href={`tel:${callHref}`} data-testid={`button-call-delivery-partner-${order.id}`} aria-label={`Call ${order.delivery_partner_name || "delivery boy"}`} className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-[#1457A6] px-3 py-2.5 text-[10px] font-extrabold text-white shadow-sm hover:bg-blue-800"><Phone size={14} />Call</a>
+                           : <button type="button" disabled aria-label="Delivery boy phone not assigned" className="inline-flex shrink-0 cursor-not-allowed items-center gap-1.5 rounded-xl bg-slate-100 px-3 py-2.5 text-[10px] font-extrabold text-slate-400"><Phone size={14} />Call</button>}
+                       </section>
+                     </div>
+                   </>
+                 )}
+
+                 <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-blue-100 bg-gradient-to-r from-blue-50 via-white to-rose-50 p-3">
+                   <div className="h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-white bg-white shadow-sm">
+                     {order.item_image_url
+                       ? <img src={order.item_image_url} alt={order.item_title} className="h-full w-full object-cover" loading="lazy" />
+                       : <div className="grid h-full place-items-center text-blue-300"><Package size={21} /></div>}
+                   </div>
+                   <div className="min-w-0 flex-1">
+                     <p className="line-clamp-2 text-xs font-extrabold text-slate-900">{order.item_title}</p>
+                     <p className="mt-1 text-sm font-black text-[#1457A6]">{order.item_price || "Price unavailable"}</p>
+                   </div>
+                   <button
+                     type="button"
+                     data-testid={`button-cancel-order-${order.id}`}
+                     disabled={!canCancelMarketplaceOrder(order) || cancellingOrderId === order.id}
+                     title={!canCancelMarketplaceOrder(order) ? "Cancellation is unavailable after dispatch" : undefined}
+                     onClick={() => void cancelOrder(order)}
+                     className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-rose-300 bg-rose-50 px-4 py-2.5 text-xs font-extrabold text-[#8B1E2D] hover:bg-rose-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400 sm:w-auto"
+                   >
+                     {cancellingOrderId === order.id ? <Loader2 size={15} className="animate-spin" /> : <X size={15} />}
+                     {cancellingOrderId === order.id ? "Cancelling…" : order.status === "Cancelled" ? "Order cancelled" : "Cancel Order"}
+                   </button>
+                 </div>
+               </article>
+             );
+           })}
         </div>
       </motion.section>
     </motion.div>
@@ -786,6 +905,11 @@ export function MarketplaceFeedCard({ items }: { items: MarketplaceItem[] }) {
 }
 
 interface AdminMarketplacePanelProps { onClose: () => void; }
+interface FulfillmentDraft {
+  partnerName: string;
+  partnerPhone: string;
+  estimatedDeliveryAt: string;
+}
 interface AdminForm {
   title: string; description: string; price: string; image_url: string; link_url: string; badge: string;
   sizes: string; colors: string; source_city: string; category: string; material: string; shopName: string; pickupAddress: string;
@@ -819,6 +943,8 @@ export function AdminMarketplacePanel({ onClose }: AdminMarketplacePanelProps) {
   const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
   const [locationDrafts, setLocationDrafts] = useState<Record<string, string>>({});
   const [updatingLocationId, setUpdatingLocationId] = useState<string | null>(null);
+  const [fulfillmentDrafts, setFulfillmentDrafts] = useState<Record<string, FulfillmentDraft>>({});
+  const [updatingFulfillmentId, setUpdatingFulfillmentId] = useState<string | null>(null);
 
   const fetchItems = async () => {
     setLoadingItems(true); setItemsError("");
@@ -856,12 +982,18 @@ export function AdminMarketplacePanel({ onClose }: AdminMarketplacePanelProps) {
   const fetchOrders = async () => {
     setLoadingOrders(true); setOrdersError("");
     const { data, error } = await supabase.from("marketplace_orders")
-      .select("id,tracking_code,user_id,user_email,user_name,phone,address,source_city,destination_city,current_location,item_id,item_title,item_price,selected_size,selected_volume,selected_color,payment_method,utr_id,status,created_at")
+      .select("id,tracking_code,user_id,user_email,user_name,phone,address,source_city,destination_city,current_location,item_id,item_image_url,item_details,item_title,item_price,selected_size,selected_volume,selected_color,payment_method,utr_id,status,delivery_partner_name,delivery_partner_phone,estimated_delivery_at,created_at")
       .order("created_at", { ascending: false }).limit(200);
-    if (error) setOrdersError("Could not load orders. Check the marketplace selected_volume schema update.");
+    if (error) setOrdersError("Could not load orders. Apply the marketplace delivery tracking migration, then retry.");
     else {
-      setOrders((data ?? []) as MarketplaceOrder[]);
-      setLocationDrafts(Object.fromEntries((data ?? []).map(order => [order.id, order.current_location ?? ""])));
+      const loadedOrders = (data ?? []) as MarketplaceOrder[];
+      setOrders(loadedOrders);
+      setLocationDrafts(Object.fromEntries(loadedOrders.map(order => [order.id, order.current_location ?? ""])));
+      setFulfillmentDrafts(Object.fromEntries(loadedOrders.map(order => [order.id, {
+        partnerName: order.delivery_partner_name ?? "",
+        partnerPhone: order.delivery_partner_phone ?? "",
+        estimatedDeliveryAt: toDateTimeLocal(order.estimated_delivery_at),
+      }])));
     }
     setLoadingOrders(false);
   };
@@ -1036,6 +1168,43 @@ export function AdminMarketplacePanel({ onClose }: AdminMarketplacePanelProps) {
     else { setOrders(previous => previous.map(order => order.id === orderId ? { ...order, current_location } : order)); toast.success("Current location updated"); }
     setUpdatingLocationId(null);
   };
+  const saveOrderFulfillment = async (orderId: string) => {
+    const order = orders.find(current => current.id === orderId);
+    if (!order || order.status === "Cancelled") return;
+    const draft = fulfillmentDrafts[orderId] ?? { partnerName: "", partnerPhone: "", estimatedDeliveryAt: "" };
+    const partnerName = draft.partnerName.trim();
+    const partnerPhone = draft.partnerPhone.trim();
+    const phoneDigits = partnerPhone.replace(/\D/g, "");
+    if (partnerPhone && (phoneDigits.length < 7 || phoneDigits.length > 15)) {
+      toast.error("Enter a valid delivery partner phone number");
+      return;
+    }
+    const parsedEta = draft.estimatedDeliveryAt ? new Date(draft.estimatedDeliveryAt) : null;
+    if (parsedEta && Number.isNaN(parsedEta.getTime())) {
+      toast.error("Enter a valid estimated delivery date and time");
+      return;
+    }
+    const estimated_delivery_at = parsedEta?.toISOString() ?? null;
+    setUpdatingFulfillmentId(orderId);
+    const { error } = await supabase.from("marketplace_orders").update({
+      delivery_partner_name: partnerName || null,
+      delivery_partner_phone: partnerPhone || null,
+      estimated_delivery_at,
+    }).eq("id", orderId);
+    if (error) {
+      toast.error("Could not save delivery partner and ETA");
+    } else {
+      setOrders(previous => previous.map(current => current.id === orderId
+        ? { ...current, delivery_partner_name: partnerName || null, delivery_partner_phone: partnerPhone || null, estimated_delivery_at }
+        : current));
+      setFulfillmentDrafts(previous => ({
+        ...previous,
+        [orderId]: { partnerName, partnerPhone, estimatedDeliveryAt: toDateTimeLocal(estimated_delivery_at) },
+      }));
+      toast.success("Delivery partner and ETA saved");
+    }
+    setUpdatingFulfillmentId(null);
+  };
 
   const formInput = (name: keyof AdminForm, label: string, placeholder = "", type = "text") => (
     <label><span className={fieldLabel}>{label}</span><input data-testid={`input-admin-${name}`} type={type} value={form[name]} onChange={event => setField(name, event.target.value)} placeholder={placeholder} className={fieldClass} /></label>
@@ -1105,8 +1274,22 @@ export function AdminMarketplacePanel({ onClose }: AdminMarketplacePanelProps) {
                  {updatingOrderId === order.id ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Match UTR &amp; confirm payment
                </button>
              </div>}
-             {order.status !== "Cancelled" && order.source_city && order.destination_city && <div className="mt-3"><OrderRouteMap sourceCity={order.source_city} destinationCity={order.destination_city} status={order.status} currentLocation={order.current_location} /></div>}
-             <div className="mt-3 flex gap-2"><label className="min-w-0 flex-1"><span className="sr-only">Current shipment location</span><input data-testid={`input-order-location-${order.id}`} disabled={order.status === "Cancelled"} value={locationDrafts[order.id] ?? order.current_location ?? ""} onChange={event => setLocationDrafts(previous => ({ ...previous, [order.id]: event.target.value }))} placeholder="Current city or shipping hub" className={fieldClass} /></label><button type="button" data-testid={`button-save-order-location-${order.id}`} disabled={updatingLocationId === order.id || order.status === "Cancelled"} onClick={() => void updateCurrentLocation(order.id)} className={secondaryButton}>{updatingLocationId === order.id ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}<span className="hidden sm:inline">Save location</span></button></div>
+              {order.status !== "Cancelled" && order.source_city && order.destination_city && <div className="mt-3"><OrderRouteMap sourceCity={order.source_city} destinationCity={order.destination_city} destinationAddress={order.address} status={order.status} currentLocation={order.current_location} /></div>}
+              <div className="mt-3 flex gap-2"><label className="min-w-0 flex-1"><span className="sr-only">Current shipment location</span><input data-testid={`input-order-location-${order.id}`} disabled={order.status === "Cancelled"} value={locationDrafts[order.id] ?? order.current_location ?? ""} onChange={event => setLocationDrafts(previous => ({ ...previous, [order.id]: event.target.value }))} placeholder="Current city or shipping hub" className={fieldClass} /></label><button type="button" data-testid={`button-save-order-location-${order.id}`} disabled={updatingLocationId === order.id || order.status === "Cancelled"} onClick={() => void updateCurrentLocation(order.id)} className={secondaryButton}>{updatingLocationId === order.id ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}<span className="hidden sm:inline">Save location</span></button></div>
+              <section className="mt-3 rounded-2xl border border-blue-100 bg-blue-50/50 p-3">
+                <div className="mb-2.5 flex items-center justify-between gap-2">
+                  <div><h4 className="text-xs font-extrabold text-slate-900">Delivery partner &amp; ETA</h4><p className="mt-0.5 text-[10px] text-slate-500">Saved details appear on the customer tracking card.</p></div>
+                  {order.estimated_delivery_at && <span className="flex shrink-0 items-center gap-1 text-[9px] font-bold text-[#1457A6]"><Clock3 size={12} />{formatMilestoneEstimate(order.estimated_delivery_at, 3)}</span>}
+                </div>
+                <div className="grid gap-2 sm:grid-cols-3">
+                  <label><span className="mb-1 block text-[9px] font-bold text-slate-500">Partner name</span><input data-testid={`input-delivery-partner-name-${order.id}`} disabled={order.status === "Cancelled"} value={fulfillmentDrafts[order.id]?.partnerName ?? ""} onChange={event => setFulfillmentDrafts(previous => ({ ...previous, [order.id]: { ...(previous[order.id] ?? { partnerName: "", partnerPhone: "", estimatedDeliveryAt: "" }), partnerName: event.target.value } }))} placeholder="Name" className={fieldClass} /></label>
+                  <label><span className="mb-1 block text-[9px] font-bold text-slate-500">Partner phone</span><input data-testid={`input-delivery-partner-phone-${order.id}`} type="tel" disabled={order.status === "Cancelled"} value={fulfillmentDrafts[order.id]?.partnerPhone ?? ""} onChange={event => setFulfillmentDrafts(previous => ({ ...previous, [order.id]: { ...(previous[order.id] ?? { partnerName: "", partnerPhone: "", estimatedDeliveryAt: "" }), partnerPhone: event.target.value } }))} placeholder="+91…" className={fieldClass} /></label>
+                  <label><span className="mb-1 block text-[9px] font-bold text-slate-500">Estimated delivery</span><input data-testid={`input-estimated-delivery-${order.id}`} type="datetime-local" disabled={order.status === "Cancelled"} value={fulfillmentDrafts[order.id]?.estimatedDeliveryAt ?? ""} onChange={event => setFulfillmentDrafts(previous => ({ ...previous, [order.id]: { ...(previous[order.id] ?? { partnerName: "", partnerPhone: "", estimatedDeliveryAt: "" }), estimatedDeliveryAt: event.target.value } }))} className={fieldClass} /></label>
+                </div>
+                <button type="button" data-testid={`button-save-delivery-details-${order.id}`} disabled={updatingFulfillmentId === order.id || order.status === "Cancelled"} onClick={() => void saveOrderFulfillment(order.id)} className={`${secondaryButton} mt-2.5 w-full sm:w-auto`}>
+                  {updatingFulfillmentId === order.id ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}Save partner &amp; ETA
+                </button>
+              </section>
           </article>)}</div>}
         </div>}
 
