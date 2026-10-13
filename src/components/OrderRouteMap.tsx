@@ -75,25 +75,25 @@ export function OrderRouteMap({
   return (
     <section
       aria-label={`Illustrative order route from ${sourceCity} to ${destinationCity}`}
-      className="overflow-hidden rounded-2xl border border-white/[0.08]"
-      style={{ background: "linear-gradient(145deg, rgba(17,22,38,.98), rgba(10,14,25,.98))" }}
+      data-testid="order-route-map"
+      className="overflow-hidden rounded-2xl border border-slate-200 bg-white"
     >
       <div className="flex items-center justify-between gap-2 px-3.5 pt-3">
         <div className="min-w-0">
-          <p className="truncate text-[11px] font-black text-white">Shipment route</p>
-          <p className="mt-0.5 text-[9px] font-bold text-white/35">Illustrative schematic · not to scale</p>
+          <p className="truncate text-[11px] font-black text-slate-900">Shipment route</p>
+          <p className="mt-0.5 text-[9px] font-bold text-slate-500">Illustrative schematic · not to scale</p>
         </div>
-        <span className="shrink-0 rounded-full border border-white/10 bg-white/[0.04] px-2 py-1 text-[9px] font-black text-white/60">
+        <span className="shrink-0 rounded-full border border-blue-100 bg-blue-50 px-2 py-1 text-[9px] font-black text-[#1457A6]">
           {status}
         </span>
       </div>
 
       <div
-        className="mx-3 mt-2 overflow-hidden rounded-xl border border-white/[0.05]"
+        className="mx-3 mt-2 overflow-hidden rounded-xl border border-blue-100"
         style={{
-          backgroundColor: "rgba(4,8,18,.48)",
+          backgroundColor: "#F4F8FD",
           backgroundImage:
-            "linear-gradient(rgba(148,163,184,.045) 1px, transparent 1px), linear-gradient(90deg, rgba(148,163,184,.045) 1px, transparent 1px)",
+            "linear-gradient(rgba(20,87,166,.055) 1px, transparent 1px), linear-gradient(90deg, rgba(20,87,166,.055) 1px, transparent 1px)",
           backgroundSize: "22px 22px",
         }}
       >
@@ -107,7 +107,7 @@ export function OrderRouteMap({
           <path
             d={makePath(points)}
             fill="none"
-            stroke="rgba(148,163,184,.28)"
+            stroke="rgba(100,116,139,.36)"
             strokeWidth="4"
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -118,7 +118,7 @@ export function OrderRouteMap({
               key={`${sourceCity}-${destinationCity}-${status}`}
               d={completedPath}
               fill="none"
-              stroke="#ef4444"
+              stroke="#8B1E2D"
               strokeWidth="4"
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -137,8 +137,8 @@ export function OrderRouteMap({
                   cx={point.x}
                   cy={point.y}
                   r={isCurrent ? 6 : 4.5}
-                  fill={hasPassed ? "#ef4444" : "#172033"}
-                  stroke={hasPassed || isCurrent ? "#fb7185" : "#718096"}
+                  fill={hasPassed ? "#8B1E2D" : "#FFFFFF"}
+                  stroke={hasPassed || isCurrent ? "#8B1E2D" : "#94A3B8"}
                   strokeWidth="2"
                 />
                 {index > 0 && index < points.length - 1 && (
@@ -146,7 +146,7 @@ export function OrderRouteMap({
                     x={point.x}
                     y={point.y < 80 ? point.y + 19 : point.y - 10}
                     textAnchor="middle"
-                    className="fill-slate-400"
+                    className="fill-slate-500"
                     fontSize="8"
                     fontWeight="700"
                   >
@@ -161,18 +161,18 @@ export function OrderRouteMap({
             key={`current-pulse-${sourceCity}-${destinationCity}-${progressIndex}`}
             cx={currentPoint.x}
             cy={currentPoint.y}
-            fill="rgba(74,222,128,.22)"
-            stroke="#4ade80"
+            fill="rgba(20,87,166,.17)"
+            stroke="#1457A6"
             strokeWidth="1.5"
             animate={{ r: [8, 14, 8], opacity: [0.95, 0.12, 0.95] }}
             transition={{ duration: 1.65, repeat: Infinity, ease: "easeInOut" }}
           />
-          <circle cx={currentPoint.x} cy={currentPoint.y} r="4.5" fill="#4ade80" stroke="#dcfce7" strokeWidth="1.5" />
+          <circle cx={currentPoint.x} cy={currentPoint.y} r="4.5" fill="#1457A6" stroke="#FFFFFF" strokeWidth="1.5" />
 
-          <text x="28" y={Math.min(176, startY + 24)} textAnchor="middle" fill="#cbd5e1" fontSize="8" fontWeight="800">
+          <text x="28" y={Math.min(176, startY + 24)} textAnchor="middle" fill="#475569" fontSize="8" fontWeight="800">
             ORIGIN
           </text>
-          <text x="332" y={Math.max(12, endY - 12)} textAnchor="middle" fill="#cbd5e1" fontSize="8" fontWeight="800">
+          <text x="332" y={Math.max(12, endY - 12)} textAnchor="middle" fill="#475569" fontSize="8" fontWeight="800">
             DESTINATION
           </text>
         </svg>
@@ -180,19 +180,19 @@ export function OrderRouteMap({
 
       <div className="flex items-center justify-between gap-2 px-3.5 py-2.5">
         <div className="min-w-0">
-          <p className="truncate text-[9px] font-bold uppercase tracking-wide text-white/30">From</p>
-          <p className="truncate text-[11px] font-black text-white/80">{sourceCity}</p>
+          <p className="truncate text-[9px] font-bold uppercase tracking-wide text-slate-400">From</p>
+          <p className="truncate text-[11px] font-black text-slate-800">{sourceCity}</p>
         </div>
-        <div className="flex shrink-0 items-center gap-1.5 rounded-full border border-green-400/20 bg-green-400/[0.07] px-2.5 py-1.5">
+        <div className="flex shrink-0 items-center gap-1.5 rounded-full border border-blue-100 bg-blue-50 px-2.5 py-1.5">
           <span className="relative flex h-2 w-2">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-70" />
-            <span className="relative inline-flex h-2 w-2 rounded-full bg-green-400" />
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#1457A6] opacity-30" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-[#1457A6]" />
           </span>
-          <span className="max-w-[110px] truncate text-[9px] font-black text-green-300">{displayedLocation}</span>
+          <span className="max-w-[110px] truncate text-[9px] font-black text-[#1457A6]">{displayedLocation}</span>
         </div>
         <div className="min-w-0 text-right">
-          <p className="truncate text-[9px] font-bold uppercase tracking-wide text-white/30">To</p>
-          <p className="truncate text-[11px] font-black text-white/80">{destinationCity}</p>
+          <p className="truncate text-[9px] font-bold uppercase tracking-wide text-slate-400">To</p>
+          <p className="truncate text-[11px] font-black text-slate-800">{destinationCity}</p>
         </div>
       </div>
     </section>
