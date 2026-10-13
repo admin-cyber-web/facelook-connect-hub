@@ -1,0 +1,35 @@
+COMPLETE MARKETPLACE REVAMP: DYNAMIC ADMIN PRODUCT CREATION & FRONTEND STOREFRONT
+
+1. DYNAMIC & COMPREHENSIVE ADMIN PRODUCT CREATION FORM:
+   - Build/update the Admin Marketplace product upload form with complete custom fields so admins have full control over what appears on the frontend:
+     * Seller / Origin Details: Admin Name/Shop Name, Pickup Address, City, Pincode, and Contact Number.
+     * Product Type & Category Selector: Options for Apparel/Clothing, Liquids/Oils/Beverages, Electronics, Groceries, General Goods, etc.
+     * Dynamic Attribute Inputs:
+       - Sizes: Comma-separated or tag input (e.g., S, M, L, XL, XXL).
+       - Volume / Capacity: Comma-separated or tag input (e.g., 250ml, 500ml, 1L, 5L).
+       - Weight & Dimensions: Weight (e.g., 500g, 1kg, 2kg), Length, Width, Height fields.
+       - Colors & Multi-Image Mapping: Color options (e.g., Black, White, Red) paired with individual image upload/URL fields so each color has its mapped image.
+     * Offers & Discount Section: Original Price, Discounted Price, Discount Percentage (e.g., 20% OFF), Offer Taglines (e.g., "Buy 1 Get 1 Free", "Limited Period Deal"), and Stock Quantity.
+   - Save all these dynamic attributes in structured JSONB/columns in Supabase (`marketplace_items` table).
+
+2. FRONTEND DYNAMIC RENDERING (BUYER PRODUCT DETAILS PAGE):
+   - Only display relevant fields on the Product Detail page based on what the Admin filled:
+     * If the Admin added Volume/Liters, display Litre/ml selection buttons (250ml, 500ml, 1L).
+     * If the Admin added Apparel Sizes, display Size selection chips (S, M, L, XL).
+     * If the Admin added Colors, display Color Swatches. When a buyer clicks a color swatch, dynamically switch the main product image to the mapped color image.
+     * Display clear Offer badges and Discount pricing as configured by Admin.
+
+3. CLEAN LIGHT THEME UI DESIGN:
+   - Completely redesign the Marketplace catalog, individual Product Detail view, Checkout page, and Order Success confirmation page.
+   - Use a professional White background, Rich Blue primary headers/buttons, and Dark Red accents (Amazon/Flipkart inspired style—strictly remove any dark mode or cheap mockup look).
+
+4. SMART "BUY NOW" & CHECKOUT FLOW:
+   - When a user clicks "Buy Now", open a streamlined checkout page capturing Delivery Address, Phone Number, Selected Variant (Selected Size/Volume/Color), and Payment Method (COD / UPI with UTR input).
+   - Display a "Frequently Bought Together / Suggested Products" carousel or grid right below the item to encourage cross-selling.
+
+5. ORDER SUCCESS & ANIMATED TRACKING INTEGRATION:
+   - The Order Success page must display a polished summary card containing the product thumbnail, title, price, selected size/litres/color, delivery address, unique Trace Code, and a direct button to open the animated source-to-destination map tracking view.
+
+6. NATIVE SOCIAL SHARE INTEGRATION:
+   - Add a prominent Share button on every product card and detail view.
+   - Clicking it triggers native device sharing or copies a rich formatted text message (including product image link, title, price, and direct purchase link) optimized for instant sharing on WhatsApp, Instagram, and Messenger.
