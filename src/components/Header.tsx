@@ -28,6 +28,7 @@ import {
   Share2,
   Reply,
   Anchor,
+  Package,
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { subscribeWhileVisible } from "@/lib/realtimeVisibility";
@@ -223,6 +224,11 @@ const NOTIF_META: Record<
     color: "bg-green-500/20 text-green-400",
     label: "accepted your hook invitation — you can now post!",
   },
+  marketplace_order: {
+    icon: <Package size={13} />,
+    color: "bg-blue-500/20 text-blue-400",
+    label: "has an order update.",
+  },
 };
 
 // ── Extract quoted comment text from content (handles both new "comment" and old hindi "ne ... \"text\"") ──
@@ -257,12 +263,45 @@ function parseRichShare(
   }
 }
 
+type MarketplaceOrderNotification = {
+  kind: "marketplace_order";
+  event: "created" | "status" | "location";
+  item_title?: string;
+  status?: string;
+  tracking_code?: string;
+  current_location?: string | null;
+  thumbnail_url?: string | null;
+};
+
+function parseMarketplaceOrderNotification(
+  content?: string | null,
+): MarketplaceOrderNotification | null {
+  if (!content?.trim().startsWith("{")) return null;
+  try {
+    const value = JSON.parse(content);
+    if (value?.kind !== "marketplace_order") return null;
+    return value as MarketplaceOrderNotification;
+  } catch {
+    return null;
+  }
+}
+
 // ── Format the action text shown after the actor's bold name ──
 function formatNotifAction(
   type: string,
   content?: string | null,
 ): { text: string; quote?: string } {
   const meta = NOTIF_META[type];
+  if (type === "marketplace_order") {
+    const order = parseMarketplaceOrderNotification(content);
+    if (order?.event === "location") {
+      return { text: `Shipment location: ${order.current_location || order.status || "updated"}.` };
+    }
+    if (order?.event === "created") {
+      return { text: `Order received for ${order.item_title || "your product"}. Status: ${order.status || "Pending"}.` };
+    }
+    return { text: `${order?.item_title || "Your order"} status updated to ${order?.status || "new status"}.` };
+  }
   if (type === "comment" || type === "reply") {
     const q = extractCommentQuote(content);
     return {
@@ -1817,6 +1856,14 @@ const Header = ({
       markOneRead(n.id);
     }
 
+    if (n.type === "marketplace_order" && n.entity_id) {
+      setShowNotif(false);
+      window.dispatchEvent(new CustomEvent("flicks:open-marketplace-order", {
+        detail: { orderId: n.entity_id },
+      }));
+      return;
+    }
+
     // Story notifications → open story viewer
     if (["story_like", "story_comment"].includes(n.type) && n.entity_id) {
       setShowNotif(false);
@@ -2329,18 +2376,21 @@ const Header = ({
                         {groupNotifications(notifications).map((n: any) => {
                           const meta = NOTIF_META[n.type] || NOTIF_META["new_post"];
                           const action = formatNotifAction(n.type, n.content);
+                          const marketplaceOrder = n.type === "marketplace_order"
+                            ? parseMarketplaceOrderNotification(n.content) : null;
                           const richShare = ["share", "circle_share", "hook_share"].includes(n.type)
                             ? parseRichShare(n.content) : null;
+                          const isMarketplaceOrder = n.type === "marketplace_order";
                           const isUnread = !n.is_read || (n._group && n._group.some((g: any) => !g.is_read));
-                          const actorName = n._group
+                          const actorName = isMarketplaceOrder ? "Order update" : n._group
                             ? (n._group[0]?.actor?.full_name || "Someone")
                             : (n.actor?.full_name || "Someone");
-                          const actorAvatar = n._group ? n._group[0]?.actor?.avatar_url : n.actor?.avatar_url;
+                          const actorAvatar = isMarketplaceOrder ? null : n._group ? n._group[0]?.actor?.avatar_url : n.actor?.avatar_url;
                           const groupExtra = n._group && n._group.length > 1 ? n._group.length - 1 : 0;
 
                           // Post thumbnail for like/comment/reply/share notifications
                           const postThumb = (() => {
-                            if (richShare) return null; // share already has its own preview
+                            if (richShare || isMarketplaceOrder) return null; // rich cards render their own preview
                             const pm = postPreviewMap[n.entity_id];
                             if (!pm) return null;
                             return pm.media_url || pm.image_url || pm.cover_url || null;
@@ -2377,13 +2427,20 @@ const Header = ({
 
                               <div className="flex-1 min-w-0">
                                 {/* Actor name + action */}
-                                <p className="text-[13px] leading-snug text-white/90">
-                                  <span className="font-black">{actorName}</span>
-                                  {groupExtra > 0 && (
-                                    <span className="text-white/50"> and {groupExtra} other{groupExtra > 1 ? "s" : ""}</span>
-                                  )}
-                                  {" "}<span className="text-white/70">{action.text}</span>
-                                </p>
+                                {isMarketplaceOrder ? (
+                                  <p className="text-[13px] leading-snug text-white/90">
+                                    <span className="font-black">{actorName}</span>
+                                    <span className="text-white/70"> · {marketplaceOrder?.event === "location" ? "shipment location updated" : marketplaceOrder?.event === "created" ? "new order received" : "status updated"}</span>
+                                  </p>
+                                ) : (
+                                  <p className="text-[13px] leading-snug text-white/90">
+                                    <span className="font-black">{actorName}</span>
+                                    {groupExtra > 0 && (
+                                      <span className="text-white/50"> and {groupExtra} other{groupExtra > 1 ? "s" : ""}</span>
+                                    )}
+                                    {" "}<span className="text-white/70">{action.text}</span>
+                                  </p>
+                                )}
                                 {/* Comment quote */}
                                 {action.quote && (
                                   <p className="text-[11px] text-white/45 mt-0.5 italic truncate">"{action.quote}"</p>
@@ -2403,6 +2460,23 @@ const Header = ({
                                     <div className="flex-1 min-w-0 py-0.5">
                                       <p className="text-[11px] font-bold text-white/90 truncate">{richShare.share_title}</p>
                                       <p className="text-[10px] text-white/50 line-clamp-1">{richShare.share_description}</p>
+                                    </div>
+                                  </div>
+                                )}
+                                {isMarketplaceOrder && (
+                                  <div className="mt-1.5 flex gap-2 overflow-hidden rounded-xl border border-white/10 bg-white/[0.06] p-2">
+                                    {marketplaceOrder?.thumbnail_url ? (
+                                      <img src={marketplaceOrder.thumbnail_url} alt="" className="h-12 w-12 shrink-0 rounded-lg object-cover" decoding="async" />
+                                    ) : (
+                                      <div className="grid h-12 w-12 shrink-0 place-items-center rounded-lg bg-blue-500/20 text-blue-300"><Package size={18} /></div>
+                                    )}
+                                    <div className="min-w-0 flex-1 py-0.5">
+                                      <p className="truncate text-[11px] font-bold text-white/90">{marketplaceOrder?.item_title || "Marketplace order"}</p>
+                                      <p className="mt-0.5 truncate text-[10px] font-semibold text-blue-300">Status: {marketplaceOrder?.status || "Updated"}</p>
+                                      {marketplaceOrder?.event === "location" && marketplaceOrder.current_location && (
+                                        <p className="truncate text-[10px] text-white/55">Current location: {marketplaceOrder.current_location}</p>
+                                      )}
+                                      {marketplaceOrder?.tracking_code && <p className="truncate text-[9px] text-white/40">{marketplaceOrder.tracking_code}</p>}
                                     </div>
                                   </div>
                                 )}

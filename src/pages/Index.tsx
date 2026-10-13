@@ -2298,6 +2298,18 @@ const Index = ({ session, initialAdminOpen, isGuest = false }: { session: Sessio
   const [settingsView, setSettingsView] = useState<
     "main" | "personal" | "blocklist" | "privacy" | "help" | "about" | "contact" | "personalization" | "orders" | "marketplace"
   >("main");
+  const [marketplaceOrderFocusId, setMarketplaceOrderFocusId] = useState<string | null>(null);
+  useEffect(() => {
+    const openMarketplaceOrder = (event: Event) => {
+      const orderId = (event as CustomEvent<{ orderId?: unknown }>).detail?.orderId;
+      if (typeof orderId !== "string" || !orderId) return;
+      setMarketplaceOrderFocusId(orderId);
+      setActiveFeature("Settings");
+      setSettingsView("orders");
+    };
+    window.addEventListener("flicks:open-marketplace-order", openMarketplaceOrder);
+    return () => window.removeEventListener("flicks:open-marketplace-order", openMarketplaceOrder);
+  }, []);
   const [isSavingPersonal, setIsSavingPersonal] = useState(false);
   const [personalSaved, setPersonalSaved] = useState(false);
   const [personalForm, setPersonalForm] = useState({
@@ -5167,7 +5179,10 @@ const PersonalizationView = React.memo(({
                     <Suspense fallback={<SectionLoader />}>
                       {createPortal(
                         <AnimatePresence>
-                          <MyOrdersDrawer onClose={() => setSettingsView("main")} />
+                          <MyOrdersDrawer
+                            focusOrderId={marketplaceOrderFocusId}
+                            onClose={() => { setMarketplaceOrderFocusId(null); setSettingsView("main"); }}
+                          />
                         </AnimatePresence>,
                         document.body,
                       )}

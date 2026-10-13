@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "../lib/supabaseClient";
+import { subscribeWhileVisible } from "../lib/realtimeVisibility";
 import { OrderRouteMap } from "./OrderRouteMap";
 import type { User } from "@supabase/supabase-js";
 
@@ -19,9 +20,10 @@ const SHIPPING_STATUSES = [
   "Verification Pending", "Pending", "Confirmed", "Packed", "Shipped", "In Transit",
   "At Regional Hub", "Out for Delivery", "Delivered",
 ] as const;
+const SHIPPED_ORDER_STATUSES = new Set(["Shipped", "In Transit", "At Regional Hub", "Out for Delivery", "Delivered"]);
 const STATUS_COLORS: Record<string, string> = {
   "Verification Pending": "#9A6411", Pending: "#9A6411", Confirmed: "#1457A6", Packed: "#1457A6", Shipped: "#1457A6",
-  "In Transit": "#1457A6", "At Regional Hub": "#8B1E2D",
+  "In Transit": "#1457A6", "At Regional Hub": "#8B1E2D", Cancelled: "#8B1E2D",
   "Out for Delivery": "#8B1E2D", Delivered: "#2F7651",
 };
 const BADGE_OPTIONS = ["", "New", "Sale", "Hot"];
@@ -89,6 +91,7 @@ export interface MarketplaceOrder {
   phone?: string | null;
   address?: string | null;
   item_id?: string | null;
+  item_image_url?: string | null;
   item_title: string;
   item_price?: string | null;
   selected_size?: string | null;
@@ -107,6 +110,14 @@ type VariantSelection = { size: string; volume: string; color: string };
 
 function isUpiAwaitingVerification(order: Pick<MarketplaceOrder, "payment_method" | "status">): boolean {
   return order.payment_method === "UPI" && ["Verification Pending", "Pending"].includes(order.status);
+}
+
+function canCancelMarketplaceOrder(order: Pick<MarketplaceOrder, "status">): boolean {
+  return order.status !== "Cancelled" && !SHIPPED_ORDER_STATUSES.has(order.status);
+}
+
+async function requestMarketplaceOrderCancellation(orderId: string) {
+  return supabase.rpc("cancel_marketplace_order", { p_order_id: orderId });
 }
 
 function genTrackingCode(): string {
@@ -427,25 +438,32 @@ function CheckoutDrawer({
 }
 
 function OrderSuccessModal({
-  order, item, onClose,
-}: { order: MarketplaceOrder; item: MarketplaceItem; onClose: () => void }) {
+  order, item, onClose, onCancelOrder,
+}: {
+  order: MarketplaceOrder;
+  item: MarketplaceItem;
+  onClose: () => void;
+  onCancelOrder: (orderId: string) => Promise<{ error: unknown }>;
+}) {
   const [showRoute, setShowRoute] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const awaitingUpiVerification = isUpiAwaitingVerification(order);
   const rows: [string, string][] = [
     ...(order.selected_size ? [["Size", order.selected_size] as [string, string]] : []),
     ...(order.selected_volume ? [["Volume", order.selected_volume] as [string, string]] : []),
     ...(order.selected_color ? [["Color", order.selected_color] as [string, string]] : []),
     ["Delivery address", [order.address, order.destination_city].filter(Boolean).join(", ") || "—"],
+    ["Order status", order.status],
     ["Payment method", order.payment_method === "UPI" ? "PhonePe UPI" : "Cash on Delivery"],
-    ...(order.payment_method === "UPI" ? [["Payment verification", awaitingUpiVerification ? "Pending manual verification" : "Verified"] as [string, string]] : []),
+    ...(order.payment_method === "UPI" ? [["Payment verification", order.status === "Cancelled" ? "Cancelled" : awaitingUpiVerification ? "Pending manual verification" : "Verified"] as [string, string]] : []),
   ];
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[700] flex items-center justify-center bg-slate-900/50 p-4">
       <motion.section role="dialog" aria-modal="true" aria-label="Order confirmation" initial={{ scale: .94, opacity: 0, y: 12 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="max-h-[92dvh] w-full max-w-md overflow-y-auto rounded-[26px] bg-white shadow-2xl">
         <div className="px-6 pb-4 pt-7 text-center">
           <div className="mx-auto mb-3 grid h-14 w-14 place-items-center rounded-full bg-blue-50 text-[#1457A6]"><Check size={27} strokeWidth={3} /></div>
-          <h2 className="text-2xl font-black tracking-tight text-slate-900">{awaitingUpiVerification ? "Order received" : "Order placed"}</h2>
-          <p className="mt-1 text-sm text-slate-500">{awaitingUpiVerification ? "Your order is awaiting payment verification." : "Thanks for shopping with Famefeed."}</p>
+          <h2 className="text-2xl font-black tracking-tight text-slate-900">{order.status === "Cancelled" ? "Order cancelled" : awaitingUpiVerification ? "Order received" : "Order placed"}</h2>
+          <p className="mt-1 text-sm text-slate-500">{order.status === "Cancelled" ? "This order has been cancelled." : awaitingUpiVerification ? "Your order is awaiting payment verification." : "Thanks for shopping with Famefeed."}</p>
           {awaitingUpiVerification && <p data-testid="text-upi-verification-notice" className="mx-auto mt-3 max-w-sm rounded-xl border border-amber-200 bg-amber-50 p-3 text-left text-xs font-medium leading-relaxed text-amber-900">Your order is in processing and has been forwarded to the Payment Verification Department. Once payment is matched and verified, your order status will be updated.</p>}
         </div>
         <div className="mx-5 flex items-center gap-3 rounded-2xl border border-slate-100 bg-slate-50 p-3">
@@ -460,14 +478,38 @@ function OrderSuccessModal({
           {rows.map(([label, value]) => <div key={label} className="flex justify-between gap-4 py-2.5 text-xs"><span className="shrink-0 font-semibold text-slate-500">{label}</span><span className="max-w-[68%] text-right font-bold text-slate-800">{value}</span></div>)}
         </div>
         <div className="px-5 pb-5">
-          {!awaitingUpiVerification && showRoute && order.source_city && order.destination_city && (
+          {!awaitingUpiVerification && order.status !== "Cancelled" && showRoute && order.source_city && order.destination_city && (
             <div className="mb-4" data-testid="success-shipment-route">
               <OrderRouteMap sourceCity={order.source_city} destinationCity={order.destination_city} currentLocation={order.current_location} status={order.status} />
             </div>
           )}
-          {!awaitingUpiVerification && order.source_city && order.destination_city && (
+          {!awaitingUpiVerification && order.status !== "Cancelled" && order.source_city && order.destination_city && (
             <button type="button" data-testid="button-success-track-shipment" onClick={() => setShowRoute(value => !value)} className={`${secondaryButton} mb-2 w-full border-blue-200 text-[#1457A6]`}>
               <Truck size={16} /> {showRoute ? "Hide shipment map" : "View shipment map"}
+            </button>
+          )}
+          {canCancelMarketplaceOrder(order) && (
+            <button
+              type="button"
+              data-testid="button-cancel-order-details"
+              disabled={cancelling}
+              onClick={async () => {
+                if (!window.confirm(`Cancel order ${order.tracking_code}? This cannot be undone.`)) return;
+                setCancelling(true);
+                try {
+                  const { error } = await onCancelOrder(order.id);
+                  if (error) toast.error("Could not cancel this order. It may already have shipped.");
+                  else toast.success("Order cancelled");
+                } catch {
+                  toast.error("Could not cancel this order. Please try again.");
+                } finally {
+                  setCancelling(false);
+                }
+              }}
+              className="mb-2 flex w-full items-center justify-center gap-2 rounded-xl border border-rose-300 bg-rose-50 px-4 py-3 text-sm font-extrabold text-[#8B1E2D] hover:bg-rose-100 disabled:opacity-60"
+            >
+              {cancelling ? <Loader2 size={16} className="animate-spin" /> : <X size={16} />}
+              {cancelling ? "Cancelling…" : "Cancel Order"}
             </button>
           )}
           <button type="button" data-testid="button-success-return-feed" onClick={onClose} className={`${primaryButton} w-full py-3`}>Return to feed</button>
@@ -478,13 +520,16 @@ function OrderSuccessModal({
   );
 }
 
-export function MyOrdersDrawer({ onClose }: { onClose: () => void }) {
+export function MyOrdersDrawer({
+  onClose, focusOrderId,
+}: { onClose: () => void; focusOrderId?: string | null }) {
   const [userId, setUserId] = useState<string | null>(null);
   const [orders, setOrders] = useState<MarketplaceOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [refreshCount, setRefreshCount] = useState(0);
   const [visible, setVisible] = useState(true);
+  const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -523,6 +568,33 @@ export function MyOrdersDrawer({ onClose }: { onClose: () => void }) {
   }, [userId, refreshCount]);
 
   useEffect(() => {
+    if (!focusOrderId || loading) return;
+    const timer = window.setTimeout(() => {
+      document.getElementById(`marketplace-order-${focusOrderId}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [focusOrderId, loading, orders]);
+
+  const cancelOrder = async (order: MarketplaceOrder) => {
+    if (!canCancelMarketplaceOrder(order) || cancellingOrderId) return;
+    if (!window.confirm(`Cancel order ${order.tracking_code}? This cannot be undone.`)) return;
+    setCancellingOrderId(order.id);
+    try {
+      const { error } = await requestMarketplaceOrderCancellation(order.id);
+      if (error) {
+        toast.error("Could not cancel this order. It may already have shipped.");
+      } else {
+        setOrders(previous => previous.map(current => current.id === order.id ? { ...current, status: "Cancelled" } : current));
+        toast.success("Order cancelled");
+      }
+    } catch {
+      toast.error("Could not cancel this order. Please try again.");
+    } finally {
+      setCancellingOrderId(null);
+    }
+  };
+
+  useEffect(() => {
     if (!userId || !visible) return;
     const channel = supabase.channel(`marketplace-orders-user-${userId}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "marketplace_orders", filter: `user_id=eq.${userId}` }, () => setRefreshCount(count => count + 1))
@@ -546,7 +618,7 @@ export function MyOrdersDrawer({ onClose }: { onClose: () => void }) {
           : loadError && !orders.length ? <div className="rounded-2xl border border-rose-200 bg-white p-7 text-center"><p className="font-bold text-[#8B1E2D]">{loadError}</p><button type="button" data-testid="button-retry-my-orders" onClick={() => setRefreshCount(count => count + 1)} className={`${secondaryButton} mt-4`}>Retry</button></div>
           : !orders.length ? <div className="rounded-2xl border border-slate-200 bg-white px-5 py-12 text-center"><Package size={28} className="mx-auto mb-3 text-slate-300" /><p className="font-extrabold text-slate-800">No orders yet</p><p className="mt-1 text-xs text-slate-500">Your purchases and tracking details will appear here.</p></div>
           : orders.map(order => (
-            <article key={order.id} data-testid={`card-my-order-${order.id}`} className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <article id={`marketplace-order-${order.id}`} key={order.id} data-testid={`card-my-order-${order.id}`} className={`space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm ${focusOrderId === order.id ? "ring-2 ring-blue-500 ring-offset-2" : ""}`}>
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0"><p className="truncate text-sm font-extrabold text-slate-900">{order.item_title}</p><p className="mt-1 text-[11px] text-slate-500">{order.tracking_code} · {formatOrderTime(order.created_at)}</p><p className="mt-1 text-sm font-bold text-[#1457A6]">{order.item_price || ""}</p>
                   {[order.selected_size, order.selected_volume, order.selected_color].filter(Boolean).length > 0 && <p className="mt-1 text-xs text-slate-500">{[order.selected_size, order.selected_volume, order.selected_color].filter(Boolean).join(" · ")}</p>}
@@ -555,10 +627,24 @@ export function MyOrdersDrawer({ onClose }: { onClose: () => void }) {
               </div>
               {isUpiAwaitingVerification(order)
                 ? <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900">Payment verification is pending. Shipment updates will appear here after the submitted UTR is matched.</p>
+                : order.status === "Cancelled"
+                  ? <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-[#8B1E2D]">This order was cancelled.</p>
                 : order.source_city?.trim() && order.destination_city?.trim()
                   ? <OrderRouteMap sourceCity={order.source_city} destinationCity={order.destination_city} currentLocation={order.current_location} status={order.status} />
                   : <p className="rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-800">Route unavailable: source or delivery city was not recorded.</p>}
               {order.address && <p className="text-xs text-slate-500"><span className="font-bold text-slate-700">Delivery address:</span> {order.address}</p>}
+              {canCancelMarketplaceOrder(order) && (
+                <button
+                  type="button"
+                  data-testid={`button-cancel-order-${order.id}`}
+                  disabled={cancellingOrderId === order.id}
+                  onClick={() => void cancelOrder(order)}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl border border-rose-300 bg-rose-50 px-4 py-3 text-sm font-extrabold text-[#8B1E2D] hover:bg-rose-100 disabled:opacity-60"
+                >
+                  {cancellingOrderId === order.id ? <Loader2 size={16} className="animate-spin" /> : <X size={16} />}
+                  {cancellingOrderId === order.id ? "Cancelling…" : "Cancel Order"}
+                </button>
+              )}
             </article>
           ))}
         </div>
@@ -681,7 +767,18 @@ export function MarketplaceFeedCard({ items }: { items: MarketplaceItem[] }) {
       {typeof document !== "undefined" && createPortal(<AnimatePresence>
         {detailItem && <ProductDetail key={detailItem.id} item={detailItem} suggestions={active.filter(item => item.id !== detailItem.id).slice(0, 3)} onBack={closeDetail} onBuyNow={selection => openCheckout(detailItem, selection)} onOpenSuggestion={showDetail} />}
         {checkoutItem && <CheckoutDrawer item={checkoutItem} initialSelection={checkoutSelection} onClose={() => setCheckoutItem(null)} onSuccess={order => { setCheckoutItem(null); closeDetail(); setSuccessData({ order, item: checkoutItem }); }} />}
-        {successData && <OrderSuccessModal order={successData.order} item={successData.item} onClose={() => setSuccessData(null)} />}
+        {successData && <OrderSuccessModal
+          order={successData.order}
+          item={successData.item}
+          onClose={() => setSuccessData(null)}
+          onCancelOrder={async orderId => {
+            const result = await requestMarketplaceOrderCancellation(orderId);
+            if (!result.error) {
+              setSuccessData(current => current ? { ...current, order: { ...current.order, status: "Cancelled" } } : current);
+            }
+            return { error: result.error };
+          }}
+        />}
         {showMyOrders && <MyOrdersDrawer onClose={() => setShowMyOrders(false)} />}
       </AnimatePresence>, document.body)}
     </>
@@ -769,7 +866,16 @@ export function AdminMarketplacePanel({ onClose }: AdminMarketplacePanelProps) {
     setLoadingOrders(false);
   };
   useEffect(() => { void fetchItems(); }, []);
-  useEffect(() => { if (panelTab === "orders") void fetchOrders(); }, [panelTab]);
+  useEffect(() => {
+    if (panelTab !== "orders") return;
+    void fetchOrders();
+    return subscribeWhileVisible(
+      () => supabase.channel("admin-marketplace-order-updates")
+        .on("postgres_changes", { event: "*", schema: "public", table: "marketplace_orders" }, () => { void fetchOrders(); })
+        .subscribe(),
+      { onVisible: () => { void fetchOrders(); } },
+    );
+  }, [panelTab]);
 
   const openAdd = () => { setEditItem(null); setForm({ ...EMPTY_FORM }); setColorVariants([]); setShowForm(true); };
   const openEdit = (item: MarketplaceItem) => {
@@ -899,6 +1005,7 @@ export function AdminMarketplacePanel({ onClose }: AdminMarketplacePanelProps) {
   };
   const updateOrderStatus = async (orderId: string, status: string) => {
     const order = orders.find(current => current.id === orderId);
+    if (order?.status === "Cancelled") return;
     if (order && isUpiAwaitingVerification(order)) {
       toast.error("Match the UTR against the bank statement before updating shipment status");
       return;
@@ -975,7 +1082,7 @@ export function AdminMarketplacePanel({ onClose }: AdminMarketplacePanelProps) {
           : ordersError ? <div className="m-5 rounded-2xl border border-rose-200 bg-white p-7 text-center"><p className="font-bold text-[#8B1E2D]">{ordersError}</p><button type="button" onClick={() => void fetchOrders()} className={`${secondaryButton} mt-4`}>Retry</button></div>
           : !orders.length ? <div className="px-5 py-16 text-center"><span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-blue-50 text-[#1457A6]"><Package size={24} /></span><p className="mt-4 font-extrabold text-slate-800">No orders to manage</p><p className="mt-1 text-xs text-slate-500">Orders will appear after a customer checks out.</p></div>
           : <div className="space-y-3 p-4 sm:p-5">{orders.map(order => <article key={order.id} data-testid={`row-admin-order-${order.id}`} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-             <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-mono text-sm font-black text-slate-900">{order.tracking_code}</p><p className="mt-1 text-[10px] text-slate-500">{formatOrderTime(order.created_at)}</p></div><label><span className="sr-only">Shipment status for {order.tracking_code}</span><select data-testid={`select-order-status-${order.id}`} value={order.status} disabled={updatingOrderId === order.id || isUpiAwaitingVerification(order)} onChange={event => void updateOrderStatus(order.id, event.target.value)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:border-blue-400">{[order.status, ...SHIPPING_STATUSES.filter(status => !["Pending", "Verification Pending", order.status].includes(status))].map(status => <option key={status} value={status}>{status}</option>)}</select></label></div>
+             <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-mono text-sm font-black text-slate-900">{order.tracking_code}</p><p className="mt-1 text-[10px] text-slate-500">{formatOrderTime(order.created_at)}</p></div><label><span className="sr-only">Shipment status for {order.tracking_code}</span><select data-testid={`select-order-status-${order.id}`} value={order.status} disabled={updatingOrderId === order.id || isUpiAwaitingVerification(order) || order.status === "Cancelled"} onChange={event => void updateOrderStatus(order.id, event.target.value)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:border-blue-400">{[order.status, ...SHIPPING_STATUSES.filter(status => !["Pending", "Verification Pending", order.status].includes(status))].map(status => <option key={status} value={status}>{status}</option>)}</select></label></div>
             <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 border-y border-slate-100 py-3 text-xs">
               <span className="text-slate-400">Product</span><span className="truncate font-bold text-slate-800">{order.item_title}</span>
               <span className="text-slate-400">Price</span><span className="font-bold text-[#1457A6]">{order.item_price || "—"}</span>
@@ -998,8 +1105,8 @@ export function AdminMarketplacePanel({ onClose }: AdminMarketplacePanelProps) {
                  {updatingOrderId === order.id ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Match UTR &amp; confirm payment
                </button>
              </div>}
-            {order.source_city && order.destination_city && <div className="mt-3"><OrderRouteMap sourceCity={order.source_city} destinationCity={order.destination_city} status={order.status} currentLocation={order.current_location} /></div>}
-            <div className="mt-3 flex gap-2"><label className="min-w-0 flex-1"><span className="sr-only">Current shipment location</span><input data-testid={`input-order-location-${order.id}`} value={locationDrafts[order.id] ?? order.current_location ?? ""} onChange={event => setLocationDrafts(previous => ({ ...previous, [order.id]: event.target.value }))} placeholder="Current city or shipping hub" className={fieldClass} /></label><button type="button" data-testid={`button-save-order-location-${order.id}`} disabled={updatingLocationId === order.id} onClick={() => void updateCurrentLocation(order.id)} className={secondaryButton}>{updatingLocationId === order.id ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}<span className="hidden sm:inline">Save location</span></button></div>
+             {order.status !== "Cancelled" && order.source_city && order.destination_city && <div className="mt-3"><OrderRouteMap sourceCity={order.source_city} destinationCity={order.destination_city} status={order.status} currentLocation={order.current_location} /></div>}
+             <div className="mt-3 flex gap-2"><label className="min-w-0 flex-1"><span className="sr-only">Current shipment location</span><input data-testid={`input-order-location-${order.id}`} disabled={order.status === "Cancelled"} value={locationDrafts[order.id] ?? order.current_location ?? ""} onChange={event => setLocationDrafts(previous => ({ ...previous, [order.id]: event.target.value }))} placeholder="Current city or shipping hub" className={fieldClass} /></label><button type="button" data-testid={`button-save-order-location-${order.id}`} disabled={updatingLocationId === order.id || order.status === "Cancelled"} onClick={() => void updateCurrentLocation(order.id)} className={secondaryButton}>{updatingLocationId === order.id ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}<span className="hidden sm:inline">Save location</span></button></div>
           </article>)}</div>}
         </div>}
 
