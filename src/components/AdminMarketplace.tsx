@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
   ArrowLeft, Check, ClipboardList, Copy, CreditCard,
   Image as ImageIcon, Loader2, MapPin, Package, Pencil, Plus, RefreshCw,
@@ -25,6 +25,13 @@ const STATUS_COLORS: Record<string, string> = {
   "Verification Pending": "#9A6411", Pending: "#9A6411", Confirmed: "#1457A6", Packed: "#1457A6", Shipped: "#1457A6",
   "In Transit": "#1457A6", "At Regional Hub": "#8B1E2D", Cancelled: "#8B1E2D",
   "Out for Delivery": "#8B1E2D", Delivered: "#2F7651",
+};
+const MILESTONE_TIMESTAMP_BY_STATUS: Partial<Record<string, keyof Pick<MarketplaceOrder, "dispatched_at" | "in_transit_at" | "hub_arrived_at" | "out_for_delivery_at" | "delivered_at">>> = {
+  Shipped: "dispatched_at",
+  "In Transit": "in_transit_at",
+  "At Regional Hub": "hub_arrived_at",
+  "Out for Delivery": "out_for_delivery_at",
+  Delivered: "delivered_at",
 };
 const BADGE_OPTIONS = ["", "New", "Sale", "Hot"];
 
@@ -107,10 +114,16 @@ export interface MarketplaceOrder {
   delivery_partner_name?: string | null;
   delivery_partner_phone?: string | null;
   estimated_delivery_at?: string | null;
+  dispatched_at?: string | null;
+  in_transit_at?: string | null;
+  hub_arrived_at?: string | null;
+  out_for_delivery_at?: string | null;
+  delivered_at?: string | null;
   created_at: string;
 }
 
 type VariantSelection = { size: string; volume: string; color: string };
+type MarketplaceCatalogSnapshot = Pick<MarketplaceItem, "id"> & Partial<Omit<MarketplaceItem, "id">>;
 
 function isUpiAwaitingVerification(order: Pick<MarketplaceOrder, "payment_method" | "status">): boolean {
   return order.payment_method === "UPI" && ["Verification Pending", "Pending"].includes(order.status);
@@ -121,32 +134,136 @@ function canCancelMarketplaceOrder(order: Pick<MarketplaceOrder, "status">): boo
 }
 
 const TRACKING_MILESTONES = [
-  { title: "Order Dispatch", icon: "📦", etaOffsetDays: 3 },
-  { title: "In Transit", icon: "🚚", etaOffsetDays: 2 },
-  { title: "Hub Arrived", icon: "🏬", etaOffsetDays: 1 },
-  { title: "Out for Delivery", icon: "🏠", etaOffsetDays: 0 },
+  { title: "Order Dispatch", icon: "📦", etaOffsetDays: 3, timestampField: "dispatched_at" },
+  { title: "In Transit", icon: "🚚", etaOffsetDays: 2, timestampField: "in_transit_at" },
+  { title: "Hub Arrived", icon: "🏬", etaOffsetDays: 1, timestampField: "hub_arrived_at" },
+  { title: "Out for Delivery", icon: "🏠", etaOffsetDays: 0, timestampField: "out_for_delivery_at" },
 ] as const;
 
 function getTrackingMilestoneIndex(status: string): number {
   switch (status) {
+    case "Verification Pending":
+    case "Pending":
+    case "Confirmed":
     case "Packed": return 0;
     case "Shipped": return 1;
     case "In Transit": return 1;
     case "At Regional Hub": return 2;
     case "Out for Delivery": return 3;
     case "Delivered": return 4;
-    default: return -1;
+    default: return 0;
   }
 }
 
-function formatMilestoneEstimate(estimatedDeliveryAt: string | null | undefined, milestoneIndex: number): string {
-  if (!estimatedDeliveryAt) return "ETA not set";
-  const eta = new Date(estimatedDeliveryAt);
-  if (Number.isNaN(eta.getTime())) return "ETA not set";
-  eta.setDate(eta.getDate() - TRACKING_MILESTONES[milestoneIndex].etaOffsetDays);
-  return `Est. ${new Intl.DateTimeFormat("en-IN", {
-    weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
-  }).format(eta)}`;
+function parseOrderDate(value: string | null | undefined): Date | null {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function formatTrackingDateTime(date: Date): string {
+  return new Intl.DateTimeFormat("en-IN", {
+    month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
+  }).format(date);
+}
+
+function formatExpectedDate(date: Date): string {
+  const today = new Date();
+  const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+  const dateStart = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+  const daysAway = Math.round((dateStart - todayStart) / 86_400_000);
+  const time = new Intl.DateTimeFormat("en-IN", { hour: "numeric", minute: "2-digit" }).format(date);
+  if (daysAway <= 0) return `today at ${time}`;
+  if (daysAway === 1) return `tomorrow at ${time}`;
+  return `on ${formatTrackingDateTime(date)}`;
+}
+
+function getMilestoneTimestamp(order: MarketplaceOrder, milestoneIndex: number): Date | null {
+  const value = milestoneIndex === 3 && order.status === "Delivered"
+    ? order.delivered_at || order.out_for_delivery_at
+    : order[TRACKING_MILESTONES[milestoneIndex].timestampField];
+  return parseOrderDate(value);
+}
+
+function getEstimatedMilestoneDate(order: MarketplaceOrder, milestoneIndex: number, clampToNow = false): Date | null {
+  const deliveryEta = parseOrderDate(order.estimated_delivery_at);
+  const createdAt = parseOrderDate(order.created_at);
+  const estimate = deliveryEta ?? createdAt;
+  if (!estimate) return null;
+  const date = new Date(estimate);
+  if (deliveryEta) date.setDate(date.getDate() - TRACKING_MILESTONES[milestoneIndex].etaOffsetDays);
+  else date.setDate(date.getDate() + milestoneIndex + 1);
+  if (clampToNow && date.getTime() > Date.now()) return new Date();
+  return date;
+}
+
+function getFallbackStageEstimate(milestoneIndex: number, currentIndex: number): string {
+  const daysAway = Math.max(1, milestoneIndex - currentIndex);
+  return `Expected in ${daysAway}–${daysAway + 1} days`;
+}
+
+function formatMilestoneEstimate(order: MarketplaceOrder, milestoneIndex: number, currentIndex: number): string {
+  const actualTimestamp = getMilestoneTimestamp(order, milestoneIndex);
+  const milestone = TRACKING_MILESTONES[milestoneIndex];
+  if (actualTimestamp) {
+    const verb = milestoneIndex === 0 ? "Dispatched on"
+      : milestoneIndex === 1 ? "In transit since"
+        : milestoneIndex === 2 ? "Arrived at hub on"
+          : order.status === "Delivered" ? "Delivered on" : "Out for delivery since";
+    return `${verb} ${formatTrackingDateTime(actualTimestamp)}`;
+  }
+
+  const complete = order.status === "Delivered" || milestoneIndex < currentIndex;
+  if (complete) {
+    const estimatedDate = getEstimatedMilestoneDate(order, milestoneIndex, true);
+    return estimatedDate ? `Completed · est. ${formatTrackingDateTime(estimatedDate)}` : "Completed";
+  }
+
+  if (milestoneIndex === currentIndex) {
+    if (milestoneIndex === 0) {
+      const createdAt = parseOrderDate(order.created_at);
+      return createdAt && Date.now() - createdAt.getTime() > 86_400_000
+        ? "Dispatch update pending"
+        : "Within 24 hrs";
+    }
+    if (milestoneIndex === 1) return order.status === "Shipped" ? "Expected in 1–2 days" : "In transit now";
+    if (milestoneIndex === 2) return "Arrived at Local Hub";
+    if (order.status === "Out for Delivery") {
+      const eta = parseOrderDate(order.estimated_delivery_at);
+      return eta && eta.getTime() > Date.now()
+        ? `Out for delivery · expected ${formatExpectedDate(eta)}`
+        : "Out for delivery today";
+    }
+  }
+
+  const eta = parseOrderDate(order.estimated_delivery_at);
+  const estimatedStageDate = eta
+    ? getEstimatedMilestoneDate(order, milestoneIndex)
+    : null;
+  if (estimatedStageDate && estimatedStageDate.getTime() > Date.now()) {
+    return `Expected ${formatExpectedDate(estimatedStageDate)}`;
+  }
+  return getFallbackStageEstimate(milestoneIndex, currentIndex);
+}
+
+function getDeliveryEstimateLabel(order: MarketplaceOrder, currentIndex: number): string {
+  const deliveredAt = parseOrderDate(order.delivered_at);
+  if (order.status === "Delivered") {
+    if (deliveredAt) return `Delivered ${formatTrackingDateTime(deliveredAt)}`;
+    const estimatedDate = parseOrderDate(order.estimated_delivery_at)
+      || getEstimatedMilestoneDate(order, 3, true);
+    return estimatedDate ? `Delivered · est. ${formatTrackingDateTime(estimatedDate)}` : "Delivered";
+  }
+  const eta = parseOrderDate(order.estimated_delivery_at);
+  if (eta && eta.getTime() > Date.now()) return `Expected ${formatExpectedDate(eta)}`;
+  if (currentIndex >= 3) return "Expected today";
+  return getFallbackStageEstimate(3, currentIndex);
+}
+
+function resolveVariantValue(value: string | null | undefined, options: string[]): string {
+  if (value?.trim()) return value.trim();
+  if (options.length === 1) return options[0];
+  return options.length ? "Selection not recorded" : "Not specified";
 }
 
 function toDateTimeLocal(value: string | null | undefined): string {
@@ -170,7 +287,23 @@ function formatOrderTime(timestamp: string): string {
   });
 }
 
-function getAttributes(item: MarketplaceItem): MarketplaceItemAttributes {
+function OrderProductThumbnail({ sources, title, orderId }: { sources: Array<string | null | undefined>; title: string; orderId: string }) {
+  const candidates = Array.from(new Set(sources.map(source => source?.trim()).filter((source): source is string => Boolean(source))));
+  const sourceKey = candidates.join("|");
+  const [sourceIndex, setSourceIndex] = useState(0);
+  useEffect(() => setSourceIndex(0), [sourceKey]);
+  const source = candidates[sourceIndex];
+
+  return (
+    <div data-testid={`img-order-product-${orderId}`} className="grid h-full w-full place-items-center bg-white text-blue-300">
+      {source
+        ? <img src={source} alt={title} className="h-full w-full object-cover" loading="lazy" onError={() => setSourceIndex(index => index + 1)} />
+        : <Package size={21} aria-label="Product image unavailable" />}
+    </div>
+  );
+}
+
+function getAttributes(item: Pick<MarketplaceItem, "attributes">): MarketplaceItemAttributes {
   let raw: unknown = item.attributes;
   if (typeof raw === "string") {
     try { raw = JSON.parse(raw); } catch { raw = {}; }
@@ -178,21 +311,21 @@ function getAttributes(item: MarketplaceItem): MarketplaceItemAttributes {
   return raw && typeof raw === "object" ? raw as MarketplaceItemAttributes : {};
 }
 
-function itemSizes(item: MarketplaceItem): string[] {
+function itemSizes(item: Pick<MarketplaceItem, "sizes">): string[] {
   return (item.sizes ?? "").split(",").map(value => value.trim()).filter(Boolean);
 }
 
-function itemVolumes(item: MarketplaceItem): string[] {
+function itemVolumes(item: Pick<MarketplaceItem, "attributes">): string[] {
   const volumes = getAttributes(item).volumeOptions;
   return Array.isArray(volumes) ? volumes.filter(value => typeof value === "string" && value.trim()) : [];
 }
 
-function itemColors(item: MarketplaceItem): string[] {
+function itemColors(item: Pick<MarketplaceItem, "attributes" | "colors">): string[] {
   const mapped = getAttributes(item).colorVariants?.map(color => color.name).filter(Boolean) ?? [];
   return mapped.length ? mapped : (item.colors ?? "").split(",").map(value => value.trim()).filter(Boolean);
 }
 
-function itemImage(item: MarketplaceItem, color?: string): string | null {
+function itemImage(item: Pick<MarketplaceItem, "attributes" | "image_url">, color?: string): string | null {
   const variant = getAttributes(item).colorVariants?.find(entry => entry.name === color);
   return variant?.imageUrl?.trim() || item.image_url || null;
 }
@@ -256,7 +389,7 @@ function ProductSpecifications({
   );
 }
 
-function displayPrice(item: MarketplaceItem): string {
+function displayPrice(item: Pick<MarketplaceItem, "attributes" | "price">): string {
   const pricing = getAttributes(item).pricing;
   if (pricing?.discountedPrice != null && Number.isFinite(Number(pricing.discountedPrice))) {
     return `₹${Number(pricing.discountedPrice).toLocaleString("en-IN")}`;
@@ -389,7 +522,7 @@ function CheckoutDrawer({
         status: paymentMethod === "UPI" ? "Verification Pending" : "Pending",
       };
       const { data, error } = await supabase.from("marketplace_orders").insert([payload])
-        .select("id,tracking_code,user_id,user_email,user_name,phone,address,source_city,destination_city,current_location,item_id,item_image_url,item_details,item_title,item_price,selected_size,selected_volume,selected_color,payment_method,utr_id,status,delivery_partner_name,delivery_partner_phone,estimated_delivery_at,created_at")
+        .select("id,tracking_code,user_id,user_email,user_name,phone,address,source_city,destination_city,current_location,item_id,item_image_url,item_details,item_title,item_price,selected_size,selected_volume,selected_color,payment_method,utr_id,status,delivery_partner_name,delivery_partner_phone,estimated_delivery_at,dispatched_at,in_transit_at,hub_arrived_at,out_for_delivery_at,delivered_at,created_at")
         .single();
       if (error) throw error;
       onSuccess(data as MarketplaceOrder);
@@ -567,11 +700,13 @@ export function MyOrdersDrawer({
 }: { onClose: () => void; focusOrderId?: string | null }) {
   const [userId, setUserId] = useState<string | null>(null);
   const [orders, setOrders] = useState<MarketplaceOrder[]>([]);
+  const [catalogItems, setCatalogItems] = useState<Record<string, MarketplaceCatalogSnapshot>>({});
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [refreshCount, setRefreshCount] = useState(0);
   const [visible, setVisible] = useState(true);
   const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
+  const prefersReducedMotion = useReducedMotion();
 
   useEffect(() => {
     let mounted = true;
@@ -579,6 +714,7 @@ export function MyOrdersDrawer({
       if (!mounted) return;
       setUserId(session?.user?.id ?? null);
       setOrders([]);
+      setCatalogItems({});
       setLoading(Boolean(session?.user?.id));
     });
     supabase.auth.getUser().then(({ data }) => { if (mounted) setUserId(data.user?.id ?? null); });
@@ -598,7 +734,7 @@ export function MyOrdersDrawer({
     setLoading(true);
     setLoadError("");
     supabase.from("marketplace_orders")
-      .select("id,tracking_code,user_id,user_email,user_name,phone,address,source_city,destination_city,current_location,item_id,item_image_url,item_details,item_title,item_price,selected_size,selected_volume,selected_color,payment_method,utr_id,status,delivery_partner_name,delivery_partner_phone,estimated_delivery_at,created_at")
+      .select("id,tracking_code,user_id,user_email,user_name,phone,address,source_city,destination_city,current_location,item_id,item_image_url,item_details,item_title,item_price,selected_size,selected_volume,selected_color,payment_method,utr_id,status,delivery_partner_name,delivery_partner_phone,estimated_delivery_at,dispatched_at,in_transit_at,hub_arrived_at,out_for_delivery_at,delivered_at,created_at")
       .eq("user_id", userId).order("created_at", { ascending: false }).limit(100)
       .then(({ data, error }) => {
         if (!active) return;
@@ -610,6 +746,26 @@ export function MyOrdersDrawer({
       });
     return () => { active = false; };
   }, [userId, refreshCount]);
+
+  useEffect(() => {
+    const itemIds = Array.from(new Set(orders
+      .filter(order => order.item_id && !catalogItems[order.item_id])
+      .map(order => order.item_id as string)));
+    if (!itemIds.length) return;
+    let active = true;
+    supabase.from("marketplace_items")
+      .select("id,title,description,price,image_url,attributes,sizes,colors")
+      .in("id", itemIds)
+      .then(({ data }) => {
+        if (!active) return;
+        const loaded = (data ?? []) as MarketplaceCatalogSnapshot[];
+        if (loaded.length) setCatalogItems(current => ({
+          ...current,
+          ...Object.fromEntries(loaded.map(item => [item.id, item])),
+        }));
+      }, () => {});
+    return () => { active = false; };
+  }, [orders, catalogItems]);
 
   useEffect(() => {
     if (!focusOrderId || loading) return;
@@ -663,8 +819,24 @@ export function MyOrdersDrawer({
           : !orders.length ? <div className="rounded-2xl border border-slate-200 bg-white px-5 py-12 text-center"><Package size={28} className="mx-auto mb-3 text-slate-300" /><p className="font-extrabold text-slate-800">No orders yet</p><p className="mt-1 text-xs text-slate-500">Your purchases and tracking details will appear here.</p></div>
            : orders.map(order => {
              const milestoneIndex = getTrackingMilestoneIndex(order.status);
-             const partnerPhone = order.delivery_partner_phone?.trim();
-             const callHref = partnerPhone?.replace(/[^\d+]/g, "");
+              const displayedMilestoneIndex = Math.min(3, Math.max(0, milestoneIndex));
+              const milestoneProgress = order.status === "Delivered" ? 100 : displayedMilestoneIndex / 3 * 100;
+              const catalogItem = order.item_id ? catalogItems[order.item_id] : undefined;
+              const itemTitle = order.item_title?.trim() || catalogItem?.title?.trim() || "Marketplace product";
+              const itemPrice = order.item_price?.trim() || (catalogItem ? displayPrice(catalogItem) : "Price unavailable");
+              const selectedColor = resolveVariantValue(order.selected_color, catalogItem ? itemColors(catalogItem) : []);
+              const selectedSize = resolveVariantValue(order.selected_size, catalogItem ? itemSizes(catalogItem) : []);
+              const selectedVolume = resolveVariantValue(order.selected_volume, catalogItem ? itemVolumes(catalogItem) : []);
+              const itemDetails = order.item_details?.trim() || catalogItem?.description?.trim() || "No additional product details";
+              const imageSources = [
+                order.item_image_url,
+                catalogItem ? itemImage(catalogItem, selectedColor) : null,
+                catalogItem?.image_url,
+              ];
+              const partnerPhone = order.delivery_partner_phone?.trim();
+              const partnerName = order.delivery_partner_name?.trim();
+              const partnerAssigned = Boolean(partnerName && partnerPhone);
+              const callHref = partnerAssigned ? partnerPhone?.replace(/[^\d+]/g, "") : undefined;
              return (
                <article id={`marketplace-order-${order.id}`} key={order.id} data-testid={`card-my-order-${order.id}`} className={`space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm ${focusOrderId === order.id ? "ring-2 ring-blue-500 ring-offset-2" : ""}`}>
                  <div className="flex items-start justify-between gap-3">
@@ -689,21 +861,38 @@ export function MyOrdersDrawer({
                      <section aria-label="Shipment milestones" className="rounded-2xl border border-slate-100 bg-slate-50/80 p-3">
                        <div className="mb-3 flex items-center justify-between gap-2">
                          <h3 className="text-xs font-extrabold text-slate-900">Tracking milestones</h3>
-                         <span className="flex items-center gap-1 text-[10px] font-bold text-slate-500"><Clock3 size={12} />{order.estimated_delivery_at ? formatMilestoneEstimate(order.estimated_delivery_at, 3) : "Delivery ETA pending"}</span>
+                          <span data-testid={`order-delivery-estimate-${order.id}`} className="flex items-center gap-1 text-[10px] font-bold text-slate-600"><Clock3 size={12} className="shrink-0 text-[#1457A6]" />{getDeliveryEstimateLabel(order, milestoneIndex)}</span>
                        </div>
-                       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                         {TRACKING_MILESTONES.map((milestone, index) => {
-                           const complete = order.status === "Delivered" || (milestoneIndex >= 0 && index < milestoneIndex);
-                           const active = order.status !== "Delivered" && milestoneIndex === index;
-                           const badge = complete ? "Complete" : active ? "Current" : "Upcoming";
-                           return (
-                             <div key={milestone.title} data-testid={`milestone-${index}-${order.id}`} className={`min-w-0 rounded-xl border p-2.5 ${active ? "border-blue-200 bg-blue-50" : complete ? "border-emerald-100 bg-emerald-50/70" : "border-slate-200 bg-white"}`}>
-                               <div className="flex items-center justify-between gap-1"><span className="text-base" aria-hidden="true">{milestone.icon}</span><span className={`truncate rounded-full px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wide ${complete ? "bg-emerald-100 text-emerald-700" : active ? "bg-blue-100 text-[#1457A6]" : "bg-slate-100 text-slate-500"}`}>{badge}</span></div>
-                               <p className="mt-2 text-[10px] font-extrabold leading-tight text-slate-800">{milestone.title}</p>
-                               <p className="mt-1 text-[9px] font-medium text-slate-500">{formatMilestoneEstimate(order.estimated_delivery_at, index)}</p>
-                             </div>
-                           );
-                         })}
+                        <div className="relative space-y-1">
+                          <div className="absolute bottom-4 left-[15px] top-4 w-1 overflow-hidden rounded-full bg-slate-200" aria-hidden="true">
+                            <motion.div
+                              className="w-full rounded-full bg-gradient-to-b from-emerald-400 via-sky-500 to-blue-600"
+                              initial={false}
+                              animate={{ height: `${milestoneProgress}%` }}
+                              transition={{ duration: prefersReducedMotion ? 0 : 0.55, ease: "easeOut" }}
+                            />
+                          </div>
+                          {TRACKING_MILESTONES.map((milestone, index) => {
+                            const complete = order.status === "Delivered" || index < milestoneIndex;
+                            const active = order.status !== "Delivered" && index === displayedMilestoneIndex;
+                            const badge = complete ? "Complete" : active ? "Current" : "Upcoming";
+                            const detail = formatMilestoneEstimate(order, index, milestoneIndex);
+                            return (
+                              <div key={milestone.title} data-testid={`milestone-${index}-${order.id}`} className="relative flex min-h-[58px] items-start gap-3">
+                                <div className={`relative z-10 grid h-8 w-8 shrink-0 place-items-center rounded-full border-2 text-sm shadow-sm ${complete ? "border-emerald-500 bg-emerald-500 text-white" : active ? "border-blue-500 bg-blue-600 text-white" : "border-slate-200 bg-white text-slate-400"}`}>
+                                  {active && !prefersReducedMotion && <motion.span className="absolute inset-[-4px] rounded-full border-2 border-blue-400" animate={{ scale: [0.9, 1.22, 0.9], opacity: [0.7, 0.12, 0.7] }} transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut" }} />}
+                                  <span className="relative" aria-hidden="true">{milestone.icon}</span>
+                                </div>
+                                <div className={`min-w-0 flex-1 rounded-xl border px-3 py-2 ${active ? "border-blue-200 bg-blue-50 shadow-sm shadow-blue-100" : complete ? "border-emerald-100 bg-emerald-50/70" : "border-slate-200 bg-white/80"}`}>
+                                  <div className="flex items-center justify-between gap-2">
+                                    <p className={`text-[10px] font-extrabold ${active ? "text-[#1457A6]" : complete ? "text-emerald-800" : "text-slate-500"}`}>{milestone.title}</p>
+                                    <span className={`shrink-0 rounded-full px-2 py-0.5 text-[8px] font-black uppercase tracking-wide ${complete ? "bg-emerald-100 text-emerald-700" : active ? "bg-blue-100 text-[#1457A6]" : "bg-slate-100 text-slate-500"}`}>{badge}</span>
+                                  </div>
+                                  <p className={`mt-1 text-[9px] font-semibold ${active ? "text-blue-800" : complete ? "text-emerald-700" : "text-slate-500"}`}>{detail}</p>
+                                </div>
+                              </div>
+                            );
+                          })}
                        </div>
                      </section>
 
@@ -716,11 +905,11 @@ export function MyOrdersDrawer({
                            <table className="w-full min-w-[600px] border-collapse text-left text-[10px]">
                              <thead><tr className="bg-white">{["Item", "Color", "Size", "Volume", "Details"].map(label => <th key={label} className="border-b border-r border-slate-200 px-2.5 py-2 font-extrabold uppercase tracking-wide text-slate-500 last:border-r-0">{label}</th>)}</tr></thead>
                              <tbody><tr className="align-top">
-                               <td className="max-w-[130px] border-r border-slate-200 px-2.5 py-2.5 font-bold text-slate-800">{order.item_title}</td>
-                               <td className="border-r border-slate-200 px-2.5 py-2.5 text-slate-700">{order.selected_color || "—"}</td>
-                               <td className="border-r border-slate-200 px-2.5 py-2.5 text-slate-700">{order.selected_size || "—"}</td>
-                               <td className="border-r border-slate-200 px-2.5 py-2.5 text-slate-700">{order.selected_volume || "—"}</td>
-                               <td className="max-w-[230px] px-2.5 py-2.5 leading-relaxed text-slate-600">{order.item_details?.trim() || "No additional product details"}</td>
+                                <td className="max-w-[130px] border-r border-slate-200 px-2.5 py-2.5 font-bold text-slate-800">{itemTitle}</td>
+                                <td className="border-r border-slate-200 px-2.5 py-2.5 text-slate-700">{selectedColor}</td>
+                                <td className="border-r border-slate-200 px-2.5 py-2.5 text-slate-700">{selectedSize}</td>
+                                <td className="border-r border-slate-200 px-2.5 py-2.5 text-slate-700">{selectedVolume}</td>
+                                <td className="max-w-[230px] px-2.5 py-2.5 leading-relaxed text-slate-600">{itemDetails}</td>
                              </tr></tbody>
                            </table>
                          </div>
@@ -730,12 +919,12 @@ export function MyOrdersDrawer({
                          <div className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-gradient-to-br from-blue-100 to-rose-100 text-[#1457A6]"><User size={20} /></div>
                          <div className="min-w-0 flex-1">
                            <p className="text-[9px] font-black uppercase tracking-wide text-slate-400">Delivery Boy</p>
-                           <p className="truncate text-xs font-extrabold text-slate-900">{order.delivery_partner_name || "Not assigned yet"}</p>
-                           <p className="truncate text-[10px] text-slate-500">{partnerPhone || "Contact appears after assignment"}</p>
+                            <p className="truncate text-xs font-extrabold text-slate-900">{partnerAssigned ? partnerName : "Not assigned yet"}</p>
+                            <p className="truncate text-[10px] text-slate-500">{partnerAssigned ? partnerPhone : "Contact appears after assignment"}</p>
                          </div>
                          {callHref
-                           ? <a href={`tel:${callHref}`} data-testid={`button-call-delivery-partner-${order.id}`} aria-label={`Call ${order.delivery_partner_name || "delivery boy"}`} className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-[#1457A6] px-3 py-2.5 text-[10px] font-extrabold text-white shadow-sm hover:bg-blue-800"><Phone size={14} />Call</a>
-                           : <button type="button" disabled aria-label="Delivery boy phone not assigned" className="inline-flex shrink-0 cursor-not-allowed items-center gap-1.5 rounded-xl bg-slate-100 px-3 py-2.5 text-[10px] font-extrabold text-slate-400"><Phone size={14} />Call</button>}
+                            ? <a href={`tel:${callHref}`} data-testid={`button-call-delivery-partner-${order.id}`} aria-label={`Call ${partnerName}`} className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-[#1457A6] px-3 py-2.5 text-[10px] font-extrabold text-white shadow-sm hover:bg-blue-800"><Phone size={14} />Call</a>
+                            : <button type="button" disabled data-testid={`button-call-delivery-partner-${order.id}`} aria-label="Delivery boy phone not assigned" className="inline-flex shrink-0 cursor-not-allowed items-center gap-1.5 rounded-xl bg-slate-100 px-3 py-2.5 text-[10px] font-extrabold text-slate-400"><Phone size={14} />Call</button>}
                        </section>
                      </div>
                    </>
@@ -743,13 +932,14 @@ export function MyOrdersDrawer({
 
                  <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-blue-100 bg-gradient-to-r from-blue-50 via-white to-rose-50 p-3">
                    <div className="h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-white bg-white shadow-sm">
-                     {order.item_image_url
-                       ? <img src={order.item_image_url} alt={order.item_title} className="h-full w-full object-cover" loading="lazy" />
-                       : <div className="grid h-full place-items-center text-blue-300"><Package size={21} /></div>}
+                      <OrderProductThumbnail sources={imageSources} title={itemTitle} orderId={order.id} />
                    </div>
                    <div className="min-w-0 flex-1">
-                     <p className="line-clamp-2 text-xs font-extrabold text-slate-900">{order.item_title}</p>
-                     <p className="mt-1 text-sm font-black text-[#1457A6]">{order.item_price || "Price unavailable"}</p>
+                      <p className="line-clamp-2 text-xs font-extrabold text-slate-900">{itemTitle}</p>
+                      <p className="mt-1 text-sm font-black text-[#1457A6]">{itemPrice}</p>
+                      <p className="mt-1 line-clamp-2 text-[9px] font-semibold text-slate-500">{[
+                        ["Color", selectedColor], ["Size", selectedSize], ["Volume", selectedVolume],
+                      ].filter(([, value]) => value !== "Not specified").map(([label, value]) => `${label}: ${value}`).join(" · ") || "No variant selected"}</p>
                    </div>
                    <button
                      type="button"
@@ -982,7 +1172,7 @@ export function AdminMarketplacePanel({ onClose }: AdminMarketplacePanelProps) {
   const fetchOrders = async () => {
     setLoadingOrders(true); setOrdersError("");
     const { data, error } = await supabase.from("marketplace_orders")
-      .select("id,tracking_code,user_id,user_email,user_name,phone,address,source_city,destination_city,current_location,item_id,item_image_url,item_details,item_title,item_price,selected_size,selected_volume,selected_color,payment_method,utr_id,status,delivery_partner_name,delivery_partner_phone,estimated_delivery_at,created_at")
+      .select("id,tracking_code,user_id,user_email,user_name,phone,address,source_city,destination_city,current_location,item_id,item_image_url,item_details,item_title,item_price,selected_size,selected_volume,selected_color,payment_method,utr_id,status,delivery_partner_name,delivery_partner_phone,estimated_delivery_at,dispatched_at,in_transit_at,hub_arrived_at,out_for_delivery_at,delivered_at,created_at")
       .order("created_at", { ascending: false }).limit(200);
     if (error) setOrdersError("Could not load orders. Apply the marketplace delivery tracking migration, then retry.");
     else {
@@ -1142,10 +1332,20 @@ export function AdminMarketplacePanel({ onClose }: AdminMarketplacePanelProps) {
       toast.error("Match the UTR against the bank statement before updating shipment status");
       return;
     }
+    const timestampField = MILESTONE_TIMESTAMP_BY_STATUS[status];
+    const milestoneTimestamp = timestampField && order && !order[timestampField]
+      ? new Date().toISOString()
+      : null;
+    const updateValues: Record<string, string> = { status };
+    if (timestampField && milestoneTimestamp) updateValues[timestampField] = milestoneTimestamp;
     setUpdatingOrderId(orderId);
-    const { error } = await supabase.from("marketplace_orders").update({ status }).eq("id", orderId);
+    const { error } = await supabase.from("marketplace_orders").update(updateValues).eq("id", orderId);
     if (error) toast.error("Could not update shipping milestone");
-    else { setOrders(previous => previous.map(order => order.id === orderId ? { ...order, status } : order)); toast.success("Shipping milestone updated"); }
+    else {
+      const timestampPatch = timestampField && milestoneTimestamp ? { [timestampField]: milestoneTimestamp } : {};
+      setOrders(previous => previous.map(current => current.id === orderId ? { ...current, status, ...timestampPatch } : current));
+      toast.success("Shipping milestone updated");
+    }
     setUpdatingOrderId(null);
   };
   const verifyUpiOrder = async (order: MarketplaceOrder) => {
@@ -1175,6 +1375,10 @@ export function AdminMarketplacePanel({ onClose }: AdminMarketplacePanelProps) {
     const partnerName = draft.partnerName.trim();
     const partnerPhone = draft.partnerPhone.trim();
     const phoneDigits = partnerPhone.replace(/\D/g, "");
+    if (Boolean(partnerName) !== Boolean(partnerPhone)) {
+      toast.error("Enter both the delivery partner name and phone, or clear both to unassign");
+      return;
+    }
     if (partnerPhone && (phoneDigits.length < 7 || phoneDigits.length > 15)) {
       toast.error("Enter a valid delivery partner phone number");
       return;
@@ -1279,7 +1483,7 @@ export function AdminMarketplacePanel({ onClose }: AdminMarketplacePanelProps) {
               <section className="mt-3 rounded-2xl border border-blue-100 bg-blue-50/50 p-3">
                 <div className="mb-2.5 flex items-center justify-between gap-2">
                   <div><h4 className="text-xs font-extrabold text-slate-900">Delivery partner &amp; ETA</h4><p className="mt-0.5 text-[10px] text-slate-500">Saved details appear on the customer tracking card.</p></div>
-                  {order.estimated_delivery_at && <span className="flex shrink-0 items-center gap-1 text-[9px] font-bold text-[#1457A6]"><Clock3 size={12} />{formatMilestoneEstimate(order.estimated_delivery_at, 3)}</span>}
+                  <span className="flex shrink-0 items-center gap-1 text-[9px] font-bold text-[#1457A6]"><Clock3 size={12} />{getDeliveryEstimateLabel(order, getTrackingMilestoneIndex(order.status))}</span>
                 </div>
                 <div className="grid gap-2 sm:grid-cols-3">
                   <label><span className="mb-1 block text-[9px] font-bold text-slate-500">Partner name</span><input data-testid={`input-delivery-partner-name-${order.id}`} disabled={order.status === "Cancelled"} value={fulfillmentDrafts[order.id]?.partnerName ?? ""} onChange={event => setFulfillmentDrafts(previous => ({ ...previous, [order.id]: { ...(previous[order.id] ?? { partnerName: "", partnerPhone: "", estimatedDeliveryAt: "" }), partnerName: event.target.value } }))} placeholder="Name" className={fieldClass} /></label>
