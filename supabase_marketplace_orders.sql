@@ -1,5 +1,5 @@
 -- ═══════════════════════════════════════════════════════════════════════════
---  MARKETPLACE ORDERS  +  Sizes/Colors  —  run once in Supabase SQL editor
+--  MARKETPLACE ORDERS  +  Variants  —  run once in Supabase SQL editor
 -- ═══════════════════════════════════════════════════════════════════════════
 
 -- 1. Add sizes & colors to existing products table
@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS marketplace_orders (
   item_price      TEXT,
   selected_size   TEXT,
   selected_color  TEXT,
+  selected_volume TEXT,
   payment_method  TEXT        NOT NULL DEFAULT 'COD',  -- 'COD' | 'UPI'
   utr_id          TEXT,
   status          TEXT        NOT NULL DEFAULT 'Pending',
@@ -38,7 +39,8 @@ CREATE TABLE IF NOT EXISTS marketplace_orders (
 ALTER TABLE marketplace_orders
   ADD COLUMN IF NOT EXISTS source_city TEXT,
   ADD COLUMN IF NOT EXISTS destination_city TEXT,
-  ADD COLUMN IF NOT EXISTS current_location TEXT;
+  ADD COLUMN IF NOT EXISTS current_location TEXT,
+  ADD COLUMN IF NOT EXISTS selected_volume TEXT;
 
 CREATE INDEX IF NOT EXISTS marketplace_orders_user_created_idx
   ON marketplace_orders (user_id, created_at DESC);

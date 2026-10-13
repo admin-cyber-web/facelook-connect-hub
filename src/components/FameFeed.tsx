@@ -3232,17 +3232,33 @@ const FameFeed = ({
   // ── Admin Marketplace: fetch active items + live updates ──────────────────
   useEffect(() => {
     const fetchMarketplace = async () => {
+      const baseSelect = "id, title, description, price, image_url, link_url, badge, is_active, created_at, sizes, colors, source_city";
       const { data, error } = await supabase
         .from("marketplace_items")
-        .select("id, title, description, price, image_url, link_url, badge, is_active, created_at, sizes, colors, source_city")
+        .select(`${baseSelect}, attributes`)
         .eq("is_active", true)
         .order("created_at", { ascending: false })
         .limit(30);
+      if (error?.message.toLowerCase().includes("attributes")) {
+        const legacyResult = await supabase
+          .from("marketplace_items")
+          .select(baseSelect)
+          .eq("is_active", true)
+          .order("created_at", { ascending: false })
+          .limit(30);
+        if (legacyResult.error) {
+          toast.error("Marketplace fields are unavailable. Apply the marketplace SQL migrations.");
+          return;
+        }
+        setMarketplaceItems((legacyResult.data ?? []) as MarketplaceItem[]);
+        toast.info("Apply the marketplace dynamic-attributes migration to enable product variants and offers.");
+        return;
+      }
       if (error) {
         toast.error("Marketplace shipping fields are unavailable. Apply the route-tracking SQL migration.");
         return;
       }
-      setMarketplaceItems(data ?? []);
+      setMarketplaceItems((data ?? []) as MarketplaceItem[]);
     };
     fetchMarketplace();
   }, []);

@@ -9,6 +9,7 @@ create table if not exists marketplace_items (
   image_url   text,
   link_url    text,
   badge       text check (badge in ('New','Sale','Hot') or badge is null),
+  attributes  jsonb not null default '{}'::jsonb,
   is_active   boolean not null default true,
   created_at  timestamptz not null default now()
 );
