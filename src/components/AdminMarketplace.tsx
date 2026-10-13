@@ -3,10 +3,11 @@ import { createPortal } from "react-dom";
 import { supabase } from "../lib/supabaseClient";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
+import { OrderRouteMap } from "./OrderRouteMap";
 import {
   ShoppingBag, Plus, X, Loader2, Trash2,
   Image as ImageIcon, Store, Pencil, Check,
-  Copy, Package, RefreshCw, Phone, MapPin,
+  Copy, Package, RefreshCw, Phone, MapPin, ClipboardList,
   User, CreditCard, Palette,
 } from "lucide-react";
 
@@ -31,6 +32,7 @@ export interface MarketplaceItem {
   created_at: string;
   sizes?: string | null;   // comma-separated e.g. "S,M,L,XL"
   colors?: string | null;  // comma-separated e.g. "Red,Blue,Black"
+  source_city?: string | null;
 }
 
 export interface MarketplaceOrder {
@@ -49,6 +51,9 @@ export interface MarketplaceOrder {
   payment_method: string;
   utr_id?: string | null;
   status: string;
+  source_city?: string | null;
+  destination_city?: string | null;
+  current_location?: string | null;
   created_at: string;
 }
 
@@ -64,10 +69,25 @@ function formatOrderTime(ts: string): string {
   });
 }
 
+const SHIPPING_STATUSES = [
+  "Pending",
+  "Confirmed",
+  "Packed",
+  "Shipped",
+  "In Transit",
+  "At Regional Hub",
+  "Out for Delivery",
+  "Delivered",
+] as const;
+
 const STATUS_COLORS: Record<string, string> = {
-  Pending:   "#f59e0b",
+  Pending: "#f59e0b",
   Confirmed: "#00F0FF",
-  Shipped:   "#a78bfa",
+  Packed: "#38bdf8",
+  Shipped: "#a78bfa",
+  "In Transit": "#c084fc",
+  "At Regional Hub": "#fb923c",
+  "Out for Delivery": "#facc15",
   Delivered: "#4ade80",
 };
 
@@ -86,6 +106,7 @@ function CheckoutDrawer({
   const [name,          setName]          = useState("");
   const [phone,         setPhone]         = useState("");
   const [address,       setAddress]       = useState("");
+  const [destinationCity, setDestinationCity] = useState("");
   const [selectedSize,  setSelectedSize]  = useState("");
   const [selectedColor, setSelectedColor] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<"COD" | "UPI">("COD");
@@ -122,9 +143,14 @@ function CheckoutDrawer({
   };
 
   const placeOrder = async () => {
+    if (!item.source_city?.trim()) {
+      toast.error("This product needs a shipping source city before it can be ordered");
+      return;
+    }
     if (!name.trim())    { toast.error("Please enter your name");             return; }
     if (!phone.trim())   { toast.error("Please enter your phone number");     return; }
     if (!address.trim()) { toast.error("Please enter your delivery address"); return; }
+    if (!destinationCity.trim()) { toast.error("Please enter your delivery city"); return; }
     if (sizes.length  > 0 && !selectedSize)  { toast.error("Please select a size");  return; }
     if (colors.length > 0 && !selectedColor) { toast.error("Please select a color"); return; }
     if (paymentMethod === "UPI" && !utrId.trim()) {
@@ -142,6 +168,8 @@ function CheckoutDrawer({
         user_name:      name.trim(),
         phone:          phone.trim(),
         address:        address.trim(),
+        source_city:    item.source_city.trim(),
+        destination_city: destinationCity.trim(),
         item_id:        item.id,
         item_title:     item.title,
         item_price:     item.price      ?? null,
@@ -154,7 +182,7 @@ function CheckoutDrawer({
       const { data, error } = await supabase
         .from("marketplace_orders")
         .insert([payload])
-        .select("id,tracking_code,user_id,user_email,user_name,phone,address,item_id,item_title,item_price,selected_size,selected_color,payment_method,utr_id,status,created_at")
+        .select("id,tracking_code,user_id,user_email,user_name,phone,address,source_city,destination_city,current_location,item_id,item_title,item_price,selected_size,selected_color,payment_method,utr_id,status,created_at")
         .single();
       if (error) throw error;
       onSuccess(data as MarketplaceOrder);
@@ -311,6 +339,17 @@ function CheckoutDrawer({
                   style={{ background: "rgba(255,255,255,0.05)" }}
                 />
               </div>
+              <div className="relative">
+                <MapPin size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/25 pointer-events-none" />
+                <input
+                  value={destinationCity}
+                  onChange={e => setDestinationCity(e.target.value)}
+                  placeholder="Delivery City *"
+                  autoComplete="address-level2"
+                  className="w-full pl-9 pr-4 py-3 rounded-xl text-[13px] text-white placeholder:text-white/25 outline-none border border-white/[0.08] focus:border-[#00F0FF]/40"
+                  style={{ background: "rgba(255,255,255,0.05)" }}
+                />
+              </div>
             </div>
           </div>
 
@@ -458,6 +497,8 @@ function OrderSuccessModal({
 }) {
   const summaryRows = [
     ["Product",  order.item_title],
+    ["Ships from", order.source_city || "—"],
+    ["Deliver to", order.destination_city || "—"],
     ...(order.selected_size  ? [["Size",  order.selected_size]]  : []),
     ...(order.selected_color ? [["Color", order.selected_color]] : []),
     ["Price",    order.item_price    || "—"],
@@ -567,15 +608,206 @@ function OrderSuccessModal({
   );
 }
 
+function MyOrdersDrawer({ onClose }: { onClose: () => void }) {
+  const [userId, setUserId] = useState<string | null>(null);
+  const [orders, setOrders] = useState<MarketplaceOrder[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [refreshCount, setRefreshCount] = useState(0);
+  const [isVisible, setIsVisible] = useState(true);
+
+  useEffect(() => {
+    let mounted = true;
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!mounted) return;
+      setUserId(session?.user?.id ?? null);
+      setOrders([]);
+      setLoading(Boolean(session?.user?.id));
+    });
+    supabase.auth.getUser().then(({ data }) => {
+      if (mounted) setUserId(data.user?.id ?? null);
+    });
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    const updateVisibility = () => setIsVisible(document.visibilityState === "visible");
+    updateVisibility();
+    document.addEventListener("visibilitychange", updateVisibility);
+    return () => document.removeEventListener("visibilitychange", updateVisibility);
+  }, []);
+
+  useEffect(() => {
+    if (!userId) {
+      setOrders([]);
+      setLoading(false);
+      setLoadError("");
+      return;
+    }
+
+    let active = true;
+    if (refreshCount === 0) setLoading(true);
+    setLoadError("");
+    supabase
+      .from("marketplace_orders")
+      .select("id, tracking_code, user_id, user_email, user_name, phone, address, source_city, destination_city, current_location, item_id, item_title, item_price, selected_size, selected_color, payment_method, utr_id, status, created_at")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(100)
+      .then(({ data, error }) => {
+        if (!active) return;
+        if (error) {
+          setLoadError("Could not load your orders. Please try again.");
+        } else {
+          setOrders((data ?? []) as MarketplaceOrder[]);
+          setLoadError("");
+        }
+        setLoading(false);
+      })
+      .catch(() => {
+        if (!active) return;
+        setLoadError("Could not load your orders. Please try again.");
+        setLoading(false);
+      });
+
+    return () => { active = false; };
+  }, [userId, refreshCount]);
+
+  useEffect(() => {
+    if (!userId || !isVisible) return;
+    const channel = supabase
+      .channel(`marketplace-orders-user-${userId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "marketplace_orders", filter: `user_id=eq.${userId}` },
+        () => setRefreshCount(count => count + 1),
+      )
+      .subscribe();
+    return () => { void supabase.removeChannel(channel); };
+  }, [userId, isVisible]);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[650] flex items-end justify-center bg-black/75 backdrop-blur-sm"
+      onClick={event => { if (event.target === event.currentTarget) onClose(); }}
+    >
+      <motion.section
+        initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
+        transition={{ type: "spring", stiffness: 320, damping: 30 }}
+        className="flex w-full max-w-lg flex-col overflow-hidden rounded-t-3xl border-t border-white/10"
+        style={{ maxHeight: "94dvh", background: "#0d0e16" }}
+        onClick={event => event.stopPropagation()}
+        aria-label="My Orders"
+      >
+        <div className="flex shrink-0 items-center justify-between border-b border-white/[0.07] px-5 py-3">
+          <div className="flex items-center gap-2">
+            <ClipboardList size={16} className="text-[#00F0FF]" />
+            <div>
+              <h2 className="text-[15px] font-black text-white">My Orders</h2>
+              <p className="text-[9px] text-white/35">Live shipment progress</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              aria-label="Refresh orders"
+              onClick={() => setRefreshCount(count => count + 1)}
+              className="grid h-8 w-8 place-items-center rounded-full border border-white/10 text-white/55"
+            >
+              <RefreshCw size={13} className={loading ? "animate-spin" : ""} />
+            </button>
+            <button
+              type="button"
+              aria-label="Close my orders"
+              onClick={onClose}
+              className="grid h-8 w-8 place-items-center rounded-full border border-white/10 text-white/55"
+            >
+              <X size={15} />
+            </button>
+          </div>
+        </div>
+
+        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4 [&::-webkit-scrollbar]:hidden">
+          {!userId ? (
+            <div className="rounded-2xl border border-white/[0.07] bg-white/[0.025] px-5 py-10 text-center">
+              <User size={24} className="mx-auto mb-2 text-white/30" />
+              <p className="text-sm font-black text-white/75">Sign in to view your orders</p>
+              <p className="mt-1 text-[11px] text-white/35">Orders are private to the account used at checkout.</p>
+            </div>
+          ) : loading ? (
+            <div className="flex justify-center py-12"><Loader2 size={22} className="animate-spin text-[#00F0FF]" /></div>
+          ) : loadError && orders.length === 0 ? (
+            <div className="rounded-2xl border border-red-400/15 bg-red-400/[0.05] px-5 py-8 text-center">
+              <p className="text-[12px] font-bold text-red-200">{loadError}</p>
+            </div>
+          ) : orders.length === 0 ? (
+            <div className="rounded-2xl border border-white/[0.07] bg-white/[0.025] px-5 py-10 text-center">
+              <Package size={24} className="mx-auto mb-2 text-white/30" />
+              <p className="text-sm font-black text-white/75">No orders yet</p>
+              <p className="mt-1 text-[11px] text-white/35">Your purchases and shipment updates will appear here.</p>
+            </div>
+          ) : (
+            <>
+              {loadError && (
+                <p className="rounded-xl border border-amber-300/15 bg-amber-300/[0.04] px-3 py-2 text-[10px] text-amber-100/70">
+                  Could not refresh just now. Showing the last loaded shipment data.
+                </p>
+              )}
+              {orders.map(order => (
+              <article key={order.id} className="space-y-3 rounded-2xl border border-white/[0.07] bg-white/[0.025] p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-[12px] font-black text-white">{order.item_title}</p>
+                    <p className="mt-1 text-[9px] font-bold text-white/35">
+                      {order.tracking_code} · {formatOrderTime(order.created_at)}
+                    </p>
+                  </div>
+                  <span
+                    className="shrink-0 rounded-full border px-2 py-1 text-[9px] font-black"
+                    style={{
+                      color: STATUS_COLORS[order.status] || "#fff",
+                      borderColor: `${STATUS_COLORS[order.status] || "#fff"}44`,
+                      background: `${STATUS_COLORS[order.status] || "#fff"}12`,
+                    }}
+                  >
+                    {order.status}
+                  </span>
+                </div>
+                {order.source_city?.trim() && order.destination_city?.trim() ? (
+                  <OrderRouteMap
+                    sourceCity={order.source_city ?? ""}
+                    destinationCity={order.destination_city ?? ""}
+                    currentLocation={order.current_location}
+                    status={order.status}
+                  />
+                ) : (
+                  <div className="rounded-xl border border-amber-300/15 bg-amber-300/[0.04] px-3 py-2.5 text-[10px] leading-relaxed text-amber-100/65">
+                    Route is unavailable for this order because its source or delivery city was not recorded.
+                  </div>
+                )}
+                {order.address && <p className="px-1 text-[10px] text-white/35">Delivery address: {order.address}</p>}
+              </article>
+              ))}
+            </>
+          )}
+        </div>
+      </motion.section>
+    </motion.div>
+  );
+}
+
 // ═════════════════════════════════════════════════════════════════════════════
 // ── Feed Card — shown inline in FameFeed every N posts ───────────────────────
 // ═════════════════════════════════════════════════════════════════════════════
 export function MarketplaceFeedCard({ items }: { items: MarketplaceItem[] }) {
   const active = items.filter(i => i.is_active);
-  if (active.length === 0) return null;
-
   const [checkoutItem,  setCheckoutItem]  = useState<MarketplaceItem | null>(null);
   const [successData,   setSuccessData]   = useState<{ order: MarketplaceOrder; item: MarketplaceItem } | null>(null);
+  const [showMyOrders, setShowMyOrders] = useState(false);
 
   return (
     <>
@@ -591,14 +823,24 @@ export function MarketplaceFeedCard({ items }: { items: MarketplaceItem[] }) {
               Flicks Marketplace
             </span>
           </div>
-          <span className="text-[9px] font-black text-white/25 uppercase tracking-widest border border-white/10 px-2 py-0.5 rounded-full">
-            Official
-          </span>
+          <div className="flex items-center gap-1.5">
+            <span className="text-[9px] font-black text-white/25 uppercase tracking-widest border border-white/10 px-2 py-1 rounded-full">
+              Official
+            </span>
+            <button
+              type="button"
+              onClick={() => setShowMyOrders(true)}
+              className="flex items-center gap-1 rounded-full border border-[#00F0FF]/20 bg-[#00F0FF]/[0.06] px-2 py-1 text-[9px] font-black text-[#00F0FF]"
+            >
+              <ClipboardList size={11} /> My Orders
+            </button>
+          </div>
         </div>
 
         {/* Horizontal product strip */}
-        <div className="flex gap-3 overflow-x-auto px-4 pb-3 no-scrollbar scroll-smooth">
-          {active.map(item => (
+        {active.length > 0 ? (
+          <div className="flex gap-3 overflow-x-auto px-4 pb-3 no-scrollbar scroll-smooth">
+            {active.map(item => (
             <motion.div
               key={item.id}
               initial={{ opacity: 0, scale: 0.92 }}
@@ -606,7 +848,13 @@ export function MarketplaceFeedCard({ items }: { items: MarketplaceItem[] }) {
               transition={{ type: "spring", stiffness: 280, damping: 22 }}
               className="flex-shrink-0 rounded-2xl overflow-hidden border border-white/[0.08] cursor-pointer active:scale-95 transition-transform"
               style={{ width: 148, background: "rgba(255,255,255,0.04)", backdropFilter: "blur(16px)" }}
-              onClick={() => setCheckoutItem(item)}
+              onClick={() => {
+                if (!item.source_city?.trim()) {
+                  toast.error("The seller needs to set this product's source city before checkout");
+                  return;
+                }
+                setCheckoutItem(item);
+              }}
             >
               {/* Image */}
               <div className="w-full relative" style={{ height: 130, background: "rgba(255,255,255,0.06)" }}>
@@ -643,6 +891,9 @@ export function MarketplaceFeedCard({ items }: { items: MarketplaceItem[] }) {
                 {item.price && (
                   <p className="text-[13px] font-black text-[#00F0FF]">{item.price}</p>
                 )}
+                <p className={`mt-1 truncate text-[9px] font-bold ${item.source_city ? "text-white/35" : "text-amber-300/80"}`}>
+                  {item.source_city ? `Ships from ${item.source_city}` : "Shipping origin not set"}
+                </p>
                 <div
                   className="mt-2 flex items-center justify-center gap-1 w-full py-1.5 rounded-xl text-[10px] font-black text-black"
                   style={{ background: "linear-gradient(135deg,#00F0FF,#2563eb)" }}
@@ -651,9 +902,12 @@ export function MarketplaceFeedCard({ items }: { items: MarketplaceItem[] }) {
                   Shop Now
                 </div>
               </div>
-            </motion.div>
-          ))}
-        </div>
+              </motion.div>
+            ))}
+          </div>
+        ) : (
+          <p className="px-4 pb-3 text-[10px] text-white/35">No active listings. You can still track your orders here.</p>
+        )}
       </div>
 
       {/* Checkout drawer — portalled to body to escape willChange:transform stacking context */}
@@ -685,6 +939,13 @@ export function MarketplaceFeedCard({ items }: { items: MarketplaceItem[] }) {
         </AnimatePresence>,
         document.body
       )}
+
+      {createPortal(
+        <AnimatePresence>
+          {showMyOrders && <MyOrdersDrawer onClose={() => setShowMyOrders(false)} />}
+        </AnimatePresence>,
+        document.body
+      )}
     </>
   );
 }
@@ -712,7 +973,7 @@ export function AdminMarketplacePanel({ onClose }: AdminMarketplacePanelProps) {
 
   const emptyForm = {
     title: "", description: "", price: "", image_url: "",
-    link_url: "", badge: "", sizes: "", colors: "",
+    link_url: "", badge: "", sizes: "", colors: "", source_city: "",
   };
   const [form, setForm] = useState(emptyForm);
 
@@ -720,27 +981,38 @@ export function AdminMarketplacePanel({ onClose }: AdminMarketplacePanelProps) {
   const [orders,           setOrders]           = useState<MarketplaceOrder[]>([]);
   const [loadingOrders,    setLoadingOrders]    = useState(false);
   const [updatingOrderId,  setUpdatingOrderId]  = useState<string | null>(null);
+  const [locationDrafts,   setLocationDrafts]   = useState<Record<string, string>>({});
+  const [updatingLocationId, setUpdatingLocationId] = useState<string | null>(null);
 
   // ── Fetchers ────────────────────────────────────────────────────────────────
   const fetchItems = async () => {
     setLoadingItems(true);
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("marketplace_items")
-      .select("id, title, description, price, image_url, link_url, badge, is_active, created_at, sizes, colors")
+      .select("id, title, description, price, image_url, link_url, badge, is_active, created_at, sizes, colors, source_city")
       .order("created_at", { ascending: false })
       .limit(100);
-    setItems(data ?? []);
+    if (error) {
+      toast.error("Could not load products. Apply the marketplace shipping schema update first.");
+    } else {
+      setItems(data ?? []);
+    }
     setLoadingItems(false);
   };
 
   const fetchOrders = async () => {
     setLoadingOrders(true);
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("marketplace_orders")
-      .select("id, tracking_code, user_id, user_email, user_name, phone, address, item_id, item_title, item_price, selected_size, selected_color, payment_method, utr_id, status, created_at")
+      .select("id, tracking_code, user_id, user_email, user_name, phone, address, source_city, destination_city, current_location, item_id, item_title, item_price, selected_size, selected_color, payment_method, utr_id, status, created_at")
       .order("created_at", { ascending: false })
       .limit(200);
-    setOrders(data ?? []);
+    if (error) {
+      toast.error("Could not load orders. Apply the marketplace shipping schema update first.");
+    } else {
+      setOrders(data ?? []);
+      setLocationDrafts(Object.fromEntries((data ?? []).map(order => [order.id, order.current_location ?? ""])));
+    }
     setLoadingOrders(false);
   };
 
@@ -761,6 +1033,7 @@ export function AdminMarketplacePanel({ onClose }: AdminMarketplacePanelProps) {
       badge: item.badge ?? "",
       sizes: item.sizes ?? "",
       colors: item.colors ?? "",
+      source_city: item.source_city ?? "",
     });
     setShowForm(true);
   };
@@ -778,6 +1051,7 @@ export function AdminMarketplacePanel({ onClose }: AdminMarketplacePanelProps) {
 
   const saveItem = async () => {
     if (!form.title.trim()) { toast.error("Title is required"); return; }
+    if (!form.source_city.trim()) { toast.error("Source city is required for route tracking"); return; }
     setSaving(true);
     const payload = {
       title:       form.title.trim(),
@@ -789,6 +1063,7 @@ export function AdminMarketplacePanel({ onClose }: AdminMarketplacePanelProps) {
       is_active:   true,
       sizes:       form.sizes.trim()       || null,
       colors:      form.colors.trim()      || null,
+      source_city: form.source_city.trim(),
     };
     let error;
     if (editItem) {
@@ -815,10 +1090,31 @@ export function AdminMarketplacePanel({ onClose }: AdminMarketplacePanelProps) {
 
   const updateOrderStatus = async (orderId: string, status: string) => {
     setUpdatingOrderId(orderId);
-    await supabase.from("marketplace_orders").update({ status }).eq("id", orderId);
-    setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status } : o));
-    setUpdatingOrderId(null);
-    toast.success("Order status updated");
+    try {
+      const { error } = await supabase.from("marketplace_orders").update({ status }).eq("id", orderId);
+      if (error) throw error;
+      setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status } : o));
+      toast.success("Shipping milestone updated");
+    } catch {
+      toast.error("Could not update shipping milestone");
+    } finally {
+      setUpdatingOrderId(null);
+    }
+  };
+
+  const updateCurrentLocation = async (orderId: string) => {
+    const current_location = locationDrafts[orderId]?.trim() || null;
+    setUpdatingLocationId(orderId);
+    try {
+      const { error } = await supabase.from("marketplace_orders").update({ current_location }).eq("id", orderId);
+      if (error) throw error;
+      setOrders(prev => prev.map(order => order.id === orderId ? { ...order, current_location } : order));
+      toast.success("Current location updated");
+    } catch {
+      toast.error("Could not update current shipment location");
+    } finally {
+      setUpdatingLocationId(null);
+    }
   };
 
   // ── Render ──────────────────────────────────────────────────────────────────
@@ -931,6 +1227,7 @@ export function AdminMarketplacePanel({ onClose }: AdminMarketplacePanelProps) {
                             </span>
                           )}
                           {item.sizes && <span className="text-[9px] text-white/25">{item.sizes}</span>}
+                          <span className="text-[9px] text-white/40">Ships from {item.source_city || "—"}</span>
                         </div>
                       </div>
                       <div className="flex items-center gap-1.5 shrink-0">
@@ -991,7 +1288,7 @@ export function AdminMarketplacePanel({ onClose }: AdminMarketplacePanelProps) {
                             borderColor: `${STATUS_COLORS[order.status] || "rgba(255,255,255,0.1)"}55`,
                           }}
                         >
-                          {["Pending", "Confirmed", "Shipped", "Delivered"].map(s => (
+                          {SHIPPING_STATUSES.map(s => (
                             <option key={s} value={s}>{s}</option>
                           ))}
                         </select>
@@ -1014,6 +1311,10 @@ export function AdminMarketplacePanel({ onClose }: AdminMarketplacePanelProps) {
                         {order.selected_color && (
                           <><span className="text-white/30">Color</span><span className="text-white/60">{order.selected_color}</span></>
                         )}
+                        <span className="text-white/30">Ships from</span>
+                        <span className="text-white/60 truncate">{order.source_city || "Not recorded"}</span>
+                        <span className="text-white/30">Deliver to</span>
+                        <span className="text-white/60 truncate">{order.destination_city || "Not recorded"}</span>
                         <span className="text-white/30">Payment</span>
                         <span className="text-white/60">{order.payment_method === "UPI" ? "PhonePe UPI" : "Cash on Delivery"}</span>
                         {order.utr_id && (
@@ -1025,6 +1326,25 @@ export function AdminMarketplacePanel({ onClose }: AdminMarketplacePanelProps) {
                       {order.address && (
                         <p className="text-[10px] text-white/28 line-clamp-1">{order.address}</p>
                       )}
+                      <div className="mt-2 flex items-center gap-2">
+                        <MapPin size={12} className="shrink-0 text-green-300/70" />
+                        <input
+                          value={locationDrafts[order.id] ?? order.current_location ?? ""}
+                          onChange={e => setLocationDrafts(previous => ({ ...previous, [order.id]: e.target.value }))}
+                          placeholder="Current city or shipping hub"
+                          aria-label={`Current location for ${order.tracking_code}`}
+                          className="min-w-0 flex-1 rounded-lg border border-white/[0.08] bg-white/[0.04] px-2.5 py-2 text-[10px] text-white outline-none placeholder:text-white/25 focus:border-green-400/35"
+                        />
+                        <button
+                          type="button"
+                          disabled={updatingLocationId === order.id}
+                          onClick={() => updateCurrentLocation(order.id)}
+                          className="flex shrink-0 items-center gap-1 rounded-lg border border-green-400/20 bg-green-400/[0.08] px-2 py-2 text-[9px] font-black text-green-300 disabled:opacity-50"
+                        >
+                          {updatingLocationId === order.id ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />}
+                          Save
+                        </button>
+                      </div>
                       <p className="text-[9px] text-white/20 mt-1">{formatOrderTime(order.created_at)}</p>
                     </div>
                   ))}
@@ -1118,6 +1438,22 @@ export function AdminMarketplacePanel({ onClose }: AdminMarketplacePanelProps) {
                       className="w-full rounded-xl px-3 py-2.5 text-[13px] text-white placeholder:text-white/20 outline-none border border-white/[0.08] focus:border-[#00F0FF]/40"
                       style={{ background: "rgba(255,255,255,0.05)" }}
                     />
+                  </div>
+
+                  {/* Shipping origin */}
+                  <div>
+                    <label className="text-[11px] font-black text-white/40 uppercase tracking-wider mb-2 block">
+                      Source City *
+                    </label>
+                    <input
+                      value={form.source_city}
+                      onChange={e => setForm(f => ({ ...f, source_city: e.target.value }))}
+                      placeholder="e.g. Varanasi"
+                      autoComplete="address-level2"
+                      className="w-full rounded-xl px-3 py-2.5 text-[13px] text-white placeholder:text-white/20 outline-none border border-white/[0.08] focus:border-[#00F0FF]/40"
+                      style={{ background: "rgba(255,255,255,0.05)" }}
+                    />
+                    <p className="text-[10px] text-white/25 mt-1">Used as the shipment origin for new orders.</p>
                   </div>
 
                   {/* Description */}
