@@ -4164,24 +4164,31 @@ const PersonalizationView = React.memo(({
                     />
                     <div
                       aria-hidden="true"
-                      className="pointer-events-none absolute inset-y-0 left-0 z-10 flex w-[34%] min-w-0 flex-col justify-between p-1 text-left text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]"
-                      style={{ textShadow: "0 1px 2px rgba(0,0,0,0.95), 0 0 5px rgba(0,0,0,0.75)" }}
+                      className="pointer-events-none absolute inset-y-0 left-0 z-10 flex w-[34%] min-w-0 flex-col items-start justify-center gap-0.5 p-1 text-left"
                     >
-                      <span className="text-[11px] font-black leading-tight text-white sm:text-xs">
+                      <span
+                        className="text-[11px] font-black leading-tight text-white sm:text-xs"
+                        style={{
+                          WebkitTextStroke: "0.35px #6b3d05",
+                          paintOrder: "stroke fill",
+                          textShadow: "none",
+                        }}
+                      >
                         Fun Video Call
                       </span>
-                      <div className="flex min-h-0 flex-1 items-center justify-center gap-1 py-1">
-                        <div className="fun-call-phone-float relative flex h-[34px] w-[18px] shrink-0 items-center justify-center rounded-[5px] border-2 border-slate-900 bg-white/95 shadow-md">
-                          <span className="absolute inset-[3px] rounded-[3px] bg-sky-100" />
-                          <span className="absolute top-[2px] z-10 h-[2px] w-[6px] rounded-full bg-slate-900" />
-                          <PhoneCall size={9} className="relative z-10 text-blue-600" />
-                          <span className="absolute bottom-[2px] z-10 h-[2px] w-[5px] rounded-full bg-slate-900" />
-                        </div>
-                        <div className="fun-call-bilingual-copy min-w-0 flex-1 break-words font-black text-[#3a2b08]">
-                          <p className="text-[7px] leading-[1.15]">अंजाने दोस्तों से करें वीडियो कॉल</p>
-                          <p className="mt-1 text-[8px] leading-tight">Fun Video Call</p>
-                        </div>
-                      </div>
+                      <span className="text-[clamp(32px,10vw,40px)] font-black leading-[0.82] text-[#1769e0]">
+                        2
+                      </span>
+                      <p
+                        className="break-words text-[clamp(6.5px,1.8vw,8px)] font-black leading-[1.04] text-white"
+                        style={{
+                          WebkitTextStroke: "0.45px #5c3b00",
+                          paintOrder: "stroke fill",
+                          textShadow: "none",
+                        }}
+                      >
+                        No profile views yet? Let&apos;s check some online profiles or profiles near you.
+                      </p>
                     </div>
                   </motion.button>
 
