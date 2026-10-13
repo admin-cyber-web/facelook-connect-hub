@@ -7,6 +7,10 @@ ALTER TABLE marketplace_items
   ADD COLUMN IF NOT EXISTS sizes  TEXT,   -- comma-separated: "S,M,L,XL"
   ADD COLUMN IF NOT EXISTS colors TEXT;   -- comma-separated: "Red,Blue,Black"
 
+-- Shipping origin is set by the seller on each product.
+ALTER TABLE marketplace_items
+  ADD COLUMN IF NOT EXISTS source_city TEXT;
+
 -- 2. Orders table
 CREATE TABLE IF NOT EXISTS marketplace_orders (
   id              UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -16,6 +20,9 @@ CREATE TABLE IF NOT EXISTS marketplace_orders (
   user_name       TEXT,
   phone           TEXT,
   address         TEXT,
+  source_city     TEXT,
+  destination_city TEXT,
+  current_location TEXT,
   item_id         UUID        REFERENCES marketplace_items(id) ON DELETE SET NULL,
   item_title      TEXT        NOT NULL,
   item_price      TEXT,
@@ -26,6 +33,15 @@ CREATE TABLE IF NOT EXISTS marketplace_orders (
   status          TEXT        NOT NULL DEFAULT 'Pending',
   created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- Add route fields to existing installations without changing historical rows.
+ALTER TABLE marketplace_orders
+  ADD COLUMN IF NOT EXISTS source_city TEXT,
+  ADD COLUMN IF NOT EXISTS destination_city TEXT,
+  ADD COLUMN IF NOT EXISTS current_location TEXT;
+
+CREATE INDEX IF NOT EXISTS marketplace_orders_user_created_idx
+  ON marketplace_orders (user_id, created_at DESC);
 
 -- 3. Row-level security
 ALTER TABLE marketplace_orders ENABLE ROW LEVEL SECURITY;

@@ -3232,14 +3232,17 @@ const FameFeed = ({
   // ── Admin Marketplace: fetch active items + live updates ──────────────────
   useEffect(() => {
     const fetchMarketplace = async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("marketplace_items")
-        .select("id, title, description, price, image_url, link_url, badge, is_active, created_at, sizes, colors")
+        .select("id, title, description, price, image_url, link_url, badge, is_active, created_at, sizes, colors, source_city")
         .eq("is_active", true)
         .order("created_at", { ascending: false })
         .limit(30);
-      const bounded = data ?? [];
-      setMarketplaceItems(bounded);
+      if (error) {
+        toast.error("Marketplace shipping fields are unavailable. Apply the route-tracking SQL migration.");
+        return;
+      }
+      setMarketplaceItems(data ?? []);
     };
     fetchMarketplace();
   }, []);
@@ -6927,7 +6930,7 @@ const FameFeed = ({
             >
               {renderPost(bPost)}
               <FeedDivider />
-              {showAd && marketplaceItems.length > 0 && (
+              {showAd && (
                 <MarketplaceFeedCard items={marketplaceItems} />
               )}
             </ErrorBoundary>
