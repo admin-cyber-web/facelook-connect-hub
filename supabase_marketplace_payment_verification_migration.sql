@@ -39,7 +39,7 @@ BEGIN
 
   IF OLD.payment_method = 'UPI'
      AND OLD.status IN ('Pending', 'Verification Pending')
-     AND NEW.status NOT IN ('Pending', 'Verification Pending', 'Confirmed') THEN
+     AND NEW.status NOT IN ('Pending', 'Verification Pending', 'Confirmed', 'Cancelled') THEN
     RAISE EXCEPTION 'UPI order must be confirmed after payment verification before shipping'
       USING ERRCODE = '23514';
   END IF;
