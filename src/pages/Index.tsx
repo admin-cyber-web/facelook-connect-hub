@@ -51,6 +51,8 @@ import {
   Plus,
   X,
   Film,
+  Package,
+  Store,
       } from "lucide-react";
 
 // DHAYAN DEIN: Sirf ye ek supabase import rehna chahiye
@@ -90,6 +92,8 @@ const ReelStudio     = lazy(() => import("@/components/ReelStudio"));
 const ConnectionPanel= lazy(() => import("@/components/ConnectionPanel"));
 const CreatePost     = lazy(() => import("@/components/CreatePost"));
 const Chat19         = lazy(() => import("@/components/Chat19"));
+const MyOrdersDrawer = lazy(() => import("@/components/AdminMarketplace").then(module => ({ default: module.MyOrdersDrawer })));
+const AdminMarketplacePanel = lazy(() => import("@/components/AdminMarketplace").then(module => ({ default: module.AdminMarketplacePanel })));
 // ── Reusable styled blocks ───────────────────────────────────────────────────
 const GlassCard = ({ children, className = "", noPadding = false }: any) => (
   <div
@@ -2292,7 +2296,7 @@ const Index = ({ session, initialAdminOpen, isGuest = false }: { session: Sessio
 
   // Settings sub-views
   const [settingsView, setSettingsView] = useState<
-    "main" | "personal" | "blocklist" | "privacy" | "help" | "about" | "contact" | "personalization"
+    "main" | "personal" | "blocklist" | "privacy" | "help" | "about" | "contact" | "personalization" | "orders" | "marketplace"
   >("main");
   const [isSavingPersonal, setIsSavingPersonal] = useState(false);
   const [personalSaved, setPersonalSaved] = useState(false);
@@ -3404,8 +3408,28 @@ const PersonalizationView = React.memo(({
             </div>
           </motion.div>
 
-          {/* ── 01 · Appearance ──────────────────── */}
-          <AuroraSection number="01" title={t("Appearance & Theme", "रूप और थीम")}>
+          {/* ── 01 · Marketplace & Orders ────────── */}
+          <AuroraSection number="01" title={t("Marketplace & Orders", "मार्केटप्लेस और ऑर्डर")}>
+            {isAppAdmin && (
+              <SettingRow
+                icon={<Store size={16} />}
+                title="Market / Shipping Management"
+                desc="Manage listings, order milestones and shipment locations"
+                color="emerald"
+                onClick={() => setSettingsView("marketplace")}
+              />
+            )}
+            <SettingRow
+              icon={<Package size={16} />}
+              title={t("My Orders", "मेरे ऑर्डर")}
+              desc={t("Track your purchases and shipment progress", "अपने ऑर्डर और डिलीवरी की स्थिति देखें")}
+              color="sky"
+              onClick={() => setSettingsView("orders")}
+            />
+          </AuroraSection>
+
+          {/* ── 02 · Appearance ──────────────────── */}
+          <AuroraSection number="02" title={t("Appearance & Theme", "रूप और थीम")}>
             <div className="flex gap-2.5 px-4 pb-1">
               <button
                 onClick={() => toggleDarkMode(true)}
@@ -3434,8 +3458,8 @@ const PersonalizationView = React.memo(({
             </div>
           </AuroraSection>
 
-          {/* ── 02 · Account & Security ──────────── */}
-          <AuroraSection number="02" title={t("Account & Security", "खाता और सुरक्षा")}>
+          {/* ── 03 · Account & Security ──────────── */}
+          <AuroraSection number="03" title={t("Account & Security", "खाता और सुरक्षा")}>
             <SettingRow
               icon={<User size={16} />}
               title={t("Personal Info", "व्यक्तिगत जानकारी")}
@@ -3467,8 +3491,8 @@ const PersonalizationView = React.memo(({
             />
           </AuroraSection>
 
-          {/* ── 03 · Personalization ──────────────── */}
-          <AuroraSection number="03" title={t("Personalization", "वैयक्तिकरण")}>
+          {/* ── 04 · Personalization ─────────────── */}
+          <AuroraSection number="04" title={t("Personalization", "वैयक्तिकरण")}>
             <SettingRow
               icon={<Sparkles size={16} />}
               title={t("Interests & Discovery", "रुचियां और खोज")}
@@ -3478,8 +3502,8 @@ const PersonalizationView = React.memo(({
             />
           </AuroraSection>
 
-          {/* ── 04 · Privacy ─────────────────────── */}
-          <AuroraSection number="04" title={t("Privacy & Visibility", "गोपनीयता")}>
+          {/* ── 05 · Privacy ─────────────────────── */}
+          <AuroraSection number="05" title={t("Privacy & Visibility", "गोपनीयता")}>
             <SettingRow
               icon={<Lock size={16} />}
               title={t("Profile Lock", "प्रोफ़ाइल लॉक")}
@@ -3521,8 +3545,8 @@ const PersonalizationView = React.memo(({
             />
           </AuroraSection>
 
-          {/* ── 05 · Resources & Support ─────────── */}
-          <AuroraSection number="05" title={t("Resources & Support", "सहायता और जानकारी")}>
+          {/* ── 06 · Resources & Support ─────────── */}
+          <AuroraSection number="06" title={t("Resources & Support", "सहायता और जानकारी")}>
             <SettingRow
               icon={<Shield size={16} />}
               title={t("Privacy Policy", "गोपनीयता नीति")}
@@ -3553,7 +3577,7 @@ const PersonalizationView = React.memo(({
             />
           </AuroraSection>
 
-          {/* ── 05 · Danger Zone ─────────────────── */}
+          {/* ── 07 · Danger Zone ─────────────────── */}
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -5132,6 +5156,57 @@ const PersonalizationView = React.memo(({
                   >
                     <ContactUsView setSettingsView={setSettingsView} />
                   </motion.div>
+                )}
+                {settingsView === "orders" && (
+                  <motion.div
+                    key="orders"
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                  >
+                    <Suspense fallback={<SectionLoader />}>
+                      {createPortal(
+                        <AnimatePresence>
+                          <MyOrdersDrawer onClose={() => setSettingsView("main")} />
+                        </AnimatePresence>,
+                        document.body,
+                      )}
+                    </Suspense>
+                  </motion.div>
+                )}
+                {settingsView === "marketplace" && (
+                  isAppAdmin ? (
+                    <motion.div
+                      key="marketplace"
+                      initial={{ opacity: 0, x: 20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -20 }}
+                    >
+                      <Suspense fallback={<SectionLoader />}>
+                        {createPortal(
+                          <AdminMarketplacePanel onClose={() => setSettingsView("main")} />,
+                          document.body,
+                        )}
+                      </Suspense>
+                    </motion.div>
+                  ) : (
+                    <motion.div
+                      key="marketplace-denied"
+                      initial={{ opacity: 0, x: 20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -20 }}
+                      className="mx-auto max-w-[720px] px-4 py-12 text-center"
+                    >
+                      <p className="text-sm font-bold text-white/70">Admin access is required to manage marketplace shipping.</p>
+                      <button
+                        type="button"
+                        onClick={() => setSettingsView("main")}
+                        className="mt-4 rounded-xl border border-white/10 px-4 py-2 text-xs font-bold text-white/65"
+                      >
+                        Back to Settings
+                      </button>
+                    </motion.div>
+                  )
                 )}
               </AnimatePresence>
               </div>

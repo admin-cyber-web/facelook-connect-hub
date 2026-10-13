@@ -608,7 +608,7 @@ function OrderSuccessModal({
   );
 }
 
-function MyOrdersDrawer({ onClose }: { onClose: () => void }) {
+export function MyOrdersDrawer({ onClose }: { onClose: () => void }) {
   const [userId, setUserId] = useState<string | null>(null);
   const [orders, setOrders] = useState<MarketplaceOrder[]>([]);
   const [loading, setLoading] = useState(true);
