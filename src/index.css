@@ -1835,10 +1835,22 @@ body.body-locked {
   0%, 100% { transform: translateY(0) rotate(-3deg); }
   50% { transform: translateY(-4px) rotate(3deg); }
 }
+@keyframes fun-call-copy-float {
+  0%, 100% { opacity: 1; transform: translateY(0); }
+  50% { opacity: 0.82; transform: translateY(-2px); }
+}
 .fun-call-phone-float {
   animation: fun-call-phone-float 2.8s ease-in-out infinite;
   will-change: transform;
 }
+.fun-call-bilingual-copy {
+  animation: fun-call-copy-float 3s ease-in-out infinite;
+  will-change: transform, opacity;
+}
 @media (prefers-reduced-motion: reduce) {
-  .fun-call-phone-float { animation: none; }
+  .fun-call-phone-float,
+  .fun-call-bilingual-copy {
+    animation: none;
+    will-change: auto;
+  }
 }
