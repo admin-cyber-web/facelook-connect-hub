@@ -18,3 +18,4 @@
 - [Dynamic social previews](dynamic-social-previews.md) — crawlers need server-rendered Open Graph tags for post paths and query-based Frame share links; client Helmet tags are not enough.
 - [Proximity discovery policy](proximity-discovery-policy.md) — Android-only offline BLE; Stealth mutes alerts but does not hide the user from discovery.
 - [Marketplace route maps](marketplace-route-maps.md) — shipment routes are illustrative schematics, not road-accurate directions.
+- [Marketplace UPI verification](marketplace-upi-verification.md) — submitted UTRs require manual bank matching before a marketplace order can ship.

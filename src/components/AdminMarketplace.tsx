@@ -16,11 +16,11 @@ const PHONEPAY_QR_PATH = "/phonepay-qr.jpg";
 const BLUE = "#1457A6";
 const RED = "#8B1E2D";
 const SHIPPING_STATUSES = [
-  "Pending", "Confirmed", "Packed", "Shipped", "In Transit",
+  "Verification Pending", "Pending", "Confirmed", "Packed", "Shipped", "In Transit",
   "At Regional Hub", "Out for Delivery", "Delivered",
 ] as const;
 const STATUS_COLORS: Record<string, string> = {
-  Pending: "#9A6411", Confirmed: "#1457A6", Packed: "#1457A6", Shipped: "#1457A6",
+  "Verification Pending": "#9A6411", Pending: "#9A6411", Confirmed: "#1457A6", Packed: "#1457A6", Shipped: "#1457A6",
   "In Transit": "#1457A6", "At Regional Hub": "#8B1E2D",
   "Out for Delivery": "#8B1E2D", Delivered: "#2F7651",
 };
@@ -33,6 +33,7 @@ export interface MarketplaceColorVariant {
 
 export interface MarketplaceItemAttributes {
   category?: string;
+  material?: string;
   volumeOptions?: string[];
   weight?: string | number;
   dimensions?: { length?: string | number; width?: string | number; height?: string | number; unit?: string };
@@ -104,6 +105,10 @@ export interface MarketplaceOrder {
 
 type VariantSelection = { size: string; volume: string; color: string };
 
+function isUpiAwaitingVerification(order: Pick<MarketplaceOrder, "payment_method" | "status">): boolean {
+  return order.payment_method === "UPI" && ["Verification Pending", "Pending"].includes(order.status);
+}
+
 function genTrackingCode(): string {
   return `#FLICKS-${Math.floor(10000 + Math.random() * 90000)}`;
 }
@@ -139,6 +144,65 @@ function itemColors(item: MarketplaceItem): string[] {
 function itemImage(item: MarketplaceItem, color?: string): string | null {
   const variant = getAttributes(item).colorVariants?.find(entry => entry.name === color);
   return variant?.imageUrl?.trim() || item.image_url || null;
+}
+
+function productSpecificationRows(
+  item: MarketplaceItem,
+  selection: Partial<VariantSelection> = {},
+): [string, string][] {
+  const attrs = getAttributes(item);
+  const sizes = itemSizes(item);
+  const volumes = itemVolumes(item);
+  const colors = itemColors(item);
+  const rows: [string, string][] = [];
+  const add = (label: string, value: string | number | null | undefined) => {
+    if (value != null && String(value).trim()) rows.push([label, String(value)]);
+  };
+
+  add("Color", selection.color || (colors.length ? colors.join(", ") : null));
+  add("Size", selection.size || (sizes.length ? sizes.join(", ") : null));
+  add("Weight", attrs.weight);
+  add("Volume / capacity", selection.volume || (volumes.length ? volumes.join(", ") : null));
+
+  const dimensions = attrs.dimensions;
+  const dimensionValues = [dimensions?.length, dimensions?.width, dimensions?.height];
+  if (dimensionValues.some(value => value != null && String(value).trim())) {
+    rows.push([
+      "Dimensions",
+      `${dimensionValues.map(value => value == null || !String(value).trim() ? "—" : String(value)).join(" × ")}${dimensions?.unit ? ` ${dimensions.unit}` : ""}`,
+    ]);
+  }
+  add("Material", attrs.material);
+  add("Category", attrs.category);
+  if (attrs.stockQuantity != null) {
+    rows.push(["Availability", Number(attrs.stockQuantity) > 0 ? `${attrs.stockQuantity} in stock` : "Currently unavailable"]);
+  }
+  add("Shipping origin", item.source_city);
+  return rows;
+}
+
+function ProductSpecifications({
+  item, selection,
+}: {
+  item: MarketplaceItem;
+  selection?: Partial<VariantSelection>;
+}) {
+  const rows = productSpecificationRows(item, selection);
+  return (
+    <section data-testid="product-specifications" className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+      <h3 className="border-b border-slate-200 bg-slate-50 px-3 py-2 text-[11px] font-extrabold uppercase tracking-wide text-slate-600">Product specifications</h3>
+      <table className="w-full border-collapse text-xs">
+        <tbody>
+          {(rows.length ? rows : [["Specifications", "Not provided"] as [string, string]]).map(([label, value], index) => (
+            <tr key={label} className={index < rows.length - 1 ? "border-b border-slate-200" : ""}>
+              <th scope="row" className="w-[38%] border-r border-slate-200 bg-slate-50 px-3 py-2 text-left font-semibold text-slate-600">{label}</th>
+              <td className="px-3 py-2 font-medium text-slate-800">{value}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </section>
+  );
 }
 
 function displayPrice(item: MarketplaceItem): string {
@@ -228,7 +292,6 @@ function CheckoutDrawer({
   const sizes = itemSizes(item);
   const volumes = itemVolumes(item);
   const colors = itemColors(item);
-  const attrs = getAttributes(item);
 
   useEffect(() => {
     const request = supabase.auth.getUser();
@@ -269,7 +332,8 @@ function CheckoutDrawer({
         item_id: item.id, item_title: item.title, item_price: displayPrice(item),
         selected_size: selectedSize || null, selected_volume: selectedVolume || null,
         selected_color: selectedColor || null, payment_method: paymentMethod,
-        utr_id: utrId.trim() || null, status: "Pending",
+        utr_id: paymentMethod === "UPI" ? utrId.trim() : null,
+        status: paymentMethod === "UPI" ? "Verification Pending" : "Pending",
       };
       const { data, error } = await supabase.from("marketplace_orders").insert([payload])
         .select("id,tracking_code,user_id,user_email,user_name,phone,address,source_city,destination_city,current_location,item_id,item_title,item_price,selected_size,selected_volume,selected_color,payment_method,utr_id,status,created_at")
@@ -306,6 +370,7 @@ function CheckoutDrawer({
             {itemImage(item, selectedColor) ? <img src={itemImage(item, selectedColor)!} alt={item.title} className="h-20 w-20 shrink-0 rounded-xl bg-white object-cover" /> : <div className="grid h-20 w-20 shrink-0 place-items-center rounded-xl bg-blue-50 text-blue-300"><ShoppingBag size={25} /></div>}
             <div className="min-w-0 self-center"><p className="line-clamp-2 text-sm font-extrabold text-slate-900">{item.title}</p>{item.description && <p className="mt-1 line-clamp-2 text-xs text-slate-500">{item.description}</p>}<p className="mt-2 text-base font-extrabold text-[#1457A6]">{displayPrice(item)}</p></div>
           </div>
+          <ProductSpecifications item={item} selection={{ size: selectedSize, volume: selectedVolume, color: selectedColor }} />
           <div className="space-y-4">
             <VariantButtons label="Size" values={sizes} selected={selectedSize} onSelect={setSelectedSize} testPrefix="checkout-size" />
             <VariantButtons label="Volume / capacity" values={volumes} selected={selectedVolume} onSelect={setSelectedVolume} testPrefix="checkout-volume" />
@@ -326,7 +391,7 @@ function CheckoutDrawer({
               {(["COD", "UPI"] as const).map(method => (
                 <button key={method} type="button" data-testid={`button-payment-${method.toLowerCase()}`} aria-pressed={paymentMethod === method} onClick={() => setPaymentMethod(method)} className={`rounded-xl border px-3 py-3 text-left transition ${paymentMethod === method ? "border-[#1457A6] bg-blue-50 ring-1 ring-blue-200" : "border-slate-200 hover:bg-slate-50"}`}>
                   <span className={`block text-sm font-extrabold ${paymentMethod === method ? "text-[#1457A6]" : "text-slate-700"}`}>{method === "COD" ? "Cash on Delivery" : "PhonePe / UPI"}</span>
-                  <span className="mt-1 block text-[11px] text-slate-500">{method === "COD" ? "Pay when it arrives" : "Record a completed UPI payment"}</span>
+                  <span className="mt-1 block text-[11px] text-slate-500">{method === "COD" ? "Pay when it arrives" : "Submit UTR for manual verification"}</span>
                 </button>
               ))}
             </div>
@@ -365,39 +430,42 @@ function OrderSuccessModal({
   order, item, onClose,
 }: { order: MarketplaceOrder; item: MarketplaceItem; onClose: () => void }) {
   const [showRoute, setShowRoute] = useState(false);
+  const awaitingUpiVerification = isUpiAwaitingVerification(order);
   const rows: [string, string][] = [
     ...(order.selected_size ? [["Size", order.selected_size] as [string, string]] : []),
     ...(order.selected_volume ? [["Volume", order.selected_volume] as [string, string]] : []),
     ...(order.selected_color ? [["Color", order.selected_color] as [string, string]] : []),
     ["Delivery address", [order.address, order.destination_city].filter(Boolean).join(", ") || "—"],
-    ["Payment", order.payment_method === "UPI" ? "PhonePe UPI" : "Cash on Delivery"],
+    ["Payment method", order.payment_method === "UPI" ? "PhonePe UPI" : "Cash on Delivery"],
+    ...(order.payment_method === "UPI" ? [["Payment verification", awaitingUpiVerification ? "Pending manual verification" : "Verified"] as [string, string]] : []),
   ];
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[700] flex items-center justify-center bg-slate-900/50 p-4">
       <motion.section role="dialog" aria-modal="true" aria-label="Order confirmation" initial={{ scale: .94, opacity: 0, y: 12 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="max-h-[92dvh] w-full max-w-md overflow-y-auto rounded-[26px] bg-white shadow-2xl">
         <div className="px-6 pb-4 pt-7 text-center">
           <div className="mx-auto mb-3 grid h-14 w-14 place-items-center rounded-full bg-blue-50 text-[#1457A6]"><Check size={27} strokeWidth={3} /></div>
-          <h2 className="text-2xl font-black tracking-tight text-slate-900">Order placed</h2>
-          <p className="mt-1 text-sm text-slate-500">Thanks for shopping with Famefeed.</p>
+          <h2 className="text-2xl font-black tracking-tight text-slate-900">{awaitingUpiVerification ? "Order received" : "Order placed"}</h2>
+          <p className="mt-1 text-sm text-slate-500">{awaitingUpiVerification ? "Your order is awaiting payment verification." : "Thanks for shopping with Famefeed."}</p>
+          {awaitingUpiVerification && <p data-testid="text-upi-verification-notice" className="mx-auto mt-3 max-w-sm rounded-xl border border-amber-200 bg-amber-50 p-3 text-left text-xs font-medium leading-relaxed text-amber-900">Your order is in processing and has been forwarded to the Payment Verification Department. Once payment is matched and verified, your order status will be updated.</p>}
         </div>
         <div className="mx-5 flex items-center gap-3 rounded-2xl border border-slate-100 bg-slate-50 p-3">
           {itemImage(item, order.selected_color || undefined) ? <img src={itemImage(item, order.selected_color || undefined)!} alt={item.title} className="h-16 w-16 rounded-xl object-cover" /> : <div className="grid h-16 w-16 place-items-center rounded-xl bg-blue-50 text-blue-300"><Package size={24} /></div>}
           <div className="min-w-0"><p data-testid="text-success-item-title" className="line-clamp-2 text-sm font-extrabold text-slate-900">{order.item_title}</p><p data-testid="text-success-paid-price" className="mt-1 text-base font-black text-[#1457A6]">{order.item_price || displayPrice(item)}</p></div>
         </div>
         <div className="mx-5 mt-4 rounded-2xl border border-[#ead7da] bg-[#fffafb] p-4 text-center">
-          <p className="text-[10px] font-extrabold uppercase tracking-[.15em] text-[#8B1E2D]">Tracking code</p>
+          <p className="text-[10px] font-extrabold uppercase tracking-[.15em] text-[#8B1E2D]">{awaitingUpiVerification ? "Order reference" : "Tracking code"}</p>
           <p data-testid="text-order-tracking-code" className="mt-1 font-mono text-2xl font-black tracking-wider text-slate-900">{order.tracking_code}</p>
         </div>
         <div className="mx-5 my-4 divide-y divide-slate-100 rounded-2xl border border-slate-100 px-4">
           {rows.map(([label, value]) => <div key={label} className="flex justify-between gap-4 py-2.5 text-xs"><span className="shrink-0 font-semibold text-slate-500">{label}</span><span className="max-w-[68%] text-right font-bold text-slate-800">{value}</span></div>)}
         </div>
         <div className="px-5 pb-5">
-          {showRoute && order.source_city && order.destination_city && (
+          {!awaitingUpiVerification && showRoute && order.source_city && order.destination_city && (
             <div className="mb-4" data-testid="success-shipment-route">
               <OrderRouteMap sourceCity={order.source_city} destinationCity={order.destination_city} currentLocation={order.current_location} status={order.status} />
             </div>
           )}
-          {order.source_city && order.destination_city && (
+          {!awaitingUpiVerification && order.source_city && order.destination_city && (
             <button type="button" data-testid="button-success-track-shipment" onClick={() => setShowRoute(value => !value)} className={`${secondaryButton} mb-2 w-full border-blue-200 text-[#1457A6]`}>
               <Truck size={16} /> {showRoute ? "Hide shipment map" : "View shipment map"}
             </button>
@@ -485,7 +553,11 @@ export function MyOrdersDrawer({ onClose }: { onClose: () => void }) {
                 </div>
                 <span data-testid={`status-order-${order.id}`} className="shrink-0 rounded-full border px-2.5 py-1 text-[10px] font-extrabold" style={{ color: STATUS_COLORS[order.status] || BLUE, borderColor: `${STATUS_COLORS[order.status] || BLUE}35`, background: `${STATUS_COLORS[order.status] || BLUE}0c` }}>{order.status}</span>
               </div>
-              {order.source_city?.trim() && order.destination_city?.trim() ? <OrderRouteMap sourceCity={order.source_city} destinationCity={order.destination_city} currentLocation={order.current_location} status={order.status} /> : <p className="rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-800">Route unavailable: source or delivery city was not recorded.</p>}
+              {isUpiAwaitingVerification(order)
+                ? <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900">Payment verification is pending. Shipment updates will appear here after the submitted UTR is matched.</p>
+                : order.source_city?.trim() && order.destination_city?.trim()
+                  ? <OrderRouteMap sourceCity={order.source_city} destinationCity={order.destination_city} currentLocation={order.current_location} status={order.status} />
+                  : <p className="rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-800">Route unavailable: source or delivery city was not recorded.</p>}
               {order.address && <p className="text-xs text-slate-500"><span className="font-bold text-slate-700">Delivery address:</span> {order.address}</p>}
             </article>
           ))}
@@ -535,17 +607,11 @@ function ProductDetail({
             </div>
             {attrs.pricing?.offerTagline && <p className="mt-2 text-sm font-bold text-[#8B1E2D]">{attrs.pricing.offerTagline}</p>}
             {item.description && <p className="mt-5 whitespace-pre-line text-sm leading-6 text-slate-600">{item.description}</p>}
-            <div className="my-6 space-y-4 border-y border-slate-100 py-5">
+            <div className="my-6 space-y-4">
               <VariantButtons label="Choose size" values={sizes} selected={size} onSelect={setSize} testPrefix="detail-size" />
               <VariantButtons label="Choose volume / capacity" values={volumes} selected={volume} onSelect={setVolume} testPrefix="detail-volume" />
               <VariantButtons label="Choose color" values={colors} selected={color} onSelect={setColor} testPrefix="detail-color" />
-            </div>
-            <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-xs">
-              {attrs.weight && <div><p className="text-slate-400">Weight</p><p className="mt-1 font-bold text-slate-700">{attrs.weight}</p></div>}
-              {attrs.dimensions && [attrs.dimensions.length, attrs.dimensions.width, attrs.dimensions.height].some(Boolean) && <div><p className="text-slate-400">Dimensions</p><p className="mt-1 font-bold text-slate-700">{[attrs.dimensions.length, attrs.dimensions.width, attrs.dimensions.height].filter(Boolean).join(" × ")} {attrs.dimensions.unit || ""}</p></div>}
-              {attrs.stockQuantity != null && <div><p className="text-slate-400">Availability</p><p className="mt-1 font-bold text-slate-700">{attrs.stockQuantity > 0 ? `${attrs.stockQuantity} in stock` : "Currently unavailable"}</p></div>}
-              {item.source_city && <div><p className="text-slate-400">Ships from</p><p className="mt-1 font-bold text-slate-700">{item.source_city}</p></div>}
-              {volumes.length > 0 && <div className="col-span-2"><p className="text-slate-400">Available capacities</p><p className="mt-1 font-bold text-slate-700">{volumes.join(" · ")}</p></div>}
+              <ProductSpecifications item={item} selection={{ size, volume, color }} />
             </div>
             <button type="button" data-testid={`button-buy-now-${item.id}`} onClick={() => onBuyNow({ size, volume, color })} disabled={attrs.stockQuantity === 0} className={`${primaryButton} mt-7 w-full py-3.5 text-base`}><ShoppingBag size={17} /> Buy now</button>
             <p className="mt-3 text-center text-[11px] text-slate-500">Checkout records COD or submitted UPI/UTR only.</p>
@@ -594,9 +660,9 @@ export function MarketplaceFeedCard({ items }: { items: MarketplaceItem[] }) {
 
   return (
     <>
-      <section data-testid="marketplace-feed-catalog" aria-label="Famefeed marketplace" className="w-full border-y border-slate-200 bg-white">
+      <section data-testid="marketplace-feed-catalog" aria-label="Flicks Marketplace" className="w-full border-y border-slate-200 bg-white">
         <header className="flex items-center justify-between gap-3 px-4 py-3 sm:px-5">
-          <div className="flex items-center gap-2.5"><span className="grid h-9 w-9 place-items-center rounded-xl bg-blue-50 text-[#1457A6]"><Store size={17} /></span><div><h2 className="text-sm font-black tracking-tight text-slate-900">Famefeed Marketplace</h2><p className="text-[10px] text-slate-500">Shop products shared by the community</p></div></div>
+          <div className="flex items-center gap-2.5"><span className="grid h-9 w-9 place-items-center rounded-xl bg-blue-50 text-[#1457A6]"><Store size={17} /></span><div><h2 className="text-sm font-black tracking-tight text-slate-900">Flicks Marketplace</h2><p className="text-[10px] text-slate-500">Shop products shared by the community</p></div></div>
           <button type="button" data-testid="button-open-my-orders" onClick={() => setShowMyOrders(true)} className="inline-flex items-center gap-1.5 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-[11px] font-extrabold text-[#1457A6] hover:bg-blue-100"><ClipboardList size={13} /> My Orders</button>
         </header>
         {active.length ? <div className="flex gap-3 overflow-x-auto px-4 pb-4 no-scrollbar sm:px-5">{active.map(item => (
@@ -607,7 +673,7 @@ export function MarketplaceFeedCard({ items }: { items: MarketplaceItem[] }) {
               <button type="button" data-testid={`button-share-card-${item.id}`} aria-label={`Share ${item.title}`} onClick={event => { event.stopPropagation(); void shareProduct(item); }} className="absolute right-2 top-2 grid h-8 w-8 place-items-center rounded-full border border-white/70 bg-white/90 text-slate-700 shadow-sm hover:text-[#1457A6]"><Share2 size={14} /></button>
             </div>
             <button type="button" data-testid={`button-open-detail-${item.id}`} onClick={() => showDetail(item)} className="block w-full px-3 pt-3 text-left"><span className="line-clamp-2 min-h-9 text-xs font-extrabold leading-4 text-slate-800">{item.title}</span><span className="mt-1 block text-sm font-black text-[#1457A6]">{displayPrice(item)}</span></button>
-            <div className="px-3 pb-3 pt-2"><p className="truncate text-[10px] text-slate-500">{item.source_city ? `Ships from ${item.source_city}` : "Shipping city not set"}</p><button type="button" data-testid={`button-shop-now-${item.id}`} onClick={() => showDetail(item)} className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg bg-[#1457A6] py-2 text-[11px] font-extrabold text-white hover:bg-[#0D478E]"><ShoppingBag size={12} /> View details</button></div>
+            <div className="px-3 pb-3 pt-2"><button type="button" data-testid={`button-shop-now-${item.id}`} onClick={() => showDetail(item)} className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-[#1457A6] py-2 text-[11px] font-extrabold text-white hover:bg-[#0D478E]"><ShoppingBag size={12} /> View details</button></div>
           </motion.article>
         ))}</div> : <div className="px-5 pb-5"><div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-center"><Store size={20} className="mx-auto mb-2 text-slate-300" /><p className="text-xs font-bold text-slate-700">No active listings right now</p><p className="mt-1 text-[11px] text-slate-500">New community finds will appear here.</p></div></div>}
       </section>
@@ -625,14 +691,14 @@ export function MarketplaceFeedCard({ items }: { items: MarketplaceItem[] }) {
 interface AdminMarketplacePanelProps { onClose: () => void; }
 interface AdminForm {
   title: string; description: string; price: string; image_url: string; link_url: string; badge: string;
-  sizes: string; colors: string; source_city: string; category: string; shopName: string; pickupAddress: string;
+  sizes: string; colors: string; source_city: string; category: string; material: string; shopName: string; pickupAddress: string;
   pincode: string; contactNumber: string; volumes: string; weight: string; length: string;
   width: string; height: string; dimensionUnit: string; originalPrice: string; discountedPrice: string;
   discountPercent: string; offerTagline: string; stockQuantity: string;
 }
 const EMPTY_FORM: AdminForm = {
   title: "", description: "", price: "", image_url: "", link_url: "", badge: "", sizes: "", colors: "",
-  source_city: "", category: "", shopName: "", pickupAddress: "", pincode: "", contactNumber: "",
+  source_city: "", category: "", material: "", shopName: "", pickupAddress: "", pincode: "", contactNumber: "",
   volumes: "", weight: "", length: "", width: "", height: "", dimensionUnit: "cm",
   originalPrice: "", discountedPrice: "", discountPercent: "", offerTagline: "", stockQuantity: "",
 };
@@ -715,7 +781,7 @@ export function AdminMarketplacePanel({ onClose }: AdminMarketplacePanelProps) {
       ...EMPTY_FORM, title: item.title, description: item.description ?? "", price: item.price ?? "",
       image_url: item.image_url ?? "", link_url: item.link_url ?? "", badge: item.badge ?? "",
       sizes: item.sizes ?? "", colors: item.colors ?? "", source_city: seller.city || item.source_city || "",
-      category: attrs.category ?? "", shopName: seller.shopName ?? "",
+      category: attrs.category ?? "", material: attrs.material ?? "", shopName: seller.shopName ?? "",
       pickupAddress: seller.pickupAddress ?? "", pincode: seller.pincode ?? "",
       contactNumber: seller.contactNumber ?? "", volumes: (attrs.volumeOptions ?? []).join(", "),
       weight: attrs.weight == null ? "" : String(attrs.weight),
@@ -762,6 +828,7 @@ export function AdminMarketplacePanel({ onClose }: AdminMarketplacePanelProps) {
       ? Math.round((1 - discountedPrice / originalPrice) * 100) : null;
     const attributes: MarketplaceItemAttributes = {
       category: form.category.trim() || undefined,
+      material: form.material.trim() || undefined,
       volumeOptions: form.volumes.split(",").map(value => value.trim()).filter(Boolean),
       weight: form.weight.trim() || undefined,
       dimensions: { length: form.length.trim() || undefined, width: form.width.trim() || undefined, height: form.height.trim() || undefined, unit: form.dimensionUnit },
@@ -831,10 +898,27 @@ export function AdminMarketplacePanel({ onClose }: AdminMarketplacePanelProps) {
     toast.success("Product removed");
   };
   const updateOrderStatus = async (orderId: string, status: string) => {
+    const order = orders.find(current => current.id === orderId);
+    if (order && isUpiAwaitingVerification(order)) {
+      toast.error("Match the UTR against the bank statement before updating shipment status");
+      return;
+    }
     setUpdatingOrderId(orderId);
     const { error } = await supabase.from("marketplace_orders").update({ status }).eq("id", orderId);
     if (error) toast.error("Could not update shipping milestone");
     else { setOrders(previous => previous.map(order => order.id === orderId ? { ...order, status } : order)); toast.success("Shipping milestone updated"); }
+    setUpdatingOrderId(null);
+  };
+  const verifyUpiOrder = async (order: MarketplaceOrder) => {
+    if (!order.utr_id?.trim()) { toast.error("This order has no submitted UTR to verify"); return; }
+    if (!window.confirm(`Match UTR ${order.utr_id} against the bank statement before confirming this payment. Continue only if the amount and transaction match.`)) return;
+    setUpdatingOrderId(order.id);
+    const { error } = await supabase.from("marketplace_orders").update({ status: "Confirmed" }).eq("id", order.id);
+    if (error) toast.error("Could not confirm payment verification");
+    else {
+      setOrders(previous => previous.map(current => current.id === order.id ? { ...current, status: "Confirmed" } : current));
+      toast.success("Payment verified. Shipment status can now be updated.");
+    }
     setUpdatingOrderId(null);
   };
   const updateCurrentLocation = async (orderId: string) => {
@@ -882,12 +966,16 @@ export function AdminMarketplacePanel({ onClose }: AdminMarketplacePanelProps) {
           })}</div>}
         </div>}
 
-        {panelTab === "orders" && <div className="min-h-0 flex-1 overflow-y-auto bg-slate-50/70">
+         {panelTab === "orders" && <div className="min-h-0 flex-1 overflow-y-auto bg-slate-50/70">
+           <div className="m-4 mb-0 rounded-xl border border-blue-100 bg-blue-50 p-3 text-xs leading-relaxed text-blue-900">
+             <p className="font-extrabold">Orders &amp; payment verification</p>
+             <p className="mt-1">Compare every submitted PhonePe UTR with the bank statement before confirming payment. Shipment status updates are enabled only after verification.</p>
+           </div>
           {loadingOrders ? <div className="space-y-3 p-5">{[0, 1].map(value => <div key={value} className="h-56 animate-pulse rounded-2xl bg-white" />)}</div>
           : ordersError ? <div className="m-5 rounded-2xl border border-rose-200 bg-white p-7 text-center"><p className="font-bold text-[#8B1E2D]">{ordersError}</p><button type="button" onClick={() => void fetchOrders()} className={`${secondaryButton} mt-4`}>Retry</button></div>
           : !orders.length ? <div className="px-5 py-16 text-center"><span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-blue-50 text-[#1457A6]"><Package size={24} /></span><p className="mt-4 font-extrabold text-slate-800">No orders to manage</p><p className="mt-1 text-xs text-slate-500">Orders will appear after a customer checks out.</p></div>
           : <div className="space-y-3 p-4 sm:p-5">{orders.map(order => <article key={order.id} data-testid={`row-admin-order-${order.id}`} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-mono text-sm font-black text-slate-900">{order.tracking_code}</p><p className="mt-1 text-[10px] text-slate-500">{formatOrderTime(order.created_at)}</p></div><label><span className="sr-only">Shipment status for {order.tracking_code}</span><select data-testid={`select-order-status-${order.id}`} value={order.status} disabled={updatingOrderId === order.id} onChange={event => void updateOrderStatus(order.id, event.target.value)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:border-blue-400">{SHIPPING_STATUSES.map(status => <option key={status} value={status}>{status}</option>)}</select></label></div>
+             <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-mono text-sm font-black text-slate-900">{order.tracking_code}</p><p className="mt-1 text-[10px] text-slate-500">{formatOrderTime(order.created_at)}</p></div><label><span className="sr-only">Shipment status for {order.tracking_code}</span><select data-testid={`select-order-status-${order.id}`} value={order.status} disabled={updatingOrderId === order.id || isUpiAwaitingVerification(order)} onChange={event => void updateOrderStatus(order.id, event.target.value)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:border-blue-400">{[order.status, ...SHIPPING_STATUSES.filter(status => !["Pending", "Verification Pending", order.status].includes(status))].map(status => <option key={status} value={status}>{status}</option>)}</select></label></div>
             <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 border-y border-slate-100 py-3 text-xs">
               <span className="text-slate-400">Product</span><span className="truncate font-bold text-slate-800">{order.item_title}</span>
               <span className="text-slate-400">Price</span><span className="font-bold text-[#1457A6]">{order.item_price || "—"}</span>
@@ -902,6 +990,14 @@ export function AdminMarketplacePanel({ onClose }: AdminMarketplacePanelProps) {
               {order.utr_id && <><span className="text-slate-400">UTR</span><span className="truncate font-mono font-semibold text-slate-700">{order.utr_id}</span></>}
             </div>
             {order.address && <p className="mt-3 flex gap-2 text-xs text-slate-600"><MapPin size={14} className="mt-0.5 shrink-0 text-[#8B1E2D]" />{order.address}</p>}
+             {isUpiAwaitingVerification(order) && <div data-testid={`upi-verification-${order.id}`} className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
+               <p className="text-xs font-extrabold text-amber-900">Verification pending</p>
+               <p className="mt-1 break-all font-mono text-xs font-bold text-slate-800">UTR: {order.utr_id || "Not submitted"}</p>
+               <p className="mt-1 text-[11px] leading-relaxed text-amber-900">Match this transaction and amount against the bank statement. Do not approve based on the customer’s submission alone.</p>
+               <button type="button" data-testid={`button-verify-upi-${order.id}`} disabled={updatingOrderId === order.id || !order.utr_id?.trim()} onClick={() => void verifyUpiOrder(order)} className="mt-3 inline-flex items-center justify-center gap-2 rounded-lg bg-[#1457A6] px-3 py-2 text-xs font-extrabold text-white disabled:cursor-not-allowed disabled:opacity-50">
+                 {updatingOrderId === order.id ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Match UTR &amp; confirm payment
+               </button>
+             </div>}
             {order.source_city && order.destination_city && <div className="mt-3"><OrderRouteMap sourceCity={order.source_city} destinationCity={order.destination_city} status={order.status} currentLocation={order.current_location} /></div>}
             <div className="mt-3 flex gap-2"><label className="min-w-0 flex-1"><span className="sr-only">Current shipment location</span><input data-testid={`input-order-location-${order.id}`} value={locationDrafts[order.id] ?? order.current_location ?? ""} onChange={event => setLocationDrafts(previous => ({ ...previous, [order.id]: event.target.value }))} placeholder="Current city or shipping hub" className={fieldClass} /></label><button type="button" data-testid={`button-save-order-location-${order.id}`} disabled={updatingLocationId === order.id} onClick={() => void updateCurrentLocation(order.id)} className={secondaryButton}>{updatingLocationId === order.id ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}<span className="hidden sm:inline">Save location</span></button></div>
           </article>)}</div>}
@@ -918,7 +1014,7 @@ export function AdminMarketplacePanel({ onClose }: AdminMarketplacePanelProps) {
                 </section>
                 <section><h4 className="mb-3 flex items-center gap-2 text-sm font-extrabold text-slate-900"><Store size={15} className="text-[#1457A6]" /> Seller &amp; category</h4><div className="grid gap-3 sm:grid-cols-2">{formInput("shopName", "Shop / seller name", "Seller or shop name")}{formInput("category", "Category / product type", "For example: Home, fashion, personal care")}<label className="sm:col-span-2"><span className={fieldLabel}>Pickup address</span><textarea data-testid="input-admin-pickupAddress" value={form.pickupAddress} onChange={event => setField("pickupAddress", event.target.value)} rows={2} placeholder="Seller collection address" className={`${fieldClass} resize-y`} /></label>{formInput("source_city", "Seller city / shipping origin *", "City")}{formInput("pincode", "Pickup PIN code", "6-digit PIN")}{formInput("contactNumber", "Seller contact number", "+91", "tel")}</div></section>
                 <section><h4 className="mb-3 flex items-center gap-2 text-sm font-extrabold text-slate-900"><CreditCard size={15} className="text-[#1457A6]" /> Pricing &amp; stock</h4><div className="grid gap-3 sm:grid-cols-2">{formInput("originalPrice", "Original price (₹)", "e.g. 1299", "number")}{formInput("discountedPrice", "Discount price (₹)", "e.g. 999", "number")}{formInput("discountPercent", "Discount percent", "Auto-calculated when blank", "number")}{formInput("offerTagline", "Offer tagline", "For example: Introductory offer")}{formInput("stockQuantity", "Stock quantity", "Units available", "number")}<label><span className={fieldLabel}>Listing badge</span><select data-testid="input-admin-badge" value={form.badge} onChange={event => setField("badge", event.target.value)} className={fieldClass}>{BADGE_OPTIONS.map(badge => <option key={badge} value={badge}>{badge || "No badge"}</option>)}</select></label>{!form.discountedPrice && formInput("price", "Legacy display price", "₹499")}</div></section>
-                <section><h4 className="mb-3 flex items-center gap-2 text-sm font-extrabold text-slate-900"><Ruler size={15} className="text-[#1457A6]" /> Product options</h4><div className="grid gap-3 sm:grid-cols-2"><label><span className={fieldLabel}>Sizes (comma-separated)</span><input data-testid="input-admin-sizes" value={form.sizes} onChange={event => setField("sizes", event.target.value)} placeholder="S, M, L or 7, 8, 9" className={fieldClass} /></label><label><span className={fieldLabel}>Legacy colors (comma-separated)</span><input data-testid="input-admin-colors" value={form.colors} onChange={event => setField("colors", event.target.value)} placeholder="Black, White, Red" className={fieldClass} /></label><label><span className={fieldLabel}>Volume / capacity options</span><input data-testid="input-admin-volumes" value={form.volumes} onChange={event => setField("volumes", event.target.value)} placeholder="250 ml, 500 ml" className={fieldClass} /></label>{formInput("weight", "Weight", "e.g. 450 g")}{formInput("length", "Length", "e.g. 24", "number")}{formInput("width", "Width", "e.g. 18", "number")}{formInput("height", "Height", "e.g. 8", "number")}<label><span className={fieldLabel}>Dimensions unit</span><select data-testid="input-admin-dimensionUnit" value={form.dimensionUnit} onChange={event => setField("dimensionUnit", event.target.value)} className={fieldClass}><option value="cm">cm</option><option value="mm">mm</option><option value="in">in</option></select></label></div></section>
+                 <section><h4 className="mb-3 flex items-center gap-2 text-sm font-extrabold text-slate-900"><Ruler size={15} className="text-[#1457A6]" /> Product options</h4><div className="grid gap-3 sm:grid-cols-2"><label><span className={fieldLabel}>Sizes (comma-separated)</span><input data-testid="input-admin-sizes" value={form.sizes} onChange={event => setField("sizes", event.target.value)} placeholder="S, M, L or 7, 8, 9" className={fieldClass} /></label><label><span className={fieldLabel}>Legacy colors (comma-separated)</span><input data-testid="input-admin-colors" value={form.colors} onChange={event => setField("colors", event.target.value)} placeholder="Black, White, Red" className={fieldClass} /></label><label><span className={fieldLabel}>Volume / capacity options</span><input data-testid="input-admin-volumes" value={form.volumes} onChange={event => setField("volumes", event.target.value)} placeholder="250 ml, 500 ml" className={fieldClass} /></label>{formInput("weight", "Weight", "e.g. 450 g")}{formInput("material", "Material", "e.g. Cotton, steel, glass")}{formInput("length", "Length", "e.g. 24", "number")}{formInput("width", "Width", "e.g. 18", "number")}{formInput("height", "Height", "e.g. 8", "number")}<label><span className={fieldLabel}>Dimensions unit</span><select data-testid="input-admin-dimensionUnit" value={form.dimensionUnit} onChange={event => setField("dimensionUnit", event.target.value)} className={fieldClass}><option value="cm">cm</option><option value="mm">mm</option><option value="in">in</option></select></label></div></section>
                 <section><div className="mb-3 flex items-center justify-between gap-3"><h4 className="flex items-center gap-2 text-sm font-extrabold text-slate-900"><Palette size={15} className="text-[#1457A6]" /> Color &amp; image variants</h4><button type="button" data-testid="button-add-color-variant" onClick={() => setColorVariants(current => [...current, { name: "", imageUrl: "" }])} className={secondaryButton}><Plus size={14} /> Add color</button></div>
                   {colorVariants.length ? <div className="space-y-2">{colorVariants.map((variant, index) => <div key={index} className="grid gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 sm:grid-cols-[1fr_1.6fr_auto]"><label><span className={fieldLabel}>Color name</span><input data-testid={`input-color-name-${index}`} value={variant.name} onChange={event => setColorVariants(current => current.map((entry, row) => row === index ? { ...entry, name: event.target.value } : entry))} placeholder="Midnight blue" className={fieldClass} /></label><label><span className={fieldLabel}>Color image URL</span><input data-testid={`input-color-image-${index}`} value={variant.imageUrl} onChange={event => setColorVariants(current => current.map((entry, row) => row === index ? { ...entry, imageUrl: event.target.value } : entry))} placeholder="https://…" className={fieldClass} /></label><button type="button" data-testid={`button-remove-color-${index}`} aria-label={`Remove color variant ${index + 1}`} onClick={() => setColorVariants(current => current.filter((_entry, row) => row !== index))} className="mt-5 grid h-10 w-10 place-items-center rounded-lg border border-rose-100 bg-white text-[#8B1E2D]"><Trash2 size={15} /></button></div>)}</div> : <p className="rounded-xl border border-dashed border-slate-200 px-4 py-3 text-xs text-slate-500">Add named colors and image URLs to let buyers preview each variant.</p>}
                 </section>
