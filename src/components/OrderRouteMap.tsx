@@ -61,6 +61,8 @@ export function OrderRouteMap({
   currentLocation,
 }: OrderRouteMapProps) {
   const points = makeRoute(sourceCity, destinationCity);
+  const startY = points[0].y;
+  const endY = points[points.length - 1].y;
   const progressIndex = Math.max(0, Math.min(4, STATUS_PROGRESS[status] ?? 0));
   const currentPoint = points[progressIndex];
   const completedPath = makePath(points.slice(0, progressIndex + 1));
