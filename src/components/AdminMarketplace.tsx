@@ -455,10 +455,11 @@ function VariantButtons({
 }
 
 function CheckoutDrawer({
-  item, onClose, onSuccess, initialSelection,
+  item, onClose, onSuccess, initialSelection, aboveOrders = false,
 }: {
   item: MarketplaceItem; onClose: () => void; onSuccess: (order: MarketplaceOrder) => void;
   initialSelection: VariantSelection;
+  aboveOrders?: boolean;
 }) {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -534,7 +535,7 @@ function CheckoutDrawer({
   return (
     <motion.div
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[600] flex items-end justify-center bg-slate-900/45 p-0 sm:items-center sm:p-5"
+      className={`fixed inset-0 ${aboveOrders ? "z-[670]" : "z-[600]"} flex items-end justify-center bg-slate-900/45 p-0 sm:items-center sm:p-5`}
       onClick={event => { if (event.target === event.currentTarget) onClose(); }}
     >
       <motion.section
@@ -706,6 +707,11 @@ export function MyOrdersDrawer({
   const [refreshCount, setRefreshCount] = useState(0);
   const [visible, setVisible] = useState(true);
   const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
+  const [detailItem, setDetailItem] = useState<MarketplaceItem | null>(null);
+  const [detailSelection, setDetailSelection] = useState<VariantSelection>({ size: "", volume: "", color: "" });
+  const [checkoutItem, setCheckoutItem] = useState<MarketplaceItem | null>(null);
+  const [checkoutSelection, setCheckoutSelection] = useState<VariantSelection>({ size: "", volume: "", color: "" });
+  const [successData, setSuccessData] = useState<{ order: MarketplaceOrder; item: MarketplaceItem } | null>(null);
   const prefersReducedMotion = useReducedMotion();
 
   useEffect(() => {
@@ -754,7 +760,7 @@ export function MyOrdersDrawer({
     if (!itemIds.length) return;
     let active = true;
     supabase.from("marketplace_items")
-      .select("id,title,description,price,image_url,attributes,sizes,colors")
+      .select("id,title,description,price,image_url,link_url,badge,is_active,created_at,sizes,colors,source_city,attributes")
       .in("id", itemIds)
       .then(({ data }) => {
         if (!active) return;
@@ -766,6 +772,33 @@ export function MyOrdersDrawer({
       }, () => {});
     return () => { active = false; };
   }, [orders, catalogItems]);
+
+  const openOrderProduct = (order: MarketplaceOrder, catalogItem?: MarketplaceCatalogSnapshot) => {
+    const item: MarketplaceItem = {
+      id: order.item_id || `order-${order.id}`,
+      title: catalogItem?.title?.trim() || order.item_title?.trim() || "Marketplace product",
+      description: catalogItem?.description ?? order.item_details ?? null,
+      price: catalogItem?.price ?? order.item_price ?? null,
+      image_url: catalogItem?.image_url ?? order.item_image_url ?? null,
+      link_url: catalogItem?.link_url ?? null,
+      badge: catalogItem?.badge ?? null,
+      is_active: catalogItem?.is_active === true,
+      created_at: catalogItem?.created_at || order.created_at,
+      sizes: catalogItem ? catalogItem.sizes : order.selected_size ?? null,
+      colors: catalogItem ? catalogItem.colors : order.selected_color ?? null,
+      source_city: catalogItem?.source_city ?? order.source_city ?? null,
+      attributes: catalogItem?.attributes ?? {
+        volumeOptions: order.selected_volume ? [order.selected_volume] : [],
+      },
+    };
+    const selection: VariantSelection = {
+      size: order.selected_size?.trim() || (itemSizes(item).length === 1 ? itemSizes(item)[0] : ""),
+      volume: order.selected_volume?.trim() || (itemVolumes(item).length === 1 ? itemVolumes(item)[0] : ""),
+      color: order.selected_color?.trim() || (itemColors(item).length === 1 ? itemColors(item)[0] : ""),
+    };
+    setDetailSelection(selection);
+    setDetailItem(item);
+  };
 
   useEffect(() => {
     if (!focusOrderId || loading) return;
@@ -930,17 +963,25 @@ export function MyOrdersDrawer({
                    </>
                  )}
 
-                 <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-blue-100 bg-gradient-to-r from-blue-50 via-white to-rose-50 p-3">
+                  <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-blue-100 bg-gradient-to-r from-blue-50 via-white to-rose-50 p-3">
+                    <button
+                      type="button"
+                      data-testid={`button-open-my-order-product-${order.id}`}
+                      aria-label={`View product details for ${itemTitle}`}
+                      onClick={() => openOrderProduct(order, catalogItem)}
+                      className="flex min-w-0 flex-1 items-center gap-3 rounded-xl text-left outline-none transition hover:bg-white/70 focus-visible:ring-2 focus-visible:ring-[#1457A6] focus-visible:ring-offset-2"
+                    >
                    <div className="h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-white bg-white shadow-sm">
                       <OrderProductThumbnail sources={imageSources} title={itemTitle} orderId={order.id} />
                    </div>
-                   <div className="min-w-0 flex-1">
+                    <div className="min-w-0 flex-1 py-1">
                       <p className="line-clamp-2 text-xs font-extrabold text-slate-900">{itemTitle}</p>
                       <p className="mt-1 text-sm font-black text-[#1457A6]">{itemPrice}</p>
                       <p className="mt-1 line-clamp-2 text-[9px] font-semibold text-slate-500">{[
                         ["Color", selectedColor], ["Size", selectedSize], ["Volume", selectedVolume],
                       ].filter(([, value]) => value !== "Not specified").map(([label, value]) => `${label}: ${value}`).join(" · ") || "No variant selected"}</p>
                    </div>
+                    </button>
                    <button
                      type="button"
                      data-testid={`button-cancel-order-${order.id}`}
@@ -958,31 +999,83 @@ export function MyOrdersDrawer({
            })}
         </div>
       </motion.section>
+       {detailItem && (
+         <ProductDetail
+           key={detailItem.id}
+           item={detailItem}
+           suggestions={[]}
+           initialSelection={detailSelection}
+           backLabel="Back to My Orders"
+           aboveOrders
+            canBuy={detailItem.is_active}
+           onBack={() => setDetailItem(null)}
+           onBuyNow={selection => {
+             setCheckoutSelection(selection);
+             setCheckoutItem(detailItem);
+           }}
+           onOpenSuggestion={setDetailItem}
+         />
+       )}
+       {checkoutItem && (
+         <CheckoutDrawer
+           item={checkoutItem}
+           initialSelection={checkoutSelection}
+           aboveOrders
+           onClose={() => setCheckoutItem(null)}
+           onSuccess={order => {
+             setCheckoutItem(null);
+             setDetailItem(null);
+             setRefreshCount(count => count + 1);
+             setSuccessData({ order, item: checkoutItem });
+           }}
+         />
+       )}
+       {successData && (
+         <OrderSuccessModal
+           order={successData.order}
+           item={successData.item}
+           onClose={() => setSuccessData(null)}
+           onCancelOrder={async orderId => {
+             const result = await requestMarketplaceOrderCancellation(orderId);
+             if (!result.error) {
+               setOrders(current => current.map(order => order.id === orderId ? { ...order, status: "Cancelled" } : order));
+               setSuccessData(current => current ? { ...current, order: { ...current.order, status: "Cancelled" } } : current);
+             }
+             return { error: result.error };
+           }}
+         />
+       )}
     </motion.div>
   );
 }
 
 function ProductDetail({
   item, suggestions, onBack, onBuyNow, onOpenSuggestion,
+  initialSelection = { size: "", volume: "", color: "" },
+  backLabel = "Back to marketplace",
+  aboveOrders = false,
+  canBuy = true,
 }: {
   item: MarketplaceItem; suggestions: MarketplaceItem[]; onBack: () => void;
   onBuyNow: (selection: VariantSelection) => void; onOpenSuggestion: (item: MarketplaceItem) => void;
+  initialSelection?: VariantSelection; backLabel?: string; aboveOrders?: boolean; canBuy?: boolean;
 }) {
   const sizes = itemSizes(item);
   const volumes = itemVolumes(item);
   const colors = itemColors(item);
   const attrs = getAttributes(item);
-  const [size, setSize] = useState("");
-  const [volume, setVolume] = useState("");
-  const [color, setColor] = useState("");
+  const [size, setSize] = useState(initialSelection.size);
+  const [volume, setVolume] = useState(initialSelection.volume);
+  const [color, setColor] = useState(initialSelection.color);
   const image = itemImage(item, color);
+  const unavailable = !canBuy || attrs.stockQuantity === 0;
 
   return (
-    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 12 }} className="fixed inset-0 z-[550] overflow-y-auto bg-slate-900/45 p-0 sm:p-6" onClick={event => { if (event.target === event.currentTarget) onBack(); }}>
+    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 12 }} className={`fixed inset-0 ${aboveOrders ? "z-[660]" : "z-[550]"} overflow-y-auto bg-slate-900/45 p-0 sm:p-6`} onClick={event => { if (event.target === event.currentTarget) onBack(); }}>
       <section role="dialog" aria-modal="true" aria-label={`${item.title} product details`} className="mx-auto min-h-full w-full max-w-5xl bg-white shadow-2xl sm:my-4 sm:min-h-0 sm:overflow-hidden sm:rounded-[26px]" onClick={event => event.stopPropagation()}>
         <header className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-100 bg-white/95 px-4 py-3 backdrop-blur sm:px-6">
-          <button type="button" data-testid="button-detail-back" onClick={onBack} className={secondaryButton}><ArrowLeft size={15} /> Back to marketplace</button>
-          <button type="button" data-testid={`button-share-detail-${item.id}`} aria-label={`Share ${item.title}`} onClick={() => void shareProduct(item)} className={secondaryButton}><Share2 size={15} /><span className="hidden sm:inline">Share product</span></button>
+          <button type="button" data-testid="button-detail-back" onClick={onBack} className={secondaryButton}><ArrowLeft size={15} /> {backLabel}</button>
+          {canBuy && <button type="button" data-testid={`button-share-detail-${item.id}`} aria-label={`Share ${item.title}`} onClick={() => void shareProduct(item)} className={secondaryButton}><Share2 size={15} /><span className="hidden sm:inline">Share product</span></button>}
         </header>
         <div className="grid md:grid-cols-[1.05fr_.95fr]">
           <div className="bg-[#F4F7FB] p-4 sm:p-7">
@@ -1008,8 +1101,8 @@ function ProductDetail({
               <VariantButtons label="Choose color" values={colors} selected={color} onSelect={setColor} testPrefix="detail-color" />
               <ProductSpecifications item={item} selection={{ size, volume, color }} />
             </div>
-            <button type="button" data-testid={`button-buy-now-${item.id}`} onClick={() => onBuyNow({ size, volume, color })} disabled={attrs.stockQuantity === 0} className={`${primaryButton} mt-7 w-full py-3.5 text-base`}><ShoppingBag size={17} /> Buy now</button>
-            <p className="mt-3 text-center text-[11px] text-slate-500">Checkout records COD or submitted UPI/UTR only.</p>
+            <button type="button" data-testid={`button-buy-now-${item.id}`} onClick={() => onBuyNow({ size, volume, color })} disabled={unavailable} className={`${primaryButton} mt-7 w-full py-3.5 text-base`}><ShoppingBag size={17} />{canBuy ? (attrs.stockQuantity === 0 ? "Out of stock" : "Buy now") : "No longer available"}</button>
+            <p className="mt-3 text-center text-[11px] text-slate-500">{canBuy ? "Checkout records COD or submitted UPI/UTR only." : "This listing is no longer active. The details above are from your order."}</p>
           </div>
         </div>
         {suggestions.length > 0 && <section className="border-t border-slate-100 px-5 py-6 sm:px-8"><div className="mb-4 flex items-end justify-between"><div><p className="text-[10px] font-black uppercase tracking-[.15em] text-[#8B1E2D]">Made to go together</p><h2 className="mt-1 text-lg font-black text-slate-900">Frequently bought together</h2></div><span className="text-xs text-slate-500">From active listings</span></div><div className="grid grid-cols-2 gap-3 sm:grid-cols-3">{suggestions.map(product => <button key={product.id} type="button" data-testid={`card-suggestion-${product.id}`} onClick={() => onOpenSuggestion(product)} className="group overflow-hidden rounded-xl border border-slate-200 bg-white text-left transition hover:border-blue-300 hover:shadow-md"><div className="aspect-[4/3] bg-slate-50">{itemImage(product) ? <img src={itemImage(product)!} alt={product.title} className="h-full w-full object-cover transition group-hover:scale-[1.02]" /> : <div className="grid h-full place-items-center text-slate-200"><ShoppingBag size={24} /></div>}</div><div className="p-3"><p className="line-clamp-2 text-xs font-bold text-slate-800">{product.title}</p><p className="mt-1 text-sm font-black text-[#1457A6]">{displayPrice(product)}</p></div></button>)}</div></section>}
