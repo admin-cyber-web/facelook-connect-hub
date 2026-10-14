@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { subscribeWhileVisible } from "@/lib/realtimeVisibility";
+import { formatRupeePrice } from "@/lib/currency";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import { useProfileViewer } from "@/context/ProfileViewerContext";
@@ -267,6 +268,7 @@ type MarketplaceOrderNotification = {
   kind: "marketplace_order";
   event: "created" | "status" | "location";
   item_title?: string;
+  item_price?: string | number | null;
   status?: string;
   tracking_code?: string;
   current_location?: string | null;
@@ -1522,8 +1524,32 @@ const Header = ({
           .in("id", actorIds);
         profileMap = Object.fromEntries((profiles || []).map((p) => [p.id, p]));
       }
+
+      const marketplaceOrderIds = [
+        ...new Set(
+          data
+            .filter((n) => n.type === "marketplace_order" && n.entity_id)
+            .map((n) => n.entity_id as string),
+        ),
+      ];
+      let orderPriceMap: Record<string, string | null> = {};
+      if (marketplaceOrderIds.length > 0) {
+        const { data: orderRows } = await supabase
+          .from("marketplace_orders")
+          .select("id,item_price")
+          .eq("user_id", userId)
+          .in("id", marketplaceOrderIds);
+        orderPriceMap = Object.fromEntries(
+          (orderRows || []).map((order) => [order.id, order.item_price]),
+        );
+      }
+
       setNotifications(
-        data.map((n) => ({ ...n, actor: profileMap[n.actor_id] || null })),
+        data.map((n) => ({
+          ...n,
+          actor: profileMap[n.actor_id] || null,
+          order_item_price: orderPriceMap[n.entity_id] ?? null,
+        })),
       );
 
       // 2. Batch-fetch post media for post-type notifications (thumbnails)
@@ -2472,6 +2498,11 @@ const Header = ({
                                     )}
                                     <div className="min-w-0 flex-1 py-0.5">
                                       <p className="truncate text-[11px] font-bold text-white/90">{marketplaceOrder?.item_title || "Marketplace order"}</p>
+                                      {(marketplaceOrder?.item_price ?? n.order_item_price) != null && (
+                                        <p className="mt-0.5 truncate text-[10px] font-extrabold text-emerald-300">
+                                          {formatRupeePrice(marketplaceOrder?.item_price ?? n.order_item_price)}
+                                        </p>
+                                      )}
                                       <p className="mt-0.5 truncate text-[10px] font-semibold text-blue-300">Status: {marketplaceOrder?.status || "Updated"}</p>
                                       {marketplaceOrder?.event === "location" && marketplaceOrder.current_location && (
                                         <p className="truncate text-[10px] text-white/55">Current location: {marketplaceOrder.current_location}</p>
