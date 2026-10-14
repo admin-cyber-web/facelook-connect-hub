@@ -9,6 +9,7 @@ import {
 import { toast } from "sonner";
 import { supabase } from "../lib/supabaseClient";
 import { subscribeWhileVisible } from "../lib/realtimeVisibility";
+import { formatRupeePrice, normalizeRupeeInput, parseRupeeAmount } from "../lib/currency";
 import { OrderRouteMap } from "./OrderRouteMap";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 
@@ -391,10 +392,7 @@ function ProductSpecifications({
 
 function displayPrice(item: Pick<MarketplaceItem, "attributes" | "price">): string {
   const pricing = getAttributes(item).pricing;
-  if (pricing?.discountedPrice != null && Number.isFinite(Number(pricing.discountedPrice))) {
-    return `₹${Number(pricing.discountedPrice).toLocaleString("en-IN")}`;
-  }
-  return item.price || "Price on request";
+  return formatRupeePrice(pricing?.discountedPrice ?? item.price);
 }
 
 function shareUrl(item: MarketplaceItem): string {
@@ -644,7 +642,7 @@ function OrderSuccessModal({
         </div>
         <div className="mx-5 flex items-center gap-3 rounded-2xl border border-slate-100 bg-slate-50 p-3">
           {itemImage(item, order.selected_color || undefined) ? <img src={itemImage(item, order.selected_color || undefined)!} alt={item.title} className="h-16 w-16 rounded-xl object-cover" /> : <div className="grid h-16 w-16 place-items-center rounded-xl bg-blue-50 text-blue-300"><Package size={24} /></div>}
-          <div className="min-w-0"><p data-testid="text-success-item-title" className="line-clamp-2 text-sm font-extrabold text-slate-900">{order.item_title}</p><p data-testid="text-success-paid-price" className="mt-1 text-base font-black text-[#1457A6]">{order.item_price || displayPrice(item)}</p></div>
+          <div className="min-w-0"><p data-testid="text-success-item-title" className="line-clamp-2 text-sm font-extrabold text-slate-900">{order.item_title}</p><p data-testid="text-success-paid-price" className="mt-1 text-base font-black text-[#1457A6]">{formatRupeePrice(order.item_price || displayPrice(item))}</p></div>
         </div>
         <div className="mx-5 mt-4 rounded-2xl border border-[#ead7da] bg-[#fffafb] p-4 text-center">
           <p className="text-[10px] font-extrabold uppercase tracking-[.15em] text-[#8B1E2D]">{awaitingUpiVerification ? "Order reference" : "Tracking code"}</p>
@@ -856,7 +854,7 @@ export function MyOrdersDrawer({
               const milestoneProgress = order.status === "Delivered" ? 100 : displayedMilestoneIndex / 3 * 100;
               const catalogItem = order.item_id ? catalogItems[order.item_id] : undefined;
               const itemTitle = order.item_title?.trim() || catalogItem?.title?.trim() || "Marketplace product";
-              const itemPrice = order.item_price?.trim() || (catalogItem ? displayPrice(catalogItem) : "Price unavailable");
+              const itemPrice = formatRupeePrice(order.item_price?.trim() || (catalogItem ? displayPrice(catalogItem) : "Price unavailable"));
               const selectedColor = resolveVariantValue(order.selected_color, catalogItem ? itemColors(catalogItem) : []);
               const selectedSize = resolveVariantValue(order.selected_size, catalogItem ? itemSizes(catalogItem) : []);
               const selectedVolume = resolveVariantValue(order.selected_volume, catalogItem ? itemVolumes(catalogItem) : []);
@@ -1064,6 +1062,8 @@ function ProductDetail({
   const volumes = itemVolumes(item);
   const colors = itemColors(item);
   const attrs = getAttributes(item);
+  const originalPrice = parseRupeeAmount(attrs.pricing?.originalPrice);
+  const discountedPrice = parseRupeeAmount(attrs.pricing?.discountedPrice);
   const [size, setSize] = useState(initialSelection.size);
   const [volume, setVolume] = useState(initialSelection.volume);
   const [color, setColor] = useState(initialSelection.color);
@@ -1090,7 +1090,7 @@ function ProductDetail({
             <h1 className="mt-2 text-2xl font-black leading-tight text-slate-900 sm:text-3xl">{item.title}</h1>
             <div className="mt-5 flex flex-wrap items-baseline gap-x-3 gap-y-1">
               <span className="text-3xl font-black tracking-tight text-[#1457A6]">{displayPrice(item)}</span>
-              {attrs.pricing?.originalPrice != null && Number(attrs.pricing.originalPrice) > Number(attrs.pricing.discountedPrice ?? 0) && <span className="text-sm text-slate-400 line-through">₹{Number(attrs.pricing.originalPrice).toLocaleString("en-IN")}</span>}
+              {originalPrice != null && originalPrice > (discountedPrice ?? 0) && <span className="text-sm text-slate-400 line-through">{formatRupeePrice(originalPrice)}</span>}
               {attrs.pricing?.discountPercent ? <span className="rounded-md bg-[#8B1E2D] px-2 py-1 text-[10px] font-black text-white">{attrs.pricing.discountPercent}% off</span> : null}
             </div>
             {attrs.pricing?.offerTagline && <p className="mt-2 text-sm font-bold text-[#8B1E2D]">{attrs.pricing.offerTagline}</p>}
@@ -1218,6 +1218,7 @@ export function AdminMarketplacePanel({ onClose }: AdminMarketplacePanelProps) {
   const [editItem, setEditItem] = useState<MarketplaceItem | null>(null);
   const [uploading, setUploading] = useState(false);
   const [form, setForm] = useState<AdminForm>(EMPTY_FORM);
+  const [focusedPriceField, setFocusedPriceField] = useState<keyof AdminForm | null>(null);
   const [colorVariants, setColorVariants] = useState<MarketplaceColorVariant[]>([]);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const [orders, setOrders] = useState<MarketplaceOrder[]>([]);
@@ -1292,14 +1293,15 @@ export function AdminMarketplacePanel({ onClose }: AdminMarketplacePanelProps) {
     );
   }, [panelTab]);
 
-  const openAdd = () => { setEditItem(null); setForm({ ...EMPTY_FORM }); setColorVariants([]); setShowForm(true); };
+  const openAdd = () => { setEditItem(null); setFocusedPriceField(null); setForm({ ...EMPTY_FORM }); setColorVariants([]); setShowForm(true); };
   const openEdit = (item: MarketplaceItem) => {
     const attrs = getAttributes(item);
     const pricing = attrs.pricing ?? {};
     const seller = sellerDetailsByItemId[item.id] ?? {};
     setEditItem(item);
     setForm({
-      ...EMPTY_FORM, title: item.title, description: item.description ?? "", price: item.price ?? "",
+      ...EMPTY_FORM, title: item.title, description: item.description ?? "",
+      price: parseRupeeAmount(item.price) == null ? item.price ?? "" : normalizeRupeeInput(item.price ?? ""),
       image_url: item.image_url ?? "", link_url: item.link_url ?? "", badge: item.badge ?? "",
       sizes: item.sizes ?? "", colors: item.colors ?? "", source_city: seller.city || item.source_city || "",
       category: attrs.category ?? "", material: attrs.material ?? "", shopName: seller.shopName ?? "",
@@ -1310,8 +1312,8 @@ export function AdminMarketplacePanel({ onClose }: AdminMarketplacePanelProps) {
       width: attrs.dimensions?.width == null ? "" : String(attrs.dimensions.width),
       height: attrs.dimensions?.height == null ? "" : String(attrs.dimensions.height),
       dimensionUnit: attrs.dimensions?.unit || "cm",
-      originalPrice: pricing.originalPrice == null ? "" : String(pricing.originalPrice),
-      discountedPrice: pricing.discountedPrice == null ? "" : String(pricing.discountedPrice),
+      originalPrice: pricing.originalPrice == null ? "" : normalizeRupeeInput(String(pricing.originalPrice)),
+      discountedPrice: pricing.discountedPrice == null ? "" : normalizeRupeeInput(String(pricing.discountedPrice)),
       discountPercent: pricing.discountPercent == null ? "" : String(pricing.discountPercent),
       offerTagline: pricing.offerTagline ?? "",
       stockQuantity: attrs.stockQuantity == null ? "" : String(attrs.stockQuantity),
@@ -1320,6 +1322,7 @@ export function AdminMarketplacePanel({ onClose }: AdminMarketplacePanelProps) {
     setShowForm(true);
   };
   const setField = (key: keyof AdminForm, value: string) => setForm(current => ({ ...current, [key]: value }));
+  const setPriceField = (key: keyof AdminForm, value: string) => setField(key, normalizeRupeeInput(value));
   const handleImageUpload = async (file: File) => {
     setUploading(true);
     const ext = file.name.split(".").pop() || "jpg";
@@ -1333,8 +1336,15 @@ export function AdminMarketplacePanel({ onClose }: AdminMarketplacePanelProps) {
   const saveItem = async () => {
     if (!form.title.trim()) { toast.error("Product name is required"); return; }
     if (!form.source_city.trim()) { toast.error("Seller city is required for route tracking"); return; }
-    for (const [label, value] of [["Original price", form.originalPrice], ["Discount price", form.discountedPrice], ["Discount percent", form.discountPercent], ["Stock quantity", form.stockQuantity]] as const) {
-      if (value.trim() && (!Number.isFinite(Number(value)) || Number(value) < 0)) {
+    for (const [label, value, isCurrency] of [
+      ["Legacy display price", form.price, true],
+      ["Original price", form.originalPrice, true],
+      ["Discount price", form.discountedPrice, true],
+      ["Discount percent", form.discountPercent, false],
+      ["Stock quantity", form.stockQuantity, false],
+    ] as const) {
+      const amount = isCurrency ? parseRupeeAmount(value) : Number(value);
+      if (value.trim() && (amount == null || !Number.isFinite(amount) || amount < 0)) {
         toast.error(`${label} must be a valid non-negative number`);
         return;
       }
@@ -1343,8 +1353,9 @@ export function AdminMarketplacePanel({ onClose }: AdminMarketplacePanelProps) {
       toast.error("Add both a color name and image URL for each color variant"); return;
     }
     setSaving(true);
-    const originalPrice = form.originalPrice.trim() ? Number(form.originalPrice) : null;
-    const discountedPrice = form.discountedPrice.trim() ? Number(form.discountedPrice) : null;
+    const originalPrice = parseRupeeAmount(form.originalPrice);
+    const discountedPrice = parseRupeeAmount(form.discountedPrice);
+    const basePrice = parseRupeeAmount(form.price);
     const computedDiscount = originalPrice && discountedPrice && originalPrice > discountedPrice
       ? Math.round((1 - discountedPrice / originalPrice) * 100) : null;
     const attributes: MarketplaceItemAttributes = {
@@ -1363,7 +1374,7 @@ export function AdminMarketplacePanel({ onClose }: AdminMarketplacePanelProps) {
     };
     const payload = {
       title: form.title.trim(), description: form.description.trim() || null,
-      price: discountedPrice != null ? `₹${discountedPrice.toLocaleString("en-IN")}` : form.price.trim() || (originalPrice != null ? `₹${originalPrice.toLocaleString("en-IN")}` : null),
+      price: discountedPrice != null ? formatRupeePrice(discountedPrice) : basePrice != null ? formatRupeePrice(basePrice) : (originalPrice != null ? formatRupeePrice(originalPrice) : null),
       image_url: form.image_url.trim() || null, link_url: form.link_url.trim() || null,
       badge: form.badge || null, is_active: editItem?.is_active ?? true,
       sizes: form.sizes.trim() || null,
@@ -1503,9 +1514,31 @@ export function AdminMarketplacePanel({ onClose }: AdminMarketplacePanelProps) {
     setUpdatingFulfillmentId(null);
   };
 
-  const formInput = (name: keyof AdminForm, label: string, placeholder = "", type = "text") => (
-    <label><span className={fieldLabel}>{label}</span><input data-testid={`input-admin-${name}`} type={type} value={form[name]} onChange={event => setField(name, event.target.value)} placeholder={placeholder} className={fieldClass} /></label>
-  );
+  const formInput = (name: keyof AdminForm, label: string, placeholder = "", type = "text") => {
+    const isCurrency = name === "price" || name === "originalPrice" || name === "discountedPrice";
+    const value = form[name];
+    return (
+      <label>
+        <span className={fieldLabel}>{label}</span>
+        <input
+          data-testid={`input-admin-${name}`}
+          type={isCurrency ? "text" : type}
+          inputMode={isCurrency ? "decimal" : undefined}
+          value={isCurrency && focusedPriceField !== name ? formatRupeePrice(value, "") : value}
+          onFocus={() => { if (isCurrency) setFocusedPriceField(name); }}
+          onBlur={() => { if (isCurrency) setFocusedPriceField(current => current === name ? null : current); }}
+          onChange={event => isCurrency ? setPriceField(name, event.target.value) : setField(name, event.target.value)}
+          placeholder={placeholder}
+          className={fieldClass}
+        />
+        {isCurrency && focusedPriceField === name && value && (
+          <span aria-live="polite" className="mt-1 block text-[10px] font-semibold text-slate-500">
+            Preview: {formatRupeePrice(value)}
+          </span>
+        )}
+      </label>
+    );
+  };
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[500] flex items-end justify-center bg-slate-900/45 sm:items-center sm:p-5" onClick={event => { if (event.target === event.currentTarget) onClose(); }}>
@@ -1529,7 +1562,7 @@ export function AdminMarketplacePanel({ onClose }: AdminMarketplacePanelProps) {
             const attrs = getAttributes(item);
             return <article key={item.id} data-testid={`row-admin-product-${item.id}`} className="flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:flex-nowrap">
               <div className="h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-slate-100">{itemImage(item) ? <img src={itemImage(item)!} alt={item.title} className="h-full w-full object-cover" /> : <div className="grid h-full place-items-center text-slate-300"><ImageIcon size={20} /></div>}</div>
-              <div className="min-w-0 flex-1"><p className="truncate text-sm font-extrabold text-slate-900">{item.title}</p><p className="mt-1 text-xs font-bold text-[#1457A6]">{displayPrice(item)}{attrs.pricing?.originalPrice ? <span className="ml-2 font-normal text-slate-400 line-through">₹{attrs.pricing.originalPrice}</span> : null}</p><p className="mt-1 truncate text-[10px] text-slate-500">{attrs.category || "Uncategorized"} · {sellerDetailsByItemId[item.id]?.shopName || "Seller"} · {item.source_city || "No seller city"}{attrs.stockQuantity != null ? ` · Stock ${attrs.stockQuantity}` : ""}</p></div>
+               <div className="min-w-0 flex-1"><p className="truncate text-sm font-extrabold text-slate-900">{item.title}</p><p className="mt-1 text-xs font-bold text-[#1457A6]">{displayPrice(item)}{attrs.pricing?.originalPrice != null ? <span className="ml-2 font-normal text-slate-400 line-through">{formatRupeePrice(attrs.pricing.originalPrice)}</span> : null}</p><p className="mt-1 truncate text-[10px] text-slate-500">{attrs.category || "Uncategorized"} · {sellerDetailsByItemId[item.id]?.shopName || "Seller"} · {item.source_city || "No seller city"}{attrs.stockQuantity != null ? ` · Stock ${attrs.stockQuantity}` : ""}</p></div>
               <div className="flex w-full items-center justify-end gap-1.5 sm:w-auto">
                 <button type="button" data-testid={`button-toggle-product-${item.id}`} aria-label={`${item.is_active ? "Deactivate" : "Activate"} ${item.title}`} onClick={() => void toggleActive(item)} className={`rounded-lg border px-2.5 py-2 text-[10px] font-extrabold ${item.is_active ? "border-blue-100 bg-blue-50 text-[#1457A6]" : "border-slate-200 bg-slate-50 text-slate-500"}`}>{item.is_active ? "Live" : "Off"}</button>
                 <button type="button" data-testid={`button-edit-product-${item.id}`} aria-label={`Edit ${item.title}`} onClick={() => openEdit(item)} className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 text-slate-500 hover:text-[#1457A6]"><Pencil size={14} /></button>
@@ -1551,7 +1584,7 @@ export function AdminMarketplacePanel({ onClose }: AdminMarketplacePanelProps) {
              <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-mono text-sm font-black text-slate-900">{order.tracking_code}</p><p className="mt-1 text-[10px] text-slate-500">{formatOrderTime(order.created_at)}</p></div><label><span className="sr-only">Shipment status for {order.tracking_code}</span><select data-testid={`select-order-status-${order.id}`} value={order.status} disabled={updatingOrderId === order.id || isUpiAwaitingVerification(order) || order.status === "Cancelled"} onChange={event => void updateOrderStatus(order.id, event.target.value)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:border-blue-400">{[order.status, ...SHIPPING_STATUSES.filter(status => !["Pending", "Verification Pending", order.status].includes(status))].map(status => <option key={status} value={status}>{status}</option>)}</select></label></div>
             <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 border-y border-slate-100 py-3 text-xs">
               <span className="text-slate-400">Product</span><span className="truncate font-bold text-slate-800">{order.item_title}</span>
-              <span className="text-slate-400">Price</span><span className="font-bold text-[#1457A6]">{order.item_price || "—"}</span>
+               <span className="text-slate-400">Price</span><span className="font-bold text-[#1457A6]">{formatRupeePrice(order.item_price, "—")}</span>
               <span className="text-slate-400">Customer</span><span className="truncate font-semibold text-slate-700">{order.user_name || "—"}</span>
               <span className="text-slate-400">Phone</span><span className="font-semibold text-slate-700">{order.phone || "—"}</span>
               {order.selected_size && <><span className="text-slate-400">Size</span><span className="font-semibold text-slate-700">{order.selected_size}</span></>}
