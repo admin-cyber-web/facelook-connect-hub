@@ -1519,7 +1519,15 @@ const StoryBubble = ({
 };
 
 // ── Main StoryBar export ───────────────────────────────────────────────────────
-export const StoryBar = ({ userProfile }: { userProfile?: any }) => {
+export const StoryBar = ({
+  userProfile,
+  notificationTarget,
+  onNotificationTargetHandled,
+}: {
+  userProfile?: any;
+  notificationTarget?: { storyId: string; requestId: number } | null;
+  onNotificationTargetHandled?: (requestId: number) => void;
+}) => {
   const [groups, setGroups] = useState<StoryGroup[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [viewerState, setViewerState] = useState<{ groupIdx: number; storyIdx: number } | null>(null);
@@ -1643,22 +1651,37 @@ export const StoryBar = ({ userProfile }: { userProfile?: any }) => {
     fetchStories();
   }, [fetchStories]);
 
-  // Listen for notification-click story opens
+  const pendingStoryIdRef = useRef<string | null>(null);
+
+  // Listen for notification-click story opens. Keep the target until the
+  // story list is ready so notifications work when StoryBar just mounted.
   useEffect(() => {
-    const openStory = (e: any) => {
-      const storyId = e.detail?.storyId;
-      if (!storyId || groups.length === 0) return;
+    const tryOpenStory = (storyId: string, requestId?: number) => {
+      pendingStoryIdRef.current = storyId;
+      if (groups.length === 0) return;
       for (let gIdx = 0; gIdx < groups.length; gIdx++) {
         const sIdx = groups[gIdx].stories.findIndex(s => s.id === storyId);
         if (sIdx >= 0) {
           setViewerState({ groupIdx: gIdx, storyIdx: sIdx });
+          pendingStoryIdRef.current = null;
+          if (typeof requestId === "number") onNotificationTargetHandled?.(requestId);
           return;
         }
       }
     };
+
+    const openStory = (e: Event) => {
+      const storyId = (e as CustomEvent<{ storyId?: unknown }>).detail?.storyId;
+      if (typeof storyId === "string" && storyId) tryOpenStory(storyId);
+    };
     window.addEventListener("flicks:open-story", openStory);
+    if (notificationTarget?.storyId) {
+      tryOpenStory(notificationTarget.storyId, notificationTarget.requestId);
+    } else if (pendingStoryIdRef.current) {
+      tryOpenStory(pendingStoryIdRef.current);
+    }
     return () => window.removeEventListener("flicks:open-story", openStory);
-  }, [groups]);
+  }, [groups, notificationTarget, onNotificationTargetHandled]);
 
   const openViewer = (groupIdx: number, storyIdx = 0) => {
     setViewerState({ groupIdx, storyIdx });

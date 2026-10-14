@@ -1843,7 +1843,15 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
 };
 
 // ── Main HooksHub ──────────────────────────────────────────────────────────────
-const HooksHub = ({ userId, initialOpenPageId }: { userId: string; initialOpenPageId?: string | null }) => {
+const HooksHub = ({
+  userId,
+  initialOpenPageId,
+  onInitialOpenHandled,
+}: {
+  userId: string;
+  initialOpenPageId?: string | null;
+  onInitialOpenHandled?: (hookId: string) => void;
+}) => {
   const [myPages, setMyPages]           = useState<HookPage[]>([]);
   const [suggested, setSuggested]       = useState<HookPage[]>([]);
   const [memberCounts, setMemberCounts] = useState<Record<string, number>>({});
@@ -1861,16 +1869,23 @@ const HooksHub = ({ userId, initialOpenPageId }: { userId: string; initialOpenPa
       if (!hookId) return;
       // Try to find in already-loaded pages first
       const found = [...myPages, ...suggested].find(p => p.id === hookId);
-      if (found) { setActivePage(found); return; }
+      if (found) {
+        setActivePage(found);
+        onInitialOpenHandled?.(hookId);
+        return;
+      }
       // Otherwise fetch directly from DB (notification may point to a page not in current lists)
       supabase.from("hook_pages")
         .select("id, name, description, category, cover_url, avatar_url, owner_id, hook_count, created_at")
         .eq("id", hookId).single()
-        .then(({ data }) => { if (data) setActivePage(data as HookPage); });
+        .then(({ data }) => {
+          if (data) setActivePage(data as HookPage);
+          onInitialOpenHandled?.(hookId);
+        });
     };
     window.addEventListener("flicks:open-hook", handler);
     return () => window.removeEventListener("flicks:open-hook", handler);
-  }, [myPages, suggested]);
+  }, [myPages, suggested, onInitialOpenHandled]);
 
   // ── Open specific page from deep-link (home strip click or initial prop) ──
   useEffect(() => {
@@ -1878,15 +1893,21 @@ const HooksHub = ({ userId, initialOpenPageId }: { userId: string; initialOpenPa
     const target = [...myPages, ...suggested].find(p => p.id === pendingOpenRef.current);
     if (target) {
       setActivePage(target);
+      onInitialOpenHandled?.(pendingOpenRef.current);
       pendingOpenRef.current = null;
     } else if (!loading && pendingOpenRef.current) {
       // Not in lists — fetch directly
+      const hookId = pendingOpenRef.current;
       supabase.from("hook_pages")
         .select("id, name, description, category, cover_url, avatar_url, owner_id, hook_count, created_at")
-        .eq("id", pendingOpenRef.current).single()
-        .then(({ data }) => { if (data) { setActivePage(data as HookPage); pendingOpenRef.current = null; } });
+        .eq("id", hookId).single()
+        .then(({ data }) => {
+          if (data) setActivePage(data as HookPage);
+          onInitialOpenHandled?.(hookId);
+          pendingOpenRef.current = null;
+        });
     }
-  }, [myPages, suggested, loading]);
+  }, [myPages, suggested, loading, onInitialOpenHandled]);
 
   const fetchPages = useCallback(async (force = false) => {
     // Serve from cache instantly if still fresh (5-min TTL) and not forced

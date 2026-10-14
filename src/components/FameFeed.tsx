@@ -6837,6 +6837,10 @@ const FameFeed = ({
       className="bg-[#0F172A] min-h-screen pb-32"
       style={{ willChange: "transform", touchAction: "pan-y" }}
     >
+      {/* One hidden catalog host owns marketplace query deep-links. Feed cards
+          stay in their existing positions without opening duplicate modals. */}
+      <MarketplaceFeedCard items={marketplaceItems} deepLinkOnly />
+
       {/* ── Hidden Posts Archive Banner (shows only when posts are hidden) ── */}
       {hiddenIds.size > 0 && (
         <motion.button
@@ -6947,7 +6951,7 @@ const FameFeed = ({
               {renderPost(bPost)}
               <FeedDivider />
               {showAd && (
-                <MarketplaceFeedCard items={marketplaceItems} />
+                <MarketplaceFeedCard items={marketplaceItems} deepLinkEnabled={false} />
               )}
             </ErrorBoundary>
           );

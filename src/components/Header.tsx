@@ -35,6 +35,7 @@ import { subscribeWhileVisible } from "@/lib/realtimeVisibility";
 import { formatRupeePrice } from "@/lib/currency";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
+import { useNavigate } from "react-router-dom";
 import { useProfileViewer } from "@/context/ProfileViewerContext";
 import { useOnlineUsers } from "@/context/OnlineUsersContext";
 import ActiveStatusAvatar from "./ActiveStatusAvatar";
@@ -1430,6 +1431,7 @@ const Header = ({
   chatBadge?: number;
   userId?: string;
 }) => {
+  const navigate = useNavigate();
   // ── Profile viewer (for routing follow notifications) ──────────────────────
   const { openProfile } = useProfileViewer();
   // ── Existing state ─────────────────────────────────────────────────────────
@@ -1507,7 +1509,7 @@ const Header = ({
     if (!userId) return;
     const { data, error } = await supabase
       .from("notifications")
-      .select("id, notifier_id, actor_id, type, entity_id, content, is_read, created_at")
+      .select("id, notifier_id, actor_id, type, entity_id, entity_type, content, is_read, created_at")
       .eq("notifier_id", userId)
       .order("created_at", { ascending: false })
       .limit(40);
@@ -1890,15 +1892,47 @@ const Header = ({
       return;
     }
 
+    // Product notifications use the marketplace item ID, not the order ID.
+    let marketplaceItemId: string | null = null;
+    const productNotificationTypes = new Set([
+      "marketplace_item",
+      "marketplace_product",
+      "product_share",
+    ]);
+    if (
+      productNotificationTypes.has(n.type) ||
+      ["marketplace_item", "product"].includes(n.entity_type)
+    ) {
+      marketplaceItemId =
+        typeof n.entity_id === "string" && n.entity_id
+          ? n.entity_id
+          : null;
+      if (!marketplaceItemId && typeof n.content === "string") {
+        try {
+          const payload = JSON.parse(n.content);
+          const candidate = payload.product_id || payload.item_id || payload.marketplace_item_id;
+          if (typeof candidate === "string" && candidate) marketplaceItemId = candidate;
+        } catch {
+          // Older notification content is plain text rather than JSON.
+        }
+      }
+    }
+    if (marketplaceItemId) {
+      setShowNotif(false);
+      onHomeClick?.();
+      navigate(`/?marketplace_item=${encodeURIComponent(marketplaceItemId)}`);
+      return;
+    }
+
     // Story notifications → open story viewer
-    if (["story_like", "story_comment"].includes(n.type) && n.entity_id) {
+    if (["story_view", "story_like", "story_comment"].includes(n.type) && n.entity_id) {
       setShowNotif(false);
       window.dispatchEvent(new CustomEvent("flicks:open-story", { detail: { storyId: n.entity_id } }));
       return;
     }
 
     // Follow → open follower's profile; friend_accepted → open DM
-    if (n.type === "follow" && n.actor_id) {
+    if (["follow", "friend_request"].includes(n.type) && n.actor_id) {
       setShowNotif(false);
       openProfile(n.actor_id);
       return;
@@ -1915,8 +1949,19 @@ const Header = ({
       return;
     }
 
-    // Circle notifications → switch to Circle feature and select the circle
-    if (["circle_join", "circle_invite", "circle_share"].includes(n.type) && n.entity_id) {
+    // Circle shares and moderation alerts point to a circle post; invites and
+    // membership alerts point to the circle itself.
+    if (
+      ["circle_share", "circle_post_like", "circle_post_comment", "circle_post_approved", "circle_post_rejected"].includes(n.type) &&
+      n.entity_id
+    ) {
+      setShowNotif(false);
+      window.dispatchEvent(new CustomEvent("flicks:open-circle", {
+        detail: { postId: n.entity_id },
+      }));
+      return;
+    }
+    if (["circle_join", "circle_invite"].includes(n.type) && n.entity_id) {
       setShowNotif(false);
       window.dispatchEvent(new CustomEvent("flicks:open-circle", {
         detail: { circleId: n.entity_id },
@@ -1934,28 +1979,108 @@ const Header = ({
       return;
     }
 
-    // Post engagement → scroll to element in feed
+    // Post alerts deep-link to the post route so the target does not need to
+    // already be loaded in the current feed.
     const postTypes = [
-      "like", "comment", "mention", "new_post",
+      "like", "like_flick", "comment", "mention", "new_post",
       "magnet_link", "magnet_accepted", "magnet",
       "share", "reply", "post_mention", "post_pin",
+      "report_resolved_safe", "report_resolved_removed", "report_post_removed",
+      "report_resolved_cleaned", "report_post_cleaned",
     ];
-    if (n.entity_id && postTypes.includes(n.type)) {
+    if (n.entity_id && postTypes.includes(n.type) && n.entity_type !== "report") {
       setShowNotif(false);
-      onHomeClick?.();
-      setTimeout(() => {
-        const el = document.getElementById(n.entity_id);
-        if (el) {
-          el.scrollIntoView({ behavior: "smooth", block: "center" });
-          el.style.outline = "2px solid #3b82f6";
-          el.style.borderRadius = "16px";
-          setTimeout(() => {
-            el.style.outline = "";
-            el.style.borderRadius = "";
-          }, 2200);
-        }
-      }, 420);
+      navigate(`/post/${encodeURIComponent(n.entity_id)}`);
+      return;
     }
+
+    // Some legacy report notifications store the report row ID. Resolve its
+    // related post before opening the post detail route.
+    if (n.type === "report_submitted" && n.entity_type === "report" && n.entity_id) {
+      setShowNotif(false);
+      void supabase
+        .from("reports")
+        .select("post_id")
+        .eq("id", n.entity_id)
+        .maybeSingle()
+        .then(({ data }) => {
+          if (data?.post_id) {
+            navigate(`/post/${encodeURIComponent(data.post_id)}`);
+          } else {
+            toast.error("The reported post is no longer available.");
+          }
+        });
+      return;
+    }
+
+    // A report-submitted notification created by the client stores a post ID.
+    if (n.type === "report_submitted" && n.entity_id && n.entity_type !== "report") {
+      setShowNotif(false);
+      navigate(`/post/${encodeURIComponent(n.entity_id)}`);
+      return;
+    }
+
+    // Use entity_type as a fallback for newer or legacy notification types
+    // that are not in the explicit type map above.
+    if (n.entity_id && typeof n.entity_type === "string") {
+      const entityType = n.entity_type.toLowerCase();
+      if (["post", "posts", "reel", "flick"].includes(entityType)) {
+        setShowNotif(false);
+        navigate(`/post/${encodeURIComponent(n.entity_id)}`);
+        return;
+      }
+      if (["story", "stories"].includes(entityType)) {
+        setShowNotif(false);
+        window.dispatchEvent(new CustomEvent("flicks:open-story", {
+          detail: { storyId: n.entity_id },
+        }));
+        return;
+      }
+      if (["circle", "group"].includes(entityType)) {
+        setShowNotif(false);
+        window.dispatchEvent(new CustomEvent("flicks:open-circle", {
+          detail: { circleId: n.entity_id },
+        }));
+        return;
+      }
+      if (["circle_post", "circle-post"].includes(entityType)) {
+        setShowNotif(false);
+        window.dispatchEvent(new CustomEvent("flicks:open-circle", {
+          detail: { postId: n.entity_id },
+        }));
+        return;
+      }
+      if (["hook", "hook_page", "page"].includes(entityType)) {
+        setShowNotif(false);
+        window.dispatchEvent(new CustomEvent("flicks:open-hook", {
+          detail: { hookId: n.entity_id },
+        }));
+        return;
+      }
+      if (["marketplace_item", "product"].includes(entityType)) {
+        setShowNotif(false);
+        onHomeClick?.();
+        navigate(`/?marketplace_item=${encodeURIComponent(n.entity_id)}`);
+        return;
+      }
+      if (["order", "marketplace_order"].includes(entityType)) {
+        setShowNotif(false);
+        window.dispatchEvent(new CustomEvent("flicks:open-marketplace-order", {
+          detail: { orderId: n.entity_id },
+        }));
+        return;
+      }
+    }
+
+    // If an older/general alert has no target ID, at least open its actor's
+    // profile; for genuinely targetless system alerts, explain why no page opens.
+    if (n.actor_id) {
+      setShowNotif(false);
+      openProfile(n.actor_id);
+      return;
+    }
+    setShowNotif(false);
+    toast.info("This notification does not have a linked detail page.");
   };
 
   // ── Real-time setup ────────────────────────────────────────────────────────
