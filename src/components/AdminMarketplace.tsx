@@ -7,6 +7,7 @@ import {
   Share2, ShoppingBag, Store, Trash2, User, X, Palette, Ruler, Truck, Phone, Clock3,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabaseClient";
 import { subscribeWhileVisible } from "../lib/realtimeVisibility";
 import { formatRupeePrice, normalizeRupeeInput, parseRupeeAmount } from "../lib/currency";
@@ -1111,8 +1112,18 @@ function ProductDetail({
   );
 }
 
-export function MarketplaceFeedCard({ items }: { items: MarketplaceItem[] }) {
+export function MarketplaceFeedCard({
+  items,
+  deepLinkEnabled = true,
+  deepLinkOnly = false,
+}: {
+  items: MarketplaceItem[];
+  deepLinkEnabled?: boolean;
+  deepLinkOnly?: boolean;
+}) {
   const active = useMemo(() => items.filter(item => item.is_active), [items]);
+  const location = useLocation();
+  const navigate = useNavigate();
   const [checkoutItem, setCheckoutItem] = useState<MarketplaceItem | null>(null);
   const [checkoutSelection, setCheckoutSelection] = useState<VariantSelection>({ size: "", volume: "", color: "" });
   const [successData, setSuccessData] = useState<{ order: MarketplaceOrder; item: MarketplaceItem } | null>(null);
@@ -1121,11 +1132,32 @@ export function MarketplaceFeedCard({ items }: { items: MarketplaceItem[] }) {
   const handledSharedId = useRef("");
 
   useEffect(() => {
-    const sharedId = new URLSearchParams(window.location.search).get("marketplace_item");
-    if (!sharedId || sharedId === handledSharedId.current) return;
+    if (!deepLinkEnabled) return;
+    const sharedId = new URLSearchParams(location.search).get("marketplace_item");
+    if (!sharedId) {
+      handledSharedId.current = "";
+      return;
+    }
+    if (sharedId === handledSharedId.current) return;
+    handledSharedId.current = sharedId;
     const matched = active.find(item => item.id === sharedId);
-    if (matched) { setDetailItem(matched); handledSharedId.current = sharedId; }
-  }, [active]);
+    if (matched) {
+      setDetailItem(matched);
+      return;
+    }
+    void supabase
+      .from("marketplace_items")
+      .select("*")
+      .eq("id", sharedId)
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (error || !data) {
+          toast.error("This marketplace item is no longer available.");
+          return;
+        }
+        setDetailItem(data as MarketplaceItem);
+      });
+  }, [active, deepLinkEnabled, location.search]);
 
   const openCheckout = (item: MarketplaceItem, selection: VariantSelection = { size: "", volume: "", color: "" }) => {
     setCheckoutSelection(selection);
@@ -1133,21 +1165,31 @@ export function MarketplaceFeedCard({ items }: { items: MarketplaceItem[] }) {
   };
   const closeDetail = () => {
     setDetailItem(null);
-    if (new URLSearchParams(window.location.search).has("marketplace_item")) {
-      const url = new URL(window.location.href);
-      url.searchParams.delete("marketplace_item");
-      window.history.replaceState(window.history.state, "", url.toString());
-    }
+    const params = new URLSearchParams(location.search);
+    if (!params.has("marketplace_item")) return;
+    params.delete("marketplace_item");
+    const search = params.toString();
+    navigate({
+      pathname: location.pathname,
+      search: search ? `?${search}` : "",
+      hash: location.hash,
+    }, { replace: true });
   };
   const showDetail = (item: MarketplaceItem) => {
-    setDetailItem(item);
-    const url = new URL(window.location.href);
-    url.searchParams.set("marketplace_item", item.id);
-    window.history.replaceState(window.history.state, "", url.toString());
+    if (deepLinkEnabled) setDetailItem(item);
+    handledSharedId.current = item.id;
+    const params = new URLSearchParams(location.search);
+    params.set("marketplace_item", item.id);
+    navigate({
+      pathname: location.pathname,
+      search: `?${params.toString()}`,
+      hash: location.hash,
+    }, { replace: true });
   };
 
   return (
     <>
+      {!deepLinkOnly && (
       <section data-testid="marketplace-feed-catalog" aria-label="Flicks Marketplace" className="w-full border-y border-slate-200 bg-white">
         <header className="flex items-center justify-between gap-3 px-4 py-3 sm:px-5">
           <div className="flex items-center gap-2.5"><span className="grid h-9 w-9 place-items-center rounded-xl bg-blue-50 text-[#1457A6]"><Store size={17} /></span><div><h2 className="text-sm font-black tracking-tight text-slate-900">Flicks Marketplace</h2><p className="text-[10px] text-slate-500">Shop products shared by the community</p></div></div>
@@ -1165,9 +1207,10 @@ export function MarketplaceFeedCard({ items }: { items: MarketplaceItem[] }) {
           </motion.article>
         ))}</div> : <div className="px-5 pb-5"><div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-center"><Store size={20} className="mx-auto mb-2 text-slate-300" /><p className="text-xs font-bold text-slate-700">No active listings right now</p><p className="mt-1 text-[11px] text-slate-500">New community finds will appear here.</p></div></div>}
       </section>
+      )}
 
       {typeof document !== "undefined" && createPortal(<AnimatePresence>
-        {detailItem && <ProductDetail key={detailItem.id} item={detailItem} suggestions={active.filter(item => item.id !== detailItem.id).slice(0, 3)} onBack={closeDetail} onBuyNow={selection => openCheckout(detailItem, selection)} onOpenSuggestion={showDetail} />}
+        {detailItem && <ProductDetail key={detailItem.id} item={detailItem} canBuy={!!detailItem.is_active} suggestions={active.filter(item => item.id !== detailItem.id).slice(0, 3)} onBack={closeDetail} onBuyNow={selection => openCheckout(detailItem, selection)} onOpenSuggestion={showDetail} />}
         {checkoutItem && <CheckoutDrawer item={checkoutItem} initialSelection={checkoutSelection} onClose={() => setCheckoutItem(null)} onSuccess={order => { setCheckoutItem(null); closeDetail(); setSuccessData({ order, item: checkoutItem }); }} />}
         {successData && <OrderSuccessModal
           order={successData.order}

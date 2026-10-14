@@ -189,7 +189,7 @@ const CirclePostCard = memo(({
   const onlineIds = useOnlineUsers();
   const canEdit = post.author_id === currentUserId || canModerate;
   return (
-    <div className="mx-3 mb-3 rounded-3xl overflow-hidden border border-white/[0.08]"
+    <div id={`circle-post-${post.id}`} className="mx-3 mb-3 rounded-3xl overflow-hidden border border-white/[0.08]"
       style={{ background: "rgba(255,255,255,0.03)", backdropFilter: "blur(20px)", boxShadow: "0 8px 32px rgba(0,0,0,0.45)" }}>
       {/* Header */}
       <div className="flex items-center gap-3 px-4 py-3">
@@ -341,23 +341,38 @@ const CirclePostCard = memo(({
 interface Props {
   userProfile: any;
   currentUserId: string | null;
+  initialNotificationTarget?: {
+    circleId?: string;
+    postId?: string;
+    requestId: number;
+  } | null;
+  onNotificationTargetHandled?: (requestId: number) => void;
 }
 
 type GroupTab = "posts" | "review" | "chat" | "members" | "about";
 type MemberRole = "admin" | "moderator" | "member";
 
-export default function CirclePage({ userProfile, currentUserId }: Props) {
+export default function CirclePage({
+  userProfile,
+  currentUserId,
+  initialNotificationTarget,
+  onNotificationTargetHandled,
+}: Props) {
   const { openProfile } = useProfileViewer();
   const onlineIds = useOnlineUsers();
   const dataCache = useDataCache();
   const cachedGroups = dataCache.cacheRef.current.circleList;
   const [view, setView] = useState<"dashboard" | "group">("dashboard");
   const [groups, setGroups] = useState<Group[]>(() => cachedGroups?.data ?? []);
+  const groupsRef = useRef(groups);
+  groupsRef.current = groups;
   const [myGroupIds, setMyGroupIds] = useState<Set<string>>(new Set());
   const [justJoinedIds, setJustJoinedIds] = useState<Set<string>>(new Set());
   const [selectedGroup, setSelectedGroup] = useState<Group | null>(null);
   const [groupTab, setGroupTab] = useState<GroupTab>("posts");
   const [groupPosts, setGroupPosts] = useState<GroupPost[]>([]);
+  const [deepLinkPost, setDeepLinkPost] = useState<GroupPost | null>(null);
+  const deepLinkScrollRef = useRef<string | null>(null);
   const [hasMorePosts, setHasMorePosts] = useState(false);
   const [loadingMorePosts, setLoadingMorePosts] = useState(false);
   const postsOffsetRef = useRef(0);
@@ -1217,6 +1232,109 @@ export default function CirclePage({ userProfile, currentUserId }: Props) {
       .subscribe();
     memberSubRef.current = memberCh;
   };
+
+  const openGroupRef = useRef(openGroup);
+  openGroupRef.current = openGroup;
+
+  // Resolve circle/post notification IDs even when the destination Circle is
+  // not in the currently loaded list, then open the matching detail view.
+  useEffect(() => {
+    if (!initialNotificationTarget || loading) return;
+    let cancelled = false;
+
+    const openNotificationTarget = async () => {
+      const { circleId: requestedCircleId, postId, requestId } = initialNotificationTarget;
+      let circleId = requestedCircleId || null;
+      let targetPost: GroupPost | null = null;
+
+      if (postId) {
+        const { data, error } = await supabase
+          .from("circle_posts")
+          .select("id, circle_id, author_id, author_name, author_avatar, content, media_url, created_at, likes_count, comments_count, shares_count, status, comments_muted")
+          .eq("id", postId)
+          .maybeSingle();
+        if (error) console.warn("[CirclePage] notification post lookup failed:", error.message);
+        if (data) {
+          targetPost = data as GroupPost;
+          circleId = circleId || targetPost.circle_id;
+        }
+      }
+      if (cancelled) return;
+
+      let targetGroup = circleId
+        ? groupsRef.current.find(group => group.id === circleId) ?? null
+        : null;
+      if (!targetGroup && circleId) {
+        const { data, error } = await supabase
+          .from("circles")
+          .select("id, name, description, cover_url, privacy, member_count, created_by, admin_id, created_at, rules, post_approval, pinned_announcement, pinned_at")
+          .eq("id", circleId)
+          .maybeSingle();
+        if (error) console.warn("[CirclePage] notification circle lookup failed:", error.message);
+        if (data) targetGroup = data as Group;
+      }
+      if (cancelled) return;
+
+      if (!targetGroup) {
+        toast.error("This Circle is no longer available.");
+        onNotificationTargetHandled?.(requestId);
+        return;
+      }
+
+      setDeepLinkPost(null);
+      deepLinkScrollRef.current = null;
+      if (!groupsRef.current.some(group => group.id === targetGroup!.id)) {
+        setGroups(previous => [targetGroup!, ...previous]);
+      }
+      await openGroupRef.current(targetGroup);
+      if (cancelled) return;
+      setDeepLinkPost(targetPost);
+      onNotificationTargetHandled?.(requestId);
+    };
+
+    void openNotificationTarget();
+    return () => {
+      cancelled = true;
+    };
+  }, [initialNotificationTarget, loading, onNotificationTargetHandled]);
+
+  // A post notification may point to an older circle post outside the first
+  // page. Keep that exact row in view and scroll directly to its card.
+  useEffect(() => {
+    if (
+      !deepLinkPost ||
+      selectedGroup?.id !== deepLinkPost.circle_id ||
+      postsLoading
+    ) return;
+    setGroupPosts(previous =>
+      previous.some(post => post.id === deepLinkPost.id)
+        ? previous
+        : [deepLinkPost, ...previous],
+    );
+  }, [deepLinkPost, selectedGroup?.id, postsLoading]);
+
+  useEffect(() => {
+    if (
+      !deepLinkPost ||
+      selectedGroup?.id !== deepLinkPost.circle_id ||
+      postsLoading ||
+      !groupPosts.some(post => post.id === deepLinkPost.id) ||
+      deepLinkScrollRef.current === deepLinkPost.id
+    ) return;
+    const frame = window.requestAnimationFrame(() => {
+      const card = document.getElementById(`circle-post-${deepLinkPost.id}`);
+      if (!card) return;
+      card.scrollIntoView({ behavior: "smooth", block: "center" });
+      card.style.outline = "2px solid #3b82f6";
+      card.style.borderRadius = "16px";
+      deepLinkScrollRef.current = deepLinkPost.id;
+      window.setTimeout(() => {
+        card.style.outline = "";
+        card.style.borderRadius = "";
+      }, 2200);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [deepLinkPost, selectedGroup?.id, postsLoading, groupPosts]);
 
   // ── Build reactions map from raw rows ────────────────────────────────────────
   const buildReactionMap = useCallback((rows: any[], uid: string | null) => {

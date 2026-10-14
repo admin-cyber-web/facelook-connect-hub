@@ -2361,6 +2361,66 @@ const Index = ({ session, initialAdminOpen, isGuest = false }: { session: Sessio
   // ── Hook pages for home strip ──────────────────────────────────────────────
   const [homeHookPages, setHomeHookPages] = useState<any[]>([]);
   const [initialHookPageId, setInitialHookPageId] = useState<string | null>(null);
+  const clearInitialHookPageId = React.useCallback((hookId: string) => {
+    setInitialHookPageId(current => current === hookId ? null : current);
+  }, []);
+  const [initialStoryTarget, setInitialStoryTarget] = useState<{
+    storyId: string;
+    requestId: number;
+  } | null>(null);
+  const storyTargetRequestRef = useRef(0);
+  const clearInitialStoryTarget = React.useCallback((requestId: number) => {
+    setInitialStoryTarget(current => current?.requestId === requestId ? null : current);
+  }, []);
+  const [initialCircleTarget, setInitialCircleTarget] = useState<{
+    circleId?: string;
+    postId?: string;
+    requestId: number;
+  } | null>(null);
+  const circleTargetRequestRef = useRef(0);
+  const clearInitialCircleTarget = React.useCallback((requestId: number) => {
+    setInitialCircleTarget(current => current?.requestId === requestId ? null : current);
+  }, []);
+
+  // Notification deep-links need to switch features before their target view
+  // can receive the event (the feature panels are conditionally mounted).
+  useEffect(() => {
+    const openHook = (event: Event) => {
+      const hookId = (event as CustomEvent<{ hookId?: unknown }>).detail?.hookId;
+      if (typeof hookId !== "string" || !hookId) return;
+      setInitialHookPageId(hookId);
+      setActiveFeature("Hooks");
+    };
+    const openStory = (event: Event) => {
+      const storyId = (event as CustomEvent<{ storyId?: unknown }>).detail?.storyId;
+      if (typeof storyId !== "string" || !storyId) return;
+      setInitialStoryTarget({
+        storyId,
+        requestId: ++storyTargetRequestRef.current,
+      });
+      setActiveFeature("Fame");
+    };
+    const openCircle = (event: Event) => {
+      const detail = (event as CustomEvent<{ circleId?: unknown; postId?: unknown }>).detail;
+      const circleId = typeof detail?.circleId === "string" ? detail.circleId : undefined;
+      const postId = typeof detail?.postId === "string" ? detail.postId : undefined;
+      if (!circleId && !postId) return;
+      setInitialCircleTarget({
+        circleId,
+        postId,
+        requestId: ++circleTargetRequestRef.current,
+      });
+      setActiveFeature("Circle");
+    };
+    window.addEventListener("flicks:open-hook", openHook);
+    window.addEventListener("flicks:open-story", openStory);
+    window.addEventListener("flicks:open-circle", openCircle);
+    return () => {
+      window.removeEventListener("flicks:open-hook", openHook);
+      window.removeEventListener("flicks:open-story", openStory);
+      window.removeEventListener("flicks:open-circle", openCircle);
+    };
+  }, []);
 
   // ── Sidebar Circles (desktop right panel) ─────────────────────────────────
   const [sidebarCircles, setSidebarCircles] = useState<any[]>([]);
@@ -4160,7 +4220,11 @@ const PersonalizationView = React.memo(({
                 <div className="min-w-0">
 
                 {/* ── Stories Strip ─────────────────────────────────────────── */}
-                <StoryBar userProfile={profile} />
+                <StoryBar
+                  userProfile={profile}
+                  notificationTarget={initialStoryTarget}
+                  onNotificationTargetHandled={clearInitialStoryTarget}
+                />
 
                 <ShareVibeComposer
                   userId={userId}
@@ -4998,7 +5062,12 @@ const PersonalizationView = React.memo(({
               <ErrorBoundary>
               <Suspense fallback={<SectionLoader />}>
               <div className="min-h-screen bg-gray-50">
-                <CirclePage userProfile={profile} currentUserId={userId} />
+                <CirclePage
+                  userProfile={profile}
+                  currentUserId={userId}
+                  initialNotificationTarget={initialCircleTarget}
+                  onNotificationTargetHandled={clearInitialCircleTarget}
+                />
               </div>
               </Suspense>
               </ErrorBoundary>
@@ -5035,7 +5104,11 @@ const PersonalizationView = React.memo(({
             {activeFeature === "Hooks" && (
               <ErrorBoundary>
               <Suspense fallback={<SectionLoader />}>
-                <HooksHub userId={userId} initialOpenPageId={initialHookPageId} />
+                <HooksHub
+                  userId={userId}
+                  initialOpenPageId={initialHookPageId}
+                  onInitialOpenHandled={clearInitialHookPageId}
+                />
               </Suspense>
               </ErrorBoundary>
             )}
