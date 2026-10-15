@@ -918,8 +918,10 @@ export const DebateButton: React.FC<{
         notifier_id: surveyOwnerId,
         actor_id: user.id,
         type: "debate_challenge",
-        reference_id: newDebate.id,
-        message: `${myProfile?.full_name || "Someone"} challenged you to a debate!`,
+        entity_id: surveyId,
+        entity_type: "survey",
+        content: `${myProfile?.full_name || "Someone"} challenged you to a debate!`,
+        is_read: false,
       }).then(({ error: ne }) => {
         if (ne) console.warn("[DebateArena] notification insert failed:", ne.code, ne.message);
       });

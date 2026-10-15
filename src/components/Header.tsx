@@ -146,6 +146,21 @@ const NOTIF_META: Record<
     color: "bg-pink-500/20 text-pink-400",
     label: "liked your story.",
   },
+  survey_like: {
+    icon: <Heart size={13} fill="currentColor" />,
+    color: "bg-pink-500/20 text-pink-400",
+    label: "liked your survey.",
+  },
+  survey_comment: {
+    icon: <MessageCircle size={13} />,
+    color: "bg-green-500/20 text-green-400",
+    label: "commented on your survey.",
+  },
+  debate_challenge: {
+    icon: <Zap size={13} />,
+    color: "bg-violet-500/20 text-violet-300",
+    label: "challenged you to a survey debate.",
+  },
   report_submitted: {
     icon: <Flag size={13} />,
     color: "bg-orange-500/20 text-orange-400",
@@ -263,6 +278,24 @@ function parseRichShare(
   } catch {
     return null;
   }
+}
+
+function parseNotificationPayload(content?: string | null): Record<string, unknown> {
+  if (!content?.trim().startsWith("{")) return {};
+  try {
+    const parsed: unknown = JSON.parse(content);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? parsed as Record<string, unknown>
+      : {};
+  } catch {
+    return {};
+  }
+}
+
+function firstNotificationId(...values: unknown[]): string | null {
+  return values.find(
+    (value): value is string => typeof value === "string" && value.trim().length > 0,
+  )?.trim() ?? null;
 }
 
 type MarketplaceOrderNotification = {
@@ -1884,10 +1917,35 @@ const Header = ({
       markOneRead(n.id);
     }
 
-    if (n.type === "marketplace_order" && n.entity_id) {
+    const payload = parseNotificationPayload(n.content);
+    const entityType = String(n.entity_type || payload.entity_type || payload.entityType || "")
+      .toLowerCase()
+      .replace(/-/g, "_");
+    const entityId = firstNotificationId(
+      n.entity_id,
+      n.target_id,
+      n.reference_id,
+      payload.entity_id,
+      payload.entityId,
+      payload.target_id,
+      payload.targetId,
+    );
+
+    if (n.type === "marketplace_order") {
+      const orderId = firstNotificationId(
+        entityId,
+        payload.order_id,
+        payload.orderId,
+        payload.marketplace_order_id,
+      );
+      if (!orderId) {
+        setShowNotif(false);
+        toast.info("This order notification does not include an order link.");
+        return;
+      }
       setShowNotif(false);
       window.dispatchEvent(new CustomEvent("flicks:open-marketplace-order", {
-        detail: { orderId: n.entity_id },
+        detail: { orderId },
       }));
       return;
     }
@@ -1899,23 +1957,20 @@ const Header = ({
       "marketplace_product",
       "product_share",
     ]);
+    const productPayloadId = firstNotificationId(
+      payload.product_id,
+      payload.productId,
+      payload.item_id,
+      payload.itemId,
+      payload.marketplace_item_id,
+      payload.marketplaceItemId,
+    );
     if (
       productNotificationTypes.has(n.type) ||
-      ["marketplace_item", "product"].includes(n.entity_type)
+      ["marketplace_item", "product"].includes(entityType) ||
+      Boolean(productPayloadId)
     ) {
-      marketplaceItemId =
-        typeof n.entity_id === "string" && n.entity_id
-          ? n.entity_id
-          : null;
-      if (!marketplaceItemId && typeof n.content === "string") {
-        try {
-          const payload = JSON.parse(n.content);
-          const candidate = payload.product_id || payload.item_id || payload.marketplace_item_id;
-          if (typeof candidate === "string" && candidate) marketplaceItemId = candidate;
-        } catch {
-          // Older notification content is plain text rather than JSON.
-        }
-      }
+      marketplaceItemId = entityId || productPayloadId;
     }
     if (marketplaceItemId) {
       setShowNotif(false);
@@ -1925,9 +1980,42 @@ const Header = ({
     }
 
     // Story notifications → open story viewer
-    if (["story_view", "story_like", "story_comment"].includes(n.type) && n.entity_id) {
+    const storyId = firstNotificationId(
+      entityId,
+      payload.story_id,
+      payload.storyId,
+    );
+    if (
+      (["story_view", "story_like", "story_comment"].includes(n.type) ||
+        ["story", "stories"].includes(entityType)) &&
+      storyId
+    ) {
       setShowNotif(false);
-      window.dispatchEvent(new CustomEvent("flicks:open-story", { detail: { storyId: n.entity_id } }));
+      window.dispatchEvent(new CustomEvent("flicks:open-story", { detail: { storyId } }));
+      return;
+    }
+
+    const surveyNotificationTypes = [
+      "survey_like",
+      "survey_comment",
+      "survey_vote",
+      "survey_response",
+      "debate_challenge",
+    ];
+    const surveyId = firstNotificationId(
+      entityType.startsWith("survey") || surveyNotificationTypes.includes(n.type)
+        ? entityId
+        : null,
+      payload.survey_id,
+      payload.surveyId,
+    );
+    if (
+      surveyId &&
+      (entityType.startsWith("survey") ||
+        surveyNotificationTypes.includes(n.type))
+    ) {
+      setShowNotif(false);
+      navigate(`/survey/${encodeURIComponent(surveyId)}`);
       return;
     }
 
@@ -1951,61 +2039,97 @@ const Header = ({
 
     // Circle shares and moderation alerts point to a circle post; invites and
     // membership alerts point to the circle itself.
-    if (
-      ["circle_share", "circle_post_like", "circle_post_comment", "circle_post_approved", "circle_post_rejected"].includes(n.type) &&
-      n.entity_id
-    ) {
+    const circlePostId = firstNotificationId(
+      ["circle_share", "circle_post_like", "circle_post_comment", "circle_post_approved", "circle_post_rejected"].includes(n.type)
+        ? entityId
+        : null,
+      entityType === "circle_post" ? entityId : null,
+      payload.circle_post_id,
+      payload.circlePostId,
+    );
+    if (circlePostId && (
+      ["circle_share", "circle_post_like", "circle_post_comment", "circle_post_approved", "circle_post_rejected"].includes(n.type) ||
+      entityType === "circle_post"
+    )) {
       setShowNotif(false);
       window.dispatchEvent(new CustomEvent("flicks:open-circle", {
-        detail: { postId: n.entity_id },
+        detail: { postId: circlePostId },
       }));
       return;
     }
-    if (["circle_join", "circle_invite"].includes(n.type) && n.entity_id) {
+    const circleId = firstNotificationId(
+      entityId,
+      payload.circle_id,
+      payload.circleId,
+    );
+    if (
+      (["circle_join", "circle_invite"].includes(n.type) ||
+        ["circle", "group"].includes(entityType)) &&
+      circleId
+    ) {
       setShowNotif(false);
       window.dispatchEvent(new CustomEvent("flicks:open-circle", {
-        detail: { circleId: n.entity_id },
+        detail: { circleId },
       }));
       return;
     }
 
     // Hook / page notifications → navigate to that hook page
+    const hookId = firstNotificationId(
+      entityId,
+      payload.hook_id,
+      payload.hookId,
+      payload.hook_page_id,
+      payload.hookPageId,
+    );
     if (["hook_post_like", "hook_post_comment", "hook_share",
-         "hook_invite", "hook_follow", "hook_invite_accepted"].includes(n.type) && n.entity_id) {
+         "hook_invite", "hook_follow", "hook_invite_accepted"].includes(n.type) && hookId) {
       setShowNotif(false);
       window.dispatchEvent(new CustomEvent("flicks:open-hook", {
-        detail: { hookId: n.entity_id },
+        detail: { hookId },
       }));
       return;
     }
 
     // Post alerts deep-link to the post route so the target does not need to
     // already be loaded in the current feed.
+    const postId = firstNotificationId(
+      entityType === "post" || entityType === "posts" || entityType === "reel" || entityType === "flick"
+        ? entityId
+        : null,
+      payload.post_id,
+      payload.postId,
+      payload.reel_id,
+      payload.reelId,
+    );
     const postTypes = [
       "like", "like_flick", "comment", "mention", "new_post",
       "magnet_link", "magnet_accepted", "magnet",
       "share", "reply", "post_mention", "post_pin",
+      "comment_report",
       "report_resolved_safe", "report_resolved_removed", "report_post_removed",
       "report_resolved_cleaned", "report_post_cleaned",
     ];
-    if (n.entity_id && postTypes.includes(n.type) && n.entity_type !== "report") {
+    if (postId && postTypes.includes(n.type) && entityType !== "report") {
       setShowNotif(false);
-      navigate(`/post/${encodeURIComponent(n.entity_id)}`);
+      navigate(`/post/${encodeURIComponent(postId)}`);
       return;
     }
 
     // Some legacy report notifications store the report row ID. Resolve its
     // related post before opening the post detail route.
-    if (n.type === "report_submitted" && n.entity_type === "report" && n.entity_id) {
+    const reportId = firstNotificationId(entityId, payload.report_id, payload.reportId);
+    if (n.type === "report_submitted" && entityType === "report" && reportId) {
       setShowNotif(false);
       void supabase
         .from("reports")
         .select("post_id")
-        .eq("id", n.entity_id)
+        .eq("id", reportId)
         .maybeSingle()
         .then(({ data }) => {
-          if (data?.post_id) {
-            navigate(`/post/${encodeURIComponent(data.post_id)}`);
+          const reportedPostId = firstNotificationId(data?.post_id, payload.post_id, payload.postId);
+          if (reportedPostId) {
+            navigate(`/post/${encodeURIComponent(reportedPostId)}`);
           } else {
             toast.error("The reported post is no longer available.");
           }
@@ -2014,60 +2138,50 @@ const Header = ({
     }
 
     // A report-submitted notification created by the client stores a post ID.
-    if (n.type === "report_submitted" && n.entity_id && n.entity_type !== "report") {
+    if (n.type === "report_submitted" && postId && entityType !== "report") {
       setShowNotif(false);
-      navigate(`/post/${encodeURIComponent(n.entity_id)}`);
+      navigate(`/post/${encodeURIComponent(postId)}`);
       return;
     }
 
     // Use entity_type as a fallback for newer or legacy notification types
     // that are not in the explicit type map above.
-    if (n.entity_id && typeof n.entity_type === "string") {
-      const entityType = n.entity_type.toLowerCase();
+    if (entityId || postId || storyId || circlePostId || circleId || hookId || marketplaceItemId || surveyId) {
       if (["post", "posts", "reel", "flick"].includes(entityType)) {
         setShowNotif(false);
-        navigate(`/post/${encodeURIComponent(n.entity_id)}`);
+        navigate(`/post/${encodeURIComponent(postId || entityId!)}`);
         return;
       }
-      if (["story", "stories"].includes(entityType)) {
-        setShowNotif(false);
-        window.dispatchEvent(new CustomEvent("flicks:open-story", {
-          detail: { storyId: n.entity_id },
-        }));
-        return;
-      }
-      if (["circle", "group"].includes(entityType)) {
+      if (entityType === "circle_post") {
         setShowNotif(false);
         window.dispatchEvent(new CustomEvent("flicks:open-circle", {
-          detail: { circleId: n.entity_id },
-        }));
-        return;
-      }
-      if (["circle_post", "circle-post"].includes(entityType)) {
-        setShowNotif(false);
-        window.dispatchEvent(new CustomEvent("flicks:open-circle", {
-          detail: { postId: n.entity_id },
+          detail: { postId: circlePostId || entityId },
         }));
         return;
       }
       if (["hook", "hook_page", "page"].includes(entityType)) {
         setShowNotif(false);
         window.dispatchEvent(new CustomEvent("flicks:open-hook", {
-          detail: { hookId: n.entity_id },
+          detail: { hookId: hookId || entityId },
         }));
         return;
       }
       if (["marketplace_item", "product"].includes(entityType)) {
         setShowNotif(false);
         onHomeClick?.();
-        navigate(`/?marketplace_item=${encodeURIComponent(n.entity_id)}`);
+        navigate(`/?marketplace_item=${encodeURIComponent(entityId)}`);
         return;
       }
       if (["order", "marketplace_order"].includes(entityType)) {
         setShowNotif(false);
         window.dispatchEvent(new CustomEvent("flicks:open-marketplace-order", {
-          detail: { orderId: n.entity_id },
+          detail: { orderId: entityId },
         }));
+        return;
+      }
+      if (["survey", "survey_response"].includes(entityType)) {
+        setShowNotif(false);
+        navigate(`/survey/${encodeURIComponent(surveyId || entityId)}`);
         return;
       }
     }

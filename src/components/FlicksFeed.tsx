@@ -661,6 +661,7 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, on
       await supabase.from("notifications").insert({
         notifier_id: currentUserId, actor_id: currentUserId, type: "report_submitted",
         entity_id: rd?.id ?? post._raw_id,
+        entity_type: rd?.id ? "report" : "post",
         content: "Your report is under review. We'll notify you once a decision is made.", is_read: false,
       });
       toast.success("✅ Report submitted.");
