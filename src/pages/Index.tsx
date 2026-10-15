@@ -66,6 +66,7 @@ import { toast } from "sonner";
 import Header from "@/components/Header";
 import InviteCard from "@/components/InviteCard";
 import GolSlider from "@/components/GolSlider";
+import { AQUARIUM_REFRESH_WIPE_MS } from "@/components/AquariumRefreshButton";
 import PullToRefresh from "@/components/PullToRefresh";
 import AutoPlayMutedVideo from "@/components/AutoPlayMutedVideo";
 import ShareVibeComposer from "@/components/ShareVibeComposer";
@@ -3107,6 +3108,18 @@ const Index = ({ session, initialAdminOpen, isGuest = false }: { session: Sessio
     });
   }, []);
 
+  const handleBottomNavRefresh = React.useCallback(async () => {
+    if (isFameFeedPullRefreshEnabled) {
+      await handleFeedRefresh();
+      return;
+    }
+
+    await new Promise<void>((resolve) => {
+      window.setTimeout(resolve, AQUARIUM_REFRESH_WIPE_MS);
+    });
+    window.location.reload();
+  }, [handleFeedRefresh, isFameFeedPullRefreshEnabled]);
+
 
   // ── Settings: Block List sub-view ─────────────────────────────────────────
   const BlockListView = () => {
@@ -5415,6 +5428,7 @@ const PersonalizationView = React.memo(({
         activeFeature={activeFeature}
         hidden={isChatOpen}
         isAdmin={isAppAdmin}
+        onRefresh={handleBottomNavRefresh}
         onFeatureChange={(f) => {
           if (f === "Admin") {
             if (isAppAdmin) setIsAdminPanelOpen(true);

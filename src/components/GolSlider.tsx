@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Film, Anchor, CheckSquare, Users, Star, Shield, ChevronUp, ChevronDown, Clapperboard, Heart } from "lucide-react";
+import AquariumRefreshButton from "@/components/AquariumRefreshButton";
 
 const BASE_NAV_ITEMS = [
   { label: "Flicks",      feature: "Flicks",      Icon: Film          },
@@ -26,6 +27,7 @@ interface GolSliderProps {
   activeFeature?: string;
   hidden?: boolean;
   isAdmin?: boolean;
+  onRefresh: () => Promise<void> | void;
 }
 
 const CYAN     = "#00e5ff";
@@ -174,7 +176,7 @@ function HandleLightning() {
   );
 }
 
-const GolSlider = ({ onFeatureChange, activeFeature, hidden, isAdmin }: GolSliderProps) => {
+const GolSlider = ({ onFeatureChange, activeFeature, hidden, isAdmin, onRefresh }: GolSliderProps) => {
   const [isOpen, setIsOpen] = useState(false);
 
   useEffect(() => { injectKeyframes(); }, []);
@@ -374,54 +376,71 @@ const GolSlider = ({ onFeatureChange, activeFeature, hidden, isAdmin }: GolSlide
         </div>
       </div>
 
-      {/* ── HANDLE BAR — always visible, contains lightning animation ─────────── */}
-      <button
-        onClick={() => setIsOpen((p) => !p)}
-        className="gol-handle-glow"
+      {/* ── ALWAYS-VISIBLE HANDLE + STANDALONE REFRESH MARBLE ───────────────── */}
+      <div
         style={{
+          pointerEvents: "none",
+          display: "flex",
+          alignItems: "center",
+          gap: 4,
+          width: "100%",
+          height: "calc(50px + env(safe-area-inset-bottom, 0px))",
+          padding: "0 6px env(safe-area-inset-bottom, 0px)",
+          boxSizing: "border-box",
+          background: BG_DARK,
+          backdropFilter: "blur(20px)",
+          WebkitBackdropFilter: "blur(20px)",
+          borderTop: `1px solid ${CYAN_DIM}`,
+        }}
+      >
+        <AquariumRefreshButton onRefresh={onRefresh} />
+        <button
+          onClick={() => setIsOpen((p) => !p)}
+          className="gol-handle-glow"
+          style={{
           pointerEvents: "auto",
           background: BG_DARK,
           backdropFilter: "blur(20px)",
           WebkitBackdropFilter: "blur(20px)",
-          width: "100%",
-          height: 34,
+          flex: 1,
+          minWidth: 0,
+          height: 50,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
           gap: 0,
           cursor: "pointer",
           border: "none",
-          borderTop: `1px solid ${CYAN_DIM}`,
           overflow: "hidden",
           position: "relative",
-          paddingBottom: "env(safe-area-inset-bottom, 0px)",
-        }}
-        aria-label={isOpen ? "Close menu" : "Open menu"}
-      >
-        {/* Lightning word animation — takes all available width */}
-        <HandleLightning />
-
-        {/* Divider */}
-        <span style={{ width: 1, height: 16, background: CYAN_DIM, flexShrink: 0 }} />
-
-        {/* Pulsing chevron — right side */}
-        <span
-          className="gol-chevron-pulse"
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            color: CYAN,
-            width: 36,
-            flexShrink: 0,
           }}
+          aria-label={isOpen ? "Close menu" : "Open menu"}
         >
-          {isOpen
-            ? <ChevronDown size={16} strokeWidth={3} />
-            : <ChevronUp   size={16} strokeWidth={3} />
-          }
-        </span>
-      </button>
+          {/* Lightning word animation — uses remaining handle width */}
+          <HandleLightning />
+
+          {/* Divider */}
+          <span style={{ width: 1, height: 16, background: CYAN_DIM, flexShrink: 0 }} />
+
+          {/* Pulsing chevron — right side */}
+          <span
+            className="gol-chevron-pulse"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: CYAN,
+              width: 36,
+              flexShrink: 0,
+            }}
+          >
+            {isOpen
+              ? <ChevronDown size={16} strokeWidth={3} />
+              : <ChevronUp   size={16} strokeWidth={3} />
+            }
+          </span>
+        </button>
+      </div>
     </div>
   );
 };
