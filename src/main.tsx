@@ -1,4 +1,6 @@
 import { createRoot } from "react-dom/client";
+import { Capacitor } from "@capacitor/core";
+import { StatusBar } from "@capacitor/status-bar";
 import App from "./App.tsx";
 import "./index.css";
 import { ErrorBoundary } from "./components/ErrorBoundary";
@@ -17,6 +19,18 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
     // non-Capacitor environment — safe to ignore
   }
 })();
+
+// Hide Android's system status bar as soon as the Capacitor app starts.
+// Keep normal browser rendering untouched and tolerate native plugin failures.
+try {
+  if (Capacitor.isNativePlatform() && Capacitor.getPlatform() === "android") {
+    void StatusBar.hide().catch((error) => {
+      console.warn("[Native] Could not hide the Android status bar:", error);
+    });
+  }
+} catch (error) {
+  console.warn("[Native] Status bar setup was skipped:", error);
+}
 
 // OneSignal is loaded via CDN script in index.html.
 // Only initialise on the production domain — skip silently on Replit dev / localhost.
