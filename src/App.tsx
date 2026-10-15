@@ -1,6 +1,6 @@
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useLayoutEffect, useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { ADMIN_EMAILS, isAdminEmail } from "./lib/adminConfig";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
@@ -28,6 +28,25 @@ const SurveyDetail  = lazy(() => import("./pages/SurveyDetail"));
 const InviteLanding = lazy(() => import("./pages/InviteLanding"));
 const DesignPreview = lazy(() => import("./pages/DesignPreview"));
 const Chat19        = lazy(() => import("./components/Chat19"));
+
+function NativeAndroidRoutePolicy({ authenticated }: { authenticated: boolean }) {
+  const { pathname } = useLocation();
+
+  useLayoutEffect(() => {
+    const path = pathname.replace(/\/+$/, "") || "/";
+    const isFeedPath = path === "/" || path === "/feed";
+    if (authenticated && isFeedPath) return;
+
+    const bridges = window as Window & {
+      AndroidScroll?: { setFameFeedEnabled?: (enabled: boolean) => void };
+      AndroidBridge?: { setPullToRefresh?: (enabled: boolean) => void };
+    };
+    bridges.AndroidScroll?.setFameFeedEnabled?.(false);
+    bridges.AndroidBridge?.setPullToRefresh?.(false);
+  }, [authenticated, pathname]);
+
+  return null;
+}
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -365,6 +384,7 @@ const App = () => {
             <OnlineUsersProvider userId={session?.user?.id}>
               <DataCacheProvider>
                 <BrowserRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
+                  <NativeAndroidRoutePolicy authenticated={Boolean(session)} />
                   <Suspense fallback={<PageLoader />}>
                     {!session ? (
                       <Routes>
@@ -380,6 +400,7 @@ const App = () => {
                       <Routes>
                         <Route path="/design-preview" element={<DesignPreview />} />
                         <Route path="/"            element={<Index session={session} />} />
+                        <Route path="/feed"        element={<Index session={session} />} />
                         <Route path="/privacy"     element={<Privacy />} />
                         <Route path="/terms"       element={<Terms />} />
                         <Route path="/data-info"   element={<DataInfo />} />

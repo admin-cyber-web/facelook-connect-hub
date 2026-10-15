@@ -2221,8 +2221,7 @@ const Index = ({ session, initialAdminOpen, isGuest = false }: { session: Sessio
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [chatBadgeCount, setChatBadgeCount] = useState(0);
 
-  // The Android wrapper owns native pull-to-refresh. Disable it in the
-  // full-screen Flicks/Reels section and whenever the chat panel is open.
+  // Android overscroll/refresh is permitted only on the Fame Feed screen.
   const androidBridge = typeof window === "undefined"
     ? undefined
     : (window as Window & {
@@ -2231,19 +2230,23 @@ const Index = ({ session, initialAdminOpen, isGuest = false }: { session: Sessio
           onPullToRefreshComplete?: () => void;
         };
       }).AndroidBridge;
+  const androidScrollBridge = typeof window === "undefined"
+    ? undefined
+    : (window as Window & {
+        AndroidScroll?: {
+          setFameFeedEnabled?: (enabled: boolean) => void;
+        };
+      }).AndroidScroll;
   const hasNativeAndroidRefresh = typeof androidBridge?.setPullToRefresh === "function";
 
   useLayoutEffect(() => {
-    if (!androidBridge?.setPullToRefresh) return;
-    const path = window.location.pathname.toLowerCase();
-    const restrictedPath = /(?:^|\/)(?:reels|flicks|chat)(?:\/|$)/.test(path);
-    const restrictedFeature =
-      activeFeature.toLowerCase() === "flicks" ||
-      activeFeature.toLowerCase() === "reels";
-    androidBridge.setPullToRefresh(
-      !(isChatOpen || restrictedPath || restrictedFeature),
-    );
-  }, [activeFeature, androidBridge, isChatOpen]);
+    const path = window.location.pathname.replace(/\/+$/, "") || "/";
+    const isFeedPath = path === "/" || path === "/feed";
+    const isFameFeed = isFeedPath && activeFeature === "Fame" && !isChatOpen;
+
+    androidBridge?.setPullToRefresh?.(isFameFeed);
+    androidScrollBridge?.setFameFeedEnabled?.(isFameFeed);
+  }, [activeFeature, androidBridge, androidScrollBridge, isChatOpen]);
 
   // Allow other components (e.g. UserProfileModal "Message" button) to open
   // the chat panel via a global event. ChatSystem itself listens for the
