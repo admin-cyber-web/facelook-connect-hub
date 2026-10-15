@@ -14,6 +14,9 @@ function sitemapPlugin(): Plugin {
   const SUPABASE_KEY = process.env.VITE_SUPABASE_ANON_KEY || "";
   const BASE_URL = "https://flicksindia.online";
   const PAGE_SIZE = 1000;
+  // Sitemap protocol limit is 50,000 URLs; this live fallback emits one static
+  // homepage URL, leaving room for at most 49,999 public post URLs.
+  const MAX_DYNAMIC_URLS = 49_999;
   const TTL_MS = 60 * 60 * 1000; // 1 hour
 
   // Module-level cache — survives the entire Vite dev-server session
@@ -28,17 +31,20 @@ function sitemapPlugin(): Plugin {
 
     const rows: { id: string; updated_at?: string; created_at?: string }[] = [];
     let from = 0;
-    while (true) {
+    while (rows.length < MAX_DYNAMIC_URLS) {
+      const pageSize = Math.min(PAGE_SIZE, MAX_DYNAMIC_URLS - rows.length);
       const { data, error } = await sb
         .from("posts")
         .select("id, updated_at, created_at")
         .eq("visibility", "public")
         .order("created_at", { ascending: false })
-        .range(from, from + PAGE_SIZE - 1);
-      if (error || !data || data.length === 0) break;
+        .range(from, from + pageSize - 1);
+      if (error) throw error;
+      if (!data) throw new Error("Supabase returned no sitemap page data");
+      if (data.length === 0) break;
       rows.push(...data);
-      if (data.length < PAGE_SIZE) break;
-      from += PAGE_SIZE;
+      if (data.length < pageSize) break;
+      from += data.length;
     }
 
     const esc = (s: string) =>

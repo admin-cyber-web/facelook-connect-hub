@@ -696,9 +696,9 @@ function OrderSuccessModal({
 }
 
 export function MyOrdersDrawer({
-  onClose, focusOrderId,
-}: { onClose: () => void; focusOrderId?: string | null }) {
-  const [userId, setUserId] = useState<string | null>(null);
+  onClose, focusOrderId, currentUserId,
+}: { onClose: () => void; focusOrderId?: string | null; currentUserId: string | null }) {
+  const userId = currentUserId;
   const [orders, setOrders] = useState<MarketplaceOrder[]>([]);
   const [catalogItems, setCatalogItems] = useState<Record<string, MarketplaceCatalogSnapshot>>({});
   const [loading, setLoading] = useState(true);
@@ -714,17 +714,10 @@ export function MyOrdersDrawer({
   const prefersReducedMotion = useReducedMotion();
 
   useEffect(() => {
-    let mounted = true;
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!mounted) return;
-      setUserId(session?.user?.id ?? null);
-      setOrders([]);
-      setCatalogItems({});
-      setLoading(Boolean(session?.user?.id));
-    });
-    supabase.auth.getUser().then(({ data }) => { if (mounted) setUserId(data.user?.id ?? null); });
-    return () => { mounted = false; subscription.unsubscribe(); };
-  }, []);
+    setOrders([]);
+    setCatalogItems({});
+    setLoading(Boolean(userId));
+  }, [userId]);
 
   useEffect(() => {
     const updateVisibility = () => setVisible(document.visibilityState === "visible");
@@ -1147,7 +1140,7 @@ export function MarketplaceFeedCard({
     }
     void supabase
       .from("marketplace_items")
-      .select("*")
+      .select("id, title, description, price, image_url, link_url, badge, is_active, created_at, sizes, colors, source_city, attributes")
       .eq("id", sharedId)
       .maybeSingle()
       .then(({ data, error }) => {
@@ -1224,13 +1217,13 @@ export function MarketplaceFeedCard({
             return { error: result.error };
           }}
         />}
-        {showMyOrders && <MyOrdersDrawer onClose={() => setShowMyOrders(false)} />}
+        {showMyOrders && <MyOrdersDrawer currentUserId={currentUserId} onClose={() => setShowMyOrders(false)} />}
       </AnimatePresence>, document.body)}
     </>
   );
 }
 
-interface AdminMarketplacePanelProps { onClose: () => void; }
+interface AdminMarketplacePanelProps { onClose: () => void; currentUserId: string | null; }
 interface FulfillmentDraft {
   partnerName: string;
   partnerPhone: string;
@@ -1250,7 +1243,7 @@ const EMPTY_FORM: AdminForm = {
   originalPrice: "", discountedPrice: "", discountPercent: "", offerTagline: "", stockQuantity: "",
 };
 
-export function AdminMarketplacePanel({ onClose }: AdminMarketplacePanelProps) {
+export function AdminMarketplacePanel({ onClose, currentUserId }: AdminMarketplacePanelProps) {
   const [panelTab, setPanelTab] = useState<"products" | "orders">("products");
   const [items, setItems] = useState<MarketplaceItem[]>([]);
   const [sellerDetailsByItemId, setSellerDetailsByItemId] = useState<Record<string, SellerDetails>>({});

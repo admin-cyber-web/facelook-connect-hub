@@ -2665,22 +2665,10 @@ const Index = ({ session, initialAdminOpen, isGuest = false }: { session: Sessio
 
   // ── Fetch & Realtime (Updated for Auto-Refresh) ──────────────────────────────
   useEffect(() => {
-    // 1. Pehli baar profile load karo
+    // App owns the auth listener and passes its current session here.
+    // Reuse that state instead of opening a second listener for the same auth events.
     fetchProfile();
-
-    // 2. Auth Listener: Jaise hi login ho, bina refresh profile update ho jaye
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, _session) => {
-      if (event === "SIGNED_IN" || event === "USER_UPDATED") {
-        fetchProfile();
-      }
-    });
-
-    return () => {
-      subscription.unsubscribe(); // Subscription band karna zaroori hai
-    };
-  }, [userId]);
+  }, [userId, session]);
 
   // Yahan se fetchProfile shuru ho raha hai — BULLETPROOF VERSION
   const fetchProfile = async () => {
@@ -5340,6 +5328,7 @@ const PersonalizationView = React.memo(({
                         <AnimatePresence>
                           <MyOrdersDrawer
                             focusOrderId={marketplaceOrderFocusId}
+                            currentUserId={userId}
                             onClose={() => { setMarketplaceOrderFocusId(null); setSettingsView("main"); }}
                           />
                         </AnimatePresence>,
@@ -5358,7 +5347,7 @@ const PersonalizationView = React.memo(({
                     >
                       <Suspense fallback={<SectionLoader />}>
                         {createPortal(
-                          <AdminMarketplacePanel onClose={() => setSettingsView("main")} />,
+                          <AdminMarketplacePanel currentUserId={userId} onClose={() => setSettingsView("main")} />,
                           document.body,
                         )}
                       </Suspense>
