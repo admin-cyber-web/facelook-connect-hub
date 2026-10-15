@@ -4265,21 +4265,34 @@ const FameFeed = ({
     setFlicksLoaded(true);
   };
 
+  // Keep the refresh action pointed at the latest render's fetch functions.
+  // The global event listener is intentionally installed once, so invoking
+  // these through a ref avoids stale user/location/cache state.
+  const pullRefreshActionRef = useRef<() => Promise<void>>(async () => {});
+  pullRefreshActionRef.current = async () => {
+    await Promise.all([fetchPosts(true), fetchFlicks()]);
+  };
+
   // Pull-to-refresh listener — fired by <PullToRefresh> in Index.tsx.
   useEffect(() => {
     const handler = (event: Event) => {
       const complete = (event as CustomEvent<{ complete?: () => void }>)
         .detail?.complete;
 
-      Promise.all([fetchPosts(true), fetchFlicks()]).finally(() => {
-        complete?.();
-        const bridge = (
-          window as Window & {
-            AndroidBridge?: { onPullToRefreshComplete?: () => void };
-          }
-        ).AndroidBridge;
-        bridge?.onPullToRefreshComplete?.();
-      });
+      void pullRefreshActionRef.current()
+        .catch((error) => {
+          console.error("[FameFeed] Pull-to-refresh fetch failed:", error);
+          window.location.reload();
+        })
+        .finally(() => {
+          complete?.();
+          const bridge = (
+            window as Window & {
+              AndroidBridge?: { onPullToRefreshComplete?: () => void };
+            }
+          ).AndroidBridge;
+          bridge?.onPullToRefreshComplete?.();
+        });
     };
     window.addEventListener("flicks-pull-refresh", handler);
     return () => window.removeEventListener("flicks-pull-refresh", handler);

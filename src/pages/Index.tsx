@@ -3054,9 +3054,33 @@ const Index = ({ session, initialAdminOpen, isGuest = false }: { session: Sessio
 
   const handleFeedRefresh = React.useCallback(async () => {
     await new Promise<void>((resolve) => {
+      let completed = false;
+      let fallbackTimer = 0;
+      const complete = () => {
+        if (completed) return;
+        completed = true;
+        window.clearTimeout(fallbackTimer);
+        resolve();
+      };
+
+      fallbackTimer = window.setTimeout(() => {
+        if (completed) return;
+        console.warn(
+          "[FameFeed] Refresh handler did not finish; reloading the feed.",
+        );
+        const bridge = (
+          window as Window & {
+            AndroidBridge?: { onPullToRefreshComplete?: () => void };
+          }
+        ).AndroidBridge;
+        bridge?.onPullToRefreshComplete?.();
+        complete();
+        window.location.reload();
+      }, 12000);
+
       window.dispatchEvent(
         new CustomEvent("flicks-pull-refresh", {
-          detail: { complete: resolve },
+          detail: { complete },
         }),
       );
     });
