@@ -5186,6 +5186,8 @@ const FameFeed = ({
         notifier_id: currentUserId,
         actor_id: currentUserId,
         type: "report_submitted",
+        entity_id: reportModal.postId || null,
+        entity_type: "post",
         content: `Your report for post is under review. We'll notify you soon.`,
         is_read: false,
       });
