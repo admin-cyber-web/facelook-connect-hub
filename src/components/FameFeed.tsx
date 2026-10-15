@@ -4273,6 +4273,12 @@ const FameFeed = ({
 
       Promise.all([fetchPosts(true), fetchFlicks()]).finally(() => {
         complete?.();
+        const bridge = (
+          window as Window & {
+            AndroidBridge?: { onPullToRefreshComplete?: () => void };
+          }
+        ).AndroidBridge;
+        bridge?.onPullToRefreshComplete?.();
       });
     };
     window.addEventListener("flicks-pull-refresh", handler);
