@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, lazy, Suspense } from "react";
+import { useLocation } from "react-router-dom";
 import { createPortal } from "react-dom";
 import { requestShareModal } from "../lib/shareModal";
 import { motion, AnimatePresence } from "framer-motion";
@@ -2156,6 +2157,9 @@ const RotatingFrameHelpTagline = () => {
 
 // ── Component ────────────────────────────────────────────────────────────────
 const Index = ({ session, initialAdminOpen, isGuest = false }: { session: Session; initialAdminOpen?: boolean; isGuest?: boolean }) => {
+  const { pathname } = useLocation();
+  const normalizedPathname = pathname.replace(/\/+$/, "") || "/";
+  const isFameFeedRoute = normalizedPathname === "/" || normalizedPathname === "/feed";
   const onlineUserIds = useOnlineUsers();
   const userId = session.user.id;
   const userEmail = session.user.email || "";
@@ -2237,17 +2241,6 @@ const Index = ({ session, initialAdminOpen, isGuest = false }: { session: Sessio
           setFameFeedEnabled?: (enabled: boolean) => void;
         };
       }).AndroidScroll;
-  useLayoutEffect(() => {
-    const path = window.location.pathname.replace(/\/+$/, "") || "/";
-    const isFeedPath = path === "/" || path === "/feed";
-    const isFameFeed = isFeedPath && activeFeature === "Fame" && !isChatOpen;
-
-    // Let the React PullToRefresh component own both the indicator and the
-    // refresh action. A native-only bridge can show a spinner without calling
-    // the Fame Feed loader back into this WebView.
-    androidBridge?.setPullToRefresh?.(false);
-    androidScrollBridge?.setFameFeedEnabled?.(isFameFeed);
-  }, [activeFeature, androidBridge, androidScrollBridge, isChatOpen]);
 
   // Allow other components (e.g. UserProfileModal "Message" button) to open
   // the chat panel via a global event. ChatSystem itself listens for the
@@ -2464,6 +2457,33 @@ const Index = ({ session, initialAdminOpen, isGuest = false }: { session: Sessio
   const [reelStudioOpen, setReelStudioOpen] = useState(false);
   const [reelStudioReel, setReelStudioReel] = useState<any | null>(null);
   const [reelStudioVideoFile, setReelStudioVideoFile] = useState<File | null>(null);
+
+  const isFameFeedPullRefreshEnabled =
+    isFameFeedRoute &&
+    activeFeature === "Fame" &&
+    !isChatOpen &&
+    !isPostOpen &&
+    !isAdminPanelOpen &&
+    !isVideoCallOpen &&
+    !showMagnetDashboard &&
+    !showChat19 &&
+    !showChat19Promo &&
+    !showOnboarding &&
+    !showDeleteDialog &&
+    !isFrameMode &&
+    !reelStudioOpen;
+
+  useLayoutEffect(() => {
+    // The JS handler owns refreshing. Keep native overscroll scoped to the
+    // same exact route/state so other pages and modal surfaces stay untouched.
+    androidBridge?.setPullToRefresh?.(false);
+    androidScrollBridge?.setFameFeedEnabled?.(isFameFeedPullRefreshEnabled);
+  }, [
+    activeFeature,
+    androidBridge,
+    androidScrollBridge,
+    isFameFeedPullRefreshEnabled,
+  ]);
 
   useEffect(() => {
     if (!userId) return;
@@ -4830,6 +4850,7 @@ const PersonalizationView = React.memo(({
                 <div className="mt-2">
                   <PullToRefresh
                     onRefresh={handleFeedRefresh}
+                    enabled={isFameFeedPullRefreshEnabled}
                     staticFeed
                   >
                     <FameFeed
