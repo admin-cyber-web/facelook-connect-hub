@@ -383,6 +383,7 @@ const GolSlider = ({ onFeatureChange, activeFeature, hidden, isAdmin, onRefresh 
       <div
         style={{
           pointerEvents: "none",
+          position: "relative",
           display: "flex",
           alignItems: "center",
           width: "100%",
@@ -440,6 +441,32 @@ const GolSlider = ({ onFeatureChange, activeFeature, hidden, isAdmin, onRefresh 
               : <ChevronUp   size={16} strokeWidth={3} />
             }
           </span>
+        </button>
+        <button
+          type="button"
+          className="gol-menu-callout gol-menu-callout--left"
+          onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            setIsOpen(true);
+          }}
+          aria-label="Click to open menu"
+        >
+          <span className="gol-menu-callout__finger" aria-hidden="true">👉</span>
+          <span className="gol-menu-callout__text">Click to open menu</span>
+        </button>
+        <button
+          type="button"
+          className="gol-menu-callout gol-menu-callout--right"
+          onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            setIsOpen(true);
+          }}
+          aria-label="मेन्यू खोलने के लिए टच करें"
+        >
+          <span className="gol-menu-callout__text">मेन्यू के लिए टच करें</span>
+          <span className="gol-menu-callout__finger" aria-hidden="true">👈</span>
         </button>
       </div>
     </div>
