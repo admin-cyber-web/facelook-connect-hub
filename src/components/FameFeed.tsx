@@ -4021,7 +4021,7 @@ const FameFeed = ({
     toast.success("Comment updated.");
   };
 
-  const fetchPosts = async (reset = false) => {
+  const fetchPosts = async (reset = false, throwOnError = false) => {
     if (!reset && (loadingMore || !hasMore)) return;
     if (reset) {
       pageRef.current = 0;
@@ -4066,6 +4066,7 @@ const FameFeed = ({
             )
             .order("created_at", { ascending: false })
             .range(from, to);
+          if (noJoin.error) throw noJoin.error;
           data = noJoin.data;
         } else {
           data = res.data;
@@ -4077,6 +4078,7 @@ const FameFeed = ({
       console.error("[FameFeed] fetchPosts exception:", e);
       setLoading(false);
       setLoadingMore(false);
+      if (throwOnError) throw e;
       return;
     }
 
@@ -4270,7 +4272,7 @@ const FameFeed = ({
   // these through a ref avoids stale user/location/cache state.
   const pullRefreshActionRef = useRef<() => Promise<void>>(async () => {});
   pullRefreshActionRef.current = async () => {
-    await Promise.all([fetchPosts(true), fetchFlicks()]);
+    await Promise.all([fetchPosts(true, true), fetchFlicks()]);
   };
 
   // Pull-to-refresh listener — fired by <PullToRefresh> in Index.tsx.
