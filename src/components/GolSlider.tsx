@@ -376,15 +376,17 @@ const GolSlider = ({ onFeatureChange, activeFeature, hidden, isAdmin, onRefresh 
         </div>
       </div>
 
-      {/* ── ALWAYS-VISIBLE HANDLE + STANDALONE REFRESH MARBLE ───────────────── */}
+      {/* The marble portals to the viewport so it can remain centered and isolated. */}
+      <AquariumRefreshButton onRefresh={onRefresh} />
+
+      {/* ── ALWAYS-VISIBLE HANDLE ───────────────────────────────────────────── */}
       <div
         style={{
           pointerEvents: "none",
           display: "flex",
           alignItems: "center",
-          gap: 4,
           width: "100%",
-          height: "calc(50px + env(safe-area-inset-bottom, 0px))",
+          height: "calc(64px + env(safe-area-inset-bottom, 0px))",
           padding: "0 6px env(safe-area-inset-bottom, 0px)",
           boxSizing: "border-box",
           background: BG_DARK,
@@ -393,26 +395,25 @@ const GolSlider = ({ onFeatureChange, activeFeature, hidden, isAdmin, onRefresh 
           borderTop: `1px solid ${CYAN_DIM}`,
         }}
       >
-        <AquariumRefreshButton onRefresh={onRefresh} />
         <button
           onClick={() => setIsOpen((p) => !p)}
           className="gol-handle-glow"
           style={{
-          pointerEvents: "auto",
-          background: BG_DARK,
-          backdropFilter: "blur(20px)",
-          WebkitBackdropFilter: "blur(20px)",
-          flex: 1,
-          minWidth: 0,
-          height: 50,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: 0,
-          cursor: "pointer",
-          border: "none",
-          overflow: "hidden",
-          position: "relative",
+            pointerEvents: "auto",
+            background: BG_DARK,
+            backdropFilter: "blur(20px)",
+            WebkitBackdropFilter: "blur(20px)",
+            flex: 1,
+            minWidth: 0,
+            height: 64,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 0,
+            cursor: "pointer",
+            border: "none",
+            overflow: "hidden",
+            position: "relative",
           }}
           aria-label={isOpen ? "Close menu" : "Open menu"}
         >
