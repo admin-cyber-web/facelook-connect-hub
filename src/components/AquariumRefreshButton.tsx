@@ -46,12 +46,22 @@ export default function AquariumRefreshButton({
       });
   };
 
-  return (
+  if (typeof document === "undefined" || !document.body) return null;
+
+  return createPortal(
     <>
       <button
         type="button"
         className="aquarium-refresh-marble"
-        onClick={handleRefresh}
+        onPointerDownCapture={(event) => event.stopPropagation()}
+        onPointerUpCapture={(event) => event.stopPropagation()}
+        onTouchStartCapture={(event) => event.stopPropagation()}
+        onTouchEndCapture={(event) => event.stopPropagation()}
+        onClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          handleRefresh();
+        }}
         disabled={isRefreshing}
         aria-label={isRefreshing ? "Refreshing feed" : "Refresh feed"}
         aria-busy={isRefreshing}
@@ -75,12 +85,8 @@ export default function AquariumRefreshButton({
         </svg>
         <span className="aquarium-marble-label">Refresh</span>
       </button>
-      {isWiping && (
-        createPortal(
-          <div className="gol-board-duster-wipe" aria-hidden="true" />,
-          document.body,
-        )
-      )}
-    </>
+      {isWiping && <div className="gol-board-duster-wipe" aria-hidden="true" />}
+    </>,
+    document.body,
   );
 }
