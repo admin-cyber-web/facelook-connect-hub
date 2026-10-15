@@ -4280,6 +4280,11 @@ const FameFeed = ({
     const handler = (event: Event) => {
       const complete = (event as CustomEvent<{ complete?: () => void }>)
         .detail?.complete;
+      const path = window.location.pathname.replace(/\/+$/, "") || "/";
+      if (path !== "/" && path !== "/feed") {
+        complete?.();
+        return;
+      }
 
       void pullRefreshActionRef.current()
         .catch((error) => {

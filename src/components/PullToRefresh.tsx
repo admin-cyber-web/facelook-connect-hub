@@ -4,6 +4,7 @@ import { RefreshCw } from "lucide-react";
 interface Props {
   onRefresh: () => Promise<void> | void;
   children: ReactNode;
+  enabled?: boolean;
   disabled?: boolean;
   staticFeed?: boolean;
   threshold?: number;
@@ -12,6 +13,7 @@ interface Props {
 export default function PullToRefresh({
   onRefresh,
   children,
+  enabled = false,
   disabled = false,
   staticFeed = false,
   threshold = 70,
@@ -44,9 +46,16 @@ export default function PullToRefresh({
   useEffect(() => {
     // Pull-to-refresh is intentionally opt-in. This prevents the gesture
     // observer from being reused by settings, modals, or video feeds.
-    if (disabled || !staticFeed) return;
+    if (!enabled || disabled || !staticFeed) return;
     const el = wrapperRef.current;
     if (!el) return;
+
+    const isFameFeedRoute = () => {
+      const path = window.location.pathname.replace(/\/+$/, "") || "/";
+      return path === "/" || path === "/feed";
+    };
+    const isPullRefreshEnabled = () =>
+      enabled && !disabled && staticFeed && isFameFeedRoute();
 
     /**
      * WebView scroll position is not always represented by window.scrollY.
@@ -90,6 +99,7 @@ export default function PullToRefresh({
     };
 
     const isAtTop = (target: EventTarget | null = touchTargetRef.current): boolean =>
+      window.scrollY === 0 &&
       getDocumentScrollTops().every((scrollTop) => scrollTop === 0) &&
       getScrollableAncestors(target).every((node) => node.scrollTop === 0);
 
@@ -121,6 +131,10 @@ export default function PullToRefresh({
     };
 
     const onTouchStart = (e: TouchEvent) => {
+      if (!isPullRefreshEnabled()) {
+        resetPull();
+        return;
+      }
       touchTargetRef.current = e.target;
       if (
         e.touches.length !== 1 ||
@@ -144,6 +158,10 @@ export default function PullToRefresh({
     };
 
     const onTouchMove = (e: TouchEvent) => {
+      if (!isPullRefreshEnabled()) {
+        resetPull();
+        return;
+      }
       if (
         startPoint.current == null ||
         refreshingRef.current ||
@@ -197,12 +215,17 @@ export default function PullToRefresh({
     };
 
     const finishGesture = async () => {
+      if (!isPullRefreshEnabled()) {
+        resetPull();
+        return;
+      }
       if (startPoint.current == null) return;
       const pullDistance = pullDistanceRef.current;
       const shouldRefresh =
         gestureState.current === "pulling" &&
         pullDistance >= threshold &&
         startedAtTopRef.current &&
+        window.scrollY === 0 &&
         !refreshingRef.current;
       startPoint.current = null;
       startedAtTopRef.current = false;
@@ -253,12 +276,19 @@ export default function PullToRefresh({
         cancelAnimationFrame(pullRafRef.current);
         pullRafRef.current = null;
       }
+      pullDistanceRef.current = 0;
+      pullYRef.current = 0;
+      startPoint.current = null;
+      touchTargetRef.current = null;
+      startedAtTopRef.current = false;
+      gestureState.current = "blocked";
+      setPullY(0);
       el.removeEventListener("touchstart", onTouchStart);
       el.removeEventListener("touchmove", onTouchMove);
       el.removeEventListener("touchend", finishGesture);
       el.removeEventListener("touchcancel", onTouchCancel);
     };
-  }, [threshold, disabled, staticFeed]);
+  }, [threshold, enabled, disabled, staticFeed]);
 
   const progress = Math.min(pullY / threshold, 1);
   const readyToRefresh = pullY >= threshold * 0.7;
@@ -267,7 +297,7 @@ export default function PullToRefresh({
     <div
       ref={wrapperRef}
       className="relative"
-      style={{ touchAction: "pan-y" }}
+      style={{ touchAction: enabled ? "pan-y" : "auto" }}
     >
       {/* Indicator */}
       <div
