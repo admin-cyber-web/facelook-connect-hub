@@ -3,9 +3,9 @@ package com.flicksindia.app;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
-import android.view.MotionEvent;
 import android.view.View;
 import android.webkit.CookieManager;
+import android.webkit.JavascriptInterface;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
@@ -13,11 +13,14 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
 public class MainActivity extends AppCompatActivity {
 
     private WebView webView;
+    private SwipeRefreshLayout swipeRefreshLayout;
     private AndroidShareBridge shareBridge;
+    private AndroidRefreshBridge refreshBridge;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -25,6 +28,8 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         webView = findViewById(R.id.webview);
+        swipeRefreshLayout = findViewById(R.id.swipe_refresh);
+        swipeRefreshLayout.setEnabled(true);
         
         // Prevent white screen flash by setting canvas background color immediately
         webView.setBackgroundColor(Color.parseColor("#0F172A"));
@@ -38,23 +43,18 @@ public class MainActivity extends AppCompatActivity {
         webSettings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
         shareBridge = new AndroidShareBridge(this);
         webView.addJavascriptInterface(shareBridge, "AndroidShare");
+        refreshBridge = new AndroidRefreshBridge();
+        webView.addJavascriptInterface(refreshBridge, "AndroidBridge");
 
-        // The React pull-to-refresh surface owns the downward gesture. Native
-        // WebView overscroll glow otherwise consumes the same edge movement.
+        // Let SwipeRefreshLayout own only downward gestures at the top of the WebView.
         webView.setOverScrollMode(View.OVER_SCROLL_NEVER);
-        webView.setNestedScrollingEnabled(false);
-        webView.setOnTouchListener((view, event) -> {
-            final int action = event.getActionMasked();
-            if (action == MotionEvent.ACTION_DOWN) {
-                view.getParent().requestDisallowInterceptTouchEvent(true);
-            } else if (action == MotionEvent.ACTION_UP
-                    || action == MotionEvent.ACTION_CANCEL) {
-                view.getParent().requestDisallowInterceptTouchEvent(false);
-            }
-            return false;
-        });
         webView.setVerticalScrollBarEnabled(true);
         webView.setHorizontalScrollBarEnabled(false);
+
+        swipeRefreshLayout.setOnRefreshListener(() -> webView.evaluateJavascript(
+                "window.dispatchEvent(new CustomEvent('flicks-pull-refresh', {detail: {native: true}}));",
+                null
+        ));
 
         CookieManager.getInstance().setAcceptCookie(true);
         CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true);
@@ -95,5 +95,27 @@ public class MainActivity extends AppCompatActivity {
             shareBridge.shutdown();
         }
         super.onDestroy();
+    }
+
+    public final class AndroidRefreshBridge {
+        @JavascriptInterface
+        public void setPullToRefresh(final boolean enabled) {
+            runOnUiThread(() -> {
+                if (swipeRefreshLayout == null) return;
+                swipeRefreshLayout.setEnabled(enabled);
+                if (!enabled) {
+                    swipeRefreshLayout.setRefreshing(false);
+                }
+            });
+        }
+
+        @JavascriptInterface
+        public void onPullToRefreshComplete() {
+            runOnUiThread(() -> {
+                if (swipeRefreshLayout != null) {
+                    swipeRefreshLayout.setRefreshing(false);
+                }
+            });
+        }
     }
 }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, lazy, Suspense } from "react";
+import React, { useState, useEffect, useLayoutEffect, useRef, lazy, Suspense } from "react";
 import { createPortal } from "react-dom";
 import { requestShareModal } from "../lib/shareModal";
 import { motion, AnimatePresence } from "framer-motion";
@@ -2220,6 +2220,30 @@ const Index = ({ session, initialAdminOpen, isGuest = false }: { session: Sessio
   // Chat
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [chatBadgeCount, setChatBadgeCount] = useState(0);
+
+  // The Android wrapper owns native pull-to-refresh. Disable it in the
+  // full-screen Flicks/Reels section and whenever the chat panel is open.
+  const androidBridge = typeof window === "undefined"
+    ? undefined
+    : (window as Window & {
+        AndroidBridge?: {
+          setPullToRefresh?: (enabled: boolean) => void;
+          onPullToRefreshComplete?: () => void;
+        };
+      }).AndroidBridge;
+  const hasNativeAndroidRefresh = typeof androidBridge?.setPullToRefresh === "function";
+
+  useLayoutEffect(() => {
+    if (!androidBridge?.setPullToRefresh) return;
+    const path = window.location.pathname.toLowerCase();
+    const restrictedPath = /(?:^|\/)(?:reels|flicks|chat)(?:\/|$)/.test(path);
+    const restrictedFeature =
+      activeFeature.toLowerCase() === "flicks" ||
+      activeFeature.toLowerCase() === "reels";
+    androidBridge.setPullToRefresh(
+      !(isChatOpen || restrictedPath || restrictedFeature),
+    );
+  }, [activeFeature, androidBridge, isChatOpen]);
 
   // Allow other components (e.g. UserProfileModal "Message" button) to open
   // the chat panel via a global event. ChatSystem itself listens for the
@@ -4778,6 +4802,7 @@ const PersonalizationView = React.memo(({
                 <div className="mt-2">
                   <PullToRefresh
                     onRefresh={handleFeedRefresh}
+                    disabled={hasNativeAndroidRefresh}
                     staticFeed
                   >
                     <FameFeed
