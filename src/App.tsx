@@ -392,7 +392,7 @@ const App = () => {
                         <Route path="/privacy"     element={<Privacy />} />
                         <Route path="/terms"       element={<Terms />} />
                         <Route path="/data-info"   element={<DataInfo />} />
-                        <Route path="/survey/:id"  element={<SurveyDetail />} />
+                        <Route path="/survey/:id"  element={<SurveyDetail session={null} />} />
                         <Route path="/invite"      element={<InviteLanding />} />
                         <Route path="*"            element={<LoginScreen />} />
                       </Routes>
@@ -406,7 +406,7 @@ const App = () => {
                         <Route path="/data-info"   element={<DataInfo />} />
                         <Route path="/post/:id"    element={<PostDetail />} />
                         <Route path="/chat-19"     element={<Chat19 />} />
-                        <Route path="/survey/:id"  element={<SurveyDetail />} />
+                        <Route path="/survey/:id"  element={<SurveyDetail session={session} />} />
                         <Route path="/invite"      element={<InviteLanding />} />
                         <Route
                           path="/admin"

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { supabase } from "@/lib/supabaseClient";
+import type { Session } from "@supabase/supabase-js";
 import { resolveMediaUrl } from "@/lib/mediaUrl";
 import { Loader2, BarChart2, Vote, ArrowRight } from "lucide-react";
 import { motion } from "framer-motion";
@@ -18,18 +19,12 @@ interface Survey {
   total_votes?: number;
 }
 
-const SurveyDetail = () => {
+const SurveyDetail = ({ session }: { session: Session | null }) => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [survey, setSurvey] = useState<Survey | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [session, setSession] = useState<any>(undefined);
-
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => setSession(data.session));
-  }, []);
-
   useEffect(() => {
     if (!id) return;
     (async () => {
@@ -77,7 +72,7 @@ const SurveyDetail = () => {
     })();
   }, [id]);
 
-  if (session === undefined || loading) {
+  if (loading) {
     return (
       <div className="min-h-screen bg-[#0d0d1a] flex items-center justify-center">
         <Loader2 size={28} className="text-indigo-400 animate-spin" />

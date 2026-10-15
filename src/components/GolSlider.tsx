@@ -463,7 +463,7 @@ const GolSlider = ({ onFeatureChange, activeFeature, hidden, isAdmin, onRefresh 
             event.stopPropagation();
             setIsOpen(true);
           }}
-          aria-label="मेन्यू खोलने के लिए टच करें"
+          aria-label="मेन्यू के लिए टच करें"
         >
           <span className="gol-menu-callout__text">मेन्यू के लिए टच करें</span>
           <span className="gol-menu-callout__finger" aria-hidden="true">👈</span>

@@ -1316,44 +1316,61 @@ export default function FlicksApp({
 
         void (async () => {
           try {
-            const { data: authData, error: authError } = await supabase.auth.getUser();
-            if (authError) throw authError;
-            const viewerId = authData.user?.id ?? null;
+            const viewerId = currentUserIdProp ?? null;
             if (cancelled || postIds.length === 0) return;
             setCurrentUserId(viewerId);
 
-            const [likedResult, likeRowsResult] = await Promise.all([
-              viewerId
-                ? supabase.from("likes").select("post_id").eq("user_id", viewerId).in("post_id", postIds)
-                : Promise.resolve({ data: [], error: null }),
-              supabase.from("likes").select("post_id").in("post_id", postIds),
-            ]);
+            const { data: engagementRows, error: engagementError } = await supabase.rpc(
+              "get_post_engagement_counts",
+              { p_post_ids: postIds, p_viewer_id: viewerId },
+            );
             if (cancelled) return;
 
-            const likedIds = new Set(
-              (likedResult.data || []).map((row: any) => row.post_id),
+            const engagementByPost = new Map(
+              (Array.isArray(engagementRows) ? engagementRows : []).map((row: any) => [
+                row.post_id,
+                row,
+              ]),
             );
-            const likeCounts = new Map<string, number>();
-            if (likeRowsResult.error) {
+            let likedIds = new Set<string>();
+            if (engagementError) {
               console.warn(
-                "[Flicks] like count fetch failed; using posts.likes_count:",
-                likeRowsResult.error.message,
+                "[Flicks] aggregate counts unavailable; using post counters:",
+                engagementError.message,
               );
-            } else {
-              (likeRowsResult.data || []).forEach((row: any) => {
-                likeCounts.set(row.post_id, (likeCounts.get(row.post_id) || 0) + 1);
-              });
+              if (viewerId) {
+                const { data: likedRows, error: likedError } = await supabase
+                  .from("likes")
+                  .select("post_id")
+                  .eq("user_id", viewerId)
+                  .in("post_id", postIds)
+                  .limit(postIds.length);
+                if (likedError) {
+                  console.warn("[Flicks] viewer like state fetch failed:", likedError.message);
+                } else {
+                  likedIds = new Set((likedRows || []).map((row: any) => row.post_id));
+                }
+              }
             }
 
             setFlicks((previous) => {
               const refreshed = previous.map((item) => {
                 if (!postIds.includes(item._raw_id)) return item;
+                const engagement = engagementByPost.get(item._raw_id) as any;
                 return {
                   ...item,
-                  liked_by_me: likedIds.has(item._raw_id),
-                  likes_count: likeRowsResult.error
+                  liked_by_me: engagementError
+                    ? likedIds.has(item._raw_id)
+                    : Boolean(engagement?.liked_by_me),
+                  likes_count: engagementError
                     ? item.likes_count
-                    : likeCounts.get(item._raw_id) || 0,
+                    : Number(engagement?.likes_count) || 0,
+                  comments_count: engagementError
+                    ? item.comments_count
+                    : Number(engagement?.comments_count) || 0,
+                  shares_count: engagementError
+                    ? item.shares_count
+                    : Number(engagement?.shares_count) || 0,
                 };
               });
               dataCache.setCache("flicksFeed", {

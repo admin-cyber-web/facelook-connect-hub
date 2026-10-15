@@ -7735,7 +7735,7 @@ const FameFeed = ({
           </button>
           <AnimatePresence>
             {showMarketplacePanel && (
-              <AdminMarketplacePanel onClose={() => setShowMarketplacePanel(false)} />
+              <AdminMarketplacePanel currentUserId={currentUserIdProp ?? null} onClose={() => setShowMarketplacePanel(false)} />
             )}
           </AnimatePresence>
         </>
