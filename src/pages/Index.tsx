@@ -2237,14 +2237,15 @@ const Index = ({ session, initialAdminOpen, isGuest = false }: { session: Sessio
           setFameFeedEnabled?: (enabled: boolean) => void;
         };
       }).AndroidScroll;
-  const hasNativeAndroidRefresh = typeof androidBridge?.setPullToRefresh === "function";
-
   useLayoutEffect(() => {
     const path = window.location.pathname.replace(/\/+$/, "") || "/";
     const isFeedPath = path === "/" || path === "/feed";
     const isFameFeed = isFeedPath && activeFeature === "Fame" && !isChatOpen;
 
-    androidBridge?.setPullToRefresh?.(isFameFeed);
+    // Let the React PullToRefresh component own both the indicator and the
+    // refresh action. A native-only bridge can show a spinner without calling
+    // the Fame Feed loader back into this WebView.
+    androidBridge?.setPullToRefresh?.(false);
     androidScrollBridge?.setFameFeedEnabled?.(isFameFeed);
   }, [activeFeature, androidBridge, androidScrollBridge, isChatOpen]);
 
@@ -4829,7 +4830,6 @@ const PersonalizationView = React.memo(({
                 <div className="mt-2">
                   <PullToRefresh
                     onRefresh={handleFeedRefresh}
-                    disabled={hasNativeAndroidRefresh}
                     staticFeed
                   >
                     <FameFeed

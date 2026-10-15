@@ -196,14 +196,13 @@ export default function PullToRefresh({
       paintPull(damped);
     };
 
-    const onTouchEnd = async () => {
+    const finishGesture = async () => {
       if (startPoint.current == null) return;
       const pullDistance = pullDistanceRef.current;
       const shouldRefresh =
         gestureState.current === "pulling" &&
         pullDistance >= threshold &&
         startedAtTopRef.current &&
-        isAtTop() &&
         !refreshingRef.current;
       startPoint.current = null;
       startedAtTopRef.current = false;
@@ -228,9 +227,10 @@ export default function PullToRefresh({
     };
 
     const onTouchCancel = () => {
-      if (startPoint.current !== null || pullYRef.current > 0) {
-        resetPull();
-      }
+      // Android WebView may emit touchcancel after JS claims a downward pull.
+      // Treat a completed pull the same as touchend so the visible refresh
+      // indicator can never be left without running its refresh action.
+      void finishGesture();
     };
 
     // Keep touchstart passive; touchmove becomes non-passive so an accepted
@@ -241,7 +241,7 @@ export default function PullToRefresh({
     el.addEventListener("touchmove", onTouchMove, {
       passive: false,
     });
-    el.addEventListener("touchend", onTouchEnd, {
+    el.addEventListener("touchend", finishGesture, {
       passive: true,
     });
     el.addEventListener("touchcancel", onTouchCancel, {
@@ -255,7 +255,7 @@ export default function PullToRefresh({
       }
       el.removeEventListener("touchstart", onTouchStart);
       el.removeEventListener("touchmove", onTouchMove);
-      el.removeEventListener("touchend", onTouchEnd);
+      el.removeEventListener("touchend", finishGesture);
       el.removeEventListener("touchcancel", onTouchCancel);
     };
   }, [threshold, disabled, staticFeed]);
