@@ -1,4 +1,5 @@
 import {
+  ArrowLeft,
   Bookmark,
   CalendarDays,
   Heart,
@@ -32,6 +33,7 @@ export type SavedItemsViewProps = {
   onLoadMore: () => void;
   onOpenPost: (postId: string) => void;
   onUnsave: (postId: string) => void;
+  onBack: () => void;
 };
 
 function initials(name: string) {
@@ -308,6 +310,7 @@ export default function SavedItemsView({
   onLoadMore,
   onOpenPost,
   onUnsave,
+  onBack,
 }: SavedItemsViewProps) {
   const showInitialLoading = loading && posts.length === 0;
 
@@ -324,6 +327,16 @@ export default function SavedItemsView({
             className="pointer-events-none absolute -right-1 top-10 h-32 w-32 rounded-full border border-[#d9dda9]/80 sm:right-20 sm:top-12 sm:h-48 sm:w-48"
           />
           <div className="relative max-w-2xl">
+            <button
+              type="button"
+              onClick={onBack}
+              aria-label="Go back to the previous page"
+              className="mb-5 inline-flex min-h-10 items-center gap-2 rounded-full border border-[#d9dda9] bg-white/80 px-4 text-[12px] font-bold text-[#4d5530] shadow-sm transition-colors hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9fa653] focus-visible:ring-offset-2"
+              data-testid="button-saved-items-back"
+            >
+              <ArrowLeft size={16} aria-hidden="true" />
+              Back
+            </button>
             <div className="inline-flex items-center gap-2 rounded-full border border-[#dfe2b6] bg-[#f8f9e9]/75 px-3 py-1.5 text-[9px] font-extrabold uppercase tracking-[0.17em] text-[#717747]">
               <Bookmark size={11} aria-hidden="true" />
               Your collection
