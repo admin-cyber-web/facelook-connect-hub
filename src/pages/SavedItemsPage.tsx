@@ -46,6 +46,7 @@ export default function SavedItemsPage({
   currentUserId: string;
 }) {
   const navigate = useNavigate();
+  const handleBack = useCallback(() => navigate(-1), [navigate]);
   const [posts, setPosts] = useState<SavedPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -181,6 +182,7 @@ export default function SavedItemsPage({
       onLoadMore={() => void loadPage(offset, true)}
       onOpenPost={(postId) => navigate(`/post/${encodeURIComponent(postId)}`)}
       onUnsave={handleUnsave}
+      onBack={handleBack}
     />
   );
 }
