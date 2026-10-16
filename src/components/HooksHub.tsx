@@ -334,8 +334,8 @@ const HookModal = ({ pageId, pageName, userId, onClose }:
         style={{ maxHeight: "88vh", display: "flex", flexDirection: "column" }}>
         <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-gray-100">
           <div>
-            <div className="flex items-center gap-2"><Anchor size={18} className="text-blue-600" /><h2 className="font-black text-gray-800 text-[16px]">Hook Friends</h2></div>
-            <p className="text-[11px] text-gray-400 mt-0.5">Invite karo — <span className="font-bold text-blue-600">{pageName}</span></p>
+            <div className="flex items-center gap-2"><Anchor size={18} className="text-blue-600" /><h2 className="font-black text-gray-800 text-[16px]">Invite Friends</h2></div>
+            <p className="text-[11px] text-gray-400 mt-0.5">Invite friends to <span className="font-bold text-blue-600">{pageName}</span></p>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full text-gray-400"><X size={20} /></button>
         </div>
@@ -2113,8 +2113,8 @@ const HooksHub = ({
                 <Anchor size={26} className="text-blue-400" />
               </div>
               <div className="text-center">
-                <p className="font-black text-gray-700 text-[14px]">Apna pehla Page banao!</p>
-                <p className="text-[12px] text-gray-400 mt-1">Hook ke zariye friends ko invite karo aur viral ho jao.</p>
+                <p className="font-black text-gray-700 text-[14px]">Create your first Page.</p>
+                <p className="text-[12px] text-gray-400 mt-1">Invite friends to your page and grow your audience.</p>
               </div>
               <motion.button whileTap={{ scale: 0.96 }} onClick={() => setShowCreate(true)}
                 className="px-5 py-2.5 rounded-xl text-white text-[13px] font-black"

@@ -399,12 +399,12 @@ const CreatePost = ({
 
       if (surpriseEnabled) {
         if (!user?.id || !surpriseTarget) {
-          toast.error("Surprise Tag ke liye apne friends mein se kisi ko choose karo.");
+          toast.error("Select a friend for the Surprise Tag.");
           setLoading(false);
           return;
         }
         if (!surpriseCustomMessage.trim()) {
-          toast.error("Surprise message likho.");
+          toast.error("Enter a message for your Surprise Tag.");
           setLoading(false);
           return;
         }
@@ -420,7 +420,7 @@ const CreatePost = ({
           )
           .limit(1);
         if (friendshipError || !friendshipRows?.length) {
-          toast.error("Surprise Tag sirf connected friends ko bhej sakte ho.");
+          toast.error("Surprise Tags are available only for connected friends.");
           setLoading(false);
           return;
         }

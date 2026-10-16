@@ -4629,11 +4629,11 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                           fetchContacts(),
                                         ]);
                                         setMsgMenuId(null);
-                                        toast.success(`${c.full_name} blocked`);
+                                        toast.success("Friend removed.");
                                       }}
                                       className="flex items-center gap-2 w-full px-4 py-3 text-sm font-bold text-red-400 hover:bg-red-500/10"
                                     >
-                                      <UserX size={14} /> Block (Kick)
+                                      <UserX size={14} /> Unfriend
                                     </button>
                                   </motion.div>
                                 )}
@@ -4996,7 +4996,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                       <p className={`text-base font-black ${T.text1}`}>
                         {chatSearch
                           ? "No messages found"
-                          : `Hi ${selectedUser?.full_name?.split(" ")[0] || "there"}, kaise ho?`}
+                          : `Hello ${selectedUser?.full_name?.split(" ")[0] || "there"}. It is good to connect with you.`}
                       </p>
                       <p className={`text-xs ${T.text3}`}>
                         {chatSearch ? "" : "Pehla message bhejo!"}

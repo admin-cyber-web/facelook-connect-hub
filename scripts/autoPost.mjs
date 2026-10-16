@@ -116,45 +116,45 @@ function triggerSitemapUpdate() {
 // ══════════════════════════════════════════════════════════════════════════════
 const POST_CATEGORIES = [
   {
-    name: "Desi Comedy / Jokes",
-    vibe: "shuddh desi maza, relatable everyday Indian group humor, chai-time banter energy, light — NO double meaning",
+    name: "Everyday Humor / Social Observations",
+    vibe: "observational humor about everyday life and community; inclusive, respectful, and suitable for a broad audience",
     endings: [
-      "Tag karo apne woh kamine dost jisko ye bilkul fit baithe 👇😂",
-      "Aisa kuch hua hai tumhare saath? Neeche batao 😂👇",
-      "Agree ho toh ek solid Like thok do bhai ❤️👇",
+      "Tag a friend who may relate to this. 👇",
+      "Has this happened to you? Share your experience below. 👇",
+      "If you agree, leave a like. ❤️👇",
     ],
   },
   {
-    name: "UP-Bihar Local / Culture",
-    vibe: "Purvanchal mitti ka pyaar, litti-chokha warmth, mild Bhojpuri/Maithili flavor mixed naturally in Hindi, gaon ki yaad wala feel",
+    name: "UP-Bihar Regional Culture",
+    vibe: "regional culture, local cuisine, and community traditions presented with warmth and respect",
     endings: [
-      "UP-Bihar ka koi hai yahan? Comment mein 'Jai Ho' likho 🙏👇",
-      "Gaon walon ek like thok do bhai ❤️🔥",
-      "Tumhara gaon kaun sa hai? Neeche batao 👇",
+      "Are you from UP or Bihar? Share a local greeting in the comments. 🙏👇",
+      "Share this with someone who appreciates local culture. ❤️",
+      "Which town are you from? Tell us in the comments. 👇",
     ],
   },
   {
-    name: "Deep Love / Heart-touching Shayari",
-    vibe: "raw real emotions, modern relationships, dil ko chhune wali baat — poetic but spoken naturally like a real person",
+    name: "Love and Relationships",
+    vibe: "sincere, thoughtful, and poetic reflections on modern relationships",
     endings: [
-      "Kisi khaas insaan ko tag karo jo tumhara sab samjhe 💕👇",
-      "Agar yeh dil ko chua ho toh ek ❤️ zaroor maaro 👇",
+      "Tag someone who understands how you feel. 💕👇",
+      "If this resonated with you, leave a heart. 👇",
     ],
   },
   {
-    name: "Latest Trending / News Buzz",
-    vibe: "sensational but factual, national buzz energy, aaj ki taza khabar feel, WhatsApp forward style but verified",
+    name: "Current Affairs and News",
+    vibe: "timely, factual, and clearly written; avoid sensational claims and verify details",
     endings: [
-      "Aapka kya maanna hai ispe? Comment mein batao 👇",
-      "Share karo taaki sab jaane 📢🔥",
+      "What is your perspective? Share it in the comments. 👇",
+      "Share this update to keep others informed. 📢",
     ],
   },
   {
-    name: "Solid Motivation",
-    vibe: "heavy real-talk hustle energy, grounded desi wisdom, street-smart not corporate",
+    name: "Motivation",
+    vibe: "practical encouragement and grounded advice in polished, respectful language",
     endings: [
-      "Save karo aur roz subah padho 💪🔥",
-      "Agree ho toh ek 🔥 maaro comments mein!",
+      "Save this reminder to revisit it each morning. 💪",
+      "If you agree, share your perspective in the comments.",
     ],
   },
 ];
@@ -171,17 +171,17 @@ async function transformNewsWithGemini(article) {
   const cat = getRotatingCategory();
   const ending = cat.endings[Math.floor(Math.random() * cat.endings.length)];
 
-  const contentPrompt = `You are a real Indian person writing a viral Hinglish post on Facebook for "Flicks India" — a desi social app.
+  const contentPrompt = `You are a social media editor writing a polished Hinglish post for "Flicks India", an Indian social platform.
 Style: ${cat.name}
 Vibe: ${cat.vibe}
 
-Task: Rewrite this news as an authentic Indian Facebook post. End EXACTLY with: "${ending}"
-No markdown, max 120 words. No banned words like "bhai dekho", "miss mat kro".
+Task: Rewrite this news as a clear, respectful social post. End EXACTLY with: "${ending}"
+Avoid slang, insults, and informal forms of address. No markdown, maximum 120 words.
 
 News Title: ${article.title}
 OUTPUT: Only the post text.`;
 
-  const titlePrompt = `Write a HIGH-CTR Indian headline for this news in max 58 characters. Hinglish, starts with ONE emoji. No "breaking".
+  const titlePrompt = `Write a concise, factual Indian headline for this news in clear English, maximum 58 characters. Do not use clickbait or begin with an emoji.
 News: ${article.title}
 OUTPUT: Only the title.`;
 
