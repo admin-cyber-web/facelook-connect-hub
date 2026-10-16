@@ -751,6 +751,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   userEmail = "",
   onLogout,
   onUnreadCountChange,
+  onReady,
 }) => {
   const isAdmin = isAdminEmail(userEmail);
   const { openProfile } = useProfileViewer();

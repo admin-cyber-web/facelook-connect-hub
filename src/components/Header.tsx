@@ -42,6 +42,7 @@ import { useNavigate } from "react-router-dom";
 import { useProfileViewer } from "@/context/ProfileViewerContext";
 import { useOnlineUsers } from "@/context/OnlineUsersContext";
 import ActiveStatusAvatar from "./ActiveStatusAvatar";
+import SavePostButton from "./SavePostButton";
 import {
   canViewPrivateProfile,
   searchVisibleProfiles,
@@ -3264,6 +3265,11 @@ const Header = ({
                                   ? timeAgo(post.created_at)
                                   : ""}
                               </span>
+                              <SavePostButton
+                                postId={String(post.id)}
+                                onToggled={() => openSavedItems()}
+                                className="ml-auto !text-[#64712b] hover:!bg-[#edf2be]"
+                              />
                             </div>
                           </div>
                         ))}
