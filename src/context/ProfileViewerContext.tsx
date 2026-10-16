@@ -1,9 +1,9 @@
 import React, { createContext, useContext, useState, useCallback, lazy, Suspense } from "react";
-import { isAdminEmail } from "../lib/adminConfig";
 
-// Lazy import breaks the circular dependency:
-// UserProfileModal → useProfileViewer → ProfileViewerContext → UserProfileModal
-const UserProfileModal = lazy(() => import("../components/UserProfileModal"));
+// Keep avatar taps lightweight and separate from the full timeline route.
+const QuickProfileDetailsModal = lazy(
+  () => import("../components/QuickProfileDetailsModal"),
+);
 
 interface ProfileViewerCtx {
   openProfile: (userId: string) => void;
@@ -23,7 +23,6 @@ export const ProfileViewerProvider = ({
   currentUserEmail?: string;
 }) => {
   const [viewingId, setViewingId] = useState<string | null>(null);
-  const isAdmin = isAdminEmail(currentUserEmail || "");
 
   const openProfile = useCallback((userId: string) => {
     if (userId && userId !== "") setViewingId(userId);
@@ -34,10 +33,10 @@ export const ProfileViewerProvider = ({
       {children}
       <Suspense fallback={null}>
         {viewingId && (
-          <UserProfileModal
+          <QuickProfileDetailsModal
+            key={viewingId}
             userId={viewingId}
             currentUserId={currentUserId}
-            isAdmin={isAdmin}
             onClose={() => setViewingId(null)}
           />
         )}

@@ -3105,13 +3105,16 @@ const Header = ({
                                 border: "1px solid rgba(255,255,255,0.07)",
                               }}
                             >
-                              {/* Avatar */}
-                              <div
+                              {/* Avatar → opens this friend's full timeline */}
+                              <button
+                                type="button"
+                                onClick={() => navigate(`/profile/${encodeURIComponent(f.id)}`)}
                                 className="w-11 h-11 rounded-xl overflow-hidden shrink-0"
                                 style={{
                                   background:
                                     "linear-gradient(135deg, #1d4ed8, #4f46e5)",
                                 }}
+                                aria-label={`Open ${f.full_name}'s timeline`}
                               >
                                 {f.avatar_url ? (
                                   <img
@@ -3125,17 +3128,22 @@ const Header = ({
                                     {(f.full_name || "?")[0].toUpperCase()}
                                   </div>
                                 )}
-                              </div>
+                              </button>
 
-                              {/* Name */}
-                              <div className="flex-1 min-w-0">
-                                <p className="text-white font-bold text-[14px] truncate">
+                              {/* Name → opens this friend's full timeline */}
+                              <button
+                                type="button"
+                                onClick={() => navigate(`/profile/${encodeURIComponent(f.id)}`)}
+                                className="flex-1 min-w-0 text-left"
+                                aria-label={`Open ${f.full_name}'s timeline`}
+                              >
+                                <span className="block text-white font-bold text-[14px] truncate">
                                   {f.full_name}
-                                </p>
-                                <p className="text-emerald-400/60 text-[10px] font-semibold">
+                                </span>
+                                <span className="block text-emerald-400/60 text-[10px] font-semibold">
                                   ✓ Friend
-                                </p>
-                              </div>
+                                </span>
+                              </button>
 
                               {/* ── UNFRIEND ACTION ── */}
                               <motion.button
