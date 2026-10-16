@@ -121,6 +121,11 @@ const NOTIF_META: Record<
     color: "bg-gray-500/20 text-gray-400",
     label: "shared a new post.",
   },
+  wall_post: {
+    icon: <FileText size={13} />,
+    color: "bg-fuchsia-500/20 text-fuchsia-300",
+    label: "posted on your timeline.",
+  },
   mention: {
     icon: <AtSign size={13} />,
     color: "bg-orange-500/20 text-orange-400",
@@ -1535,7 +1540,7 @@ const Header = ({
   // Post-type notifications whose entity_id refers to a row in the `posts` table
   const POST_MEDIA_TYPES = new Set([
     "like", "like_flick", "comment", "reply", "mention", "post_mention",
-    "post_pin", "new_post", "share", "hook_share",
+    "post_pin", "new_post", "wall_post", "share", "hook_share",
   ]);
 
   const fetchNotifications = useCallback(async () => {
@@ -2088,7 +2093,7 @@ const Header = ({
       payload.reelId,
     );
     const postTypes = [
-      "like", "like_flick", "comment", "mention", "new_post",
+      "like", "like_flick", "comment", "mention", "new_post", "wall_post",
       "magnet_link", "magnet_accepted", "magnet",
       "share", "reply", "post_mention", "post_pin",
       "comment_report",
