@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { memGet, memSet } from "../lib/memCache";
 import { useOnlineUsers } from "../context/OnlineUsersContext";
 import ActiveStatusAvatar from "./ActiveStatusAvatar";
+import FriendWall from "./FriendWall";
 
 interface Props {
   userId: string;
@@ -336,7 +337,7 @@ const UserProfileModal = ({ userId, currentUserId, isAdmin: isAdminProp = false,
     toast.success("Report submitted. Admin team will review it.");
   };
 
-  const handleUnfriend = async (friend: Friend) => {
+  const handleRemoveFriendFromList = async (friend: Friend) => {
     if (!friend.friendshipId || unfriendingId) return;
     setUnfriendingId(friend.id);
 
@@ -630,6 +631,15 @@ const UserProfileModal = ({ userId, currentUserId, isAdmin: isAdminProp = false,
                   </>
                 )}
 
+                {!isBlocked && (
+                  <FriendWall
+                    profileId={profile.id}
+                    friendName={profile.full_name || "Your friend"}
+                    canPost={isOwnProfile || friendStatus === "accepted"}
+                    currentUserId={currentUserId}
+                  />
+                )}
+
                 {/* ── Friends list ── */}
                 {isOwnProfile ? (
                   /* ── OWN PROFILE: Friends list ── */
@@ -690,7 +700,7 @@ const UserProfileModal = ({ userId, currentUserId, isAdmin: isAdminProp = false,
                               <motion.button
                                 whileTap={{ scale: 0.97 }}
                                 whileHover={{ scale: 1.02 }}
-                                onClick={() => handleUnfriend(f)}
+                                onClick={() => handleRemoveFriendFromList(f)}
                                 disabled={!!unfriendingId}
                                  className="flex shrink-0 items-center gap-1.5 rounded-xl border border-red-400/25 bg-red-500/[0.06] px-3 py-2 text-[12px] font-semibold text-red-200 transition-colors hover:bg-red-500/15 disabled:cursor-not-allowed disabled:opacity-40"
                               >

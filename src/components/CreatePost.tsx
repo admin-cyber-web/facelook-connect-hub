@@ -40,6 +40,8 @@ interface CreatePostProps {
   userProfile: any;
   initialFile?: File | null;
   onReelSelected?: (file: File) => void;
+  wallOwnerId?: string;
+  wallOwnerName?: string;
 }
 
 interface ComposerMusicTrack {
@@ -55,6 +57,8 @@ const CreatePost = ({
   userProfile,
   initialFile,
   onReelSelected,
+  wallOwnerId,
+  wallOwnerName,
 }: CreatePostProps) => {
   const onlineUserIds = useOnlineUsers();
   const [content, setContent] = useState("");
@@ -573,13 +577,14 @@ const CreatePost = ({
 
       const postPayload = {
         author_id: user?.id || userProfile?.id,
+        ...(wallOwnerId ? { wall_owner_id: wallOwnerId } : {}),
         content: cleanContent,
         media_url: finalMediaUrl,
         image_urls: imageUrls.length ? imageUrls : null,
         author: authorName,
         type: mediaType,
         post_type: "fame",
-        visibility,
+        visibility: wallOwnerId ? "public" : visibility,
         is_admin_post: user?.email === ADMIN_EMAIL,
         meta_title: seo.meta_title,
         meta_description: seo.meta_description,
@@ -659,6 +664,11 @@ const CreatePost = ({
           insertError.message?.toLowerCase().includes("schema cache");
 
         if (isColumnMismatch) {
+          if (wallOwnerId) {
+            throw new Error(
+              "Timeline posting is not ready yet. Apply the friend-wall database migration, then try again.",
+            );
+          }
           console.warn(
             "[CreatePost] Column mismatch — retrying with safe payload. Error:",
             insertError.message,
@@ -668,6 +678,7 @@ const CreatePost = ({
           // Minimal safe payload — only columns guaranteed to exist
           const safePayload = {
             author_id: postPayload.author_id,
+            ...(wallOwnerId ? { wall_owner_id: wallOwnerId } : {}),
             content:   postPayload.content,
             media_url: postPayload.media_url,
             author:    postPayload.author,
@@ -697,6 +708,7 @@ const CreatePost = ({
           ...(inserted || {}),
           id: inserted?.id ?? `local-${Date.now()}`,
           author_id: inserted?.author_id ?? postPayload.author_id,
+           wall_owner_id: inserted?.wall_owner_id ?? wallOwnerId ?? null,
           author: inserted?.author ?? authorName,
           author_profile: {
             full_name: authorName,
@@ -800,11 +812,11 @@ const CreatePost = ({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-[998] bg-slate-950/55 backdrop-blur-[6px]"
+            className={`fixed inset-0 ${wallOwnerId ? "z-[9900]" : "z-[998]"} bg-slate-950/55 backdrop-blur-[6px]`}
             onClick={onClose}
           />
 
-          <div className="fixed inset-0 z-[999] flex items-start justify-center pointer-events-none sm:items-center">
+          <div className={`fixed inset-0 ${wallOwnerId ? "z-[9901]" : "z-[999]"} flex items-start justify-center pointer-events-none sm:items-center`}>
             <motion.div
               initial={{ y: -12, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
@@ -834,7 +846,7 @@ const CreatePost = ({
                   <ArrowLeft size={22} strokeWidth={2.25} />
                 </button>
                 <h1 className="pointer-events-none absolute left-1/2 -translate-x-1/2 whitespace-nowrap text-[22px] font-black tracking-[-0.03em] text-[#172554]">
-                  Create a Post
+                  {wallOwnerName ? `Post on ${wallOwnerName}'s Timeline` : "Create a Post"}
                 </h1>
                 {Boolean(content || files.length) ? (
                   <button
@@ -868,7 +880,9 @@ const CreatePost = ({
                         {userProfile?.full_name || "Your post"}
                       </p>
                       <p className="mt-0.5 text-xs font-medium text-slate-500">
-                        Write something worth sharing
+                        {wallOwnerName
+                          ? `Write something on ${wallOwnerName}'s timeline...`
+                          : "Write something worth sharing"}
                       </p>
                     </div>
 
@@ -940,7 +954,11 @@ const CreatePost = ({
                         value={content}
                         onChange={setContent}
                         candidates={candidates}
-                        placeholder="Share your vibe today..."
+                        placeholder={
+                          wallOwnerName
+                            ? `Write something on ${wallOwnerName}'s timeline...`
+                            : "Share your vibe today..."
+                        }
                         className="relative z-[1] box-border h-[min(38dvh,24rem)] min-h-[12rem] max-h-[42dvh] w-full resize-none overflow-y-auto border-0 bg-transparent py-2.5 pl-11 pr-4 text-[16px] font-medium leading-7 text-[#172554] placeholder:text-slate-400 outline-none pointer-events-auto"
                         testId="input-post-content"
                       />
@@ -970,7 +988,7 @@ const CreatePost = ({
                     </label>
                   </div>
 
-                  <div className="flex gap-2.5 sm:gap-3">
+                  {!wallOwnerId && <div className="flex gap-2.5 sm:gap-3">
                     <label className="relative flex min-w-0 flex-1 items-center gap-2 rounded-full border border-fuchsia-200 bg-gradient-to-r from-fuchsia-50 to-violet-50 px-3 py-2.5 shadow-[0_5px_16px_rgba(168,85,247,.09)] focus-within:ring-4 focus-within:ring-fuchsia-100">
                       <Smile size={21} className="shrink-0 text-violet-600" />
                       <select
@@ -1005,7 +1023,7 @@ const CreatePost = ({
                       </select>
                       <ChevronDown size={16} className="pointer-events-none shrink-0 text-blue-700" />
                     </label>
-                  </div>
+                  </div>}
 
                   <AnimatePresence initial={false}>
                     {pollEnabled && (
@@ -1413,7 +1431,9 @@ const CreatePost = ({
                       ) : (
                         <>
                           <Send size={18} strokeWidth={2.3} />
-                          <span className="truncate">{pollEnabled ? "Publish Poll" : "Post"}</span>
+                          <span className="truncate">
+                            {pollEnabled ? "Publish Poll" : wallOwnerId ? "Post to Wall" : "Post"}
+                          </span>
                         </>
                       )}
                     </button>
