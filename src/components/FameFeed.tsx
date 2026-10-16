@@ -30,6 +30,7 @@ import type { LocalProfile } from "../lib/recommendationEngine";
 import { requestShareModal } from "../lib/shareModal";
 import { RichCaption } from "./RichCaption";
 import AutoPlayMutedVideo from "./AutoPlayMutedVideo";
+import SavePostButton from "./SavePostButton";
 import { maskProfanity, sanitizeText } from "../lib/profanityFilter";
 import { resolveMediaUrl } from "../lib/mediaUrl";
 import { getReelSettings } from "../lib/reelSettings";
@@ -2565,6 +2566,7 @@ const SingleReelBlock = ({
           <Share2 size={23} />
           <span className="mt-1 text-[10px] font-bold">Share</span>
         </button>
+        <SavePostButton postId={String(post.id)} />
         <div className="reel-side-magnet">
           <MagnetButton postId={post.id} postType="post" postOwnerId={post.author_id || ""} currentUserId={currentUserId} dark label="Magnet" />
         </div>
@@ -6198,10 +6200,12 @@ const FameFeed = ({
               }
             />
 
+            <SavePostButton postId={String(post.id)} className="ml-auto" />
+
             {/* Share */}
             <button
               onClick={(e) => handleShare(post, e)}
-              className="flex items-center gap-1.5 group ml-auto"
+              className="flex items-center gap-1.5 group"
             >
               <Share2
                 size={19}

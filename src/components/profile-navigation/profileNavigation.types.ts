@@ -26,12 +26,29 @@ export type ProfileNavigationMedia = {
   created_at?: string | null;
 };
 
+export type ProfileNavigationPost = {
+  id: string;
+  content: string | null;
+  media_url: string | null;
+  image_url: string | null;
+  image_urls: string[] | null;
+  cover_url: string | null;
+  media_type: string | null;
+  type: string | null;
+  created_at: string;
+  likes_count: number | null;
+  comments_count: number | null;
+  shares_count: number | null;
+};
+
 export type ProfileViewState = "loading" | "ready" | "error";
 
 export type FullProfilePageProps = {
   profile: ProfileNavigationProfile | null;
   friendWall: ReactNode;
   media: ProfileNavigationMedia[];
+  hooks: ProfileNavigationPost[];
+  imagePosts: ProfileNavigationPost[];
   friends: ProfileNavigationFriend[];
   isConnected: boolean;
   canViewProfile?: boolean;

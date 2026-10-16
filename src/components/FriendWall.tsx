@@ -45,6 +45,8 @@ type Props = {
   friendName: string;
   canPost: boolean;
   currentUserId: string;
+  isOwnProfile?: boolean;
+  onCreateHook?: () => void;
 };
 
 export default function FriendWall({
@@ -52,6 +54,8 @@ export default function FriendWall({
   friendName,
   canPost,
   currentUserId,
+  isOwnProfile = false,
+  onCreateHook,
 }: Props) {
   const [posts, setPosts] = useState<FriendWallPostView[]>([]);
   const [loading, setLoading] = useState(true);
@@ -388,6 +392,7 @@ export default function FriendWall({
       <FriendWallPresentation
         friendName={friendName}
         canPost={canPost}
+        isOwnProfile={isOwnProfile}
         posts={posts}
         loading={loading}
         error={error}
@@ -396,6 +401,7 @@ export default function FriendWall({
         commentBusy={commentBusy}
         likeBusyPostId={likeBusyPostId}
         onOpenComposer={() => setComposerOpen(true)}
+        onCreateHook={onCreateHook}
         onLike={(postId) => void handleLike(postId)}
         onShare={(postId) => void handleShare(postId)}
         onToggleComments={(postId) => void handleToggleComments(postId)}

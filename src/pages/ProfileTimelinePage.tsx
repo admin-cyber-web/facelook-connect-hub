@@ -7,11 +7,13 @@ import {
   FullProfilePage,
   type ProfileNavigationFriend,
   type ProfileNavigationMedia,
+  type ProfileNavigationPost,
   type ProfileNavigationProfile,
   type ProfileViewState,
 } from "@/components/profile-navigation";
 
 const ChatSystem = lazy(() => import("@/components/ChatSystem"));
+const ReelStudio = lazy(() => import("@/components/ReelStudio"));
 
 const MEDIA_PAGE_SIZE = 24;
 const MEDIA_POST_FILTER =
@@ -32,6 +34,7 @@ interface FriendshipRow {
 
 interface MediaPostRow {
   id: string;
+  content: string | null;
   media_url: string | null;
   image_url: string | null;
   image_urls: string[] | null;
@@ -39,6 +42,9 @@ interface MediaPostRow {
   media_type: string | null;
   type: string | null;
   created_at: string;
+  likes_count: number | null;
+  comments_count: number | null;
+  shares_count: number | null;
 }
 
 interface FriendshipStatusRow {
@@ -88,6 +94,32 @@ function toMediaItems(rows: MediaPostRow[]): ProfileNavigationMedia[] {
   return items;
 }
 
+function isVideoTimelinePost(post: ProfileNavigationPost) {
+  const sourceType = `${post.media_type || ""} ${post.type || ""}`.toLowerCase();
+  const videoUrl = post.media_url || "";
+  return (
+    sourceType.includes("video") ||
+    sourceType.includes("reel") ||
+    sourceType.includes("hook") ||
+    sourceType.includes("youtube") ||
+    /\.(mp4|m4v|mov|webm)(?:[?#]|$)/i.test(videoUrl) ||
+    videoUrl.startsWith("data:video/")
+  );
+}
+
+function isImageTimelinePost(post: ProfileNavigationPost) {
+  const sourceType = `${post.media_type || ""} ${post.type || ""}`.toLowerCase();
+  const mediaUrl = post.media_url || "";
+  return (
+    !isVideoTimelinePost(post) &&
+    (Boolean(post.image_url) ||
+      Boolean(post.image_urls?.some(Boolean)) ||
+      sourceType.includes("image") ||
+      sourceType.includes("photo") ||
+      /\.(png|jpe?g|gif|webp|avif)(?:[?#]|$)/i.test(mediaUrl))
+  );
+}
+
 function dispatchOpenChat(profile: ProfileNavigationProfile) {
   window.dispatchEvent(
     new CustomEvent("flicks:open-chat", {
@@ -109,6 +141,7 @@ export default function ProfileTimelinePage({
   const [profile, setProfile] = useState<ProfileNavigationProfile | null>(null);
   const [friends, setFriends] = useState<ProfileNavigationFriend[]>([]);
   const [media, setMedia] = useState<ProfileNavigationMedia[]>([]);
+  const [timelinePosts, setTimelinePosts] = useState<ProfileNavigationPost[]>([]);
   const [isConnected, setIsConnected] = useState(false);
   const [canViewProfile, setCanViewProfile] = useState(false);
   const [viewState, setViewState] = useState<ProfileViewState>("loading");
@@ -124,12 +157,13 @@ export default function ProfileTimelinePage({
   const chatSystemReady = useRef(false);
   const [chatSystemMounted, setChatSystemMounted] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
+  const [reelStudioOpen, setReelStudioOpen] = useState(false);
 
   const loadMediaPage = useCallback(async (targetUserId: string, start: number) => {
     return supabase
       .from("posts")
       .select(
-        "id,media_url,image_url,image_urls,cover_url,media_type,type,created_at",
+        "id,content,media_url,image_url,image_urls,cover_url,media_type,type,created_at,likes_count,comments_count,shares_count",
         { count: "exact" },
       )
       .eq("author_id", targetUserId)
@@ -145,6 +179,7 @@ export default function ProfileTimelinePage({
     setProfile(null);
     setFriends([]);
     setMedia([]);
+    setTimelinePosts([]);
     setIsConnected(false);
     setCanViewProfile(false);
     setViewState("loading");
@@ -274,6 +309,7 @@ export default function ProfileTimelinePage({
       } else {
         const mediaRows = (mediaResult.data ?? []) as MediaPostRow[];
         setMedia(toMediaItems(mediaRows));
+        setTimelinePosts(mediaRows);
         setMediaPostCount(mediaResult.count ?? mediaRows.length);
         setMediaOffset(mediaRows.length);
         setHasMoreMedia(
@@ -300,6 +336,9 @@ export default function ProfileTimelinePage({
     setReloadVersion((version) => version + 1);
   }, []);
 
+  const openReelStudio = useCallback(() => setReelStudioOpen(true), []);
+  const closeReelStudio = useCallback(() => setReelStudioOpen(false), []);
+
   const loadMoreMedia = useCallback(async () => {
     if (!userId || loadingMoreRef.current || mediaOffset >= mediaPostCount) return;
     loadingMoreRef.current = true;
@@ -317,6 +356,10 @@ export default function ProfileTimelinePage({
 
       const rows = (data ?? []) as MediaPostRow[];
       const nextItems = toMediaItems(rows);
+      setTimelinePosts((current) => {
+        const seen = new Set(current.map((item) => item.id));
+        return [...current, ...rows.filter((item) => !seen.has(item.id))];
+      });
       setMedia((current) => {
         const seen = new Set(current.map((item) => item.id));
         return [...current, ...nextItems.filter((item) => !seen.has(item.id))];
@@ -357,6 +400,8 @@ export default function ProfileTimelinePage({
         friendName={profile.full_name}
         canPost={isConnected || profile.id === currentUserId}
         currentUserId={currentUserId}
+        isOwnProfile={profile.id === currentUserId}
+        onCreateHook={openReelStudio}
       />
     ) : null;
 
@@ -374,6 +419,8 @@ export default function ProfileTimelinePage({
         profile={profile}
         friendWall={wall}
         media={media}
+        hooks={timelinePosts.filter(isVideoTimelinePost)}
+        imagePosts={timelinePosts.filter(isImageTimelinePost)}
         friends={friends}
         isConnected={isConnected}
         canViewProfile={canViewProfile}
@@ -399,6 +446,20 @@ export default function ProfileTimelinePage({
             userId={currentUserId}
             userEmail={currentUserEmail}
             onReady={onChatReady}
+          />
+        </Suspense>
+      )}
+      {reelStudioOpen && profile?.id === currentUserId && (
+        <Suspense fallback={null}>
+          <ReelStudio
+            isOpen
+            userId={currentUserId}
+            userProfile={{ full_name: profile.full_name }}
+            onClose={closeReelStudio}
+            onSaved={() => {
+              setReelStudioOpen(false);
+              retry();
+            }}
           />
         </Suspense>
       )}

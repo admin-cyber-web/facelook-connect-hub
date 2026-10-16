@@ -1,0 +1,103 @@
+.power-dashboard-lemon {
+  --power-ink: #2e351d;
+  --power-muted: #707653;
+  --power-border: #e4e7c8;
+  --power-card: #ffffff;
+  color: var(--power-ink);
+  color-scheme: light;
+  background:
+    radial-gradient(ellipse at 92% 10%, rgba(238, 243, 178, 0.44), transparent 38%),
+    linear-gradient(160deg, #fffde8 0%, #fbfbe9 52%, #f4f6dc 100%) !important;
+  border-color: var(--power-border) !important;
+}
+
+.power-dashboard-lemon-header {
+  box-shadow: 0 12px 30px rgba(91, 105, 34, 0.05);
+}
+
+.power-dashboard-lemon [class~="text-white"] {
+  color: var(--power-ink) !important;
+}
+
+.power-dashboard-lemon [class*="text-white/"] {
+  color: var(--power-muted) !important;
+}
+
+.power-dashboard-lemon [class*="border-white/"] {
+  border-color: var(--power-border) !important;
+}
+
+.power-dashboard-lemon [class*="bg-white/"] {
+  background-color: var(--power-card) !important;
+}
+
+.power-dashboard-lemon [class*="text-yellow-400"] {
+  color: #7c812b !important;
+}
+
+.power-dashboard-lemon [class*="text-blue-400"] {
+  color: #506c91 !important;
+}
+
+.power-dashboard-lemon [class*="text-rose-400"] {
+  color: #a5515b !important;
+}
+
+.power-dashboard-lemon [class*="text-green-400"] {
+  color: #4c783d !important;
+}
+
+.power-dashboard-lemon [class*="text-purple-400"] {
+  color: #75539a !important;
+}
+
+.power-dashboard-lemon [class*="text-indigo-400"] {
+  color: #5361a2 !important;
+}
+
+.power-dashboard-lemon [class*="text-red-400"] {
+  color: #a74742 !important;
+}
+
+.power-dashboard-lemon [style*="rgba(255,255,255"],
+.power-dashboard-lemon [style*="rgba(255, 255, 255"] {
+  background: var(--power-card) !important;
+  border-color: var(--power-border) !important;
+}
+
+.power-dashboard-lemon .power-dashboard-quick-action {
+  color: #48522a;
+  border-color: #dfe3bd;
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 3px 10px rgba(70, 76, 36, 0.035);
+}
+
+.power-dashboard-lemon .power-dashboard-quick-action:hover {
+  background: #f6f7e4;
+}
+
+.power-dashboard-lemon .power-dashboard-confirm-overlay {
+  background: rgba(255, 255, 238, 0.94) !important;
+}
+
+.power-dashboard-lemon .power-dashboard-confirm-card {
+  background: linear-gradient(145deg, #ffffff, #fffdf0) !important;
+  border-color: rgba(220, 38, 38, 0.28) !important;
+  box-shadow: 0 20px 60px rgba(106, 89, 29, 0.16) !important;
+}
+
+.power-dashboard-lemon [data-power-dashboard-contrast="true"] {
+  color: #ffffff !important;
+}
+
+.power-dashboard-lemon :focus-visible {
+  outline-color: #8f9c3c;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .power-dashboard-lemon *,
+  .power-dashboard-lemon *::before,
+  .power-dashboard-lemon *::after {
+    scroll-behavior: auto !important;
+  }
+}

@@ -29,6 +29,9 @@ import {
   Reply,
   Anchor,
   Package,
+  Bookmark,
+  UserRound,
+  Video,
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { subscribeWhileVisible } from "@/lib/realtimeVisibility";
@@ -43,6 +46,7 @@ import {
   canViewPrivateProfile,
   searchVisibleProfiles,
 } from "@/lib/profileSearch";
+import "./power-dashboard.css";
 
 // ── Types ───────────────────────────────────────────────────────────────────────
 interface FriendEntry {
@@ -1517,9 +1521,12 @@ const Header = ({
   const [dashFriendsLoading, setDashFriendsLoading] = useState(false);
   const [dashPosts, setDashPosts] = useState<any[]>([]);
   const [dashHooks, setDashHooks] = useState<any[]>([]);
+  const [dashHookPosts, setDashHookPosts] = useState<any[]>([]);
   const [dashCircles, setDashCircles] = useState<any[]>([]);
   const [dashPostsFetched, setDashPostsFetched] = useState(false);
   const [dashHooksFetched, setDashHooksFetched] = useState(false);
+  const [dashHookPostsFetched, setDashHookPostsFetched] = useState(false);
+  const [dashHookPostsLoading, setDashHookPostsLoading] = useState(false);
   const [dashCirclesFetched, setDashCirclesFetched] = useState(false);
 
   // ── Friend removal state ───────────────────────────────────────────────────
@@ -1654,9 +1661,10 @@ const Header = ({
           .select("id", { count: "exact", head: true })
           .eq("author_id", userId),
         supabase
-          .from("page_followers")
-          .select("page_id", { count: "exact", head: true })
-          .eq("user_id", userId),
+          .from("posts")
+          .select("id", { count: "exact", head: true })
+          .eq("author_id", userId)
+          .or("type.eq.video,type.eq.reel,type.eq.hook,media_type.eq.video"),
         supabase
           .from("circle_members")
           .select("circle_id", { count: "exact", head: true })
@@ -1774,6 +1782,26 @@ const Header = ({
     setDashHooks(data || []);
     setDashHooksFetched(true);
   }, [userId, dashHooksFetched]);
+
+  const fetchDashHookPosts = useCallback(async () => {
+    if (!userId || dashHookPostsFetched) return;
+    setDashHookPostsLoading(true);
+    const { data, error } = await supabase
+      .from("posts")
+      .select(
+        "id,content,media_url,image_url,cover_url,type,media_type,created_at,likes_count",
+      )
+      .eq("author_id", userId)
+      .or("type.eq.video,type.eq.reel,type.eq.hook,media_type.eq.video")
+      .order("created_at", { ascending: false })
+      .limit(12);
+    if (error) {
+      console.error("[PowerDash] hook videos failed:", error);
+    }
+    setDashHookPosts(data ?? []);
+    setDashHookPostsFetched(true);
+    setDashHookPostsLoading(false);
+  }, [userId, dashHookPostsFetched]);
 
   const fetchDashCircles = useCallback(async () => {
     if (!userId || dashCirclesFetched) return;
@@ -2281,7 +2309,10 @@ const Header = ({
     if (!showDash) return;
     if (dashTab === "friends") fetchDashFriends();
     if (dashTab === "posts") fetchDashPosts();
-    if (dashTab === "hooks") fetchDashHooks();
+    if (dashTab === "hooks") {
+      fetchDashHooks();
+      fetchDashHookPosts();
+    }
     if (dashTab === "circles") fetchDashCircles();
     if (dashTab === "magnet") fetchDashMagnets();
   }, [
@@ -2290,6 +2321,7 @@ const Header = ({
     fetchDashFriends,
     fetchDashPosts,
     fetchDashHooks,
+    fetchDashHookPosts,
     fetchDashCircles,
     fetchDashMagnets,
   ]);
@@ -2297,6 +2329,17 @@ const Header = ({
   const unreadCount = notifications.filter((n) => !n.is_read).length;
   const totalBadge = unreadCount + friendRequests.length;
   const hasAnything = notifications.length > 0 || friendRequests.length > 0;
+
+  const openOwnTimeline = useCallback(() => {
+    if (!userId) return;
+    setShowDash(false);
+    navigate(`/profile/${encodeURIComponent(userId)}`);
+  }, [navigate, userId]);
+
+  const openSavedItems = useCallback(() => {
+    setShowDash(false);
+    navigate("/saved");
+  }, [navigate]);
 
   return (
     <>
@@ -2812,22 +2855,20 @@ const Header = ({
               animate={{ x: 0 }}
               exit={{ x: "100%" }}
               transition={{ type: "spring", damping: 26, stiffness: 210 }}
-              className="fixed top-0 right-0 h-full w-full max-w-sm z-[120] flex flex-col overflow-hidden overflow-x-hidden"
+              className="power-dashboard-lemon fixed top-0 right-0 h-full w-full max-w-sm z-[120] flex flex-col overflow-hidden overflow-x-hidden"
               style={{
                 maxWidth: "min(100vw, 384px)",
-                background:
-                  "linear-gradient(160deg, #0f0c29 0%, #141428 50%, #0a0a1a 100%)",
-                borderLeft: "1px solid rgba(255,255,255,0.08)",
+                background: "linear-gradient(160deg, #fffde8 0%, #fbfbe9 52%, #f4f6dc 100%)",
+                borderLeft: "1px solid #e6e9c8",
               }}
             >
               {/* ── Dashboard Header ─────────────────────────────────────── */}
               <div
-                className="relative px-5 pb-4 shrink-0"
+                className="power-dashboard-lemon-header relative px-5 pb-4 shrink-0"
                 style={{
                   paddingTop: "calc(var(--cap-safe-top) + 20px)",
-                  background:
-                    "linear-gradient(135deg, rgba(37,99,235,0.25) 0%, rgba(79,70,229,0.15) 100%)",
-                  borderBottom: "1px solid rgba(255,255,255,0.07)",
+                  background: "linear-gradient(135deg, #fff8c8 0%, #fffef4 72%, #f7f8e6 100%)",
+                  borderBottom: "1px solid #e6e9c8",
                 }}
               >
                 {/* Close */}
@@ -2846,8 +2887,11 @@ const Header = ({
                 {/* Profile card */}
                 <div className="flex gap-3 mb-4">
                   {/* Avatar */}
-                  <div
-                    className="w-16 h-16 rounded-2xl overflow-hidden border-2 shrink-0 self-start"
+                  <button
+                    type="button"
+                    onClick={openOwnTimeline}
+                    aria-label="Open your profile timeline"
+                    className="w-16 h-16 rounded-2xl overflow-hidden border-2 shrink-0 self-start outline-none focus-visible:ring-2 focus-visible:ring-[#a2a953] focus-visible:ring-offset-2"
                     style={{
                       borderColor: "rgba(250,204,21,0.5)",
                       boxShadow: "0 0 18px rgba(250,204,21,0.3)",
@@ -2865,13 +2909,17 @@ const Header = ({
                         {userData?.full_name?.[0]?.toUpperCase() || "U"}
                       </div>
                     )}
-                  </div>
+                  </button>
 
                   {/* Name + bio + meta */}
                   <div className="flex-1 min-w-0 space-y-1">
-                    <p className="text-white font-black text-[16px] truncate leading-tight">
+                    <button
+                      type="button"
+                      onClick={openOwnTimeline}
+                      className="block max-w-full truncate text-left text-[16px] font-black leading-tight text-white outline-none focus-visible:underline"
+                    >
                       {userData.full_name}
-                    </p>
+                    </button>
 
                     <div className="flex items-center gap-1.5">
                       <Zap size={10} className="text-yellow-400" />
@@ -2903,14 +2951,12 @@ const Header = ({
                           </span>
                         </span>
                       ) : null}
-                      {userData.location ? (
-                        <span className="flex items-center gap-1 text-[10px] font-semibold text-white/50 bg-white/5 border border-white/10 rounded-full px-2 py-0.5">
-                          <MapPin size={9} className="text-rose-400" />
-                          <span className="truncate max-w-[90px]">
-                            {userData.location}
-                          </span>
+                      <span className="flex items-center gap-1 text-[10px] font-semibold text-white/50 bg-white/5 border border-white/10 rounded-full px-2 py-0.5">
+                        <MapPin size={9} className="text-rose-400" />
+                        <span className="truncate max-w-[110px]">
+                          {userData.location || "Location not set"}
                         </span>
-                      ) : null}
+                      </span>
                       {userData.mobile ? (
                         <span className="flex items-center gap-1 text-[10px] font-semibold text-white/50 bg-white/5 border border-white/10 rounded-full px-2 py-0.5">
                           <Phone size={9} className="text-green-400" />
@@ -2923,7 +2969,28 @@ const Header = ({
                   </div>
                 </div>
 
-                {/* ── 5 Stat Pills ─────────────────────────────────────── */}
+                <div className="mb-3 grid grid-cols-2 gap-2" data-testid="power-dashboard-quick-actions">
+                  <button
+                    type="button"
+                    onClick={openOwnTimeline}
+                    data-testid="button-power-dashboard-profile"
+                    className="power-dashboard-quick-action inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border px-3 text-[11px] font-extrabold transition-colors hover:bg-[#f6f7e4] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#a2a953] focus-visible:ring-offset-2"
+                  >
+                    <UserRound size={14} aria-hidden="true" />
+                    My Profile
+                  </button>
+                  <button
+                    type="button"
+                    onClick={openSavedItems}
+                    data-testid="button-power-dashboard-saved-items"
+                    className="power-dashboard-quick-action inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border px-3 text-[11px] font-extrabold transition-colors hover:bg-[#f6f7e4] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#a2a953] focus-visible:ring-offset-2"
+                  >
+                    <Bookmark size={14} aria-hidden="true" />
+                    Saved Items
+                  </button>
+                </div>
+
+                {/* ── Six live statistic pills ──────────────────────────── */}
                 <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-6">
                   {DASH_TABS.map((tab) => (
                     <motion.button
@@ -2934,10 +3001,10 @@ const Header = ({
                       style={
                         dashTab === tab.key
                           ? {
-                              background: `linear-gradient(135deg, ${tab.color.includes("indigo") ? "rgba(99,102,241,0.35)" : tab.color.includes("purple") ? "rgba(168,85,247,0.35)" : tab.color.includes("orange") ? "rgba(249,115,22,0.35)" : tab.color.includes("rose") ? "rgba(244,63,94,0.35)" : "rgba(16,185,129,0.35)"})`,
-                              boxShadow: `0 4px 16px ${tab.glow}`,
+                              background: "linear-gradient(135deg, #edf2b6 0%, #dde99a 100%)",
+                              boxShadow: "0 4px 16px rgba(144, 158, 52, 0.18)",
                             }
-                          : { background: "rgba(255,255,255,0.05)" }
+                          : { background: "rgba(255,255,255,0.82)" }
                       }
                     >
                       <div
@@ -2973,7 +3040,7 @@ const Header = ({
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0 }}
-                      className="absolute inset-0 z-10 flex items-center justify-center px-5"
+                      className="power-dashboard-confirm-overlay absolute inset-0 z-10 flex items-center justify-center px-5"
                       style={{
                         background: "rgba(10,10,26,0.88)",
                         backdropFilter: "blur(12px)",
@@ -2988,7 +3055,7 @@ const Header = ({
                           stiffness: 300,
                           damping: 22,
                         }}
-                        className="w-full rounded-3xl p-6 text-center"
+                        className="power-dashboard-confirm-card w-full rounded-3xl p-6 text-center"
                         style={{
                           background:
                             "linear-gradient(145deg, #1a1a35, #12122a)",
@@ -3011,6 +3078,7 @@ const Header = ({
                           <motion.button
                             whileTap={{ scale: 0.94 }}
                             onClick={confirmUnfriend}
+                            data-power-dashboard-contrast="true"
                             className="flex-1 py-3 rounded-2xl font-black text-[13px] text-white transition-all"
                             style={{
                               background:
@@ -3233,11 +3301,90 @@ const Header = ({
 
                 {/* ── HOOKS TAB ────────────────────────────────────────── */}
                 {dashTab === "hooks" && (
-                  <div className="p-4">
+                  <div className="space-y-5 p-4">
+                    <section aria-label="Your Hooks">
+                      <div className="mb-3 flex items-center gap-2">
+                        <Video size={14} className="text-lime-600" />
+                        <p className="text-[11px] font-black text-white/50 uppercase tracking-widest">
+                          Your Hooks · {dashStats.hooks}
+                        </p>
+                      </div>
+                      {dashHookPostsLoading ? (
+                        <div className="grid grid-cols-2 gap-2" role="status" aria-label="Loading Hooks">
+                          {[0, 1].map((key) => (
+                            <div key={key} className="aspect-[9/12] animate-pulse rounded-2xl bg-white/60" />
+                          ))}
+                        </div>
+                      ) : dashHookPosts.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/60 py-8 text-center">
+                          <Video size={28} strokeWidth={1.4} className="text-lime-700/60" />
+                          <p className="text-[11px] font-bold text-white/55">No Hooks yet</p>
+                          <p className="max-w-[220px] text-[10px] leading-relaxed text-white/40">
+                            Short videos you create will appear here and on your timeline.
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-2 gap-2">
+                          {dashHookPosts.map((post: any) => {
+                            const videoUrl = String(post.media_url || "");
+                            const canPlayVideo =
+                              /\.(mp4|m4v|mov|webm)(?:[?#]|$)/i.test(videoUrl) ||
+                              videoUrl.startsWith("data:video/");
+                            const imageUrl = post.cover_url || post.image_url;
+                            return (
+                              <article
+                                key={post.id}
+                                className="overflow-hidden rounded-2xl border border-white/10 bg-white/80"
+                                data-testid={`card-dashboard-hook-${post.id}`}
+                              >
+                                {canPlayVideo ? (
+                                  <video
+                                    src={videoUrl}
+                                    poster={imageUrl || undefined}
+                                    controls
+                                    playsInline
+                                    preload="metadata"
+                                    aria-label="Your Hook video"
+                                    className="aspect-[9/12] w-full bg-black object-cover"
+                                  />
+                                ) : imageUrl ? (
+                                  <img
+                                    src={imageUrl}
+                                    alt="Hook video cover"
+                                    loading="lazy"
+                                    decoding="async"
+                                    className="aspect-[9/12] w-full object-cover"
+                                  />
+                                ) : (
+                                  <div className="flex aspect-[9/12] items-center justify-center bg-[#f0f3cf] text-[#697737]">
+                                    <Video size={28} strokeWidth={1.5} />
+                                  </div>
+                                )}
+                                <div className="p-2.5">
+                                  {post.content ? (
+                                    <p className="line-clamp-2 text-[11px] font-semibold text-white/80">
+                                      {post.content}
+                                    </p>
+                                  ) : (
+                                    <p className="text-[10px] font-medium text-white/50">Hook</p>
+                                  )}
+                                  <div className="mt-2 flex items-center justify-between text-[9px] font-semibold text-white/40">
+                                    <span>{post.likes_count || 0} likes</span>
+                                    <span>{post.created_at ? timeAgo(post.created_at) : ""}</span>
+                                  </div>
+                                </div>
+                              </article>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </section>
+
+                    <section className="border-t border-white/15 pt-4" aria-label="Pages you follow">
                     <div className="flex items-center gap-2 mb-3">
                       <Link2 size={13} className="text-purple-400" />
                       <p className="text-[11px] font-black text-white/50 uppercase tracking-widest">
-                        Pages You Follow · {dashStats.hooks}
+                        Pages You Follow
                       </p>
                     </div>
                     {dashHooks.length === 0 ? (
@@ -3312,6 +3459,7 @@ const Header = ({
                         })}
                       </div>
                     )}
+                    </section>
                   </div>
                 )}
 
