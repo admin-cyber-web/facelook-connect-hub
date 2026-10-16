@@ -5412,11 +5412,10 @@ const PersonalizationView = React.memo(({
       </Suspense>
       </ErrorBoundary>
 
-      {/* Side DVD-Tray Nav ──────────────────────────────────────────────── */}
+      {/* Clean Start navigation dock ─────────────────────────────────────── */}
       <GolSlider
         activeFeature={activeFeature}
         hidden={isChatOpen}
-        isAdmin={isAppAdmin}
         onRefresh={handleBottomNavRefresh}
         onFeatureChange={(f) => {
           if (f === "Admin") {

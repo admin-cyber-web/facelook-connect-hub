@@ -144,87 +144,6 @@
   pointer-events: none;
 }
 
-.gol-menu-callout {
-  position: absolute;
-  z-index: 5;
-  top: 0;
-  bottom: env(safe-area-inset-bottom, 0px);
-  height: 36px;
-  margin-top: auto;
-  margin-bottom: auto;
-  box-sizing: border-box;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  width: calc(50% - 40px);
-  min-width: 0;
-  padding: 3px 5px;
-  overflow: hidden;
-  border: 1px solid rgba(147, 230, 255, 0.3);
-  border-radius: 12px;
-  background: rgba(4, 14, 21, 0.84);
-  color: #f5fcff;
-  box-shadow: 0 0 8px rgba(0, 204, 255, 0.12), inset 0 0 8px rgba(0, 229, 255, 0.06);
-  -webkit-backdrop-filter: blur(8px);
-  backdrop-filter: blur(8px);
-  cursor: pointer;
-  font: inherit;
-  font-size: clamp(8px, 2.5vw, 10px);
-  font-weight: 800;
-  line-height: 1.05;
-  text-align: left;
-  -webkit-tap-highlight-color: transparent;
-  pointer-events: auto;
-}
-
-.gol-menu-callout:active {
-  background: rgba(9, 34, 44, 0.96);
-  border-color: rgba(147, 230, 255, 0.62);
-}
-
-.gol-menu-callout:focus-visible {
-  outline: 2px solid #8aeaff;
-  outline-offset: 1px;
-}
-
-.gol-menu-callout--left {
-  left: 6px;
-  justify-content: flex-start;
-}
-
-.gol-menu-callout--right {
-  right: 6px;
-  justify-content: flex-end;
-  text-align: right;
-}
-
-.gol-menu-callout__finger {
-  display: inline-flex;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: center;
-  font-size: 16px;
-  line-height: 1;
-  transform-origin: center bottom;
-  animation: gol-menu-finger-tap 2.6s ease-in-out infinite;
-}
-
-.gol-menu-callout--right .gol-menu-callout__finger {
-  animation-delay: 1.3s;
-}
-
-.gol-menu-callout__text {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-@keyframes gol-menu-finger-tap {
-  0%, 78%, 100% { transform: translateY(0) scale(1); }
-  82% { transform: translateY(2px) scale(0.9); }
-  86% { transform: translateY(-1px) scale(1.04); }
-  90% { transform: translateY(0) scale(1); }
-}
-
 @keyframes aquarium-fish-swim {
   0%, 100% { transform: translate3d(0, 0, 0) scaleX(1); }
   44% { transform: translate3d(18px, 2px, 0) scaleX(1); }
@@ -303,10 +222,6 @@
 
   .aquarium-marble-water {
     animation-duration: 7s;
-  }
-
-  .gol-menu-callout__finger {
-    animation-duration: 3s;
   }
 
   .gol-board-duster-wipe {
