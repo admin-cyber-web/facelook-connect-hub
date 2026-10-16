@@ -18,6 +18,7 @@ import { OnlineUsersProvider } from "./context/OnlineUsersContext";
 import { HelmetProvider, Helmet } from "react-helmet-async";
 
 const Index         = lazy(() => import("./pages/Index"));
+const ProfileTimelinePage = lazy(() => import("./pages/ProfileTimelinePage"));
 const Privacy       = lazy(() => import("./pages/Privacy"));
 const Terms         = lazy(() => import("./pages/Terms"));
 const DataInfo      = lazy(() => import("./pages/DataInfo"));
@@ -401,6 +402,15 @@ const App = () => {
                         <Route path="/design-preview" element={<DesignPreview />} />
                         <Route path="/"            element={<Index session={session} />} />
                         <Route path="/feed"        element={<Index session={session} />} />
+                        <Route
+                          path="/profile/:userId"
+                          element={
+                            <ProfileTimelinePage
+                              currentUserId={session.user.id}
+                              currentUserEmail={session.user.email || ""}
+                            />
+                          }
+                        />
                         <Route path="/privacy"     element={<Privacy />} />
                         <Route path="/terms"       element={<Terms />} />
                         <Route path="/data-info"   element={<DataInfo />} />

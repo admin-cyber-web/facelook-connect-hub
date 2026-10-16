@@ -195,6 +195,7 @@ interface ChatSystemProps {
   userEmail?: string;
   onLogout?: () => void;
   onUnreadCountChange?: (count: number) => void;
+  onReady?: () => void;
 }
 
 // ── Inject global keyframes once ───────────────────────────────────────────────
@@ -1829,10 +1830,11 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       await handleSelectContact(target);
     };
     window.addEventListener("flicks:open-chat", handler as EventListener);
+    onReady?.();
     return () =>
       window.removeEventListener("flicks:open-chat", handler as EventListener);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId, fetchContacts]);
+  }, [userId, fetchContacts, onReady]);
 
   // ── Story viewer: 15s countdown timer ────────────────────────────────────
   useEffect(() => {
