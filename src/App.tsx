@@ -15,10 +15,12 @@ import SharePopupHost from "./components/SharePopupHost";
 import { ProfileViewerProvider } from "./context/ProfileViewerContext";
 import { DataCacheProvider } from "./context/DataCacheContext";
 import { OnlineUsersProvider } from "./context/OnlineUsersContext";
+import { SavedPostsProvider } from "./context/SavedPostsContext";
 import { HelmetProvider, Helmet } from "react-helmet-async";
 
 const Index         = lazy(() => import("./pages/Index"));
 const ProfileTimelinePage = lazy(() => import("./pages/ProfileTimelinePage"));
+const SavedItemsPage = lazy(() => import("./pages/SavedItemsPage"));
 const Privacy       = lazy(() => import("./pages/Privacy"));
 const Terms         = lazy(() => import("./pages/Terms"));
 const DataInfo      = lazy(() => import("./pages/DataInfo"));
@@ -384,6 +386,7 @@ const App = () => {
           >
             <OnlineUsersProvider userId={session?.user?.id}>
               <DataCacheProvider>
+                <SavedPostsProvider userId={session?.user?.id ?? null}>
                 <BrowserRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
                   <NativeAndroidRoutePolicy authenticated={Boolean(session)} />
                   <Suspense fallback={<PageLoader />}>
@@ -411,6 +414,10 @@ const App = () => {
                             />
                           }
                         />
+                        <Route
+                          path="/saved"
+                          element={<SavedItemsPage currentUserId={session.user.id} />}
+                        />
                         <Route path="/privacy"     element={<Privacy />} />
                         <Route path="/terms"       element={<Terms />} />
                         <Route path="/data-info"   element={<DataInfo />} />
@@ -432,6 +439,7 @@ const App = () => {
                   </Suspense>
                 </BrowserRouter>
                 <SharePopupHost />
+                </SavedPostsProvider>
               </DataCacheProvider>
             </OnlineUsersProvider>
           </ProfileViewerProvider>

@@ -10,6 +10,7 @@ import {
   Share2,
   Video,
 } from "lucide-react";
+import SavePostButton from "./SavePostButton";
 
 export type FriendWallPostView = {
   id: string;
@@ -43,6 +44,8 @@ export type FriendWallPresentationProps = {
   commentBusy: boolean;
   likeBusyPostId?: string | null;
   onOpenComposer: () => void;
+  isOwnProfile?: boolean;
+  onCreateHook?: () => void;
   onLike: (postId: string) => void;
   onShare: (postId: string) => void;
   onToggleComments: (postId: string) => void;
@@ -262,7 +265,7 @@ function WallPost({
         </span>
       </div>
 
-      <div className="grid grid-cols-3 gap-1 px-2 py-2 sm:px-3">
+      <div className="grid grid-cols-4 gap-1 px-2 py-2 sm:px-3">
         <button
           type="button"
           onClick={() => onLike(post.id)}
@@ -306,6 +309,7 @@ function WallPost({
           <Share2 size={15} strokeWidth={2.1} aria-hidden="true" />
           Share
         </button>
+        <SavePostButton postId={post.id} />
       </div>
 
       {openComments && (
@@ -403,6 +407,8 @@ export default function FriendWallPresentation({
   commentBusy,
   likeBusyPostId,
   onOpenComposer,
+  isOwnProfile = false,
+  onCreateHook,
   onLike,
   onShare,
   onToggleComments,
@@ -432,27 +438,43 @@ export default function FriendWallPresentation({
       </div>
 
       {canPost ? (
-        <button
-          type="button"
-          onClick={onOpenComposer}
-          data-testid="button-open-wall-composer"
-          className="group mb-4 flex w-full items-center gap-3 rounded-[1.25rem] border border-fuchsia-200/15 bg-gradient-to-r from-fuchsia-300/[0.085] via-violet-300/[0.06] to-cyan-200/[0.06] p-3 text-left transition-colors hover:border-fuchsia-200/25 hover:bg-white/[0.07] active:scale-[0.995] sm:mb-5 sm:p-3.5"
-        >
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.07] text-fuchsia-100/80 transition-colors group-hover:bg-fuchsia-300/15">
-            <PenLine size={17} aria-hidden="true" />
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="block truncate text-[12px] font-bold text-white/85">
-              Write something on {friendName}&apos;s timeline...
+        <div className={`mb-4 grid gap-2 sm:mb-5 ${isOwnProfile && onCreateHook ? "grid-cols-[minmax(0,1fr)_auto]" : ""}`}>
+          <button
+            type="button"
+            onClick={onOpenComposer}
+            data-testid="button-open-wall-composer"
+            className="group flex min-h-14 w-full items-center gap-3 rounded-[1.25rem] border border-fuchsia-200/15 bg-gradient-to-r from-fuchsia-300/[0.085] via-violet-300/[0.06] to-cyan-200/[0.06] p-3 text-left transition-colors hover:border-fuchsia-200/25 hover:bg-white/[0.07] active:scale-[0.995] sm:p-3.5"
+          >
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.07] text-fuchsia-100/80 transition-colors group-hover:bg-fuchsia-300/15">
+              <PenLine size={17} aria-hidden="true" />
             </span>
-            <span className="mt-0.5 block truncate text-[10px] font-medium text-violet-100/42">
-              A thought, a photo, or a quick hello
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-[12px] font-bold text-white/85">
+                {isOwnProfile ? "What's on your mind?" : `Write something on ${friendName}'s timeline...`}
+              </span>
+              <span className="mt-0.5 block truncate text-[10px] font-medium text-violet-100/42">
+                A thought, a photo, or a quick hello
+              </span>
             </span>
-          </span>
-          <span className="pr-1 text-[10px] font-extrabold uppercase tracking-[0.12em] text-fuchsia-200/70">
-            Write
-          </span>
-        </button>
+            {!isOwnProfile && (
+              <span className="pr-1 text-[10px] font-extrabold uppercase tracking-[0.12em] text-fuchsia-200/70">
+                Write
+              </span>
+            )}
+          </button>
+          {isOwnProfile && onCreateHook && (
+            <button
+              type="button"
+              onClick={onCreateHook}
+              data-testid="button-create-hook"
+              aria-label="Create a Hook short video"
+              className="inline-flex min-h-14 items-center justify-center gap-2 rounded-[1.25rem] border border-lime-200/25 bg-lime-300/10 px-3 text-xs font-extrabold text-lime-100 transition-colors hover:bg-lime-300/20 active:scale-[0.98]"
+            >
+              <Video size={16} aria-hidden="true" />
+              <span>Create Hook</span>
+            </button>
+          )}
+        </div>
       ) : (
         <div
           className="mb-4 flex items-center gap-3 rounded-[1.25rem] border border-white/[0.07] bg-white/[0.03] px-3 py-3 sm:mb-5"

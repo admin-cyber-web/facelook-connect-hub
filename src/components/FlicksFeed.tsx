@@ -29,6 +29,7 @@ import {
 import { getMediaSrc, onMediaPrefetched, prefetchReelMedia } from "@/lib/reelPrefetch";
 import VibeAudioToggle from "./VibeAudioToggle";
 import ActiveStatusAvatar from "./ActiveStatusAvatar";
+import SavePostButton from "./SavePostButton";
 
 // ── Utilities ─────────────────────────────────────────────────────────────────
 const formatCount = (n: any): string => {
@@ -944,6 +945,10 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, on
             {formatCount(liveShares)}
           </span>
         </button>
+
+        <SavePostButton
+          postId={String(post?._raw_id || post?.id || "").replace(/^post_/, "")}
+        />
 
         {/* Reports — single crimson vertical 3-dots report/menu (dropdown opens upward) */}
         <div className="relative z-50" onClick={e => e.stopPropagation()}>

@@ -12,12 +12,15 @@ import {
   ShieldCheck,
   Users,
   X,
+  Video,
 } from "lucide-react";
 import "./profile-navigation.css";
+import SavePostButton from "@/components/SavePostButton";
 import type {
   FullProfilePageProps,
   ProfileNavigationFriend,
   ProfileNavigationMedia,
+  ProfileNavigationPost,
   ProfileNavigationProfile,
   ProfileViewState,
   QuickProfileModalProps,
@@ -27,6 +30,7 @@ export type {
   FullProfilePageProps,
   ProfileNavigationFriend,
   ProfileNavigationMedia,
+  ProfileNavigationPost,
   ProfileNavigationProfile,
   ProfileViewState,
   QuickProfileModalProps,
@@ -343,6 +347,131 @@ function FriendsList({
   );
 }
 
+function HooksSection({ posts }: { posts: ProfileNavigationPost[] }) {
+  return (
+    <section className="profile-nav-section" aria-labelledby="profile-nav-hooks-heading">
+      <div className="profile-nav-section-head">
+        <div>
+          <p className="profile-nav-kicker">Short videos</p>
+          <h2 className="profile-nav-section-title" id="profile-nav-hooks-heading">Hooks</h2>
+        </div>
+        <span className="profile-nav-section-count">{posts.length}</span>
+      </div>
+      {posts.length === 0 ? (
+        <EmptyState
+          icon={<Video size={17} aria-hidden="true" />}
+          title="No Hooks yet"
+          copy="Short videos shared on this timeline will appear here."
+        />
+      ) : (
+        <div className="grid grid-cols-2 gap-2" data-testid="grid-profile-hooks">
+          {posts.map((post) => (
+            <article
+              key={post.id}
+              className="relative overflow-hidden rounded-2xl border border-white/10 bg-black/30"
+              data-testid={`card-profile-hook-${post.id}`}
+            >
+              <video
+                src={post.media_url || undefined}
+                poster={post.cover_url || post.image_url || undefined}
+                controls
+                playsInline
+                preload="metadata"
+                aria-label="Short video from timeline"
+                className="aspect-[9/14] w-full bg-black object-cover"
+              />
+              <div className="absolute right-2 top-2 rounded-full bg-black/45 backdrop-blur-sm">
+                <SavePostButton postId={post.id} />
+              </div>
+              {post.content && (
+                <p className="line-clamp-2 px-2.5 py-2 text-xs font-medium text-white/80">
+                  {post.content}
+                </p>
+              )}
+            </article>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function ImagePostsSection({ posts }: { posts: ProfileNavigationPost[] }) {
+  return (
+    <section className="profile-nav-section" aria-labelledby="profile-nav-image-posts-heading">
+      <div className="profile-nav-section-head">
+        <div>
+          <p className="profile-nav-kicker">Shared snapshots</p>
+          <h2 className="profile-nav-section-title" id="profile-nav-image-posts-heading">Image Posts</h2>
+        </div>
+        <span className="profile-nav-section-count">{posts.length}</span>
+      </div>
+      {posts.length === 0 ? (
+        <EmptyState
+          icon={<ImageIcon size={17} aria-hidden="true" />}
+          title="No image posts yet"
+          copy="Photos shared with a caption will appear here."
+        />
+      ) : (
+        <div className="space-y-3" data-testid="list-profile-image-posts">
+          {posts.map((post) => {
+            const imageUrls = [
+              ...(Array.isArray(post.image_urls) ? post.image_urls : []),
+              post.image_url,
+              post.media_url,
+            ].filter((url): url is string => Boolean(url));
+            return (
+              <article
+                key={post.id}
+                className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.035]"
+                data-testid={`card-profile-image-post-${post.id}`}
+              >
+                <div className="flex items-start gap-2 px-3 pt-3">
+                  <div className="min-w-0 flex-1">
+                    <time className="text-[10px] font-medium text-violet-100/45">
+                      {post.created_at
+                        ? new Intl.DateTimeFormat(undefined, {
+                            month: "short",
+                            day: "numeric",
+                            year: new Date(post.created_at).getFullYear() === new Date().getFullYear()
+                              ? undefined
+                              : "numeric",
+                          }).format(new Date(post.created_at))
+                        : "Recently"}
+                    </time>
+                    {post.content && (
+                      <p className="mt-1 whitespace-pre-wrap break-words text-xs leading-relaxed text-white/85">
+                        {post.content}
+                      </p>
+                    )}
+                  </div>
+                  <SavePostButton postId={post.id} className="shrink-0" />
+                </div>
+                {imageUrls.length > 0 && (
+                  <div className={`mt-3 grid gap-1 ${imageUrls.length === 1 ? "grid-cols-1" : "grid-cols-2"}`}>
+                    {imageUrls.slice(0, 4).map((url, index) => (
+                      <img
+                        key={`${post.id}-${url}-${index}`}
+                        src={url}
+                        alt={`Photo ${index + 1} in image post`}
+                        loading="lazy"
+                        decoding="async"
+                        className={`max-h-64 min-h-24 w-full object-cover ${
+                          imageUrls.length === 1 ? "max-h-72" : ""
+                        }`}
+                      />
+                    ))}
+                  </div>
+                )}
+              </article>
+            );
+          })}
+        </div>
+      )}
+    </section>
+  );
+}
+
 function ProfileLoading() {
   return (
     <div className="profile-nav-shell profile-nav-page-skeleton" role="status" aria-label="Loading profile">
@@ -414,6 +543,8 @@ export function FullProfilePage({
   profile,
   friendWall,
   media,
+  hooks,
+  imagePosts,
   friends,
   isConnected,
   canViewProfile = isConnected,
@@ -464,6 +595,8 @@ export function FullProfilePage({
               {friendWall}
             </div>
             <aside className="profile-nav-rail" aria-label={`${profile.full_name} profile details`}>
+              <HooksSection posts={hooks} />
+              <ImagePostsSection posts={imagePosts} />
               <MediaGallery
                 media={media}
                 hasMoreMedia={hasMoreMedia}
