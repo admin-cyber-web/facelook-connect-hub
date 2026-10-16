@@ -2,6 +2,7 @@ import { useEffect, type ReactNode } from "react";
 import {
   ArrowLeft,
   ArrowRight,
+  Camera,
   GraduationCap,
   Image as ImageIcon,
   LockKeyhole,
@@ -25,6 +26,9 @@ import type {
   ProfileViewState,
   QuickProfileModalProps,
 } from "./profileNavigation.types";
+
+const DEFAULT_PROFILE_COVER =
+  "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=2200&q=88";
 
 export type {
   FullProfilePageProps,
@@ -76,7 +80,13 @@ function ProfileIdentity({
 }) {
   const identityTop = (
     <>
-      <p className="profile-nav-kicker">{centered ? "Quick profile" : "Flicks member"}</p>
+      {centered ? (
+        <p className="profile-nav-kicker">Quick profile</p>
+      ) : (
+        <span className="profile-nav-member-badge" data-testid="status-profile-member">
+          Flicks Member
+        </span>
+      )}
       <h1 className="profile-nav-name" data-testid="text-profile-name">
         {profile.full_name}
       </h1>
@@ -128,8 +138,8 @@ function ProfileIdentity({
       <Avatar name={profile.full_name} src={profile.avatar_url} variant={avatarVariant} />
       <div className="profile-nav-identity-copy">
         {identityTop}
+        {identityDetails}
       </div>
-      {identityDetails}
     </div>
   );
 }
@@ -138,14 +148,20 @@ function ProfileHeader({
   profile,
   isConnected,
   canViewProfile,
+  isOwnProfile,
+  isCoverUploading,
   onMessage,
   onBack,
+  onEditCover,
 }: {
   profile: ProfileNavigationProfile;
   isConnected: boolean;
   canViewProfile: boolean;
+  isOwnProfile: boolean;
+  isCoverUploading: boolean;
   onMessage?: (profile: ProfileNavigationProfile) => void;
   onBack?: () => void;
+  onEditCover?: () => void;
 }) {
   const hasRestrictedAccess =
     (profile.profile_locked === true && !isConnected) ||
@@ -165,6 +181,28 @@ function ProfileHeader({
         <span className="profile-nav-kicker">A little more personal</span>
       </div>
       <header className="profile-nav-hero">
+        <div className="profile-nav-cover" data-testid="banner-profile-cover">
+          <img
+            className="profile-nav-cover-image"
+            src={profile.cover_url || DEFAULT_PROFILE_COVER}
+            alt={`${profile.full_name} cover`}
+            loading="eager"
+            decoding="async"
+          />
+          <div className="profile-nav-cover-shade" aria-hidden="true" />
+          {isOwnProfile && onEditCover && (
+            <button
+              type="button"
+              className="profile-nav-cover-button"
+              onClick={onEditCover}
+              disabled={isCoverUploading}
+              data-testid="button-edit-profile-cover"
+            >
+              <Camera size={16} aria-hidden="true" />
+              {isCoverUploading ? "Uploading…" : "Change cover"}
+            </button>
+          )}
+        </div>
         <ProfileIdentity profile={profile} avatarVariant="hero" />
         {hasRestrictedAccess && (
           <div className="profile-nav-hero-actions">
@@ -318,9 +356,19 @@ function FriendsList({
             const content = (
               <>
                 <Avatar name={friend.full_name} src={friend.avatar_url} variant="friend" />
-                <span className="profile-nav-friend-name" data-testid={`text-profile-friend-${friend.id}`}>
-                  {friend.full_name}
+                <span className="profile-nav-friend-copy">
+                  <span className="profile-nav-friend-name" data-testid={`text-profile-friend-${friend.id}`}>
+                    {friend.full_name}
+                  </span>
+                  <span
+                    className="profile-nav-friend-location"
+                    data-testid={`text-profile-friend-location-${friend.id}`}
+                  >
+                    <MapPin size={12} aria-hidden="true" />
+                    {friend.location || "Location not shared"}
+                  </span>
                 </span>
+                <span className="profile-nav-friend-badge">Friend</span>
                 {onFriendSelect && <ArrowRight className="profile-nav-friend-arrow" size={15} aria-hidden="true" />}
               </>
             );
@@ -364,11 +412,11 @@ function HooksSection({ posts }: { posts: ProfileNavigationPost[] }) {
           copy="Short videos shared on this timeline will appear here."
         />
       ) : (
-        <div className="grid grid-cols-2 gap-2" data-testid="grid-profile-hooks">
+        <div className="profile-nav-hooks-strip" data-testid="grid-profile-hooks">
           {posts.map((post) => (
             <article
               key={post.id}
-              className="relative overflow-hidden rounded-2xl border border-white/10 bg-black/30"
+              className="profile-nav-hook-card"
               data-testid={`card-profile-hook-${post.id}`}
             >
               <video
@@ -378,13 +426,20 @@ function HooksSection({ posts }: { posts: ProfileNavigationPost[] }) {
                 playsInline
                 preload="metadata"
                 aria-label="Short video from timeline"
-                className="aspect-[9/14] w-full bg-black object-cover"
+                className="profile-nav-hook-video"
               />
-              <div className="absolute right-2 top-2 rounded-full bg-black/45 backdrop-blur-sm">
-                <SavePostButton postId={post.id} />
+              <div className="profile-nav-hook-save">
+                <SavePostButton postId={post.id} className="profile-nav-save-button" />
               </div>
+              <span
+                className="profile-nav-hook-plays"
+                data-testid={`text-hook-views-${post.id}`}
+              >
+                <Play size={13} fill="currentColor" aria-hidden="true" />
+                {(post.views_count ?? 0).toLocaleString()} plays
+              </span>
               {post.content && (
-                <p className="line-clamp-2 px-2.5 py-2 text-xs font-medium text-white/80">
+                <p className="profile-nav-hook-caption">
                   {post.content}
                 </p>
               )}
@@ -397,6 +452,17 @@ function HooksSection({ posts }: { posts: ProfileNavigationPost[] }) {
 }
 
 function ImagePostsSection({ posts }: { posts: ProfileNavigationPost[] }) {
+  const imagePosts = posts
+    .map((post) => ({
+      post,
+      imageUrls: [
+        ...(Array.isArray(post.image_urls) ? post.image_urls : []),
+        post.image_url,
+        post.media_url,
+      ].filter((url): url is string => Boolean(url)),
+    }))
+    .filter(({ imageUrls }) => imageUrls.length > 0);
+
   return (
     <section className="profile-nav-section" aria-labelledby="profile-nav-image-posts-heading">
       <div className="profile-nav-section-head">
@@ -404,68 +470,39 @@ function ImagePostsSection({ posts }: { posts: ProfileNavigationPost[] }) {
           <p className="profile-nav-kicker">Shared snapshots</p>
           <h2 className="profile-nav-section-title" id="profile-nav-image-posts-heading">Image Posts</h2>
         </div>
-        <span className="profile-nav-section-count">{posts.length}</span>
+        <span className="profile-nav-section-count">{imagePosts.length}</span>
       </div>
-      {posts.length === 0 ? (
+      {imagePosts.length === 0 ? (
         <EmptyState
           icon={<ImageIcon size={17} aria-hidden="true" />}
           title="No image posts yet"
           copy="Photos shared with a caption will appear here."
         />
       ) : (
-        <div className="space-y-3" data-testid="list-profile-image-posts">
-          {posts.map((post) => {
-            const imageUrls = [
-              ...(Array.isArray(post.image_urls) ? post.image_urls : []),
-              post.image_url,
-              post.media_url,
-            ].filter((url): url is string => Boolean(url));
-            return (
-              <article
-                key={post.id}
-                className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.035]"
-                data-testid={`card-profile-image-post-${post.id}`}
-              >
-                <div className="flex items-start gap-2 px-3 pt-3">
-                  <div className="min-w-0 flex-1">
-                    <time className="text-[10px] font-medium text-violet-100/45">
-                      {post.created_at
-                        ? new Intl.DateTimeFormat(undefined, {
-                            month: "short",
-                            day: "numeric",
-                            year: new Date(post.created_at).getFullYear() === new Date().getFullYear()
-                              ? undefined
-                              : "numeric",
-                          }).format(new Date(post.created_at))
-                        : "Recently"}
-                    </time>
-                    {post.content && (
-                      <p className="mt-1 whitespace-pre-wrap break-words text-xs leading-relaxed text-white/85">
-                        {post.content}
-                      </p>
-                    )}
-                  </div>
-                  <SavePostButton postId={post.id} className="shrink-0" />
-                </div>
-                {imageUrls.length > 0 && (
-                  <div className={`mt-3 grid gap-1 ${imageUrls.length === 1 ? "grid-cols-1" : "grid-cols-2"}`}>
-                    {imageUrls.slice(0, 4).map((url, index) => (
-                      <img
-                        key={`${post.id}-${url}-${index}`}
-                        src={url}
-                        alt={`Photo ${index + 1} in image post`}
-                        loading="lazy"
-                        decoding="async"
-                        className={`max-h-64 min-h-24 w-full object-cover ${
-                          imageUrls.length === 1 ? "max-h-72" : ""
-                        }`}
-                      />
-                    ))}
-                  </div>
-                )}
-              </article>
-            );
-          })}
+        <div className="profile-nav-image-grid" data-testid="list-profile-image-posts">
+          {imagePosts.map(({ post, imageUrls }) => (
+            <article
+              key={post.id}
+              className="profile-nav-image-tile"
+              data-testid={`card-profile-image-post-${post.id}`}
+            >
+              <div className={`profile-nav-image-collage ${imageUrls.length > 1 ? "is-multiple" : ""}`}>
+                {imageUrls.slice(0, 4).map((url, index) => (
+                  <img
+                    key={`${post.id}-${url}-${index}`}
+                    src={url}
+                    alt={`Photo ${index + 1} in image post`}
+                    loading="lazy"
+                    decoding="async"
+                  />
+                ))}
+              </div>
+              <div className="profile-nav-image-caption">
+                {post.content && <p>{post.content}</p>}
+                <SavePostButton postId={post.id} className="profile-nav-save-button" />
+              </div>
+            </article>
+          ))}
         </div>
       )}
     </section>
@@ -548,6 +585,8 @@ export function FullProfilePage({
   friends,
   isConnected,
   canViewProfile = isConnected,
+  isOwnProfile = false,
+  isCoverUploading = false,
   state = "ready",
   errorMessage,
   hasMoreMedia = false,
@@ -557,6 +596,7 @@ export function FullProfilePage({
   onMessage,
   onFriendSelect,
   onBack,
+  onEditCover,
 }: FullProfilePageProps) {
   if (state === "loading") {
     return <main className="profile-nav profile-nav-page"><ProfileLoading /></main>;
@@ -584,8 +624,11 @@ export function FullProfilePage({
           profile={visibleProfile}
           isConnected={isConnected}
           canViewProfile={canViewProfile}
+          isOwnProfile={isOwnProfile}
+          isCoverUploading={isCoverUploading}
           onMessage={onMessage}
           onBack={onBack}
+          onEditCover={onEditCover}
         />
         {restricted ? (
           <RestrictedProfile profile={profile} />

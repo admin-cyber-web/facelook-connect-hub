@@ -1,0 +1,28 @@
+Redesign Profile Timeline (/profile) into a Full-Width Edge-to-Edge Layout with Cover Photo Banner, Red Velvet & Dark Lemon Styling:
+
+1. PROFILE COVER PHOTO BANNER:
+   - Top Cover Photo Banner: Add a full-width cover photo container at the top of the profile timeline (Facebook style).
+   - Dynamic Cover Image: Display a rich landscape cover photo (e.g., mountains, nature, or scenic view) with a dark gradient overlay at the bottom for crisp contrast.
+   - Edit Cover Button: Place a camera/edit icon button on the bottom-right of the cover photo ("Edit Cover / Change Cover").
+   - Overlapping Profile Avatar: Position the circular DP (with a vibrant Dark Lemon border ring) overlapping the bottom-left of the Cover Photo Banner.
+
+2. REMOVE CARD/BOX LAYOUT (Full Width Edge-to-Edge):
+   - Completely eliminate inner boxed card borders, side margins/paddings, and constrained wrappers.
+   - All posts, Hooks, image grids, and wall sections must span 100% full-width across the screen (border-to-border).
+
+3. COLOR SCHEME & THEMING:
+   - Deep Red Velvet Accent: Deep red (#800020 / #A52A2A) for Titles, Badges ("Flicks Member"), and "Create Hook" button.
+   - Dark Lemon Highlight: Vibrant dark lemon/gold (#C0C000 / #D4AF37) for Active Buttons, Icons (Like/Save 🔖), Avatar Rings, and Friend Badges.
+   - Main Background: Clean, ultra-soft pale white (#FAFAED / white) backdrop.
+
+4. USER INFO & WALL COMPOSER:
+   - Below Cover & Avatar: Show Name "Jhumki Tiwari", handle "@tiwarijhumki", location "Nepal", and "Flicks Member" Red Velvet badge.
+   - Full-width post composer ("What's on your mind? / Create Hook") positioned seamlessly directly below user details.
+
+5. FEED & SECTIONS:
+   - Wall Feed Posts: Full-bleed images/videos spanning edge-to-edge. Action bar with Like, Comment, Share, and Save (🔖) in Dark Lemon accent.
+   - Hooks Section: Horizontal edge-to-edge scrollable story/reel strip with Dark Lemon play count/Save icons.
+   - Image Posts: Continuous 3-column borderless image grid.
+   - Friends Section: Full-width dynamic friend cards with dynamic location badges.
+
+Ensure no ReferenceErrors occur during rendering. All save post functions must remain 100% functional with the new 🔖 icon.
