@@ -164,7 +164,7 @@ export default function SavedItemsPage({
       requestSequence.current += 1;
       loadingMoreRef.current = false;
     };
-  }, [currentUserId, loadPage, refreshSavedIds]);
+  }, [currentUserId, loadPage]);
 
   const handleUnsave = useCallback((postId: string) => {
     setPosts((current) => current.filter((post) => post.id !== postId));
