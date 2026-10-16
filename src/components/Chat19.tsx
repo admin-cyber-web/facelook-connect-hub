@@ -125,22 +125,22 @@ const GHOST_BASES = [
 
 const GHOST_REPLIES = {
   greeting: [
-    "Hey stranger! Kaise ho? 😊",
-    "Hi! Radar pe aake accha laga 🌹",
-    "Hello hello! Bored ho raha tha, tum aa gaye 💫",
+    "Hello. How are you?",
+    "Hello. It is good to connect with you.",
+    "Hello. I was just about to check in.",
   ],
   question: [
-    "Accha sawaal! Tum batao pehle 😄",
-    "Hmm… itna sure nahi hoon 🤔",
-    "Sach kahun toh pata nahi — tum kya sochte ho?",
+    "That is a thoughtful question. What do you think?",
+    "I am not certain yet.",
+    "I am not sure. What is your perspective?",
   ],
   default: [
-    "Haha, nice! 😄",
-    "Sahi baat hai 🌹",
-    "Aur batao, kya chal raha hai?",
-    "Same here yaar 😅",
-    "Tumhe radar pe deh ke surprise hua ✨",
-    "Chalo baat karte hain, bore mat hona 💬",
+    "That sounds good.",
+    "I agree.",
+    "How have things been going?",
+    "Same here.",
+    "It was a pleasant surprise to see you.",
+    "Let us continue the conversation.",
   ],
 };
 

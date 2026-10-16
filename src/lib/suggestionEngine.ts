@@ -211,9 +211,9 @@ function generateOfflineSuggestions(p: SuggestionPayload): SuggestionSet {
   };
 
   const hooks: Record<string, string[]> = {
-    en: ["What do you think? 👇", "Drop your thoughts below! 💬", "Tag someone who needs to see this 👆"],
-    hi: ["Aapko kya lagta hai? 👇", "Apni raay comment mein batao! 💬", "Kisi ko tag karo jisko ye dekhna chahiye 👆"],
-    hinglish: ["Aapko kya lagta hai? 👇", "Comment mein batao apni soch! 💬", "Tag karo wo dost jisko ye dekhna chahiye 👆"],
+    en: ["What are your thoughts? 👇", "Share your perspective in the comments. 💬", "Tag someone who may find this useful. 👆"],
+    hi: ["आपके विचार क्या हैं? 👇", "कृपया टिप्पणियों में अपना दृष्टिकोण साझा करें। 💬", "इसे उपयोगी समझने वाले व्यक्ति को टैग करें। 👆"],
+    hinglish: ["What are your thoughts? 👇", "Share your perspective in the comments. 💬", "Tag someone who may find this useful. 👆"],
   };
 
   const improved: Record<string, string[]> = {

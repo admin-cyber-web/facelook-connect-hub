@@ -59,7 +59,7 @@ const UserProfileModal = ({ userId, currentUserId, isAdmin: isAdminProp = false,
   const [friendStatus, setFriendStatus] = useState<"none" | "pending" | "accepted">("none");
   const [friendshipId, setFriendshipId] = useState<string | null>(null);
   const [loading, setLoading]         = useState(true);
-  const [kickingId, setKickingId]     = useState<string | null>(null);
+  const [unfriendingId, setUnfriendingId] = useState<string | null>(null);
   const [isBlocked, setIsBlocked]     = useState(false);
   const [actionBusy, setActionBusy]   = useState(false);
   const [reportOpen, setReportOpen]   = useState(false);
@@ -336,34 +336,19 @@ const UserProfileModal = ({ userId, currentUserId, isAdmin: isAdminProp = false,
     toast.success("Report submitted. Admin team will review it.");
   };
 
-  const handleKick = async (friend: Friend) => {
-    if (!friend.friendshipId || kickingId) return;
-    setKickingId(friend.id);
+  const handleUnfriend = async (friend: Friend) => {
+    if (!friend.friendshipId || unfriendingId) return;
+    setUnfriendingId(friend.id);
 
     await supabase.from("friendships").delete().eq("id", friend.friendshipId);
 
     setTimeout(() => {
       setFriends(prev => prev.filter(f => f.id !== friend.id));
       setFriendCount(prev => Math.max(0, prev - 1));
-      setKickingId(null);
-    }, 600);
+      setUnfriendingId(null);
+    }, 220);
 
-    toast(
-      <div className="flex items-center gap-2 font-bold text-sm">
-        <span className="text-2xl">⚽</span>
-        <span>Chal hat hawa aane de... Kicked out of the field!</span>
-      </div>,
-      {
-        duration: 3000,
-        style: {
-          background: "#1a1a2e",
-          color: "#fff",
-          border: "1.5px solid #ef4444",
-          borderRadius: "14px",
-          fontFamily: "inherit",
-        },
-      }
-    );
+    toast.success("Friend removed.");
   };
 
   const profileWithFlexibleFields = profile as (ProfileData & {
@@ -469,7 +454,7 @@ const UserProfileModal = ({ userId, currentUserId, isAdmin: isAdminProp = false,
                 <div className="w-full max-w-[280px] bg-red-50 border border-red-200 rounded-2xl px-4 py-3 flex items-center gap-3">
                   <span className="text-2xl">⚠️</span>
                   <p className="text-red-700 text-[11px] font-bold leading-snug">
-                    Friends list, posts, hooks aur baaki details sirf friends ko dikhti hain.
+                    Friends lists, posts, hooks, and other details are visible only to friends.
                   </p>
                 </div>
                 {friendStatus === "none" && (
@@ -647,23 +632,18 @@ const UserProfileModal = ({ userId, currentUserId, isAdmin: isAdminProp = false,
 
                 {/* ── Friends list ── */}
                 {isOwnProfile ? (
-                  /* ── OWN PROFILE: List with KICK button ── */
+                  /* ── OWN PROFILE: Friends list ── */
                   <div className="px-4 pb-8 pt-6">
                     <div className="flex items-center gap-2 mb-3">
                       <Users size={14} className="text-violet-300" />
                       <p className="text-[13px] font-black text-white/80">
                         Friends ({friendCount})
                       </p>
-                      {friendCount > 0 && (
-                        <span className="ml-auto rounded-full border border-red-300/20 bg-red-500/10 px-2 py-0.5 text-[10px] font-bold text-red-300">
-                          ⚽ Kick Mode
-                        </span>
-                      )}
                     </div>
 
                     {friends.length === 0 ? (
                       <div className="py-6 text-center text-[12px] font-semibold text-white/35">
-                        No friends yet. Go make some! 🙌
+                        No friends yet.
                       </div>
                     ) : (
                       <div className="flex flex-col gap-2">
@@ -674,14 +654,14 @@ const UserProfileModal = ({ userId, currentUserId, isAdmin: isAdminProp = false,
                               layout
                               initial={{ opacity: 1, x: 0, rotate: 0 }}
                               animate={
-                                kickingId === f.id
-                                  ? { x: 500, rotate: 20, opacity: 0, scale: 0.8 }
+                                unfriendingId === f.id
+                                  ? { opacity: 0, y: -4, scale: 0.97 }
                                   : { opacity: 1, x: 0, rotate: 0, scale: 1 }
                               }
-                              exit={{ x: 500, rotate: 20, opacity: 0, scale: 0.8 }}
+                              exit={{ opacity: 0, y: -4, scale: 0.97 }}
                               transition={
-                                kickingId === f.id
-                                  ? { type: "spring", stiffness: 300, damping: 20, duration: 0.5 }
+                                unfriendingId === f.id
+                                  ? { duration: 0.2 }
                                   : { duration: 0.2 }
                               }
                               className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2.5"
@@ -706,17 +686,15 @@ const UserProfileModal = ({ userId, currentUserId, isAdmin: isAdminProp = false,
                                  <p className="text-[10px] font-medium text-white/35">Friend</p>
                               </div>
 
-                              {/* KICK Button */}
+                              {/* Unfriend action */}
                               <motion.button
-                                whileTap={{ scale: 0.88 }}
-                                whileHover={{ scale: 1.06 }}
-                                onClick={() => handleKick(f)}
-                                disabled={!!kickingId}
-                                 className="flex shrink-0 items-center gap-1.5 rounded-xl border border-red-400/35 bg-red-500/10 px-3 py-2 text-[12px] font-extrabold tracking-wide text-red-300 transition-colors hover:bg-red-500 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
-                                style={{ boxShadow: "0 2px 8px rgba(239,68,68,0.2)" }}
+                                whileTap={{ scale: 0.97 }}
+                                whileHover={{ scale: 1.02 }}
+                                onClick={() => handleUnfriend(f)}
+                                disabled={!!unfriendingId}
+                                 className="flex shrink-0 items-center gap-1.5 rounded-xl border border-red-400/25 bg-red-500/[0.06] px-3 py-2 text-[12px] font-semibold text-red-200 transition-colors hover:bg-red-500/15 disabled:cursor-not-allowed disabled:opacity-40"
                               >
-                                <span className="text-base leading-none">⚽</span>
-                                KICK
+                                Unfriend
                               </motion.button>
                             </motion.div>
                           ))}

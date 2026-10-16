@@ -611,7 +611,7 @@ const DEMO_HINDI_CIRCLES = [
     cover_url:
       "https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=400&q=80",
     member_count: 3102,
-    description: "Dosti, hansi aur yaarana",
+    description: "A space for friendship, laughter, and shared moments.",
   },
   {
     id: "demo-barsaate",

@@ -18,9 +18,9 @@ export const QUOTES: Quote[] = [
   { id: 6,  category: "Motivational", lang: "hindi",    text: "सफलता का कोई शॉर्टकट नहीं होता, बस मेहनत और लगन।" },
 
   // ── MOTIVATIONAL / HINGLISH ───────────────────────────────────────────────
-  { id: 7,  category: "Motivational", lang: "hinglish", text: "Bhai, mushkilein aati hain toh life interesting hoti hai. Keep going!" },
+  { id: 7,  category: "Motivational", lang: "hinglish", text: "Mushkilein jeevan ko aur dilchasp banati hain. Aage badhte rahiye." },
   { id: 8,  category: "Motivational", lang: "hinglish", text: "Sapne bade rakho, tabhi duniya choti lagegi." },
-  { id: 9,  category: "Motivational", lang: "hinglish", text: "Kal ke darr se aaj ki mehnat mat chod. Chal, uth ja!" },
+  { id: 9,  category: "Motivational", lang: "hinglish", text: "Kal ke darr se aaj ki mehnat mat chhodiye; himmat se aage badhiye." },
   { id: 10, category: "Motivational", lang: "hinglish", text: "Jab sab chhod dete hain, tab bhi tum khud ka saath mat chodo." },
   { id: 11, category: "Motivational", lang: "hinglish", text: "Log kya sochenge — yeh sochna band karo, aur kuch kar ke dikhao." },
   { id: 12, category: "Motivational", lang: "hinglish", text: "Haar ke baad jo khada hota hai, wahi champion kehlata hai." },
@@ -43,7 +43,7 @@ export const QUOTES: Quote[] = [
 
   // ── LOVE / HINGLISH ──────────────────────────────────────────────────────
   { id: 25, category: "Love", lang: "hinglish", text: "Teri ek smile ke liye main kuch bhi kar sakta hoon, sach mein." },
-  { id: 26, category: "Love", lang: "hinglish", text: "Pyaar karna asan nahi, par tujhse karna bohot easy lag raha hai." },
+  { id: 26, category: "Love", lang: "hinglish", text: "Prem aasaan nahi hota, lekin aapke saath yeh anubhav sukhad lagta hai." },
   { id: 27, category: "Love", lang: "hinglish", text: "Tum mere notifications se zyada important ho. Aur yeh baat serious hai." },
   { id: 28, category: "Love", lang: "hinglish", text: "Teri yaad aati hai toh dil kehta hai — kash tu yahan hoti." },
   { id: 29, category: "Love", lang: "hinglish", text: "Chhoti si baat hai par dil ki hai — tujhse mohabbat hai." },
@@ -70,7 +70,7 @@ export const QUOTES: Quote[] = [
   { id: 44, category: "Sad", lang: "hinglish", text: "Hasna padta hai kyunki rona toh koi samjhega nahi." },
   { id: 45, category: "Sad", lang: "hinglish", text: "Akela hoon lekin tang nahi — bas thoda sa dard hai jo andar rehta hai." },
   { id: 46, category: "Sad", lang: "hinglish", text: "Unhe yaad karte karte neend aa jati hai, wahi buri baat hai." },
-  { id: 47, category: "Sad", lang: "hinglish", text: "Zindagi ne sikhaya — jo tumse pyaar kare, wahi chhod bhi jaata hai." },
+  { id: 47, category: "Sad", lang: "hinglish", text: "Zindagi ne sikhaya hai—jo aapse prem karta hai, vah kabhi-kabhi door bhi chala jaata hai." },
   { id: 48, category: "Sad", lang: "hinglish", text: "Thakaan sirf body mein nahi hoti, dil bhi thak jaata hai kabhi kabhi." },
 
   // ── SAD / ENGLISH ────────────────────────────────────────────────────────
@@ -90,7 +90,7 @@ export const QUOTES: Quote[] = [
   { id: 60, category: "Dhokha", lang: "hindi",    text: "जिसे दिल का राज दिया, उसी ने दिल को तार-तार किया।" },
 
   // ── DHOKHA / HINGLISH ────────────────────────────────────────────────────
-  { id: 61, category: "Dhokha", lang: "hinglish", text: "Yaaron ne yaarana nibhaya nahi — yeh toh sochna hi band karo ab." },
+  { id: 61, category: "Dhokha", lang: "hinglish", text: "Har rishta hamesha saath nahi nibhata; apni ummeedon ko sambhal kar rakhiye." },
   { id: 62, category: "Dhokha", lang: "hinglish", text: "Jis par itna trust kiya tha, usne wahi chiz tod di — dil." },
   { id: 63, category: "Dhokha", lang: "hinglish", text: "Bura nahi maanta dhokhe ka, par apna saath chhod gaya — yeh bura laga." },
   { id: 64, category: "Dhokha", lang: "hinglish", text: "Galti meri nahi thi, bas main sahi insaan ko galat samjhta raha." },
@@ -116,10 +116,10 @@ export const QUOTES: Quote[] = [
   // ── ROMANTIC / HINGLISH ──────────────────────────────────────────────────
   { id: 79, category: "Romantic", lang: "hinglish", text: "Tere saath chai peena — ye moment kisi luxury se kam nahi." },
   { id: 80, category: "Romantic", lang: "hinglish", text: "Teri awaaz sunne ke liye kaafi hoon main. Kuch bolna nahi parta." },
-  { id: 81, category: "Romantic", lang: "hinglish", text: "Baarish mein tere saath bheegna — yaar, yeh toh dream scene hai." },
+  { id: 81, category: "Romantic", lang: "hinglish", text: "Baarish mein aapke saath bheegna ek khoobsurat khwaab hai." },
   { id: 82, category: "Romantic", lang: "hinglish", text: "Tu paas ho toh duniya ki shor bhi music lagti hai." },
   { id: 83, category: "Romantic", lang: "hinglish", text: "Tere bina photos achhi lagti hain, par teri smile se lagti hain perfect." },
-  { id: 84, category: "Romantic", lang: "hinglish", text: "Raat ko teri baatein sun sun ke neend aati hai — yeh love hai bhai." },
+  { id: 84, category: "Romantic", lang: "hinglish", text: "Raat bhar aapki baatein sunna prem ke ehsaas ko aur gehra karta hai." },
 
   // ── ROMANTIC / ENGLISH ───────────────────────────────────────────────────
   { id: 85, category: "Romantic", lang: "english",  text: "Let's grow old arguing about silly things and loving each other fiercely." },
@@ -138,12 +138,12 @@ export const QUOTES: Quote[] = [
   { id: 96,  category: "Happy", lang: "hindi",    text: "हर पल को जियो — जिंदगी एक बार ही मिलती है।" },
 
   // ── HAPPY / HINGLISH ─────────────────────────────────────────────────────
-  { id: 97,  category: "Happy", lang: "hinglish", text: "Aaj ka din tera hai — aaj khub haans aur kha, kal ki chinta mat kar." },
-  { id: 98,  category: "Happy", lang: "hinglish", text: "Khushi chhoti cheez mein hai — chai, dost aur thodi dhoop." },
-  { id: 99,  category: "Happy", lang: "hinglish", text: "Zindagi chhoti hai yaar, isliye bada soch, bada khaa aur bada hass." },
-  { id: 100, category: "Happy", lang: "hinglish", text: "Jo hua, sahi hua. Jo ho raha hai, mast ho raha hai. Life is good!" },
+  { id: 97,  category: "Happy", lang: "hinglish", text: "Aaj ka din aapke liye hai—khulkar muskuraiye aur vartamaan ka aanand lijiye." },
+  { id: 98,  category: "Happy", lang: "hinglish", text: "Khushi chhoti cheezon mein milti hai—chai, apne log aur dhoop." },
+  { id: 99,  category: "Happy", lang: "hinglish", text: "Zindagi chhoti hai; bade sapne dekhiye, achha khaiye aur khulkar muskuraiye." },
+  { id: 100, category: "Happy", lang: "hinglish", text: "Jo beet gaya, usse seekhiye; aaj ke pal ko poori tarah jeeye." },
   { id: 101, category: "Happy", lang: "hinglish", text: "Apni khushi khud banao — dusron pe depend mat karo." },
-  { id: 102, category: "Happy", lang: "hinglish", text: "Good vibes only. Tension ko bolo — bye bye!" },
+  { id: 102, category: "Happy", lang: "hinglish", text: "Sakaratmak drishtikon banaye rakhiye; chinta ko apne faislon par haavi na hone dein." },
 
   // ── HAPPY / ENGLISH ──────────────────────────────────────────────────────
   { id: 103, category: "Happy", lang: "english",  text: "Choose joy. Not because life is perfect, but because it's worth it." },

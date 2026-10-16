@@ -1517,9 +1517,9 @@ const Header = ({
   const [dashHooksFetched, setDashHooksFetched] = useState(false);
   const [dashCirclesFetched, setDashCirclesFetched] = useState(false);
 
-  // ── KICK state ─────────────────────────────────────────────────────────────
-  const [kickTarget, setKickTarget] = useState<FriendEntry | null>(null);
-  const [kickingId, setKickingId] = useState<string | null>(null);
+  // ── Friend removal state ───────────────────────────────────────────────────
+  const [unfriendTarget, setUnfriendTarget] = useState<FriendEntry | null>(null);
+  const [unfriendingId, setUnfriendingId] = useState<string | null>(null);
 
   // ── Fetchers ──────────────────────────────────────────────────────────────
   const fetchProfile = useCallback(async () => {
@@ -1801,12 +1801,12 @@ const Header = ({
     setDashMagnetFetched(true);
   }, [userId, dashMagnetFetched]);
 
-  // ── KICK Logic ─────────────────────────────────────────────────────────────
-  const confirmKick = async () => {
-    if (!kickTarget || kickingId) return;
-    const target = kickTarget;
-    setKickTarget(null);
-    setKickingId(target.id);
+  // ── Unfriend action ────────────────────────────────────────────────────────
+  const confirmUnfriend = async () => {
+    if (!unfriendTarget || unfriendingId) return;
+    const target = unfriendTarget;
+    setUnfriendTarget(null);
+    setUnfriendingId(target.id);
 
     await supabase.from("friendships").delete().eq("id", target.friendshipId);
 
@@ -1816,25 +1816,10 @@ const Header = ({
         ...prev,
         friends: Math.max(0, prev.friends - 1),
       }));
-      setKickingId(null);
-    }, 650);
+      setUnfriendingId(null);
+    }, 220);
 
-    toast(
-      <div className="flex items-center gap-2 font-bold text-sm">
-        <span className="text-2xl">⚽</span>
-        <span>Chal hat hawa aane de... Kicked out of the field!</span>
-      </div>,
-      {
-        duration: 3500,
-        style: {
-          background: "#1a1a2e",
-          color: "#fff",
-          border: "1.5px solid #ef4444",
-          borderRadius: "14px",
-          fontFamily: "inherit",
-        },
-      },
-    );
+    toast.success("Friend removed.");
   };
 
   // ── Actions ───────────────────────────────────────────────────────────────
@@ -2810,7 +2795,7 @@ const Header = ({
               exit={{ opacity: 0 }}
               onClick={() => {
                 setShowDash(false);
-                setKickTarget(null);
+                setUnfriendTarget(null);
                 setDashFriends([]);
               }}
               className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[115]"
@@ -2844,7 +2829,7 @@ const Header = ({
                 <button
                   onClick={() => {
                     setShowDash(false);
-                    setKickTarget(null);
+                    setUnfriendTarget(null);
                     setDashFriends([]);
                   }}
                   className="absolute right-4 p-1.5 hover:bg-white/10 rounded-full text-white/40 hover:text-white transition-all"
@@ -2976,9 +2961,9 @@ const Header = ({
 
               {/* ── Tab Content ──────────────────────────────────────────── */}
               <div className="flex-1 overflow-y-auto relative">
-                {/* ── KICK CONFIRMATION POPUP ─────────────────────────── */}
+                {/* ── UNFRIEND CONFIRMATION ───────────────────────────── */}
                 <AnimatePresence>
-                  {kickTarget && (
+                  {unfriendTarget && (
                     <motion.div
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
@@ -3006,24 +2991,21 @@ const Header = ({
                           boxShadow: "0 20px 60px rgba(239,68,68,0.25)",
                         }}
                       >
-                        <div className="text-5xl mb-3">⚽🥊</div>
-                        <p className="text-white font-black text-[15px] leading-snug mb-1">
-                          Bhai, kya aap sach mein
-                        </p>
-                        <p className="text-white font-black text-[15px] leading-snug mb-1">
+                        <p className="text-white font-black text-[15px] leading-snug mb-2">
+                          Unfriend{" "}
                           <span className="text-yellow-400">
-                            {kickTarget.full_name}
-                          </span>{" "}
-                          ko
+                            {unfriendTarget.full_name}
+                          </span>
+                          ?
                         </p>
                         <p className="text-white font-black text-[15px] leading-snug mb-5">
-                          bahar ka rasta dikha rahe hain?
+                          They will be removed from your friends list.
                         </p>
 
                         <div className="flex gap-3">
                           <motion.button
                             whileTap={{ scale: 0.94 }}
-                            onClick={confirmKick}
+                            onClick={confirmUnfriend}
                             className="flex-1 py-3 rounded-2xl font-black text-[13px] text-white transition-all"
                             style={{
                               background:
@@ -3031,14 +3013,14 @@ const Header = ({
                               boxShadow: "0 6px 20px rgba(220,38,38,0.45)",
                             }}
                           >
-                            💨 Ha, Chal hat hawa aane de!
+                            Unfriend
                           </motion.button>
                           <motion.button
                             whileTap={{ scale: 0.94 }}
-                            onClick={() => setKickTarget(null)}
+                            onClick={() => setUnfriendTarget(null)}
                             className="flex-1 py-3 rounded-2xl font-black text-[13px] text-white/70 border border-white/15 hover:bg-white/10 transition-all"
                           >
-                            Nhi, Rehne do
+                            Cancel
                           </motion.button>
                         </div>
                       </motion.div>
@@ -3054,9 +3036,6 @@ const Header = ({
                       <p className="text-[11px] font-black text-white/50 uppercase tracking-widest">
                         Friends · {dashStats.friends}
                       </p>
-                      <span className="ml-auto text-[9px] text-red-400 font-black bg-red-500/10 border border-red-500/20 px-2 py-0.5 rounded-full">
-                        ⚽ Kick Mode ON
-                      </span>
                     </div>
 
                     {/* ── Skeleton loader ── */}
@@ -3090,7 +3069,7 @@ const Header = ({
                       <div className="flex flex-col items-center justify-center py-16 gap-3 text-white/20">
                         <Users size={36} strokeWidth={1} />
                         <p className="text-[11px] font-black uppercase tracking-widest">
-                          Koi dost nahi abhi
+                          No friends yet.
                         </p>
                       </div>
                     )}
@@ -3103,30 +3082,16 @@ const Header = ({
                             <motion.div
                               key={f.id}
                               layout
-                              initial={{ opacity: 1, x: 0, rotate: 0 }}
+                              initial={{ opacity: 1, y: 0, scale: 1 }}
                               animate={
-                                kickingId === f.id
-                                  ? {
-                                      x: 420,
-                                      rotate: 18,
-                                      opacity: 0,
-                                      scale: 0.8,
-                                    }
-                                  : { opacity: 1, x: 0, rotate: 0, scale: 1 }
+                                unfriendingId === f.id
+                                  ? { opacity: 0, y: -4, scale: 0.97 }
+                                  : { opacity: 1, y: 0, scale: 1 }
                               }
-                              exit={{
-                                x: 420,
-                                rotate: 18,
-                                opacity: 0,
-                                scale: 0.8,
-                              }}
+                              exit={{ opacity: 0, y: -4, scale: 0.97 }}
                               transition={
-                                kickingId === f.id
-                                  ? {
-                                      type: "spring",
-                                      stiffness: 280,
-                                      damping: 18,
-                                    }
+                                unfriendingId === f.id
+                                  ? { duration: 0.2 }
                                   : { duration: 0.2 }
                               }
                               className="flex items-center gap-3 rounded-2xl px-3 py-2.5"
@@ -3167,29 +3132,20 @@ const Header = ({
                                 </p>
                               </div>
 
-                              {/* ── BIG BOLD KICK BUTTON ── */}
+                              {/* ── UNFRIEND ACTION ── */}
                               <motion.button
-                                whileTap={{ scale: 0.82 }}
-                                whileHover={{
-                                  scale: 1.08,
-                                  boxShadow: "0 6px 24px rgba(239,68,68,0.55)",
-                                }}
-                                onClick={() => setKickTarget(f)}
-                                disabled={!!kickingId}
-                                className="flex items-center gap-2 px-4 py-2.5 rounded-2xl font-black text-[13px] tracking-widest uppercase transition-all disabled:opacity-40 shrink-0"
+                                whileTap={{ scale: 0.97 }}
+                                whileHover={{ scale: 1.02 }}
+                                onClick={() => setUnfriendTarget(f)}
+                                disabled={!!unfriendingId}
+                                className="flex items-center gap-2 px-4 py-2.5 rounded-2xl font-semibold text-[13px] transition-all disabled:opacity-40 shrink-0"
                                 style={{
-                                  border: "2px solid rgba(239,68,68,0.8)",
-                                  color: "#fff",
-                                  background:
-                                    "linear-gradient(135deg, rgba(220,38,38,0.7), rgba(239,68,68,0.5))",
-                                  boxShadow: "0 4px 16px rgba(239,68,68,0.35)",
-                                  letterSpacing: "0.08em",
+                                  border: "1px solid rgba(248,113,113,0.35)",
+                                  color: "#fecaca",
+                                  background: "rgba(239,68,68,0.08)",
                                 }}
                               >
-                                <span className="text-[17px] leading-none">
-                                  ⚽
-                                </span>
-                                <span>KICK</span>
+                                <span>Unfriend</span>
                               </motion.button>
                             </motion.div>
                           ))}
