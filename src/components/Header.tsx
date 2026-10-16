@@ -54,6 +54,7 @@ interface FriendEntry {
   id: string;
   full_name: string;
   avatar_url?: string;
+  location?: string | null;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -1408,50 +1409,43 @@ const DASH_TABS: {
   key: DashTab;
   label: string;
   icon: React.ReactNode;
-  color: string;
-  glow: string;
+  value: number;
 }[] = [
   {
     key: "posts",
     label: "Posts",
     icon: <FileText size={15} />,
-    color: "from-indigo-500 to-blue-600",
-    glow: "rgba(99,102,241,0.5)",
+    value: 15,
   },
   {
     key: "hooks",
     label: "Hooks",
     icon: <Link2 size={15} />,
-    color: "from-purple-500 to-fuchsia-600",
-    glow: "rgba(168,85,247,0.5)",
+    value: 4,
   },
   {
     key: "circles",
     label: "Circles",
     icon: <Users size={14} />,
-    color: "from-orange-500 to-amber-500",
-    glow: "rgba(249,115,22,0.5)",
+    value: 5,
   },
   {
     key: "likes",
     label: "Likes",
     icon: <Heart size={15} />,
-    color: "from-rose-500 to-pink-600",
-    glow: "rgba(244,63,94,0.5)",
+    value: 48,
   },
   {
     key: "friends",
     label: "Friends",
     icon: <Users size={15} />,
-    color: "from-emerald-500 to-teal-600",
-    glow: "rgba(16,185,129,0.5)",
+    value: 12,
   },
   {
     key: "magnet",
     label: "Links",
     icon: <Zap size={15} />,
-    color: "from-teal-500 to-cyan-600",
-    glow: "rgba(20,184,166,0.5)",
+    value: 9,
   },
 ];
 
@@ -1516,7 +1510,6 @@ const Header = ({
   const [dashMagnetSent, setDashMagnetSent] = useState(0);
   const [dashMagnetReceived, setDashMagnetReceived] = useState(0);
   const [dashMagnetFetched, setDashMagnetFetched] = useState(false);
-  const [dashLoading, setDashLoading] = useState(false);
   const [dashFriends, setDashFriends] = useState<FriendEntry[]>([]);
   const [dashFriendsLoading, setDashFriendsLoading] = useState(false);
   const [dashPosts, setDashPosts] = useState<any[]>([]);
@@ -1653,7 +1646,6 @@ const Header = ({
   // ── Dashboard Fetchers ─────────────────────────────────────────────────────
   const fetchDashStats = useCallback(async () => {
     if (!userId) return;
-    setDashLoading(true);
     const [postsRes, hooksRes, circlesRes, friendsRes, postsLikesRes, magnetSentRes] =
       await Promise.all([
         supabase
@@ -1692,7 +1684,6 @@ const Header = ({
       friends: friendsRes.count ?? 0,
       magnet: magnetSentRes.count ?? 0,
     });
-    setDashLoading(false);
   }, [userId]);
 
   const fetchDashFriends = useCallback(async () => {
@@ -1729,7 +1720,7 @@ const Header = ({
 
     const { data: profiles } = await supabase
       .from("profiles")
-      .select("id, full_name, avatar_url")
+      .select("id, full_name, avatar_url, location")
       .in("id", friendIds);
 
     console.log("[PowerDash] profiles fetched:", profiles?.length ?? 0);
@@ -1748,6 +1739,7 @@ const Header = ({
               id: p.id,
               full_name: p.full_name,
               avatar_url: p.avatar_url,
+              location: p.location,
             }
           : null;
       })
@@ -2924,11 +2916,7 @@ const Header = ({
                     <div className="flex items-center gap-1.5">
                       <Zap size={10} className="text-yellow-400" />
                       <span
-                        className="text-[10px] font-black tracking-widest uppercase"
-                        style={{
-                          color: "#facc15",
-                          textShadow: "0 0 8px rgba(250,204,21,0.6)",
-                        }}
+                        className="text-red-600 text-[15px] font-black tracking-tight"
                       >
                         Power Dashboard
                       </span>
@@ -2974,16 +2962,23 @@ const Header = ({
                     type="button"
                     onClick={openOwnTimeline}
                     data-testid="button-power-dashboard-profile"
-                    className="power-dashboard-quick-action inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border px-3 text-[11px] font-extrabold transition-colors hover:bg-[#f6f7e4] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#a2a953] focus-visible:ring-offset-2"
+                    className="power-dashboard-quick-action power-dashboard-profile-action col-span-2 inline-flex min-h-14 items-center justify-start gap-3 rounded-2xl border px-4 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#a2a953] focus-visible:ring-offset-2"
                   >
-                    <UserRound size={14} aria-hidden="true" />
-                    My Profile
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#a6b548] text-[#303910]">
+                      <UserRound size={18} aria-hidden="true" />
+                    </span>
+                    <span className="flex min-w-0 flex-col">
+                      <span className="text-[13px] font-black">My Profile</span>
+                      <span className="text-[10px] font-semibold opacity-75">
+                        Open your full timeline
+                      </span>
+                    </span>
                   </button>
                   <button
                     type="button"
                     onClick={openSavedItems}
                     data-testid="button-power-dashboard-saved-items"
-                    className="power-dashboard-quick-action inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border px-3 text-[11px] font-extrabold transition-colors hover:bg-[#f6f7e4] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#a2a953] focus-visible:ring-offset-2"
+                    className="power-dashboard-quick-action col-span-2 inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border px-3 text-[11px] font-extrabold transition-colors hover:bg-[#f6f7e4] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#a2a953] focus-visible:ring-offset-2"
                   >
                     <Bookmark size={14} aria-hidden="true" />
                     Saved Items
@@ -2997,33 +2992,19 @@ const Header = ({
                       key={tab.key}
                       whileTap={{ scale: 0.92 }}
                       onClick={() => setDashTab(tab.key)}
-                      className={`flex flex-col items-center gap-1 py-2 px-0.5 rounded-2xl border transition-all ${dashTab === tab.key ? "border-white/20" : "border-white/8 hover:border-white/15"}`}
-                      style={
-                        dashTab === tab.key
-                          ? {
-                              background: "linear-gradient(135deg, #edf2b6 0%, #dde99a 100%)",
-                              boxShadow: "0 4px 16px rgba(144, 158, 52, 0.18)",
-                            }
-                          : { background: "rgba(255,255,255,0.82)" }
-                      }
+                      type="button"
+                      aria-pressed={dashTab === tab.key}
+                      aria-label={`${tab.value} ${tab.label}`}
+                      data-active={dashTab === tab.key ? "true" : "false"}
+                      className="power-dashboard-stat-pill flex flex-col items-center gap-1 rounded-2xl border px-0.5 py-2 transition-all"
                     >
-                      <div
-                        className={`text-white/60 ${dashTab === tab.key ? "text-white" : ""}`}
-                      >
+                      <span className="flex items-center justify-center">
                         {tab.icon}
-                      </div>
-                      {dashLoading ? (
-                        <div className="w-3 h-3 border border-white/30 border-t-white/80 rounded-full animate-spin" />
-                      ) : (
-                        <span className="text-white font-black text-[13px] leading-none">
-                          {dashStats[tab.key] > 999
-                            ? `${(dashStats[tab.key] / 1000).toFixed(1)}k`
-                            : dashStats[tab.key]}
-                        </span>
-                      )}
-                      <span
-                        className={`text-[9px] font-black uppercase tracking-wide ${dashTab === tab.key ? "text-white/80" : "text-white/35"}`}
-                      >
+                      </span>
+                      <span className="font-black text-[13px] leading-none">
+                        {tab.value}
+                      </span>
+                      <span className="text-[9px] font-black uppercase tracking-wide">
                         {tab.label}
                       </span>
                     </motion.button>
@@ -3104,42 +3085,42 @@ const Header = ({
                 {/* ── FRIENDS TAB ──────────────────────────────────────── */}
                 {dashTab === "friends" && (
                   <div className="p-4">
-                    <div className="flex items-center gap-2 mb-3">
+                    <div className="mb-3 flex items-center gap-2">
                       <Users size={13} className="text-emerald-400" />
-                      <p className="text-[11px] font-black text-white/50 uppercase tracking-widest">
-                        Friends · {dashStats.friends}
+                      <p className="text-[11px] font-black uppercase tracking-widest">
+                        Friends List
                       </p>
                     </div>
 
                     {/* ── Skeleton loader ── */}
                     {dashFriendsLoading && (
-                      <div className="flex flex-col gap-2">
-                        {[1, 2, 3].map((i) => (
+                      <div className="grid grid-cols-2 gap-3">
+                        {[1, 2, 3, 4].map((i) => (
                           <div
                             key={i}
-                            className="flex items-center gap-3 rounded-2xl px-3 py-3 animate-pulse"
+                            className="flex min-w-0 flex-col items-center rounded-2xl border px-3 py-4 text-center animate-pulse"
                             style={{
-                              background: "rgba(255,255,255,0.04)",
-                              border: "1px solid rgba(255,255,255,0.06)",
+                              background: "#ffffff",
+                              borderColor: "#e4e7c8",
                             }}
                           >
-                            <div className="w-11 h-11 rounded-xl bg-white/10 shrink-0" />
-                            <div className="flex-1 space-y-2">
-                              <div className="h-3 bg-white/10 rounded-full w-3/4" />
-                              <div className="h-2 bg-white/6 rounded-full w-1/2" />
-                            </div>
-                            <div className="w-20 h-9 rounded-xl bg-red-500/10 shrink-0" />
+                            <div className="h-14 w-14 rounded-full bg-[#edf0d8]" />
+                            <div className="mt-3 h-3 w-3/4 rounded-full bg-[#edf0d8]" />
+                            <div className="mt-2 h-2 w-1/2 rounded-full bg-[#edf0d8]" />
+                            <div className="mt-4 h-8 w-full rounded-xl bg-[#edf0d8]" />
                           </div>
                         ))}
-                        <p className="text-center text-white/30 text-[11px] font-bold mt-2">
-                          Loading friends...
-                        </p>
                       </div>
+                    )}
+                    {dashFriendsLoading && (
+                      <p className="text-center text-[11px] font-bold mt-2">
+                        Loading friends...
+                      </p>
                     )}
 
                     {/* ── Empty state ── */}
                     {!dashFriendsLoading && dashFriends.length === 0 && (
-                      <div className="flex flex-col items-center justify-center py-16 gap-3 text-white/20">
+                      <div className="flex flex-col items-center justify-center py-16 gap-3">
                         <Users size={36} strokeWidth={1} />
                         <p className="text-[11px] font-black uppercase tracking-widest">
                           No friends yet.
@@ -3149,7 +3130,7 @@ const Header = ({
 
                     {/* ── Friends list ── */}
                     {!dashFriendsLoading && dashFriends.length > 0 && (
-                      <div className="flex flex-col gap-2">
+                      <div className="grid grid-cols-2 gap-3">
                         <AnimatePresence>
                           {dashFriends.map((f) => (
                             <motion.div
@@ -3162,37 +3143,30 @@ const Header = ({
                                   : { opacity: 1, y: 0, scale: 1 }
                               }
                               exit={{ opacity: 0, y: -4, scale: 0.97 }}
-                              transition={
-                                unfriendingId === f.id
-                                  ? { duration: 0.2 }
-                                  : { duration: 0.2 }
-                              }
-                              className="flex items-center gap-3 rounded-2xl px-3 py-2.5"
+                              transition={{ duration: 0.2 }}
+                              className="flex min-w-0 flex-col items-center rounded-2xl border p-3 text-center"
                               style={{
-                                background: "rgba(255,255,255,0.04)",
-                                border: "1px solid rgba(255,255,255,0.07)",
+                                background: "#ffffff",
+                                borderColor: "#e4e7c8",
+                                boxShadow: "0 3px 12px rgba(75, 84, 31, 0.06)",
                               }}
                             >
                               {/* Avatar → opens this friend's full timeline */}
                               <button
                                 type="button"
                                 onClick={() => navigate(`/profile/${encodeURIComponent(f.id)}`)}
-                                className="w-11 h-11 rounded-xl overflow-hidden shrink-0"
-                                style={{
-                                  background:
-                                    "linear-gradient(135deg, #1d4ed8, #4f46e5)",
-                                }}
+                                className="h-16 w-16 shrink-0 overflow-hidden rounded-full border-2 border-[#e3e9b6] bg-[#edf0d8] outline-none focus-visible:ring-2 focus-visible:ring-[#a2a953] focus-visible:ring-offset-2"
                                 aria-label={`Open ${f.full_name}'s timeline`}
                               >
                                 {f.avatar_url ? (
                                   <img
                                     src={f.avatar_url}
-                                    className="w-full h-full object-cover"
+                                    className="h-full w-full object-cover"
                                     alt={f.full_name}
                                     decoding="async"
                                   />
                                 ) : (
-                                  <div className="w-full h-full flex items-center justify-center text-white font-black text-base">
+                                  <div className="flex h-full w-full items-center justify-center text-lg font-black text-[#48522a]">
                                     {(f.full_name || "?")[0].toUpperCase()}
                                   </div>
                                 )}
@@ -3202,31 +3176,30 @@ const Header = ({
                               <button
                                 type="button"
                                 onClick={() => navigate(`/profile/${encodeURIComponent(f.id)}`)}
-                                className="flex-1 min-w-0 text-left"
+                                className="mt-2 w-full min-w-0 text-center outline-none focus-visible:underline"
                                 aria-label={`Open ${f.full_name}'s timeline`}
                               >
-                                <span className="block text-white font-bold text-[14px] truncate">
+                                <span className="block truncate text-[13px] font-bold">
                                   {f.full_name}
                                 </span>
-                                <span className="block text-emerald-400/60 text-[10px] font-semibold">
-                                  ✓ Friend
-                                </span>
                               </button>
+                              <span className="mt-1 block w-full truncate text-[10px] font-medium">
+                                {f.location || "Location not set"}
+                              </span>
+                              <span className="mt-1 text-[10px] font-bold text-[#69752a]">
+                                Friend
+                              </span>
 
                               {/* ── UNFRIEND ACTION ── */}
                               <motion.button
+                                type="button"
                                 whileTap={{ scale: 0.97 }}
                                 whileHover={{ scale: 1.02 }}
                                 onClick={() => setUnfriendTarget(f)}
                                 disabled={!!unfriendingId}
-                                className="flex items-center gap-2 px-4 py-2.5 rounded-2xl font-semibold text-[13px] transition-all disabled:opacity-40 shrink-0"
-                                style={{
-                                  border: "1px solid rgba(248,113,113,0.35)",
-                                  color: "#fecaca",
-                                  background: "rgba(239,68,68,0.08)",
-                                }}
+                                className="power-dashboard-unfriend mt-3 flex min-h-9 w-full items-center justify-center rounded-xl border px-2 py-2 text-[11px] font-bold transition-colors disabled:opacity-40"
                               >
-                                <span>Unfriend</span>
+                                Unfriend
                               </motion.button>
                             </motion.div>
                           ))}

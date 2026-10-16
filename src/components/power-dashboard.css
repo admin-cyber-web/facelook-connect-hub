@@ -76,6 +76,44 @@
   background: #f6f7e4;
 }
 
+.power-dashboard-lemon .power-dashboard-profile-action {
+  color: #303910;
+  border-color: #8f9d34;
+  background: #e5edaa;
+  box-shadow: 0 5px 16px rgba(98, 112, 34, 0.15);
+}
+
+.power-dashboard-lemon .power-dashboard-profile-action:hover {
+  background: #dbe78b;
+}
+
+.power-dashboard-lemon .power-dashboard-stat-pill {
+  border-color: var(--power-border);
+  background: #fffef7;
+  color: #6d7546;
+}
+
+.power-dashboard-lemon .power-dashboard-stat-pill:hover {
+  border-color: #b9c66b;
+}
+
+.power-dashboard-lemon .power-dashboard-stat-pill[data-active="true"] {
+  border-color: #78872a;
+  background: #a8b844;
+  color: #28320d;
+  box-shadow: 0 4px 14px rgba(102, 119, 30, 0.24);
+}
+
+.power-dashboard-lemon .power-dashboard-unfriend {
+  border-color: #879333;
+  background: #fbfce9;
+  color: #59651a;
+}
+
+.power-dashboard-lemon .power-dashboard-unfriend:hover {
+  background: #edf2be;
+}
+
 .power-dashboard-lemon .power-dashboard-confirm-overlay {
   background: rgba(255, 255, 238, 0.94) !important;
 }
