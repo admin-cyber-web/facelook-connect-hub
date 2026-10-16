@@ -1,7 +1,16 @@
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ChangeEvent,
+} from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/lib/supabaseClient";
 import { canViewPrivateProfile } from "@/lib/profileSearch";
+import { toast } from "sonner";
 import FriendWall from "@/components/FriendWall";
 import {
   FullProfilePage,
@@ -45,6 +54,7 @@ interface MediaPostRow {
   likes_count: number | null;
   comments_count: number | null;
   shares_count: number | null;
+  views_count: number | null;
 }
 
 interface FriendshipStatusRow {
@@ -158,12 +168,14 @@ export default function ProfileTimelinePage({
   const [chatSystemMounted, setChatSystemMounted] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [reelStudioOpen, setReelStudioOpen] = useState(false);
+  const [isCoverUploading, setIsCoverUploading] = useState(false);
+  const coverInputRef = useRef<HTMLInputElement>(null);
 
   const loadMediaPage = useCallback(async (targetUserId: string, start: number) => {
     return supabase
       .from("posts")
       .select(
-        "id,content,media_url,image_url,image_urls,cover_url,media_type,type,created_at,likes_count,comments_count,shares_count",
+        "id,content,media_url,image_url,image_urls,cover_url,media_type,type,created_at,likes_count,comments_count,shares_count,views_count",
         { count: "exact" },
       )
       .eq("author_id", targetUserId)
@@ -201,7 +213,7 @@ export default function ProfileTimelinePage({
         supabase
           .from("profiles")
           .select(
-            "id,full_name,username,avatar_url,bio,location,school,profile_locked,is_private_mode",
+            "id,full_name,username,avatar_url,cover_url,bio,location,school,profile_locked,is_private_mode",
           )
           .eq("id", userId)
           .maybeSingle(),
@@ -269,7 +281,7 @@ export default function ProfileTimelinePage({
         supabase
           .from("friendships")
           .select(
-            "id,sender_id,receiver_id,profiles!friendships_sender_id_fkey(id,full_name,avatar_url),profiles!friendships_receiver_id_fkey(id,full_name,avatar_url)",
+            "id,sender_id,receiver_id,profiles!friendships_sender_id_fkey(id,full_name,avatar_url,location),profiles!friendships_receiver_id_fkey(id,full_name,avatar_url,location)",
           )
           .eq("status", "accepted")
           .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
@@ -296,6 +308,7 @@ export default function ProfileTimelinePage({
                     id: friend.id,
                     full_name: friend.full_name || "Flicks member",
                     avatar_url: friend.avatar_url || null,
+                    location: friend.location || null,
                   }
                 : null;
             })
@@ -335,6 +348,70 @@ export default function ProfileTimelinePage({
   const retry = useCallback(() => {
     setReloadVersion((version) => version + 1);
   }, []);
+
+  const handleCoverSelection = useCallback(
+    async (event: ChangeEvent<HTMLInputElement>) => {
+      const input = event.currentTarget;
+      const file = input.files?.[0];
+      if (!file) return;
+
+      if (!profile || profile.id !== currentUserId) {
+        toast.error("Only the profile owner can change this cover photo.");
+        input.value = "";
+        return;
+      }
+      if (!file.type.startsWith("image/")) {
+        toast.error("Choose an image file for your cover photo.");
+        input.value = "";
+        return;
+      }
+      if (file.size > 12 * 1024 * 1024) {
+        toast.error("Cover photos must be 12 MB or smaller.");
+        input.value = "";
+        return;
+      }
+
+      setIsCoverUploading(true);
+      try {
+        const extension =
+          file.name.split(".").pop()?.replace(/[^a-zA-Z0-9]/g, "") || "jpg";
+        const fileName = `${profile.id}-cover-${Date.now()}.${extension}`;
+        const { error: uploadError } = await supabase.storage
+          .from("avatars")
+          .upload(fileName, file, {
+            contentType: file.type,
+            upsert: true,
+          });
+        if (uploadError) throw uploadError;
+
+        const publicUrl = supabase.storage.from("avatars").getPublicUrl(fileName)
+          .data.publicUrl;
+        const { error: profileError } = await supabase
+          .from("profiles")
+          .update({ cover_url: publicUrl })
+          .eq("id", profile.id);
+        if (profileError) {
+          await supabase.storage.from("avatars").remove([fileName]);
+          throw profileError;
+        }
+
+        setProfile((current) =>
+          current?.id === profile.id
+            ? { ...current, cover_url: publicUrl }
+            : current,
+        );
+        window.dispatchEvent(new CustomEvent("flicks-profile-updated"));
+        toast.success("Cover photo updated.");
+      } catch (error) {
+        console.error("[ProfileTimelinePage] cover upload failed:", error);
+        toast.error("Your cover photo could not be updated. Please try again.");
+      } finally {
+        setIsCoverUploading(false);
+        input.value = "";
+      }
+    },
+    [currentUserId, profile],
+  );
 
   const openReelStudio = useCallback(() => setReelStudioOpen(true), []);
   const closeReelStudio = useCallback(() => setReelStudioOpen(false), []);
@@ -415,6 +492,15 @@ export default function ProfileTimelinePage({
 
   return (
     <>
+      <input
+        ref={coverInputRef}
+        type="file"
+        accept="image/*"
+        className="sr-only"
+        aria-label="Choose a profile cover photo"
+        data-testid="input-profile-cover"
+        onChange={(event) => void handleCoverSelection(event)}
+      />
       <FullProfilePage
         profile={profile}
         friendWall={wall}
@@ -425,6 +511,9 @@ export default function ProfileTimelinePage({
         isConnected={isConnected}
         canViewProfile={canViewProfile}
         state={viewState}
+        isOwnProfile={profile?.id === currentUserId}
+        isCoverUploading={isCoverUploading}
+        onEditCover={() => coverInputRef.current?.click()}
         errorMessage={errorMessage}
         hasMoreMedia={hasMoreMedia}
         isLoadingMoreMedia={isLoadingMoreMedia}

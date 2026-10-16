@@ -9,6 +9,7 @@ create table if not exists profiles (
   full_name        text,
   username         text unique,
   avatar_url       text,
+  cover_url        text,
   bio              text,
   location         text,
   school           text,

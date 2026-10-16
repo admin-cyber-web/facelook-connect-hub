@@ -5,6 +5,7 @@ export type ProfileNavigationProfile = {
   full_name: string;
   username?: string | null;
   avatar_url?: string | null;
+  cover_url?: string | null;
   bio?: string | null;
   location?: string | null;
   school?: string | null;
@@ -16,6 +17,7 @@ export type ProfileNavigationFriend = {
   id: string;
   full_name: string;
   avatar_url?: string | null;
+  location?: string | null;
 };
 
 export type ProfileNavigationMedia = {
@@ -39,6 +41,7 @@ export type ProfileNavigationPost = {
   likes_count: number | null;
   comments_count: number | null;
   shares_count: number | null;
+  views_count?: number | null;
 };
 
 export type ProfileViewState = "loading" | "ready" | "error";
@@ -53,6 +56,8 @@ export type FullProfilePageProps = {
   isConnected: boolean;
   canViewProfile?: boolean;
   state?: ProfileViewState;
+  isOwnProfile?: boolean;
+  isCoverUploading?: boolean;
   errorMessage?: string;
   hasMoreMedia?: boolean;
   isLoadingMoreMedia?: boolean;
@@ -61,6 +66,7 @@ export type FullProfilePageProps = {
   onMessage?: (profile: ProfileNavigationProfile) => void;
   onFriendSelect?: (friend: ProfileNavigationFriend) => void;
   onBack?: () => void;
+  onEditCover?: () => void;
 };
 
 export type QuickProfileModalProps = {

@@ -105,7 +105,7 @@ function Avatar({
 
   return (
     <div
-      className={`flex ${sizeClass} shrink-0 items-center justify-center overflow-hidden rounded-full border border-fuchsia-200/20 bg-gradient-to-br from-fuchsia-300/25 via-violet-300/20 to-cyan-200/20 font-extrabold text-fuchsia-50`}
+      className={`profile-nav-wall-avatar flex ${sizeClass} shrink-0 items-center justify-center overflow-hidden rounded-full border border-fuchsia-200/20 bg-gradient-to-br from-fuchsia-300/25 via-violet-300/20 to-cyan-200/20 font-extrabold text-fuchsia-50`}
     >
       {src ? (
         <img
@@ -177,7 +177,7 @@ function WallPost({
 
   return (
     <article
-      className="overflow-hidden rounded-[1.4rem] border border-white/[0.09] bg-[linear-gradient(145deg,rgba(255,255,255,0.065),rgba(255,255,255,0.025)_55%,rgba(124,58,237,0.045))] shadow-[0_14px_35px_rgba(8,4,18,0.12)]"
+      className="profile-nav-post overflow-hidden rounded-[1.4rem] border border-white/[0.09] bg-[linear-gradient(145deg,rgba(255,255,255,0.065),rgba(255,255,255,0.025)_55%,rgba(124,58,237,0.045))] shadow-[0_14px_35px_rgba(8,4,18,0.12)]"
       data-testid={`card-wall-post-${post.id}`}
     >
       <div className="flex items-center gap-3 px-4 pb-3 pt-4 sm:px-5">
@@ -210,7 +210,7 @@ function WallPost({
       )}
 
       {hasMedia && (
-        <div className="px-3 pb-3 sm:px-4">
+        <div className="profile-nav-post-media px-3 pb-3 sm:px-4">
           {video ? (
             <div className="overflow-hidden rounded-[1rem] border border-white/10 bg-black/30">
               <video
@@ -251,7 +251,7 @@ function WallPost({
         </div>
       )}
 
-      <div className="mx-4 flex items-center justify-between border-b border-white/[0.07] py-2 text-[10px] font-medium text-violet-100/45 sm:mx-5">
+      <div className="profile-nav-post-stats mx-4 flex items-center justify-between border-b border-white/[0.07] py-2 text-[10px] font-medium text-violet-100/45 sm:mx-5">
         <span data-testid={`text-post-likes-${post.id}`}>
           {countLabel(post.likesCount, "like")}
         </span>
@@ -265,7 +265,7 @@ function WallPost({
         </span>
       </div>
 
-      <div className="grid grid-cols-4 gap-1 px-2 py-2 sm:px-3">
+      <div className="profile-nav-post-actions grid grid-cols-4 gap-1 px-2 py-2 sm:px-3">
         <button
           type="button"
           onClick={() => onLike(post.id)}
@@ -309,7 +309,7 @@ function WallPost({
           <Share2 size={15} strokeWidth={2.1} aria-hidden="true" />
           Share
         </button>
-        <SavePostButton postId={post.id} />
+        <SavePostButton postId={post.id} className="profile-nav-save-button" />
       </div>
 
       {openComments && (
@@ -419,7 +419,7 @@ export default function FriendWallPresentation({
   return (
     <section
       aria-label={`${friendName}'s wall`}
-      className="px-4 pb-7 pt-6 sm:px-5"
+      className="profile-nav-wall-section px-4 pb-7 pt-6 sm:px-5"
       data-testid="section-friend-wall"
     >
       <div className="mb-4 flex items-end justify-between gap-3">
