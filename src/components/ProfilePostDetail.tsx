@@ -10,7 +10,7 @@ import {
   Send,
   X,
 } from "lucide-react";
-import { ReactionBar } from "./ReactionBar";
+import { ReactionBar, useDismissableReactionPicker } from "./ReactionBar";
 import type {
   FriendWallCommentView,
   FriendWallPostView,
@@ -92,6 +92,16 @@ export default function ProfilePostDetail({
 }: ProfilePostDetailProps) {
   const [reactionPickerOpen, setReactionPickerOpen] = useState(false);
   const [activeCommentReactionId, setActiveCommentReactionId] = useState<string | null>(null);
+  useDismissableReactionPicker(
+    reactionPickerOpen,
+    () => setReactionPickerOpen(false),
+    "profile-post",
+  );
+  useDismissableReactionPicker(
+    activeCommentReactionId !== null,
+    () => setActiveCommentReactionId(null),
+    "profile-comment",
+  );
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState("");
   const [editBusy, setEditBusy] = useState(false);
@@ -277,13 +287,17 @@ export default function ProfilePostDetail({
               <button
                 type="button"
                 onClick={() => setReactionPickerOpen((open) => !open)}
+                data-reaction-surface="profile-post"
                 aria-label="Choose a reaction"
                 className="ml-1 rounded-lg px-2 text-[#756365] hover:bg-[#800020]/[0.06]"
               >
                 <MoreHorizontal size={18} />
               </button>
               {reactionPickerOpen && (
-                <div className="absolute bottom-full left-1/2 z-30 mb-1 -translate-x-1/2">
+                <div
+                  className="absolute bottom-full left-1/2 z-30 mb-1 -translate-x-1/2"
+                  data-reaction-surface="profile-post"
+                >
                   <ReactionBar
                     onReact={(emoji) => {
                       const type = REACTION_TYPE_BY_EMOJI[emoji];
@@ -428,12 +442,16 @@ export default function ProfilePostDetail({
                               <button
                                 type="button"
                                 onClick={() => setActiveCommentReactionId((id) => id === comment.id ? null : comment.id)}
+                                data-reaction-surface="profile-comment"
                                 className="text-[11px] font-bold text-[#756365] hover:text-[#800020]"
                               >
                                 React
                               </button>
                               {activeCommentReactionId === comment.id && (
-                                <div className="relative z-20">
+                                <div
+                                  className="relative z-20"
+                                  data-reaction-surface="profile-comment"
+                                >
                                   <ReactionBar
                                     onReact={(emoji) => onCommentReact(comment.id, emoji)}
                                     onClose={() => setActiveCommentReactionId(null)}
