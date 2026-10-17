@@ -1,6 +1,41 @@
+import { useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
 export const CHAT_REACTIONS = ["❤️", "👍", "😂", "🔥", "😮"];
+
+export function useDismissableReactionPicker(
+  open: boolean,
+  onClose: () => void,
+  surface: string,
+) {
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const surfaceSelector = `[data-reaction-surface="${surface}"]`;
+    const closeIfOutside = (event: Event) => {
+      const target = event.target;
+      if (target instanceof Element && target.closest(surfaceSelector)) return;
+      onCloseRef.current();
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onCloseRef.current();
+    };
+
+    document.addEventListener("pointerdown", closeIfOutside, true);
+    document.addEventListener("click", closeIfOutside, true);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeIfOutside, true);
+      document.removeEventListener("click", closeIfOutside, true);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [open, surface]);
+}
 
 interface ReactionBarProps {
   onReact: (emoji: string) => void;

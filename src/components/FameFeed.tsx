@@ -15,7 +15,11 @@ import { useOnlineUsers } from "../context/OnlineUsersContext";
 import ActiveStatusAvatar from "./ActiveStatusAvatar";
 import { memGet, memSet } from "../lib/memCache";
 import { toast } from "sonner";
-import { ReactionBar, ReactionBubbles } from "./ReactionBar";
+import {
+  ReactionBar,
+  ReactionBubbles,
+  useDismissableReactionPicker,
+} from "./ReactionBar";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { MagnetButton, PostVoiceStrip, MagnetVoice } from "./MagnetSystem";
 import { useSoundEffects } from "../hooks/useSoundEffects";
@@ -2131,6 +2135,7 @@ type PostDetailViewProps = {
   onCancelCommentEdit: () => void;
   onReact: (commentId: string, emoji: string) => void;
   onToggleReactionBar: (commentId: string) => void;
+  onCloseReactionBar: (commentId: string) => void;
 };
 
 const PostDetailView = ({
@@ -2157,6 +2162,7 @@ const PostDetailView = ({
   onCancelCommentEdit,
   onReact,
   onToggleReactionBar,
+  onCloseReactionBar,
 }: PostDetailViewProps) => {
   const topLevel = (comments ?? []).filter((comment) => !comment.parent_id);
   const isPostOwner =
@@ -2351,16 +2357,20 @@ const PostDetailView = ({
                             <button
                               type="button"
                               onClick={() => onToggleReactionBar(comment.id)}
+                              data-reaction-surface="fame-comment"
                               className="text-xs font-bold text-white/45"
                             >
                               React
                             </button>
                             <AnimatePresence>
                               {commentReactionBarId === comment.id && (
-                                <div className="absolute bottom-full left-0 z-20 mb-2">
+                                <div
+                                  className="absolute bottom-full left-0 z-20 mb-2"
+                                  data-reaction-surface="fame-comment"
+                                >
                                   <ReactionBar
                                     onReact={(emoji) => onReact(comment.id, emoji)}
-                                    onClose={() => onToggleReactionBar(comment.id)}
+                                    onClose={() => onCloseReactionBar(comment.id)}
                                   />
                                 </div>
                               )}
@@ -3551,6 +3561,16 @@ const FameFeed = ({
   const [commentReactionBarId, setCommentReactionBarId] = useState<
     string | null
   >(null);
+  useDismissableReactionPicker(
+    reactionBarPostId !== null,
+    () => setReactionBarPostId(null),
+    "fame-post",
+  );
+  useDismissableReactionPicker(
+    commentReactionBarId !== null,
+    () => setCommentReactionBarId(null),
+    "fame-comment",
+  );
   const [commentReactions, setCommentReactions] = useState<
     Record<string, Record<string, string[]>>
   >({});
@@ -4943,9 +4963,9 @@ const FameFeed = ({
   };
 
   const handleReact = async (post: any, reactionType: string) => {
+    setReactionBarPostId(null);
     if (!currentUserId) return;
     playPop();
-    setReactionBarPostId(null);
 
     const alreadySame =
       likedIds.has(post.id) && userReactions[post.id] === reactionType;
@@ -5311,9 +5331,9 @@ const FameFeed = ({
   );
 
   const handleCommentReact = async (commentId: string, emoji: string) => {
+    setCommentReactionBarId(null);
     if (!currentUserId) return;
     playPop();
-    setCommentReactionBarId(null);
     const prev = commentReactions[commentId] ?? {};
     const currentUsers = prev[emoji] ?? [];
     const alreadyReacted = currentUsers.includes(currentUserId);
@@ -6415,6 +6435,7 @@ const FameFeed = ({
             {/* Reaction button — hover shows bar on desktop, long-press on mobile */}
             <div
               className="relative"
+              data-reaction-surface="fame-post"
               onMouseEnter={() => setReactionBarPostId(post.id)}
               onMouseLeave={() => setReactionBarPostId(null)}
             >
@@ -6426,6 +6447,7 @@ const FameFeed = ({
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 10, scale: 0.8 }}
                     transition={{ type: "spring", stiffness: 420, damping: 22 }}
+                    data-reaction-surface="fame-post"
                     className="absolute bottom-11 left-0 flex items-center gap-0.5 bg-slate-900 rounded-full border border-white/10 px-3 py-1.5 z-50"
                   >
                     {REACTIONS.map((r, i) => (
@@ -6472,7 +6494,10 @@ const FameFeed = ({
                   }
                 }}
                 onClick={() => {
-                  if (reactionBarPostId === post.id) return;
+                  if (reactionBarPostId === post.id) {
+                    setReactionBarPostId(null);
+                    return;
+                  }
                   handleReact(post, userReactions[post.id] || "like");
                 }}
                 className="flex items-center gap-1.5 select-none"
@@ -7038,6 +7063,7 @@ const FameFeed = ({
                                                 : c.id,
                                             );
                                           }}
+                                          data-reaction-surface="fame-comment"
                                           className="text-[11px] text-white/40 font-bold"
                                         >
                                           😊 React
@@ -7051,7 +7077,10 @@ const FameFeed = ({
                                                   setCommentReactionBarId(null)
                                                 }
                                               />
-                                              <div className="absolute left-0 bottom-full mb-1 z-50">
+                                              <div
+                                                className="absolute left-0 bottom-full mb-1 z-50"
+                                                data-reaction-surface="fame-comment"
+                                              >
                                                 <ReactionBar
                                                   onReact={(emoji) =>
                                                     handleCommentReact(
@@ -8198,6 +8227,7 @@ const FameFeed = ({
                   current === commentId ? null : commentId,
                 )
               }
+              onCloseReactionBar={() => setCommentReactionBarId(null)}
             />
           );
         })()}

@@ -12,7 +12,7 @@ import {
   Video,
 } from "lucide-react";
 import SavePostButton from "./SavePostButton";
-import { ReactionBar } from "./ReactionBar";
+import { ReactionBar, useDismissableReactionPicker } from "./ReactionBar";
 
 const REACTION_TYPE_BY_EMOJI: Record<string, string> = {
   "👍": "like",
@@ -173,6 +173,11 @@ function WallPost({
   onOpenPostDetail: (postId: string) => void;
 }) {
   const [reactionPickerOpen, setReactionPickerOpen] = useState(false);
+  useDismissableReactionPicker(
+    reactionPickerOpen,
+    () => setReactionPickerOpen(false),
+    "friend-wall-post",
+  );
   const created = formatDate(post.createdAt);
   const video = isVideoPost(post);
   const images = (post.imageUrls ?? []).filter(Boolean);
@@ -316,6 +321,7 @@ function WallPost({
           <button
             type="button"
             onClick={() => setReactionPickerOpen((open) => !open)}
+            data-reaction-surface="friend-wall-post"
             aria-label="Choose a post reaction"
             aria-expanded={reactionPickerOpen}
             className="flex min-h-10 w-7 shrink-0 items-center justify-center rounded-r-xl text-violet-100/55 transition-colors hover:bg-white/[0.07]"
@@ -323,7 +329,10 @@ function WallPost({
             <ChevronDown size={13} />
           </button>
           {reactionPickerOpen && (
-            <div className="absolute bottom-full left-0 z-50 mb-2">
+            <div
+              className="absolute bottom-full left-0 z-50 mb-2"
+              data-reaction-surface="friend-wall-post"
+            >
               <ReactionBar
                 onReact={(emoji) => {
                   const reactionType = REACTION_TYPE_BY_EMOJI[emoji];
