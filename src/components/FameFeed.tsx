@@ -2111,6 +2111,7 @@ type PostDetailViewProps = {
   commentCount: number;
   currentUserId: string | null;
   authorAvatars: Record<string, string>;
+  editingFeedComment: { id: string; text: string; postId: string } | null;
   commentReactions: Record<string, Record<string, string[]>>;
   commentReactionBarId: string | null;
   value: string;
@@ -2121,7 +2122,10 @@ type PostDetailViewProps = {
   onReply: (comment: any) => void;
   onCancelReply: () => void;
   onProfileClick: (userId: string) => void;
-  onLongPress: (comment: any, x: number, y: number) => void;
+  onLongPress: (comment: FeedCommentLongPressTarget, x: number, y: number) => void;
+  onEditCommentTextChange: (text: string) => void;
+  onSaveCommentEdit: () => void;
+  onCancelCommentEdit: () => void;
   onReact: (commentId: string, emoji: string) => void;
   onToggleReactionBar: (commentId: string) => void;
 };
@@ -2133,6 +2137,7 @@ const PostDetailView = ({
   commentCount,
   currentUserId,
   authorAvatars,
+  editingFeedComment,
   commentReactions,
   commentReactionBarId,
   value,
@@ -2144,6 +2149,9 @@ const PostDetailView = ({
   onCancelReply,
   onProfileClick,
   onLongPress,
+  onEditCommentTextChange,
+  onSaveCommentEdit,
+  onCancelCommentEdit,
   onReact,
   onToggleReactionBar,
 }: PostDetailViewProps) => {
@@ -2151,6 +2159,7 @@ const PostDetailView = ({
   const isPostOwner =
     post.author_id === currentUserId || post.user_id === currentUserId;
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressStart = useRef({ x: 0, y: 0 });
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -2163,13 +2172,27 @@ const PostDetailView = ({
     };
   }, [onBack]);
 
-  const startLongPress = (comment: any, event: React.PointerEvent) => {
-    if ((event.target as HTMLElement).closest("button, a, input")) return;
+  const startLongPress = (
+    comment: FeedCommentLongPressTarget,
+    x: number,
+    y: number,
+    target: EventTarget | null,
+  ) => {
     if (longPressTimer.current) clearTimeout(longPressTimer.current);
-    const { clientX, clientY } = event;
+    longPressTimer.current = null;
+    if (
+      !currentUserId ||
+      (comment.user_id ?? comment.author_id) !== currentUserId ||
+      (target instanceof Element &&
+        target.closest("button, a, input, textarea"))
+    ) return;
+    longPressStart.current = { x, y };
     longPressTimer.current = setTimeout(
-      () => onLongPress(comment, clientX, clientY),
-      600,
+      () => {
+        longPressTimer.current = null;
+        onLongPress(comment, x, y);
+      },
+      650,
     );
   };
   const cancelLongPress = () => {
@@ -2177,6 +2200,12 @@ const PostDetailView = ({
       clearTimeout(longPressTimer.current);
       longPressTimer.current = null;
     }
+  };
+  const moveLongPress = (x: number, y: number) => {
+    if (
+      Math.abs(x - longPressStart.current.x) > 12 ||
+      Math.abs(y - longPressStart.current.y) > 12
+    ) cancelLongPress();
   };
 
   return createPortal(
@@ -2264,20 +2293,56 @@ const PostDetailView = ({
                   (reply) => reply.parent_id === comment.id,
                 );
                 const authorId = comment.user_id ?? comment.author_id;
+                const isEditing =
+                  editingFeedComment?.id === comment.id &&
+                  editingFeedComment?.postId === post.id;
                 return (
                   <div
                     key={comment.id}
                     className="py-3"
-                    onPointerDown={(event) => startLongPress(comment, event)}
-                    onPointerUp={cancelLongPress}
-                    onPointerCancel={cancelLongPress}
-                    onPointerMove={cancelLongPress}
-                    onContextMenu={(event) => {
-                      event.preventDefault();
-                      onLongPress(comment, event.clientX, event.clientY);
-                    }}
                   >
-                    <div className="flex items-start gap-2.5">
+                    <div
+                      className="flex items-start gap-2.5"
+                      onTouchStart={(event) => {
+                        const touch = event.touches[0];
+                        if (touch) {
+                          startLongPress(
+                            comment,
+                            touch.clientX,
+                            touch.clientY,
+                            event.target,
+                          );
+                        }
+                      }}
+                      onTouchMove={(event) => {
+                        const touch = event.touches[0];
+                        if (touch) moveLongPress(touch.clientX, touch.clientY);
+                      }}
+                      onTouchEnd={cancelLongPress}
+                      onTouchCancel={cancelLongPress}
+                      onMouseDown={(event) => {
+                        if (event.button === 0) {
+                          startLongPress(
+                            comment,
+                            event.clientX,
+                            event.clientY,
+                            event.target,
+                          );
+                        }
+                      }}
+                      onMouseMove={(event) =>
+                        moveLongPress(event.clientX, event.clientY)
+                      }
+                      onMouseUp={cancelLongPress}
+                      onMouseLeave={cancelLongPress}
+                      onContextMenu={(event) => {
+                        if (authorId !== currentUserId) return;
+                        event.preventDefault();
+                        cancelLongPress();
+                        onLongPress(comment, event.clientX, event.clientY);
+                      }}
+                      style={{ touchAction: "pan-y" }}
+                    >
                       <button
                         type="button"
                         className="h-8 w-8 shrink-0 overflow-hidden rounded-full bg-pink-900/50"
@@ -2300,7 +2365,37 @@ const PostDetailView = ({
                             </span>
                           )}
                         </div>
-                        {comment.is_hidden && !isPostOwner ? (
+                        {isEditing ? (
+                          <div className="mt-2">
+                            <textarea
+                              value={editingFeedComment?.text ?? ""}
+                              onChange={(event) =>
+                                onEditCommentTextChange(event.target.value)
+                              }
+                              rows={3}
+                              autoFocus
+                              aria-label="Edit your comment"
+                              className="w-full resize-y rounded-xl border border-white/15 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-pink-400/60"
+                            />
+                            <div className="mt-2 flex justify-end gap-2">
+                              <button
+                                type="button"
+                                onClick={onCancelCommentEdit}
+                                className="rounded-lg px-3 py-1.5 text-xs font-bold text-white/60"
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                type="button"
+                                onClick={onSaveCommentEdit}
+                                disabled={!editingFeedComment?.text.trim()}
+                                className="rounded-lg bg-pink-700 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-50"
+                              >
+                                Save
+                              </button>
+                            </div>
+                          </div>
+                        ) : comment.is_hidden && !isPostOwner ? (
                           <p className="mt-1 text-sm italic text-white/40">
                             Comment hidden by {comment.hidden_by_name || "admin"}
                           </p>
@@ -2309,7 +2404,7 @@ const PostDetailView = ({
                             {comment.content}
                           </p>
                         )}
-                        {!comment.is_hidden && (
+                        {!comment.is_hidden && !isEditing && (
                           <div className="relative mt-2 flex items-center gap-4">
                             <button
                               type="button"
@@ -2337,7 +2432,7 @@ const PostDetailView = ({
                             </AnimatePresence>
                           </div>
                         )}
-                        {commentReactions[comment.id] && (
+                        {!isEditing && commentReactions[comment.id] && (
                           <ReactionBubbles
                             reactions={commentReactions[comment.id]}
                             currentUserId={currentUserId}
@@ -2347,35 +2442,115 @@ const PostDetailView = ({
                     </div>
                     {replies.length > 0 && (
                       <div className="ml-10 mt-2 space-y-2 border-l border-white/10 pl-3">
-                        {replies.map((reply) => (
-                          <div key={reply.id} className="flex items-start gap-2">
-                            <button
-                              type="button"
-                              className="h-6 w-6 shrink-0 overflow-hidden rounded-full bg-pink-900/40"
-                              onClick={() => {
-                                const replyAuthorId = reply.user_id ?? reply.author_id;
-                                if (replyAuthorId) onProfileClick(replyAuthorId);
+                        {replies.map((reply) => {
+                          const replyAuthorId =
+                            reply.user_id ?? reply.author_id;
+                          const isReplyEditing =
+                            editingFeedComment?.id === reply.id &&
+                            editingFeedComment?.postId === post.id;
+                          return (
+                            <div
+                              key={reply.id}
+                              className="flex items-start gap-2"
+                              onTouchStart={(event) => {
+                                const touch = event.touches[0];
+                                if (touch) {
+                                  startLongPress(
+                                    reply,
+                                    touch.clientX,
+                                    touch.clientY,
+                                    event.target,
+                                  );
+                                }
                               }}
+                              onTouchMove={(event) => {
+                                const touch = event.touches[0];
+                                if (touch) moveLongPress(touch.clientX, touch.clientY);
+                              }}
+                              onTouchEnd={cancelLongPress}
+                              onTouchCancel={cancelLongPress}
+                              onMouseDown={(event) => {
+                                if (event.button === 0) {
+                                  startLongPress(
+                                    reply,
+                                    event.clientX,
+                                    event.clientY,
+                                    event.target,
+                                  );
+                                }
+                              }}
+                              onMouseMove={(event) =>
+                                moveLongPress(event.clientX, event.clientY)
+                              }
+                              onMouseUp={cancelLongPress}
+                              onMouseLeave={cancelLongPress}
+                              onContextMenu={(event) => {
+                                if (replyAuthorId !== currentUserId) return;
+                                event.preventDefault();
+                                cancelLongPress();
+                                onLongPress(reply, event.clientX, event.clientY);
+                              }}
+                              style={{ touchAction: "pan-y" }}
                             >
-                              <ActiveStatusAvatar
-                                src={authorAvatars[reply.user_id ?? reply.author_id ?? ""]}
-                                name={reply.author}
-                                size={24}
-                              />
-                            </button>
-                            <div className="min-w-0 flex-1 rounded-xl bg-white/[0.05] px-3 py-2">
-                              <p className="text-xs font-bold text-pink-200">
-                                {reply.author || "User"}
-                                <span className="ml-2 font-normal text-white/35">
-                                  replied to {comment.author || "User"}
-                                </span>
-                              </p>
-                              <p className="mt-1 whitespace-pre-wrap break-words text-sm text-white/75">
-                                {reply.content}
-                              </p>
+                              <button
+                                type="button"
+                                className="h-6 w-6 shrink-0 overflow-hidden rounded-full bg-pink-900/40"
+                                onClick={() => {
+                                  if (replyAuthorId) onProfileClick(replyAuthorId);
+                                }}
+                              >
+                                <ActiveStatusAvatar
+                                  src={authorAvatars[replyAuthorId || ""]}
+                                  name={reply.author}
+                                  size={24}
+                                />
+                              </button>
+                              <div className="min-w-0 flex-1 rounded-xl bg-white/[0.05] px-3 py-2">
+                                <p className="text-xs font-bold text-pink-200">
+                                  {reply.author || "User"}
+                                  <span className="ml-2 font-normal text-white/35">
+                                    replied to {comment.author || "User"}
+                                  </span>
+                                </p>
+                                {isReplyEditing ? (
+                                  <div className="mt-2">
+                                    <textarea
+                                      value={editingFeedComment?.text ?? ""}
+                                      onChange={(event) =>
+                                        onEditCommentTextChange(event.target.value)
+                                      }
+                                      rows={2}
+                                      autoFocus
+                                      aria-label="Edit your reply"
+                                      className="w-full resize-y rounded-lg border border-white/15 bg-black/30 px-2 py-1.5 text-sm text-white outline-none focus:border-pink-400/60"
+                                    />
+                                    <div className="mt-2 flex justify-end gap-2">
+                                      <button
+                                        type="button"
+                                        onClick={onCancelCommentEdit}
+                                        className="rounded-lg px-3 py-1 text-xs font-bold text-white/60"
+                                      >
+                                        Cancel
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={onSaveCommentEdit}
+                                        disabled={!editingFeedComment?.text.trim()}
+                                        className="rounded-lg bg-pink-700 px-3 py-1 text-xs font-bold text-white disabled:opacity-50"
+                                      >
+                                        Save
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <p className="mt-1 whitespace-pre-wrap break-words text-sm text-white/75">
+                                    {reply.content}
+                                  </p>
+                                )}
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     )}
                   </div>
@@ -3292,6 +3467,12 @@ type FeedCommentMenuItem = {
   danger?: boolean;
 };
 
+type FeedCommentLongPressTarget = {
+  id: string;
+  user_id?: string | null;
+  author_id?: string | null;
+};
+
 type FeedBlock = { type: string; post?: any; key: string; seed?: number };
 
 const FameFeed = ({
@@ -3361,6 +3542,7 @@ const FameFeed = ({
   const [editingFeedComment, setEditingFeedComment] = useState<{
     id: string;
     text: string;
+    postId: string;
   } | null>(null);
   const [editingPost, setEditingPost] = useState<{
     id: string;
@@ -3373,6 +3555,64 @@ const FameFeed = ({
   const [commentText, setCommentText] = useState("");
   const [currentUserId, setCurrentUserId] = useState<string | null>(currentUserIdProp ?? null);
   const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(currentUserEmailProp ?? null);
+  const beginFeedCommentLongPress = (
+    comment: FeedCommentLongPressTarget,
+    postId: string,
+    x: number,
+    y: number,
+    target: EventTarget | null,
+  ) => {
+    if (longPressCommentTimer.current) {
+      clearTimeout(longPressCommentTimer.current);
+      longPressCommentTimer.current = null;
+    }
+    if (
+      !currentUserId ||
+      (comment.user_id ?? comment.author_id) !== currentUserId ||
+      (target instanceof Element &&
+        target.closest("button, a, input, textarea"))
+    ) {
+      return;
+    }
+    longPressCommentPos.current = { x, y };
+    longPressCommentTimer.current = setTimeout(() => {
+      longPressCommentTimer.current = null;
+      try {
+        navigator.vibrate?.(8);
+      } catch {
+        // Vibration is an optional haptic hint.
+      }
+      setFeedCommentAction({
+        comment,
+        postId,
+        x: longPressCommentPos.current.x,
+        y: longPressCommentPos.current.y,
+      });
+    }, 650);
+  };
+  const moveFeedCommentLongPress = (x: number, y: number) => {
+    const start = longPressCommentPos.current;
+    if (Math.abs(x - start.x) > 12 || Math.abs(y - start.y) > 12) {
+      if (longPressCommentTimer.current) {
+        clearTimeout(longPressCommentTimer.current);
+        longPressCommentTimer.current = null;
+      }
+    }
+  };
+  const cancelFeedCommentLongPress = () => {
+    if (longPressCommentTimer.current) {
+      clearTimeout(longPressCommentTimer.current);
+      longPressCommentTimer.current = null;
+    }
+  };
+  useEffect(
+    () => () => {
+      if (longPressCommentTimer.current) {
+        clearTimeout(longPressCommentTimer.current);
+      }
+    },
+    [],
+  );
   const [profileAdminUserId, setProfileAdminUserId] = useState<string | null>(null);
   const onlineUserIds = useOnlineUsers();
   const isAdmin =
@@ -4206,29 +4446,17 @@ const FameFeed = ({
     const deletedComment = (commentsMap[postId] || []).find(
       (comment: any) => comment.id === commentId,
     );
-    try {
-      const { error } = await supabase
-        .from("comments")
-        .delete()
-        .eq("id", commentId);
-      if (error) {
-        console.warn("[FameFeed] comment delete error:", error.message);
-        toast.error("Delete nahi ho saka.");
-        return;
-      }
-    } catch (e) {
-      console.warn("[FameFeed] comment delete exception:", e);
-      toast.error("Delete nahi ho saka.");
-      return;
-    }
-    setCommentsMap((prev) => {
-      const next = (prev[postId] || []).filter(
+    const previousComments = commentsMap[postId] || [];
+    if (!currentUserId) return;
+
+    setCommentsMap((prev) => ({
+      ...prev,
+      [postId]: previousComments.filter(
         (comment: any) =>
           comment.id !== commentId &&
           !(deletedComment && !deletedComment.parent_id && comment.parent_id === commentId),
-      );
-      return { ...prev, [postId]: next };
-    });
+      ),
+    }));
     if (deletedComment && !deletedComment.parent_id) {
       setPosts((prev) =>
         prev.map((post) =>
@@ -4239,7 +4467,33 @@ const FameFeed = ({
       );
     }
     setFeedCommentAction(null);
-    toast.success("Comment deleted.");
+    try {
+      const { data, error } = await supabase
+        .from("comments")
+        .delete()
+        .eq("id", commentId)
+        .eq("user_id", currentUserId)
+        .select("id")
+        .maybeSingle();
+      if (error) {
+        throw error;
+      }
+      if (!data) throw new Error("Comment was not found or could not be deleted.");
+      toast.success("Comment deleted.");
+    } catch (e) {
+      console.warn("[FameFeed] comment delete exception:", e);
+      toast.error("Delete nahi ho saka.");
+      setCommentsMap((prev) => ({ ...prev, [postId]: previousComments }));
+      if (deletedComment && !deletedComment.parent_id) {
+        setPosts((prev) =>
+          prev.map((post) =>
+            post.id === postId
+              ? { ...post, comments_count: (Number(post.comments_count) || 0) + 1 }
+              : post,
+          ),
+        );
+      }
+    }
   };
 
   const handleFeedCommentHide = async (commentId: string, postId: string) => {
@@ -4316,23 +4570,43 @@ const FameFeed = ({
 
   const saveFeedCommentEdit = async () => {
     if (!editingFeedComment) return;
-    const { id, text } = editingFeedComment;
-    const postId = feedCommentAction?.postId || postDetailId || commentSheetId || "";
-    if (!text.trim()) return;
+    const { id, text, postId } = editingFeedComment;
+    const cleaned = sanitizeText(text.trim()).cleaned;
+    const previousComment = (commentsMap[postId] || []).find(
+      (comment: any) => comment.id === id,
+    );
+    if (!currentUserId || !postId || !cleaned) return;
+
+    setCommentsMap((prev) => ({
+      ...prev,
+      [postId]: (prev[postId] || []).map((comment: any) =>
+        comment.id === id ? { ...comment, content: cleaned } : comment,
+      ),
+    }));
     try {
-      const { cleaned } = sanitizeText(text.trim());
-      await supabase.from("comments").update({ content: cleaned }).eq("id", id);
-      setCommentsMap((prev) => ({
-        ...prev,
-        [postId]: (prev[postId] || []).map((c: any) =>
-          c.id === id ? { ...c, content: cleaned } : c,
-        ),
-      }));
+      const { data, error } = await supabase
+        .from("comments")
+        .update({ content: cleaned })
+        .eq("id", id)
+        .eq("user_id", currentUserId)
+        .select("id")
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) throw new Error("Comment was not found or could not be edited.");
+      setEditingFeedComment(null);
+      toast.success("Comment updated.");
     } catch (e) {
       console.warn("[FameFeed] comment edit exception:", e);
+      if (previousComment) {
+        setCommentsMap((prev) => ({
+          ...prev,
+          [postId]: (prev[postId] || []).map((comment: any) =>
+            comment.id === id ? previousComment : comment,
+          ),
+        }));
+      }
+      toast.error("Comment could not be updated.");
     }
-    setEditingFeedComment(null);
-    toast.success("Comment updated.");
   };
 
   const fetchPosts = async (reset = false, throwOnError = false) => {
@@ -6754,46 +7028,76 @@ const FameFeed = ({
                             const isPostOwner =
                               post?.author_id === currentUserId ||
                               post?.user_id === currentUserId;
+                            const isCommenter =
+                              (c.user_id ?? c.author_id) === currentUserId;
                             const isLongPressed =
-                              feedCommentAction?.comment?.id === c.id;
+                              feedCommentAction?.comment?.id === c.id &&
+                              feedCommentAction.postId === post.id;
+                  const isEditing =
+                    editingFeedComment?.id === c.id &&
+                    editingFeedComment?.postId === post.id;
                             return (
                               <div
                                 key={c.id}
-                                onPointerDown={(e) => {
-                                  longPressCommentPos.current = {
-                                    x: e.clientX,
-                                    y: e.clientY,
-                                  };
-                                  longPressCommentTimer.current = setTimeout(
-                                    () => {
-                                      try {
-                                        navigator.vibrate?.(8);
-                                      } catch (_) {}
-                                      setFeedCommentAction({
-                                        comment: c,
-                                        postId: post.id,
-                                        x: longPressCommentPos.current.x,
-                                        y: longPressCommentPos.current.y,
-                                      });
-                                    },
-                                    600,
-                                  );
-                                }}
-                                onPointerUp={() => {
-                                  if (longPressCommentTimer.current) {
-                                    clearTimeout(longPressCommentTimer.current);
-                                    longPressCommentTimer.current = null;
-                                  }
-                                }}
-                                onPointerCancel={() => {
-                                  if (longPressCommentTimer.current) {
-                                    clearTimeout(longPressCommentTimer.current);
-                                    longPressCommentTimer.current = null;
-                                  }
-                                }}
                                 className={`rounded-xl transition-colors select-none ${isLongPressed ? "bg-white/5" : ""}`}
+                                style={{ touchAction: "pan-y" }}
                               >
-                                <div className="flex gap-2.5 py-1">
+                                <div
+                                  className="flex gap-2.5 py-1"
+                                  onTouchStart={(event) => {
+                                    const touch = event.touches[0];
+                                    if (touch) {
+                                      beginFeedCommentLongPress(
+                                        c,
+                                        post.id,
+                                        touch.clientX,
+                                        touch.clientY,
+                                        event.target,
+                                      );
+                                    }
+                                  }}
+                                  onTouchMove={(event) => {
+                                    const touch = event.touches[0];
+                                    if (touch) {
+                                      moveFeedCommentLongPress(
+                                        touch.clientX,
+                                        touch.clientY,
+                                      );
+                                    }
+                                  }}
+                                  onTouchEnd={cancelFeedCommentLongPress}
+                                  onTouchCancel={cancelFeedCommentLongPress}
+                                  onMouseDown={(event) => {
+                                    if (event.button === 0) {
+                                      beginFeedCommentLongPress(
+                                        c,
+                                        post.id,
+                                        event.clientX,
+                                        event.clientY,
+                                        event.target,
+                                      );
+                                    }
+                                  }}
+                                  onMouseMove={(event) =>
+                                    moveFeedCommentLongPress(
+                                      event.clientX,
+                                      event.clientY,
+                                    )
+                                  }
+                                  onMouseUp={cancelFeedCommentLongPress}
+                                  onMouseLeave={cancelFeedCommentLongPress}
+                                  onContextMenu={(event) => {
+                                    if (!isCommenter) return;
+                                    event.preventDefault();
+                                    cancelFeedCommentLongPress();
+                                    setFeedCommentAction({
+                                      comment: c,
+                                      postId: post.id,
+                                      x: event.clientX,
+                                      y: event.clientY,
+                                    });
+                                  }}
+                                >
                                   <button
                                     onClick={() => {
                                       const uid = c.user_id ?? c.author_id;
@@ -6833,7 +7137,40 @@ const FameFeed = ({
                                         </span>
                                       )}
                                     </div>
-                                    {c.is_hidden && !isPostOwner ? (
+                                    {isEditing ? (
+                                      <div className="mt-2">
+                                        <textarea
+                                          value={editingFeedComment.text}
+                                          onChange={(event) =>
+                                            setEditingFeedComment((current) =>
+                                              current
+                                                ? { ...current, text: event.target.value }
+                                                : null,
+                                            )
+                                          }
+                                          rows={3}
+                                          aria-label="Edit your comment"
+                                          className="w-full resize-y rounded-xl border border-white/15 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-pink-400/60"
+                                        />
+                                        <div className="mt-2 flex justify-end gap-2">
+                                          <button
+                                            type="button"
+                                            onClick={() => setEditingFeedComment(null)}
+                                            className="rounded-lg px-3 py-1.5 text-xs font-bold text-white/60"
+                                          >
+                                            Cancel
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={saveFeedCommentEdit}
+                                            disabled={!editingFeedComment.text.trim()}
+                                            className="rounded-lg bg-pink-700 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-50"
+                                          >
+                                            Save
+                                          </button>
+                                        </div>
+                                      </div>
+                                    ) : c.is_hidden && !isPostOwner ? (
                                       <p className="text-[13px] text-white/30 italic mt-0.5">
                                         💬 Comment hidden by{" "}
                                         {c.hidden_by_name || "admin"}
@@ -6852,7 +7189,7 @@ const FameFeed = ({
                                         {c.content}
                                       </p>
                                     )}
-                                    {!c.is_hidden && (
+                                    {!c.is_hidden && !isEditing && (
                                       <div className="flex items-center gap-3 mt-1.5 relative">
                                         <button
                                           onClick={() =>
@@ -6908,7 +7245,7 @@ const FameFeed = ({
                                         </AnimatePresence>
                                       </div>
                                     )}
-                                    {commentReactions[c.id] &&
+                                    {!isEditing && commentReactions[c.id] &&
                                       Object.keys(commentReactions[c.id])
                                         .length > 0 && (
                                         <div className="mt-1">
@@ -7779,7 +8116,11 @@ const FameFeed = ({
                 icon: "✏️",
                 label: "Edit",
                 action: () => {
-                  setEditingFeedComment({ id: ac.id, text: ac.content });
+                  setEditingFeedComment({
+                    id: ac.id,
+                    text: ac.content,
+                    postId,
+                  });
                   setFeedCommentAction(null);
                 },
               });
@@ -7916,6 +8257,11 @@ const FameFeed = ({
               commentCount={commentCount}
               currentUserId={currentUserId}
               authorAvatars={authorAvatars}
+              editingFeedComment={
+                editingFeedComment?.postId === detailPost.id
+                  ? editingFeedComment
+                  : null
+              }
               commentReactions={commentReactions}
               commentReactionBarId={commentReactionBarId}
               value={isReplyingToPost ? replyText : commentText}
@@ -7951,6 +8297,13 @@ const FameFeed = ({
                   y,
                 })
               }
+              onEditCommentTextChange={(text) =>
+                setEditingFeedComment((current) =>
+                  current ? { ...current, text } : null,
+                )
+              }
+              onSaveCommentEdit={saveFeedCommentEdit}
+              onCancelCommentEdit={() => setEditingFeedComment(null)}
               onReact={handleCommentReact}
               onToggleReactionBar={(commentId) =>
                 setCommentReactionBarId((current) =>
@@ -7960,63 +8313,6 @@ const FameFeed = ({
             />
           );
         })()}
-
-      {/* ── Edit Feed Comment Sheet ───────────────────────────────────── */}
-      <AnimatePresence>
-        {editingFeedComment && (
-          <motion.div
-            key="feed-edit-comment-backdrop"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100700] flex items-end justify-center bg-black/60 backdrop-blur-sm"
-            onClick={() => setEditingFeedComment(null)}
-          >
-            <motion.div
-              initial={{ y: "100%" }}
-              animate={{ y: 0 }}
-              exit={{ y: "100%" }}
-              transition={{ type: "spring", damping: 28, stiffness: 320 }}
-              className="w-full max-w-lg rounded-t-3xl p-5 pb-10 shadow-2xl border-t border-white/10"
-              style={{ background: "rgba(20,5,30,0.98)" }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex justify-center mb-4">
-                <div className="w-10 h-1 rounded-full bg-white/20" />
-              </div>
-              <h3 className="font-black text-white text-base mb-3 flex items-center gap-2">
-                ✏️ Edit Comment
-              </h3>
-              <textarea
-                value={editingFeedComment.text}
-                onChange={(e) =>
-                  setEditingFeedComment((prev) =>
-                    prev ? { ...prev, text: e.target.value } : null,
-                  )
-                }
-                rows={3}
-                className="w-full border border-white/10 rounded-2xl px-4 py-3 text-[15px] text-white/80 outline-none focus:ring-2 focus:ring-pink-400/30 resize-none mb-4 bg-white/5"
-                autoFocus
-              />
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setEditingFeedComment(null)}
-                  className="flex-1 py-3 rounded-2xl bg-white/10 text-white/60 font-black text-sm"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={saveFeedCommentEdit}
-                  disabled={!editingFeedComment.text.trim()}
-                  className="flex-1 py-3 rounded-2xl bg-pink-700 text-white font-black text-sm flex items-center justify-center gap-2 disabled:opacity-40"
-                >
-                  <Check size={16} /> Save
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       {/* ── Fullscreen Flick Player Modal ────────────────────────────── */}
       {flickModal && (
