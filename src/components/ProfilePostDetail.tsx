@@ -71,8 +71,8 @@ export type ProfilePostDetailProps = {
   onSubmitComment: () => void;
   onPostReact: (reactionType: string) => void;
   onCommentReact: (commentId: string, emoji: string) => void;
-  onSaveCommentEdit: (commentId: string, content: string) => Promise<boolean>;
-  onDeleteComment: (commentId: string) => Promise<boolean>;
+  onSaveCommentEdit: (postId: string, commentId: string, content: string) => Promise<boolean>;
+  onDeleteComment: (postId: string, commentId: string) => Promise<boolean>;
 };
 
 export default function ProfilePostDetail({
@@ -98,6 +98,8 @@ export default function ProfilePostDetail({
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState("");
   const [editBusy, setEditBusy] = useState(false);
+  const [confirmDeleteCommentId, setConfirmDeleteCommentId] = useState<string | null>(null);
+  const [deleteBusyCommentId, setDeleteBusyCommentId] = useState<string | null>(null);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -318,10 +320,17 @@ export default function ProfilePostDetail({
                             className="mt-2"
                             onSubmit={async (event) => {
                               event.preventDefault();
+                              if (editBusy) return;
                               setEditBusy(true);
-                              const saved = await onSaveCommentEdit(comment.id, editingText);
-                              setEditBusy(false);
-                              if (saved) setEditingCommentId(null);
+                              try {
+                                const saved = await onSaveCommentEdit(post.id, comment.id, editingText);
+                                if (saved) {
+                                  setEditingCommentId(null);
+                                  setMenu(null);
+                                }
+                              } finally {
+                                setEditBusy(false);
+                              }
                             }}
                           >
                             <textarea
@@ -436,6 +445,7 @@ export default function ProfilePostDetail({
                   if (comment) {
                     setEditingCommentId(comment.id);
                     setEditingText(comment.content);
+                    setConfirmDeleteCommentId(null);
                   }
                   setMenu(null);
                 }}
@@ -445,17 +455,49 @@ export default function ProfilePostDetail({
               </button>
               <button
                 type="button"
-                onClick={async () => {
-                  const commentId = menu.commentId;
-                  setMenu(null);
-                  if (window.confirm("Delete this comment?")) {
-                    await onDeleteComment(commentId);
-                  }
-                }}
+                onClick={() => setConfirmDeleteCommentId(menu.commentId)}
                 className="flex w-full items-center gap-2 border-t border-[#800020]/[0.08] px-4 py-3 text-left text-xs font-bold text-red-700 hover:bg-red-50"
               >
                 Delete comment
               </button>
+              {confirmDeleteCommentId === menu.commentId && (
+                <div className="border-t border-[#800020]/[0.08] bg-red-50 p-3">
+                  <p className="text-xs font-bold text-red-800">Delete this comment?</p>
+                  <div className="mt-2 flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setConfirmDeleteCommentId(null)}
+                      disabled={deleteBusyCommentId === menu.commentId}
+                      className="rounded-lg px-3 py-2 text-xs font-bold text-[#756365] disabled:opacity-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      disabled={deleteBusyCommentId === menu.commentId}
+                      onClick={async () => {
+                        const commentId = menu.commentId;
+                        setDeleteBusyCommentId(commentId);
+                        try {
+                          const deleted = await onDeleteComment(post.id, commentId);
+                          if (deleted) {
+                            setMenu(null);
+                            setConfirmDeleteCommentId(null);
+                            setEditingCommentId((editingId) =>
+                              editingId === commentId ? null : editingId,
+                            );
+                          }
+                        } finally {
+                          setDeleteBusyCommentId(null);
+                        }
+                      }}
+                      className="rounded-lg bg-red-700 px-3 py-2 text-xs font-bold text-white disabled:opacity-50"
+                    >
+                      {deleteBusyCommentId === menu.commentId ? "Deleting…" : "Delete"}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </>
         )}
