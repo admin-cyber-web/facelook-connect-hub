@@ -3,6 +3,7 @@ import { Capacitor } from "@capacitor/core";
 import App from "./App.tsx";
 import "./index.css";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { installGlobalInteractionIsolation } from "./lib/globalInteractionIsolation";
 
 // ── Capacitor Android: tag <html> so CSS can apply platform-aware safe-area
 //    minimums. Must run before React renders so the CSS variable is live.
@@ -18,6 +19,8 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
     // non-Capacitor environment — safe to ignore
   }
 })();
+
+installGlobalInteractionIsolation();
 
 // Load the plugin only on native platforms so browser sessions never execute it.
 // The dynamic import also keeps the web entry point independent of the native API.
