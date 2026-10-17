@@ -102,8 +102,11 @@ const UserProfileModal = ({ userId, currentUserId, isAdmin: isAdminProp = false,
         id: string;
         sender_id: string;
         receiver_id: string;
-        ["profiles!friendships_sender_id_fkey"]?: Friend;
-        ["profiles!friendships_receiver_id_fkey"]?: Friend;
+      };
+      type FriendProfileRow = {
+        id: string;
+        full_name: string | null;
+        avatar_url: string | null;
       };
       type FriendStatusRow = {
         id?: string | null;
@@ -120,7 +123,7 @@ const UserProfileModal = ({ userId, currentUserId, isAdmin: isAdminProp = false,
         needFriends
           ? supabase
               .from("friendships")
-              .select("id, sender_id, receiver_id, profiles!friendships_sender_id_fkey(id,full_name,avatar_url), profiles!friendships_receiver_id_fkey(id,full_name,avatar_url)")
+              .select("id, sender_id, receiver_id")
               .eq("status", "accepted")
               .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
               .limit(30)
@@ -162,17 +165,67 @@ const UserProfileModal = ({ userId, currentUserId, isAdmin: isAdminProp = false,
       setPageCount(pgc);
       if (needCounts) memSet(countsKey, { postCount: pc, hookCount: hc, pageCount: pgc });
 
-      if (needFriends && friendsRes.data) {
-        const friendRows = friendsRes.data as FriendshipRow[];
-        const parsed: Friend[] = friendRows.map((row) => {
-          const isMe = row.sender_id === userId;
-          const p = isMe ? row["profiles!friendships_receiver_id_fkey"] : row["profiles!friendships_sender_id_fkey"];
-          return p ? { ...p, friendshipId: row.id } : null;
-        }).filter((f: Friend | null): f is Friend => !!f && !!f.id && f.id !== currentUserId);
-        const allCount = friendRows.length;
-        setFriends(parsed);
-        setFriendCount(allCount);
-        memSet(friendsKey, { friends: parsed, count: allCount });
+      if (needFriends) {
+        if (friendsRes.error) {
+          console.error("[UserProfileModal] friendships load failed:", friendsRes.error);
+          setFriends([]);
+          setFriendCount(0);
+          memSet(friendsKey, { friends: [], count: 0 });
+        } else {
+          const friendRows = (friendsRes.data ?? []) as FriendshipRow[];
+          const friendIds = [
+            ...new Set(
+              friendRows
+                .map((row) =>
+                  row.sender_id === userId ? row.receiver_id : row.sender_id,
+                )
+                .filter((friendId) => friendId && friendId !== currentUserId),
+            ),
+          ];
+          let friendProfiles: FriendProfileRow[] = [];
+          let friendProfilesError: unknown = null;
+
+          if (friendIds.length > 0) {
+            const result = await supabase
+              .from("profiles")
+              .select("id,full_name,avatar_url")
+              .in("id", friendIds);
+            friendProfilesError = result.error;
+            friendProfiles = (result.data ?? []) as FriendProfileRow[];
+          }
+
+          if (friendProfilesError) {
+            console.error(
+              "[UserProfileModal] friend profiles load failed:",
+              friendProfilesError,
+            );
+            setFriends([]);
+            setFriendCount(friendRows.length);
+            memSet(friendsKey, { friends: [], count: friendRows.length });
+          } else {
+            const profilesById = new Map(
+              friendProfiles.map((friend) => [friend.id, friend]),
+            );
+            const parsed = friendRows.reduce<Friend[]>((result, row) => {
+              const friendId =
+                row.sender_id === userId ? row.receiver_id : row.sender_id;
+              const friend = profilesById.get(friendId);
+              if (friend && friend.id !== currentUserId) {
+                result.push({
+                  id: friend.id,
+                  full_name: friend.full_name || "Flicks member",
+                  avatar_url: friend.avatar_url || undefined,
+                  friendshipId: row.id,
+                });
+              }
+              return result;
+            }, []);
+            const allCount = friendRows.length;
+            setFriends(parsed);
+            setFriendCount(allCount);
+            memSet(friendsKey, { friends: parsed, count: allCount });
+          }
+        }
       } else if (cachedFriends) {
         setFriends(cachedFriends.friends);
         setFriendCount(cachedFriends.count);
