@@ -73,6 +73,7 @@ args = "Start application"
 localPort = 5000
 externalPort = 80
 
+
 [userenv]
 [userenv.shared]
 VITE_SUPABASE_URL = "https://rxwvvhvretostbiknuek.supabase.co"

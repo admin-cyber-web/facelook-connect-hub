@@ -2,8 +2,10 @@ import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react"
 import { supabase } from "@/lib/supabaseClient";
 import { toast } from "sonner";
 import FriendWallPresentation, {
+  type FriendWallCommentView,
   type FriendWallPostView,
 } from "./FriendWallPresentation";
+import ProfilePostDetail from "./ProfilePostDetail";
 
 const CreatePost = lazy(() => import("./CreatePost"));
 
@@ -38,6 +40,7 @@ type CommentRow = {
   author: string | null;
   content: string;
   created_at: string;
+  parent_id?: string | null;
 };
 
 type Props = {
@@ -63,12 +66,19 @@ export default function FriendWall({
   const [refreshVersion, setRefreshVersion] = useState(0);
   const [composerOpen, setComposerOpen] = useState(false);
   const [viewerProfile, setViewerProfile] = useState<ProfileRow | null>(null);
-  const [openCommentPostId, setOpenCommentPostId] = useState<string | null>(null);
+  const [postDetailId, setPostDetailId] = useState<string | null>(null);
   const [commentDraft, setCommentDraft] = useState("");
   const [commentBusy, setCommentBusy] = useState(false);
+  const [commentsLoading, setCommentsLoading] = useState(false);
+  const [commentsError, setCommentsError] = useState<string | null>(null);
+  const [commentReactions, setCommentReactions] = useState<
+    Record<string, Record<string, string[]>>
+  >({});
   const [likeBusyPostId, setLikeBusyPostId] = useState<string | null>(null);
   const pendingLikes = useRef(new Set<string>());
   const loadSequence = useRef(0);
+  const commentLoadSequence = useRef(0);
+  const pendingCommentReactions = useRef(new Set<string>());
 
   const reload = useCallback(() => {
     setRefreshVersion((version) => version + 1);
@@ -78,6 +88,11 @@ export default function FriendWall({
     if (!profileId) return;
     const sequence = ++loadSequence.current;
     let active = true;
+    commentLoadSequence.current += 1;
+    setPostDetailId(null);
+    setCommentsLoading(false);
+    setCommentsError(null);
+    setCommentReactions({});
 
     const load = async () => {
       setLoading(true);
@@ -126,7 +141,7 @@ export default function FriendWall({
         rows.length && currentUserId
           ? supabase
               .from("likes")
-              .select("post_id")
+              .select("post_id,reaction_type")
               .eq("user_id", currentUserId)
               .in("post_id", rows.map((row) => row.id))
           : Promise.resolve({ data: [], error: null }),
@@ -151,6 +166,12 @@ export default function FriendWall({
       const likedPostIds = new Set(
         (likesRes.data ?? []).map((row: { post_id: string }) => row.post_id),
       );
+      const reactionTypeByPostId = new Map(
+        (likesRes.data ?? []).map((row: { post_id: string; reaction_type?: string | null }) => [
+          row.post_id,
+          row.reaction_type ?? "like",
+        ]),
+      );
 
       setPosts(
         rows.map((row) => {
@@ -167,12 +188,16 @@ export default function FriendWall({
             content: row.content ?? "",
             createdAt: row.created_at,
             mediaUrl: row.media_url || row.image_url || row.cover_url,
+            imageUrl: row.image_url,
             imageUrls: row.image_urls,
             mediaType: row.media_type || row.type,
+            type: row.type,
+            coverUrl: row.cover_url,
             likesCount: row.likes_count ?? 0,
             commentsCount: row.comments_count ?? 0,
             sharesCount: row.shares_count ?? 0,
             likedByCurrentUser: likedPostIds.has(row.id),
+            reactionType: reactionTypeByPostId.get(row.id) ?? null,
           };
         }),
       );
@@ -194,37 +219,63 @@ export default function FriendWall({
     return () => window.removeEventListener("flicks:post-created", onPostCreated);
   }, [profileId, reload]);
 
-  const handleLike = async (postId: string) => {
+  const handleLike = async (postId: string, reactionType = "like") => {
     if (!currentUserId || pendingLikes.current.has(postId)) return;
     const current = posts.find((post) => post.id === postId);
     if (!current) return;
 
     pendingLikes.current.add(postId);
     setLikeBusyPostId(postId);
-    const nextLiked = !current.likedByCurrentUser;
+    const shouldRemove =
+      current.likedByCurrentUser &&
+      (current.reactionType || "like") === reactionType;
+    const nextLiked = !shouldRemove;
+    const countChange = !current.likedByCurrentUser && nextLiked
+      ? 1
+      : current.likedByCurrentUser && !nextLiked
+        ? -1
+        : 0;
     setPosts((previous) =>
       previous.map((post) =>
         post.id === postId
           ? {
               ...post,
               likedByCurrentUser: nextLiked,
-              likesCount: Math.max(0, post.likesCount + (nextLiked ? 1 : -1)),
+              reactionType: nextLiked ? reactionType : null,
+              likesCount: Math.max(0, post.likesCount + countChange),
             }
           : post,
       ),
     );
 
+    let existingLikeRemoved = false;
     try {
-      const result = nextLiked
-        ? await supabase.from("likes").insert({ post_id: postId, user_id: currentUserId })
-        : await supabase
+      if (current.likedByCurrentUser) {
+        const { error } = await supabase
             .from("likes")
             .delete()
             .eq("post_id", postId)
             .eq("user_id", currentUserId);
-      if (result.error) throw result.error;
+        if (error) throw error;
+        existingLikeRemoved = true;
+      }
+      if (nextLiked) {
+        const { error } = await supabase.from("likes").insert({
+          post_id: postId,
+          user_id: currentUserId,
+          reaction_type: reactionType,
+        });
+        if (error) throw error;
+      }
     } catch (likeError) {
       console.error("[FriendWall] like update failed:", likeError);
+      if (existingLikeRemoved) {
+        await supabase.from("likes").insert({
+          post_id: postId,
+          user_id: currentUserId,
+          reaction_type: current.reactionType || "like",
+        });
+      }
       setPosts((previous) =>
         previous.map((post) =>
           post.id === postId
@@ -243,61 +294,93 @@ export default function FriendWall({
     }
   };
 
-  const handleToggleComments = async (postId: string) => {
-    if (openCommentPostId === postId) {
-      setOpenCommentPostId(null);
-      setCommentDraft("");
-      return;
+  const loadPostComments = useCallback(async (postId: string) => {
+    const requestId = ++commentLoadSequence.current;
+    setCommentsLoading(true);
+    setCommentsError(null);
+    try {
+      const pageSize = 1000;
+      const rows: CommentRow[] = [];
+      for (let offset = 0; ; offset += pageSize) {
+        const { data, error } = await supabase
+          .from("comments")
+          .select("id,user_id,author,content,created_at,parent_id")
+          .eq("post_id", postId)
+          .eq("is_hidden", false)
+          .order("created_at", { ascending: true })
+          .order("id", { ascending: true })
+          .range(offset, offset + pageSize - 1);
+        if (error) throw error;
+        const page = (data ?? []) as CommentRow[];
+        rows.push(...page);
+        if (page.length < pageSize) break;
+      }
+
+      const comments: FriendWallCommentView[] = rows.map((comment) => ({
+        id: comment.id,
+        userId: comment.user_id,
+        authorName: comment.author || "Flicks member",
+        content: comment.content,
+        createdAt: comment.created_at,
+        parentId: comment.parent_id ?? null,
+      }));
+      const reactions: Record<string, Record<string, string[]>> = {};
+      const commentIds = comments.map((comment) => comment.id);
+      for (let start = 0; start < commentIds.length; start += 100) {
+        const batch = commentIds.slice(start, start + 100);
+        for (let offset = 0; ; offset += pageSize) {
+          const { data, error } = await supabase
+            .from("comment_reactions")
+            .select("comment_id,user_id,emoji")
+            .in("comment_id", batch)
+            .order("comment_id", { ascending: true })
+            .range(offset, offset + pageSize - 1);
+          if (error) {
+            console.warn("[FriendWall] comment reactions load failed:", error.message);
+            break;
+          }
+          const page = data ?? [];
+          for (const reaction of page as Array<{ comment_id: string; user_id: string; emoji: string }>) {
+            const commentReactionMap = reactions[reaction.comment_id] ?? {};
+            commentReactionMap[reaction.emoji] = [
+              ...(commentReactionMap[reaction.emoji] ?? []),
+              reaction.user_id,
+            ];
+            reactions[reaction.comment_id] = commentReactionMap;
+          }
+          if (page.length < pageSize) break;
+        }
+      }
+
+      if (requestId !== commentLoadSequence.current) return;
+      setPosts((previous) =>
+        previous.map((post) => post.id === postId ? { ...post, comments } : post),
+      );
+      setCommentReactions(reactions);
+    } catch (loadError) {
+      console.error("[FriendWall] comment load failed:", loadError);
+      if (requestId === commentLoadSequence.current) {
+        setCommentsError("Comments could not be loaded. Please try again.");
+      }
+    } finally {
+      if (requestId === commentLoadSequence.current) setCommentsLoading(false);
     }
-    setOpenCommentPostId(postId);
+  }, []);
+
+  const openPostDetail = useCallback((postId: string) => {
+    setPostDetailId(postId);
     setCommentDraft("");
+    setCommentsError(null);
+    setCommentReactions({});
+    void loadPostComments(postId);
+  }, [loadPostComments]);
 
-    const post = posts.find((item) => item.id === postId);
-    if (post?.comments !== undefined) return;
-
-    const { data, error: commentsError } = await supabase
-      .from("comments")
-      .select("id,user_id,author,content,created_at")
-      .eq("post_id", postId)
-      .eq("is_hidden", false)
-      .order("created_at", { ascending: true })
-      .limit(30);
-    if (commentsError) {
-      console.error("[FriendWall] comment load failed:", commentsError);
-      toast.error("Comments could not be loaded.");
-      return;
-    }
-
-    const comments = (data ?? []) as CommentRow[];
-    const commenterIds = [...new Set(comments.map((comment) => comment.user_id).filter(Boolean))];
-    const { data: profiles } = commenterIds.length
-      ? await supabase
-          .from("profiles")
-          .select("id,full_name")
-          .in("id", commenterIds)
-      : { data: [] };
-    const names = new Map(
-      ((profiles ?? []) as Array<{ id: string; full_name: string | null }>).map(
-        (profile) => [profile.id, profile.full_name],
-      ),
-    );
-    setPosts((previous) =>
-      previous.map((item) =>
-        item.id === postId
-          ? {
-              ...item,
-              comments: comments.map((comment) => ({
-                id: comment.id,
-                authorName:
-                  comment.author || names.get(comment.user_id) || "Flicks member",
-                content: comment.content,
-                createdAt: comment.created_at,
-              })),
-            }
-          : item,
-      ),
-    );
-  };
+  const closePostDetail = useCallback(() => {
+    commentLoadSequence.current += 1;
+    setPostDetailId(null);
+    setCommentDraft("");
+    setCommentsLoading(false);
+  }, []);
 
   const handleSubmitComment = async (postId: string) => {
     const content = commentDraft.trim();
@@ -313,26 +396,26 @@ export default function FriendWall({
           author: authorName,
           content,
         })
-        .select("id,user_id,author,content,created_at")
+        .select("id,user_id,author,content,created_at,parent_id")
         .single();
       if (commentError) throw commentError;
 
       const comment = data as CommentRow;
+      const commentView: FriendWallCommentView = {
+        id: comment.id,
+        userId: comment.user_id,
+        authorName: comment.author || authorName,
+        content: comment.content,
+        createdAt: comment.created_at,
+        parentId: comment.parent_id ?? null,
+      };
       setPosts((previous) =>
         previous.map((post) =>
           post.id === postId
             ? {
                 ...post,
                 commentsCount: post.commentsCount + 1,
-                comments: [
-                  ...(post.comments ?? []),
-                  {
-                    id: comment.id,
-                    authorName,
-                    content: comment.content,
-                    createdAt: comment.created_at,
-                  },
-                ],
+                comments: [...(post.comments ?? []), commentView],
               }
             : post,
         ),
@@ -343,6 +426,120 @@ export default function FriendWall({
       toast.error("Your comment could not be posted. Please try again.");
     } finally {
       setCommentBusy(false);
+    }
+  };
+
+  const handleSaveCommentEdit = async (commentId: string, content: string) => {
+    const postId = postDetailId;
+    const cleanedContent = content.trim();
+    if (!postId || !cleanedContent) return false;
+    try {
+      const { error } = await supabase
+        .from("comments")
+        .update({ content: cleanedContent })
+        .eq("id", commentId)
+        .eq("user_id", currentUserId);
+      if (error) throw error;
+      setPosts((previous) =>
+        previous.map((post) =>
+          post.id === postId
+            ? {
+                ...post,
+                comments: (post.comments ?? []).map((comment) =>
+                  comment.id === commentId
+                    ? { ...comment, content: cleanedContent }
+                    : comment,
+                ),
+              }
+            : post,
+        ),
+      );
+      toast.success("Comment updated.");
+      return true;
+    } catch (error) {
+      console.error("[FriendWall] comment update failed:", error);
+      toast.error("Your comment could not be updated.");
+      return false;
+    }
+  };
+
+  const handleDeleteComment = async (commentId: string) => {
+    const postId = postDetailId;
+    if (!postId) return false;
+    try {
+      const { error } = await supabase
+        .from("comments")
+        .delete()
+        .eq("id", commentId)
+        .eq("user_id", currentUserId);
+      if (error) throw error;
+      setPosts((previous) =>
+        previous.map((post) =>
+          post.id === postId
+            ? {
+                ...post,
+                commentsCount: Math.max(0, post.commentsCount - 1),
+                comments: (post.comments ?? []).filter(
+                  (comment) => comment.id !== commentId,
+                ),
+              }
+            : post,
+        ),
+      );
+      setCommentReactions((previous) => {
+        const next = { ...previous };
+        delete next[commentId];
+        return next;
+      });
+      toast.success("Comment deleted.");
+      return true;
+    } catch (error) {
+      console.error("[FriendWall] comment delete failed:", error);
+      toast.error("Your comment could not be deleted.");
+      return false;
+    }
+  };
+
+  const handleCommentReact = async (commentId: string, emoji: string) => {
+    if (!currentUserId || pendingCommentReactions.current.has(commentId)) return;
+    pendingCommentReactions.current.add(commentId);
+    const previous = commentReactions[commentId] ?? {};
+    const alreadyReacted = (previous[emoji] ?? []).includes(currentUserId);
+    const next: Record<string, string[]> = Object.fromEntries(
+      Object.entries(previous)
+        .map(([key, users]) => [
+          key,
+          users.filter((userId) => userId !== currentUserId),
+        ])
+        .filter(([, users]) => (users as string[]).length > 0),
+    );
+    if (!alreadyReacted) {
+      next[emoji] = [...(next[emoji] ?? []), currentUserId];
+    }
+    setCommentReactions((current) => ({ ...current, [commentId]: next }));
+    try {
+      if (alreadyReacted) {
+        const { error } = await supabase
+          .from("comment_reactions")
+          .delete()
+          .eq("comment_id", commentId)
+          .eq("user_id", currentUserId);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from("comment_reactions")
+          .upsert(
+            { comment_id: commentId, user_id: currentUserId, emoji },
+            { onConflict: "comment_id,user_id" },
+          );
+        if (error) throw error;
+      }
+    } catch (error) {
+      console.error("[FriendWall] comment reaction failed:", error);
+      setCommentReactions((current) => ({ ...current, [commentId]: previous }));
+      toast.error("Your comment reaction could not be saved.");
+    } finally {
+      pendingCommentReactions.current.delete(commentId);
     }
   };
 
@@ -387,6 +584,9 @@ export default function FriendWall({
     }
   };
 
+  const selectedPost =
+    posts.find((post) => post.id === postDetailId) ?? null;
+
   return (
     <>
       <FriendWallPresentation
@@ -396,19 +596,37 @@ export default function FriendWall({
         posts={posts}
         loading={loading}
         error={error}
-        openCommentPostId={openCommentPostId}
-        commentDraft={commentDraft}
-        commentBusy={commentBusy}
         likeBusyPostId={likeBusyPostId}
         onOpenComposer={() => setComposerOpen(true)}
         onCreateHook={onCreateHook}
-        onLike={(postId) => void handleLike(postId)}
+        onLike={(postId, reactionType) => void handleLike(postId, reactionType)}
         onShare={(postId) => void handleShare(postId)}
-        onToggleComments={(postId) => void handleToggleComments(postId)}
-        onCommentDraftChange={setCommentDraft}
-        onSubmitComment={(postId) => void handleSubmitComment(postId)}
+        onOpenPostDetail={openPostDetail}
         onRetry={reload}
       />
+      {selectedPost && (
+        <ProfilePostDetail
+          post={selectedPost}
+          comments={selectedPost.comments}
+          commentsLoading={commentsLoading}
+          commentsError={commentsError}
+          commentDraft={commentDraft}
+          commentBusy={commentBusy}
+          commentReactions={commentReactions}
+          currentUserId={currentUserId}
+          onClose={closePostDetail}
+          onCommentDraftChange={setCommentDraft}
+          onSubmitComment={() => void handleSubmitComment(selectedPost.id)}
+          onPostReact={(reactionType) =>
+            void handleLike(selectedPost.id, reactionType)
+          }
+          onCommentReact={(commentId, emoji) =>
+            void handleCommentReact(commentId, emoji)
+          }
+          onSaveCommentEdit={handleSaveCommentEdit}
+          onDeleteComment={handleDeleteComment}
+        />
+      )}
       <Suspense fallback={null}>
         <CreatePost
           isOpen={composerOpen}
