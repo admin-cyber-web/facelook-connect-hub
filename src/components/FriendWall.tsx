@@ -443,8 +443,7 @@ export default function FriendWall({
       !postId ||
       !commentId ||
       !cleanedContent ||
-      !commentSnapshot ||
-      commentSnapshot.userId !== currentUserId
+      !currentUserId
     ) return false;
 
     // Keep the open post detail and profile timeline in sync immediately.
@@ -477,20 +476,22 @@ export default function FriendWall({
       return true;
     } catch (error) {
       console.error("[FriendWall] comment update failed:", error);
-      setPosts((previous) =>
-        previous.map((post) =>
-          post.id === postId
-            ? {
-                ...post,
-                comments: (post.comments ?? []).map((comment) =>
-                  comment.id === commentId
-                    ? { ...comment, content: commentSnapshot.content }
-                    : comment,
-                ),
-              }
-            : post,
-        ),
-      );
+      if (commentSnapshot) {
+        setPosts((previous) =>
+          previous.map((post) =>
+            post.id === postId
+              ? {
+                  ...post,
+                  comments: (post.comments ?? []).map((comment) =>
+                    comment.id === commentId
+                      ? { ...comment, content: commentSnapshot.content }
+                      : comment,
+                  ),
+                }
+              : post,
+          ),
+        );
+      }
       toast.error("Your comment could not be updated.");
       return false;
     }
@@ -504,10 +505,9 @@ export default function FriendWall({
     if (
       !postId ||
       !commentId ||
-      !commentSnapshot ||
-      commentSnapshot.userId !== currentUserId
+      !currentUserId
     ) return false;
-    const isTopLevel = !commentSnapshot.parentId;
+    const isTopLevel = commentSnapshot ? !commentSnapshot.parentId : false;
     const reactionsSnapshot = commentReactions[commentId];
 
     // Remove the row and update its count before awaiting the network.
@@ -516,7 +516,7 @@ export default function FriendWall({
         post.id === postId
           ? {
               ...post,
-              commentsCount: isTopLevel
+              commentsCount: commentSnapshot && isTopLevel
                 ? Math.max(0, post.commentsCount - 1)
                 : post.commentsCount,
               comments: (post.comments ?? []).filter(
@@ -547,23 +547,25 @@ export default function FriendWall({
       return true;
     } catch (error) {
       console.error("[FriendWall] comment delete failed:", error);
-      setPosts((previous) =>
-        previous.map((post) => {
-          if (post.id !== postId) return post;
-          const comments = [...(post.comments ?? [])];
-          if (!comments.some((comment) => comment.id === commentId)) {
-            const insertAt = comments.findIndex(
-              (comment) => comment.createdAt > commentSnapshot.createdAt,
-            );
-            comments.splice(insertAt < 0 ? comments.length : insertAt, 0, commentSnapshot);
-          }
-          return {
-            ...post,
-            commentsCount: isTopLevel ? post.commentsCount + 1 : post.commentsCount,
-            comments,
-          };
-        }),
-      );
+      if (commentSnapshot) {
+        setPosts((previous) =>
+          previous.map((post) => {
+            if (post.id !== postId) return post;
+            const comments = [...(post.comments ?? [])];
+            if (!comments.some((comment) => comment.id === commentId)) {
+              const insertAt = comments.findIndex(
+                (comment) => comment.createdAt > commentSnapshot.createdAt,
+              );
+              comments.splice(insertAt < 0 ? comments.length : insertAt, 0, commentSnapshot);
+            }
+            return {
+              ...post,
+              commentsCount: isTopLevel ? post.commentsCount + 1 : post.commentsCount,
+              comments,
+            };
+          }),
+        );
+      }
       if (reactionsSnapshot) {
         setCommentReactions((previous) => ({
           ...previous,

@@ -1,10 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import type {
-  MouseEvent as ReactMouseEvent,
-  PointerEvent as ReactPointerEvent,
-} from "react";
-import { AnimatePresence } from "framer-motion";
 import {
   Check,
   Clock3,
@@ -97,11 +92,9 @@ export default function ProfilePostDetail({
 }: ProfilePostDetailProps) {
   const [reactionPickerOpen, setReactionPickerOpen] = useState(false);
   const [activeCommentReactionId, setActiveCommentReactionId] = useState<string | null>(null);
-  const [menu, setMenu] = useState<{ commentId: string; x: number; y: number } | null>(null);
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState("");
   const [editBusy, setEditBusy] = useState(false);
-  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -110,36 +103,8 @@ export default function ProfilePostDetail({
     document.addEventListener("keydown", onKeyDown);
     return () => {
       document.removeEventListener("keydown", onKeyDown);
-      if (longPressTimer.current) clearTimeout(longPressTimer.current);
     };
   }, [onClose]);
-
-  const showCommentMenu = (comment: FriendWallCommentView, x: number, y: number) => {
-    if (comment.userId !== currentUserId) return;
-    setMenu({
-      commentId: comment.id,
-      x: Math.min(Math.max(12, x), window.innerWidth - 200),
-      y: Math.min(Math.max(12, y), window.innerHeight - 125),
-    });
-  };
-
-  const startLongPress = (comment: FriendWallCommentView, event: ReactPointerEvent) => {
-    if (comment.userId !== currentUserId) return;
-    if ((event.target as HTMLElement).closest("button, input, textarea")) return;
-    if (longPressTimer.current) clearTimeout(longPressTimer.current);
-    const { clientX, clientY } = event;
-    longPressTimer.current = setTimeout(
-      () => showCommentMenu(comment, clientX, clientY),
-      550,
-    );
-  };
-
-  const cancelLongPress = () => {
-    if (longPressTimer.current) {
-      clearTimeout(longPressTimer.current);
-      longPressTimer.current = null;
-    }
-  };
 
   const postImages = [...new Set([
     ...(post.imageUrls ?? []),
@@ -150,10 +115,9 @@ export default function ProfilePostDetail({
   const enableCommentEdit = (postId: string, commentId: string) => {
     if (postId !== post.id) return;
     const comment = comments?.find((item) => item.id === commentId);
-    if (!comment || comment.userId !== currentUserId) return;
+    if (!comment) return;
     setEditingCommentId(commentId);
     setEditingText(comment.content);
-    setMenu(null);
   };
 
   const saveCommentEdit = async (
@@ -167,38 +131,10 @@ export default function ProfilePostDetail({
       const saved = await onSaveCommentEdit(postId, commentId, content);
       if (saved) {
         setEditingCommentId(null);
-        setMenu(null);
       }
       return saved;
     } finally {
       setEditBusy(false);
-    }
-  };
-
-  // Delegate comment actions from the comments section so dynamic comment
-  // buttons only need their action, post ID, and comment ID data attributes.
-  const handleCommentActionClick = (event: ReactMouseEvent<HTMLElement>) => {
-    const target = event.target as HTMLElement;
-    const button = target.closest<HTMLButtonElement>("[data-comment-action]");
-    if (!button || !event.currentTarget.contains(button)) return;
-
-    const { commentAction, postId, commentId } = button.dataset;
-    if (!postId || !commentId || postId !== post.id) return;
-    event.preventDefault();
-
-    if (commentAction === "edit") {
-      enableCommentEdit(postId, commentId);
-      return;
-    }
-    if (commentAction === "delete") {
-      setMenu(null);
-      void onDeleteComment(postId, commentId);
-      return;
-    }
-    if (commentAction === "save") {
-      const row = button.closest<HTMLElement>("[data-testid^='detail-comment-']");
-      const content = row?.querySelector<HTMLTextAreaElement>("textarea")?.value ?? "";
-      void saveCommentEdit(postId, commentId, content);
     }
   };
 
@@ -320,7 +256,6 @@ export default function ProfilePostDetail({
           <section
             aria-label="Comments"
             className="px-4 pb-5 sm:px-6"
-            onClick={handleCommentActionClick}
           >
             <h2 className="sticky top-0 z-10 -mx-4 border-b border-[#800020]/10 bg-[#fffdf3]/95 px-4 py-3 text-sm font-black text-[#39272a] backdrop-blur sm:-mx-6 sm:px-6">
               Comments <span className="font-semibold text-[#756365]">({post.commentsCount})</span>
@@ -342,15 +277,6 @@ export default function ProfilePostDetail({
                       key={comment.id}
                       className={`flex items-start gap-2.5 py-3 ${comment.parentId ? "ml-8 border-l border-[#800020]/10 pl-3" : ""}`}
                       data-testid={`detail-comment-${comment.id}`}
-                      onPointerDown={(event) => startLongPress(comment, event)}
-                      onPointerUp={cancelLongPress}
-                      onPointerCancel={cancelLongPress}
-                      onPointerMove={cancelLongPress}
-                      onContextMenu={(event) => {
-                        if (!isMine) return;
-                        event.preventDefault();
-                        showCommentMenu(comment, event.clientX, event.clientY);
-                      }}
                     >
                       <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#800020]/10 text-[10px] font-black text-[#800020]">
                         {comment.authorName.trim().slice(0, 1).toUpperCase()}
@@ -360,18 +286,23 @@ export default function ProfilePostDetail({
                           <p className="text-xs font-black text-[#800020]">{comment.authorName}</p>
                           <div className="flex items-center gap-2">
                             <time className="text-[10px] text-[#756365]" dateTime={comment.createdAt}>{date}</time>
-                            {isMine && (
-                              <button
-                                type="button"
-                                aria-label="Comment options"
-                                onClick={(event) => {
-                                  const rect = event.currentTarget.getBoundingClientRect();
-                                  showCommentMenu(comment, rect.left, rect.bottom);
-                                }}
-                                className="rounded-full p-1 text-[#756365] hover:bg-[#800020]/10 hover:text-[#800020]"
-                              >
-                                <MoreHorizontal size={15} />
-                              </button>
+                              {isMine && !isEditing && (
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => enableCommentEdit(post.id, comment.id)}
+                                    className="text-[10px] font-bold text-[#800020] hover:underline"
+                                  >
+                                    Edit
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => void onDeleteComment(post.id, comment.id)}
+                                    className="text-[10px] font-bold text-red-700 hover:underline"
+                                  >
+                                    Delete
+                                  </button>
+                                </div>
                             )}
                           </div>
                         </div>
@@ -395,9 +326,7 @@ export default function ProfilePostDetail({
                               <button type="button" onClick={() => setEditingCommentId(null)} className="rounded-lg px-3 py-1.5 text-xs font-bold text-[#756365]">Cancel</button>
                               <button
                                 type="button"
-                                data-comment-action="save"
-                                data-post-id={post.id}
-                                data-comment-id={comment.id}
+                                onClick={() => void saveCommentEdit(post.id, comment.id, editingText)}
                                 disabled={editBusy || !editingText.trim()}
                                 className="inline-flex items-center gap-1 rounded-lg bg-[#800020] px-3 py-1.5 text-xs font-bold text-white disabled:opacity-50"
                               >
@@ -450,41 +379,6 @@ export default function ProfilePostDetail({
               <p className="py-10 text-center text-sm text-[#756365]">Be the first to comment.</p>
             )}
 
-            <AnimatePresence>
-              {menu && (
-                <>
-                  <button
-                    type="button"
-                    aria-label="Close comment options"
-                    className="fixed inset-0 z-[90001] cursor-default"
-                    onClick={() => setMenu(null)}
-                  />
-                  <div
-                    className="fixed z-[90002] min-w-44 overflow-hidden rounded-xl border border-[#800020]/10 bg-white py-1 shadow-2xl"
-                    style={{ left: menu.x, top: menu.y }}
-                  >
-                    <button
-                      type="button"
-                      data-comment-action="edit"
-                      data-post-id={post.id}
-                      data-comment-id={menu.commentId}
-                      className="flex w-full items-center gap-2 px-4 py-3 text-left text-xs font-bold text-[#39272a] hover:bg-[#800020]/[0.06]"
-                    >
-                      Edit comment
-                    </button>
-                    <button
-                      type="button"
-                      data-comment-action="delete"
-                      data-post-id={post.id}
-                      data-comment-id={menu.commentId}
-                      className="flex w-full items-center gap-2 border-t border-[#800020]/[0.08] px-4 py-3 text-left text-xs font-bold text-red-700 hover:bg-red-50"
-                    >
-                      Delete comment
-                    </button>
-                  </div>
-                </>
-              )}
-            </AnimatePresence>
           </section>
         </main>
 

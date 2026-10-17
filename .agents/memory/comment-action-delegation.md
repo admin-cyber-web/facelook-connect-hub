@@ -1,10 +1,10 @@
 ---
-name: Comment action delegation
-description: Reliable event handling for dynamically rendered profile timeline comment edit and delete controls.
+name: Profile comment actions
+description: Direct event handling and database authorization for profile timeline comment edit and delete controls.
 ---
 
-Handle dynamic profile comment actions with event delegation on the comments container. Keep the edit/delete action controls in that container's event-bubbling path and read `postId` and `commentId` from the clicked control's dataset before calling the mutation handlers.
+Use direct button handlers for profile comment actions instead of routing through submenu-dependent event delegation. Edit opens the inline editor, Save invokes the edit callback with the edited content, and Delete invokes the delete callback with the post and comment IDs. Let the Supabase query's user-ID filter enforce authorization rather than rejecting from a cached comment author ID.
 
-**Why:** the user reiterated that earlier edits did not make the comment buttons work and asked for a fix based on delegation rather than inline handlers.
+**Why:** the user reported that the delegated/menu-based actions remained ineffective and explicitly requested direct handlers with database-side user filtering.
 
-**How to apply:** when changing profile timeline comments, trace the rendered action menu and its DOM/event path; verify the delegated click calls the existing edit/delete callback with both IDs and that the mutation updates local state.
+**How to apply:** when changing profile timeline comments, keep Edit/Save/Delete controls directly wired to their handlers and preserve optimistic updates with rollback on database errors.
