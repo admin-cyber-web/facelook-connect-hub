@@ -21,3 +21,4 @@
 - [Marketplace route maps](marketplace-route-maps.md) — shipment routes are illustrative schematics, not road-accurate directions.
 - [Marketplace UPI verification](marketplace-upi-verification.md) — submitted UTRs require manual bank matching before a marketplace order can ship.
 - [Flicks India request scope](flicks-request-scope.md) — implement only the explicit current prompt; do not add unrelated features or resume older unfinished requests.
+- [Comment action delegation](comment-action-delegation.md) — dynamic profile comment actions must bubble through the comments container with post/comment IDs on each button.
