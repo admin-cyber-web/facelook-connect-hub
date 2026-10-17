@@ -973,7 +973,7 @@
 
 .profile-nav-page .profile-nav-identity-copy {
   min-width: 0;
-  padding: 0 0 7px;
+  padding: 78px 0 7px;
 }
 
 .profile-nav-page .profile-nav-member-badge {
@@ -1170,6 +1170,92 @@
 
 .profile-nav-page .profile-nav-friend-arrow {
   color: #858500;
+}
+
+.profile-nav-page .profile-nav-header-friends {
+  width: 100%;
+  margin: 12px 0 0;
+  padding: 0 clamp(16px, 4vw, 64px);
+}
+
+.profile-nav-page .profile-nav-header-friends-strip {
+  display: flex;
+  align-items: stretch;
+  gap: 9px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-inline: contain;
+  padding: 4px 1px 10px;
+  scrollbar-width: thin;
+  scrollbar-color: #C0C000 transparent;
+}
+
+.profile-nav-page .profile-nav-header-friend {
+  display: flex;
+  flex: 0 0 clamp(136px, 15vw, 180px);
+  min-width: 0;
+  min-height: 60px;
+  align-items: center;
+  gap: 9px;
+  border: 1px solid rgba(128, 0, 32, 0.12);
+  border-radius: 13px;
+  padding: 7px 9px;
+  color: #2c1c1f;
+  background: #fffef6;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 150ms ease, background 150ms ease, transform 150ms ease;
+}
+
+.profile-nav-page .profile-nav-header-friend:hover {
+  border-color: #C0C000;
+  background: #f8f5df;
+  transform: translateY(-1px);
+}
+
+.profile-nav-page .profile-nav-header-friend .profile-nav-avatar--friend {
+  width: 36px;
+  height: 36px;
+  border-width: 2px;
+}
+
+.profile-nav-page .profile-nav-header-friend-name {
+  display: -webkit-box;
+  overflow: hidden;
+  color: #3a272a;
+  font-size: 11px;
+  font-weight: 750;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.profile-nav-page .profile-nav-header-friends-more {
+  display: inline-flex;
+  flex: 0 0 auto;
+  min-height: 60px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid #C0C000;
+  border-radius: 13px;
+  padding: 0 15px;
+  color: #6b6300;
+  background: rgba(192, 192, 0, 0.1);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 850;
+  cursor: pointer;
+  transition: background 150ms ease;
+}
+
+.profile-nav-page .profile-nav-header-friends-more:hover {
+  background: rgba(192, 192, 0, 0.2);
+}
+
+.profile-nav-page #profile-nav-friends-section {
+  scroll-margin-top: 18px;
 }
 
 .profile-nav-page .profile-nav-hooks-strip {
@@ -1494,9 +1580,9 @@
   }
 
   .profile-nav-page .profile-nav-hero-content {
-    grid-template-columns: 96px minmax(0, 1fr);
-    align-items: end;
-    gap: 13px;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+    gap: 0;
     margin-top: -58px;
     padding: 0 15px;
   }
@@ -1509,7 +1595,7 @@
   }
 
   .profile-nav-page .profile-nav-identity-copy {
-    padding-bottom: 3px;
+    padding: 15px 0 0;
   }
 
   .profile-nav-page .profile-nav-name {
@@ -1524,6 +1610,16 @@
   .profile-nav-page .profile-nav-hero-actions {
     padding-right: 15px;
     padding-left: 15px;
+  }
+
+  .profile-nav-page .profile-nav-header-friends {
+    margin-top: 15px;
+    padding-right: 15px;
+    padding-left: 15px;
+  }
+
+  .profile-nav-page .profile-nav-header-friend {
+    flex-basis: 145px;
   }
 
   .profile-nav-page .profile-nav-wall [data-testid="section-friend-wall"] {

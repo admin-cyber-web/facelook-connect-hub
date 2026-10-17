@@ -467,11 +467,11 @@ export default function FriendWallPresentation({
               type="button"
               onClick={onCreateHook}
               data-testid="button-create-hook"
-              aria-label="Create a Hook short video"
+              aria-label="Create a Movement short video"
               className="inline-flex min-h-14 items-center justify-center gap-2 rounded-[1.25rem] border border-lime-200/25 bg-lime-300/10 px-3 text-xs font-extrabold text-lime-100 transition-colors hover:bg-lime-300/20 active:scale-[0.98]"
             >
               <Video size={16} aria-hidden="true" />
-              <span>Create Hook</span>
+              <span>Create Movement</span>
             </button>
           )}
         </div>
