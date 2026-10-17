@@ -2104,11 +2104,335 @@ const ReelCommentsTicker = ({ items, onOpen }: {
   </button>
 );
 
+type PostDetailViewProps = {
+  post: any;
+  comments?: any[];
+  commentsLoading: boolean;
+  commentCount: number;
+  currentUserId: string | null;
+  authorAvatars: Record<string, string>;
+  commentReactions: Record<string, Record<string, string[]>>;
+  commentReactionBarId: string | null;
+  value: string;
+  replyingTo: { postId: string; commentId: string; author: string } | null;
+  onBack: () => void;
+  onChange: (value: string) => void;
+  onSubmit: () => void;
+  onReply: (comment: any) => void;
+  onCancelReply: () => void;
+  onProfileClick: (userId: string) => void;
+  onLongPress: (comment: any, x: number, y: number) => void;
+  onReact: (commentId: string, emoji: string) => void;
+  onToggleReactionBar: (commentId: string) => void;
+};
+
+const PostDetailView = ({
+  post,
+  comments,
+  commentsLoading,
+  commentCount,
+  currentUserId,
+  authorAvatars,
+  commentReactions,
+  commentReactionBarId,
+  value,
+  replyingTo,
+  onBack,
+  onChange,
+  onSubmit,
+  onReply,
+  onCancelReply,
+  onProfileClick,
+  onLongPress,
+  onReact,
+  onToggleReactionBar,
+}: PostDetailViewProps) => {
+  const topLevel = (comments ?? []).filter((comment) => !comment.parent_id);
+  const isPostOwner =
+    post.author_id === currentUserId || post.user_id === currentUserId;
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onBack();
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      if (longPressTimer.current) clearTimeout(longPressTimer.current);
+    };
+  }, [onBack]);
+
+  const startLongPress = (comment: any, event: React.PointerEvent) => {
+    if ((event.target as HTMLElement).closest("button, a, input")) return;
+    if (longPressTimer.current) clearTimeout(longPressTimer.current);
+    const { clientX, clientY } = event;
+    longPressTimer.current = setTimeout(
+      () => onLongPress(comment, clientX, clientY),
+      600,
+    );
+  };
+  const cancelLongPress = () => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  };
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[90000] flex h-[100dvh] flex-col overflow-hidden bg-[#10090d] text-white"
+      style={{
+        paddingTop: "env(safe-area-inset-top, 0px)",
+        paddingBottom: "env(safe-area-inset-bottom, 0px)",
+        overscrollBehavior: "none",
+      }}
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Post by ${post.author || "user"} and comments`}
+    >
+      <header className="flex shrink-0 items-center gap-3 border-b border-white/10 bg-[#10090d] px-4 py-3">
+        <button
+          type="button"
+          onClick={onBack}
+          aria-label="Back to feed"
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-2xl font-medium text-white hover:bg-white/10 active:scale-95"
+        >
+          ←
+        </button>
+        <div className="min-w-0 flex-1">
+          <h1 className="truncate text-base font-black">Post</h1>
+          <p className="text-xs text-white/45">
+            {commentCount} {commentCount === 1 ? "comment" : "comments"}
+          </p>
+        </div>
+      </header>
+
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+        <article className="border-b border-white/10 px-4 py-4">
+          <div className="mb-3 flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => post.author_id && onProfileClick(post.author_id)}
+              className="h-10 w-10 shrink-0 overflow-hidden rounded-full bg-purple-900"
+              aria-label={`Open ${post.author || "user"} profile`}
+            >
+              <ActiveStatusAvatar
+                src={
+                  post.author_profile?.avatar_url ||
+                  authorAvatars[post.author_id] ||
+                  post.metadata?.author_avatar ||
+                  post.author_avatar
+                }
+                name={post.author}
+                size={40}
+              />
+            </button>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-bold text-white">
+                {post.author || "Vibe User"}
+              </p>
+              <p className="text-[11px] text-white/40">
+                {post.created_at ? smartTime(post.created_at) : ""}
+              </p>
+            </div>
+          </div>
+          {post.content && (
+            <div className="mb-3 text-sm leading-relaxed text-white/90">
+              <RichCaption content={post.content} />
+            </div>
+          )}
+          <PostMedia post={post} />
+        </article>
+
+        <section aria-label="Comments" className="px-4 pb-5">
+          <h2 className="sticky top-0 z-10 -mx-4 border-b border-white/10 bg-[#10090d]/95 px-4 py-3 text-sm font-black backdrop-blur">
+            Comments <span className="text-white/45">({commentCount})</span>
+          </h2>
+          {commentsLoading && comments === undefined ? (
+            <div className="flex justify-center py-10">
+              <Loader2 size={22} className="animate-spin text-pink-400" />
+            </div>
+          ) : topLevel.length === 0 ? (
+            <p className="py-10 text-center text-sm text-white/45">
+              Be the first to comment.
+            </p>
+          ) : (
+            <div className="divide-y divide-white/5">
+              {topLevel.map((comment) => {
+                const replies = (comments ?? []).filter(
+                  (reply) => reply.parent_id === comment.id,
+                );
+                const authorId = comment.user_id ?? comment.author_id;
+                return (
+                  <div
+                    key={comment.id}
+                    className="py-3"
+                    onPointerDown={(event) => startLongPress(comment, event)}
+                    onPointerUp={cancelLongPress}
+                    onPointerCancel={cancelLongPress}
+                    onPointerMove={cancelLongPress}
+                    onContextMenu={(event) => {
+                      event.preventDefault();
+                      onLongPress(comment, event.clientX, event.clientY);
+                    }}
+                  >
+                    <div className="flex items-start gap-2.5">
+                      <button
+                        type="button"
+                        className="h-8 w-8 shrink-0 overflow-hidden rounded-full bg-pink-900/50"
+                        onClick={() => authorId && onProfileClick(authorId)}
+                      >
+                        <ActiveStatusAvatar
+                          src={authorAvatars[authorId || ""]}
+                          name={comment.author}
+                          size={32}
+                        />
+                      </button>
+                      <div className="min-w-0 flex-1 rounded-2xl bg-white/[0.07] px-3 py-2">
+                        <div className="flex flex-wrap items-center gap-x-2">
+                          <span className="text-xs font-black text-pink-200">
+                            {comment.author || "User"}
+                          </span>
+                          {comment.created_at && (
+                            <span className="text-[10px] text-white/35">
+                              {smartTime(comment.created_at)}
+                            </span>
+                          )}
+                        </div>
+                        {comment.is_hidden && !isPostOwner ? (
+                          <p className="mt-1 text-sm italic text-white/40">
+                            Comment hidden by {comment.hidden_by_name || "admin"}
+                          </p>
+                        ) : (
+                          <p className={`mt-1 whitespace-pre-wrap break-words text-sm ${comment.is_hidden ? "text-white/35 line-through" : "text-white/85"}`}>
+                            {comment.content}
+                          </p>
+                        )}
+                        {!comment.is_hidden && (
+                          <div className="relative mt-2 flex items-center gap-4">
+                            <button
+                              type="button"
+                              onClick={() => onReply(comment)}
+                              className="text-xs font-bold text-sky-300"
+                            >
+                              Reply
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => onToggleReactionBar(comment.id)}
+                              className="text-xs font-bold text-white/45"
+                            >
+                              React
+                            </button>
+                            <AnimatePresence>
+                              {commentReactionBarId === comment.id && (
+                                <div className="absolute bottom-full left-0 z-20 mb-2">
+                                  <ReactionBar
+                                    onReact={(emoji) => onReact(comment.id, emoji)}
+                                    onClose={() => onToggleReactionBar(comment.id)}
+                                  />
+                                </div>
+                              )}
+                            </AnimatePresence>
+                          </div>
+                        )}
+                        {commentReactions[comment.id] && (
+                          <ReactionBubbles
+                            reactions={commentReactions[comment.id]}
+                            currentUserId={currentUserId}
+                          />
+                        )}
+                      </div>
+                    </div>
+                    {replies.length > 0 && (
+                      <div className="ml-10 mt-2 space-y-2 border-l border-white/10 pl-3">
+                        {replies.map((reply) => (
+                          <div key={reply.id} className="flex items-start gap-2">
+                            <button
+                              type="button"
+                              className="h-6 w-6 shrink-0 overflow-hidden rounded-full bg-pink-900/40"
+                              onClick={() => {
+                                const replyAuthorId = reply.user_id ?? reply.author_id;
+                                if (replyAuthorId) onProfileClick(replyAuthorId);
+                              }}
+                            >
+                              <ActiveStatusAvatar
+                                src={authorAvatars[reply.user_id ?? reply.author_id ?? ""]}
+                                name={reply.author}
+                                size={24}
+                              />
+                            </button>
+                            <div className="min-w-0 flex-1 rounded-xl bg-white/[0.05] px-3 py-2">
+                              <p className="text-xs font-bold text-pink-200">
+                                {reply.author || "User"}
+                                <span className="ml-2 font-normal text-white/35">
+                                  replied to {comment.author || "User"}
+                                </span>
+                              </p>
+                              <p className="mt-1 whitespace-pre-wrap break-words text-sm text-white/75">
+                                {reply.content}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
+      </div>
+
+      <form
+        className="shrink-0 border-t border-white/10 bg-[#10090d] px-3 pt-3"
+        style={{ paddingBottom: "max(env(safe-area-inset-bottom, 0px), 12px)" }}
+        onSubmit={(event) => {
+          event.preventDefault();
+          onSubmit();
+        }}
+      >
+        {replyingTo?.postId === post.id && (
+          <div className="mb-2 flex items-center justify-between rounded-xl bg-blue-500/10 px-3 py-2 text-xs text-blue-200">
+            <span>Replying to {replyingTo.author}</span>
+            <button type="button" onClick={onCancelReply} aria-label="Cancel reply">
+              <X size={14} />
+            </button>
+          </div>
+        )}
+        <div className="flex items-center gap-2">
+          <input
+            value={value}
+            onChange={(event) => onChange(event.target.value)}
+            placeholder={
+              replyingTo?.postId === post.id
+                ? `Reply to ${replyingTo.author}…`
+                : "Write a comment…"
+            }
+            aria-label={`Comment on ${post.author || "post"}`}
+            className="min-w-0 flex-1 rounded-full border border-white/10 bg-white/[0.07] px-4 py-3 text-sm text-white outline-none placeholder:text-white/40 focus:border-pink-400/50"
+          />
+          <button
+            type="submit"
+            disabled={!value.trim()}
+            aria-label="Send comment"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-pink-600 text-white disabled:opacity-40"
+          >
+            <Send size={16} />
+          </button>
+        </div>
+      </form>
+    </div>,
+    document.body,
+  );
+};
+
 const SingleReelBlock = ({
   post,
   currentUserId,
   commentCount,
-  commentTickerItems,
   onOpenComments,
   onEdit,
   onDelete,
@@ -2117,7 +2441,6 @@ const SingleReelBlock = ({
   post: any;
   currentUserId: string | null;
   commentCount: number;
-  commentTickerItems: Array<{ author: string; content: string }>;
   onOpenComments: () => void;
   onEdit: () => void;
   onDelete: () => void;
@@ -2415,9 +2738,17 @@ const SingleReelBlock = ({
         </>
       )}
       <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none" />
-      {/* Tap anywhere on the video → seamless transition into the full-screen
-          Flicks Reels overlay starting at this exact post. z-10 sits below the
-          menu/mute/caption/action controls (z-20+) so they stay clickable. */}
+      {/* Tapping the post opens its detail view; this keeps the dedicated
+          full-screen Reels action available as a separate control below. */}
+      <button
+        type="button"
+        aria-label="Open post details"
+        onClick={(event) => {
+          event.stopPropagation();
+          onOpenComments();
+        }}
+        className="absolute inset-0 z-10"
+      />
       <button
         type="button"
         aria-label="Open in full-screen Reels"
@@ -2425,8 +2756,10 @@ const SingleReelBlock = ({
           event.stopPropagation();
           openFullReelsAt(String(post.id));
         }}
-        className="absolute inset-0 z-10"
-      />
+        className="absolute left-4 top-4 z-20 rounded-full border border-white/15 bg-black/70 px-3 py-2 text-xs font-bold text-white backdrop-blur-sm"
+      >
+        ↗ Reels
+      </button>
       <button
         type="button"
         aria-label="Reel actions"
@@ -2583,7 +2916,6 @@ const SingleReelBlock = ({
         </div>
         <span className="truncate text-[10px] font-semibold text-white/55">Seen by <strong className="text-white/80">{Number(post.views_count || 0).toLocaleString()}</strong> people</span>
       </div>
-      <ReelCommentsTicker items={commentTickerItems.slice(0, 4)} onOpen={onOpenComments} />
     </section>
     </>
   );
@@ -2987,7 +3319,11 @@ const FameFeed = ({
   const postsRef = useRef<any[]>(cachedPosts?.data ?? []);
   const [loading, setLoading] = useState(() => !cachedPosts?.data);
   const [activeComment, setActiveComment] = useState<string | null>(null);
+  const [postDetailId, setPostDetailId] = useState<string | null>(null);
   const [commentSheetId, setCommentSheetId] = useState<string | null>(null);
+  const [commentsLoadingByPost, setCommentsLoadingByPost] = useState<
+    Record<string, boolean>
+  >({});
   const [latestCommentPreviews, setLatestCommentPreviews] = useState<
     Record<
       string,
@@ -3801,38 +4137,33 @@ const FameFeed = ({
   const loadComments = useCallback(
     async (postId: string, force = false) => {
       if (!force && loadedCommentsRef.current.has(postId)) return;
-      loadedCommentsRef.current.add(postId);
-      setCommentsMap((prev) => ({ ...prev, [postId]: prev[postId] ?? [] }));
+      setCommentsLoadingByPost((prev) => ({ ...prev, [postId]: true }));
       try {
-        const { data, error } = await supabase
-          .from("comments")
-          .select(
-            "id, content, author, user_id, parent_id, created_at, is_hidden, hidden_by_name, hidden_by_id",
-          )
-          .eq("post_id", postId)
-          .order("created_at")
-          .limit(100);
-        if (error) {
-          console.warn("[FameFeed] loadComments error:", error.message);
-          return;
+        const pageSize = 1000;
+        const allComments: any[] = [];
+        for (let offset = 0; ; offset += pageSize) {
+          const { data, error } = await supabase
+            .from("comments")
+            .select(
+              "id, content, author, user_id, parent_id, created_at, is_hidden, hidden_by_name, hidden_by_id",
+            )
+            .eq("post_id", postId)
+            .order("created_at")
+            .order("id")
+            .range(offset, offset + pageSize - 1);
+          if (error) {
+            console.warn("[FameFeed] loadComments error:", error.message);
+            return;
+          }
+          const page = data ?? [];
+          allComments.push(...page);
+          if (page.length < pageSize) break;
         }
-        setCommentsMap((prev) => ({ ...prev, [postId]: data ?? [] }));
-        if (data && data.length > 0) {
-          const latest =
-            [...data].reverse().find((c: any) => !c.parent_id) ||
-            data[data.length - 1];
-          setLatestCommentPreviews((prev) => ({
-            ...prev,
-            [postId]: {
-              author: latest.author,
-              content: latest.content,
-              authorId: latest.user_id,
-            },
-          }));
-        }
+        loadedCommentsRef.current.add(postId);
+        setCommentsMap((prev) => ({ ...prev, [postId]: allComments }));
         const cAuthorIds = [
           ...new Set(
-            (data ?? [])
+            allComments
               .filter((c: any) => c.user_id)
               .map((c: any) => c.user_id as string),
           ),
@@ -3840,62 +4171,41 @@ const FameFeed = ({
         if (cAuthorIds.length > 0) batchFetchAvatars(cAuthorIds);
       } catch (e) {
         console.warn("[FameFeed] loadComments exception:", e);
+      } finally {
+        setCommentsLoadingByPost((prev) => ({ ...prev, [postId]: false }));
       }
     },
     [batchFetchAvatars],
   );
 
-  const fetchLatestCommentPreviews = useCallback(async (postIds: string[]) => {
-    if (postIds.length === 0) return;
-    try {
-      const { data, error } = await supabase
-        .from("comments")
-        .select("post_id, content, author, user_id, created_at")
-        .in("post_id", postIds)
-        .is("parent_id", null)
-        .order("created_at", { ascending: false })
-        .limit(200);
-      if (error) {
-        console.warn(
-          "[FameFeed] fetchLatestCommentPreviews error:",
-          error.message,
-        );
-        return;
-      }
-      if (!data) return;
-      const map: Record<
-        string,
-        { author: string; content: string; authorId?: string }
-      > = {};
-      const tickerMap: Record<
-        string,
-        Array<{ author: string; content: string; authorId?: string }>
-      > = {};
-      for (const row of data as any[]) {
-        if (!map[row.post_id]) {
-          map[row.post_id] = {
-            author: row.author,
-            content: row.content,
-            authorId: row.user_id,
-          };
-        }
-        if (!tickerMap[row.post_id]) tickerMap[row.post_id] = [];
-        if (tickerMap[row.post_id].length < 4) {
-          tickerMap[row.post_id].push({
-            author: row.author,
-            content: row.content,
-            authorId: row.user_id,
-          });
-        }
-      }
-      setLatestCommentPreviews((prev) => ({ ...prev, ...map }));
-      setCommentTickerMap((prev) => ({ ...prev, ...tickerMap }));
-    } catch (e) {
-      console.warn("[FameFeed] fetchLatestCommentPreviews exception:", e);
-    }
+  const openPostDetail = useCallback(
+    (post: any) => {
+      setPostDetailId(post.id);
+      setCommentSheetId(null);
+      setActiveComment(null);
+      setReplyingTo(null);
+      setReplyText("");
+      setCommentText("");
+      setFeedCommentAction(null);
+      loadedCommentsRef.current.delete(post.id);
+      void loadComments(post.id, true);
+    },
+    [loadComments],
+  );
+
+  const closePostDetail = useCallback(() => {
+    setPostDetailId(null);
+    setReplyingTo(null);
+    setReplyText("");
+    setCommentText("");
+    setFeedCommentAction(null);
+    setCommentReactionBarId(null);
   }, []);
 
   const handleFeedCommentDelete = async (commentId: string, postId: string) => {
+    const deletedComment = (commentsMap[postId] || []).find(
+      (comment: any) => comment.id === commentId,
+    );
     try {
       const { error } = await supabase
         .from("comments")
@@ -3912,20 +4222,22 @@ const FameFeed = ({
       return;
     }
     setCommentsMap((prev) => {
-      const next = (prev[postId] || []).filter((c: any) => c.id !== commentId);
-      const latestTop = [...next].reverse().find((c: any) => !c.parent_id);
-      setLatestCommentPreviews((lp) => ({
-        ...lp,
-        [postId]: latestTop
-          ? {
-              author: latestTop.author,
-              content: latestTop.content,
-              authorId: latestTop.user_id,
-            }
-          : null,
-      }));
+      const next = (prev[postId] || []).filter(
+        (comment: any) =>
+          comment.id !== commentId &&
+          !(deletedComment && !deletedComment.parent_id && comment.parent_id === commentId),
+      );
       return { ...prev, [postId]: next };
     });
+    if (deletedComment && !deletedComment.parent_id) {
+      setPosts((prev) =>
+        prev.map((post) =>
+          post.id === postId
+            ? { ...post, comments_count: Math.max((Number(post.comments_count) || 0) - 1, 0) }
+            : post,
+        ),
+      );
+    }
     setFeedCommentAction(null);
     toast.success("Comment deleted.");
   };
@@ -4005,7 +4317,7 @@ const FameFeed = ({
   const saveFeedCommentEdit = async () => {
     if (!editingFeedComment) return;
     const { id, text } = editingFeedComment;
-    const postId = feedCommentAction?.postId || commentSheetId || "";
+    const postId = feedCommentAction?.postId || postDetailId || commentSheetId || "";
     if (!text.trim()) return;
     try {
       const { cleaned } = sanitizeText(text.trim());
@@ -4357,16 +4669,6 @@ const FameFeed = ({
     () => visiblePosts.map((p: any) => p.id).join(","),
     [visiblePosts],
   );
-  const fetchCommentPreviewsFnRef = useRef(fetchLatestCommentPreviews);
-  useEffect(() => {
-    fetchCommentPreviewsFnRef.current = fetchLatestCommentPreviews;
-  }, [fetchLatestCommentPreviews]);
-
-  useEffect(() => {
-    if (!visiblePostIdsKey) return;
-    fetchCommentPreviewsFnRef.current(visiblePostIdsKey.split(","));
-  }, [visiblePostIdsKey]);
-
   useEffect(() => {
     if (!currentUserId || !visiblePostIdsKey) return;
     void fetchPostEngagement(visiblePostIdsKey.split(","), currentUserId);
@@ -5243,8 +5545,6 @@ const FameFeed = ({
           post.media_url.includes("rapidcdn.app")));
 
     if (isVideo) {
-      const isCommentsOpen = commentSheetId === post.id;
-      const isReplying = replyingTo?.postId === post.id;
       return (
         <PostViewTracker
           key={post.id}
@@ -5257,12 +5557,11 @@ const FameFeed = ({
             <SingleReelBlock
               post={post}
               currentUserId={currentUserId}
-              commentCount={commentsMap[post.id]?.length ?? post.comments_count ?? 0}
-              commentTickerItems={commentTickerMap[post.id]?.length
-                ? commentTickerMap[post.id]
-                : latestCommentPreviews[post.id]
-                  ? [latestCommentPreviews[post.id]]
-                  : []}
+              commentCount={
+                commentsMap[post.id]?.filter((comment: any) => !comment.parent_id).length ??
+                post.comments_count ??
+                0
+              }
               onEdit={() => window.dispatchEvent(new CustomEvent("flicks:open-reel-studio", { detail: { reel: post } }))}
               onDelete={() => {
                 if (window.confirm("Delete this Reel permanently? This cannot be undone.")) {
@@ -5275,41 +5574,8 @@ const FameFeed = ({
                 reason: "",
                 anchor: { top: Math.max(8, Math.min(window.innerHeight - 360, window.innerHeight / 2 - 170)), right: 16 },
               })}
-              onOpenComments={() => {
-                const isOpening = !isCommentsOpen;
-                setCommentSheetId(isOpening ? post.id : null);
-                setActiveComment(null);
-                setReplyingTo(null);
-                setReplyText("");
-                setCommentText("");
-                if (isOpening) {
-                  loadedCommentsRef.current.delete(post.id);
-                  loadComments(post.id, true);
-                }
-              }}
+              onOpenComments={() => openPostDetail(post)}
             />
-            <AnimatePresence>
-              {isCommentsOpen && (
-                <FeedReelComments
-                  post={post}
-                  comments={commentsMap[post.id]}
-                  value={isReplying ? replyText : commentText}
-                  setValue={isReplying ? setReplyText : setCommentText}
-                  replyingTo={isReplying ? replyingTo : null}
-                  onClose={() => {
-                    setCommentSheetId(null);
-                    setReplyingTo(null);
-                    setReplyText("");
-                    setCommentText("");
-                  }}
-                  onSubmit={() => handleAddComment(post.id, isReplying ? replyingTo?.commentId : null)}
-                  onReply={(comment) => {
-                    setReplyingTo({ postId: post.id, commentId: comment.id, author: comment.author });
-                    setReplyText("");
-                  }}
-                />
-              )}
-            </AnimatePresence>
           </div>
         </PostViewTracker>
       );
@@ -5325,6 +5591,16 @@ const FameFeed = ({
       >
         <motion.article
           id={post.id}
+          onClick={(event) => {
+            const target = event.target;
+            if (
+              target instanceof Element &&
+              target.closest("button, a, input, textarea, select, [role='button'], [data-no-post-open]")
+            ) {
+              return;
+            }
+            openPostDetail(post);
+          }}
           exit={{ opacity: 0, x: 60, transition: { duration: 0.2 } }}
           data-vibe={primaryVibe?.tag}
           data-vibe-mix={secondaryVibe?.tag}
@@ -6079,34 +6355,18 @@ const FameFeed = ({
 
             {/* Comment button */}
             <button
-              onClick={() => {
-                const isOpening = commentSheetId !== post.id;
-                setCommentSheetId(isOpening ? post.id : null);
-                setActiveComment(null);
-                setReplyingTo(null);
-                setReplyText("");
-                setCommentText("");
-                if (isOpening) {
-                  loadedCommentsRef.current.delete(post.id);
-                  loadComments(post.id, true);
-                  setTimeout(() => {
-                    document.getElementById(post.id)?.scrollIntoView({
-                      behavior: "smooth",
-                      block: "nearest",
-                    });
-                  }, 120);
-                }
-              }}
+              onClick={() => openPostDetail(post)}
+              aria-label={`Open ${post.comments_count || 0} comments`}
               className="flex items-center gap-1.5 group"
             >
               <MessageCircle
                 size={20}
-                className={`transition-colors ${commentSheetId === post.id ? "text-lime-300" : "text-lime-400 group-hover:text-lime-300"}`}
+                className="text-lime-400 transition-colors group-hover:text-lime-300"
               />
               <span className="text-xs font-black text-lime-400">
-                {(commentsMap[post.id] || []).length ||
-                  post.comments_count ||
-                  0}
+                {commentsMap[post.id]
+                  ? commentsMap[post.id].filter((comment: any) => !comment.parent_id).length
+                  : post.comments_count || 0}
               </span>
             </button>
 
@@ -6308,7 +6568,7 @@ const FameFeed = ({
           })()}
 
           {/* ── Comment preview / news-ticker ────────────────────────────── */}
-          {(() => {
+          {false && (() => {
             const preview = latestCommentPreviews[post.id];
             const tickerItems = commentTickerMap[post.id]?.length
               ? commentTickerMap[post.id]
@@ -7572,7 +7832,7 @@ const FameFeed = ({
             return (
               <>
                 <div
-                  className="fixed inset-0 z-[600]"
+                  className="fixed inset-0 z-[100600]"
                   onPointerDown={() => setFeedCommentAction(null)}
                 />
                 <motion.div
@@ -7581,7 +7841,7 @@ const FameFeed = ({
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.82 }}
                   transition={{ type: "spring", damping: 22, stiffness: 400 }}
-                  className="fixed z-[601] rounded-2xl shadow-2xl overflow-hidden border border-white/10"
+                  className="fixed z-[100601] rounded-2xl shadow-2xl overflow-hidden border border-white/10"
                   style={{
                     top,
                     left,
@@ -7639,6 +7899,68 @@ const FameFeed = ({
           document.body,
         )}
 
+      {postDetailId &&
+        (() => {
+          const detailPost = visiblePosts.find((post) => post.id === postDetailId);
+          if (!detailPost) return null;
+          const loadedComments = commentsMap[detailPost.id];
+          const commentCount = loadedComments
+            ? loadedComments.filter((comment: any) => !comment.parent_id).length
+            : Number(detailPost.comments_count) || 0;
+          const isReplyingToPost = replyingTo?.postId === detailPost.id;
+          return (
+            <PostDetailView
+              post={detailPost}
+              comments={loadedComments}
+              commentsLoading={Boolean(commentsLoadingByPost[detailPost.id])}
+              commentCount={commentCount}
+              currentUserId={currentUserId}
+              authorAvatars={authorAvatars}
+              commentReactions={commentReactions}
+              commentReactionBarId={commentReactionBarId}
+              value={isReplyingToPost ? replyText : commentText}
+              replyingTo={isReplyingToPost ? replyingTo : null}
+              onBack={closePostDetail}
+              onChange={(value) =>
+                isReplyingToPost ? setReplyText(value) : setCommentText(value)
+              }
+              onSubmit={() =>
+                handleAddComment(
+                  detailPost.id,
+                  isReplyingToPost ? replyingTo?.commentId : null,
+                )
+              }
+              onReply={(comment) => {
+                setReplyingTo({
+                  postId: detailPost.id,
+                  commentId: comment.id,
+                  author: comment.author || "User",
+                });
+                setReplyText("");
+              }}
+              onCancelReply={() => {
+                setReplyingTo(null);
+                setReplyText("");
+              }}
+              onProfileClick={openProfile}
+              onLongPress={(comment, x, y) =>
+                setFeedCommentAction({
+                  comment,
+                  postId: detailPost.id,
+                  x,
+                  y,
+                })
+              }
+              onReact={handleCommentReact}
+              onToggleReactionBar={(commentId) =>
+                setCommentReactionBarId((current) =>
+                  current === commentId ? null : commentId,
+                )
+              }
+            />
+          );
+        })()}
+
       {/* ── Edit Feed Comment Sheet ───────────────────────────────────── */}
       <AnimatePresence>
         {editingFeedComment && (
@@ -7647,7 +7969,7 @@ const FameFeed = ({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[600] flex items-end justify-center bg-black/60 backdrop-blur-sm"
+            className="fixed inset-0 z-[100700] flex items-end justify-center bg-black/60 backdrop-blur-sm"
             onClick={() => setEditingFeedComment(null)}
           >
             <motion.div
