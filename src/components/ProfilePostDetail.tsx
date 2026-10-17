@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   Check,
@@ -95,6 +95,13 @@ export default function ProfilePostDetail({
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState("");
   const [editBusy, setEditBusy] = useState(false);
+  const [commentAction, setCommentAction] = useState<{
+    commentId: string;
+    x: number;
+    y: number;
+  } | null>(null);
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressStart = useRef({ x: 0, y: 0 });
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -103,8 +110,45 @@ export default function ProfilePostDetail({
     document.addEventListener("keydown", onKeyDown);
     return () => {
       document.removeEventListener("keydown", onKeyDown);
+      if (longPressTimer.current) clearTimeout(longPressTimer.current);
     };
   }, [onClose]);
+
+  const startCommentLongPress = (
+    comment: FriendWallCommentView,
+    x: number,
+    y: number,
+    target: EventTarget | null,
+  ) => {
+    if (longPressTimer.current) clearTimeout(longPressTimer.current);
+    longPressTimer.current = null;
+    if (
+      comment.userId !== currentUserId ||
+      (target instanceof Element &&
+        target.closest("button, a, input, textarea"))
+    ) return;
+    longPressStart.current = { x, y };
+    longPressTimer.current = setTimeout(() => {
+      longPressTimer.current = null;
+      setCommentAction({
+        commentId: comment.id,
+        x: Math.min(Math.max(12, x), window.innerWidth - 200),
+        y: Math.min(Math.max(12, y), window.innerHeight - 120),
+      });
+    }, 650);
+  };
+  const cancelCommentLongPress = () => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  };
+  const moveCommentLongPress = (x: number, y: number) => {
+    if (
+      Math.abs(x - longPressStart.current.x) > 12 ||
+      Math.abs(y - longPressStart.current.y) > 12
+    ) cancelCommentLongPress();
+  };
 
   const postImages = [...new Set([
     ...(post.imageUrls ?? []),
@@ -277,6 +321,49 @@ export default function ProfilePostDetail({
                       key={comment.id}
                       className={`flex items-start gap-2.5 py-3 ${comment.parentId ? "ml-8 border-l border-[#800020]/10 pl-3" : ""}`}
                       data-testid={`detail-comment-${comment.id}`}
+                      onTouchStart={(event) => {
+                        const touch = event.touches[0];
+                        if (touch) {
+                          startCommentLongPress(
+                            comment,
+                            touch.clientX,
+                            touch.clientY,
+                            event.target,
+                          );
+                        }
+                      }}
+                      onTouchMove={(event) => {
+                        const touch = event.touches[0];
+                        if (touch) moveCommentLongPress(touch.clientX, touch.clientY);
+                      }}
+                      onTouchEnd={cancelCommentLongPress}
+                      onTouchCancel={cancelCommentLongPress}
+                      onMouseDown={(event) => {
+                        if (event.button === 0) {
+                          startCommentLongPress(
+                            comment,
+                            event.clientX,
+                            event.clientY,
+                            event.target,
+                          );
+                        }
+                      }}
+                      onMouseMove={(event) =>
+                        moveCommentLongPress(event.clientX, event.clientY)
+                      }
+                      onMouseUp={cancelCommentLongPress}
+                      onMouseLeave={cancelCommentLongPress}
+                      onContextMenu={(event) => {
+                        if (!isMine) return;
+                        event.preventDefault();
+                        cancelCommentLongPress();
+                        setCommentAction({
+                          commentId: comment.id,
+                          x: Math.min(Math.max(12, event.clientX), window.innerWidth - 200),
+                          y: Math.min(Math.max(12, event.clientY), window.innerHeight - 120),
+                        });
+                      }}
+                      style={{ touchAction: "pan-y" }}
                     >
                       <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#800020]/10 text-[10px] font-black text-[#800020]">
                         {comment.authorName.trim().slice(0, 1).toUpperCase()}
@@ -412,6 +499,46 @@ export default function ProfilePostDetail({
         </form>
       </div>
 
+      {commentAction &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[90001]"
+            onClick={() => setCommentAction(null)}
+          >
+            <div
+              role="menu"
+              aria-label="Comment actions"
+              className="fixed z-[90002] min-w-36 overflow-hidden rounded-xl border border-[#800020]/10 bg-white py-1 shadow-2xl"
+              style={{ left: commentAction.x, top: commentAction.y }}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <button
+                type="button"
+                role="menuitem"
+                className="block w-full px-4 py-3 text-left text-xs font-bold text-[#39272a] hover:bg-[#800020]/[0.06]"
+                onClick={() => {
+                  enableCommentEdit(post.id, commentAction.commentId);
+                  setCommentAction(null);
+                }}
+              >
+                Edit comment
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className="block w-full border-t border-[#800020]/[0.08] px-4 py-3 text-left text-xs font-bold text-red-700 hover:bg-red-50"
+                onClick={() => {
+                  const { commentId } = commentAction;
+                  setCommentAction(null);
+                  void onDeleteComment(post.id, commentId);
+                }}
+              >
+                Delete comment
+              </button>
+            </div>
+          </div>,
+          document.body,
+        )}
     </div>,
     document.body,
   );
