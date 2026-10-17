@@ -5415,7 +5415,6 @@ const PersonalizationView = React.memo(({
       {/* Clean Start navigation dock ─────────────────────────────────────── */}
       <GolSlider
         activeFeature={activeFeature}
-        hidden={isChatOpen}
         onRefresh={handleBottomNavRefresh}
         onFeatureChange={(f) => {
           if (f === "Admin") {

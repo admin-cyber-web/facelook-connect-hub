@@ -12,88 +12,22 @@ const START_MENU_ITEMS = [
 ] as const;
 
 const AUTO_CLOSE_MS = 10_000;
-const HOLD_TO_SHOW_MS = 800;
-const START_AUTO_HIDE_MS = 2_500;
 
 interface GolSliderProps {
   onFeatureChange?: (feature: string) => void;
   activeFeature?: string;
-  hidden?: boolean;
   onRefresh: () => Promise<void> | void;
 }
 
 const GolSlider = ({
   onFeatureChange,
   activeFeature,
-  hidden,
   onRefresh,
 }: GolSliderProps) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [isStartVisible, setIsStartVisible] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const startButtonRef = useRef<HTMLButtonElement>(null);
   const autoCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    if (hidden) return;
-
-    const clearHoldTimer = () => {
-      if (holdTimerRef.current) clearTimeout(holdTimerRef.current);
-      holdTimerRef.current = null;
-    };
-
-    const scheduleReveal = () => {
-      clearHoldTimer();
-      holdTimerRef.current = setTimeout(() => {
-        holdTimerRef.current = null;
-        setIsStartVisible(true);
-      }, HOLD_TO_SHOW_MS);
-    };
-
-    const handleTouchStart = (event: TouchEvent) => {
-      if (event.touches.length !== 1) {
-        clearHoldTimer();
-        return;
-      }
-      scheduleReveal();
-    };
-    const handleMouseDown = (event: MouseEvent) => {
-      if (event.button === 0) scheduleReveal();
-    };
-
-    document.addEventListener("touchstart", handleTouchStart, { passive: true });
-    document.addEventListener("touchend", clearHoldTimer);
-    document.addEventListener("touchcancel", clearHoldTimer);
-    document.addEventListener("mousedown", handleMouseDown);
-    document.addEventListener("mouseup", clearHoldTimer);
-    document.addEventListener("scroll", clearHoldTimer, {
-      capture: true,
-      passive: true,
-    });
-    window.addEventListener("scroll", clearHoldTimer, { passive: true });
-
-    return () => {
-      clearHoldTimer();
-      document.removeEventListener("touchstart", handleTouchStart);
-      document.removeEventListener("touchend", clearHoldTimer);
-      document.removeEventListener("touchcancel", clearHoldTimer);
-      document.removeEventListener("mousedown", handleMouseDown);
-      document.removeEventListener("mouseup", clearHoldTimer);
-      document.removeEventListener("scroll", clearHoldTimer, true);
-      window.removeEventListener("scroll", clearHoldTimer);
-    };
-  }, [hidden]);
-
-  useEffect(() => {
-    if (!isStartVisible) return;
-
-    const timer = setTimeout(() => {
-      setIsStartVisible(false);
-      setIsOpen(false);
-    }, START_AUTO_HIDE_MS);
-    return () => clearTimeout(timer);
-  }, [isStartVisible]);
 
   const scheduleIdleClose = useCallback(() => {
     if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
@@ -104,13 +38,9 @@ const GolSlider = ({
   }, []);
 
   useEffect(() => {
-    if (hidden || !isOpen) {
+    if (!isOpen) {
       if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
       autoCloseTimerRef.current = null;
-      if (hidden) {
-        setIsOpen(false);
-        setIsStartVisible(false);
-      }
       return;
     }
 
@@ -146,9 +76,7 @@ const GolSlider = ({
       if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
       autoCloseTimerRef.current = null;
     };
-  }, [hidden, isOpen, scheduleIdleClose]);
-
-  if (hidden) return null;
+  }, [isOpen, scheduleIdleClose]);
 
   return (
     <div className="gol-start-dock">
@@ -187,13 +115,11 @@ const GolSlider = ({
       <button
         ref={startButtonRef}
         type="button"
-        className={`gol-start-button aquarium-refresh-marble${isStartVisible ? " is-visible" : ""}`}
+        className="gol-start-button aquarium-refresh-marble"
         aria-label={isOpen ? "Close Start menu" : "Open Start menu"}
         aria-expanded={isOpen}
         aria-controls="gol-start-menu"
-        aria-hidden={!isStartVisible}
         data-testid="button-open-start-menu"
-        tabIndex={isStartVisible ? 0 : -1}
         onClick={() => setIsOpen((open) => !open)}
       >
         <span className="aquarium-marble-water" aria-hidden="true" />
