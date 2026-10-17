@@ -1,4 +1,6 @@
+import { useState } from "react";
 import {
+  ChevronDown,
   Clock3,
   Heart,
   Image as ImageIcon,
@@ -6,11 +8,28 @@ import {
   MessageCircle,
   PenLine,
   RotateCw,
-  Send,
   Share2,
   Video,
 } from "lucide-react";
 import SavePostButton from "./SavePostButton";
+import { ReactionBar } from "./ReactionBar";
+
+const REACTION_TYPE_BY_EMOJI: Record<string, string> = {
+  "👍": "like",
+  "❤️": "love",
+  "😂": "haha",
+  "🔥": "fire",
+  "😮": "wow",
+};
+
+export type FriendWallCommentView = {
+  id: string;
+  userId: string;
+  authorName: string;
+  content: string;
+  createdAt: string;
+  parentId?: string | null;
+};
 
 export type FriendWallPostView = {
   id: string;
@@ -19,18 +38,17 @@ export type FriendWallPostView = {
   content: string;
   createdAt: string;
   mediaUrl?: string | null;
+  imageUrl?: string | null;
   imageUrls?: string[] | null;
   mediaType?: string | null;
+  type?: string | null;
+  coverUrl?: string | null;
   likesCount: number;
   commentsCount: number;
   sharesCount: number;
   likedByCurrentUser: boolean;
-  comments?: {
-    id: string;
-    authorName: string;
-    content: string;
-    createdAt: string;
-  }[];
+  reactionType?: string | null;
+  comments?: FriendWallCommentView[];
 };
 
 export type FriendWallPresentationProps = {
@@ -39,18 +57,13 @@ export type FriendWallPresentationProps = {
   posts: FriendWallPostView[];
   loading: boolean;
   error: string | null;
-  openCommentPostId: string | null;
-  commentDraft: string;
-  commentBusy: boolean;
   likeBusyPostId?: string | null;
   onOpenComposer: () => void;
   isOwnProfile?: boolean;
   onCreateHook?: () => void;
-  onLike: (postId: string) => void;
+  onLike: (postId: string, reactionType?: string) => void;
   onShare: (postId: string) => void;
-  onToggleComments: (postId: string) => void;
-  onCommentDraftChange: (value: string) => void;
-  onSubmitComment: (postId: string) => void;
+  onOpenPostDetail: (postId: string) => void;
   onRetry: () => void;
 };
 
@@ -148,27 +161,18 @@ function PostSkeleton({ index }: { index: number }) {
 
 function WallPost({
   post,
-  openComments,
-  commentDraft,
-  commentBusy,
   likeBusy,
   onLike,
   onShare,
-  onToggleComments,
-  onCommentDraftChange,
-  onSubmitComment,
+  onOpenPostDetail,
 }: {
   post: FriendWallPostView;
-  openComments: boolean;
-  commentDraft: string;
-  commentBusy: boolean;
   likeBusy: boolean;
-  onLike: (postId: string) => void;
+  onLike: (postId: string, reactionType?: string) => void;
   onShare: (postId: string) => void;
-  onToggleComments: (postId: string) => void;
-  onCommentDraftChange: (value: string) => void;
-  onSubmitComment: (postId: string) => void;
+  onOpenPostDetail: (postId: string) => void;
 }) {
+  const [reactionPickerOpen, setReactionPickerOpen] = useState(false);
   const created = formatDate(post.createdAt);
   const video = isVideoPost(post);
   const images = (post.imageUrls ?? []).filter(Boolean);
@@ -177,6 +181,16 @@ function WallPost({
 
   return (
     <article
+      onClick={(event) => {
+        const target = event.target;
+        if (
+          target instanceof Element &&
+          target.closest("button, a, input, textarea, select, video, [role='button'], [data-no-post-open]")
+        ) {
+          return;
+        }
+        onOpenPostDetail(post.id);
+      }}
       className="profile-nav-post overflow-hidden rounded-[1.4rem] border border-white/[0.09] bg-[linear-gradient(145deg,rgba(255,255,255,0.065),rgba(255,255,255,0.025)_55%,rgba(124,58,237,0.045))] shadow-[0_14px_35px_rgba(8,4,18,0.12)]"
       data-testid={`card-wall-post-${post.id}`}
     >
@@ -253,48 +267,80 @@ function WallPost({
 
       <div className="profile-nav-post-stats mx-4 flex items-center justify-between border-b border-white/[0.07] py-2 text-[10px] font-medium text-violet-100/45 sm:mx-5">
         <span data-testid={`text-post-likes-${post.id}`}>
-          {countLabel(post.likesCount, "like")}
+          {countLabel(post.likesCount, "reaction")}
+          {post.likedByCurrentUser && (
+            <span className="ml-1" aria-label="Your reaction">
+              {post.reactionType === "love" ? "❤️" : post.reactionType === "haha" ? "😂" : post.reactionType === "fire" ? "🔥" : post.reactionType === "wow" ? "😮" : "👍"}
+            </span>
+          )}
         </span>
-        <span className="flex items-center gap-3">
-          <span data-testid={`text-post-comments-${post.id}`}>
+        <span className="flex items-center">
+          <button
+            type="button"
+            onClick={() => onOpenPostDetail(post.id)}
+            aria-label={`Open ${post.commentsCount} comments`}
+            data-testid={`text-post-comments-${post.id}`}
+            className="rounded px-1 py-0.5 transition-colors hover:bg-white/[0.08] hover:text-white"
+          >
             {countLabel(post.commentsCount, "comment")}
-          </span>
-          <span data-testid={`text-post-shares-${post.id}`}>
-            {countLabel(post.sharesCount, "share")}
-          </span>
+          </button>
         </span>
       </div>
 
       <div className="profile-nav-post-actions grid grid-cols-4 gap-1 px-2 py-2 sm:px-3">
+        <div className="relative flex min-w-0 items-stretch">
+          <button
+            type="button"
+            onClick={() =>
+              onLike(
+                post.id,
+                post.likedByCurrentUser ? post.reactionType || "like" : "like",
+              )
+            }
+            disabled={likeBusy}
+            aria-label={`${post.likedByCurrentUser ? "Remove your reaction from" : "Like"} ${post.authorName}'s post`}
+            aria-pressed={post.likedByCurrentUser}
+            aria-busy={likeBusy}
+            data-testid={`button-like-post-${post.id}`}
+            className={`flex min-h-10 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-l-xl px-1 text-[11px] font-bold transition-colors hover:bg-white/[0.07] active:scale-[0.98] ${
+              post.likedByCurrentUser ? "text-pink-300" : "text-violet-100/65"
+            }`}
+          >
+            <span aria-hidden="true">
+              {post.likedByCurrentUser
+                ? post.reactionType === "love" ? "❤️" : post.reactionType === "haha" ? "😂" : post.reactionType === "fire" ? "🔥" : post.reactionType === "wow" ? "😮" : "👍"
+                : <Heart size={15} strokeWidth={2.2} />}
+            </span>
+            {post.likedByCurrentUser ? "Reacted" : "Like"}
+          </button>
+          <button
+            type="button"
+            onClick={() => setReactionPickerOpen((open) => !open)}
+            aria-label="Choose a post reaction"
+            aria-expanded={reactionPickerOpen}
+            className="flex min-h-10 w-7 shrink-0 items-center justify-center rounded-r-xl text-violet-100/55 transition-colors hover:bg-white/[0.07]"
+          >
+            <ChevronDown size={13} />
+          </button>
+          {reactionPickerOpen && (
+            <div className="absolute bottom-full left-0 z-50 mb-2">
+              <ReactionBar
+                onReact={(emoji) => {
+                  const reactionType = REACTION_TYPE_BY_EMOJI[emoji];
+                  if (reactionType) onLike(post.id, reactionType);
+                  setReactionPickerOpen(false);
+                }}
+                onClose={() => setReactionPickerOpen(false)}
+              />
+            </div>
+          )}
+        </div>
         <button
           type="button"
-          onClick={() => onLike(post.id)}
-          disabled={likeBusy}
-          aria-label={`${post.likedByCurrentUser ? "Unlike" : "Like"} ${post.authorName}'s post`}
-          aria-pressed={post.likedByCurrentUser}
-          aria-busy={likeBusy}
-          data-testid={`button-like-post-${post.id}`}
-          className={`flex min-h-10 items-center justify-center gap-2 rounded-xl text-[11px] font-bold transition-colors hover:bg-white/[0.07] active:scale-[0.98] ${
-            post.likedByCurrentUser ? "text-pink-300" : "text-violet-100/65"
-          }`}
-        >
-          <Heart
-            size={15}
-            strokeWidth={2.2}
-            fill={post.likedByCurrentUser ? "currentColor" : "none"}
-            aria-hidden="true"
-          />
-          Like
-        </button>
-        <button
-          type="button"
-          onClick={() => onToggleComments(post.id)}
-          aria-label={`${openComments ? "Hide" : "Show"} comments for ${post.authorName}'s post`}
-          aria-expanded={openComments}
+          onClick={() => onOpenPostDetail(post.id)}
+          aria-label={`Open comments for ${post.authorName}'s post`}
           data-testid={`button-comments-post-${post.id}`}
-          className={`flex min-h-10 items-center justify-center gap-2 rounded-xl text-[11px] font-bold transition-colors hover:bg-white/[0.07] active:scale-[0.98] ${
-            openComments ? "text-cyan-200" : "text-violet-100/65"
-          }`}
+          className="flex min-h-10 items-center justify-center gap-2 rounded-xl text-[11px] font-bold text-violet-100/65 transition-colors hover:bg-white/[0.07] active:scale-[0.98]"
         >
           <MessageCircle size={15} strokeWidth={2.1} aria-hidden="true" />
           Comment
@@ -311,87 +357,6 @@ function WallPost({
         </button>
         <SavePostButton postId={post.id} className="profile-nav-save-button" />
       </div>
-
-      {openComments && (
-        <section
-          aria-label={`Comments on ${post.authorName}'s post`}
-          className="border-t border-white/[0.07] bg-[#0b0813]/30 px-4 pb-4 pt-3 sm:px-5"
-          data-testid={`section-comments-${post.id}`}
-        >
-          <div className="space-y-3">
-            {(post.comments ?? []).length > 0 ? (
-              post.comments!.map((comment) => {
-                const commentDate = formatDate(comment.createdAt);
-                return (
-                  <div
-                    key={comment.id}
-                    className="flex items-start gap-2.5"
-                    data-testid={`comment-${comment.id}`}
-                  >
-                    <Avatar name={comment.authorName} size="small" />
-                    <div className="min-w-0 flex-1 rounded-2xl rounded-tl-md border border-white/[0.07] bg-white/[0.045] px-3 py-2">
-                      <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5">
-                        <p className="text-[11px] font-bold text-white/85">
-                          {comment.authorName}
-                        </p>
-                        <time
-                          dateTime={commentDate.dateTime}
-                          className="text-[9px] font-medium text-violet-100/35"
-                        >
-                          {commentDate.label}
-                        </time>
-                      </div>
-                      <p className="mt-1 whitespace-pre-wrap break-words text-xs leading-relaxed text-violet-50/70">
-                        {comment.content}
-                      </p>
-                    </div>
-                  </div>
-                );
-              })
-            ) : (
-              <p className="py-1 text-center text-[11px] font-medium text-violet-100/40">
-                Start the conversation.
-              </p>
-            )}
-          </div>
-
-          <form
-            className="mt-3 flex items-end gap-2"
-            onSubmit={(event) => {
-              event.preventDefault();
-              onSubmitComment(post.id);
-            }}
-          >
-            <label className="sr-only" htmlFor={`comment-draft-${post.id}`}>
-              Write a comment
-            </label>
-            <textarea
-              id={`comment-draft-${post.id}`}
-              rows={1}
-              value={commentDraft}
-              onChange={(event) => onCommentDraftChange(event.target.value)}
-              placeholder="Add a thoughtful comment"
-              aria-label="Write a comment"
-              data-testid={`input-comment-${post.id}`}
-              className="max-h-28 min-h-10 flex-1 resize-y rounded-xl border border-white/10 bg-white/[0.055] px-3 py-2.5 text-[12px] leading-relaxed text-white outline-none placeholder:text-violet-100/35 focus:border-cyan-200/35 focus:ring-2 focus:ring-cyan-300/10"
-            />
-            <button
-              type="submit"
-              disabled={commentBusy || !commentDraft.trim()}
-              aria-label={commentBusy ? "Posting comment" : "Post comment"}
-              data-testid={`button-submit-comment-${post.id}`}
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-fuchsia-500 to-violet-500 text-white shadow-[0_5px_14px_rgba(168,85,247,0.18)] transition-opacity hover:opacity-90 active:scale-95 disabled:cursor-not-allowed disabled:opacity-35"
-            >
-              <Send size={15} aria-hidden="true" />
-            </button>
-          </form>
-          {commentBusy && (
-            <p className="mt-2 text-right text-[10px] font-medium text-cyan-100/55" role="status">
-              Posting comment…
-            </p>
-          )}
-        </section>
-      )}
     </article>
   );
 }
@@ -402,18 +367,13 @@ export default function FriendWallPresentation({
   posts,
   loading,
   error,
-  openCommentPostId,
-  commentDraft,
-  commentBusy,
   likeBusyPostId,
   onOpenComposer,
   isOwnProfile = false,
   onCreateHook,
   onLike,
   onShare,
-  onToggleComments,
-  onCommentDraftChange,
-  onSubmitComment,
+  onOpenPostDetail,
   onRetry,
 }: FriendWallPresentationProps) {
   return (
@@ -549,15 +509,10 @@ export default function FriendWallPresentation({
             <WallPost
               key={post.id}
               post={post}
-              openComments={openCommentPostId === post.id}
-              commentDraft={commentDraft}
-              commentBusy={commentBusy}
               likeBusy={likeBusyPostId === post.id}
               onLike={onLike}
               onShare={onShare}
-              onToggleComments={onToggleComments}
-              onCommentDraftChange={onCommentDraftChange}
-              onSubmitComment={onSubmitComment}
+              onOpenPostDetail={onOpenPostDetail}
             />
           ))}
         </div>
