@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import type { PointerEvent as ReactPointerEvent } from "react";
+import type {
+  MouseEvent as ReactMouseEvent,
+  PointerEvent as ReactPointerEvent,
+} from "react";
 import { AnimatePresence } from "framer-motion";
 import {
   Check,
@@ -98,8 +101,6 @@ export default function ProfilePostDetail({
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState("");
   const [editBusy, setEditBusy] = useState(false);
-  const [confirmDeleteCommentId, setConfirmDeleteCommentId] = useState<string | null>(null);
-  const [deleteBusyCommentId, setDeleteBusyCommentId] = useState<string | null>(null);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -146,9 +147,65 @@ export default function ProfilePostDetail({
     post.mediaUrl,
   ].filter((url): url is string => Boolean(url)))];
 
+  const enableCommentEdit = (postId: string, commentId: string) => {
+    if (postId !== post.id) return;
+    const comment = comments?.find((item) => item.id === commentId);
+    if (!comment || comment.userId !== currentUserId) return;
+    setEditingCommentId(commentId);
+    setEditingText(comment.content);
+    setMenu(null);
+  };
+
+  const saveCommentEdit = async (
+    postId: string,
+    commentId: string,
+    content: string,
+  ) => {
+    if (postId !== post.id || !content.trim() || editBusy) return false;
+    setEditBusy(true);
+    try {
+      const saved = await onSaveCommentEdit(postId, commentId, content);
+      if (saved) {
+        setEditingCommentId(null);
+        setMenu(null);
+      }
+      return saved;
+    } finally {
+      setEditBusy(false);
+    }
+  };
+
+  // Keep comment actions delegated at the detail root so actions remain wired
+  // even if a timeline comment row is later rendered from dynamic markup.
+  const handleCommentActionClick = (event: ReactMouseEvent<HTMLDivElement>) => {
+    const target = event.target as HTMLElement;
+    const button = target.closest<HTMLButtonElement>("[data-comment-action]");
+    if (!button || !event.currentTarget.contains(button)) return;
+
+    const { commentAction, postId, commentId } = button.dataset;
+    if (!postId || !commentId || postId !== post.id) return;
+    event.preventDefault();
+
+    if (commentAction === "edit") {
+      enableCommentEdit(postId, commentId);
+      return;
+    }
+    if (commentAction === "delete") {
+      setMenu(null);
+      void onDeleteComment(postId, commentId);
+      return;
+    }
+    if (commentAction === "save") {
+      const row = button.closest<HTMLElement>("[data-testid^='detail-comment-']");
+      const content = row?.querySelector<HTMLTextAreaElement>("textarea")?.value ?? "";
+      void saveCommentEdit(postId, commentId, content);
+    }
+  };
+
   return createPortal(
     <div
       className="profile-post-detail fixed inset-0 z-[90000] flex h-[100dvh] justify-center bg-black/65 text-[#39272a] backdrop-blur-sm"
+      onClick={handleCommentActionClick}
       style={{
         paddingTop: "env(safe-area-inset-top, 0px)",
         paddingBottom: 0,
@@ -320,17 +377,7 @@ export default function ProfilePostDetail({
                             className="mt-2"
                             onSubmit={async (event) => {
                               event.preventDefault();
-                              if (editBusy) return;
-                              setEditBusy(true);
-                              try {
-                                const saved = await onSaveCommentEdit(post.id, comment.id, editingText);
-                                if (saved) {
-                                  setEditingCommentId(null);
-                                  setMenu(null);
-                                }
-                              } finally {
-                                setEditBusy(false);
-                              }
+                              await saveCommentEdit(post.id, comment.id, editingText);
                             }}
                           >
                             <textarea
@@ -343,7 +390,14 @@ export default function ProfilePostDetail({
                             />
                             <div className="mt-2 flex justify-end gap-2">
                               <button type="button" onClick={() => setEditingCommentId(null)} className="rounded-lg px-3 py-1.5 text-xs font-bold text-[#756365]">Cancel</button>
-                              <button type="submit" disabled={editBusy || !editingText.trim()} className="inline-flex items-center gap-1 rounded-lg bg-[#800020] px-3 py-1.5 text-xs font-bold text-white disabled:opacity-50">
+                              <button
+                                type="button"
+                                data-comment-action="save"
+                                data-post-id={post.id}
+                                data-comment-id={comment.id}
+                                disabled={editBusy || !editingText.trim()}
+                                className="inline-flex items-center gap-1 rounded-lg bg-[#800020] px-3 py-1.5 text-xs font-bold text-white disabled:opacity-50"
+                              >
                                 <Check size={13} /> Save
                               </button>
                             </div>
@@ -440,64 +494,22 @@ export default function ProfilePostDetail({
             >
               <button
                 type="button"
-                onClick={() => {
-                  const comment = comments?.find((item) => item.id === menu.commentId);
-                  if (comment) {
-                    setEditingCommentId(comment.id);
-                    setEditingText(comment.content);
-                    setConfirmDeleteCommentId(null);
-                  }
-                  setMenu(null);
-                }}
+                data-comment-action="edit"
+                data-post-id={post.id}
+                data-comment-id={menu.commentId}
                 className="flex w-full items-center gap-2 px-4 py-3 text-left text-xs font-bold text-[#39272a] hover:bg-[#800020]/[0.06]"
               >
                 Edit comment
               </button>
               <button
                 type="button"
-                onClick={() => setConfirmDeleteCommentId(menu.commentId)}
+                data-comment-action="delete"
+                data-post-id={post.id}
+                data-comment-id={menu.commentId}
                 className="flex w-full items-center gap-2 border-t border-[#800020]/[0.08] px-4 py-3 text-left text-xs font-bold text-red-700 hover:bg-red-50"
               >
                 Delete comment
               </button>
-              {confirmDeleteCommentId === menu.commentId && (
-                <div className="border-t border-[#800020]/[0.08] bg-red-50 p-3">
-                  <p className="text-xs font-bold text-red-800">Delete this comment?</p>
-                  <div className="mt-2 flex justify-end gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setConfirmDeleteCommentId(null)}
-                      disabled={deleteBusyCommentId === menu.commentId}
-                      className="rounded-lg px-3 py-2 text-xs font-bold text-[#756365] disabled:opacity-50"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="button"
-                      disabled={deleteBusyCommentId === menu.commentId}
-                      onClick={async () => {
-                        const commentId = menu.commentId;
-                        setDeleteBusyCommentId(commentId);
-                        try {
-                          const deleted = await onDeleteComment(post.id, commentId);
-                          if (deleted) {
-                            setMenu(null);
-                            setConfirmDeleteCommentId(null);
-                            setEditingCommentId((editingId) =>
-                              editingId === commentId ? null : editingId,
-                            );
-                          }
-                        } finally {
-                          setDeleteBusyCommentId(null);
-                        }
-                      }}
-                      className="rounded-lg bg-red-700 px-3 py-2 text-xs font-bold text-white disabled:opacity-50"
-                    >
-                      {deleteBusyCommentId === menu.commentId ? "Deleting…" : "Delete"}
-                    </button>
-                  </div>
-                </div>
-              )}
             </div>
           </>
         )}
