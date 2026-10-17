@@ -1,116 +1,44 @@
 .gol-start-dock {
   position: fixed;
   z-index: 200;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  height: calc(64px + env(safe-area-inset-bottom, 0px));
-  pointer-events: none;
-}
-
-.gol-start-dock__background {
-  position: absolute;
   inset: 0;
-  border-top: 1px solid rgba(130, 190, 226, 0.12);
-  background: linear-gradient(
-    180deg,
-    rgba(5, 10, 20, 0.28),
-    rgba(5, 10, 20, 0.9) 42%
-  );
-  -webkit-backdrop-filter: blur(12px);
-  backdrop-filter: blur(12px);
+  min-height: 100dvh;
   pointer-events: none;
 }
 
-.gol-start-button {
-  position: fixed;
+button.gol-start-button.aquarium-refresh-marble {
   z-index: 2;
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 10px);
-  left: 12px;
-  display: inline-flex;
-  width: 104px;
-  height: 44px;
-  align-items: center;
-  justify-content: center;
-  gap: 11px;
-  padding: 0 15px;
-  border: 1px solid rgba(79, 172, 254, 0.42);
-  border-radius: 999px;
-  background: linear-gradient(
-    130deg,
-    rgba(10, 20, 38, 0.94),
-    rgba(12, 28, 48, 0.9)
-  );
-  color: #f8fdff;
-  box-shadow:
-    inset 0 1px rgba(255, 255, 255, 0.08),
-    0 5px 18px rgba(0, 0, 0, 0.34);
-  -webkit-backdrop-filter: blur(8px);
-  backdrop-filter: blur(8px);
-  cursor: pointer;
+  bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+  left: 1rem;
+  width: 60px;
+  height: 60px;
+  padding: 0;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate3d(0, 8px, 0);
+  transition: all 300ms ease-in-out;
+}
+
+button.gol-start-button.aquarium-refresh-marble.is-visible {
+  opacity: 1;
   pointer-events: auto;
-  -webkit-tap-highlight-color: transparent;
-  transition:
-    border-color 160ms ease,
-    box-shadow 160ms ease,
-    transform 160ms ease;
+  transform: translate3d(0, 0, 0);
 }
 
-.gol-start-button:hover,
-.gol-start-button:focus-visible {
-  border-color: rgba(0, 242, 254, 0.86);
-  box-shadow:
-    inset 0 1px rgba(255, 255, 255, 0.12),
-    0 0 18px rgba(0, 242, 254, 0.22),
-    0 5px 18px rgba(0, 0, 0, 0.38);
-}
-
-.gol-start-button:focus-visible {
-  outline: 2px solid rgba(79, 172, 254, 0.9);
+button.gol-start-button.aquarium-refresh-marble:focus-visible {
+  outline: 2px solid #fff;
   outline-offset: 3px;
 }
 
-.gol-start-button:active {
-  transform: scale(0.96);
-  border-color: #00f2fe;
-}
-
-.gol-start-mark {
-  display: grid;
-  width: 17px;
-  height: 17px;
-  flex: 0 0 17px;
-  grid-template-columns: repeat(2, 7px);
-  grid-template-rows: repeat(2, 7px);
-  gap: 3px;
-  transform: rotate(45deg);
-  filter: drop-shadow(0 0 4px rgba(0, 242, 254, 0.55));
-}
-
-.gol-start-mark span {
-  border-radius: 2px;
-  background: linear-gradient(145deg, #00f2fe, #4facfe);
-}
-
-.gol-start-mark span:nth-child(2),
-.gol-start-mark span:nth-child(3) {
-  background: linear-gradient(145deg, #4facfe, #168de3);
-}
-
-.gol-start-button__label {
-  color: #f8fdff;
-  font-size: 14px;
-  font-weight: 850;
-  letter-spacing: 0.015em;
-  line-height: 1;
-  text-shadow: 0 0 8px rgba(235, 250, 255, 0.32);
+button.gol-start-button.aquarium-refresh-marble:active:not(:disabled) {
+  transform: translate3d(0, 0, 0) scale(0.94);
 }
 
 .gol-start-menu {
   position: fixed;
   z-index: 3;
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 70px);
-  left: 12px;
+  bottom: calc(1rem + env(safe-area-inset-bottom, 0px) + 72px);
+  left: 1rem;
   box-sizing: border-box;
   width: min(272px, calc(100vw - 96px));
   max-height: calc(100dvh - 104px);
@@ -182,7 +110,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .gol-start-button {
+  button.gol-start-button.aquarium-refresh-marble {
     transition: none;
   }
 }
