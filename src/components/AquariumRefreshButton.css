@@ -2,7 +2,7 @@
   position: fixed;
   z-index: 9999;
   left: 50%;
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 2px);
+  bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
   isolation: isolate;
   display: grid;
   place-items: center;
