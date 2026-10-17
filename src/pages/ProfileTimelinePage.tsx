@@ -34,11 +34,15 @@ interface Props {
 }
 
 interface FriendshipRow {
-  id: string;
   sender_id: string;
   receiver_id: string;
-  ["profiles!friendships_sender_id_fkey"]?: ProfileNavigationFriend | null;
-  ["profiles!friendships_receiver_id_fkey"]?: ProfileNavigationFriend | null;
+}
+
+interface FriendProfileRow {
+  id: string;
+  full_name: string | null;
+  avatar_url: string | null;
+  location: string | null;
 }
 
 interface MediaPostRow {
@@ -280,9 +284,7 @@ export default function ProfileTimelinePage({
       const [friendsResult, mediaResult] = await Promise.all([
         supabase
           .from("friendships")
-          .select(
-            "id,sender_id,receiver_id,profiles!friendships_sender_id_fkey(id,full_name,avatar_url,location),profiles!friendships_receiver_id_fkey(id,full_name,avatar_url,location)",
-          )
+          .select("sender_id,receiver_id")
           .eq("status", "accepted")
           .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
           .order("created_at", { ascending: false })
@@ -295,25 +297,58 @@ export default function ProfileTimelinePage({
         console.error("[ProfileTimelinePage] friends load failed:", friendsResult.error);
         setFriends([]);
       } else {
-        const rows = (friendsResult.data ?? []) as unknown as FriendshipRow[];
-        setFriends(
-          rows
-            .map((row) => {
-              const isSender = row.sender_id === userId;
-              const friend = isSender
-                ? row["profiles!friendships_receiver_id_fkey"]
-                : row["profiles!friendships_sender_id_fkey"];
-              return friend?.id && friend.id !== userId
-                ? {
+        const rows = (friendsResult.data ?? []) as FriendshipRow[];
+        const friendIds = [
+          ...new Set(
+            rows
+              .map((row) =>
+                row.sender_id === userId ? row.receiver_id : row.sender_id,
+              )
+              .filter((friendId) => friendId && friendId !== userId),
+          ),
+        ];
+
+        if (friendIds.length === 0) {
+          setFriends([]);
+        } else {
+          const { data: friendProfiles, error: friendProfilesError } =
+            await supabase
+              .from("profiles")
+              .select("id,full_name,avatar_url,location")
+              .in("id", friendIds);
+
+          if (!active || sequence !== loadSequence.current) return;
+          if (friendProfilesError) {
+            console.error(
+              "[ProfileTimelinePage] friend profiles load failed:",
+              friendProfilesError,
+            );
+            setFriends([]);
+          } else {
+            const profilesById = new Map(
+              ((friendProfiles ?? []) as FriendProfileRow[]).map((friend) => [
+                friend.id,
+                friend,
+              ]),
+            );
+            const friendList = friendIds.reduce<ProfileNavigationFriend[]>(
+              (result, friendId) => {
+                const friend = profilesById.get(friendId);
+                if (friend) {
+                  result.push({
                     id: friend.id,
                     full_name: friend.full_name || "Flicks member",
                     avatar_url: friend.avatar_url || null,
                     location: friend.location || null,
-                  }
-                : null;
-            })
-            .filter((friend): friend is ProfileNavigationFriend => friend !== null),
-        );
+                  });
+                }
+                return result;
+              },
+              [],
+            );
+            setFriends(friendList);
+          }
+        }
       }
 
       if (mediaResult.error) {
