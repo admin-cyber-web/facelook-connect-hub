@@ -111,11 +111,11 @@ const GolSlider = ({
 
     const deltaX = event.clientX - start.x;
     const deltaY = event.clientY - start.y;
-    if (Math.abs(deltaX) < 28 || Math.abs(deltaX) < Math.abs(deltaY) * 1.25) return;
+    if (Math.abs(deltaX) <= 20 || Math.abs(deltaX) < Math.abs(deltaY) * 1.25) return;
 
     event.preventDefault();
     event.stopPropagation();
-    switchMode(deltaX < 0 ? "refresh" : "start");
+    switchMode(mode === "start" ? "refresh" : "start");
     suppressClickRef.current = true;
     if (suppressClickTimerRef.current) clearTimeout(suppressClickTimerRef.current);
     suppressClickTimerRef.current = setTimeout(() => {
@@ -203,16 +203,16 @@ const GolSlider = ({
           mode === "refresh"
             ? isRefreshing
               ? "Refreshing timeline"
-              : "Refresh timeline. Swipe right to switch to Start."
+              : "Refresh timeline. Swipe left or right to switch to Start."
             : isOpen
-              ? "Close Start menu. Swipe left to switch to Refresh."
-              : "Open Start menu. Swipe left to switch to Refresh."
+              ? "Close Start menu. Swipe left or right to switch to Refresh."
+              : "Open Start menu. Swipe left or right to switch to Refresh."
         }
         aria-expanded={mode === "start" && isOpen}
         aria-controls={mode === "start" ? "gol-start-menu" : undefined}
         aria-busy={isRefreshing}
         data-testid="button-start-refresh"
-        title={mode === "refresh" ? "Swipe right to switch to Start" : "Swipe left to switch to Refresh"}
+        title={mode === "refresh" ? "Swipe left or right to switch to Start" : "Swipe left or right to switch to Refresh"}
         disabled={isRefreshing}
         onPointerDown={handlePointerDown}
         onPointerUp={handlePointerUp}
@@ -225,7 +225,7 @@ const GolSlider = ({
         <span className="gol-hybrid-button__icon" aria-hidden="true">
           {mode === "refresh" ? (
             <RefreshCw
-              size={20}
+              size={10}
               strokeWidth={2.5}
               className={isRefreshing ? "gol-hybrid-button__refresh-icon is-spinning" : ""}
             />
