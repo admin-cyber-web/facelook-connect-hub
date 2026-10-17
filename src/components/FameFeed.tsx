@@ -2122,7 +2122,10 @@ type PostDetailViewProps = {
   onReply: (comment: any) => void;
   onCancelReply: () => void;
   onProfileClick: (userId: string) => void;
-  onLongPress: (comment: FeedCommentLongPressTarget, x: number, y: number) => void;
+  onOpenActions: (
+    comment: FeedCommentActionTarget,
+    anchor: HTMLButtonElement,
+  ) => void;
   onEditCommentTextChange: (text: string) => void;
   onSaveCommentEdit: () => void;
   onCancelCommentEdit: () => void;
@@ -2148,7 +2151,7 @@ const PostDetailView = ({
   onReply,
   onCancelReply,
   onProfileClick,
-  onLongPress,
+  onOpenActions,
   onEditCommentTextChange,
   onSaveCommentEdit,
   onCancelCommentEdit,
@@ -2158,55 +2161,13 @@ const PostDetailView = ({
   const topLevel = (comments ?? []).filter((comment) => !comment.parent_id);
   const isPostOwner =
     post.author_id === currentUserId || post.user_id === currentUserId;
-  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const longPressStart = useRef({ x: 0, y: 0 });
-
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") onBack();
     };
     document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("keydown", handleKeyDown);
-      if (longPressTimer.current) clearTimeout(longPressTimer.current);
-    };
+    return () => document.removeEventListener("keydown", handleKeyDown);
   }, [onBack]);
-
-  const startLongPress = (
-    comment: FeedCommentLongPressTarget,
-    x: number,
-    y: number,
-    target: EventTarget | null,
-  ) => {
-    if (longPressTimer.current) clearTimeout(longPressTimer.current);
-    longPressTimer.current = null;
-    if (
-      !currentUserId ||
-      (comment.user_id ?? comment.author_id) !== currentUserId ||
-      (target instanceof Element &&
-        target.closest("button, a, input, textarea"))
-    ) return;
-    longPressStart.current = { x, y };
-    longPressTimer.current = setTimeout(
-      () => {
-        longPressTimer.current = null;
-        onLongPress(comment, x, y);
-      },
-      650,
-    );
-  };
-  const cancelLongPress = () => {
-    if (longPressTimer.current) {
-      clearTimeout(longPressTimer.current);
-      longPressTimer.current = null;
-    }
-  };
-  const moveLongPress = (x: number, y: number) => {
-    if (
-      Math.abs(x - longPressStart.current.x) > 12 ||
-      Math.abs(y - longPressStart.current.y) > 12
-    ) cancelLongPress();
-  };
 
   return createPortal(
     <div
@@ -2301,48 +2262,7 @@ const PostDetailView = ({
                     key={comment.id}
                     className="py-3"
                   >
-                    <div
-                      className="flex items-start gap-2.5"
-                      onTouchStart={(event) => {
-                        const touch = event.touches[0];
-                        if (touch) {
-                          startLongPress(
-                            comment,
-                            touch.clientX,
-                            touch.clientY,
-                            event.target,
-                          );
-                        }
-                      }}
-                      onTouchMove={(event) => {
-                        const touch = event.touches[0];
-                        if (touch) moveLongPress(touch.clientX, touch.clientY);
-                      }}
-                      onTouchEnd={cancelLongPress}
-                      onTouchCancel={cancelLongPress}
-                      onMouseDown={(event) => {
-                        if (event.button === 0) {
-                          startLongPress(
-                            comment,
-                            event.clientX,
-                            event.clientY,
-                            event.target,
-                          );
-                        }
-                      }}
-                      onMouseMove={(event) =>
-                        moveLongPress(event.clientX, event.clientY)
-                      }
-                      onMouseUp={cancelLongPress}
-                      onMouseLeave={cancelLongPress}
-                      onContextMenu={(event) => {
-                        if (authorId !== currentUserId) return;
-                        event.preventDefault();
-                        cancelLongPress();
-                        onLongPress(comment, event.clientX, event.clientY);
-                      }}
-                      style={{ touchAction: "pan-y" }}
-                    >
+                    <div className="flex items-start gap-2.5">
                       <button
                         type="button"
                         className="h-8 w-8 shrink-0 overflow-hidden rounded-full bg-pink-900/50"
@@ -2355,14 +2275,29 @@ const PostDetailView = ({
                         />
                       </button>
                       <div className="min-w-0 flex-1 rounded-2xl bg-white/[0.07] px-3 py-2">
-                        <div className="flex flex-wrap items-center gap-x-2">
-                          <span className="text-xs font-black text-pink-200">
-                            {comment.author || "User"}
-                          </span>
-                          {comment.created_at && (
-                            <span className="text-[10px] text-white/35">
-                              {smartTime(comment.created_at)}
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex min-w-0 flex-wrap items-center gap-x-2">
+                            <span className="text-xs font-black text-pink-200">
+                              {comment.author || "User"}
                             </span>
+                            {comment.created_at && (
+                              <span className="text-[10px] text-white/35">
+                                {smartTime(comment.created_at)}
+                              </span>
+                            )}
+                          </div>
+                          {currentUserId && postIdKey(authorId) === postIdKey(currentUserId) && (
+                            <button
+                              type="button"
+                              aria-label="Comment options"
+                              title="Comment options"
+                              onClick={(event) =>
+                                onOpenActions(comment, event.currentTarget)
+                              }
+                              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-white/50 transition hover:bg-white/10 hover:text-white"
+                            >
+                              <MoreVertical size={16} />
+                            </button>
                           )}
                         </div>
                         {isEditing ? (
@@ -2452,45 +2387,6 @@ const PostDetailView = ({
                             <div
                               key={reply.id}
                               className="flex items-start gap-2"
-                              onTouchStart={(event) => {
-                                const touch = event.touches[0];
-                                if (touch) {
-                                  startLongPress(
-                                    reply,
-                                    touch.clientX,
-                                    touch.clientY,
-                                    event.target,
-                                  );
-                                }
-                              }}
-                              onTouchMove={(event) => {
-                                const touch = event.touches[0];
-                                if (touch) moveLongPress(touch.clientX, touch.clientY);
-                              }}
-                              onTouchEnd={cancelLongPress}
-                              onTouchCancel={cancelLongPress}
-                              onMouseDown={(event) => {
-                                if (event.button === 0) {
-                                  startLongPress(
-                                    reply,
-                                    event.clientX,
-                                    event.clientY,
-                                    event.target,
-                                  );
-                                }
-                              }}
-                              onMouseMove={(event) =>
-                                moveLongPress(event.clientX, event.clientY)
-                              }
-                              onMouseUp={cancelLongPress}
-                              onMouseLeave={cancelLongPress}
-                              onContextMenu={(event) => {
-                                if (replyAuthorId !== currentUserId) return;
-                                event.preventDefault();
-                                cancelLongPress();
-                                onLongPress(reply, event.clientX, event.clientY);
-                              }}
-                              style={{ touchAction: "pan-y" }}
                             >
                               <button
                                 type="button"
@@ -2506,12 +2402,27 @@ const PostDetailView = ({
                                 />
                               </button>
                               <div className="min-w-0 flex-1 rounded-xl bg-white/[0.05] px-3 py-2">
-                                <p className="text-xs font-bold text-pink-200">
-                                  {reply.author || "User"}
-                                  <span className="ml-2 font-normal text-white/35">
-                                    replied to {comment.author || "User"}
-                                  </span>
-                                </p>
+                                <div className="flex items-start justify-between gap-2">
+                                  <p className="min-w-0 text-xs font-bold text-pink-200">
+                                    {reply.author || "User"}
+                                    <span className="ml-2 font-normal text-white/35">
+                                      replied to {comment.author || "User"}
+                                    </span>
+                                  </p>
+                                  {currentUserId && postIdKey(replyAuthorId) === postIdKey(currentUserId) && (
+                                    <button
+                                      type="button"
+                                      aria-label="Reply options"
+                                      title="Reply options"
+                                      onClick={(event) =>
+                                        onOpenActions(reply, event.currentTarget)
+                                      }
+                                      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-white/45 transition hover:bg-white/10 hover:text-white"
+                                    >
+                                      <MoreVertical size={15} />
+                                    </button>
+                                  )}
+                                </div>
                                 {isReplyEditing ? (
                                   <div className="mt-2">
                                     <textarea
@@ -3467,7 +3378,7 @@ type FeedCommentMenuItem = {
   danger?: boolean;
 };
 
-type FeedCommentLongPressTarget = {
+type FeedCommentActionTarget = {
   id: string;
   user_id?: string | null;
   author_id?: string | null;
@@ -3548,71 +3459,23 @@ const FameFeed = ({
     id: string;
     text: string;
   } | null>(null);
-  const longPressCommentTimer = useRef<ReturnType<typeof setTimeout> | null>(
-    null,
-  );
-  const longPressCommentPos = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const [commentText, setCommentText] = useState("");
   const [currentUserId, setCurrentUserId] = useState<string | null>(currentUserIdProp ?? null);
   const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(currentUserEmailProp ?? null);
-  const beginFeedCommentLongPress = (
-    comment: FeedCommentLongPressTarget,
+  const openFeedCommentActions = (
+    comment: FeedCommentActionTarget,
     postId: string,
-    x: number,
-    y: number,
-    target: EventTarget | null,
+    anchor: HTMLButtonElement,
   ) => {
-    if (longPressCommentTimer.current) {
-      clearTimeout(longPressCommentTimer.current);
-      longPressCommentTimer.current = null;
-    }
-    if (
-      !currentUserId ||
-      (comment.user_id ?? comment.author_id) !== currentUserId ||
-      (target instanceof Element &&
-        target.closest("button, a, input, textarea"))
-    ) {
-      return;
-    }
-    longPressCommentPos.current = { x, y };
-    longPressCommentTimer.current = setTimeout(() => {
-      longPressCommentTimer.current = null;
-      try {
-        navigator.vibrate?.(8);
-      } catch {
-        // Vibration is an optional haptic hint.
-      }
-      setFeedCommentAction({
-        comment,
-        postId,
-        x: longPressCommentPos.current.x,
-        y: longPressCommentPos.current.y,
-      });
-    }, 650);
+    if (!currentUserId || postIdKey(comment.user_id ?? comment.author_id) !== postIdKey(currentUserId)) return;
+    const rect = anchor.getBoundingClientRect();
+    setFeedCommentAction({
+      comment,
+      postId,
+      x: rect.left + rect.width / 2,
+      y: rect.top + rect.height / 2,
+    });
   };
-  const moveFeedCommentLongPress = (x: number, y: number) => {
-    const start = longPressCommentPos.current;
-    if (Math.abs(x - start.x) > 12 || Math.abs(y - start.y) > 12) {
-      if (longPressCommentTimer.current) {
-        clearTimeout(longPressCommentTimer.current);
-        longPressCommentTimer.current = null;
-      }
-    }
-  };
-  const cancelFeedCommentLongPress = () => {
-    if (longPressCommentTimer.current) {
-      clearTimeout(longPressCommentTimer.current);
-      longPressCommentTimer.current = null;
-    }
-  };
-  useEffect(
-    () => () => {
-      if (longPressCommentTimer.current) {
-        clearTimeout(longPressCommentTimer.current);
-      }
-    },
-    [],
-  );
   const [profileAdminUserId, setProfileAdminUserId] = useState<string | null>(null);
   const onlineUserIds = useOnlineUsers();
   const isAdmin =
@@ -7028,76 +6891,20 @@ const FameFeed = ({
                             const isPostOwner =
                               post?.author_id === currentUserId ||
                               post?.user_id === currentUserId;
-                            const isCommenter =
-                              (c.user_id ?? c.author_id) === currentUserId;
-                            const isLongPressed =
-                              feedCommentAction?.comment?.id === c.id &&
-                              feedCommentAction.postId === post.id;
-                  const isEditing =
-                    editingFeedComment?.id === c.id &&
-                    editingFeedComment?.postId === post.id;
+                            const isCommenter = Boolean(
+                              currentUserId &&
+                              postIdKey(c.user_id ?? c.author_id) ===
+                                postIdKey(currentUserId),
+                            );
+                            const isEditing =
+                              editingFeedComment?.id === c.id &&
+                              editingFeedComment?.postId === post.id;
                             return (
                               <div
                                 key={c.id}
-                                className={`rounded-xl transition-colors select-none ${isLongPressed ? "bg-white/5" : ""}`}
-                                style={{ touchAction: "pan-y" }}
+                                className="rounded-xl transition-colors"
                               >
-                                <div
-                                  className="flex gap-2.5 py-1"
-                                  onTouchStart={(event) => {
-                                    const touch = event.touches[0];
-                                    if (touch) {
-                                      beginFeedCommentLongPress(
-                                        c,
-                                        post.id,
-                                        touch.clientX,
-                                        touch.clientY,
-                                        event.target,
-                                      );
-                                    }
-                                  }}
-                                  onTouchMove={(event) => {
-                                    const touch = event.touches[0];
-                                    if (touch) {
-                                      moveFeedCommentLongPress(
-                                        touch.clientX,
-                                        touch.clientY,
-                                      );
-                                    }
-                                  }}
-                                  onTouchEnd={cancelFeedCommentLongPress}
-                                  onTouchCancel={cancelFeedCommentLongPress}
-                                  onMouseDown={(event) => {
-                                    if (event.button === 0) {
-                                      beginFeedCommentLongPress(
-                                        c,
-                                        post.id,
-                                        event.clientX,
-                                        event.clientY,
-                                        event.target,
-                                      );
-                                    }
-                                  }}
-                                  onMouseMove={(event) =>
-                                    moveFeedCommentLongPress(
-                                      event.clientX,
-                                      event.clientY,
-                                    )
-                                  }
-                                  onMouseUp={cancelFeedCommentLongPress}
-                                  onMouseLeave={cancelFeedCommentLongPress}
-                                  onContextMenu={(event) => {
-                                    if (!isCommenter) return;
-                                    event.preventDefault();
-                                    cancelFeedCommentLongPress();
-                                    setFeedCommentAction({
-                                      comment: c,
-                                      postId: post.id,
-                                      x: event.clientX,
-                                      y: event.clientY,
-                                    });
-                                  }}
-                                >
+                                <div className="flex gap-2.5 py-1">
                                   <button
                                     onClick={() => {
                                       const uid = c.user_id ?? c.author_id;
@@ -7121,20 +6928,39 @@ const FameFeed = ({
                                           : "rgba(255,255,255,0.08)",
                                     }}
                                   >
-                                    <div className="flex items-center gap-1.5 flex-wrap">
-                                      <span
-                                        style={{
-                                          color: "#f9a8d4",
-                                          fontSize: 12,
-                                          fontWeight: 900,
-                                        }}
-                                      >
-                                        {c.author}
-                                      </span>
-                                      {c.created_at && (
-                                        <span className="text-[10px] text-white/30 font-normal">
-                                          {smartTime(c.created_at)}
+                                    <div className="flex items-center justify-between gap-2">
+                                      <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                                        <span
+                                          style={{
+                                            color: "#f9a8d4",
+                                            fontSize: 12,
+                                            fontWeight: 900,
+                                          }}
+                                        >
+                                          {c.author}
                                         </span>
+                                        {c.created_at && (
+                                          <span className="text-[10px] text-white/30 font-normal">
+                                            {smartTime(c.created_at)}
+                                          </span>
+                                        )}
+                                      </div>
+                                      {isCommenter && (
+                                        <button
+                                          type="button"
+                                          aria-label="Comment options"
+                                          title="Comment options"
+                                          onClick={(event) =>
+                                            openFeedCommentActions(
+                                              c,
+                                              post.id,
+                                              event.currentTarget,
+                                            )
+                                          }
+                                          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-white/50 transition hover:bg-white/10 hover:text-white"
+                                        >
+                                          <MoreVertical size={16} />
+                                        </button>
                                       )}
                                     </div>
                                     {isEditing ? (
@@ -7259,7 +7085,12 @@ const FameFeed = ({
                                 </div>
                                 {replies.length > 0 && (
                                   <div className="ml-9 mt-1 space-y-1.5 border-l-2 border-white/10 pl-2.5">
-                                    {replies.map((r: any) => (
+                                    {replies.map((r: any) => {
+                                      const replyAuthorId = r.user_id ?? r.author_id;
+                                      const isReplyEditing =
+                                        editingFeedComment?.id === r.id &&
+                                        editingFeedComment?.postId === post.id;
+                                      return (
                                       <div key={r.id} className="flex gap-2">
                                         <button
                                           onClick={() => {
@@ -7293,33 +7124,92 @@ const FameFeed = ({
                                               "rgba(255,255,255,0.07)",
                                           }}
                                         >
-                                          <span
-                                            style={{
-                                              color: "#f9a8d4",
-                                              fontSize: 12,
-                                              fontWeight: 900,
-                                            }}
-                                          >
-                                            {r.author}
-                                          </span>
-                                          <span className="text-[11px] text-white/30 font-medium mx-1">
-                                            replied to
-                                          </span>
-                                          <span
-                                            style={{
-                                              color: "#fca5a5",
-                                              fontSize: 12,
-                                              fontWeight: 700,
-                                            }}
-                                          >
-                                            {c.author}
-                                          </span>
-                                          <p className="text-[13px] text-white/70 mt-0.5">
-                                            {r.content}
-                                          </p>
+                                          <div className="flex items-start justify-between gap-2">
+                                            <p className="min-w-0 text-[12px]">
+                                              <span
+                                                style={{
+                                                  color: "#f9a8d4",
+                                                  fontSize: 12,
+                                                  fontWeight: 900,
+                                                }}
+                                              >
+                                                {r.author}
+                                              </span>
+                                              <span className="text-[11px] text-white/30 font-medium mx-1">
+                                                replied to
+                                              </span>
+                                              <span
+                                                style={{
+                                                  color: "#fca5a5",
+                                                  fontSize: 12,
+                                                  fontWeight: 700,
+                                                }}
+                                              >
+                                                {c.author}
+                                              </span>
+                                            </p>
+                                            {currentUserId &&
+                                              postIdKey(replyAuthorId) === postIdKey(currentUserId) && (
+                                              <button
+                                                type="button"
+                                                aria-label="Reply options"
+                                                title="Reply options"
+                                                onClick={(event) =>
+                                                  openFeedCommentActions(
+                                                    r,
+                                                    post.id,
+                                                    event.currentTarget,
+                                                  )
+                                                }
+                                                className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-white/45 transition hover:bg-white/10 hover:text-white"
+                                              >
+                                                <MoreVertical size={15} />
+                                              </button>
+                                            )}
+                                          </div>
+                                          {isReplyEditing ? (
+                                            <div className="mt-2">
+                                              <textarea
+                                                value={editingFeedComment?.text ?? ""}
+                                                onChange={(event) =>
+                                                  setEditingFeedComment((current) =>
+                                                    current
+                                                      ? { ...current, text: event.target.value }
+                                                      : null,
+                                                  )
+                                                }
+                                                rows={2}
+                                                autoFocus
+                                                aria-label="Edit your reply"
+                                                className="w-full resize-y rounded-lg border border-white/15 bg-black/30 px-2 py-1.5 text-sm text-white outline-none focus:border-pink-400/60"
+                                              />
+                                              <div className="mt-2 flex justify-end gap-2">
+                                                <button
+                                                  type="button"
+                                                  onClick={() => setEditingFeedComment(null)}
+                                                  className="rounded-lg px-3 py-1 text-xs font-bold text-white/60"
+                                                >
+                                                  Cancel
+                                                </button>
+                                                <button
+                                                  type="button"
+                                                  onClick={saveFeedCommentEdit}
+                                                  disabled={!editingFeedComment?.text.trim()}
+                                                  className="rounded-lg bg-pink-700 px-3 py-1 text-xs font-bold text-white disabled:opacity-50"
+                                                >
+                                                  Save
+                                                </button>
+                                              </div>
+                                            </div>
+                                          ) : (
+                                            <p className="text-[13px] text-white/70 mt-0.5">
+                                              {r.content}
+                                            </p>
+                                          )}
                                         </div>
                                       </div>
-                                    ))}
+                                      );
+                                    })}
                                   </div>
                                 )}
                               </div>
@@ -8097,14 +7987,17 @@ const FameFeed = ({
         document.body,
       )}
 
-      {/* ── Feed Comment Floating Context Menu (long-press) ─────────── */}
+      {/* ── Feed Comment Actions Menu ───────────────────────────────── */}
       <AnimatePresence>
         {feedCommentAction &&
           (() => {
             const ac = feedCommentAction.comment;
             const postId = feedCommentAction.postId;
             const { x, y } = feedCommentAction;
-            const isCommenter = (ac.user_id ?? ac.author_id) === currentUserId;
+            const isCommenter = Boolean(
+              currentUserId &&
+              postIdKey(ac.user_id ?? ac.author_id) === postIdKey(currentUserId),
+            );
             const sheetPost = visiblePosts.find((p: any) => p.id === postId);
             const isPostOwner =
               sheetPost?.author_id === currentUserId ||
@@ -8289,13 +8182,8 @@ const FameFeed = ({
                 setReplyText("");
               }}
               onProfileClick={openProfile}
-              onLongPress={(comment, x, y) =>
-                setFeedCommentAction({
-                  comment,
-                  postId: detailPost.id,
-                  x,
-                  y,
-                })
+              onOpenActions={(comment, anchor) =>
+                openFeedCommentActions(comment, detailPost.id, anchor)
               }
               onEditCommentTextChange={(text) =>
                 setEditingFeedComment((current) =>
