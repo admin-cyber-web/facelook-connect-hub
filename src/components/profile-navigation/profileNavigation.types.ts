@@ -18,6 +18,10 @@ export type ProfileNavigationFriend = {
   full_name: string;
   avatar_url?: string | null;
   location?: string | null;
+  relationshipStatus?: "none" | "pending" | "accepted" | "unknown";
+  requestDirection?: "outgoing" | "incoming";
+  isViewer?: boolean;
+  isMutual?: boolean;
 };
 
 export type ProfileNavigationMedia = {
@@ -65,6 +69,8 @@ export type FullProfilePageProps = {
   onLoadMoreMedia?: () => void;
   onMessage?: (profile: ProfileNavigationProfile) => void;
   onFriendSelect?: (friend: ProfileNavigationFriend) => void;
+  onSendFriendRequest?: (friend: ProfileNavigationFriend) => void;
+  sendingFriendIds?: ReadonlySet<string>;
   onBack?: () => void;
   onEditCover?: () => void;
 };

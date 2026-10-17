@@ -1,17 +1,21 @@
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import {
   ArrowLeft,
   ArrowRight,
   Camera,
+  Check,
   GraduationCap,
   Image as ImageIcon,
   LockKeyhole,
+  Loader2,
   MapPin,
   MessageCircle,
   Play,
   RotateCw,
   ShieldCheck,
   Users,
+  UserPlus,
   X,
   Video,
 } from "lucide-react";
@@ -144,45 +148,136 @@ function ProfileIdentity({
   );
 }
 
+function MutualFriendsNote({ friends }: { friends: ProfileNavigationFriend[] }) {
+  const mutualFriends = friends.filter((friend) => friend.isMutual);
+  if (mutualFriends.length === 0) return null;
+
+  const firstName = mutualFriends[0].full_name;
+  const others = mutualFriends.length - 1;
+  const text = others > 0
+    ? `${firstName} and ${others} other mutual ${others === 1 ? "friend" : "friends"}`
+    : `${firstName} is a mutual friend`;
+
+  return (
+    <p className="profile-nav-mutual-note" data-testid="text-profile-mutual-friends">
+      <Users size={14} aria-hidden="true" />
+      <span>{text}</span>
+    </p>
+  );
+}
+
 function HeaderFriendsStrip({
   friends,
   onFriendSelect,
+  onSendFriendRequest,
+  sendingFriendIds,
 }: {
   friends: ProfileNavigationFriend[];
   onFriendSelect?: (friend: ProfileNavigationFriend) => void;
+  onSendFriendRequest?: (friend: ProfileNavigationFriend) => void;
+  sendingFriendIds?: ReadonlySet<string>;
 }) {
+  const [isFriendsOpen, setIsFriendsOpen] = useState(false);
+
+  useEffect(() => {
+    if (!isFriendsOpen) return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setIsFriendsOpen(false);
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isFriendsOpen]);
+
   if (friends.length === 0) return null;
 
   return (
-    <div className="profile-nav-header-friends" aria-label="Friends preview">
-      <div className="profile-nav-header-friends-strip" data-testid="list-profile-header-friends">
-        {friends.slice(0, 6).map((friend) => (
+    <>
+      <div className="profile-nav-header-friends" aria-label="Friends preview">
+        <div className="profile-nav-header-friends-strip" data-testid="list-profile-header-friends">
+          {friends.slice(0, 6).map((friend) => (
+            <button
+              key={friend.id}
+              type="button"
+              className="profile-nav-header-friend"
+              onClick={() => onFriendSelect?.(friend)}
+              data-testid={`button-profile-header-friend-${friend.id}`}
+            >
+              <Avatar name={friend.full_name} src={friend.avatar_url} variant="friend" />
+              <span className="profile-nav-header-friend-name">{friend.full_name}</span>
+            </button>
+          ))}
           <button
-            key={friend.id}
             type="button"
-            className="profile-nav-header-friend"
-            onClick={() => onFriendSelect?.(friend)}
-            data-testid={`button-profile-header-friend-${friend.id}`}
+            className="profile-nav-header-friends-more"
+            onClick={() => setIsFriendsOpen(true)}
+            aria-haspopup="dialog"
+            aria-expanded={isFriendsOpen}
+            data-testid="button-profile-header-friends-more"
           >
-            <Avatar name={friend.full_name} src={friend.avatar_url} variant="friend" />
-            <span className="profile-nav-header-friend-name">{friend.full_name}</span>
+            More
+            <ArrowRight size={14} aria-hidden="true" />
           </button>
-        ))}
-        <button
-          type="button"
-          className="profile-nav-header-friends-more"
-          onClick={() =>
-            document
-              .getElementById("profile-nav-friends-heading")
-              ?.scrollIntoView({ behavior: "smooth", block: "start" })
-          }
-          data-testid="button-profile-header-friends-more"
-        >
-          More
-          <ArrowRight size={14} aria-hidden="true" />
-        </button>
+        </div>
+        <MutualFriendsNote friends={friends} />
       </div>
-    </div>
+      {isFriendsOpen &&
+        createPortal(
+          <div
+            className="profile-nav profile-nav-friends-dialog-backdrop"
+            role="presentation"
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget) setIsFriendsOpen(false);
+            }}
+          >
+            <section
+              className="profile-nav-friends-dialog"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="profile-nav-friends-dialog-title"
+              data-testid="dialog-profile-friends"
+            >
+              <header className="profile-nav-friends-dialog-header">
+                <div>
+                  <p className="profile-nav-kicker">Good company</p>
+                  <h2 id="profile-nav-friends-dialog-title">Friends</h2>
+                  <span>{friends.length} friends</span>
+                </div>
+                <button
+                  type="button"
+                  className="profile-nav-modal-close"
+                  aria-label="Close friends list"
+                  onClick={() => setIsFriendsOpen(false)}
+                  data-testid="button-close-profile-friends"
+                >
+                  <X size={17} aria-hidden="true" />
+                </button>
+              </header>
+              <MutualFriendsNote friends={friends} />
+              <div className="profile-nav-friends-dialog-list" role="list">
+                {friends.map((friend) => (
+                  <FriendRow
+                    key={friend.id}
+                    friend={friend}
+                    onFriendSelect={(selected) => {
+                      setIsFriendsOpen(false);
+                      onFriendSelect?.(selected);
+                    }}
+                    onSendFriendRequest={onSendFriendRequest}
+                    isSending={sendingFriendIds?.has(friend.id) ?? false}
+                  />
+                ))}
+              </div>
+            </section>
+          </div>,
+          document.body,
+        )}
+    </>
   );
 }
 
@@ -197,6 +292,8 @@ function ProfileHeader({
   onBack,
   onEditCover,
   onFriendSelect,
+  onSendFriendRequest,
+  sendingFriendIds,
 }: {
   profile: ProfileNavigationProfile;
   friends: ProfileNavigationFriend[];
@@ -208,6 +305,8 @@ function ProfileHeader({
   onBack?: () => void;
   onEditCover?: () => void;
   onFriendSelect?: (friend: ProfileNavigationFriend) => void;
+  onSendFriendRequest?: (friend: ProfileNavigationFriend) => void;
+  sendingFriendIds?: ReadonlySet<string>;
 }) {
   const hasRestrictedAccess =
     (profile.profile_locked === true && !isConnected) ||
@@ -250,7 +349,12 @@ function ProfileHeader({
           )}
         </div>
         <ProfileIdentity profile={profile} avatarVariant="hero" />
-        <HeaderFriendsStrip friends={friends} onFriendSelect={onFriendSelect} />
+        <HeaderFriendsStrip
+          friends={friends}
+          onFriendSelect={onFriendSelect}
+          onSendFriendRequest={onSendFriendRequest}
+          sendingFriendIds={sendingFriendIds}
+        />
         {hasRestrictedAccess && (
           <div className="profile-nav-hero-actions">
             <span className="profile-nav-access-pill">
@@ -375,12 +479,106 @@ function MediaGallery({
   );
 }
 
+function FriendRow({
+  friend,
+  onFriendSelect,
+  onSendFriendRequest,
+  isSending = false,
+}: {
+  friend: ProfileNavigationFriend;
+  onFriendSelect?: (friend: ProfileNavigationFriend) => void;
+  onSendFriendRequest?: (friend: ProfileNavigationFriend) => void;
+  isSending?: boolean;
+}) {
+  const profileContent = (
+    <>
+      <Avatar name={friend.full_name} src={friend.avatar_url} variant="friend" />
+      <span className="profile-nav-friend-copy">
+        <span className="profile-nav-friend-name" data-testid={`text-profile-friend-${friend.id}`}>
+          {friend.full_name}
+        </span>
+        <span
+          className="profile-nav-friend-location"
+          data-testid={`text-profile-friend-location-${friend.id}`}
+        >
+          <MapPin size={12} aria-hidden="true" />
+          {friend.location || "Location not shared"}
+        </span>
+      </span>
+      {friend.isMutual && <span className="profile-nav-friend-mutual">Mutual</span>}
+      <span className="profile-nav-friend-badge">Friend</span>
+      {onFriendSelect && <ArrowRight className="profile-nav-friend-arrow" size={15} aria-hidden="true" />}
+    </>
+  );
+
+  const profileButton = onFriendSelect ? (
+    <button
+      className="profile-nav-friend"
+      type="button"
+      onClick={() => onFriendSelect(friend)}
+      data-testid={`button-profile-friend-${friend.id}`}
+    >
+      {profileContent}
+    </button>
+  ) : (
+    <div className="profile-nav-friend" data-testid={`row-profile-friend-${friend.id}`}>
+      {profileContent}
+    </div>
+  );
+
+  const relationshipStatus = friend.relationshipStatus ?? "unknown";
+  let action: ReactNode = null;
+  if (!friend.isViewer && onSendFriendRequest && relationshipStatus === "none") {
+    action = (
+      <button
+        className="profile-nav-friend-request"
+        type="button"
+        onClick={() => onSendFriendRequest(friend)}
+        disabled={isSending}
+        data-testid={`button-add-profile-friend-${friend.id}`}
+        aria-label={`${isSending ? "Sending request to" : "Add"} ${friend.full_name}`}
+      >
+        {isSending ? (
+          <Loader2 size={14} className="profile-nav-request-spinner" aria-hidden="true" />
+        ) : (
+          <UserPlus size={14} aria-hidden="true" />
+        )}
+        {isSending ? "Sending…" : "Add Friend"}
+      </button>
+    );
+  } else if (!friend.isViewer && relationshipStatus === "pending") {
+    action = (
+      <span className="profile-nav-friend-request-state" data-testid={`status-profile-friend-request-${friend.id}`}>
+        {friend.requestDirection === "incoming" ? "Request received" : "Request sent"}
+      </span>
+    );
+  } else if (!friend.isViewer && relationshipStatus === "accepted") {
+    action = (
+      <span className="profile-nav-friend-request-state is-connected" data-testid={`status-profile-friend-connected-${friend.id}`}>
+        <Check size={13} aria-hidden="true" />
+        Friends
+      </span>
+    );
+  }
+
+  return (
+    <div className="profile-nav-friend-row" role="listitem" data-testid={`item-profile-friend-${friend.id}`}>
+      {profileButton}
+      {action}
+    </div>
+  );
+}
+
 function FriendsList({
   friends,
   onFriendSelect,
+  onSendFriendRequest,
+  sendingFriendIds,
 }: {
   friends: ProfileNavigationFriend[];
   onFriendSelect?: (friend: ProfileNavigationFriend) => void;
+  onSendFriendRequest?: (friend: ProfileNavigationFriend) => void;
+  sendingFriendIds?: ReadonlySet<string>;
 }) {
   return (
     <section
@@ -395,6 +593,7 @@ function FriendsList({
         </div>
         <span className="profile-nav-section-count">{friends.length}</span>
       </div>
+      <MutualFriendsNote friends={friends} />
       {friends.length === 0 ? (
         <EmptyState
           icon={<Users size={17} aria-hidden="true" />}
@@ -402,44 +601,16 @@ function FriendsList({
           copy="Friends will appear here as this circle grows."
         />
       ) : (
-        <div className="profile-nav-list" data-testid="list-profile-friends">
-          {friends.map((friend) => {
-            const content = (
-              <>
-                <Avatar name={friend.full_name} src={friend.avatar_url} variant="friend" />
-                <span className="profile-nav-friend-copy">
-                  <span className="profile-nav-friend-name" data-testid={`text-profile-friend-${friend.id}`}>
-                    {friend.full_name}
-                  </span>
-                  <span
-                    className="profile-nav-friend-location"
-                    data-testid={`text-profile-friend-location-${friend.id}`}
-                  >
-                    <MapPin size={12} aria-hidden="true" />
-                    {friend.location || "Location not shared"}
-                  </span>
-                </span>
-                <span className="profile-nav-friend-badge">Friend</span>
-                {onFriendSelect && <ArrowRight className="profile-nav-friend-arrow" size={15} aria-hidden="true" />}
-              </>
-            );
-
-            return onFriendSelect ? (
-              <button
-                className="profile-nav-friend"
-                type="button"
-                key={friend.id}
-                onClick={() => onFriendSelect(friend)}
-                data-testid={`button-profile-friend-${friend.id}`}
-              >
-                {content}
-              </button>
-            ) : (
-              <div className="profile-nav-friend" key={friend.id} data-testid={`row-profile-friend-${friend.id}`}>
-                {content}
-              </div>
-            );
-          })}
+        <div className="profile-nav-list" data-testid="list-profile-friends" role="list">
+          {friends.map((friend) => (
+            <FriendRow
+              key={friend.id}
+              friend={friend}
+              onFriendSelect={onFriendSelect}
+              onSendFriendRequest={onSendFriendRequest}
+              isSending={sendingFriendIds?.has(friend.id) ?? false}
+            />
+          ))}
         </div>
       )}
     </section>
@@ -646,6 +817,8 @@ export function FullProfilePage({
   onLoadMoreMedia,
   onMessage,
   onFriendSelect,
+  onSendFriendRequest,
+  sendingFriendIds,
   onBack,
   onEditCover,
 }: FullProfilePageProps) {
@@ -682,6 +855,8 @@ export function FullProfilePage({
           onBack={onBack}
           onEditCover={onEditCover}
           onFriendSelect={onFriendSelect}
+          onSendFriendRequest={onSendFriendRequest}
+          sendingFriendIds={sendingFriendIds}
         />
         {restricted ? (
           <RestrictedProfile profile={profile} />
@@ -699,7 +874,12 @@ export function FullProfilePage({
                 isLoadingMoreMedia={isLoadingMoreMedia}
                 onLoadMoreMedia={onLoadMoreMedia}
               />
-              <FriendsList friends={friends} onFriendSelect={onFriendSelect} />
+              <FriendsList
+                friends={friends}
+                onFriendSelect={onFriendSelect}
+                onSendFriendRequest={onSendFriendRequest}
+                sendingFriendIds={sendingFriendIds}
+              />
             </aside>
           </div>
         )}

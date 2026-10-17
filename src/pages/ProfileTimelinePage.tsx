@@ -36,6 +36,7 @@ interface Props {
 interface FriendshipRow {
   sender_id: string;
   receiver_id: string;
+  status: "pending" | "accepted";
 }
 
 interface FriendProfileRow {
@@ -63,6 +64,42 @@ interface MediaPostRow {
 
 interface FriendshipStatusRow {
   status: "none" | "pending" | "accepted";
+}
+
+const FRIENDSHIP_PAGE_SIZE = 500;
+const PROFILE_QUERY_BATCH_SIZE = 200;
+
+async function loadUserFriendships(targetUserId: string, acceptedOnly: boolean) {
+  const rows: FriendshipRow[] = [];
+
+  for (let offset = 0; ; offset += FRIENDSHIP_PAGE_SIZE) {
+    let query = supabase
+      .from("friendships")
+      .select("sender_id,receiver_id,status")
+      .or(`sender_id.eq.${targetUserId},receiver_id.eq.${targetUserId}`);
+
+    if (acceptedOnly) query = query.eq("status", "accepted");
+
+    const { data, error } = await query
+      .order("created_at", { ascending: false })
+      .range(offset, offset + FRIENDSHIP_PAGE_SIZE - 1);
+
+    if (error) return { rows: [], error };
+
+    const page = (data ?? []) as FriendshipRow[];
+    rows.push(...page);
+    if (page.length < FRIENDSHIP_PAGE_SIZE) break;
+  }
+
+  return { rows, error: null };
+}
+
+function chunkIds(ids: string[], size: number) {
+  const chunks: string[][] = [];
+  for (let index = 0; index < ids.length; index += size) {
+    chunks.push(ids.slice(index, index + size));
+  }
+  return chunks;
 }
 
 function toMediaItems(rows: MediaPostRow[]): ProfileNavigationMedia[] {
@@ -154,6 +191,9 @@ export default function ProfileTimelinePage({
   const navigate = useNavigate();
   const [profile, setProfile] = useState<ProfileNavigationProfile | null>(null);
   const [friends, setFriends] = useState<ProfileNavigationFriend[]>([]);
+  const [sendingFriendIds, setSendingFriendIds] = useState<Set<string>>(
+    () => new Set(),
+  );
   const [media, setMedia] = useState<ProfileNavigationMedia[]>([]);
   const [timelinePosts, setTimelinePosts] = useState<ProfileNavigationPost[]>([]);
   const [isConnected, setIsConnected] = useState(false);
@@ -194,6 +234,7 @@ export default function ProfileTimelinePage({
     loadingMoreRef.current = false;
     setProfile(null);
     setFriends([]);
+    setSendingFriendIds(new Set());
     setMedia([]);
     setTimelinePosts([]);
     setIsConnected(false);
@@ -281,15 +322,10 @@ export default function ProfileTimelinePage({
         return;
       }
 
-      const [friendsResult, mediaResult] = await Promise.all([
-        supabase
-          .from("friendships")
-          .select("sender_id,receiver_id")
-          .eq("status", "accepted")
-          .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
-          .order("created_at", { ascending: false })
-          .limit(1000),
+      const [friendsResult, mediaResult, viewerFriendshipsResult] = await Promise.all([
+        loadUserFriendships(userId, true),
         loadMediaPage(userId, 0),
+        loadUserFriendships(currentUserId, false),
       ]);
 
       if (!active || sequence !== loadSequence.current) return;
@@ -297,7 +333,7 @@ export default function ProfileTimelinePage({
         console.error("[ProfileTimelinePage] friends load failed:", friendsResult.error);
         setFriends([]);
       } else {
-        const rows = (friendsResult.data ?? []) as FriendshipRow[];
+        const rows = friendsResult.rows;
         const friendIds = [
           ...new Set(
             rows
@@ -311,35 +347,77 @@ export default function ProfileTimelinePage({
         if (friendIds.length === 0) {
           setFriends([]);
         } else {
-          const { data: friendProfiles, error: friendProfilesError } =
-            await supabase
-              .from("profiles")
-              .select("id,full_name,avatar_url,location")
-              .in("id", friendIds);
+          const profileResults = await Promise.all(
+            chunkIds(friendIds, PROFILE_QUERY_BATCH_SIZE).map((ids) =>
+              supabase
+                .from("profiles")
+                .select("id,full_name,avatar_url,location")
+                .in("id", ids),
+            ),
+          );
 
           if (!active || sequence !== loadSequence.current) return;
-          if (friendProfilesError) {
+          const failedProfileResult = profileResults.find((result) => result.error);
+          if (failedProfileResult?.error) {
             console.error(
               "[ProfileTimelinePage] friend profiles load failed:",
-              friendProfilesError,
+              failedProfileResult.error,
             );
             setFriends([]);
           } else {
+            const friendProfiles = profileResults.flatMap(
+              (result) => (result.data ?? []) as FriendProfileRow[],
+            );
             const profilesById = new Map(
-              ((friendProfiles ?? []) as FriendProfileRow[]).map((friend) => [
+              friendProfiles.map((friend) => [
                 friend.id,
                 friend,
               ]),
+            );
+            const relationshipByFriendId = new Map<
+              string,
+              { status: "pending" | "accepted"; direction: "outgoing" | "incoming" }
+            >();
+            if (!viewerFriendshipsResult.error) {
+              for (const row of viewerFriendshipsResult.rows) {
+                const otherId =
+                  row.sender_id === currentUserId ? row.receiver_id : row.sender_id;
+                if (!friendIds.includes(otherId)) continue;
+                const next = {
+                  status: row.status,
+                  direction: row.sender_id === currentUserId ? "outgoing" as const : "incoming" as const,
+                };
+                const existing = relationshipByFriendId.get(otherId);
+                if (!existing || row.status === "accepted") {
+                  relationshipByFriendId.set(otherId, next);
+                }
+              }
+            }
+            const mutualFriendIds = new Set(
+              friendIds.filter((friendId) =>
+                friendId !== currentUserId &&
+                friendId !== userId &&
+                relationshipByFriendId.get(friendId)?.status === "accepted",
+              ),
             );
             const friendList = friendIds.reduce<ProfileNavigationFriend[]>(
               (result, friendId) => {
                 const friend = profilesById.get(friendId);
                 if (friend) {
+                  const relationship = relationshipByFriendId.get(friendId);
                   result.push({
                     id: friend.id,
                     full_name: friend.full_name || "Flicks member",
                     avatar_url: friend.avatar_url || null,
                     location: friend.location || null,
+                    relationshipStatus:
+                      friend.id === currentUserId
+                        ? "accepted"
+                        : relationship?.status ??
+                          (viewerFriendshipsResult.error ? "unknown" : "none"),
+                    requestDirection: relationship?.direction,
+                    isViewer: friend.id === currentUserId,
+                    isMutual: mutualFriendIds.has(friend.id),
                   });
                 }
                 return result;
@@ -525,6 +603,108 @@ export default function ProfileTimelinePage({
     [navigate],
   );
 
+  const handleSendFriendRequest = useCallback(
+    async (friend: ProfileNavigationFriend) => {
+      if (
+        !currentUserId ||
+        friend.id === currentUserId ||
+        friend.relationshipStatus !== "none" ||
+        sendingFriendIds.has(friend.id)
+      ) {
+        return;
+      }
+
+      setSendingFriendIds((current) => new Set(current).add(friend.id));
+      try {
+        if (!(await canViewPrivateProfile(friend.id))) {
+          toast.error("This profile is unavailable.");
+          return;
+        }
+
+        const { error } = await supabase.from("friendships").insert({
+          sender_id: currentUserId,
+          receiver_id: friend.id,
+          status: "pending",
+        });
+
+        if (error) {
+          const isDuplicate =
+            error.code === "23505" ||
+            /duplicate|unique/i.test(error.message || "");
+          if (isDuplicate) {
+            const { data: existing } = await supabase
+              .from("friendships")
+              .select("sender_id,receiver_id,status")
+              .or(
+                `and(sender_id.eq.${currentUserId},receiver_id.eq.${friend.id}),and(sender_id.eq.${friend.id},receiver_id.eq.${currentUserId})`,
+              )
+              .maybeSingle();
+            const status = existing?.status === "accepted" ? "accepted" : "pending";
+            setFriends((current) =>
+              current.map((item) =>
+                item.id === friend.id
+                  ? {
+                      ...item,
+                      relationshipStatus: status,
+                      requestDirection:
+                        existing?.sender_id === currentUserId ? "outgoing" : "incoming",
+                    }
+                  : item,
+              ),
+            );
+            toast.info(
+              status === "accepted"
+                ? "You are already friends."
+                : "A friend request is already pending.",
+            );
+            return;
+          }
+          toast.error("Friend request could not be sent. Please try again.");
+          return;
+        }
+
+        setFriends((current) =>
+          current.map((item) =>
+            item.id === friend.id
+              ? {
+                  ...item,
+                  relationshipStatus: "pending",
+                  requestDirection: "outgoing",
+                }
+              : item,
+          ),
+        );
+        const { error: notificationError } = await supabase
+          .from("notifications")
+          .insert({
+            notifier_id: friend.id,
+            actor_id: currentUserId,
+            type: "friend_request",
+            entity_id: friend.id,
+            content: "sent you a friend request",
+            is_read: false,
+          });
+        if (notificationError) {
+          console.warn(
+            "[ProfileTimelinePage] friend request notification failed:",
+            notificationError.message,
+          );
+        }
+        toast.success("Friend request sent.");
+      } catch (error) {
+        console.error("[ProfileTimelinePage] friend request failed:", error);
+        toast.error("Friend request could not be sent. Please try again.");
+      } finally {
+        setSendingFriendIds((current) => {
+          const next = new Set(current);
+          next.delete(friend.id);
+          return next;
+        });
+      }
+    },
+    [currentUserId, sendingFriendIds],
+  );
+
   return (
     <>
       <input
@@ -560,6 +740,8 @@ export default function ProfileTimelinePage({
             : undefined
         }
         onFriendSelect={onFriendSelect}
+        onSendFriendRequest={(friend) => void handleSendFriendRequest(friend)}
+        sendingFriendIds={sendingFriendIds}
         onBack={() => navigate("/", { replace: true })}
       />
       {chatSystemMounted && (
