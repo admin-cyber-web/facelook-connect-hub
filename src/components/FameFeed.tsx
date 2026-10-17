@@ -2295,12 +2295,14 @@ const PostDetailView = ({
                           {currentUserId && postIdKey(authorId) === postIdKey(currentUserId) && (
                             <button
                               type="button"
-                              aria-label="Comment options"
-                              title="Comment options"
-                              onClick={(event) =>
-                                onOpenActions(comment, event.currentTarget)
-                              }
-                              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-white/50 transition hover:bg-white/10 hover:text-white"
+                              aria-label="Edit or delete comment"
+                              title="Edit or delete comment"
+                              aria-haspopup="menu"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                onOpenActions(comment, event.currentTarget);
+                              }}
+                              className="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-full bg-white/5 text-white/75 transition hover:bg-white/15 hover:text-white"
                             >
                               <MoreVertical size={16} />
                             </button>
@@ -2422,12 +2424,14 @@ const PostDetailView = ({
                                   {currentUserId && postIdKey(replyAuthorId) === postIdKey(currentUserId) && (
                                     <button
                                       type="button"
-                                      aria-label="Reply options"
-                                      title="Reply options"
-                                      onClick={(event) =>
-                                        onOpenActions(reply, event.currentTarget)
-                                      }
-                                      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-white/45 transition hover:bg-white/10 hover:text-white"
+                                      aria-label="Edit or delete reply"
+                                      title="Edit or delete reply"
+                                      aria-haspopup="menu"
+                                      onClick={(event) => {
+                                        event.stopPropagation();
+                                        onOpenActions(reply, event.currentTarget);
+                                      }}
+                                      className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-full bg-white/5 text-white/70 transition hover:bg-white/15 hover:text-white"
                                     >
                                       <MoreVertical size={15} />
                                     </button>
@@ -6973,16 +6977,18 @@ const FameFeed = ({
                                       {isCommenter && (
                                         <button
                                           type="button"
-                                          aria-label="Comment options"
-                                          title="Comment options"
-                                          onClick={(event) =>
+                                          aria-label="Edit or delete comment"
+                                          title="Edit or delete comment"
+                                          aria-haspopup="menu"
+                                          onClick={(event) => {
+                                            event.stopPropagation();
                                             openFeedCommentActions(
                                               c,
                                               post.id,
                                               event.currentTarget,
-                                            )
-                                          }
-                                          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-white/50 transition hover:bg-white/10 hover:text-white"
+                                            );
+                                          }}
+                                          className="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-full bg-white/5 text-white/75 transition hover:bg-white/15 hover:text-white"
                                         >
                                           <MoreVertical size={16} />
                                         </button>
@@ -7181,16 +7187,18 @@ const FameFeed = ({
                                               postIdKey(replyAuthorId) === postIdKey(currentUserId) && (
                                               <button
                                                 type="button"
-                                                aria-label="Reply options"
-                                                title="Reply options"
-                                                onClick={(event) =>
+                                                aria-label="Edit or delete reply"
+                                                title="Edit or delete reply"
+                                                aria-haspopup="menu"
+                                                onClick={(event) => {
+                                                  event.stopPropagation();
                                                   openFeedCommentActions(
                                                     r,
                                                     post.id,
                                                     event.currentTarget,
                                                   )
-                                                }
-                                                className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-white/45 transition hover:bg-white/10 hover:text-white"
+                                                }}
+                                                className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-full bg-white/5 text-white/70 transition hover:bg-white/15 hover:text-white"
                                               >
                                                 <MoreVertical size={15} />
                                               </button>
@@ -8100,6 +8108,8 @@ const FameFeed = ({
                 />
                 <motion.div
                   key="feed-ca-float"
+                  role="menu"
+                  aria-label="Comment actions"
                   initial={{ opacity: 0, scale: 0.82 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.82 }}
@@ -8134,9 +8144,14 @@ const FameFeed = ({
                   </div>
                   {items.map((item, i) => (
                     <button
+                      type="button"
+                      role="menuitem"
                       key={i}
-                      onClick={item.action}
-                      className={`w-full flex items-center gap-2.5 px-3.5 py-[11px] text-left text-[14px] font-semibold hover:bg-white/10 transition-colors ${item.danger ? "text-red-400" : "text-white/80"} ${i > 0 ? "border-t border-white/8" : ""}`}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        item.action();
+                      }}
+                      className={`w-full flex cursor-pointer items-center gap-2.5 px-3.5 py-[11px] text-left text-[14px] font-semibold hover:bg-white/10 transition-colors ${item.danger ? "text-red-400" : "text-white/80"} ${i > 0 ? "border-t border-white/8" : ""}`}
                     >
                       <span className="text-[17px] leading-none">
                         {item.icon}
