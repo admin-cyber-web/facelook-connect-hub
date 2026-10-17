@@ -175,9 +175,9 @@ export default function ProfilePostDetail({
     }
   };
 
-  // Keep comment actions delegated at the detail root so actions remain wired
-  // even if a timeline comment row is later rendered from dynamic markup.
-  const handleCommentActionClick = (event: ReactMouseEvent<HTMLDivElement>) => {
+  // Delegate comment actions from the comments section so dynamic comment
+  // buttons only need their action, post ID, and comment ID data attributes.
+  const handleCommentActionClick = (event: ReactMouseEvent<HTMLElement>) => {
     const target = event.target as HTMLElement;
     const button = target.closest<HTMLButtonElement>("[data-comment-action]");
     if (!button || !event.currentTarget.contains(button)) return;
@@ -205,7 +205,6 @@ export default function ProfilePostDetail({
   return createPortal(
     <div
       className="profile-post-detail fixed inset-0 z-[90000] flex h-[100dvh] justify-center bg-black/65 text-[#39272a] backdrop-blur-sm"
-      onClick={handleCommentActionClick}
       style={{
         paddingTop: "env(safe-area-inset-top, 0px)",
         paddingBottom: 0,
@@ -318,7 +317,11 @@ export default function ProfilePostDetail({
             </div>
           </article>
 
-          <section aria-label="Comments" className="px-4 pb-5 sm:px-6">
+          <section
+            aria-label="Comments"
+            className="px-4 pb-5 sm:px-6"
+            onClick={handleCommentActionClick}
+          >
             <h2 className="sticky top-0 z-10 -mx-4 border-b border-[#800020]/10 bg-[#fffdf3]/95 px-4 py-3 text-sm font-black text-[#39272a] backdrop-blur sm:-mx-6 sm:px-6">
               Comments <span className="font-semibold text-[#756365]">({post.commentsCount})</span>
             </h2>
@@ -446,6 +449,42 @@ export default function ProfilePostDetail({
             ) : (
               <p className="py-10 text-center text-sm text-[#756365]">Be the first to comment.</p>
             )}
+
+            <AnimatePresence>
+              {menu && (
+                <>
+                  <button
+                    type="button"
+                    aria-label="Close comment options"
+                    className="fixed inset-0 z-[90001] cursor-default"
+                    onClick={() => setMenu(null)}
+                  />
+                  <div
+                    className="fixed z-[90002] min-w-44 overflow-hidden rounded-xl border border-[#800020]/10 bg-white py-1 shadow-2xl"
+                    style={{ left: menu.x, top: menu.y }}
+                  >
+                    <button
+                      type="button"
+                      data-comment-action="edit"
+                      data-post-id={post.id}
+                      data-comment-id={menu.commentId}
+                      className="flex w-full items-center gap-2 px-4 py-3 text-left text-xs font-bold text-[#39272a] hover:bg-[#800020]/[0.06]"
+                    >
+                      Edit comment
+                    </button>
+                    <button
+                      type="button"
+                      data-comment-action="delete"
+                      data-post-id={post.id}
+                      data-comment-id={menu.commentId}
+                      className="flex w-full items-center gap-2 border-t border-[#800020]/[0.08] px-4 py-3 text-left text-xs font-bold text-red-700 hover:bg-red-50"
+                    >
+                      Delete comment
+                    </button>
+                  </div>
+                </>
+              )}
+            </AnimatePresence>
           </section>
         </main>
 
@@ -479,41 +518,6 @@ export default function ProfilePostDetail({
         </form>
       </div>
 
-      <AnimatePresence>
-        {menu && (
-          <>
-            <button
-              type="button"
-              aria-label="Close comment options"
-              className="fixed inset-0 z-[90001] cursor-default"
-              onClick={() => setMenu(null)}
-            />
-            <div
-              className="fixed z-[90002] min-w-44 overflow-hidden rounded-xl border border-[#800020]/10 bg-white py-1 shadow-2xl"
-              style={{ left: menu.x, top: menu.y }}
-            >
-              <button
-                type="button"
-                data-comment-action="edit"
-                data-post-id={post.id}
-                data-comment-id={menu.commentId}
-                className="flex w-full items-center gap-2 px-4 py-3 text-left text-xs font-bold text-[#39272a] hover:bg-[#800020]/[0.06]"
-              >
-                Edit comment
-              </button>
-              <button
-                type="button"
-                data-comment-action="delete"
-                data-post-id={post.id}
-                data-comment-id={menu.commentId}
-                className="flex w-full items-center gap-2 border-t border-[#800020]/[0.08] px-4 py-3 text-left text-xs font-bold text-red-700 hover:bg-red-50"
-              >
-                Delete comment
-              </button>
-            </div>
-          </>
-        )}
-      </AnimatePresence>
     </div>,
     document.body,
   );
