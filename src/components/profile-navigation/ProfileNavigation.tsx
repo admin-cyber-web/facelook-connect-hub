@@ -144,8 +144,51 @@ function ProfileIdentity({
   );
 }
 
+function HeaderFriendsStrip({
+  friends,
+  onFriendSelect,
+}: {
+  friends: ProfileNavigationFriend[];
+  onFriendSelect?: (friend: ProfileNavigationFriend) => void;
+}) {
+  if (friends.length === 0) return null;
+
+  return (
+    <div className="profile-nav-header-friends" aria-label="Friends preview">
+      <div className="profile-nav-header-friends-strip" data-testid="list-profile-header-friends">
+        {friends.slice(0, 6).map((friend) => (
+          <button
+            key={friend.id}
+            type="button"
+            className="profile-nav-header-friend"
+            onClick={() => onFriendSelect?.(friend)}
+            data-testid={`button-profile-header-friend-${friend.id}`}
+          >
+            <Avatar name={friend.full_name} src={friend.avatar_url} variant="friend" />
+            <span className="profile-nav-header-friend-name">{friend.full_name}</span>
+          </button>
+        ))}
+        <button
+          type="button"
+          className="profile-nav-header-friends-more"
+          onClick={() =>
+            document
+              .getElementById("profile-nav-friends-heading")
+              ?.scrollIntoView({ behavior: "smooth", block: "start" })
+          }
+          data-testid="button-profile-header-friends-more"
+        >
+          More
+          <ArrowRight size={14} aria-hidden="true" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function ProfileHeader({
   profile,
+  friends,
   isConnected,
   canViewProfile,
   isOwnProfile,
@@ -153,8 +196,10 @@ function ProfileHeader({
   onMessage,
   onBack,
   onEditCover,
+  onFriendSelect,
 }: {
   profile: ProfileNavigationProfile;
+  friends: ProfileNavigationFriend[];
   isConnected: boolean;
   canViewProfile: boolean;
   isOwnProfile: boolean;
@@ -162,6 +207,7 @@ function ProfileHeader({
   onMessage?: (profile: ProfileNavigationProfile) => void;
   onBack?: () => void;
   onEditCover?: () => void;
+  onFriendSelect?: (friend: ProfileNavigationFriend) => void;
 }) {
   const hasRestrictedAccess =
     (profile.profile_locked === true && !isConnected) ||
@@ -204,6 +250,7 @@ function ProfileHeader({
           )}
         </div>
         <ProfileIdentity profile={profile} avatarVariant="hero" />
+        <HeaderFriendsStrip friends={friends} onFriendSelect={onFriendSelect} />
         {hasRestrictedAccess && (
           <div className="profile-nav-hero-actions">
             <span className="profile-nav-access-pill">
@@ -336,7 +383,11 @@ function FriendsList({
   onFriendSelect?: (friend: ProfileNavigationFriend) => void;
 }) {
   return (
-    <section className="profile-nav-section" aria-labelledby="profile-nav-friends-heading">
+    <section
+      className="profile-nav-section"
+      aria-labelledby="profile-nav-friends-heading"
+      id="profile-nav-friends-section"
+    >
       <div className="profile-nav-section-head">
         <div>
           <p className="profile-nav-kicker">Good company</p>
@@ -622,6 +673,7 @@ export function FullProfilePage({
       <div className="profile-nav-shell">
         <ProfileHeader
           profile={visibleProfile}
+          friends={friends}
           isConnected={isConnected}
           canViewProfile={canViewProfile}
           isOwnProfile={isOwnProfile}
@@ -629,6 +681,7 @@ export function FullProfilePage({
           onMessage={onMessage}
           onBack={onBack}
           onEditCover={onEditCover}
+          onFriendSelect={onFriendSelect}
         />
         {restricted ? (
           <RestrictedProfile profile={profile} />
