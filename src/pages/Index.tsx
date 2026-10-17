@@ -2172,6 +2172,16 @@ const Index = ({ session, initialAdminOpen, isGuest = false }: { session: Sessio
   const [trendingSurveys, setTrendingSurveys] = useState<any[]>([]);
   const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(!!initialAdminOpen && isAppAdmin);
 
+  useLayoutEffect(() => {
+    const sectionIsolation = activeFeature === "Fame" ? "inactive" : "active";
+    document.body.dataset.globalSectionIsolation = sectionIsolation;
+    return () => {
+      if (document.body.dataset.globalSectionIsolation === sectionIsolation) {
+        delete document.body.dataset.globalSectionIsolation;
+      }
+    };
+  }, [activeFeature]);
+
   // Deep-link handler: ?survey=<id> → open Surveys tab + highlight that card
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);

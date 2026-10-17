@@ -51,6 +51,24 @@ function NativeAndroidRoutePolicy({ authenticated }: { authenticated: boolean })
   return null;
 }
 
+function GlobalRouteMediaIsolation() {
+  const { pathname } = useLocation();
+
+  useLayoutEffect(() => {
+    const path = pathname.replace(/\/+$/, "") || "/";
+    const keepsFeedMounted = path === "/" || path === "/feed" || path === "/admin";
+    const routeIsolation = keepsFeedMounted ? "inactive" : "active";
+    document.body.dataset.globalRouteIsolation = routeIsolation;
+    return () => {
+      if (document.body.dataset.globalRouteIsolation === routeIsolation) {
+        delete document.body.dataset.globalRouteIsolation;
+      }
+    };
+  }, [pathname]);
+
+  return null;
+}
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -388,6 +406,7 @@ const App = () => {
               <DataCacheProvider>
                 <SavedPostsProvider userId={session?.user?.id ?? null}>
                 <BrowserRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
+                  <GlobalRouteMediaIsolation />
                   <NativeAndroidRoutePolicy authenticated={Boolean(session)} />
                   <Suspense fallback={<PageLoader />}>
                     {!session ? (

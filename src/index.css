@@ -1540,6 +1540,14 @@ body.body-locked {
   touch-action: none;
 }
 
+/* Shared lock for dialogs and full-screen app sections outside Index's own
+   explicit overlay states. The active surface keeps its own scroll pane. */
+html.active-section-locked,
+body.active-section-locked {
+  overflow: hidden !important;
+  overscroll-behavior: none !important;
+}
+
 /* All scroll-y panes inside the app should contain their overscroll, so a
    chat / sheet / list scroll never bubbles up to the main feed. */
 .scroll-pane,
