@@ -429,17 +429,54 @@ export default function FriendWall({
     }
   };
 
-  const handleSaveCommentEdit = async (commentId: string, content: string) => {
-    const postId = postDetailId;
+  const handleSaveCommentEdit = async (
+    postId: string,
+    commentId: string,
+    content: string,
+  ) => {
     const cleanedContent = content.trim();
-    if (!postId || !cleanedContent) return false;
+    const postSnapshot = posts.find((post) => post.id === postId);
+    const commentSnapshot = postSnapshot?.comments?.find(
+      (comment) => comment.id === commentId,
+    );
+    if (
+      !postId ||
+      !commentId ||
+      !cleanedContent ||
+      !commentSnapshot ||
+      commentSnapshot.userId !== currentUserId
+    ) return false;
+
+    // Keep the open post detail and profile timeline in sync immediately.
+    setPosts((previous) =>
+      previous.map((post) =>
+        post.id === postId
+          ? {
+              ...post,
+              comments: (post.comments ?? []).map((comment) =>
+                comment.id === commentId
+                  ? { ...comment, content: cleanedContent }
+                  : comment,
+              ),
+            }
+          : post,
+      ),
+    );
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("comments")
         .update({ content: cleanedContent })
         .eq("id", commentId)
-        .eq("user_id", currentUserId);
+        .eq("post_id", postId)
+        .eq("user_id", currentUserId)
+        .select("id")
+        .maybeSingle();
       if (error) throw error;
+      if (!data) throw new Error("Comment was not found or could not be edited.");
+      toast.success("Comment updated.");
+      return true;
+    } catch (error) {
+      console.error("[FriendWall] comment update failed:", error);
       setPosts((previous) =>
         previous.map((post) =>
           post.id === postId
@@ -447,54 +484,92 @@ export default function FriendWall({
                 ...post,
                 comments: (post.comments ?? []).map((comment) =>
                   comment.id === commentId
-                    ? { ...comment, content: cleanedContent }
+                    ? { ...comment, content: commentSnapshot.content }
                     : comment,
                 ),
               }
             : post,
         ),
       );
-      toast.success("Comment updated.");
-      return true;
-    } catch (error) {
-      console.error("[FriendWall] comment update failed:", error);
       toast.error("Your comment could not be updated.");
       return false;
     }
   };
 
-  const handleDeleteComment = async (commentId: string) => {
-    const postId = postDetailId;
-    if (!postId) return false;
+  const handleDeleteComment = async (postId: string, commentId: string) => {
+    const postSnapshot = posts.find((post) => post.id === postId);
+    const commentSnapshot = postSnapshot?.comments?.find(
+      (comment) => comment.id === commentId,
+    );
+    if (
+      !postId ||
+      !commentId ||
+      !commentSnapshot ||
+      commentSnapshot.userId !== currentUserId
+    ) return false;
+    const isTopLevel = !commentSnapshot.parentId;
+    const reactionsSnapshot = commentReactions[commentId];
+
+    // Remove the row and update its count before awaiting the network.
+    setPosts((previous) =>
+      previous.map((post) =>
+        post.id === postId
+          ? {
+              ...post,
+              commentsCount: isTopLevel
+                ? Math.max(0, post.commentsCount - 1)
+                : post.commentsCount,
+              comments: (post.comments ?? []).filter(
+                (comment) => comment.id !== commentId,
+              ),
+            }
+          : post,
+      ),
+    );
+    setCommentReactions((previous) => {
+      const next = { ...previous };
+      delete next[commentId];
+      return next;
+    });
+
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("comments")
         .delete()
         .eq("id", commentId)
-        .eq("user_id", currentUserId);
+        .eq("post_id", postId)
+        .eq("user_id", currentUserId)
+        .select("id")
+        .maybeSingle();
       if (error) throw error;
-      setPosts((previous) =>
-        previous.map((post) =>
-          post.id === postId
-            ? {
-                ...post,
-                commentsCount: Math.max(0, post.commentsCount - 1),
-                comments: (post.comments ?? []).filter(
-                  (comment) => comment.id !== commentId,
-                ),
-              }
-            : post,
-        ),
-      );
-      setCommentReactions((previous) => {
-        const next = { ...previous };
-        delete next[commentId];
-        return next;
-      });
+      if (!data) throw new Error("Comment was not found or could not be deleted.");
       toast.success("Comment deleted.");
       return true;
     } catch (error) {
       console.error("[FriendWall] comment delete failed:", error);
+      setPosts((previous) =>
+        previous.map((post) => {
+          if (post.id !== postId) return post;
+          const comments = [...(post.comments ?? [])];
+          if (!comments.some((comment) => comment.id === commentId)) {
+            const insertAt = comments.findIndex(
+              (comment) => comment.createdAt > commentSnapshot.createdAt,
+            );
+            comments.splice(insertAt < 0 ? comments.length : insertAt, 0, commentSnapshot);
+          }
+          return {
+            ...post,
+            commentsCount: isTopLevel ? post.commentsCount + 1 : post.commentsCount,
+            comments,
+          };
+        }),
+      );
+      if (reactionsSnapshot) {
+        setCommentReactions((previous) => ({
+          ...previous,
+          [commentId]: reactionsSnapshot,
+        }));
+      }
       toast.error("Your comment could not be deleted.");
       return false;
     }
