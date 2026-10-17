@@ -2259,7 +2259,7 @@ const PostDetailView = ({
                 const replies = (comments ?? []).filter(
                   (reply) => reply.parent_id === comment.id,
                 );
-                const authorId = comment.user_id ?? comment.author_id;
+                const authorId = feedCommentAuthorId(comment);
                 const isEditing =
                   editingFeedComment?.id === comment.id &&
                   editingFeedComment?.postId === post.id;
@@ -2391,7 +2391,7 @@ const PostDetailView = ({
                       <div className="ml-10 mt-2 space-y-2 border-l border-white/10 pl-3">
                         {replies.map((reply) => {
                           const replyAuthorId =
-                            reply.user_id ?? reply.author_id;
+                            feedCommentAuthorId(reply);
                           const isReplyEditing =
                             editingFeedComment?.id === reply.id &&
                             editingFeedComment?.postId === post.id;
@@ -3395,8 +3395,21 @@ type FeedCommentMenuItem = {
 type FeedCommentActionTarget = {
   id: string;
   user_id?: string | null;
+  userId?: string | null;
   author_id?: string | null;
+  authorId?: string | null;
+  content?: string | null;
+  author?: string | null;
+  author_name?: string | null;
+  is_hidden?: boolean;
 };
+
+const feedCommentAuthorId = (comment: FeedCommentActionTarget) =>
+  comment.user_id ??
+  comment.userId ??
+  comment.author_id ??
+  comment.authorId ??
+  null;
 
 type FeedBlock = { type: string; post?: any; key: string; seed?: number };
 
@@ -3481,13 +3494,26 @@ const FameFeed = ({
     postId: string,
     anchor: HTMLButtonElement,
   ) => {
-    if (!currentUserId || postIdKey(comment.user_id ?? comment.author_id) !== postIdKey(currentUserId)) return;
+    if (
+      !currentUserId ||
+      postIdKey(feedCommentAuthorId(comment)) !== postIdKey(currentUserId)
+    ) {
+      return;
+    }
     const rect = anchor.getBoundingClientRect();
-    setFeedCommentAction({
-      comment,
-      postId,
-      x: rect.left + rect.width / 2,
-      y: rect.top + rect.height / 2,
+    setFeedCommentAction((current) => {
+      if (
+        current?.postId === postId &&
+        postIdKey(current.comment.id) === postIdKey(comment.id)
+      ) {
+        return null;
+      }
+      return {
+        comment,
+        postId,
+        x: rect.left + rect.width / 2,
+        y: rect.top + rect.height / 2,
+      };
     });
   };
   const [profileAdminUserId, setProfileAdminUserId] = useState<string | null>(null);
@@ -6922,7 +6948,7 @@ const FameFeed = ({
                               post?.user_id === currentUserId;
                             const isCommenter = Boolean(
                               currentUserId &&
-                              postIdKey(c.user_id ?? c.author_id) ===
+                              postIdKey(feedCommentAuthorId(c)) ===
                                 postIdKey(currentUserId),
                             );
                             const isEditing =
@@ -7121,7 +7147,8 @@ const FameFeed = ({
                                 {replies.length > 0 && (
                                   <div className="ml-9 mt-1 space-y-1.5 border-l-2 border-white/10 pl-2.5">
                                     {replies.map((r: any) => {
-                                      const replyAuthorId = r.user_id ?? r.author_id;
+                                      const replyAuthorId =
+                                        feedCommentAuthorId(r);
                                       const isReplyEditing =
                                         editingFeedComment?.id === r.id &&
                                         editingFeedComment?.postId === post.id;
@@ -8033,60 +8060,35 @@ const FameFeed = ({
             const { x, y } = feedCommentAction;
             const isCommenter = Boolean(
               currentUserId &&
-              postIdKey(ac.user_id ?? ac.author_id) === postIdKey(currentUserId),
+              postIdKey(feedCommentAuthorId(ac)) === postIdKey(currentUserId),
             );
-            const sheetPost = visiblePosts.find((p: any) => p.id === postId);
-            const isPostOwner =
-              sheetPost?.author_id === currentUserId ||
-              sheetPost?.user_id === currentUserId;
+            if (!isCommenter) return null;
 
-            const items: FeedCommentMenuItem[] = [];
-            if (isCommenter) {
-              items.push({
+            const items: FeedCommentMenuItem[] = [
+              {
                 icon: "✏️",
-                label: "Edit",
+                label: "Edit Comment",
                 action: () => {
                   setEditingFeedComment({
                     id: ac.id,
-                    text: ac.content,
+                    text: ac.content ?? "",
                     postId,
                   });
                   setFeedCommentAction(null);
                 },
-              });
-              items.push({
+              },
+              {
                 icon: "🗑️",
-                label: "Delete",
+                label: "Delete Comment",
                 action: () => handleFeedCommentDelete(ac.id, postId),
                 danger: true,
-              });
-              if (!ac.is_hidden)
-                items.push({
-                  icon: "🙈",
-                  label: "Hide from Others",
-                  action: () => handleFeedCommentHide(ac.id, postId),
-                });
-            }
-            if (isPostOwner && !isCommenter) {
+              },
+            ];
+            if (!ac.is_hidden) {
               items.push({
-                icon: "🗑️",
-                label: "Delete",
-                action: () => handleFeedCommentDelete(ac.id, postId),
-                danger: true,
-              });
-              if (!ac.is_hidden)
-                items.push({
-                  icon: "🙈",
-                  label: "Hide Comment",
-                  action: () => handleFeedCommentHide(ac.id, postId),
-                });
-            }
-            if (!isCommenter && !isPostOwner) {
-              items.push({
-                icon: "🚩",
-                label: "Report",
-                action: () => handleFeedCommentReport(ac, postId),
-                danger: true,
+                icon: "🙈",
+                label: "Hide from Others",
+                action: () => handleFeedCommentHide(ac.id, postId),
               });
             }
 
