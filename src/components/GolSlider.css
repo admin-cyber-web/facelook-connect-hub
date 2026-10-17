@@ -13,12 +13,12 @@
   bottom: 0;
   left: 50%;
   display: inline-flex;
-  min-width: 74px;
-  height: 27px;
+  min-width: 148px;
+  height: 54px;
   align-items: center;
   justify-content: center;
-  gap: 5px;
-  padding: 0 7.5px;
+  gap: 10px;
+  padding: 0 15px;
   overflow: hidden;
   border: 1px solid rgba(125, 211, 252, 0.48);
   border-radius: 999px;
@@ -79,9 +79,9 @@
 
 .gol-hybrid-button__icon {
   display: inline-flex;
-  width: 13.5px;
-  height: 13.5px;
-  flex: 0 0 13.5px;
+  width: 27px;
+  height: 27px;
+  flex: 0 0 27px;
   align-items: center;
   justify-content: center;
   color: #e0fbff;
@@ -94,8 +94,8 @@
 }
 
 .gol-hybrid-button__tiranga-mark {
-  width: 13.5px;
-  height: 13.5px;
+  width: 27px;
+  height: 27px;
   overflow: visible;
 }
 
@@ -109,9 +109,9 @@
 }
 
 .gol-hybrid-button__label {
-  min-width: 28.5px;
+  min-width: 57px;
   color: #f8fdff;
-  font-size: 7.5px;
+  font-size: 15px;
   font-weight: 850;
   line-height: 1;
   letter-spacing: 0.01em;
@@ -122,20 +122,20 @@
 
 .gol-hybrid-button__switch {
   display: flex;
-  width: 9px;
-  height: 4px;
-  flex: 0 0 9px;
+  width: 18px;
+  height: 8px;
+  flex: 0 0 18px;
   align-items: center;
   justify-content: space-between;
-  padding: 0.5px;
+  padding: 1px;
   border: 1px solid rgba(226, 245, 255, 0.24);
   border-radius: 999px;
   background: rgba(4, 13, 28, 0.34);
 }
 
 .gol-hybrid-button__switch span {
-  width: 2px;
-  height: 2px;
+  width: 4px;
+  height: 4px;
   border-radius: 50%;
   background: rgba(226, 245, 255, 0.42);
   transition: background 200ms ease, box-shadow 200ms ease, transform 200ms ease;

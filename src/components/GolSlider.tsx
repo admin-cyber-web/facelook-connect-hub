@@ -225,7 +225,7 @@ const GolSlider = ({
         <span className="gol-hybrid-button__icon" aria-hidden="true">
           {mode === "refresh" ? (
             <RefreshCw
-              size={10}
+              size={20}
               strokeWidth={2.5}
               className={isRefreshing ? "gol-hybrid-button__refresh-icon is-spinning" : ""}
             />
