@@ -158,14 +158,14 @@ const FunCallTypewriter = () => {
   }, []);
 
   return (
-    <p className="break-words text-[clamp(6.5px,1.8vw,8px)] font-black leading-[1.04] text-white">
+    <p className="break-words text-[clamp(13px,3.6vw,16px)] font-black leading-[1.02] text-black">
       <span className="sr-only">{FUN_CALL_TAGLINE}</span>
       <span aria-hidden="true">
         {FUN_CALL_TAGLINE.slice(0, visibleLength)}
       </span>
       <span
         aria-hidden="true"
-        className="ml-0.5 inline-block animate-pulse text-white motion-reduce:animate-none"
+        className="ml-0.5 inline-block animate-pulse text-black motion-reduce:animate-none"
       >
         ▍
       </span>
@@ -4408,17 +4408,16 @@ const PersonalizationView = React.memo(({
                     />
                     <div
                       aria-hidden="true"
-                      className="pointer-events-none absolute inset-y-0 left-0 z-10 flex w-[34%] min-w-0 flex-col items-start justify-center gap-0.5 p-1 text-left"
+                      className="pointer-events-none absolute inset-0 z-10"
                     >
                       <span
-                        className="animate-pulse motion-reduce:animate-none text-[11px] font-black leading-tight text-red-600 sm:text-xs"
+                        className="absolute left-2 top-2 rounded-lg bg-white/90 px-2 py-1 text-[11px] font-black leading-none text-red-600 shadow-sm animate-pulse motion-reduce:animate-none"
                       >
                         Fun Video Call
                       </span>
-                      <span className="text-[clamp(32px,10vw,40px)] font-black leading-[0.82] text-[#1769e0]">
-                        2
-                      </span>
-                      <FunCallTypewriter />
+                      <div className="absolute bottom-2 left-2 w-[48%]">
+                        <FunCallTypewriter />
+                      </div>
                     </div>
                   </motion.button>
 
