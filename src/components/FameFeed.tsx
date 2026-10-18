@@ -2126,10 +2126,8 @@ type PostDetailViewProps = {
   onReply: (comment: any) => void;
   onCancelReply: () => void;
   onProfileClick: (userId: string) => void;
-  onOpenActions: (
-    comment: FeedCommentActionTarget,
-    anchor: HTMLButtonElement,
-  ) => void;
+  onStartCommentEdit: (comment: FeedCommentActionTarget) => void;
+  onDeleteComment: (commentId: string) => void;
   onEditCommentTextChange: (text: string) => void;
   onSaveCommentEdit: () => void;
   onCancelCommentEdit: () => void;
@@ -2156,7 +2154,8 @@ const PostDetailView = ({
   onReply,
   onCancelReply,
   onProfileClick,
-  onOpenActions,
+  onStartCommentEdit,
+  onDeleteComment,
   onEditCommentTextChange,
   onSaveCommentEdit,
   onCancelCommentEdit,
@@ -2164,9 +2163,27 @@ const PostDetailView = ({
   onToggleReactionBar,
   onCloseReactionBar,
 }: PostDetailViewProps) => {
+  const [activeCommentMenuId, setActiveCommentMenuId] = useState<string | null>(
+    null,
+  );
   const topLevel = (comments ?? []).filter((comment) => !comment.parent_id);
   const isPostOwner =
     post.author_id === currentUserId || post.user_id === currentUserId;
+  useEffect(() => {
+    if (activeCommentMenuId === null) return;
+    const handleOutsidePointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (
+        !(target instanceof Element) ||
+        !target.closest("[data-post-detail-comment-menu]")
+      ) {
+        setActiveCommentMenuId(null);
+      }
+    };
+    document.addEventListener("pointerdown", handleOutsidePointerDown);
+    return () =>
+      document.removeEventListener("pointerdown", handleOutsidePointerDown);
+  }, [activeCommentMenuId]);
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") onBack();
@@ -2293,19 +2310,61 @@ const PostDetailView = ({
                             )}
                           </div>
                           {currentUserId && postIdKey(authorId) === postIdKey(currentUserId) && (
-                            <button
-                              type="button"
-                              aria-label="Edit or delete comment"
-                              title="Edit or delete comment"
-                              aria-haspopup="menu"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                onOpenActions(comment, event.currentTarget);
-                              }}
-                              className="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-full bg-white/5 text-white/75 transition hover:bg-white/15 hover:text-white"
+                            <div
+                              className="relative shrink-0"
+                              data-post-detail-comment-menu
                             >
-                              <MoreVertical size={16} />
-                            </button>
+                              <button
+                                type="button"
+                                aria-label="Comment options"
+                                title="Comment options"
+                                aria-haspopup="menu"
+                                aria-expanded={
+                                  activeCommentMenuId === String(comment.id)
+                                }
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  const menuId = String(comment.id);
+                                  setActiveCommentMenuId((current) =>
+                                    current === menuId ? null : menuId,
+                                  );
+                                }}
+                                className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-full bg-white/5 text-white/75 transition hover:bg-white/15 hover:text-white"
+                              >
+                                <MoreVertical size={16} />
+                              </button>
+                              {activeCommentMenuId === String(comment.id) && (
+                                <div
+                                  role="menu"
+                                  className="absolute right-0 top-full z-50 mt-1 min-w-[140px] rounded-xl border border-white/10 bg-[#1e1424] p-1 shadow-xl"
+                                >
+                                  <button
+                                    type="button"
+                                    role="menuitem"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      setActiveCommentMenuId(null);
+                                      onStartCommentEdit(comment);
+                                    }}
+                                    className="w-full cursor-pointer rounded-lg px-3 py-2 text-left text-sm text-white/85 hover:bg-white/10"
+                                  >
+                                    Edit
+                                  </button>
+                                  <button
+                                    type="button"
+                                    role="menuitem"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      setActiveCommentMenuId(null);
+                                      onDeleteComment(String(comment.id));
+                                    }}
+                                    className="w-full cursor-pointer rounded-lg px-3 py-2 text-left text-sm text-red-400 hover:bg-white/10"
+                                  >
+                                    Delete
+                                  </button>
+                                </div>
+                              )}
+                            </div>
                           )}
                         </div>
                         {isEditing ? (
@@ -2422,19 +2481,63 @@ const PostDetailView = ({
                                     </span>
                                   </p>
                                   {currentUserId && postIdKey(replyAuthorId) === postIdKey(currentUserId) && (
-                                    <button
-                                      type="button"
-                                      aria-label="Edit or delete reply"
-                                      title="Edit or delete reply"
-                                      aria-haspopup="menu"
-                                      onClick={(event) => {
-                                        event.stopPropagation();
-                                        onOpenActions(reply, event.currentTarget);
-                                      }}
-                                      className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-full bg-white/5 text-white/70 transition hover:bg-white/15 hover:text-white"
+                                    <div
+                                      className="relative shrink-0"
+                                      data-post-detail-comment-menu
                                     >
-                                      <MoreVertical size={15} />
-                                    </button>
+                                      <button
+                                        type="button"
+                                        aria-label="Reply options"
+                                        title="Reply options"
+                                        aria-haspopup="menu"
+                                        aria-expanded={
+                                          activeCommentMenuId ===
+                                          String(reply.id)
+                                        }
+                                        onClick={(event) => {
+                                          event.stopPropagation();
+                                          const menuId = String(reply.id);
+                                          setActiveCommentMenuId((current) =>
+                                            current === menuId ? null : menuId,
+                                          );
+                                        }}
+                                        className="flex h-6 w-6 cursor-pointer items-center justify-center rounded-full bg-white/5 text-white/70 transition hover:bg-white/15 hover:text-white"
+                                      >
+                                        <MoreVertical size={15} />
+                                      </button>
+                                      {activeCommentMenuId ===
+                                        String(reply.id) && (
+                                        <div
+                                          role="menu"
+                                          className="absolute right-0 top-full z-50 mt-1 min-w-[140px] rounded-xl border border-white/10 bg-[#1e1424] p-1 shadow-xl"
+                                        >
+                                          <button
+                                            type="button"
+                                            role="menuitem"
+                                            onClick={(event) => {
+                                              event.stopPropagation();
+                                              setActiveCommentMenuId(null);
+                                              onStartCommentEdit(reply);
+                                            }}
+                                            className="w-full cursor-pointer rounded-lg px-3 py-2 text-left text-sm text-white/85 hover:bg-white/10"
+                                          >
+                                            Edit
+                                          </button>
+                                          <button
+                                            type="button"
+                                            role="menuitem"
+                                            onClick={(event) => {
+                                              event.stopPropagation();
+                                              setActiveCommentMenuId(null);
+                                              onDeleteComment(String(reply.id));
+                                            }}
+                                            className="w-full cursor-pointer rounded-lg px-3 py-2 text-left text-sm text-red-400 hover:bg-white/10"
+                                          >
+                                            Delete
+                                          </button>
+                                        </div>
+                                      )}
+                                    </div>
                                   )}
                                 </div>
                                 {isReplyEditing ? (
@@ -8228,8 +8331,15 @@ const FameFeed = ({
                 setReplyText("");
               }}
               onProfileClick={openProfile}
-              onOpenActions={(comment, anchor) =>
-                openFeedCommentActions(comment, detailPost.id, anchor)
+              onStartCommentEdit={(comment) =>
+                setEditingFeedComment({
+                  id: comment.id,
+                  text: comment.content ?? "",
+                  postId: detailPost.id,
+                })
+              }
+              onDeleteComment={(commentId) =>
+                handleFeedCommentDelete(commentId, detailPost.id)
               }
               onEditCommentTextChange={(text) =>
                 setEditingFeedComment((current) =>
