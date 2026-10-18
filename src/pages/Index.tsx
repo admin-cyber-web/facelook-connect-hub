@@ -4350,11 +4350,12 @@ const PersonalizationView = React.memo(({
                       className="pointer-events-none absolute inset-y-0 left-0 z-10 flex w-[34%] min-w-0 flex-col items-start justify-center gap-0.5 p-1 text-left"
                     >
                       <span
-                        className="text-[11px] font-black leading-tight text-white sm:text-xs"
+                        className="animate-pulse motion-reduce:animate-none text-[11px] font-black leading-tight text-red-500 sm:text-xs"
                         style={{
-                          WebkitTextStroke: "0.35px #6b3d05",
+                          WebkitTextStroke: "0.35px #5b0000",
                           paintOrder: "stroke fill",
-                          textShadow: "none",
+                          textShadow:
+                            "0 0 6px rgba(239, 68, 68, 0.85), 0 0 12px rgba(239, 68, 68, 0.55)",
                         }}
                       >
                         Fun Video Call
