@@ -2171,6 +2171,8 @@ const Index = ({ session, initialAdminOpen, isGuest = false }: { session: Sessio
   const [highlightedSurveyId, setHighlightedSurveyId] = useState<string | null>(null);
   const [trendingSurveys, setTrendingSurveys] = useState<any[]>([]);
   const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(!!initialAdminOpen && isAppAdmin);
+  const fameFeedScrollYRef = useRef<number | null>(null);
+  const restoreFameFeedScrollRef = useRef(false);
 
   useLayoutEffect(() => {
     const sectionIsolation = activeFeature === "Fame" ? "inactive" : "active";
@@ -2179,6 +2181,49 @@ const Index = ({ session, initialAdminOpen, isGuest = false }: { session: Sessio
       if (document.body.dataset.globalSectionIsolation === sectionIsolation) {
         delete document.body.dataset.globalSectionIsolation;
       }
+    };
+  }, [activeFeature]);
+
+  useEffect(() => {
+    if (activeFeature !== "Fame" || !restoreFameFeedScrollRef.current) return;
+    const targetY = fameFeedScrollYRef.current;
+    if (targetY === null) return;
+
+    let frame = 0;
+    let attempts = 0;
+    let cancelled = false;
+    const restoreWhenFeedIsReady = () => {
+      if (cancelled) return;
+      const feedRoot = document.querySelector("[data-fame-feed-root]");
+      const maxScrollY =
+        Math.max(document.documentElement.scrollHeight, document.body.scrollHeight) -
+        window.innerHeight;
+      const layoutReady = Boolean(feedRoot) && (targetY <= 0 || maxScrollY >= targetY);
+
+      if (layoutReady) {
+        window.scrollTo(0, targetY);
+        frame = requestAnimationFrame(() => {
+          if (cancelled) return;
+          window.scrollTo(0, targetY);
+          restoreFameFeedScrollRef.current = false;
+          fameFeedScrollYRef.current = null;
+        });
+        return;
+      }
+
+      if (attempts++ >= 180) {
+        if (feedRoot) window.scrollTo(0, targetY);
+        restoreFameFeedScrollRef.current = false;
+        fameFeedScrollYRef.current = null;
+        return;
+      }
+      frame = requestAnimationFrame(restoreWhenFeedIsReady);
+    };
+
+    frame = requestAnimationFrame(restoreWhenFeedIsReady);
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(frame);
     };
   }, [activeFeature]);
 
@@ -2538,11 +2583,27 @@ const Index = ({ session, initialAdminOpen, isGuest = false }: { session: Sessio
       });
   };
 
+  const openFlicks = React.useCallback((postId: string | null = null) => {
+    if (activeFeature === "Fame") {
+      fameFeedScrollYRef.current = window.scrollY;
+      restoreFameFeedScrollRef.current = true;
+    } else {
+      fameFeedScrollYRef.current = null;
+      restoreFameFeedScrollRef.current = false;
+    }
+    setFlicksStartPostId(postId);
+    setActiveFeature("Flicks");
+  }, [activeFeature]);
+
+  const handleFlicksBack = React.useCallback(() => {
+    setActiveFeature("Fame");
+  }, []);
+
   const handleReelCardClick = () => {
     if (myReels.length === 0) {
       reelInputRef.current?.click();
     } else {
-      setActiveFeature("Flicks");
+      openFlicks();
     }
   };
 
@@ -2567,12 +2628,11 @@ const Index = ({ session, initialAdminOpen, isGuest = false }: { session: Sessio
   useEffect(() => {
     const openReelsAt = (event: Event) => {
       const postId = (event as CustomEvent<{ postId?: string }>).detail?.postId || null;
-      setFlicksStartPostId(postId);
-      setActiveFeature("Flicks");
+      openFlicks(postId);
     };
     window.addEventListener("flicks:open-reels", openReelsAt as EventListener);
     return () => window.removeEventListener("flicks:open-reels", openReelsAt as EventListener);
-  }, []);
+  }, [openFlicks]);
 
   const handleReelFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -4205,7 +4265,7 @@ const PersonalizationView = React.memo(({
             {activeFeature === "Fame" && (
               <ErrorBoundary>
               <Suspense fallback={<SectionLoader />}>
-              <div className="w-full bg-[#f0f2f5] min-h-screen">
+                <div className="w-full bg-[#f0f2f5] min-h-screen" data-fame-feed-root>
 
                 {/* ── Desktop 3-column grid ─────────────────────────────────── */}
                 <div className="lg:grid lg:grid-cols-[260px_1fr_272px] lg:gap-4 lg:px-5 lg:pt-3 lg:items-start">
@@ -4744,7 +4804,7 @@ const PersonalizationView = React.memo(({
                         <div key={post.id}
                           className="flex-shrink-0 relative rounded-2xl overflow-hidden border border-gray-200 shadow-md"
                           style={{ width: "calc((100vw - 48px) / 2.4)", height: "calc((100vw - 48px) / 2.4 * 1.78)", maxWidth: "224px", maxHeight: "392px", background: `linear-gradient(160deg,${GRAD[i % GRAD.length]} 0%,#1e1b4b 100%)` }}
-                          onClick={() => setActiveFeature("Flicks")}
+                          onClick={() => openFlicks()}
                         >
                           {/* FB-style: video posts auto-play muted; tap → opens with sound */}
                           {isVid && thumb ? (
@@ -4862,7 +4922,7 @@ const PersonalizationView = React.memo(({
                       suggestions={onlineUsers}
                       onNavigateToCircles={() => setActiveFeature("Circle")}
                       onNavigateToPages={() => setActiveFeature("Hooks")}
-                      onNavigateToFlicks={() => setActiveFeature("Flicks")}
+                      onNavigateToFlicks={openFlicks}
                       onNavigateToSurveys={() => setActiveFeature("Task")}
                       isAdmin={isAppAdmin}
                       localProfile={{
@@ -4932,7 +4992,7 @@ const PersonalizationView = React.memo(({
                     <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
                       <div className="flex items-center justify-between px-4 pt-3 pb-2">
                         <p className="text-[11px] font-black text-gray-700 uppercase tracking-widest">🎬 Flicks</p>
-                        <button onClick={() => setActiveFeature("Flicks")}
+                        <button onClick={() => openFlicks()}
                           className="text-[10px] font-black text-blue-500 hover:underline">Open all</button>
                       </div>
                       <div className="grid grid-cols-3 gap-0.5 px-3 pb-3">
@@ -4942,7 +5002,7 @@ const PersonalizationView = React.memo(({
                             <div key={post.id}
                               className="relative rounded-lg overflow-hidden cursor-pointer"
                               style={{ aspectRatio: "9/16", background: `linear-gradient(160deg,${GRAD[i%GRAD.length]},#1e1b4b)` }}
-                              onClick={() => setActiveFeature("Flicks")}
+                              onClick={() => openFlicks()}
                             >
                               {post.media_url && <img src={post.media_url} className="w-full h-full object-cover" loading="lazy"  decoding="async"/>}
                             </div>
@@ -5121,7 +5181,7 @@ const PersonalizationView = React.memo(({
               <Suspense fallback={<SectionLoader />}>
               <div className="fixed inset-0 z-[190] bg-black touch-scroll-y" data-reels-feed>
                 <FlicksFeed
-                  onBack={() => setActiveFeature("Fame")}
+                  onBack={handleFlicksBack}
                   initialPostId={flicksStartPostId}
                   isAdmin={isAppAdmin}
                   currentUserId={userId}
@@ -5426,7 +5486,8 @@ const PersonalizationView = React.memo(({
           // Chat 19 lives as a dedicated overlay module (onboarding/radar) —
           // bottom-nav tap opens it directly, never a blank feature screen.
           if (f === "Chat19") { setShowChat19(true); return; }
-          setActiveFeature(f);
+          if (f === "Flicks") openFlicks();
+          else setActiveFeature(f);
           setSettingsView("main");
         }}
       />

@@ -40,7 +40,19 @@ const formatCount = (n: any): string => {
   return String(num);
 };
 
-const SUPPORTED_VIDEO_EXTENSIONS = /\.(mp4|webm)(?:$|[?#])/i;
+const SUPPORTED_VIDEO_EXTENSIONS = /\.(mp4|webm|ogg|mov|m4v)(?:$|[?#])/i;
+type FlickPostMetadata = {
+  mime_type?: unknown;
+  mimeType?: unknown;
+  content_type?: unknown;
+  [key: string]: unknown;
+};
+type FlickPostRow = {
+  id: string;
+  media_url?: string | null;
+  metadata?: FlickPostMetadata | null;
+  created_at?: string | null;
+};
 const FLICKS_POST_PROJECTION =
   "id, author, author_id, content, media_url, image_url, image_urls, type, metadata, cover_url, views_count, likes_count, comments_count, shares_count, meta_title, meta_description, created_at, author_profile:profiles!posts_author_id_fkey(avatar_url, full_name)";
 const FLICKS_POST_PROJECTION_WITH_AUDIO = `${FLICKS_POST_PROJECTION}, audio_url`;
@@ -70,13 +82,16 @@ const isMissingAudioUrlColumn = (error: unknown) => {
   );
 };
 
-const isSupportedVideoUrl = (url: unknown, metadata?: any): boolean => {
+const isSupportedVideoUrl = (
+  url: unknown,
+  metadata?: FlickPostMetadata | null,
+): boolean => {
   if (typeof url !== "string" || !url.trim()) return false;
   const declaredMime = String(
     metadata?.mime_type || metadata?.mimeType || metadata?.content_type || "",
   ).toLowerCase();
-  if (declaredMime === "video/mp4" || declaredMime === "video/webm") return true;
-  return SUPPORTED_VIDEO_EXTENSIONS.test(url);
+  if (declaredMime.startsWith("video/")) return true;
+  return SUPPORTED_VIDEO_EXTENSIONS.test(url) || /rapidcdn/i.test(url);
 };
 
 // ── CSS injection (keyframes for marquee + reel spin, done once) ──────────────
@@ -1271,15 +1286,51 @@ export default function FlicksApp({
             .in("type", ["video", "reel"])
             .order("created_at", { ascending: false })
             .limit(30);
-        let postsResult = await loadPosts(FLICKS_POST_PROJECTION_WITH_AUDIO);
+        let projection = FLICKS_POST_PROJECTION_WITH_AUDIO;
+        let postsResult = await loadPosts(projection);
         if (isMissingAudioUrlColumn(postsResult.error)) {
-          postsResult = await loadPosts(FLICKS_POST_PROJECTION);
+          projection = FLICKS_POST_PROJECTION;
+          postsResult = await loadPosts(projection);
         }
         if (postsResult.error) throw postsResult.error;
-        const rows = postsResult.data || [];
+        const rows: FlickPostRow[] = [...(postsResult.data || [])] as FlickPostRow[];
 
-        const supportedRows = rows.filter((row: any) =>
-          isSupportedVideoUrl(row.media_url, row.metadata),
+        // A FameFeed video can be older than the default 30-reel window. Fetch
+        // that selected post explicitly so the viewer can still open on it.
+        if (initialPostId && !rows.some((row) => row.id === initialPostId)) {
+          const loadSelectedPost = (selectedProjection: string) =>
+            supabase
+              .from("posts")
+              .select(selectedProjection)
+              .eq("id", initialPostId)
+              .maybeSingle();
+          let selectedResult = await loadSelectedPost(projection);
+          if (
+            isMissingAudioUrlColumn(selectedResult.error) &&
+            projection !== FLICKS_POST_PROJECTION
+          ) {
+            projection = FLICKS_POST_PROJECTION;
+            selectedResult = await loadSelectedPost(projection);
+          }
+          if (selectedResult.error) {
+            console.warn(
+              "[Flicks] selected FameFeed video could not be loaded:",
+              selectedResult.error.message,
+            );
+          } else if (selectedResult.data) {
+            rows.push(selectedResult.data as FlickPostRow);
+          }
+        }
+
+        const supportedRows = Array.from(
+          new Map<string, FlickPostRow>(
+            rows
+              .filter((row) => isSupportedVideoUrl(row.media_url, row.metadata))
+              .map((row): [string, FlickPostRow] => [String(row.id), row]),
+          ).values(),
+        ).sort((left, right) =>
+          new Date(right.created_at || 0).getTime() -
+          new Date(left.created_at || 0).getTime(),
         );
         const postIds = supportedRows.map((row: any) => row.id).filter(Boolean);
 
@@ -1499,7 +1550,7 @@ export default function FlicksApp({
       container?.removeEventListener("touchcancel", onTouchCancel);
       window.removeEventListener("flicks-reels-pull-refresh", onRefreshEvent);
     };
-  }, [currentUserIdProp, currentUserEmailProp]);
+  }, [currentUserIdProp, currentUserEmailProp, initialPostId]);
 
   // RAF-throttled scroll → update active index
   const scrollTicking = useRef(false);
