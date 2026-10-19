@@ -2941,14 +2941,14 @@ const SingleReelBlock = ({
         </>
       )}
       <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none" />
-      {/* Tapping the post opens its detail view; this keeps the dedicated
-          full-screen Reels action available as a separate control below. */}
+      {/* The media surface opens the immersive viewer; overlay controls remain
+          independently clickable above it. */}
       <button
         type="button"
-        aria-label="Open post details"
+        aria-label="Open video in full-screen Reels"
         onClick={(event) => {
           event.stopPropagation();
-          onOpenComments();
+          openFullReelsAt(String(post.id));
         }}
         className="absolute inset-0 z-10"
       />
