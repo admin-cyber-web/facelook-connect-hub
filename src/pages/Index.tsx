@@ -112,67 +112,6 @@ const GlassCard = ({ children, className = "", noPadding = false }: any) => (
   </div>
 );
 
-const FUN_CALL_TAGLINE = "Jude fun call se aur anjaane dost banaye";
-
-const FunCallTypewriter = () => {
-  const [visibleLength, setVisibleLength] = useState(0);
-
-  useEffect(() => {
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      setVisibleLength(FUN_CALL_TAGLINE.length);
-      return;
-    }
-
-    let visibleCharacters = 0;
-    let isDeleting = false;
-    let timeout: ReturnType<typeof setTimeout>;
-
-    const step = () => {
-      if (!isDeleting) {
-        visibleCharacters = Math.min(
-          visibleCharacters + 1,
-          FUN_CALL_TAGLINE.length,
-        );
-        setVisibleLength(visibleCharacters);
-        if (visibleCharacters === FUN_CALL_TAGLINE.length) {
-          isDeleting = true;
-          timeout = setTimeout(step, 1500);
-          return;
-        }
-        timeout = setTimeout(step, 65);
-        return;
-      }
-
-      visibleCharacters = Math.max(visibleCharacters - 1, 0);
-      setVisibleLength(visibleCharacters);
-      if (visibleCharacters === 0) {
-        isDeleting = false;
-        timeout = setTimeout(step, 450);
-        return;
-      }
-      timeout = setTimeout(step, 32);
-    };
-
-    timeout = setTimeout(step, 250);
-    return () => clearTimeout(timeout);
-  }, []);
-
-  return (
-    <p className="break-words text-[clamp(13px,3.6vw,16px)] font-black leading-[1.02] text-black">
-      <span className="sr-only">{FUN_CALL_TAGLINE}</span>
-      <span aria-hidden="true">
-        {FUN_CALL_TAGLINE.slice(0, visibleLength)}
-      </span>
-      <span
-        aria-hidden="true"
-        className="ml-0.5 inline-block animate-pulse text-black motion-reduce:animate-none"
-      >
-        ▍
-      </span>
-    </p>
-  );
-};
-
 // ── Suspense fallback for lazy sections ──────────────────────────────────────
 const SectionLoader = () => (
   <div className="w-full flex items-center justify-center py-20">
@@ -4402,7 +4341,7 @@ const PersonalizationView = React.memo(({
                       src="https://res.cloudinary.com/dzlazqbvf/image/upload/v1791806121/fun_call_ori_jxmngl.jpg"
                       alt=""
                       aria-hidden="true"
-                      className="absolute inset-0 h-full w-full select-none object-cover object-center"
+                      className="absolute inset-0 h-full w-full select-none object-cover object-left"
                       decoding="async"
                       draggable={false}
                     />
@@ -4411,13 +4350,16 @@ const PersonalizationView = React.memo(({
                       className="pointer-events-none absolute inset-0 z-10"
                     >
                       <span
-                        className="absolute left-2 top-2 rounded-lg bg-white/90 px-2 py-1 text-[11px] font-black leading-none text-red-600 shadow-sm animate-pulse motion-reduce:animate-none"
+                        className="absolute left-1 top-1 max-w-[32%] whitespace-nowrap rounded-lg bg-white/90 px-0.5 py-1 text-[clamp(5px,1.8vw,9px)] font-black leading-none text-red-600 shadow-sm animate-pulse motion-reduce:animate-none"
                       >
                         Fun Video Call
                       </span>
-                      <div className="absolute bottom-2 left-2 w-[48%]">
-                        <FunCallTypewriter />
-                      </div>
+                      <motion.span
+                        aria-hidden="true"
+                        className="absolute bottom-2 left-1 inline-flex max-w-[32%] items-center justify-center whitespace-nowrap rounded-full border border-white/90 bg-red-600 px-1 py-1 text-[clamp(6px,1.8vw,9px)] font-black leading-none text-white shadow-md animate-bounce motion-reduce:animate-none"
+                      >
+                        Open Now
+                      </motion.span>
                     </div>
                   </motion.button>
 
