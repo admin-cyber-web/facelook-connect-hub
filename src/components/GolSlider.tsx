@@ -1,7 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { KeyboardEvent, PointerEvent } from "react";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, TrendingUp, type LucideIcon } from "lucide-react";
 import "./GolSlider.css";
+
+type StartMenuItem = {
+  label: string;
+  feature: string;
+  emoji?: string;
+  icon?: LucideIcon;
+};
 
 const START_MENU_ITEMS = [
   { label: "Fame Feed", emoji: "🏠", feature: "Fame" },
@@ -10,7 +17,8 @@ const START_MENU_ITEMS = [
   { label: "Flicks", emoji: "🎬", feature: "Flicks" },
   { label: "Surveys", emoji: "📊", feature: "Task" },
   { label: "Quotes Maker", emoji: "💬", feature: "QuotesMaker" },
-] as const;
+  { label: "Studio", icon: TrendingUp, feature: "Studio" },
+] satisfies StartMenuItem[];
 
 const AUTO_CLOSE_MS = 10_000;
 
@@ -170,7 +178,7 @@ const GolSlider = ({
           role="menu"
           aria-label="Start menu"
         >
-          {START_MENU_ITEMS.map(({ label, emoji, feature }) => {
+          {START_MENU_ITEMS.map(({ label, emoji, icon: Icon, feature }) => {
             const isActive = activeFeature === feature;
             return (
               <button
@@ -185,7 +193,7 @@ const GolSlider = ({
                 }}
               >
                 <span className="gol-start-menu__emoji" aria-hidden="true">
-                  {emoji}
+                  {Icon ? <Icon size={16} strokeWidth={2.5} /> : emoji}
                 </span>
                 <span className="gol-start-menu__label">{label}</span>
               </button>

@@ -253,6 +253,12 @@
   --pill-icon: linear-gradient(145deg, #9333ea, #db2777);
 }
 
+.gol-start-menu__item:nth-child(7) {
+  --pill-border: linear-gradient(125deg, #38bdf8, #818cf8 55%, #c084fc);
+  --pill-glow: rgba(129, 140, 248, 0.28);
+  --pill-icon: linear-gradient(145deg, #0284c7, #7c3aed);
+}
+
 .gol-start-menu__item:hover,
 .gol-start-menu__item:focus-visible {
   color: #ffffff;
