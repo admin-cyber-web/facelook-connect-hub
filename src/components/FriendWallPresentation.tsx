@@ -11,6 +11,7 @@ import {
   Share2,
   Video,
 } from "lucide-react";
+import AutoPlayMutedVideo from "@/components/AutoPlayMutedVideo";
 import SavePostButton from "./SavePostButton";
 import { ReactionBar, useDismissableReactionPicker } from "./ReactionBar";
 
@@ -232,14 +233,16 @@ function WallPost({
         <div className="profile-nav-post-media px-3 pb-3 sm:px-4">
           {video ? (
             <div className="overflow-hidden rounded-[1rem] border border-white/10 bg-black/30">
-              <video
-                src={post.mediaUrl ?? undefined}
-                controls
-                playsInline
-                preload="metadata"
-                aria-label={`Video shared by ${post.authorName}`}
-                className="max-h-[26rem] w-full bg-black object-contain"
-              />
+              {post.mediaUrl && (
+                <AutoPlayMutedVideo
+                  src={post.mediaUrl}
+                  controls
+                  passThroughClicks={false}
+                  ariaLabel={`Video shared by ${post.authorName}`}
+                  className="max-h-[26rem] w-full bg-black object-contain"
+                  preload="none"
+                />
+              )}
             </div>
           ) : (
             <div

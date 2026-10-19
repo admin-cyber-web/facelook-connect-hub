@@ -4,6 +4,9 @@ interface Props {
   src: string;
   className?: string;
   poster?: string;
+  ariaLabel?: string;
+  controls?: boolean;
+  preload?: "none" | "metadata" | "auto";
   /** When true, parent's onClick still fires (default).  */
   passThroughClicks?: boolean;
 }
@@ -15,7 +18,15 @@ interface Props {
  *   • pointer-events: none so the parent card's onClick (which opens the
  *     full Flicks player WITH sound) always wins
  */
-export default function AutoPlayMutedVideo({ src, className, poster, passThroughClicks = true }: Props) {
+export default function AutoPlayMutedVideo({
+  src,
+  className,
+  poster,
+  ariaLabel,
+  controls = false,
+  preload = "metadata",
+  passThroughClicks = true,
+}: Props) {
   const ref = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
@@ -23,21 +34,32 @@ export default function AutoPlayMutedVideo({ src, className, poster, passThrough
     if (!el) return;
     el.muted = true;
     const io = new IntersectionObserver(
-      ([entry]) => {
-        const v = ref.current;
-        if (!v) return;
-        if (entry.isIntersecting) {
-          v.muted = true;
-          const p = v.play();
-          if (p && typeof (p as any).catch === "function") (p as Promise<void>).catch(() => {});
+      (entries) => {
+        const entry = entries[0];
+        const video = ref.current;
+        if (!entry || !video) return;
+        const shouldPlay =
+          entry.isIntersecting && entry.intersectionRatio >= 0.4;
+        if (shouldPlay) {
+          video.muted = true;
+          void video.play().catch(() => {
+            if (!video.isConnected || ref.current !== video) return;
+            video.muted = true;
+            void video.play().catch(() => {});
+          });
         } else {
-          v.pause();
+          video.pause();
+          video.muted = true;
         }
       },
-      { threshold: 0.35 },
+      { threshold: [0, 0.4] },
     );
     io.observe(el);
-    return () => io.disconnect();
+    return () => {
+      io.disconnect();
+      el.pause();
+      el.muted = true;
+    };
   }, [src]);
 
   return (
@@ -46,10 +68,12 @@ export default function AutoPlayMutedVideo({ src, className, poster, passThrough
       src={src}
       poster={poster}
       className={className}
+      aria-label={ariaLabel}
+      controls={controls}
       muted
       loop
       playsInline
-      preload="metadata"
+      preload={preload}
       style={passThroughClicks ? { pointerEvents: "none" } : undefined}
     />
   );

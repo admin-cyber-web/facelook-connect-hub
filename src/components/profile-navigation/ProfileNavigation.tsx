@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import AutoPlayMutedVideo from "@/components/AutoPlayMutedVideo";
 import {
   ArrowLeft,
   ArrowRight,
@@ -438,13 +439,13 @@ function MediaGallery({
             return (
               <div className="profile-nav-media" key={item.id} data-testid={`media-profile-${item.id}`}>
                 {isVideo ? (
-                  <video
+                  <AutoPlayMutedVideo
                     src={item.url}
                     poster={item.preview_url || undefined}
-                    preload="metadata"
-                    playsInline
                     controls
-                    aria-label="Video from timeline"
+                    ariaLabel="Video from timeline"
+                    preload="none"
+                    passThroughClicks={false}
                   />
                 ) : (
                   <img
@@ -641,15 +642,17 @@ function HooksSection({ posts }: { posts: ProfileNavigationPost[] }) {
               className="profile-nav-hook-card"
               data-testid={`card-profile-hook-${post.id}`}
             >
-              <video
-                src={post.media_url || undefined}
-                poster={post.cover_url || post.image_url || undefined}
-                controls
-                playsInline
-                preload="metadata"
-                aria-label="Short video from timeline"
-                className="profile-nav-hook-video"
-              />
+              {post.media_url && (
+                <AutoPlayMutedVideo
+                  src={post.media_url}
+                  poster={post.cover_url || post.image_url || undefined}
+                  controls
+                  ariaLabel="Short video from timeline"
+                  className="profile-nav-hook-video"
+                  preload="none"
+                  passThroughClicks={false}
+                />
+              )}
               <div className="profile-nav-hook-save">
                 <SavePostButton postId={post.id} className="profile-nav-save-button" />
               </div>
