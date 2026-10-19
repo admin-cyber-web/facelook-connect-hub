@@ -5261,7 +5261,7 @@ const PersonalizationView = React.memo(({
             {activeFeature === "Studio" && (
               <ErrorBoundary>
               <Suspense fallback={<SectionLoader />}>
-                <FlicksStudio userId={userId} />
+                <FlicksStudio userId={userId} userEmail={userEmail} />
               </Suspense>
               </ErrorBoundary>
             )}
