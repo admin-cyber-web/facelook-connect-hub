@@ -187,7 +187,7 @@ const GolSlider = ({
                 <span className="gol-start-menu__emoji" aria-hidden="true">
                   {emoji}
                 </span>
-                <span>{label}</span>
+                <span className="gol-start-menu__label">{label}</span>
               </button>
             );
           })}
