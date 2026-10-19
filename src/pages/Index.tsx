@@ -4354,6 +4354,9 @@ const PersonalizationView = React.memo(({
                       >
                         Fun Video Call
                       </span>
+                      <span className="absolute bottom-[30px] left-1 w-[32%] break-words text-center text-[clamp(6px,1.8vw,9px)] font-black leading-tight text-black">
+                        रैंडम वीडियो कॉल
+                      </span>
                       <motion.span
                         aria-hidden="true"
                         className="absolute bottom-2 left-1 inline-flex max-w-[32%] items-center justify-center whitespace-nowrap rounded-full border border-white/90 bg-red-600 px-1 py-1 text-[clamp(6px,1.8vw,9px)] font-black leading-none text-white shadow-md animate-bounce motion-reduce:animate-none"
