@@ -1,0 +1,128 @@
+.gol-start-dock--neon .gol-start-menu {
+  z-index: 60;
+  display: flex;
+  width: min(330px, calc(100vw - 24px));
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 26px;
+  background: rgba(7, 12, 27, 0.2);
+  box-shadow:
+    0 18px 42px rgba(0, 0, 0, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  -webkit-backdrop-filter: blur(7px) saturate(145%);
+  backdrop-filter: blur(7px) saturate(145%);
+}
+
+.gol-start-dock--neon .gol-start-menu__item {
+  position: relative;
+  display: flex;
+  width: 100%;
+  min-height: 48px;
+  align-items: center;
+  gap: 11px;
+  padding: 6px 14px 6px 6px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background:
+    linear-gradient(110deg, var(--item-fill-a), var(--item-fill-b)) padding-box,
+    linear-gradient(105deg, var(--item-a), var(--item-b)) border-box;
+  box-shadow:
+    0 0 15px var(--item-glow),
+    inset 0 1px 0 rgba(255, 255, 255, 0.13);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 800;
+  transition:
+    transform 180ms ease,
+    filter 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.gol-start-dock--neon .gol-start-menu__item--cyan {
+  --item-a: #22d3ee;
+  --item-b: #3b82f6;
+  --item-fill-a: rgba(34, 211, 238, 0.18);
+  --item-fill-b: rgba(59, 130, 246, 0.08);
+  --item-glow: rgba(34, 211, 238, 0.22);
+}
+
+.gol-start-dock--neon .gol-start-menu__item--pink {
+  --item-a: #f472b6;
+  --item-b: #c084fc;
+  --item-fill-a: rgba(244, 114, 182, 0.18);
+  --item-fill-b: rgba(192, 132, 252, 0.08);
+  --item-glow: rgba(244, 114, 182, 0.22);
+}
+
+.gol-start-dock--neon .gol-start-menu__item--red {
+  --item-a: #fb7185;
+  --item-b: #ef4444;
+  --item-fill-a: rgba(251, 113, 133, 0.18);
+  --item-fill-b: rgba(239, 68, 68, 0.08);
+  --item-glow: rgba(239, 68, 68, 0.2);
+}
+
+.gol-start-dock--neon .gol-start-menu__item--orange {
+  --item-a: #fb923c;
+  --item-b: #facc15;
+  --item-fill-a: rgba(251, 146, 60, 0.19);
+  --item-fill-b: rgba(250, 204, 21, 0.08);
+  --item-glow: rgba(251, 146, 60, 0.2);
+}
+
+.gol-start-dock--neon .gol-start-menu__item--purple {
+  --item-a: #a78bfa;
+  --item-b: #d946ef;
+  --item-fill-a: rgba(167, 139, 250, 0.18);
+  --item-fill-b: rgba(217, 70, 239, 0.08);
+  --item-glow: rgba(192, 132, 252, 0.22);
+}
+
+.gol-start-dock--neon .gol-start-menu__item:hover,
+.gol-start-dock--neon .gol-start-menu__item:focus-visible,
+.gol-start-dock--neon .gol-start-menu__item.is-active {
+  filter: brightness(1.16);
+  box-shadow:
+    0 0 22px var(--item-glow),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.gol-start-dock--neon .gol-start-menu__item:hover {
+  transform: translateY(-1px);
+}
+
+.gol-start-dock--neon .gol-start-menu__item:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.92);
+  outline-offset: 2px;
+}
+
+.gol-start-dock--neon .gol-start-menu__icon {
+  display: inline-flex;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.66);
+  border-radius: 50%;
+  background: linear-gradient(140deg, var(--item-a), var(--item-b));
+  box-shadow: 0 0 14px var(--item-glow);
+  color: #08111f;
+  font-size: 17px;
+}
+
+.gol-start-dock--neon .gol-start-menu__label {
+  color: #fff;
+  font-size: 14px;
+  font-weight: 850;
+  line-height: 1.1;
+  text-shadow: 0 1px 5px rgba(0, 0, 0, 0.44);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gol-start-dock--neon .gol-start-menu__item {
+    transition: none;
+  }
+}
