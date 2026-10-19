@@ -241,6 +241,7 @@ function WallPost({
                   ariaLabel={`Video shared by ${post.authorName}`}
                   className="max-h-[26rem] w-full bg-black object-contain"
                   preload="none"
+                  autoplayWithSound
                 />
               )}
             </div>

@@ -2,6 +2,10 @@ import { useEffect, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import AutoPlayMutedVideo from "@/components/AutoPlayMutedVideo";
 import {
+  ProfileTimelineAudioProvider,
+  ProfileTimelineSoundControl,
+} from "./ProfileTimelineAudio";
+import {
   ArrowLeft,
   ArrowRight,
   Camera,
@@ -445,6 +449,7 @@ function MediaGallery({
                     controls
                     ariaLabel="Video from timeline"
                     preload="none"
+                    autoplayWithSound
                     passThroughClicks={false}
                   />
                 ) : (
@@ -650,6 +655,7 @@ function HooksSection({ posts }: { posts: ProfileNavigationPost[] }) {
                   ariaLabel="Short video from timeline"
                   className="profile-nav-hook-video"
                   preload="none"
+                  autoplayWithSound
                   passThroughClicks={false}
                 />
               )}
@@ -845,49 +851,54 @@ export function FullProfilePage({
     : profile;
 
   return (
-    <main className="profile-nav profile-nav-page">
-      <div className="profile-nav-shell">
-        <ProfileHeader
-          profile={visibleProfile}
-          friends={friends}
-          isConnected={isConnected}
-          canViewProfile={canViewProfile}
-          isOwnProfile={isOwnProfile}
-          isCoverUploading={isCoverUploading}
-          onMessage={onMessage}
-          onBack={onBack}
-          onEditCover={onEditCover}
-          onFriendSelect={onFriendSelect}
-          onSendFriendRequest={onSendFriendRequest}
-          sendingFriendIds={sendingFriendIds}
-        />
-        {restricted ? (
-          <RestrictedProfile profile={profile} />
-        ) : (
-          <div className="profile-nav-layout">
-            <div className="profile-nav-wall" data-testid="region-profile-timeline">
-              {friendWall}
-            </div>
-            <aside className="profile-nav-rail" aria-label={`${profile.full_name} profile details`}>
-              <HooksSection posts={hooks} />
-              <ImagePostsSection posts={imagePosts} />
-              <MediaGallery
-                media={media}
-                hasMoreMedia={hasMoreMedia}
-                isLoadingMoreMedia={isLoadingMoreMedia}
-                onLoadMoreMedia={onLoadMoreMedia}
-              />
-              <FriendsList
-                friends={friends}
-                onFriendSelect={onFriendSelect}
-                onSendFriendRequest={onSendFriendRequest}
-                sendingFriendIds={sendingFriendIds}
-              />
-            </aside>
-          </div>
-        )}
-      </div>
-    </main>
+    <ProfileTimelineAudioProvider>
+      <main className="profile-nav profile-nav-page">
+        <div className="profile-nav-shell">
+          <ProfileHeader
+            profile={visibleProfile}
+            friends={friends}
+            isConnected={isConnected}
+            canViewProfile={canViewProfile}
+            isOwnProfile={isOwnProfile}
+            isCoverUploading={isCoverUploading}
+            onMessage={onMessage}
+            onBack={onBack}
+            onEditCover={onEditCover}
+            onFriendSelect={onFriendSelect}
+            onSendFriendRequest={onSendFriendRequest}
+            sendingFriendIds={sendingFriendIds}
+          />
+          {restricted ? (
+            <RestrictedProfile profile={profile} />
+          ) : (
+            <>
+              <ProfileTimelineSoundControl />
+              <div className="profile-nav-layout">
+                <div className="profile-nav-wall" data-testid="region-profile-timeline">
+                  {friendWall}
+                </div>
+                <aside className="profile-nav-rail" aria-label={`${profile.full_name} profile details`}>
+                  <HooksSection posts={hooks} />
+                  <ImagePostsSection posts={imagePosts} />
+                  <MediaGallery
+                    media={media}
+                    hasMoreMedia={hasMoreMedia}
+                    isLoadingMoreMedia={isLoadingMoreMedia}
+                    onLoadMoreMedia={onLoadMoreMedia}
+                  />
+                  <FriendsList
+                    friends={friends}
+                    onFriendSelect={onFriendSelect}
+                    onSendFriendRequest={onSendFriendRequest}
+                    sendingFriendIds={sendingFriendIds}
+                  />
+                </aside>
+              </div>
+            </>
+          )}
+        </div>
+      </main>
+    </ProfileTimelineAudioProvider>
   );
 }
 

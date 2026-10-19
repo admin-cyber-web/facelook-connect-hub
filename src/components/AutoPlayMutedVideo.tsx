@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { useProfileTimelineAudio } from "@/components/profile-navigation/ProfileTimelineAudio";
 
 interface Props {
   src: string;
@@ -7,13 +8,15 @@ interface Props {
   ariaLabel?: string;
   controls?: boolean;
   preload?: "none" | "metadata" | "auto";
+  autoplayWithSound?: boolean;
   /** When true, parent's onClick still fires (default).  */
   passThroughClicks?: boolean;
 }
 
 /**
- * FB-style auto-play video tile:
- *   • muted while in viewport, plays silently
+ * Auto-play video tile:
+ *   • profile videos attempt audible playback while in viewport
+ *   • other feed tiles remain muted
  *   • pauses when scrolled away
  *   • pointer-events: none so the parent card's onClick (which opens the
  *     full Flicks player WITH sound) always wins
@@ -25,14 +28,20 @@ export default function AutoPlayMutedVideo({
   ariaLabel,
   controls = false,
   preload = "metadata",
+  autoplayWithSound = false,
   passThroughClicks = true,
 }: Props) {
   const ref = useRef<HTMLVideoElement>(null);
+  const profileAudio = useProfileTimelineAudio();
+  const profileAudioRef = useRef(profileAudio);
+  profileAudioRef.current = profileAudio;
 
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    el.muted = true;
+    const audio = autoplayWithSound ? profileAudioRef.current : null;
+    const unregister = audio?.registerVideo(el);
+    if (!audio) el.muted = true;
     const io = new IntersectionObserver(
       (entries) => {
         const entry = entries[0];
@@ -40,6 +49,11 @@ export default function AutoPlayMutedVideo({
         if (!entry || !video) return;
         const shouldPlay =
           entry.isIntersecting && entry.intersectionRatio >= 0.4;
+        const activeAudio = autoplayWithSound ? profileAudioRef.current : null;
+        if (activeAudio) {
+          activeAudio.setVideoVisible(video, shouldPlay);
+          return;
+        }
         if (shouldPlay) {
           video.muted = true;
           void video.play().catch(() => {
@@ -57,10 +71,14 @@ export default function AutoPlayMutedVideo({
     io.observe(el);
     return () => {
       io.disconnect();
-      el.pause();
-      el.muted = true;
+      if (unregister) {
+        unregister();
+      } else {
+        el.pause();
+        el.muted = true;
+      }
     };
-  }, [src]);
+  }, [src, autoplayWithSound]);
 
   return (
     <video
@@ -70,7 +88,7 @@ export default function AutoPlayMutedVideo({
       className={className}
       aria-label={ariaLabel}
       controls={controls}
-      muted
+      muted={!autoplayWithSound || !profileAudio}
       loop
       playsInline
       preload={preload}
