@@ -1,9 +1,12 @@
-import { useState, useEffect } from "react";
+import { useCallback, useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { Loader2, RefreshCw } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
+import { isAdminEmail } from "@/lib/adminConfig";
 
 interface FlicksStudioProps {
   userId: string | null;
+  userEmail?: string | null;
 }
 
 interface CreatorProfile {
@@ -28,6 +31,13 @@ const GOLD = "#F59E0B";
 const DARK = "#0f0f13";
 const CARD = "#18181f";
 const CARD2 = "#1e1e27";
+const SUPABASE_USER_ID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function normalizeUserId(value: string | null | undefined) {
+  const normalized = value?.trim() ?? "";
+  return SUPABASE_USER_ID_PATTERN.test(normalized) ? normalized : null;
+}
 
 const CONTENT_CATEGORIES = [
   "Shorts / Reels", "Tech", "Gaming", "Comedy",
@@ -91,9 +101,18 @@ function ErrMsg({ msg }: { msg?: string }) {
   return <p className="text-[10px] mt-0.5" style={{ color: RED }}>{msg}</p>;
 }
 
-export default function FlicksStudio({ userId }: FlicksStudioProps) {
+export default function FlicksStudio({ userId, userEmail }: FlicksStudioProps) {
   const [profile, setProfile] = useState<CreatorProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [authState, setAuthState] = useState<
+    "loading" | "authenticated" | "signed-out" | "error"
+  >("loading");
+  const [authenticatedUserId, setAuthenticatedUserId] = useState<string | null>(null);
+  const [authenticatedEmail, setAuthenticatedEmail] = useState<string | null>(null);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [profileError, setProfileError] = useState<string | null>(null);
+  const [retryKey, setRetryKey] = useState(0);
+  const isStudioAdmin = isAdminEmail(authenticatedEmail);
 
   /* ── Join form (State 1 → State 2) ── */
   const [showJoinModal, setShowJoinModal] = useState(false);
@@ -127,29 +146,31 @@ export default function FlicksStudio({ userId }: FlicksStudioProps) {
   /* ── Creator ID copy ── */
   const [copiedId, setCopiedId] = useState(false);
 
-  useEffect(() => {
-    if (!userId) { setLoading(false); return; }
-    fetchProfile();
-  }, [userId]);
+  const fetchProfile = useCallback(
+    async (profileUserId: string, isCurrent: () => boolean = () => true) => {
+      if (!normalizeUserId(profileUserId)) {
+        if (isCurrent()) {
+          setProfileError("We couldn't verify the profile ID. Please retry.");
+          setLoading(false);
+        }
+        return;
+      }
 
-  useEffect(() => {
-    const id = setInterval(() => setTitleIndex(i => (i + 1) % TITLES.length), 2500);
-    return () => clearInterval(id);
-  }, []);
+      setLoading(true);
+      setProfileError(null);
+      try {
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("id, full_name, avatar_url, is_official_creator, creator_id, total_posts_count, total_likes_received, followers_count, creator_email, creator_mobile, creator_city, creator_address, creator_pin, creator_category")
+          .eq("id", profileUserId)
+          .maybeSingle();
+        if (error) throw error;
+        if (!data) throw new Error("No profile row exists for the authenticated user.");
+        if (!isCurrent()) return;
 
-  async function fetchProfile() {
-    if (!userId) return;
-    setLoading(true);
-    try {
-      const { data } = await supabase
-        .from("profiles")
-        .select("id, full_name, avatar_url, is_official_creator, creator_id, total_posts_count, total_likes_received, followers_count, creator_email, creator_mobile, creator_city, creator_address, creator_pin, creator_category")
-        .eq("id", userId)
-        .single();
-      if (data) {
         setProfile({
           ...data,
-          is_official_creator: data.is_official_creator ?? false,
+          is_official_creator: data.is_official_creator === true,
           creator_id: data.creator_id ?? null,
           total_posts_count: data.total_posts_count ?? 0,
           total_likes_received: data.total_likes_received ?? 0,
@@ -161,10 +182,79 @@ export default function FlicksStudio({ userId }: FlicksStudioProps) {
           creator_pin: data.creator_pin ?? null,
           creator_category: data.creator_category ?? null,
         });
+      } catch (error) {
+        console.warn("[FlicksStudio] profile load failed:", error);
+        if (isCurrent()) {
+          setProfile(null);
+          setProfileError(
+            "Your account is signed in, but its Creator Studio profile couldn't be loaded.",
+          );
+        }
+      } finally {
+        if (isCurrent()) setLoading(false);
       }
-    } catch (e) { console.warn("[FlicksStudio] fetchProfile:", e); }
-    finally { setLoading(false); }
-  }
+    },
+    [],
+  );
+
+  useEffect(() => {
+    let isCurrent = true;
+    setAuthState("loading");
+    setAuthenticatedUserId(null);
+    setAuthenticatedEmail(null);
+    setAuthError(null);
+    setProfileError(null);
+    setProfile(null);
+    setLoading(true);
+
+    const resolveSession = async () => {
+      let sessionUser:
+        | { id: string; email?: string | null }
+        | null = null;
+      try {
+        const { data, error } = await supabase.auth.getSession();
+        if (error) throw error;
+        sessionUser = data.session?.user ?? null;
+      } catch (error) {
+        console.warn("[FlicksStudio] session check failed:", error);
+        if (!normalizeUserId(userId)) {
+          if (isCurrent) {
+            setAuthState("error");
+            setAuthError("We couldn't verify your sign-in session. Please retry.");
+            setLoading(false);
+          }
+          return;
+        }
+      }
+
+      if (!isCurrent) return;
+      const resolvedUserId =
+        normalizeUserId(sessionUser?.id) ?? normalizeUserId(userId);
+      const resolvedEmail =
+        sessionUser?.email?.trim() || userEmail?.trim() || null;
+
+      if (!resolvedUserId) {
+        setAuthState("signed-out");
+        setLoading(false);
+        return;
+      }
+
+      setAuthenticatedUserId(resolvedUserId);
+      setAuthenticatedEmail(resolvedEmail);
+      setAuthState("authenticated");
+      void fetchProfile(resolvedUserId, () => isCurrent);
+    };
+
+    void resolveSession();
+    return () => {
+      isCurrent = false;
+    };
+  }, [userId, userEmail, retryKey, fetchProfile]);
+
+  useEffect(() => {
+    const id = setInterval(() => setTitleIndex(i => (i + 1) % TITLES.length), 2500);
+    return () => clearInterval(id);
+  }, []);
 
   /* ── Validation helpers ── */
   function validateCreatorFields(f: { gmail: string; mobile: string; city: string; address: string; pinCode: string; category: string }) {
@@ -183,7 +273,7 @@ export default function FlicksStudio({ userId }: FlicksStudioProps) {
     ev.preventDefault();
     const errs = { ...validateCreatorFields(joinForm), ...(!joinForm.fullName.trim() ? { fullName: "Full name required" } : {}) };
     setJoinErrors(errs);
-    if (Object.keys(errs).length || !userId) return;
+    if (Object.keys(errs).length || !authenticatedUserId) return;
     setJoining(true);
     try {
       const newId = generateCreatorId();
@@ -193,10 +283,10 @@ export default function FlicksStudio({ userId }: FlicksStudioProps) {
         creator_email: joinForm.gmail.trim(), creator_mobile: joinForm.mobile.trim(),
         creator_city: joinForm.city.trim(), creator_address: joinForm.address.trim(),
         creator_pin: joinForm.pinCode.trim(), creator_category: joinForm.category,
-      }).eq("id", userId);
+      }).eq("id", authenticatedUserId);
       setShowJoinModal(false);
       setJoinForm({ fullName: "", gmail: "", mobile: "", city: "", address: "", pinCode: "", category: "" });
-      await fetchProfile();
+      await fetchProfile(authenticatedUserId);
     } catch (e) { console.warn("[FlicksStudio] join:", e); }
     finally { setJoining(false); }
   }
@@ -216,27 +306,27 @@ export default function FlicksStudio({ userId }: FlicksStudioProps) {
     ev.preventDefault();
     const errs = validateCreatorFields(editForm);
     setEditErrors(errs);
-    if (Object.keys(errs).length || !userId) return;
+    if (Object.keys(errs).length || !authenticatedUserId) return;
     setEditSaving(true);
     try {
       await supabase.from("profiles").update({
         creator_email: editForm.gmail.trim(), creator_mobile: editForm.mobile.trim(),
         creator_city: editForm.city.trim(), creator_address: editForm.address.trim(),
         creator_pin: editForm.pinCode.trim(), creator_category: editForm.category,
-      }).eq("id", userId);
+      }).eq("id", authenticatedUserId);
       setShowEditModal(false);
-      await fetchProfile();
+      await fetchProfile(authenticatedUserId);
     } catch (e) { console.warn("[FlicksStudio] edit:", e); }
     finally { setEditSaving(false); }
   }
 
   async function handleNameChangeSubmit(ev: React.FormEvent) {
     ev.preventDefault();
-    if (!ncForm.requestedName.trim() || !ncForm.reason.trim() || !userId || !profile) return;
+    if (!ncForm.requestedName.trim() || !ncForm.reason.trim() || !authenticatedUserId || !profile) return;
     setNcSubmitting(true);
     try {
       await supabase.from("name_change_requests").insert({
-        profile_id: userId,
+        profile_id: authenticatedUserId,
         current_name: profile.full_name || "",
         requested_name: ncForm.requestedName.trim(),
         reason: ncForm.reason.trim(),
@@ -286,15 +376,47 @@ export default function FlicksStudio({ userId }: FlicksStudioProps) {
   };
 
   /* ── Guards ── */
-  if (loading) return (
-    <div className="w-full min-h-screen flex items-center justify-center" style={{ background: DARK }}>
-      <div className="w-8 h-8 rounded-full border-2 border-red-500 border-t-transparent animate-spin" />
+  if (authState === "loading" || loading) return (
+    <div className="w-full min-h-screen px-4 py-10" style={{ background: DARK }}>
+      <div className="mx-auto w-full max-w-2xl">
+        <div role="status" aria-live="polite" className="mb-5 flex items-center gap-2 text-sm font-bold text-white/70">
+          <Loader2 size={18} className="animate-spin text-red-400" aria-hidden="true" />
+          <span>Loading Creator Studio…</span>
+        </div>
+        <div aria-hidden="true" className="animate-pulse space-y-4">
+          <div className="h-36 rounded-3xl bg-white/[0.06]" />
+          <div className="h-48 rounded-3xl bg-white/[0.06]" />
+          <div className="grid grid-cols-3 gap-3">
+            <div className="h-24 rounded-2xl bg-white/[0.06]" />
+            <div className="h-24 rounded-2xl bg-white/[0.06]" />
+            <div className="h-24 rounded-2xl bg-white/[0.06]" />
+          </div>
+        </div>
+      </div>
     </div>
   );
 
-  if (!userId || !profile) return (
+  if (authState === "signed-out") return (
     <div className="w-full min-h-screen flex items-center justify-center p-6" style={{ background: DARK }}>
       <p className="text-white/40 text-center text-sm">Sign in to access Flicks Studio.</p>
+    </div>
+  );
+
+  if (authState === "error" || profileError || !authenticatedUserId || !profile) return (
+    <div className="w-full min-h-screen flex items-center justify-center p-6" style={{ background: DARK }}>
+      <div className="max-w-sm text-center" role="alert">
+        <p className="text-white/65 text-sm leading-relaxed">
+          {authError || profileError || "Your Creator Studio profile is unavailable right now."}
+        </p>
+        <button
+          type="button"
+          onClick={() => setRetryKey((key) => key + 1)}
+          className="mt-5 inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] px-4 text-xs font-bold text-white/80 transition-colors hover:bg-white/10"
+        >
+          <RefreshCw size={14} aria-hidden="true" />
+          Retry
+        </button>
+      </div>
     </div>
   );
 
@@ -392,7 +514,7 @@ export default function FlicksStudio({ userId }: FlicksStudioProps) {
   );
 
   /* ══════════════ STATE 1: NORMAL USER GATEWAY ══════════════ */
-  if (!profile.is_official_creator) {
+  if (!profile.is_official_creator && !isStudioAdmin) {
     return (
       <div className="w-full min-h-screen pb-32" style={{ background: DARK }}>
         <div className="relative w-full overflow-hidden flex flex-col items-center justify-center px-6 py-16 text-center"
