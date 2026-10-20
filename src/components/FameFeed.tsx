@@ -299,23 +299,24 @@ const FeedVideo = memo(({ src }: { src: string }) => {
     if (!el) return;
     const obs = new IntersectionObserver(
       ([entry]) => {
-        if (!ref.current) return;
         if (entry.isIntersecting) {
-          ref.current.muted = true;
-          ref.current.play().catch(() => {
-            if (ref.current) {
-              ref.current.muted = true;
-              ref.current.play().catch(() => {});
-            }
+          el.muted = true;
+          void el.play().catch(() => {
+            if (!el.isConnected) return;
+            el.muted = true;
+            void el.play().catch(() => {});
           });
         } else {
-          ref.current.pause();
+          el.pause();
         }
       },
       { threshold: 0.4 },
     );
     obs.observe(el);
-    return () => obs.disconnect();
+    return () => {
+      obs.disconnect();
+      el.pause();
+    };
   }, [src]);
   return (
     <div
@@ -332,6 +333,54 @@ const FeedVideo = memo(({ src }: { src: string }) => {
         style={{ touchAction: "pan-y" }}
        preload="none"/>
     </div>
+  );
+});
+
+const FeedPreviewVideo = memo(({ src }: { src: string }) => {
+  const ref = useRef<HTMLVideoElement>(null);
+  const inViewportRef = useRef(false);
+
+  useEffect(() => {
+    const video = ref.current;
+    if (!video) return;
+
+    const syncPlayback = () => {
+      if (document.hidden || !inViewportRef.current) {
+        video.pause();
+        return;
+      }
+      video.muted = true;
+      void video.play().catch(() => {});
+    };
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        inViewportRef.current =
+          entry.isIntersecting && entry.intersectionRatio >= 0.1;
+        syncPlayback();
+      },
+      { threshold: [0, 0.1] },
+    );
+    observer.observe(video);
+    document.addEventListener("visibilitychange", syncPlayback);
+
+    return () => {
+      observer.disconnect();
+      document.removeEventListener("visibilitychange", syncPlayback);
+      video.pause();
+    };
+  }, [src]);
+
+  return (
+    <video
+      ref={ref}
+      src={src}
+      muted
+      loop
+      playsInline
+      preload="none"
+      className="absolute inset-0 h-full w-full object-cover"
+      style={{ opacity: 0.85 }}
+    />
   );
 });
 
@@ -2007,17 +2056,25 @@ const syncCenteredFameFeedReel = () => {
 
 let fameReelSyncFrame = 0;
 const scheduleCenteredFameFeedReelSync = () => {
-  if (fameReelSyncFrame) return;
+  if (document.hidden || visibleFameFeedReels.size === 0 || fameReelSyncFrame) return;
   fameReelSyncFrame = window.requestAnimationFrame(() => {
     fameReelSyncFrame = 0;
+    if (document.hidden) return;
     syncCenteredFameFeedReel();
   });
 };
-if (typeof window !== "undefined") {
-  window.addEventListener("scroll", scheduleCenteredFameFeedReelSync, { passive: true });
-  window.addEventListener("resize", scheduleCenteredFameFeedReelSync, { passive: true });
-}
-
+const cancelCenteredFameFeedReelSync = () => {
+  if (!fameReelSyncFrame) return;
+  window.cancelAnimationFrame(fameReelSyncFrame);
+  fameReelSyncFrame = 0;
+};
+const handleFameFeedVisibilityChange = () => {
+  if (document.hidden) {
+    cancelCenteredFameFeedReelSync();
+    return;
+  }
+  scheduleCenteredFameFeedReelSync();
+};
 const FeedReelComments = ({
   post,
   comments,
@@ -3531,6 +3588,31 @@ const FameFeed = ({
   const { openProfile } = useProfileViewer();
   const { playPop, playSwoosh } = useSoundEffects();
   const dataCache = useDataCache();
+
+  useEffect(() => {
+    const onScroll = scheduleCenteredFameFeedReelSync;
+    const onResize = scheduleCenteredFameFeedReelSync;
+    const onTouch = scheduleCenteredFameFeedReelSync;
+    const onPointer = scheduleCenteredFameFeedReelSync;
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onResize, { passive: true });
+    window.addEventListener("touchstart", onTouch, { passive: true });
+    window.addEventListener("pointerdown", onPointer, { passive: true });
+    document.addEventListener("visibilitychange", handleFameFeedVisibilityChange);
+
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onResize);
+      window.removeEventListener("touchstart", onTouch);
+      window.removeEventListener("pointerdown", onPointer);
+      document.removeEventListener(
+        "visibilitychange",
+        handleFameFeedVisibilityChange,
+      );
+      cancelCenteredFameFeedReelSync();
+    };
+  }, []);
+
   const cachedPosts = dataCache.cacheRef.current.famePosts;
   const cachedFlicks = dataCache.cacheRef.current.fameFlicks;
   const [posts, setPosts] = useState<any[]>(() =>
@@ -6490,15 +6572,7 @@ const FameFeed = ({
                           style={{ background: "rgba(139,92,246,0.15)", border: "1px solid rgba(139,92,246,0.25)", minWidth: 32 }}>
                           {ecoItem.is_video && ecoItem.media_url ? (
                             <>
-                              <video
-                                src={ecoItem.media_url}
-                                autoPlay
-                                muted
-                                loop
-                                playsInline
-                                className="w-full h-full object-cover absolute inset-0"
-                                style={{ opacity: 0.85 }}
-                              />
+                              <FeedPreviewVideo src={ecoItem.media_url} />
                               <div className="absolute inset-0 flex items-center justify-center">
                                 <Play size={9} className="text-white drop-shadow" style={{ opacity: 0.9 }} />
                               </div>

@@ -405,7 +405,8 @@ export default function VibeEffectCanvas({ active, vibeTag }: VibeEffectCanvasPr
     let frameId = 0;
     let lastFrameAt = 0;
     let stopped = false;
-    const startedAt = performance.now();
+    let startedAt = performance.now();
+    let hiddenAt: number | null = document.hidden ? startedAt : null;
     const pixelRatio = Math.min(window.devicePixelRatio || 1, 1.5);
 
     const resize = () => {
@@ -427,9 +428,11 @@ export default function VibeEffectCanvas({ active, vibeTag }: VibeEffectCanvasPr
     if (!observer) window.addEventListener("resize", resize);
 
     const render = (timestamp: number) => {
+      frameId = 0;
       if (stopped) return;
+      if (document.hidden) return;
       if (timestamp - lastFrameAt < 1000 / 30) {
-        frameId = requestAnimationFrame(render);
+        scheduleFrame();
         return;
       }
       lastFrameAt = timestamp;
@@ -449,13 +452,33 @@ export default function VibeEffectCanvas({ active, vibeTag }: VibeEffectCanvasPr
       } else {
         drawFireworks(context, width, height, elapsed, bursts, particles, smokePuffs);
       }
-      frameId = requestAnimationFrame(render);
+      scheduleFrame();
     };
 
-    frameId = requestAnimationFrame(render);
+    const scheduleFrame = () => {
+      if (stopped || document.hidden || frameId) return;
+      frameId = requestAnimationFrame(render);
+    };
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        hiddenAt = performance.now();
+        if (frameId) cancelAnimationFrame(frameId);
+        frameId = 0;
+        return;
+      }
+      if (hiddenAt !== null) {
+        startedAt += performance.now() - hiddenAt;
+        hiddenAt = null;
+      }
+      lastFrameAt = 0;
+      scheduleFrame();
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    scheduleFrame();
     return () => {
       stopped = true;
       cancelAnimationFrame(frameId);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
       observer?.disconnect();
       if (!observer) window.removeEventListener("resize", resize);
       context.clearRect(0, 0, canvas.width, canvas.height);
