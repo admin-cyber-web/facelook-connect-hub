@@ -345,18 +345,21 @@ export function installGlobalInteractionIsolation() {
 
   const scheduleSync = (refreshInert = false) => {
     shouldRefreshInert ||= refreshInert;
+    if (document.visibilityState === "hidden") return;
     if (pendingFrame) return;
     pendingFrame = window.requestAnimationFrame(() => {
+      pendingFrame = 0;
+      if (document.visibilityState === "hidden") {
+        shouldRefreshInert = false;
+        return;
+      }
       const refresh = shouldRefreshInert;
       shouldRefreshInert = false;
       sync(refresh);
     });
   };
 
-  const observer = new MutationObserver((records) => {
-    scheduleSync(records.some((record) => record.type === "childList"));
-  });
-  observer.observe(document.body, {
+  const observerOptions: MutationObserverInit = {
     subtree: true,
     childList: true,
     attributes: true,
@@ -372,17 +375,56 @@ export function installGlobalInteractionIsolation() {
       "role",
       "style",
     ],
+  };
+  const observer = new MutationObserver((records) => {
+    const containsSurface = (node: Node) =>
+      node instanceof HTMLElement &&
+      (node.matches(ACTIVE_SURFACE_SELECTOR) ||
+        node.matches("[data-radix-portal]") ||
+        node.querySelector(ACTIVE_SURFACE_SELECTOR) !== null);
+    const relevant = records.some((record) => {
+      if (record.type === "childList") {
+        if (activeSurface || isInteractionIsolationActive) return true;
+        return [...record.addedNodes, ...record.removedNodes].some(containsSurface);
+      }
+
+      const target = record.target;
+      if (!(target instanceof HTMLElement)) return false;
+      return (
+        target === document.body ||
+        target === activeSurface ||
+        target === activeMediaSurface ||
+        target.matches(ACTIVE_SURFACE_SELECTOR) ||
+        target.matches("[data-radix-portal], [data-global-section-isolation], [data-global-route-isolation]")
+      );
+    });
+    if (relevant) scheduleSync(records.some((record) => record.type === "childList"));
   });
+  if (document.visibilityState !== "hidden") {
+    observer.observe(document.body, observerOptions);
+  }
 
   const handleResize = () => scheduleSync(true);
   const handleVisibilityChange = () => {
-    if (document.visibilityState !== "hidden") {
-      reconcileMedia(activeMediaSurface, isMediaIsolationActive);
+    if (document.visibilityState === "hidden") {
+      document.documentElement.setAttribute("data-app-hidden", "true");
+      observer.disconnect();
+      if (pendingFrame) window.cancelAnimationFrame(pendingFrame);
+      pendingFrame = 0;
+      shouldRefreshInert = false;
+      return;
     }
+    document.documentElement.removeAttribute("data-app-hidden");
+    observer.observe(document.body, observerOptions);
+    reconcileMedia(activeMediaSurface, isMediaIsolationActive);
+    scheduleSync(true);
   };
+  if (document.visibilityState === "hidden") {
+    document.documentElement.setAttribute("data-app-hidden", "true");
+  }
   window.addEventListener("resize", handleResize, { passive: true });
   document.addEventListener("visibilitychange", handleVisibilityChange);
-  sync(true);
+  if (document.visibilityState !== "hidden") sync(true);
 
   const cleanup = () => {
     observer.disconnect();
@@ -393,6 +435,7 @@ export function installGlobalInteractionIsolation() {
     document.removeEventListener("pause", handleMediaStop, true);
     document.removeEventListener("ended", handleMediaStop, true);
     if (pendingFrame) window.cancelAnimationFrame(pendingFrame);
+    document.documentElement.removeAttribute("data-app-hidden");
     restoreInert();
     reconcileMedia(null, false);
     lockDocument(false);

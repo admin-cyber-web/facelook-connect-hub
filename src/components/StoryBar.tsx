@@ -416,22 +416,45 @@ const StoryViewer = ({
     const deadline = startedAt + DURATION * 1000;
     storyDeadlineRef.current = deadline;
     let advanced = false;
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+    const stopTimer = () => {
+      if (intervalId !== null) clearInterval(intervalId);
+      intervalId = null;
+      timerRef.current = null;
+    };
     const tick = () => {
-      if (document.hidden) return; // don't fire when screen is off/app backgrounded
+      if (document.hidden) {
+        stopTimer();
+        return;
+      }
       const now = Date.now();
       if (now >= deadline) {
         if (advanced) return;
         advanced = true;
-        if (timerRef.current) clearInterval(timerRef.current);
+        stopTimer();
         storyDeadlineRef.current = null;
         goNext();
         return;
       }
       setElapsed(Math.min(DURATION, Math.max(0, (now - startedAt) / 1000)));
     };
-    timerRef.current = setInterval(tick, 1000);
+    const startTimer = (resuming = false) => {
+      if (intervalId !== null || document.hidden) return;
+      intervalId = window.setInterval(tick, 1000);
+      timerRef.current = intervalId;
+      if (resuming) tick();
+    };
+    const handleVisibilityChange = () => {
+      if (document.hidden) stopTimer();
+      else startTimer(true);
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    startTimer();
     tick();
-    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      stopTimer();
+    };
   }, [paused, goNext, storyIdx, groupIdx, showComments, showViewers]);
 
   // View tracking

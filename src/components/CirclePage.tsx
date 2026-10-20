@@ -3,6 +3,7 @@ import { supabase } from "../lib/supabaseClient";
 import { smartTime } from "../lib/timeAgo";
 import { useOnlineUsers } from "../context/OnlineUsersContext";
 import ActiveStatusAvatar from "./ActiveStatusAvatar";
+import AutoPlayMutedVideo from "./AutoPlayMutedVideo";
 import { memGet, memSet } from "../lib/memCache";
 import { useProfileViewer } from "../context/ProfileViewerContext";
 import { useDataCache } from "../context/DataCacheContext";
@@ -225,7 +226,14 @@ const CirclePostCard = memo(({
       {post.media_url && (
         <div className="w-full" style={{ background: "rgba(0,0,0,0.4)" }}>
           {isVideoUrl(post.media_url) ? (
-            <video src={post.media_url} autoPlay muted playsInline loop controls className="w-full object-contain" style={{ maxHeight: "60vh" }} />
+            <AutoPlayMutedVideo
+              src={post.media_url}
+              controls
+              preload="metadata"
+              passThroughClicks={false}
+              className="w-full object-contain"
+              style={{ maxHeight: "60vh" }}
+            />
           ) : (
             <img src={post.media_url} className="w-full object-cover" style={{ maxHeight: "60vh" }} loading="lazy" alt="" decoding="async"/>
           )}

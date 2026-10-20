@@ -128,7 +128,8 @@ export function OnlineUsersProvider({ userId, children }: Props) {
     let active = false;
     let lastSeenWriteAt = 0;
     let idleTimer: ReturnType<typeof setTimeout> | null = null;
-    const activityEvents = ["pointerdown", "keydown", "touchstart", "mousemove"] as const;
+    let lastMouseMoveAt = 0;
+    const activityEvents = ["pointerdown", "keydown", "touchstart"] as const;
 
     const stopTracking = () => {
       if (idleTimer) clearTimeout(idleTimer);
@@ -171,6 +172,12 @@ export function OnlineUsersProvider({ userId, children }: Props) {
         idleTimer = setTimeout(stopTracking, ACTIVE_IDLE_MS);
       }
     };
+    const handleMouseMove = () => {
+      const now = Date.now();
+      if (now - lastMouseMoveAt < 5_000) return;
+      lastMouseMoveAt = now;
+      markActive();
+    };
 
     const cleanup = subscribeWhileVisible(() => {
       const channel = supabase.channel("online-users", {
@@ -202,6 +209,7 @@ export function OnlineUsersProvider({ userId, children }: Props) {
     activityEvents.forEach((event) => {
       window.addEventListener(event, markActive, { passive: true });
     });
+    window.addEventListener("mousemove", handleMouseMove, { passive: true });
     const handleVisibilityChange = () => {
       if (document.visibilityState !== "hidden") return;
       activeChannelRef.current = null;
@@ -217,6 +225,7 @@ export function OnlineUsersProvider({ userId, children }: Props) {
       activityEvents.forEach((event) => {
         window.removeEventListener(event, markActive);
       });
+      window.removeEventListener("mousemove", handleMouseMove);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       activeChannelRef.current = null;
       if (idleTimer) clearTimeout(idleTimer);

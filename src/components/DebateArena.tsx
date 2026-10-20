@@ -8,6 +8,7 @@ import {
 import { supabase } from "@/lib/supabaseClient";
 import { resolveMediaUrl } from "@/lib/mediaUrl";
 import { toast } from "sonner";
+import { useVisibleInterval } from "@/hooks/usePageVisibility";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface Profile { full_name: string; avatar_url: string | null; }
@@ -46,13 +47,12 @@ type VoteMap = Record<string, VoteEntry>;
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function useCountdown(expiresAt: string | null) {
   const [left, setLeft] = useState(0);
-  useEffect(() => {
-    if (!expiresAt) return;
-    const tick = () => setLeft(Math.max(0, new Date(expiresAt).getTime() - Date.now()));
-    tick();
-    const t = setInterval(tick, 1000);
-    return () => clearInterval(t);
-  }, [expiresAt]);
+  useVisibleInterval(
+    () => setLeft(Math.max(0, new Date(expiresAt ?? 0).getTime() - Date.now())),
+    1000,
+    Boolean(expiresAt),
+    { runOnMount: true, runOnResume: true, resetKey: expiresAt },
+  );
   const h = Math.floor(left / 3600000);
   const m = Math.floor((left % 3600000) / 60000);
   const s = Math.floor((left % 60000) / 1000);
@@ -636,13 +636,12 @@ const DebateResultModal: React.FC<{
 // ── Queue Wait Modal ──────────────────────────────────────────────────────────
 const QueueWaitModal: React.FC<{ onClose: () => void; estimatedFreeAt: Date | null }> = ({ onClose, estimatedFreeAt }) => {
   const [left, setLeft] = useState(0);
-  useEffect(() => {
-    if (!estimatedFreeAt) return;
-    const tick = () => setLeft(Math.max(0, estimatedFreeAt.getTime() - Date.now()));
-    tick();
-    const t = setInterval(tick, 1000);
-    return () => clearInterval(t);
-  }, [estimatedFreeAt]);
+  useVisibleInterval(
+    () => setLeft(Math.max(0, (estimatedFreeAt?.getTime() ?? 0) - Date.now())),
+    1000,
+    Boolean(estimatedFreeAt),
+    { runOnMount: true, runOnResume: true, resetKey: estimatedFreeAt },
+  );
 
   const m = Math.floor(left / 60000);
   const s = Math.floor((left % 60000) / 1000);

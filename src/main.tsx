@@ -20,7 +20,10 @@ import { installGlobalInteractionIsolation } from "./lib/globalInteractionIsolat
   }
 })();
 
-installGlobalInteractionIsolation();
+const cleanupInteractionIsolation = installGlobalInteractionIsolation();
+if (import.meta.hot) {
+  import.meta.hot.dispose(cleanupInteractionIsolation);
+}
 
 // Load the plugin only on native platforms so browser sessions never execute it.
 // The dynamic import also keeps the web entry point independent of the native API.

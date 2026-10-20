@@ -2251,7 +2251,7 @@ const PostDetailView = ({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[90000] flex h-[100dvh] flex-col overflow-hidden bg-[#10090d] text-white"
+      className="post-vibe-in-view fixed inset-0 z-[90000] flex h-[100dvh] flex-col overflow-hidden bg-[#10090d] text-white"
       style={{
         paddingTop: "env(safe-area-inset-top, 0px)",
         paddingBottom: "env(safe-area-inset-bottom, 0px)",
