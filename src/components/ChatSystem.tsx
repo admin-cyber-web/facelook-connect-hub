@@ -4,6 +4,7 @@ import { useSoundEffects } from "../hooks/useSoundEffects";
 import { useProfileViewer } from "../context/ProfileViewerContext";
 import { useActiveHide } from "../context/OnlineUsersContext";
 import ActiveStatusAvatar from "./ActiveStatusAvatar";
+import AutoPlayMutedVideo from "./AutoPlayMutedVideo";
 import { motion, AnimatePresence } from "framer-motion";
 import AdminDashboard from "./AdminDashboard";
 import { isAdminEmail } from "../lib/adminConfig";
@@ -1848,13 +1849,22 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     const deadline = startedAt + 15_000;
     storyDeadlineRef.current = deadline;
     let advanced = false;
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+    const stopTimer = () => {
+      if (intervalId !== null) clearInterval(intervalId);
+      intervalId = null;
+      storyTimerRef.current = null;
+    };
     const tick = () => {
-      if (document.hidden) return;
+      if (document.hidden) {
+        stopTimer();
+        return;
+      }
       const now = Date.now();
       if (now >= deadline) {
         if (advanced) return;
         advanced = true;
-        if (storyTimerRef.current) clearInterval(storyTimerRef.current);
+        stopTimer();
         storyDeadlineRef.current = null;
         const group = storyGroups[viewerGroupIdx];
         const totalInGroup = group?.stories.length ?? 0;
@@ -1871,10 +1881,22 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       }
       setStoryElapsed(Math.min(15, Math.max(0, (now - startedAt) / 1000)));
     };
-    storyTimerRef.current = setInterval(tick, 1000);
+    const startTimer = (resuming = false) => {
+      if (intervalId !== null || document.hidden) return;
+      intervalId = window.setInterval(tick, 1000);
+      storyTimerRef.current = intervalId;
+      if (resuming) tick();
+    };
+    const handleVisibilityChange = () => {
+      if (document.hidden) stopTimer();
+      else startTimer(true);
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    startTimer();
     tick();
     return () => {
-      if (storyTimerRef.current) clearInterval(storyTimerRef.current);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      stopTimer();
     };
   }, [
     storyViewerOpen,
@@ -3029,7 +3051,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     });
 
   // ── Voice Mode ────────────────────────────────────────────────────────────
-  const stopVoiceMode = () => {
+  const stopVoiceMode = useCallback(() => {
     voiceActiveRef.current = false;
     if (voiceTimerRef.current) {
       clearInterval(voiceTimerRef.current);
@@ -3046,7 +3068,42 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     setVoiceMode(false);
     setVoiceSecondsLeft(300);
     setVoiceStatus("listening");
-  };
+  }, []);
+
+  useEffect(() => {
+    if (!voiceMode) return;
+
+    const tick = () => {
+      if (document.hidden) return;
+      setVoiceSecondsLeft((prev) => {
+        if (prev <= 1) {
+          stopVoiceMode();
+          return 0;
+        }
+        return prev - 1;
+      });
+    };
+    const stopTimer = () => {
+      if (!voiceTimerRef.current) return;
+      clearInterval(voiceTimerRef.current);
+      voiceTimerRef.current = null;
+    };
+    const startTimer = () => {
+      if (document.hidden || voiceTimerRef.current || !voiceActiveRef.current) return;
+      voiceTimerRef.current = window.setInterval(tick, 1000);
+    };
+    const handleVisibilityChange = () => {
+      if (document.hidden) stopTimer();
+      else startTimer();
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    startTimer();
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      stopTimer();
+    };
+  }, [voiceMode, stopVoiceMode]);
 
   const scheduleVoiceTimeout = (callback: () => void, delay: number) => {
     const timer = setTimeout(() => {
@@ -3084,17 +3141,6 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     setVoiceMode(true);
     setVoiceSecondsLeft(300);
     setVoiceStatus("listening");
-
-    // 5-minute countdown
-    voiceTimerRef.current = setInterval(() => {
-      setVoiceSecondsLeft((prev) => {
-        if (prev <= 1) {
-          stopVoiceMode();
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
 
     const createRecognition = () => {
       const rec = new SpeechRecognition();
@@ -5611,18 +5657,14 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                 </span>
                               </div>
                             ) : story.media_type === "video" ? (
-                              <video
+                              <AutoPlayMutedVideo
                                 src={getStoryMediaUrl(story.image_url)}
                                 className="w-full h-full object-cover"
                                 style={{
                                   filter:
                                     STORY_MOOD_FILTER[story.mood ?? ""] ?? "",
                                 }}
-                                muted
-                                playsInline
-                                autoPlay
-                                loop
-                                preload="auto"
+                                preload="metadata"
                                 onError={onStoryMediaError}
                               />
                             ) : (

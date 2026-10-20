@@ -1,4 +1,9 @@
-import { useEffect, useRef } from "react";
+import {
+  useEffect,
+  useRef,
+  type CSSProperties,
+  type ReactEventHandler,
+} from "react";
 import { useProfileTimelineAudio } from "@/components/profile-navigation/ProfileTimelineAudio";
 
 interface Props {
@@ -9,6 +14,8 @@ interface Props {
   controls?: boolean;
   preload?: "none" | "metadata" | "auto";
   autoplayWithSound?: boolean;
+  onError?: ReactEventHandler<HTMLVideoElement>;
+  style?: CSSProperties;
   /** When true, parent's onClick still fires (default).  */
   passThroughClicks?: boolean;
 }
@@ -29,6 +36,8 @@ export default function AutoPlayMutedVideo({
   controls = false,
   preload = "metadata",
   autoplayWithSound = false,
+  onError,
+  style,
   passThroughClicks = true,
 }: Props) {
   const ref = useRef<HTMLVideoElement>(null);
@@ -42,34 +51,43 @@ export default function AutoPlayMutedVideo({
     const audio = autoplayWithSound ? profileAudioRef.current : null;
     const unregister = audio?.registerVideo(el);
     if (!audio) el.muted = true;
+    let isInViewport = false;
+    const syncPlayback = () => {
+      const video = ref.current;
+      if (!video) return;
+      const shouldPlay = isInViewport && !document.hidden;
+      const activeAudio = autoplayWithSound ? profileAudioRef.current : null;
+      if (activeAudio) {
+        activeAudio.setVideoVisible(video, shouldPlay);
+        return;
+      }
+      if (!shouldPlay) {
+        video.pause();
+        video.muted = true;
+        return;
+      }
+      video.muted = true;
+      void video.play().catch(() => {
+        if (!video.isConnected || ref.current !== video) return;
+        video.muted = true;
+        void video.play().catch(() => {});
+      });
+    };
     const io = new IntersectionObserver(
       (entries) => {
         const entry = entries[0];
-        const video = ref.current;
-        if (!entry || !video) return;
-        const shouldPlay =
+        if (!entry) return;
+        isInViewport =
           entry.isIntersecting && entry.intersectionRatio >= 0.4;
-        const activeAudio = autoplayWithSound ? profileAudioRef.current : null;
-        if (activeAudio) {
-          activeAudio.setVideoVisible(video, shouldPlay);
-          return;
-        }
-        if (shouldPlay) {
-          video.muted = true;
-          void video.play().catch(() => {
-            if (!video.isConnected || ref.current !== video) return;
-            video.muted = true;
-            void video.play().catch(() => {});
-          });
-        } else {
-          video.pause();
-          video.muted = true;
-        }
+        syncPlayback();
       },
       { threshold: [0, 0.4] },
     );
+    const handleVisibilityChange = () => syncPlayback();
     io.observe(el);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
       io.disconnect();
       if (unregister) {
         unregister();
@@ -88,11 +106,15 @@ export default function AutoPlayMutedVideo({
       className={className}
       aria-label={ariaLabel}
       controls={controls}
+      onError={onError}
       muted={!autoplayWithSound || !profileAudio}
       loop
       playsInline
       preload={preload}
-      style={passThroughClicks ? { pointerEvents: "none" } : undefined}
+      style={{
+        ...style,
+        ...(passThroughClicks ? { pointerEvents: "none" } : {}),
+      }}
     />
   );
 }

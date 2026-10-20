@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/lib/supabaseClient";
 import { memGet, memSet } from "@/lib/memCache";
 import { toast } from "sonner";
+import { useVisibleInterval } from "@/hooks/usePageVisibility";
 import {
   X,
   Shield,
@@ -134,10 +135,9 @@ const AdminDashboard: React.FC<Props> = ({
   const [, setNowTick] = useState(0);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => {
-    const id = setInterval(() => setNowTick((n) => n + 1), 30 * 1000);
-    return () => clearInterval(id);
-  }, []);
+  useVisibleInterval(() => setNowTick((n) => n + 1), 30 * 1000, true, {
+    runOnResume: true,
+  });
 
   useEffect(() => {
     fetchAll(false);

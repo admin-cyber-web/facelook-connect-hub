@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Loader2, RefreshCw } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { isAdminEmail } from "@/lib/adminConfig";
+import { useVisibleInterval } from "@/hooks/usePageVisibility";
 
 interface FlicksStudioProps {
   userId: string | null;
@@ -251,10 +252,10 @@ export default function FlicksStudio({ userId, userEmail }: FlicksStudioProps) {
     };
   }, [userId, userEmail, retryKey, fetchProfile]);
 
-  useEffect(() => {
-    const id = setInterval(() => setTitleIndex(i => (i + 1) % TITLES.length), 2500);
-    return () => clearInterval(id);
-  }, []);
+  useVisibleInterval(
+    () => setTitleIndex(i => (i + 1) % TITLES.length),
+    2500,
+  );
 
   /* ── Validation helpers ── */
   function validateCreatorFields(f: { gmail: string; mobile: string; city: string; address: string; pinCode: string; category: string }) {

@@ -1049,6 +1049,25 @@
 .scene-vault-post--missing .scene-vault-post-frame--right { right: 13%; }
 .scene-vault-post-rain { position: absolute; z-index: 3; inset: -10%; pointer-events: none; opacity: .5; background: repeating-linear-gradient(103deg, transparent 0 22px, rgba(207,229,243,.36) 23px 24px, transparent 25px 39px); animation: mood-scene-rainfall 1.8s linear infinite; }
 
+.scene-vault-post,
+.scene-vault-post::before,
+.scene-vault-post::after,
+.scene-vault-post * {
+  animation-play-state: paused;
+}
+.post-vibe-in-view .scene-vault-post,
+.post-vibe-in-view .scene-vault-post::before,
+.post-vibe-in-view .scene-vault-post::after,
+.post-vibe-in-view .scene-vault-post * {
+  animation-play-state: running;
+}
+
+html[data-app-hidden="true"] *,
+html[data-app-hidden="true"] *::before,
+html[data-app-hidden="true"] *::after {
+  animation-play-state: paused !important;
+}
+
 @keyframes reel-comment-marquee {
   from { transform: translate3d(0, 0, 0); }
   to { transform: translate3d(-50%, 0, 0); }

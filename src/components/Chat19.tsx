@@ -37,6 +37,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { toast } from "sonner";
+import { useVisibleInterval } from "@/hooks/usePageVisibility";
 
 // ── Storage keys ─────────────────────────────────────────────────────────────
 const STORAGE_PROFILE = "chat19_profile_v1";
@@ -670,15 +671,11 @@ const Chat19 = ({ onClose }: Chat19Props) => {
   }, [step]);
 
   // Radar ticker — rolls the 10 free tokens over at midnight
-  useEffect(() => {
-    if (step !== "radar") return;
-    const id = window.setInterval(() => {
+  useVisibleInterval(() => {
       setNow(Date.now());
       const fresh = loadTokens();
       setTokens((prev) => (prev.date === fresh.date && prev.used === fresh.used ? prev : fresh));
-    }, 15_000);
-    return () => window.clearInterval(id);
-  }, [step]);
+    }, 15_000, step === "radar", { runOnResume: true, resetKey: step });
 
   // Auto-scroll the chat to the newest message
   useEffect(() => {

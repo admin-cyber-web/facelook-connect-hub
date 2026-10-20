@@ -2,6 +2,7 @@ import React, { useState, useEffect, useLayoutEffect, useRef, lazy, Suspense } f
 import { useLocation } from "react-router-dom";
 import { createPortal } from "react-dom";
 import { requestShareModal } from "../lib/shareModal";
+import { useVisibleInterval } from "../hooks/usePageVisibility";
 import { motion, AnimatePresence } from "framer-motion";
 import type { Session } from "@supabase/supabase-js";
 import {
@@ -442,15 +443,11 @@ const ShowcaseWidget = ({ isAdmin, userId, lang }: { isAdmin: boolean; userId: s
     if (currentIndex >= items.filter(item => item.is_published).length) setCurrentIndex(0);
   }, [currentIndex, items]);
 
-  useEffect(() => {
-    const publishedCount = items.filter(item => item.is_published).length;
-    if (publishedCount <= 1 || isModalOpen) return;
-    const timer = window.setInterval(() => {
+  const publishedCount = items.filter(item => item.is_published).length;
+  useVisibleInterval(() => {
       setSlideDirection(1);
       setCurrentIndex(index => (index + 1) % publishedCount);
-    }, 7000);
-    return () => window.clearInterval(timer);
-  }, [items, isModalOpen]);
+    }, 7000, publishedCount > 1 && !isModalOpen, { resetKey: items });
 
   const beginAdd = () => {
     setEditingItem(null);
@@ -2131,12 +2128,10 @@ const FRAME_HELP_TAGLINES = [
 const RotatingFrameHelpTagline = () => {
   const [activeTagline, setActiveTagline] = useState(0);
 
-  useEffect(() => {
-    const intervalId = window.setInterval(() => {
-      setActiveTagline((current) => (current + 1) % FRAME_HELP_TAGLINES.length);
-    }, 2800);
-    return () => window.clearInterval(intervalId);
-  }, []);
+  useVisibleInterval(
+    () => setActiveTagline((current) => (current + 1) % FRAME_HELP_TAGLINES.length),
+    2800,
+  );
 
   return (
     <div aria-live="off" className="relative mt-0.5 h-8 overflow-hidden">
