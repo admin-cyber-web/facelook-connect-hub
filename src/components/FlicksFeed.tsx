@@ -274,7 +274,7 @@ const CommentDrawer = ({ post, currentUserId, onClose, onCommentAdded }: any) =>
 };
 
 // ── FlickCard ─────────────────────────────────────────────────────────────────
-const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, onBridgeChat, isAdmin, onPostDeleted, onUserBanned, onVideoInvalid, prefetchTick }: any) => {
+const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, onBridgeChat, onEditReel, isAdmin, onPostDeleted, onPostDeleteOptimistic, onPostDeleteRollback, onUserBanned, onVideoInvalid, prefetchTick }: any) => {
   const videoRef   = useRef<HTMLVideoElement>(null);
   const audioRef   = useRef<HTMLAudioElement>(null);
   const tapTimer   = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -294,6 +294,7 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, on
   const [reportText,        setReportText]         = useState("");
   const [reporting,         setReporting]          = useState(false);
   const [deleting,          setDeleting]           = useState(false);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [editingCaption,    setEditingCaption]     = useState(false);
   const [localContent,      setLocalContent]       = useState(() => getPostCaption(post));
   // ── Video health states ────────────────────────────────────────────────
@@ -731,11 +732,13 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, on
     if (!window.confirm("ADMIN: Delete this video permanently?")) return;
 
     setDeleting(true);
+    onPostDeleteOptimistic?.(post._raw_id, post);
     try {
       const deletedId = await deletePostRow();
       toast.success("Deleted permanently.");
       onPostDeleted?.(deletedId);
     } catch (error: unknown) {
+      onPostDeleteRollback?.(post._raw_id);
       console.error("[Flicks] admin reel delete failed:", error);
       toast.error(getDeleteErrorMessage(error));
     } finally {
@@ -745,10 +748,10 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, on
 
   const handleOwnerDelete = async () => {
     if (!isOwner || !currentUserId || !post._raw_id || deleting) return;
-    setMenuOpen(false);
-    if (!window.confirm("Delete this Reel permanently?")) return;
 
+    setConfirmDeleteOpen(false);
     setDeleting(true);
+    onPostDeleteOptimistic?.(post._raw_id, post);
     try {
       // Supabase RLS remains the final authorization check. The UI owner
       // check only controls visibility of this action.
@@ -757,6 +760,7 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, on
       toast.success("Reel deleted.");
       onPostDeleted?.(deletedId);
     } catch (error: unknown) {
+      onPostDeleteRollback?.(post._raw_id);
       console.error("[Flicks] owner reel delete failed:", error);
       toast.error(getDeleteErrorMessage(error));
     } finally {
@@ -788,6 +792,30 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, on
   // contract. Keep user_id as a fallback for older cached Reel objects.
   const reelOwnerId = post.author_id || post.user_id;
   const isOwner = Boolean(currentUserId && reelOwnerId === currentUserId);
+  const handleEditReel = (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setMenuOpen(false);
+    if (onEditReel) {
+      onEditReel(post);
+    } else {
+      window.dispatchEvent(
+        new CustomEvent("flicks:open-reel-studio", { detail: { reel: post } }),
+      );
+    }
+  };
+  const handleOwnerDeleteRequest = (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setMenuOpen(false);
+    if (!isOwner || !currentUserId || !post._raw_id || deleting) {
+      if (isOwner && !post._raw_id) {
+        toast.error("Could not determine the Reel database ID.");
+      }
+      return;
+    }
+    setConfirmDeleteOpen(true);
+  };
 
   return (
     /* Root card — explicit height, no flex layout so absolute children are unambiguous */
@@ -978,8 +1006,9 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, on
 
         {/* Reports — single crimson vertical 3-dots report/menu (dropdown opens upward) */}
         <div className="relative z-50" onClick={e => e.stopPropagation()}>
-          <button onClick={() => setMenuOpen(v => !v)}
+          <button type="button" onClick={e => { e.preventDefault(); e.stopPropagation(); setMenuOpen(v => !v); }}
             aria-label="Report and options"
+            aria-expanded={menuOpen}
             className="w-10 h-10 rounded-full flex items-center justify-center"
             style={{ background: "rgba(12,10,14,0.55)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", border: "1px solid rgba(225,29,72,0.30)" }}>
             <MoreVertical size={18} style={{ color: "#FF4D6D" }} />
@@ -987,30 +1016,30 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, on
           <AnimatePresence>
             {menuOpen && (
               <>
-                <div className="fixed inset-0 z-[60]" onClick={() => setMenuOpen(false)} />
+                <div className="fixed inset-0 z-[60]" onClick={e => { e.stopPropagation(); setMenuOpen(false); }} />
                 <motion.div initial={{ opacity: 0, scale: 0.9, y: 6 }} animate={{ opacity: 1, scale: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.9, y: 6 }} transition={{ duration: 0.12 }}
+                  onClick={e => e.stopPropagation()}
                   className="absolute right-0 bottom-12 z-[70] w-52 bg-zinc-900/95 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
                   {isOwner && (
                     <button
-                      onClick={() => {
-                        setMenuOpen(false);
-                        window.dispatchEvent(new CustomEvent("flicks:open-reel-studio", { detail: { reel: post } }));
-                      }}
+                      type="button"
+                      onClick={handleEditReel}
                       className="w-full flex items-center gap-3 px-4 py-3.5 text-[#FF8FA5] hover:bg-white/5 text-sm font-bold border-b border-white/5"
                     >
                       <Pencil size={14} /> Edit Reel
                     </button>
                   )}
                   {isOwner && (
-                    <button onClick={() => { setMenuOpen(false); setEditingCaption(true); }}
+                    <button type="button" onClick={e => { e.preventDefault(); e.stopPropagation(); setMenuOpen(false); setEditingCaption(true); }}
                       className="w-full flex items-center gap-3 px-4 py-3.5 text-[#FF6B85] hover:bg-white/5 text-sm font-bold border-b border-white/5">
                       <Pencil size={14} /> Edit Post
                     </button>
                   )}
                   {isOwner && (
                     <button
-                      onClick={handleOwnerDelete}
+                      type="button"
+                      onClick={handleOwnerDeleteRequest}
                       disabled={deleting}
                       className="w-full flex items-center gap-3 px-4 py-3.5 text-red-400 hover:bg-red-500/10 text-sm font-bold border-b border-white/5 disabled:cursor-wait disabled:opacity-60"
                     >
@@ -1018,7 +1047,9 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, on
                       {deleting ? "Deleting Reel…" : "Delete Reel"}
                     </button>
                   )}
-                  <button onClick={e => {
+                  <button type="button" onClick={e => {
+                    e.preventDefault();
+                    e.stopPropagation();
                     const popupH = 240;
                     const spaceBelow = window.innerHeight - e.clientY;
                     const top = spaceBelow >= popupH + 16 ? e.clientY + 8 : Math.max(8, e.clientY - popupH - 8);
@@ -1028,12 +1059,12 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, on
                   </button>
                   {isAdmin && (
                     <>
-                      <button onClick={handleAdminDelete}
+                      <button type="button" onClick={e => { e.preventDefault(); e.stopPropagation(); void handleAdminDelete(); }}
                         className="w-full flex items-center gap-3 px-4 py-3.5 text-red-400 hover:bg-red-500/10 text-sm font-bold border-b border-white/5">
                         <Trash2 size={14} /> Delete (Admin)
                       </button>
                       {post.author_id && post.author_id !== currentUserId && (
-                        <button onClick={handleAdminBan}
+                        <button type="button" onClick={e => { e.preventDefault(); e.stopPropagation(); void handleAdminBan(); }}
                           className="w-full flex items-center gap-3 px-4 py-3.5 text-red-500 hover:bg-red-500/10 text-sm font-bold">
                           <Ban size={14} /> Ban User (Admin)
                         </button>
@@ -1211,6 +1242,43 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, on
         />,
         document.body,
       )}
+      {confirmDeleteOpen && (
+        <div
+          className="absolute inset-0 z-[100] flex items-center justify-center bg-black/75 p-5 backdrop-blur-sm"
+          onClick={(event) => { event.preventDefault(); event.stopPropagation(); }}
+        >
+          <div
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="flicks-delete-title"
+            aria-describedby="flicks-delete-description"
+            className="w-full max-w-sm rounded-2xl border border-white/10 bg-zinc-950 p-5 shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h2 id="flicks-delete-title" className="text-base font-black text-white">Delete this Reel?</h2>
+            <p id="flicks-delete-description" className="mt-2 text-sm leading-relaxed text-white/60">
+              This permanently removes the Reel from your feed.
+            </p>
+            <div className="mt-5 flex gap-2">
+              <button
+                type="button"
+                onClick={(event) => { event.preventDefault(); event.stopPropagation(); setConfirmDeleteOpen(false); }}
+                className="flex-1 rounded-xl border border-white/10 px-4 py-3 text-sm font-bold text-white/75 hover:bg-white/5"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={(event) => { event.preventDefault(); event.stopPropagation(); void handleOwnerDelete(); }}
+                className="flex-1 rounded-xl bg-rose-600 px-4 py-3 text-sm font-black text-white hover:bg-rose-500 disabled:opacity-60"
+              >
+                {deleting ? "Deleting…" : "Delete Reel"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 });
@@ -1219,6 +1287,7 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, on
 export default function FlicksApp({
   onBack,
   onBridgeChat,
+  onEditReel,
   initialPostId,
   isAdmin: isAdminProp = false,
   currentUserEmail: currentUserEmailProp,
@@ -1244,6 +1313,9 @@ export default function FlicksApp({
     profileAdminUserId === currentUserId;
   const containerRef = useRef<HTMLDivElement>(null);
   const currentIndexRef = useRef(0);
+  const pendingDeleteSnapshotsRef = useRef(
+    new Map<string, { item: any; index: number; currentIndex: number }>(),
+  );
   const scrollRafRef = useRef<number>(0);
   const pullDistanceRef = useRef(0);
   const reelsRefreshingRef = useRef(false);
@@ -1636,7 +1708,51 @@ export default function FlicksApp({
     el.scrollTop = idx * el.clientHeight;
   }, [initialPostId, loading, visibleFlicks]);
 
+  const handlePostDeleteOptimistic = useCallback((rawId: string, fallbackPost: any) => {
+    const index = flicks.findIndex((item) => item._raw_id === rawId);
+    if (index < 0) return;
+
+    const previousIndex = currentIndexRef.current;
+    pendingDeleteSnapshotsRef.current.set(rawId, {
+      item: flicks[index] ?? fallbackPost,
+      index,
+      currentIndex: previousIndex,
+    });
+
+    const next = flicks.filter((item) => item._raw_id !== rawId);
+    const nextIndex = index < previousIndex
+      ? previousIndex - 1
+      : Math.min(previousIndex, Math.max(next.length - 1, 0));
+    currentIndexRef.current = nextIndex;
+    setCurrentIndex(nextIndex);
+    setFlicks(next);
+    dataCache.setCache("flicksFeed", { data: next, fetchedAt: Date.now() });
+  }, [dataCache, flicks]);
+
+  const handlePostDeleteRollback = useCallback((rawId: string) => {
+    const snapshot = pendingDeleteSnapshotsRef.current.get(rawId);
+    if (!snapshot) return;
+    pendingDeleteSnapshotsRef.current.delete(rawId);
+
+    setFlicks((previous) => {
+      if (previous.some((item) => item._raw_id === rawId)) return previous;
+      const next = [...previous];
+      next.splice(Math.min(snapshot.index, next.length), 0, snapshot.item);
+      dataCache.setCache("flicksFeed", { data: next, fetchedAt: Date.now() });
+      return next;
+    });
+    const restoredIndex = Math.min(
+      snapshot.currentIndex,
+      Math.max(flicks.length - 1, 0),
+    );
+    currentIndexRef.current = restoredIndex;
+    setCurrentIndex(restoredIndex);
+    const container = containerRef.current;
+    if (container) container.scrollTop = restoredIndex * container.clientHeight;
+  }, [dataCache, flicks.length]);
+
   const handlePostDeleted = useCallback((rawId: string) => {
+    pendingDeleteSnapshotsRef.current.delete(rawId);
     setFlicks((previous) => {
       const next = previous.filter((item) => item._raw_id !== rawId);
       dataCache.setCache("flicksFeed", { data: next, fetchedAt: Date.now() });
@@ -1814,9 +1930,12 @@ export default function FlicksApp({
                   isNext={i === currentIndex + 1}
                   currentUserId={currentUserId}
                   onBridgeChat={onBridgeChat}
+                  onEditReel={onEditReel}
                   prefetchTick={prefetchTick}
                   isAdmin={isAdmin}
                   onPostDeleted={handlePostDeleted}
+                  onPostDeleteOptimistic={handlePostDeleteOptimistic}
+                  onPostDeleteRollback={handlePostDeleteRollback}
                   onUserBanned={(authorId: string) => setFlicks(prev => prev.filter(x => x.author_id !== authorId))}
                   onVideoInvalid={(id: string) => setFlicks(prev => prev.filter(x => x.id !== id))}
                 />

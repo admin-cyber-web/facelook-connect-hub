@@ -2714,6 +2714,7 @@ const SingleReelBlock = ({
   const [muted, setMuted] = useState(false);
   const [audioNeedsGesture, setAudioNeedsGesture] = useState(false);
   const [showReelMenu, setShowReelMenu] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [viewerPreviews, setViewerPreviews] = useState<Array<{ id: string; full_name: string; avatar_url: string | null }>>([]);
   const viewerPreviewLoadedRef = useRef(false);
   const [likedByMe, setLikedByMe] = useState(false);
@@ -3027,6 +3028,7 @@ const SingleReelBlock = ({
         aria-label="Reel actions"
         aria-expanded={showReelMenu}
         onClick={(event) => {
+          event.preventDefault();
           event.stopPropagation();
           setShowReelMenu((open) => !open);
         }}
@@ -3039,16 +3041,44 @@ const SingleReelBlock = ({
           <button
             type="button"
             aria-label="Close Reel actions"
-            onClick={() => setShowReelMenu(false)}
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              setShowReelMenu(false);
+            }}
             className="fixed inset-0 z-20 cursor-default"
           />
-          <div role="menu" className="absolute right-4 top-14 z-30 min-w-44 overflow-hidden rounded-xl border border-white/10 bg-[#160d12]/95 py-1 shadow-2xl backdrop-blur-xl">
+          <div
+            role="menu"
+            onClick={(event) => event.stopPropagation()}
+            className="absolute right-4 top-14 z-30 min-w-44 overflow-hidden rounded-xl border border-white/10 bg-[#160d12]/95 py-1 shadow-2xl backdrop-blur-xl"
+          >
             {isOwner ? (
               <>
-                <button type="button" role="menuitem" onClick={() => { setShowReelMenu(false); onEdit(); }} className="flex w-full items-center gap-2.5 px-3.5 py-3 text-left text-xs font-bold text-white/80 transition hover:bg-white/10">
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    setShowReelMenu(false);
+                    onEdit();
+                  }}
+                  className="flex w-full items-center gap-2.5 px-3.5 py-3 text-left text-xs font-bold text-white/80 transition hover:bg-white/10"
+                >
                   <SlidersHorizontal size={15} className="text-cyan-200" /> Edit Reel
                 </button>
-                <button type="button" role="menuitem" onClick={() => { setShowReelMenu(false); onDelete(); }} className="flex w-full items-center gap-2.5 border-t border-white/[0.07] px-3.5 py-3 text-left text-xs font-bold text-rose-300 transition hover:bg-rose-500/10">
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    setShowReelMenu(false);
+                    setShowDeleteConfirm(true);
+                  }}
+                  className="flex w-full items-center gap-2.5 border-t border-white/[0.07] px-3.5 py-3 text-left text-xs font-bold text-rose-300 transition hover:bg-rose-500/10"
+                >
                   <Trash2 size={15} /> Delete Reel
                 </button>
               </>
@@ -3059,6 +3089,52 @@ const SingleReelBlock = ({
             )}
           </div>
         </>
+      )}
+      {showDeleteConfirm && (
+        <div
+          className="absolute inset-0 z-[100] flex items-center justify-center bg-black/75 p-5 backdrop-blur-sm"
+          onClick={(event) => { event.preventDefault(); event.stopPropagation(); }}
+        >
+          <div
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby={`delete-reel-title-${post.id}`}
+            className="w-full max-w-sm rounded-2xl border border-white/10 bg-zinc-950 p-5 shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h2 id={`delete-reel-title-${post.id}`} className="text-base font-black text-white">
+              Delete this Reel?
+            </h2>
+            <p className="mt-2 text-sm leading-relaxed text-white/60">
+              This permanently removes the Reel from your feed.
+            </p>
+            <div className="mt-5 flex gap-2">
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  setShowDeleteConfirm(false);
+                }}
+                className="flex-1 rounded-xl border border-white/10 px-4 py-3 text-sm font-bold text-white/75 hover:bg-white/5"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  setShowDeleteConfirm(false);
+                  onDelete();
+                }}
+                className="flex-1 rounded-xl bg-rose-600 px-4 py-3 text-sm font-black text-white hover:bg-rose-500"
+              >
+                Delete Reel
+              </button>
+            </div>
+          </div>
+        </div>
       )}
       {!isYT && (
         <button
@@ -5937,11 +6013,7 @@ const FameFeed = ({
                 0
               }
               onEdit={() => window.dispatchEvent(new CustomEvent("flicks:open-reel-studio", { detail: { reel: post } }))}
-              onDelete={() => {
-                if (window.confirm("Delete this Reel permanently? This cannot be undone.")) {
-                  void handleDelete(post.id);
-                }
-              }}
+              onDelete={() => void handleDelete(post.id)}
               onReport={() => setReportModal({
                 postId: post.id,
                 targetId: post.author_id,
