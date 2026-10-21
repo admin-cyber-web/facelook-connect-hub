@@ -2607,6 +2607,10 @@ const Index = ({ session, initialAdminOpen, isGuest = false }: { session: Sessio
     setReelStudioReel(reel);
     setReelStudioOpen(true);
   }, []);
+  const openExistingReel = React.useCallback(
+    (reel: any) => openReelStudio(null, reel),
+    [openReelStudio],
+  );
 
   useEffect(() => {
     const handleOpenReelStudio = (event: Event) => {
@@ -5177,6 +5181,7 @@ const PersonalizationView = React.memo(({
               <div className="fixed inset-0 z-[190] bg-black touch-scroll-y" data-reels-feed>
                 <FlicksFeed
                   onBack={handleFlicksBack}
+                  onEditReel={openExistingReel}
                   initialPostId={flicksStartPostId}
                   isAdmin={isAppAdmin}
                   currentUserId={userId}
