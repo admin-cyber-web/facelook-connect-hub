@@ -33,6 +33,7 @@ import NewInYourArea from "./NewInYourArea";
 import type { LocalProfile } from "../lib/recommendationEngine";
 import { requestShareModal } from "../lib/shareModal";
 import { RichCaption } from "./RichCaption";
+import { getPostCaption } from "../lib/postCaption";
 import AutoPlayMutedVideo from "./AutoPlayMutedVideo";
 import SavePostButton from "./SavePostButton";
 import { maskProfanity, sanitizeText } from "../lib/profanityFilter";
@@ -113,7 +114,7 @@ const totalLikesFrom = (row: any, fallback = 0) => {
 
 function normalizePostLikeCount<T extends Record<string, any>>(
   post: T,
-): T & { likes_count: number } {
+): T & { likes_count: number; content: string } {
   let metadata = post.metadata;
   if (typeof metadata === "string") {
     try {
@@ -124,6 +125,7 @@ function normalizePostLikeCount<T extends Record<string, any>>(
   }
   return {
     ...post,
+    content: getPostCaption({ ...post, metadata }),
     likes_count: totalLikesFrom(post),
     surpriseMsg: post.surpriseMsg ?? metadata?.surpriseMsg ?? null,
   };

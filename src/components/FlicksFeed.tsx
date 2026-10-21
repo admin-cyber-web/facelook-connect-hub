@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo, memo } from "
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "../lib/supabaseClient";
+import { getPostCaption } from "../lib/postCaption";
 import { useProfileViewer } from "../context/ProfileViewerContext";
 import { useDataCache } from "../context/DataCacheContext";
 import { useOnlineUsers } from "../context/OnlineUsersContext";
@@ -294,7 +295,7 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, on
   const [reporting,         setReporting]          = useState(false);
   const [deleting,          setDeleting]           = useState(false);
   const [editingCaption,    setEditingCaption]     = useState(false);
-  const [localContent,      setLocalContent]       = useState(post?.content || "");
+  const [localContent,      setLocalContent]       = useState(() => getPostCaption(post));
   // ── Video health states ────────────────────────────────────────────────
   const [videoError,        setVideoError]         = useState<string | null>(null);
   const [sharePopupData, setSharePopupData] = useState<{
@@ -339,8 +340,18 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, on
     setLiveLikes(Number(post?.likes_count || 0));
     setLiveCommentsCount(Number(post?.comments_count || 0));
     setLiveShares(Number(post?.shares_count || 0));
-    setLocalContent(post?.content || "");
-  }, [post?.id, post?.liked_by_me, post?.likes_count, post?.comments_count, post?.shares_count, post?.content]);
+    setLocalContent(getPostCaption(post));
+  }, [
+    post?.id,
+    post?.liked_by_me,
+    post?.likes_count,
+    post?.comments_count,
+    post?.shares_count,
+    post?.content,
+    post?.caption,
+    post?.description,
+    post?.metadata,
+  ]);
 
   useEffect(() => () => {
     if (tapTimer.current) clearTimeout(tapTimer.current);
@@ -1112,7 +1123,7 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, on
                 style={{ fontSize: 16 }}
                 rows={2} value={localContent} onChange={e => setLocalContent(e.target.value)} autoFocus />
               <div className="flex gap-2 mt-1.5">
-                <button onClick={() => { setLocalContent(post.content || ""); setEditingCaption(false); }}
+                <button onClick={() => { setLocalContent(getPostCaption(post)); setEditingCaption(false); }}
                   className="flex-1 py-1.5 rounded-xl bg-white/15 text-white/80 text-[11px] font-bold">Cancel</button>
                 <button onClick={saveCaption} className="flex-1 py-1.5 rounded-xl text-white text-[11px] font-bold"
                   style={{ background: "linear-gradient(135deg,#E11D48,#A01030)" }}>Save</button>
@@ -1215,7 +1226,12 @@ export default function FlicksApp({
 }: any) {
   const dataCache    = useDataCache();
   const cachedFlicks = dataCache.cacheRef.current.flicksFeed;
-  const [flicks,       setFlicks]       = useState<any[]>(() => cachedFlicks?.data ?? []);
+  const [flicks,       setFlicks]       = useState<any[]>(() =>
+    (cachedFlicks?.data ?? []).map((post: any) => ({
+      ...post,
+      content: getPostCaption(post),
+    })),
+  );
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading,      setLoading]      = useState(() => !cachedFlicks?.data);
   const [currentUserId, setCurrentUserId] = useState<string | null>(currentUserIdProp ?? null);
@@ -1344,7 +1360,7 @@ export default function FlicksApp({
             author_id: p.author_id || p.user_id,
             author: p.author_profile?.full_name || p.author || "User",
             author_avatar: p.author_profile?.avatar_url || null,
-            content: p.content || p.caption || "",
+            content: getPostCaption(p),
             media_url: settings.videoUrl || p.media_url,
             video_url: settings.videoUrl || p.media_url,
             audio_url: settings.audioUrl,
@@ -1639,6 +1655,7 @@ export default function FlicksApp({
             ? {
                 ...item,
                 ...updated,
+                content: getPostCaption({ ...item, ...updated }),
                 media_url: settings.videoUrl || updated.media_url || item.media_url,
                 video_url: settings.videoUrl || updated.video_url || item.video_url,
                 audio_url: settings.audioUrl,
@@ -1664,7 +1681,7 @@ export default function FlicksApp({
         user_id: created.author_id,
         author_id: created.author_id,
         author: created.author || "User",
-        content: created.content || "",
+        content: getPostCaption(created),
         media_url: settings.videoUrl || created.media_url,
         video_url: settings.videoUrl || created.video_url || created.media_url,
         audio_url: settings.audioUrl,
