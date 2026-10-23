@@ -3100,6 +3100,7 @@ const SingleReelBlock = ({
                 <button
                   type="button"
                   role="menuitem"
+                  onPointerDown={(event) => event.stopPropagation()}
                   onClick={(event) => {
                     event.preventDefault();
                     event.stopPropagation();
@@ -3107,13 +3108,15 @@ const SingleReelBlock = ({
                     setShowReelMenu(false);
                     onEdit();
                   }}
-                  className="flex w-full items-center gap-2.5 px-3.5 py-3 text-left text-xs font-bold text-white/80 transition hover:bg-white/10"
+                  className="pointer-events-auto flex w-full items-center gap-2.5 px-3.5 py-3 text-left text-xs font-bold text-white/80 transition hover:bg-white/10"
+                  style={{ pointerEvents: "auto" }}
                 >
                   <SlidersHorizontal size={15} className="text-cyan-200" /> Edit Reel
                 </button>
                 <button
                   type="button"
                   role="menuitem"
+                  onPointerDown={(event) => event.stopPropagation()}
                   onClick={(event) => {
                     event.preventDefault();
                     event.stopPropagation();
@@ -3121,19 +3124,24 @@ const SingleReelBlock = ({
                     setShowReelMenu(false);
                     setShowDeleteConfirm(true);
                   }}
-                  className="flex w-full items-center gap-2.5 border-t border-white/[0.07] px-3.5 py-3 text-left text-xs font-bold text-rose-300 transition hover:bg-rose-500/10"
+                  className="pointer-events-auto flex w-full items-center gap-2.5 border-t border-white/[0.07] px-3.5 py-3 text-left text-xs font-bold text-rose-300 transition hover:bg-rose-500/10"
+                  style={{ pointerEvents: "auto" }}
                 >
                   <Trash2 size={15} /> Delete Reel
                 </button>
               </>
             ) : (
-              <button type="button" role="menuitem" onClick={(event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                console.log("3-dot action clicked:", "Report Reel", post.id);
-                setShowReelMenu(false);
-                onReport();
-              }} className="flex w-full items-center gap-2.5 px-3.5 py-3 text-left text-xs font-bold text-orange-200 transition hover:bg-orange-500/10">
+              <button type="button" role="menuitem"
+                onPointerDown={(event) => event.stopPropagation()}
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  console.log("3-dot action clicked:", "Report Reel", post.id);
+                  setShowReelMenu(false);
+                  onReport();
+                }}
+                className="pointer-events-auto flex w-full items-center gap-2.5 px-3.5 py-3 text-left text-xs font-bold text-orange-200 transition hover:bg-orange-500/10"
+                style={{ pointerEvents: "auto" }}>
                 <Flag size={15} /> Report Reel
               </button>
             )}
@@ -7465,15 +7473,22 @@ const FameFeed = ({
                                           aria-label="Edit or delete comment"
                                           title="Edit or delete comment"
                                           aria-haspopup="menu"
-                                          onClick={(event) => {
+                                          onPointerDown={(event) => {
                                             event.stopPropagation();
+                                            console.log("RAW CLICK DETECTED ON 3-DOTS TRIGGER");
+                                          }}
+                                          onClick={(event) => {
+                                            event.preventDefault();
+                                            event.stopPropagation();
+                                            console.log("RAW CLICK DETECTED ON 3-DOTS TRIGGER");
                                             openFeedCommentActions(
                                               c,
                                               post.id,
                                               event.currentTarget,
                                             );
                                           }}
-                                          className="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-full bg-white/5 text-white/75 transition hover:bg-white/15 hover:text-white"
+                                          className="pointer-events-auto flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-full bg-white/5 text-white/75 transition hover:bg-white/15 hover:text-white"
+                                          style={{ pointerEvents: "auto", touchAction: "manipulation" }}
                                         >
                                           <MoreVertical size={16} />
                                         </button>
@@ -7676,15 +7691,22 @@ const FameFeed = ({
                                                 aria-label="Edit or delete reply"
                                                 title="Edit or delete reply"
                                                 aria-haspopup="menu"
-                                                onClick={(event) => {
+                                                onPointerDown={(event) => {
                                                   event.stopPropagation();
+                                                  console.log("RAW CLICK DETECTED ON 3-DOTS TRIGGER");
+                                                }}
+                                                onClick={(event) => {
+                                                  event.preventDefault();
+                                                  event.stopPropagation();
+                                                  console.log("RAW CLICK DETECTED ON 3-DOTS TRIGGER");
                                                   openFeedCommentActions(
                                                     r,
                                                     post.id,
                                                     event.currentTarget,
                                                   )
                                                 }}
-                                                className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-full bg-white/5 text-white/70 transition hover:bg-white/15 hover:text-white"
+                                                className="pointer-events-auto flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-full bg-white/5 text-white/70 transition hover:bg-white/15 hover:text-white"
+                                                style={{ pointerEvents: "auto", touchAction: "manipulation" }}
                                               >
                                                 <MoreVertical size={15} />
                                               </button>
