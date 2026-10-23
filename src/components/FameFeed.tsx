@@ -2404,6 +2404,7 @@ const PostDetailView = ({
                                     onClick={(event) => {
                                       event.preventDefault();
                                       event.stopPropagation();
+                                      console.log("3-dot action clicked:", "Edit", post.id);
                                       setActiveCommentMenuId(null);
                                       onStartCommentEdit(comment);
                                     }}
@@ -2417,6 +2418,7 @@ const PostDetailView = ({
                                     onClick={(event) => {
                                       event.preventDefault();
                                       event.stopPropagation();
+                                      console.log("3-dot action clicked:", "Delete", post.id);
                                       setActiveCommentMenuId(null);
                                       onDeleteComment(String(comment.id));
                                     }}
@@ -2580,6 +2582,7 @@ const PostDetailView = ({
                                             onClick={(event) => {
                                               event.preventDefault();
                                               event.stopPropagation();
+                                              console.log("3-dot action clicked:", "Edit", post.id);
                                               setActiveCommentMenuId(null);
                                               onStartCommentEdit(reply);
                                             }}
@@ -2593,6 +2596,7 @@ const PostDetailView = ({
                                             onClick={(event) => {
                                               event.preventDefault();
                                               event.stopPropagation();
+                                              console.log("3-dot action clicked:", "Delete", post.id);
                                               setActiveCommentMenuId(null);
                                               onDeleteComment(String(reply.id));
                                             }}
@@ -3067,6 +3071,7 @@ const SingleReelBlock = ({
                   onClick={(event) => {
                     event.preventDefault();
                     event.stopPropagation();
+                    console.log("3-dot action clicked:", "Edit Reel", post.id);
                     setShowReelMenu(false);
                     onEdit();
                   }}
@@ -3080,6 +3085,7 @@ const SingleReelBlock = ({
                   onClick={(event) => {
                     event.preventDefault();
                     event.stopPropagation();
+                    console.log("3-dot action clicked:", "Delete Reel", post.id);
                     setShowReelMenu(false);
                     setShowDeleteConfirm(true);
                   }}
@@ -3092,6 +3098,7 @@ const SingleReelBlock = ({
               <button type="button" role="menuitem" onClick={(event) => {
                 event.preventDefault();
                 event.stopPropagation();
+                console.log("3-dot action clicked:", "Report Reel", post.id);
                 setShowReelMenu(false);
                 onReport();
               }} className="flex w-full items-center gap-2.5 px-3.5 py-3 text-left text-xs font-bold text-orange-200 transition hover:bg-orange-500/10">
@@ -6325,6 +6332,7 @@ const FameFeed = ({
                               onClick={(event) => {
                                 event.preventDefault();
                                 event.stopPropagation();
+                                console.log("3-dot action clicked:", "Edit Reel", post.id);
                                 window.dispatchEvent(
                                   new CustomEvent("flicks:open-reel-studio", {
                                     detail: { reel: post },
@@ -6343,6 +6351,7 @@ const FameFeed = ({
                             onClick={(event) => {
                               event.preventDefault();
                               event.stopPropagation();
+                              console.log("3-dot action clicked:", "Edit Post", post.id);
                               setEditingPost({
                                 id: post.id,
                                 text: post.content || "",
@@ -6360,6 +6369,7 @@ const FameFeed = ({
                             onClick={(event) => {
                               event.preventDefault();
                               event.stopPropagation();
+                              console.log("3-dot action clicked:", "Delete", post.id);
                               setOpenMenuId(null);
                               setPendingDeletePost({
                                 id: String(post.id),
@@ -6381,6 +6391,7 @@ const FameFeed = ({
                             onClick={(event) => {
                               event.preventDefault();
                               event.stopPropagation();
+                              console.log("3-dot action clicked:", "Delete (Admin)", post.id);
                               void handleAdminDelete(String(post.id));
                             }}
                             className="w-full flex items-center gap-3 px-4 py-3.5 text-red-400 hover:bg-red-900/30 text-sm font-bold border-b border-white/10"
@@ -6395,6 +6406,7 @@ const FameFeed = ({
                                 onClick={(event) => {
                                   event.preventDefault();
                                   event.stopPropagation();
+                                  console.log("3-dot action clicked:", "Ban User", post.id);
                                   void handleAdminBan(post.author_id, post.author);
                                 }}
                                 className="w-full flex items-center gap-3 px-4 py-3.5 text-red-300 hover:bg-red-900/30 text-sm font-bold border-b border-white/10"
@@ -6410,6 +6422,7 @@ const FameFeed = ({
                         onClick={(event) => {
                           event.preventDefault();
                           event.stopPropagation();
+                          console.log("3-dot action clicked:", "Hide", post.id);
                           handleHide(String(post.id));
                         }}
                         className="w-full flex items-center gap-3 px-4 py-3.5 text-white/60 hover:bg-white/10 text-sm font-semibold border-b border-white/10"
@@ -6422,6 +6435,7 @@ const FameFeed = ({
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
+                          console.log("3-dot action clicked:", "Report", post.id);
                           const popupH = 340;
                           const spaceBelow = window.innerHeight - e.clientY;
                           const top = spaceBelow >= popupH + 16
@@ -6448,6 +6462,7 @@ const FameFeed = ({
                             onClick={(event) => {
                               event.preventDefault();
                               event.stopPropagation();
+                              console.log("3-dot action clicked:", "Unblock User", post.id);
                               setOpenMenuId(null);
                               void handleUnblockUser(
                                 post.author_id,
@@ -6465,6 +6480,7 @@ const FameFeed = ({
                             onClick={(event) => {
                               event.preventDefault();
                               event.stopPropagation();
+                              console.log("3-dot action clicked:", "Block User", post.id);
                               setOpenMenuId(null);
                               setBlockConfirm({
                                 userId: post.author_id,
