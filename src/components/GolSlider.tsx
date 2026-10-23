@@ -19,6 +19,11 @@ const START_MENU_ITEMS = [
   { label: "Quotes Maker", emoji: "💬", feature: "QuotesMaker" },
   { label: "Studio", icon: TrendingUp, feature: "Studio" },
 ] satisfies StartMenuItem[];
+const ADMIN_MENU_ITEM: StartMenuItem = {
+  label: "Admin",
+  emoji: "🛡️",
+  feature: "Admin",
+};
 
 const AUTO_CLOSE_MS = 10_000;
 
@@ -26,12 +31,14 @@ interface GolSliderProps {
   onFeatureChange?: (feature: string) => void;
   activeFeature?: string;
   onRefresh: () => Promise<void> | void;
+  isAdmin?: boolean;
 }
 
 const GolSlider = ({
   onFeatureChange,
   activeFeature,
   onRefresh,
+  isAdmin = false,
 }: GolSliderProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const [mode, setMode] = useState<"start" | "refresh">("start");
@@ -168,6 +175,10 @@ const GolSlider = ({
       });
   };
 
+  const menuItems: StartMenuItem[] = isAdmin
+    ? [...START_MENU_ITEMS, ADMIN_MENU_ITEM]
+    : START_MENU_ITEMS;
+
   return (
     <div className="gol-start-dock">
       {mode === "start" && isOpen && (
@@ -178,7 +189,7 @@ const GolSlider = ({
           role="menu"
           aria-label="Start menu"
         >
-          {START_MENU_ITEMS.map(({ label, emoji, icon: Icon, feature }) => {
+          {menuItems.map(({ label, emoji, icon: Icon, feature }) => {
             const isActive = activeFeature === feature;
             return (
               <button
