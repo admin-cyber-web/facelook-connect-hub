@@ -129,8 +129,13 @@ const PageBannerCard = ({
   pg: HookPage; onClick: () => void; memberCount: number;
   isOwner: boolean; isFollowing: boolean; onToggleFollow: (e: React.MouseEvent) => void;
 }) => (
-  <motion.div whileTap={{ scale: 0.97 }} onClick={onClick}
-    className="rounded-2xl overflow-hidden border border-gray-100 shadow-sm bg-white cursor-pointer"
+  <motion.div
+    whileTap={{ scale: 0.97 }}
+    onClick={event => {
+      event.stopPropagation();
+      onClick();
+    }}
+    className="relative z-50 pointer-events-auto rounded-2xl overflow-hidden border border-gray-100 shadow-sm bg-white cursor-pointer"
   >
     {/* Banner */}
     <div
@@ -142,7 +147,7 @@ const PageBannerCard = ({
         backgroundPosition: "center",
       }}
     >
-      <div className="absolute inset-0 bg-black/20" />
+      <div className="pointer-events-none absolute inset-0 bg-black/20" />
       {/* Avatar overlapping */}
       <div className="absolute -bottom-6 left-3 w-14 h-14 rounded-full border-4 border-white shadow-md overflow-hidden bg-gray-200 flex items-center justify-center">
         {(pg.profiles?.avatar_url || pg.avatar_url)
@@ -1244,25 +1249,31 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
       {/* ── CINEMATIC BANNER ──────────────────────────────────────── */}
       <div className="relative overflow-hidden shrink-0" style={{ height: 252 }}>
         {/* Banner image */}
-        <div className="absolute inset-0" style={{
+        <div className="pointer-events-none absolute inset-0" style={{
           backgroundImage: livePage.cover_url ? `url('${livePage.cover_url}')` : "none",
           backgroundColor: livePage.cover_url ? "transparent" : "#1a1f3a",
           backgroundSize: "cover", backgroundPosition: "center",
         }} />
         {/* Cinematic gradient — clear top, heavy dark fade at bottom */}
-        <div className="absolute inset-0" style={{
+        <div className="pointer-events-none absolute inset-0" style={{
           background: "linear-gradient(to bottom, rgba(0,0,0,0.08) 0%, rgba(0,0,0,0.35) 45%, rgba(9,11,20,0.93) 100%)"
         }} />
 
         {/* Back button */}
-        <button onClick={onBack}
-          className="absolute top-3 left-3 z-20 w-9 h-9 rounded-full flex items-center justify-center text-white"
+        <button
+          type="button"
+          aria-label="Back to Hook Pages"
+          onClick={event => {
+            event.stopPropagation();
+            onBack();
+          }}
+          className="absolute top-3 left-3 z-50 pointer-events-auto w-9 h-9 rounded-full flex items-center justify-center text-white"
           style={{ background: "rgba(0,0,0,0.45)", backdropFilter: "blur(10px)", border: "1px solid rgba(255,255,255,0.18)" }}>
           <ArrowLeft size={18} />
         </button>
 
         {/* Top-right quick actions */}
-        <div className="absolute top-3 right-3 z-20 flex items-center gap-2">
+            <div className="absolute top-3 right-3 z-50 pointer-events-auto flex items-center gap-2">
           {isOwner && (
             <>
               <motion.button whileTap={{ scale: 0.93 }} onClick={() => setShowEditPage(true)}
@@ -2099,7 +2110,7 @@ const HooksHub = ({
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-28 touch-scroll-y">
+      <div className="relative min-h-screen bg-gray-50 pb-28 touch-scroll-y pointer-events-auto">
       {/* Hero */}
       <div className="px-4 pt-5 pb-3 bg-white border-b border-gray-100 shadow-sm">
         <div className="flex items-center justify-between">
@@ -2112,8 +2123,14 @@ const HooksHub = ({
               <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Viral karo apna page</p>
             </div>
           </div>
-          <motion.button whileTap={{ scale: 0.93 }} onClick={() => setShowCreate(true)}
-            className="flex items-center gap-1.5 px-4 py-2.5 rounded-2xl text-white text-[12px] font-black shadow-md"
+          <motion.button
+            type="button"
+            whileTap={{ scale: 0.93 }}
+            onClick={event => {
+              event.stopPropagation();
+              setShowCreate(true);
+            }}
+            className="relative z-50 pointer-events-auto flex items-center gap-1.5 px-4 py-2.5 rounded-2xl text-white text-[12px] font-black shadow-md"
             style={{ background: "linear-gradient(135deg,#2563eb,#7c3aed)" }}>
             <Plus size={15} /> Page Banao
           </motion.button>
@@ -2169,8 +2186,14 @@ const HooksHub = ({
                 <p className="font-black text-gray-700 text-[14px]">Create your first Page.</p>
                 <p className="text-[12px] text-gray-400 mt-1">Invite friends to your page and grow your audience.</p>
               </div>
-              <motion.button whileTap={{ scale: 0.96 }} onClick={() => setShowCreate(true)}
-                className="px-5 py-2.5 rounded-xl text-white text-[13px] font-black"
+              <motion.button
+                type="button"
+                whileTap={{ scale: 0.96 }}
+                onClick={event => {
+                  event.stopPropagation();
+                  setShowCreate(true);
+                }}
+                className="relative z-50 pointer-events-auto px-5 py-2.5 rounded-xl text-white text-[13px] font-black"
                 style={{ background: "linear-gradient(135deg,#2563eb,#7c3aed)" }}>
                 + Create Page
               </motion.button>

@@ -112,18 +112,25 @@ const GroupCard = ({
   group: Group; isMember: boolean; onJoin: () => void; onLeave?: () => void; onClick: () => void; justJoined?: boolean;
 }) => (
   <div
-    className="bg-[#d4f0e2] rounded-xl overflow-hidden flex flex-col"
+    onClick={event => {
+      event.stopPropagation();
+      onClick();
+    }}
+    className="relative z-50 pointer-events-auto bg-[#d4f0e2] rounded-xl overflow-hidden flex flex-col cursor-pointer"
     style={{ boxShadow: "0 1px 6px rgba(0,0,0,0.07)" }}
   >
     <div
-      className="w-full aspect-square cursor-pointer"
+      className="relative z-50 pointer-events-auto w-full aspect-square cursor-pointer"
       style={{
         backgroundImage: group.cover_url ? `url('${group.cover_url}')` : "none",
         backgroundColor: group.cover_url ? "transparent" : "#f3f4f6",
         backgroundSize: "cover",
         backgroundPosition: "center",
       }}
-      onClick={onClick}
+      onClick={event => {
+        event.stopPropagation();
+        onClick();
+      }}
     />
     <div className="p-2 flex flex-col gap-1.5">
       <p className="text-[12px] font-black text-gray-900 truncate leading-tight">{group.name}</p>
@@ -134,15 +141,18 @@ const GroupCard = ({
       {isMember || justJoined ? (
         <div className="flex gap-1">
           <button
-            onClick={onClick}
-            className="flex-1 py-1.5 rounded-lg text-[10px] font-black transition-all active:scale-95 bg-green-50 text-green-700 border border-green-200"
+            onClick={event => {
+              event.stopPropagation();
+              onClick();
+            }}
+            className="relative z-50 pointer-events-auto flex-1 py-1.5 rounded-lg text-[10px] font-black transition-all active:scale-95 bg-green-50 text-green-700 border border-green-200"
           >
             {justJoined ? "✓ Joined!" : "View"}
           </button>
           {!justJoined && onLeave && (
             <button
               onClick={e => { e.stopPropagation(); onLeave(); }}
-              className="py-1.5 px-2 rounded-lg text-[10px] font-black transition-all active:scale-95 bg-white border-2 border-red-400 text-red-500"
+              className="relative z-50 pointer-events-auto py-1.5 px-2 rounded-lg text-[10px] font-black transition-all active:scale-95 bg-white border-2 border-red-400 text-red-500"
             >
               Leave
             </button>
@@ -150,8 +160,11 @@ const GroupCard = ({
         </div>
       ) : (
         <button
-          onClick={onJoin}
-          className="w-full py-1.5 rounded-lg text-[10px] font-black transition-all active:scale-95 bg-blue-600 text-white"
+          onClick={event => {
+            event.stopPropagation();
+            onJoin();
+          }}
+          className="relative z-50 pointer-events-auto w-full py-1.5 rounded-lg text-[10px] font-black transition-all active:scale-95 bg-blue-600 text-white"
         >
           Join
         </button>
@@ -2060,27 +2073,30 @@ export default function CirclePage({
         {/* ── CINEMATIC HERO ──────────────────────────────────────────── */}
         <div className="relative w-full flex-shrink-0" style={{ height: 220 }}>
           {/* Cover image */}
-          <div className="absolute inset-0" style={{
+          <div className="pointer-events-none absolute inset-0" style={{
             backgroundImage: selectedGroup.cover_url ? `url('${selectedGroup.cover_url}')` : "none",
             backgroundColor: !selectedGroup.cover_url ? "#1a1f35" : "transparent",
             backgroundSize: "cover",
             backgroundPosition: "center",
           }} />
           {/* Gradient overlay */}
-          <div className="absolute inset-0" style={{
+          <div className="pointer-events-none absolute inset-0" style={{
             background: "linear-gradient(to bottom, rgba(9,10,15,0.15) 0%, rgba(9,10,15,0.0) 30%, rgba(9,10,15,0.92) 100%)"
           }} />
 
           {/* Back */}
           <button
-            onClick={() => {
+            type="button"
+            aria-label="Back to circles"
+            onClick={event => {
+              event.stopPropagation();
               setView("dashboard");
               setSelectedGroup(null);
               setNewMemberCount(0);
               if (chatSubRef.current) { supabase.removeChannel(chatSubRef.current); chatSubRef.current = null; }
               if (memberSubRef.current) { supabase.removeChannel(memberSubRef.current); memberSubRef.current = null; }
             }}
-            className="absolute top-4 left-4 w-10 h-10 rounded-full flex items-center justify-center border border-white/20 z-10 active:scale-90 transition-transform"
+            className="absolute top-4 left-4 z-50 pointer-events-auto w-10 h-10 rounded-full flex items-center justify-center border border-white/20 active:scale-90 transition-transform"
             style={{ background: "rgba(255,255,255,0.1)", backdropFilter: "blur(12px)" }}
           >
             <ChevronLeft size={20} className="text-white" />
@@ -2088,7 +2104,7 @@ export default function CirclePage({
 
           {/* Admin buttons */}
           {canModerate && (
-            <div className="absolute top-4 right-4 flex items-center gap-2 z-10">
+            <div className="absolute top-4 right-4 z-50 pointer-events-auto flex items-center gap-2">
               <button
                 onClick={() => openEditGroup(selectedGroup)}
                 className="w-10 h-10 rounded-full flex items-center justify-center border border-white/20 active:scale-90 transition-transform"
@@ -4434,7 +4450,7 @@ export default function CirclePage({
   return (
     <div className="min-h-screen bg-[#d4f0e2] pb-28 touch-scroll-y">
       {/* Header */}
-      <div className="bg-[#d4f0e2] border-b border-gray-100 px-4 pt-12 pb-4 flex items-center justify-between sticky top-0 z-10">
+      <div className="bg-[#d4f0e2] border-b border-gray-100 px-4 pt-12 pb-4 flex items-center justify-between sticky top-0 z-50">
         <div>
           <h1 className="text-xl font-black text-gray-900">Your Circles</h1>
           <p className="text-[11px] text-gray-400 font-medium">Groups & communities you love</p>
@@ -4461,8 +4477,12 @@ export default function CirclePage({
             </AnimatePresence>
           </button>
           <button
-            onClick={() => setShowCreate(true)}
-            className="flex items-center gap-1.5 bg-blue-600 text-white px-4 py-2.5 rounded-xl text-sm font-black active:scale-95 transition-transform"
+            type="button"
+            onClick={event => {
+              event.stopPropagation();
+              setShowCreate(true);
+            }}
+            className="relative z-50 pointer-events-auto flex items-center gap-1.5 bg-blue-600 text-white px-4 py-2.5 rounded-xl text-sm font-black active:scale-95 transition-transform"
           >
             <Plus size={16} strokeWidth={2.5} />
             Create
@@ -4524,8 +4544,11 @@ export default function CirclePage({
                 {myGroups.map(g => (
                   <button
                     key={g.id}
-                    onClick={() => openGroup(g)}
-                    className="flex-shrink-0 flex flex-col items-center gap-1.5"
+                    onClick={event => {
+                      event.stopPropagation();
+                      openGroup(g);
+                    }}
+                    className="relative z-50 pointer-events-auto flex-shrink-0 flex flex-col items-center gap-1.5"
                   >
                     <div className="w-14 h-14 rounded-full overflow-hidden border-2 border-blue-500 shadow-sm bg-gray-200 flex items-center justify-center">
                       {(g.profiles?.avatar_url || g.cover_url)

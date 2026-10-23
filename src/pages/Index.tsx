@@ -5477,6 +5477,7 @@ const PersonalizationView = React.memo(({
       <GolSlider
         activeFeature={activeFeature}
         onRefresh={handleBottomNavRefresh}
+        isAdmin={isAppAdmin}
         onFeatureChange={(f) => {
           if (f === "Admin") {
             if (isAppAdmin) setIsAdminPanelOpen(true);
