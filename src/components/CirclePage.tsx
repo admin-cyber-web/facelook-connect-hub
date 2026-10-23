@@ -215,7 +215,12 @@ const CirclePostCard = memo(({
           <p className="text-[10px] text-gray-500 mt-0.5">{smartTime(post.created_at)}</p>
         </div>
         {canEdit && (
-          <button onClick={() => { haptic(); onOptions(post); }} className="p-2 rounded-full text-gray-600 active:bg-white/10 transition-colors">
+          <button type="button" aria-label="Post actions" onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            haptic();
+            onOptions(post);
+          }} className="p-2 rounded-full text-gray-600 active:bg-white/10 transition-colors">
             <MoreVertical size={16} />
           </button>
         )}
@@ -461,6 +466,7 @@ export default function CirclePage({
   const [editPostText, setEditPostText]         = useState("");
   const [editPostSaving, setEditPostSaving]     = useState(false);
   const [confirmDeletePost, setConfirmDeletePost] = useState<string | null>(null);
+  const [deleteGroupPostSaving, setDeleteGroupPostSaving] = useState(false);
   const [showEditGroup, setShowEditGroup]       = useState(false);
   const [editGroupForm, setEditGroupForm]       = useState({ name: "", description: "" });
   const [editGroupCoverFile, setEditGroupCoverFile] = useState<File | null>(null);
@@ -1940,18 +1946,52 @@ export default function CirclePage({
   const saveEditPost = async () => {
     if (!editingPost || !editPostText.trim()) return;
     setEditPostSaving(true);
-    await supabase.from("circle_posts").update({ content: editPostText.trim() }).eq("id", editingPost.id);
-    setGroupPosts(prev => prev.map(p => p.id === editingPost.id ? { ...p, content: editPostText.trim() } : p));
-    setEditPostSaving(false);
-    setEditingPost(null);
+    try {
+      const { data, error } = await supabase
+        .from("circle_posts")
+        .update({ content: editPostText.trim() })
+        .eq("id", editingPost.id)
+        .select("id")
+        .maybeSingle();
+      if (error) throw error;
+      if (!data?.id) throw new Error("Post was not updated. Check your permissions.");
+      setGroupPosts(prev => prev.map(p => p.id === editingPost.id ? { ...p, content: editPostText.trim() } : p));
+      setEditingPost(null);
+      toast.success("Post updated.");
+    } catch (error) {
+      console.error("[CirclePage] Post edit failed:", error);
+      toast.error(error instanceof Error ? error.message : "Post update failed. Please try again.");
+    } finally {
+      setEditPostSaving(false);
+    }
   };
 
   const deleteGroupPost = async (postId: string) => {
-    if (!canModerate && !groupPosts.some(post => post.id === postId && post.author_id === currentUserId)) return;
-    await supabase.from("circle_posts").delete().eq("id", postId);
-    setGroupPosts(prev => prev.filter(p => p.id !== postId));
-    setPendingPosts(prev => prev.filter(p => p.id !== postId));
-    setConfirmDeletePost(null);
+    if (!canModerate && !groupPosts.some(post => post.id === postId && post.author_id === currentUserId)) {
+      toast.error("You can only delete your own posts.");
+      setConfirmDeletePost(null);
+      return;
+    }
+    setDeleteGroupPostSaving(true);
+    try {
+      const { data, error } = await supabase
+        .from("circle_posts")
+        .delete()
+        .eq("id", postId)
+        .select("id")
+        .maybeSingle();
+      if (error) throw error;
+      if (!data?.id) throw new Error("Post was not deleted. Check your permissions.");
+      setGroupPosts(prev => prev.filter(p => p.id !== postId));
+      setPendingPosts(prev => prev.filter(p => p.id !== postId));
+      setConfirmDeletePost(null);
+      toast.success("Post deleted.");
+    } catch (error) {
+      console.error("[CirclePage] Post delete failed:", error);
+      toast.error(error instanceof Error ? error.message : "Post delete failed. Please try again.");
+    } finally {
+      setDeleteGroupPostSaving(false);
+    }
   };
 
   // ── Edit Group (Profile) ───────────────────────────────────────────────────────
@@ -3736,7 +3776,15 @@ export default function CirclePage({
                 <div className="py-2">
                   {postSheet.author_id === currentUserId && (
                     <button
-                      onClick={() => { haptic(); setEditingPost({ id: postSheet.id, content: postSheet.content }); setEditPostText(postSheet.content); setPostSheet(null); }}
+                      type="button"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        haptic();
+                        setEditingPost({ id: postSheet.id, content: postSheet.content });
+                        setEditPostText(postSheet.content);
+                        setPostSheet(null);
+                      }}
                       className="w-full flex items-center gap-4 px-5 py-4 text-blue-600 active:bg-blue-50 text-[14px] font-semibold"
                     >
                       <Pencil size={18} className="shrink-0" />
@@ -3745,22 +3793,43 @@ export default function CirclePage({
                   )}
                   {canModerate && (
                     <button
-                      onClick={() => { haptic(); toggleCommentsMuted(postSheet); setPostSheet(null); }}
+                      type="button"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        haptic();
+                        void toggleCommentsMuted(postSheet);
+                        setPostSheet(null);
+                      }}
                       className="w-full flex items-center gap-4 px-5 py-4 text-amber-600 active:bg-amber-50 text-[14px] font-semibold border-t border-gray-50"
                     >
                       <Ban size={18} className="shrink-0" />
                       {postSheet.comments_muted ? "Unmute Comments" : "Mute Comments"}
                     </button>
                   )}
+                  {(canModerate || postSheet.author_id === currentUserId) && (
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        haptic();
+                        setConfirmDeletePost(postSheet.id);
+                        setPostSheet(null);
+                      }}
+                      className="w-full flex items-center gap-4 px-5 py-4 text-red-500 active:bg-red-50 text-[14px] font-semibold border-t border-gray-50"
+                    >
+                      <Trash2 size={18} className="shrink-0" />
+                      Delete Post
+                    </button>
+                  )}
                   <button
-                    onClick={() => { haptic(); setConfirmDeletePost(postSheet.id); setPostSheet(null); }}
-                    className="w-full flex items-center gap-4 px-5 py-4 text-red-500 active:bg-red-50 text-[14px] font-semibold border-t border-gray-50"
-                  >
-                    <Trash2 size={18} className="shrink-0" />
-                    Delete Post
-                  </button>
-                  <button
-                    onClick={() => setPostSheet(null)}
+                    type="button"
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      setPostSheet(null);
+                    }}
                     className="w-full flex items-center justify-center px-5 py-4 text-gray-400 active:bg-[#c4e8d4] text-[14px] font-semibold border-t border-gray-100 mt-1"
                   >
                     Cancel
@@ -4202,18 +4271,32 @@ export default function CirclePage({
           {confirmDeletePost && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               className="fixed inset-0 z-[300] flex items-center justify-center px-6 bg-black/50 backdrop-blur-sm"
-              onClick={() => setConfirmDeletePost(null)}>
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                if (!deleteGroupPostSaving) setConfirmDeletePost(null);
+              }}>
               <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
                 className="bg-[#d4f0e2] rounded-3xl p-6 w-full max-w-xs shadow-2xl"
-                onClick={e => e.stopPropagation()}>
+                onClick={event => { event.preventDefault(); event.stopPropagation(); }}>
                 <div className="w-12 h-12 rounded-2xl bg-red-100 flex items-center justify-center mx-auto mb-4">
                   <Trash2 size={22} className="text-red-500" />
                 </div>
                 <p className="text-gray-900 font-black text-center text-base mb-1">Post Delete Karo?</p>
                 <p className="text-gray-400 text-center text-[12px] mb-5">Yeh post hamesha ke liye delete ho jayegi.</p>
                 <div className="flex gap-2">
-                  <button onClick={() => setConfirmDeletePost(null)} className="flex-1 py-3 rounded-2xl bg-gray-100 text-gray-600 font-black text-sm">Cancel</button>
-                  <button onClick={() => deleteGroupPost(confirmDeletePost)} className="flex-1 py-3 rounded-2xl bg-red-500 text-white font-black text-sm">Delete</button>
+                  <button type="button" disabled={deleteGroupPostSaving} onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    setConfirmDeletePost(null);
+                  }} className="flex-1 py-3 rounded-2xl bg-gray-100 text-gray-600 font-black text-sm disabled:opacity-50">Cancel</button>
+                  <button type="button" disabled={deleteGroupPostSaving} onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    void deleteGroupPost(confirmDeletePost);
+                  }} className="flex-1 py-3 rounded-2xl bg-red-500 text-white font-black text-sm disabled:cursor-wait disabled:opacity-60">
+                    {deleteGroupPostSaving ? "Deleting…" : "Delete"}
+                  </button>
                 </div>
               </motion.div>
             </motion.div>
