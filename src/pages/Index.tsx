@@ -2049,7 +2049,7 @@ const PersonalInfoView = React.memo(({
             ref={fileInputRef}
             type="file"
             accept="image/*"
-            className="hidden"
+            className="sr-only"
             onChange={handleAvatarFileChange}
           />
         </div>

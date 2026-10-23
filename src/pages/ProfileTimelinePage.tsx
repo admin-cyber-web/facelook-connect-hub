@@ -218,7 +218,13 @@ export default function ProfileTimelinePage({
   const [chatOpen, setChatOpen] = useState(false);
   const [reelStudioOpen, setReelStudioOpen] = useState(false);
   const [isCoverUploading, setIsCoverUploading] = useState(false);
+  const [coverPreviewUrl, setCoverPreviewUrl] = useState<string | null>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!coverPreviewUrl?.startsWith("blob:")) return;
+    return () => URL.revokeObjectURL(coverPreviewUrl);
+  }, [coverPreviewUrl]);
 
   const loadMediaPage = useCallback(async (targetUserId: string, start: number) => {
     return supabase
@@ -489,6 +495,7 @@ export default function ProfileTimelinePage({
         return;
       }
 
+      setCoverPreviewUrl(URL.createObjectURL(file));
       setIsCoverUploading(true);
       try {
         const extension =
@@ -518,10 +525,12 @@ export default function ProfileTimelinePage({
             ? { ...current, cover_url: publicUrl }
             : current,
         );
+        setCoverPreviewUrl(null);
         window.dispatchEvent(new CustomEvent("flicks-profile-updated"));
         toast.success("Cover photo updated.");
       } catch (error) {
         console.error("[ProfileTimelinePage] cover upload failed:", error);
+        setCoverPreviewUrl(null);
         toast.error("Your cover photo could not be updated. Please try again.");
       } finally {
         setIsCoverUploading(false);
@@ -530,6 +539,11 @@ export default function ProfileTimelinePage({
     },
     [currentUserId, profile],
   );
+
+  const profileForDisplay =
+    profile && coverPreviewUrl
+      ? { ...profile, cover_url: coverPreviewUrl }
+      : profile;
 
   const openReelStudio = useCallback(() => setReelStudioOpen(true), []);
   const closeReelStudio = useCallback(() => setReelStudioOpen(false), []);
@@ -837,7 +851,7 @@ export default function ProfileTimelinePage({
         onChange={(event) => void handleCoverSelection(event)}
       />
       <FullProfilePage
-        profile={profile}
+        profile={profileForDisplay}
         friendWall={wall}
         media={media}
         hooks={timelinePosts.filter(isVideoTimelinePost)}

@@ -1531,7 +1531,7 @@ body,
   padding-left:  env(safe-area-inset-left);
   padding-right: env(safe-area-inset-right);
   padding-top:    var(--cap-safe-top);
-  padding-bottom: env(safe-area-inset-bottom);
+  padding-bottom: var(--cap-safe-bottom);
   touch-action: pan-y;
   overflow-x: hidden;
   overflow-y: visible;

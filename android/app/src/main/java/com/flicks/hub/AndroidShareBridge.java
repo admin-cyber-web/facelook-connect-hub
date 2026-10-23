@@ -59,6 +59,7 @@ public final class AndroidShareBridge {
             try {
                 Intent sendIntent = new Intent(Intent.ACTION_SEND);
                 sendIntent.setType("text/plain");
+                sendIntent.putExtra(Intent.EXTRA_SUBJECT, chooserTitle);
                 sendIntent.putExtra(Intent.EXTRA_TEXT, finalBody);
                 activity.startActivity(Intent.createChooser(sendIntent, chooserTitle));
             } catch (ActivityNotFoundException error) {
@@ -112,9 +113,20 @@ public final class AndroidShareBridge {
             if (activity.isFinishing() || activity.isDestroyed()) return;
             Intent sendIntent = new Intent(Intent.ACTION_SEND);
             sendIntent.setType("text/plain");
-            sendIntent.putExtra(Intent.EXTRA_TEXT, caption == null ? "" : caption);
-            sendIntent.setPackage(targetPackage);
-            activity.startActivity(sendIntent);
+            String text = caption == null ? "" : caption;
+            String subject = text.split("\\R", 2)[0].trim();
+            if (!TextUtils.isEmpty(subject)) {
+                sendIntent.putExtra(Intent.EXTRA_SUBJECT, subject);
+            }
+            sendIntent.putExtra(Intent.EXTRA_TEXT, text);
+            if (TextUtils.isEmpty(targetPackage)) {
+                activity.startActivity(
+                        Intent.createChooser(sendIntent, "Share Flicks post")
+                );
+            } else {
+                sendIntent.setPackage(targetPackage);
+                activity.startActivity(sendIntent);
+            }
         } catch (ActivityNotFoundException error) {
             showToast("That app is not installed.");
         } catch (Exception error) {
@@ -177,7 +189,11 @@ public final class AndroidShareBridge {
                 //noinspection ResultOfMethodCallIgnored
                 mediaFile.delete();
             }
-            showToast("Couldn't share this media. Please try again.");
+            launchTextFallback(
+                    caption,
+                    targetPackage,
+                    "Media could not be attached; sharing the post link instead."
+            );
         } finally {
             if (connection != null) {
                 connection.disconnect();
@@ -198,6 +214,10 @@ public final class AndroidShareBridge {
 
             Intent sendIntent = new Intent(Intent.ACTION_SEND);
             sendIntent.setType(mimeType);
+            String subject = caption == null ? "" : caption.split("\\R", 2)[0].trim();
+            if (!TextUtils.isEmpty(subject)) {
+                sendIntent.putExtra(Intent.EXTRA_SUBJECT, subject);
+            }
             sendIntent.putExtra(Intent.EXTRA_TEXT, caption);
             sendIntent.putExtra(Intent.EXTRA_STREAM, contentUri);
             sendIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
@@ -211,10 +231,29 @@ public final class AndroidShareBridge {
 
             activity.startActivity(Intent.createChooser(sendIntent, "Share Flicks post"));
         } catch (ActivityNotFoundException error) {
-            showToast("No compatible sharing app is installed.");
+            launchTextFallback(
+                    caption,
+                    targetPackage,
+                    "Media could not be attached; sharing the link instead."
+            );
         } catch (Exception error) {
-            showToast("Couldn't open the share sheet. Please try again.");
+            launchTextFallback(
+                    caption,
+                    targetPackage,
+                    "Media could not be attached; sharing the link instead."
+            );
         }
+    }
+
+    private void launchTextFallback(
+            String caption,
+            String targetPackage,
+            String message
+    ) {
+        activity.runOnUiThread(() -> {
+            launchTextIntent(caption, targetPackage);
+            showToast(message);
+        });
     }
 
     private String resolveMimeType(String contentType, String mediaUrl, String mediaType) {

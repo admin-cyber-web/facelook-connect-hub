@@ -10,7 +10,7 @@
 .gol-hybrid-button {
   position: fixed;
   z-index: 50;
-  bottom: max(1rem, calc(var(--cap-safe-bottom, 0px) + 0.5rem));
+  bottom: max(1.5rem, calc(var(--cap-safe-bottom, 0px) + 1rem));
   left: 50%;
   display: inline-flex;
   min-width: 148px;
@@ -155,7 +155,7 @@
 .gol-start-menu {
   position: fixed;
   z-index: 3;
-  bottom: calc(1rem + var(--cap-safe-bottom, 0px) + 66px);
+  bottom: calc(1rem + var(--cap-safe-bottom, 0px) + 74px);
   left: 50%;
   box-sizing: border-box;
   display: flex;

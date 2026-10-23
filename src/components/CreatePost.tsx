@@ -900,7 +900,7 @@ const CreatePost = ({
                         id="gallery-picker"
                         type="file"
                         multiple
-                        className="hidden"
+                        className="sr-only"
                         accept="image/*,video/*"
                         onChange={handleFileChange}
                         ref={fileInputRef}
@@ -919,7 +919,7 @@ const CreatePost = ({
                       id="camera-picker"
                       ref={cameraInputRef}
                       type="file"
-                      className="hidden"
+                      className="sr-only"
                       accept="image/*"
                       capture="environment"
                       onChange={handleFileChange}
@@ -1181,7 +1181,7 @@ const CreatePost = ({
                           className="absolute bottom-2 right-2 flex cursor-pointer items-center gap-1 rounded-full bg-slate-950/70 px-3 py-1.5 text-[11px] font-bold text-white transition-colors hover:bg-[#FF3B4D]"
                         >
                           <ImageIcon size={11} /> Add More
-                          <input id="add-more-picker" type="file" multiple className="hidden" accept="image/*" onChange={handleFileChange} data-testid="input-add-more-media" />
+                          <input id="add-more-picker" type="file" multiple className="sr-only" accept="image/*" onChange={handleFileChange} data-testid="input-add-more-media" />
                         </label>
                       </motion.div>
                     )}
@@ -1239,7 +1239,7 @@ const CreatePost = ({
                                 ref={audioFileInputRef}
                                 type="file"
                                 accept=".mp3,audio/mpeg,audio/mp3"
-                                className="hidden"
+                                className="sr-only"
                                 data-testid="input-post-music-file"
                                 onChange={(event) => {
                                   const file = event.target.files?.[0];
