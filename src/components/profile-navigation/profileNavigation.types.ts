@@ -47,6 +47,8 @@ export type ProfileNavigationPost = {
   comments_count: number | null;
   shares_count: number | null;
   views_count?: number | null;
+  meta_title?: string | null;
+  meta_description?: string | null;
 };
 
 export type ProfileViewState = "loading" | "ready" | "error";

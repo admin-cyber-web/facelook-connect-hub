@@ -32,6 +32,8 @@ import PeopleYouMayKnow from "./PeopleYouMayKnow";
 import NewInYourArea from "./NewInYourArea";
 import type { LocalProfile } from "../lib/recommendationEngine";
 import { requestShareModal } from "../lib/shareModal";
+import { sharePost } from "../lib/sharePost";
+import { buildPostShareUrl } from "../lib/universalShare";
 import { RichCaption } from "./RichCaption";
 import { getPostCaption } from "../lib/postCaption";
 import AutoPlayMutedVideo from "./AutoPlayMutedVideo";
@@ -3346,17 +3348,38 @@ const SingleReelBlock = ({
           aria-label="Share Reel"
           onClick={(event) => {
             event.stopPropagation();
+            const reelId = String(post.id);
+            const authorName = post.author || post.author_name || "Flicks India";
+            const caption = post.content || post.meta_description || "";
+            if (
+              typeof window.AndroidShare?.shareMedia === "function" ||
+              typeof window.AndroidShare?.shareText === "function"
+            ) {
+              void sharePost({
+                postId: reelId,
+                caption,
+                mediaUrl: post.media_url || post.video_url || post.cover_url,
+                mediaType: "video",
+                authorName,
+                metaTitle: post.meta_title,
+                metaDescription: post.meta_description,
+              }).catch((error) => {
+                console.error("[FameFeed] Reel share failed:", error);
+                toast.error("Could not open the Android share sheet.");
+              });
+              return;
+            }
             requestShareModal(
               {
-                id: String(post.id),
+                id: reelId,
                 title: post.meta_title || post.content?.slice(0, 72) || "Flicks Reel",
-                content: post.content || post.meta_description || "",
+                content: caption,
                 media_url: post.media_url,
                 video_url: post.video_url,
                 cover_url: post.cover_url,
                 type: post.type || "reel",
-                author: post.author || post.author_name || "Flicks India",
-                share_url: `${window.location.origin}/post/${encodeURIComponent(post.id)}`,
+                author: authorName,
+                share_url: buildPostShareUrl(reelId),
               },
               event.currentTarget,
             );
@@ -3571,6 +3594,8 @@ interface FameFeedProps {
   localProfile?: LocalProfile;
   currentUserId?: string;
   currentUserEmail?: string;
+  refreshRequestId?: number;
+  onRefreshRequestComplete?: () => void;
 }
 
 // ── Hidden Posts Archive Drawer ───────────────────────────────────────────────
@@ -3791,6 +3816,8 @@ const FameFeed = ({
   localProfile = {},
   currentUserId: currentUserIdProp,
   currentUserEmail: currentUserEmailProp,
+  refreshRequestId = 0,
+  onRefreshRequestComplete,
 }: FameFeedProps) => {
   const { openProfile } = useProfileViewer();
   const { playPop, playSwoosh } = useSoundEffects();
@@ -3819,6 +3846,18 @@ const FameFeed = ({
       cancelCenteredFameFeedReelSync();
     };
   }, []);
+
+  // The global navigation dock can navigate here from Settings. A prop request
+  // ensures the forced Supabase fetch runs after this lazy-loaded page mounts.
+  useEffect(() => {
+    if (refreshRequestId <= 0) return;
+    void pullRefreshActionRef.current()
+      .catch((error) => {
+        console.error("[FameFeed] Requested refresh failed:", error);
+        toast.error("The feed could not be refreshed. Please try again.");
+      })
+      .finally(() => onRefreshRequestComplete?.());
+  }, [refreshRequestId, onRefreshRequestComplete]);
 
   const cachedPosts = dataCache.cacheRef.current.famePosts;
   const cachedFlicks = dataCache.cacheRef.current.fameFlicks;
@@ -5372,6 +5411,8 @@ const FameFeed = ({
 
   useEffect(() => {
     // Cache-aware mount: restore from cache instantly, refetch silently if stale (>2min).
+    // A forced request issued while navigating here owns the first fetch.
+    if (refreshRequestId > 0) return;
     if (posts.length === 0) fetchPosts(true);
     else if (dataCache.isStale("famePosts")) {
       // Background refresh — data already visible from cache
@@ -5380,7 +5421,7 @@ const FameFeed = ({
     }
     if (!flicksLoaded) fetchFlicks();
     else if (dataCache.isStale("fameFlicks")) fetchFlicks();
-  }, []);
+  }, [refreshRequestId]);
 
   // ── Suggestions fetch — runs immediately on mount, NO auth gate needed ────
   // circles / hook_pages are public data; do NOT gate on currentUserId.

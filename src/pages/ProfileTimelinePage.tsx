@@ -11,6 +11,8 @@ import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/lib/supabaseClient";
 import { canViewPrivateProfile } from "@/lib/profileSearch";
 import { toast } from "sonner";
+import { sharePost } from "@/lib/sharePost";
+import { buildPostShareUrl } from "@/lib/universalShare";
 import FriendWall from "@/components/FriendWall";
 import {
   FullProfilePage,
@@ -61,6 +63,8 @@ interface MediaPostRow {
   comments_count: number | null;
   shares_count: number | null;
   views_count: number | null;
+  meta_title?: string | null;
+  meta_description?: string | null;
 }
 
 interface FriendshipStatusRow {
@@ -220,7 +224,7 @@ export default function ProfileTimelinePage({
     return supabase
       .from("posts")
       .select(
-        "id,author_id,content,media_url,image_url,image_urls,cover_url,media_type,type,created_at,likes_count,comments_count,shares_count,views_count",
+        "id,author_id,content,media_url,image_url,image_urls,cover_url,media_type,type,created_at,likes_count,comments_count,shares_count,views_count,meta_title,meta_description",
         { count: "exact" },
       )
       .eq("author_id", targetUserId)
@@ -620,17 +624,51 @@ export default function ProfileTimelinePage({
         return;
       }
 
-      const title = `${profile?.full_name || "Flicks member"}'s post`;
-      const url = `${window.location.origin}/post/${encodeURIComponent(postId)}`;
+      const authorName = profile?.full_name || "Flicks member";
+      const title = post.meta_title?.trim() || `${authorName}'s post`;
+      const url = buildPostShareUrl(postId);
+      const rawSummary = (post.meta_description || post.content || "")
+        .replace(/\s+/g, " ")
+        .trim();
+      const summary = rawSummary.length > 180
+        ? `${rawSummary.slice(0, 177).trimEnd()}…`
+        : rawSummary;
+      const shareText = [
+        title,
+        summary && summary !== title ? summary : "",
+        `— ${authorName} on Flicks India`,
+      ]
+        .filter(Boolean)
+        .join("\n\n");
       try {
-        if (navigator.share) {
+        if (
+          typeof window.AndroidShare?.shareMedia === "function" ||
+          typeof window.AndroidShare?.shareText === "function"
+        ) {
+          const outcome = await sharePost({
+            postId,
+            caption: post.content,
+            mediaUrl:
+              post.media_url ||
+              post.image_url ||
+              post.image_urls?.[0] ||
+              post.cover_url ||
+              undefined,
+            mediaType: post.media_type || post.type || undefined,
+            authorName,
+            metaTitle: post.meta_title,
+            metaDescription: post.meta_description,
+          });
+          if (outcome === "cancelled") return;
+          if (outcome === "copied") toast.success("Post link copied.");
+        } else if (navigator.share) {
           await navigator.share({
             title,
-            text: post.content || title,
+            text: shareText,
             url,
           });
         } else if (navigator.clipboard?.writeText) {
-          await navigator.clipboard.writeText(url);
+          await navigator.clipboard.writeText(`${shareText}\n\n${url}`);
           toast.success("Post link copied.");
         } else if (window.prompt("Copy this post link", url) === null) {
           return;

@@ -135,6 +135,11 @@ declare global {
         mediaUrl: string,
         mediaType?: string,
       ) => void | boolean | Promise<void | boolean>;
+      shareText?: (
+        title: string,
+        caption: string,
+        url: string,
+      ) => boolean | Promise<boolean>;
     };
   }
 }
@@ -305,6 +310,21 @@ export async function universalShare(
   // so the WebView does not duplicate the media download in JavaScript.
   if (await shareViaAndroid(text, mediaUrl, type)) {
     return "shared-with-file";
+  }
+
+  // Text-only posts still need a native chooser on Android WebView, where the
+  // browser Web Share API may not be available.
+  if (
+    !mediaUrl &&
+    typeof window !== "undefined" &&
+    typeof window.AndroidShare?.shareText === "function"
+  ) {
+    try {
+      const result = await window.AndroidShare.shareText(title, text, url);
+      if (result !== false) return "shared-url-only";
+    } catch {
+      // Continue to the Web Share API and clipboard fallbacks.
+    }
   }
 
   // ── Step 1: Build a File object ───────────────────────────────────────────

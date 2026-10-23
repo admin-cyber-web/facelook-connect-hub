@@ -31,6 +31,7 @@ import { getMediaSrc, onMediaPrefetched, prefetchReelMedia } from "@/lib/reelPre
 import VibeAudioToggle from "./VibeAudioToggle";
 import ActiveStatusAvatar from "./ActiveStatusAvatar";
 import SavePostButton from "./SavePostButton";
+import { sharePost } from "../lib/sharePost";
 
 // ── Utilities ─────────────────────────────────────────────────────────────────
 const formatCount = (n: any): string => {
@@ -596,8 +597,7 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, on
     e.stopPropagation();
     const rect = e.currentTarget.getBoundingClientRect();
     const id = String(post._raw_id || post.id);
-    setSharePopupData({
-      post: {
+    const shareData: SharePostData = {
         id,
         title: post.meta_title || localContent.slice(0, 72) || "Watch this Flick!",
         content: `${localContent.slice(0, 180)}${localContent.trim() ? "\n\n" : ""}via Flicks India`,
@@ -618,7 +618,31 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, on
         poster_url: post.poster_url,
         preview_url: post.preview_url,
         video_thumbnail_url: post.video_thumbnail_url,
-      },
+      };
+    if (
+      typeof window.AndroidShare?.shareMedia === "function" ||
+      typeof window.AndroidShare?.shareText === "function"
+    ) {
+      void sharePost({
+        postId: id,
+        caption: localContent,
+        mediaUrl: post.media_url || post.video_url || post.thumb_url || post.cover_url,
+        mediaType: "video",
+        authorName: post.author,
+        metaTitle: post.meta_title,
+        metaDescription: post.meta_description,
+      })
+        .then((outcome) => {
+          if (outcome !== "cancelled") return completeShare(shareData);
+        })
+        .catch((error) => {
+          console.error("[Flicks] Native share failed:", error);
+          toast.error("Could not open the Android share sheet.");
+        });
+      return;
+    }
+    setSharePopupData({
+      post: shareData,
       anchor: { x: rect.left, y: rect.top, width: rect.width, height: rect.height },
     });
   };
@@ -996,7 +1020,7 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, on
       {/* ── Consolidated Right-side Interaction Bar (crimson/charcoal) ── */}
       {/* Like → Comment → Share → Hooks → 3-dots report menu; bottom-anchored above the nav handle with safe-area clearance */}
       <div className="absolute right-2.5 z-40 flex flex-col items-center gap-2.5"
-        style={{ bottom: "calc(56px + env(safe-area-inset-bottom, 0px))" }}>
+        style={{ bottom: "calc(56px + var(--cap-safe-bottom, env(safe-area-inset-bottom, 0px)))" }}>
 
         {/* Like — detailed red heart + count */}
         <button
@@ -1129,7 +1153,7 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, on
       <div
         className={`absolute left-3 z-40 ${editingCaption ? "pointer-events-auto" : "pointer-events-none"}`}
         style={{
-          bottom: "calc(46px + env(safe-area-inset-bottom, 0px))",
+          bottom: "calc(46px + var(--cap-safe-bottom, env(safe-area-inset-bottom, 0px)))",
           right: 72,
           maxWidth: "calc(100vw - 92px)",
         }}

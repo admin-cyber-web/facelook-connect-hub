@@ -251,7 +251,7 @@ export async function sharePost(opts: SharePostOptions): Promise<"shared" | "cop
     text: parts.join("\n\n"),
     url: postUrl,
     mediaUrl: mediaUrl || undefined,
-    type: mediaType?.toLowerCase().startsWith("video") ? "reel" : "post",
+    type: /^(video|reel)/i.test(mediaType || "") ? "reel" : "post",
   });
 
   if (outcome === "copied") return "copied";
