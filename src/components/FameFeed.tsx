@@ -8,7 +8,7 @@ import {
   memo,
   useContext,
 } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createPortal } from "react-dom";
 import { supabase } from "../lib/supabaseClient";
 import { smartTime } from "../lib/timeAgo";
@@ -5073,7 +5073,7 @@ const FameFeed = ({
   };
 
   const fetchPosts = async (reset = false, throwOnError = false) => {
-    if (!reset && (loadingMore || !hasMore)) return;
+    if (!reset && (loadingMore || !hasMore)) return [];
     if (reset) {
       pageRef.current = 0;
       setHasMore(true);
@@ -5130,7 +5130,7 @@ const FameFeed = ({
       setLoading(false);
       setLoadingMore(false);
       if (throwOnError) throw e;
-      return;
+      return [];
     }
 
     let rows = (data ?? []).map(normalizePostLikeCount);
@@ -5259,6 +5259,7 @@ const FameFeed = ({
       ),
     ];
     if (missing.length > 0) batchFetchAvatars(missing);
+    return rows;
   };
 
   const fetchFlicks = async () => {
@@ -5318,14 +5319,15 @@ const FameFeed = ({
     setFlicksLoaded(true);
   };
 
-  // Keep the refresh action pointed at the latest render's fetch functions.
-  // The global event listener is intentionally installed once, so invoking
-  // these through a ref avoids stale user/location/cache state.
-  const pullRefreshActionRef = useRef<() => Promise<void>>(async () => {});
-  const refetch = async () => {
-    await fetchPosts(true, true);
-  };
-  pullRefreshActionRef.current = async () => {
+  // This disabled query gives FameFeed an owned, imperative refetch handle.
+  // Its query function is the same bounded Supabase loader used by pagination.
+  const { refetch } = useQuery({
+    queryKey: ["posts"],
+    queryFn: () => fetchPosts(true, true),
+    enabled: false,
+  });
+
+  const refreshFeed = async () => {
     setPosts([]);
     postsRef.current = [];
     setLoading(true);
@@ -5335,8 +5337,16 @@ const FameFeed = ({
     dataCache.setCache("famePosts", { data: [], fetchedAt: Date.now() });
 
     await queryClient.invalidateQueries({ queryKey: ["posts"] });
-    await Promise.all([refetch(), fetchFlicks()]);
+    await Promise.all([
+      refetch({ throwOnError: true }),
+      fetchFlicks(),
+    ]);
   };
+
+  // Keep the event bridge pointed at this mounted feed's latest loader for
+  // native pull-to-refresh and navigation requests.
+  const pullRefreshActionRef = useRef<() => Promise<void>>(async () => {});
+  pullRefreshActionRef.current = refreshFeed;
 
   // Pull-to-refresh listener — fired by <PullToRefresh> in Index.tsx.
   useEffect(() => {
@@ -5425,13 +5435,14 @@ const FameFeed = ({
 
   useEffect(() => {
     // Cache-aware mount: restore from cache instantly, refetch silently if stale (>2min).
-    // A forced request issued while navigating here owns the first fetch.
+    // The posts query is registered inside FameFeed, so its own refetch method
+    // owns both the initial network load and later manual refreshes.
     if (refreshRequestId > 0) return;
-    if (posts.length === 0) fetchPosts(true);
+    if (posts.length === 0) void refetch();
     else if (dataCache.isStale("famePosts")) {
       // Background refresh — data already visible from cache
       setLoading(false);
-      fetchPosts(true);
+      void refetch();
     }
     if (!flicksLoaded) fetchFlicks();
     else if (dataCache.isStale("fameFlicks")) fetchFlicks();
@@ -7128,7 +7139,12 @@ const FameFeed = ({
                   <button
                     className="flex flex-col items-center justify-center py-2 px-2 border-r border-white/[0.06] active:opacity-60 transition-opacity"
                     style={{ flex: 1, minWidth: 0 }}
-                    onClick={() => window.dispatchEvent(new CustomEvent("flicks-pull-refresh"))}
+                    onClick={() => {
+                      void refreshFeed().catch((error) => {
+                        console.error("[FameFeed] Button refresh failed:", error);
+                        toast.error("The feed could not be refreshed. Please try again.");
+                      });
+                    }}
                   >
                     {topTag ? (
                       <>
