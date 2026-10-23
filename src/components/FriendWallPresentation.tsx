@@ -12,6 +12,7 @@ import {
   Video,
 } from "lucide-react";
 import AutoPlayMutedVideo from "@/components/AutoPlayMutedVideo";
+import ProfilePostActions from "./ProfilePostActions";
 import SavePostButton from "./SavePostButton";
 import { ReactionBar, useDismissableReactionPicker } from "./ReactionBar";
 
@@ -34,6 +35,7 @@ export type FriendWallCommentView = {
 
 export type FriendWallPostView = {
   id: string;
+  authorId: string;
   authorName: string;
   authorAvatarUrl?: string | null;
   content: string;
@@ -59,11 +61,14 @@ export type FriendWallPresentationProps = {
   loading: boolean;
   error: string | null;
   likeBusyPostId?: string | null;
+  currentUserId: string;
   onOpenComposer: () => void;
   isOwnProfile?: boolean;
   onCreateHook?: () => void;
   onLike: (postId: string, reactionType?: string) => void;
   onShare: (postId: string) => void;
+  onPostEdited: (postId: string, content: string) => void;
+  onPostDeleted: (postId: string) => void;
   onOpenPostDetail: (postId: string) => void;
   onRetry: () => void;
 };
@@ -163,14 +168,20 @@ function PostSkeleton({ index }: { index: number }) {
 function WallPost({
   post,
   likeBusy,
+  currentUserId,
   onLike,
   onShare,
+  onPostEdited,
+  onPostDeleted,
   onOpenPostDetail,
 }: {
   post: FriendWallPostView;
   likeBusy: boolean;
+  currentUserId: string;
   onLike: (postId: string, reactionType?: string) => void;
   onShare: (postId: string) => void;
+  onPostEdited: (postId: string, content: string) => void;
+  onPostDeleted: (postId: string) => void;
   onOpenPostDetail: (postId: string) => void;
 }) {
   const [reactionPickerOpen, setReactionPickerOpen] = useState(false);
@@ -218,6 +229,16 @@ function WallPost({
             {created.label}
           </time>
         </div>
+        <ProfilePostActions
+          postId={post.id}
+          authorId={post.authorId}
+          authorName={post.authorName}
+          content={post.content}
+          currentUserId={currentUserId}
+          onEdited={onPostEdited}
+          onDeleted={onPostDeleted}
+          onShare={onShare}
+        />
       </div>
 
       {post.content.trim() && (
@@ -381,11 +402,14 @@ export default function FriendWallPresentation({
   loading,
   error,
   likeBusyPostId,
+  currentUserId,
   onOpenComposer,
   isOwnProfile = false,
   onCreateHook,
   onLike,
   onShare,
+  onPostEdited,
+  onPostDeleted,
   onOpenPostDetail,
   onRetry,
 }: FriendWallPresentationProps) {
@@ -523,8 +547,11 @@ export default function FriendWallPresentation({
               key={post.id}
               post={post}
               likeBusy={likeBusyPostId === post.id}
+              currentUserId={currentUserId}
               onLike={onLike}
               onShare={onShare}
+              onPostEdited={onPostEdited}
+              onPostDeleted={onPostDeleted}
               onOpenPostDetail={onOpenPostDetail}
             />
           ))}

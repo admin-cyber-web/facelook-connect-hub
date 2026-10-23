@@ -48,6 +48,7 @@ interface FriendProfileRow {
 
 interface MediaPostRow {
   id: string;
+  author_id: string;
   content: string | null;
   media_url: string | null;
   image_url: string | null;
@@ -219,7 +220,7 @@ export default function ProfileTimelinePage({
     return supabase
       .from("posts")
       .select(
-        "id,content,media_url,image_url,image_urls,cover_url,media_type,type,created_at,likes_count,comments_count,shares_count,views_count",
+        "id,author_id,content,media_url,image_url,image_urls,cover_url,media_type,type,created_at,likes_count,comments_count,shares_count,views_count",
         { count: "exact" },
       )
       .eq("author_id", targetUserId)
@@ -583,6 +584,85 @@ export default function ProfileTimelinePage({
     }
   }, []);
 
+  const handleProfilePostEdited = useCallback(
+    (postId: string, content: string) => {
+      setTimelinePosts((previous) =>
+        previous.map((post) =>
+          post.id === postId ? { ...post, content } : post,
+        ),
+      );
+    },
+    [],
+  );
+
+  const handleProfilePostDeleted = useCallback(
+    (postId: string) => {
+      const isProfilePost = timelinePosts.some((post) => post.id === postId);
+      if (!isProfilePost) return;
+
+      setTimelinePosts((previous) =>
+        previous.filter((post) => post.id !== postId),
+      );
+      setMedia((previous) =>
+        previous.filter((item) => !item.id.startsWith(`${postId}:`)),
+      );
+      setMediaOffset((previous) => Math.max(0, previous - 1));
+      setMediaPostCount((previous) => Math.max(0, previous - 1));
+    },
+    [timelinePosts],
+  );
+
+  const handleShareProfilePost = useCallback(
+    async (postId: string) => {
+      const post = timelinePosts.find((item) => item.id === postId);
+      if (!post) {
+        toast.error("This post is no longer available.");
+        return;
+      }
+
+      const title = `${profile?.full_name || "Flicks member"}'s post`;
+      const url = `${window.location.origin}/post/${encodeURIComponent(postId)}`;
+      try {
+        if (navigator.share) {
+          await navigator.share({
+            title,
+            text: post.content || title,
+            url,
+          });
+        } else if (navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(url);
+          toast.success("Post link copied.");
+        } else if (window.prompt("Copy this post link", url) === null) {
+          return;
+        } else {
+          toast.success("Post link ready to share.");
+        }
+
+        if (!currentUserId) return;
+        const { error } = await supabase.from("shares").insert({
+          post_id: postId,
+          user_id: currentUserId,
+        });
+        if (!error) {
+          setTimelinePosts((previous) =>
+            previous.map((item) =>
+              item.id === postId
+                ? { ...item, shares_count: (item.shares_count ?? 0) + 1 }
+                : item,
+            ),
+          );
+        } else if (error.code !== "23505") {
+          console.warn("[ProfileTimelinePage] share tracking failed:", error);
+        }
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        console.error("[ProfileTimelinePage] share failed:", error);
+        toast.error("The post could not be shared. Please try again.");
+      }
+    },
+    [currentUserId, profile?.full_name, timelinePosts],
+  );
+
   const wall =
     profile && viewState === "ready" ? (
       <FriendWall
@@ -592,6 +672,8 @@ export default function ProfileTimelinePage({
         currentUserId={currentUserId}
         isOwnProfile={profile.id === currentUserId}
         onCreateHook={openReelStudio}
+        onPostEditedInProfile={handleProfilePostEdited}
+        onPostDeletedInProfile={handleProfilePostDeleted}
       />
     ) : null;
 
@@ -722,6 +804,10 @@ export default function ProfileTimelinePage({
         media={media}
         hooks={timelinePosts.filter(isVideoTimelinePost)}
         imagePosts={timelinePosts.filter(isImageTimelinePost)}
+        currentUserId={currentUserId}
+        onPostEdited={handleProfilePostEdited}
+        onPostDeleted={handleProfilePostDeleted}
+        onSharePost={handleShareProfilePost}
         friends={friends}
         isConnected={isConnected}
         canViewProfile={canViewProfile}

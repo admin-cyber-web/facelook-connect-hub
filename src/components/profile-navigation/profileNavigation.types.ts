@@ -34,6 +34,7 @@ export type ProfileNavigationMedia = {
 
 export type ProfileNavigationPost = {
   id: string;
+  author_id: string;
   content: string | null;
   media_url: string | null;
   image_url: string | null;
@@ -73,6 +74,10 @@ export type FullProfilePageProps = {
   sendingFriendIds?: ReadonlySet<string>;
   onBack?: () => void;
   onEditCover?: () => void;
+  currentUserId?: string;
+  onPostEdited?: (postId: string, content: string) => void;
+  onPostDeleted?: (postId: string) => void;
+  onSharePost?: (postId: string) => void | Promise<void>;
 };
 
 export type QuickProfileModalProps = {

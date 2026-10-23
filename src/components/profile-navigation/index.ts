@@ -6,6 +6,7 @@ export type {
   FullProfilePageProps,
   ProfileNavigationFriend,
   ProfileNavigationMedia,
+  ProfileNavigationPost,
   ProfileNavigationProfile,
   ProfileViewState,
   QuickProfileModalProps,

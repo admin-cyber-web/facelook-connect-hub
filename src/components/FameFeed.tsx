@@ -40,6 +40,7 @@ import { maskProfanity, sanitizeText } from "../lib/profanityFilter";
 import { resolveMediaUrl } from "../lib/mediaUrl";
 import { getReelSettings } from "../lib/reelSettings";
 import { prefetchReelMedia } from "../lib/reelPrefetch";
+import PostActionMenuPortal from "./PostActionMenuPortal";
 import {
   getPostVibeAudioUrl,
   resolvePostVibe,
@@ -6534,20 +6535,10 @@ const FameFeed = ({
               >
                 <MoreVertical size={18} className="text-lime-400" />
               </button>
-              {openMenuId === String(post.id) &&
-                createPortal(
-                  <div
-                    role="menu"
-                    data-fame-post-menu
-                    className="fixed z-[9999] w-52 max-w-[calc(100vw-24px)] max-h-[calc(100dvh-24px)] overflow-y-auto overscroll-contain bg-[#1a0d1e] border border-white/10 rounded-2xl shadow-2xl pointer-events-auto"
-                    style={{
-                      top: postMenuPosition.top,
-                      right: postMenuPosition.right,
-                      pointerEvents: "auto",
-                    }}
-                    onPointerDown={(event) => event.stopPropagation()}
-                    onClick={(event) => event.stopPropagation()}
-                  >
+              <PostActionMenuPortal
+                isOpen={openMenuId === String(post.id)}
+                position={postMenuPosition}
+              >
                     {post.author_id === currentUserId && (
                       <>
                         {isVideo && (
@@ -6853,9 +6844,7 @@ const FameFeed = ({
                           <Ban size={15} /> Block User
                         </button>
                       ))}
-                  </div>,
-                  document.body,
-                )}
+              </PostActionMenuPortal>
             </div>
           </div>
 
