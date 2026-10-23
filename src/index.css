@@ -1495,7 +1495,7 @@ html[data-app-hidden="true"] *::after {
 }
 .cap-android {
   --cap-safe-top:    max(env(safe-area-inset-top, 24px), 24px);
-  --cap-safe-bottom: max(env(safe-area-inset-bottom, 0px),  0px);
+  --cap-safe-bottom: max(env(safe-area-inset-bottom, 0px), 24px);
 }
 
 /* ── Mobile safety ────────────────────────────────────────────────────────

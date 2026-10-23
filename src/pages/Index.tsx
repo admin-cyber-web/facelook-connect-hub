@@ -67,7 +67,6 @@ import { toast } from "sonner";
 import Header from "@/components/Header";
 import InviteCard from "@/components/InviteCard";
 import GolSlider from "@/components/GolSlider";
-import { AQUARIUM_REFRESH_WIPE_MS } from "@/components/AquariumRefreshButton";
 import PullToRefresh from "@/components/PullToRefresh";
 import AutoPlayMutedVideo from "@/components/AutoPlayMutedVideo";
 import ShareVibeComposer from "@/components/ShareVibeComposer";
@@ -2523,6 +2522,12 @@ const Index = ({ session, initialAdminOpen, isGuest = false }: { session: Sessio
     !showDeleteDialog &&
     !isFrameMode &&
     !reelStudioOpen;
+  const [feedRefreshRequestId, setFeedRefreshRequestId] = useState(0);
+  const pendingFeedRefreshResolverRef = useRef<(() => void) | null>(null);
+  const completeRequestedFeedRefresh = React.useCallback(() => {
+    pendingFeedRefreshResolverRef.current?.();
+    setFeedRefreshRequestId(0);
+  }, []);
 
   useLayoutEffect(() => {
     // The JS handler owns refreshing. Keep native overscroll scoped to the
@@ -3132,6 +3137,8 @@ const Index = ({ session, initialAdminOpen, isGuest = false }: { session: Sessio
   const t = (en: string, hi: string) => (lang === "hi" ? hi : en);
 
   const handleFeedRefresh = React.useCallback(async () => {
+    restoreFameFeedScrollRef.current = false;
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
     await new Promise<void>((resolve) => {
       let completed = false;
       let fallbackTimer = 0;
@@ -3166,16 +3173,33 @@ const Index = ({ session, initialAdminOpen, isGuest = false }: { session: Sessio
   }, []);
 
   const handleBottomNavRefresh = React.useCallback(async () => {
-    if (isFameFeedPullRefreshEnabled) {
-      await handleFeedRefresh();
-      return;
-    }
+    restoreFameFeedScrollRef.current = false;
+    setSettingsView("main");
+    setActiveFeature("Fame");
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
 
     await new Promise<void>((resolve) => {
-      window.setTimeout(resolve, AQUARIUM_REFRESH_WIPE_MS);
+      let completed = false;
+      let timeout = 0;
+      const complete = () => {
+        if (completed) return;
+        completed = true;
+        window.clearTimeout(timeout);
+        if (pendingFeedRefreshResolverRef.current === complete) {
+          pendingFeedRefreshResolverRef.current = null;
+        }
+        resolve();
+      };
+
+      pendingFeedRefreshResolverRef.current?.();
+      pendingFeedRefreshResolverRef.current = complete;
+      timeout = window.setTimeout(() => {
+        console.warn("[FameFeed] Navigation refresh request timed out.");
+        complete();
+      }, 12000);
+      setFeedRefreshRequestId((requestId) => requestId + 1);
     });
-    window.location.reload();
-  }, [handleFeedRefresh, isFameFeedPullRefreshEnabled]);
+  }, []);
 
 
   // ── Settings: Block List sub-view ─────────────────────────────────────────
@@ -4924,6 +4948,8 @@ const PersonalizationView = React.memo(({
                       onNavigateToFlicks={openFlicks}
                       onNavigateToSurveys={() => setActiveFeature("Task")}
                       isAdmin={isAppAdmin}
+                      refreshRequestId={feedRefreshRequestId}
+                      onRefreshRequestComplete={completeRequestedFeedRefresh}
                       localProfile={{
                         state: personalForm.state || undefined,
                         district: personalForm.district || undefined,

@@ -3409,6 +3409,10 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
           exit={{ y: "100%" }}
           transition={{ type: "spring", stiffness: 300, damping: 30 }}
           className={`chat-shell fixed inset-0 z-[150] flex h-[100dvh] min-h-0 flex-col ${T.wrap} overflow-hidden`}
+          style={{
+            top: "var(--cap-safe-top, 0px)",
+            height: "calc(100dvh - var(--cap-safe-top, 0px))",
+          }}
           onClick={(e) => e.stopPropagation()}
           onPointerDown={(e) => e.stopPropagation()}
         >

@@ -236,9 +236,25 @@ const SharePopup: React.FC<SharePopupProps> = ({
   const resolvedPreviewUrl = resolveSharePreviewUrl(previewSource);
   const thumbnail = canvas ? null : resolvedPreviewUrl || null;
   const caption =
-    post.meta_title || post.content?.slice(0, 72) || "Check this out on Flicks!";
+    post.meta_title ||
+    post.title ||
+    post.content?.slice(0, 72) ||
+    "Check this out on Flicks!";
+  const shareTitle = post.meta_title || post.title || caption;
   const shareUrl = post.share_url || buildPostShareUrl(post.id);
-  const shareBody = post.content || post.meta_description || caption;
+  const rawSummary = (post.meta_description || post.content || caption)
+    .replace(/\s+/g, " ")
+    .trim();
+  const summary = rawSummary.length > 180
+    ? `${rawSummary.slice(0, 177).trimEnd()}…`
+    : rawSummary;
+  const shareBody = [
+    shareTitle,
+    summary && summary !== shareTitle ? summary : "",
+    post.author ? `— ${post.author} on Flicks India` : "",
+  ]
+    .filter(Boolean)
+    .join("\n\n");
 
   // Resolve the best media URL for this post type
   const mediaUrl = canvas ? undefined : resolveShareMediaUrl(post);
@@ -298,10 +314,7 @@ const SharePopup: React.FC<SharePopupProps> = ({
     setMediaOutcome(null);
 
     const outcome = await universalShare({
-      title:
-        post.meta_title ||
-        post.content?.slice(0, 60) ||
-        "Check this out on Flicks!",
+      title: shareTitle,
       text: shareBody,
       url: shareUrl,
       mediaUrl,
