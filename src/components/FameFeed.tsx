@@ -2382,6 +2382,7 @@ const PostDetailView = ({
                                   activeCommentMenuId === String(comment.id)
                                 }
                                 onClick={(event) => {
+                                  event.preventDefault();
                                   event.stopPropagation();
                                   const menuId = String(comment.id);
                                   setActiveCommentMenuId((current) =>
@@ -2401,6 +2402,7 @@ const PostDetailView = ({
                                     type="button"
                                     role="menuitem"
                                     onClick={(event) => {
+                                      event.preventDefault();
                                       event.stopPropagation();
                                       setActiveCommentMenuId(null);
                                       onStartCommentEdit(comment);
@@ -2413,6 +2415,7 @@ const PostDetailView = ({
                                     type="button"
                                     role="menuitem"
                                     onClick={(event) => {
+                                      event.preventDefault();
                                       event.stopPropagation();
                                       setActiveCommentMenuId(null);
                                       onDeleteComment(String(comment.id));
@@ -2554,6 +2557,7 @@ const PostDetailView = ({
                                           String(reply.id)
                                         }
                                         onClick={(event) => {
+                                          event.preventDefault();
                                           event.stopPropagation();
                                           const menuId = String(reply.id);
                                           setActiveCommentMenuId((current) =>
@@ -2574,6 +2578,7 @@ const PostDetailView = ({
                                             type="button"
                                             role="menuitem"
                                             onClick={(event) => {
+                                              event.preventDefault();
                                               event.stopPropagation();
                                               setActiveCommentMenuId(null);
                                               onStartCommentEdit(reply);
@@ -2586,6 +2591,7 @@ const PostDetailView = ({
                                             type="button"
                                             role="menuitem"
                                             onClick={(event) => {
+                                              event.preventDefault();
                                               event.stopPropagation();
                                               setActiveCommentMenuId(null);
                                               onDeleteComment(String(reply.id));
@@ -3083,7 +3089,12 @@ const SingleReelBlock = ({
                 </button>
               </>
             ) : (
-              <button type="button" role="menuitem" onClick={() => { setShowReelMenu(false); onReport(); }} className="flex w-full items-center gap-2.5 px-3.5 py-3 text-left text-xs font-bold text-orange-200 transition hover:bg-orange-500/10">
+              <button type="button" role="menuitem" onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                setShowReelMenu(false);
+                onReport();
+              }} className="flex w-full items-center gap-2.5 px-3.5 py-3 text-left text-xs font-bold text-orange-200 transition hover:bg-orange-500/10">
                 <Flag size={15} /> Report Reel
               </button>
             )}
@@ -3749,6 +3760,7 @@ const FameFeed = ({
     id: string;
     text: string;
   } | null>(null);
+  const [savingPostEdit, setSavingPostEdit] = useState(false);
   const [commentText, setCommentText] = useState("");
   const [currentUserId, setCurrentUserId] = useState<string | null>(currentUserIdProp ?? null);
   const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(currentUserEmailProp ?? null);
@@ -3786,6 +3798,12 @@ const FameFeed = ({
     profileAdminUserId === currentUserId ||
     isAdminEmail(currentUserEmail);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [pendingDeletePost, setPendingDeletePost] = useState<{
+    id: string;
+    author?: string;
+    content?: string;
+  } | null>(null);
+  const [deleteSubmitting, setDeleteSubmitting] = useState(false);
   const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
   const [userReactions, setUserReactions] = useState<{
@@ -4736,12 +4754,30 @@ const FameFeed = ({
     const { id, text } = editingPost;
     if (!text.trim()) return;
     const { cleaned } = sanitizeText(text.trim());
-    await supabase.from("posts").update({ content: cleaned }).eq("id", id);
-    setPosts((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, content: cleaned } : p)),
-    );
-    setEditingPost(null);
-    toast.success("Post updated.");
+    setSavingPostEdit(true);
+    try {
+      const { data, error } = await supabase
+        .from("posts")
+        .update({ content: cleaned })
+        .eq("id", id)
+        .select("id")
+        .maybeSingle();
+      if (error) throw error;
+      if (!data?.id) throw new Error("Post was not updated. Check your permissions.");
+
+      setPosts((prev) => {
+        const next = prev.map((p) => (p.id === id ? { ...p, content: cleaned } : p));
+        dataCache.setCache("famePosts", { data: next, fetchedAt: Date.now() });
+        return next;
+      });
+      setEditingPost(null);
+      toast.success("Post updated.");
+    } catch (error) {
+      console.error("[FameFeed] Post edit failed:", error);
+      toast.error(error instanceof Error ? error.message : "Post update failed. Please try again.");
+    } finally {
+      setSavingPostEdit(false);
+    }
   };
 
   const saveFeedCommentEdit = async () => {
@@ -5788,29 +5824,49 @@ const FameFeed = ({
 
   const handleDelete = async (postId: string) => {
     setOpenMenuId(null);
-    if (!currentUserId) return;
+    if (!currentUserId) {
+      setPendingDeletePost(null);
+      toast.error("Please sign in to delete this post.");
+      return;
+    }
+    if (!postId.trim()) {
+      toast.error("Could not determine the post to delete.");
+      return;
+    }
     // Mark as deleting BEFORE optimistic update so Realtime UPDATE events (e.g. likes_count)
     // cannot restore this post back into the array while the delete is in flight
     deletingPostIdsRef.current.add(postId);
     const snapshot = [...posts];
-    setPosts((p) => p.filter((x) => x.id !== postId));
-    // Only filter by id — RLS (auth.uid() = author_id OR admin email) enforces ownership on DB side
-    const { error } = await supabase.from("posts").delete().eq("id", postId);
-    if (error) {
-      // Rollback — allow Realtime tracking again
-      deletingPostIdsRef.current.delete(postId);
-      setPosts(snapshot);
-      toast.error("Delete nahi ho saka. Please try again.");
-      console.error(
-        "[FameFeed] Delete failed:",
-        error.message,
-        "| code:",
-        error.code,
-      );
-    } else {
+    setPosts((previous) => {
+      const next = previous.filter((post) => post.id !== postId);
+      dataCache.setCache("famePosts", { data: next, fetchedAt: Date.now() });
+      return next;
+    });
+    setDeleteSubmitting(true);
+    try {
+      // RLS remains the final authority for whether this user can delete the post.
+      const { data, error } = await supabase
+        .from("posts")
+        .delete()
+        .eq("id", postId)
+        .select("id")
+        .maybeSingle();
+      if (error) throw error;
+      if (!data?.id) throw new Error("Post was not deleted. Check your permissions.");
+
+      setPendingDeletePost(null);
       toast.success("Post deleted.");
       // Clean up ref after a delay to guard any late-arriving Realtime events
       setTimeout(() => deletingPostIdsRef.current.delete(postId), 10_000);
+    } catch (error) {
+      // Rollback — allow Realtime tracking again
+      deletingPostIdsRef.current.delete(postId);
+      setPosts(snapshot);
+      dataCache.setCache("famePosts", { data: snapshot, fetchedAt: Date.now() });
+      console.error("[FameFeed] Delete failed:", error);
+      toast.error(error instanceof Error ? error.message : "Delete failed. Please try again.");
+    } finally {
+      setDeleteSubmitting(false);
     }
   };
 
@@ -6231,9 +6287,15 @@ const FameFeed = ({
             </div>
             <div className="relative" onClick={(e) => e.stopPropagation()}>
               <button
-                onClick={() =>
-                  setOpenMenuId(openMenuId === post.id ? null : post.id)
-                }
+                type="button"
+                aria-label="Post actions"
+                aria-haspopup="menu"
+                aria-expanded={openMenuId === post.id}
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  setOpenMenuId(openMenuId === post.id ? null : post.id);
+                }}
                 className="p-2 rounded-full hover:bg-lime-400/10 transition-colors"
               >
                 <MoreVertical size={18} className="text-lime-400" />
@@ -6250,6 +6312,7 @@ const FameFeed = ({
                       animate={{ opacity: 1, scale: 1, y: 0 }}
                       exit={{ opacity: 0, scale: 0.88, y: -6 }}
                       transition={{ duration: 0.12 }}
+                      role="menu"
                       className="absolute right-0 top-10 z-50 w-48 bg-[#1a0d1e] border border-white/10 rounded-2xl overflow-hidden"
                       onClick={(e) => e.stopPropagation()}
                     >
@@ -6257,7 +6320,11 @@ const FameFeed = ({
                         <>
                           {isVideo && (
                             <button
-                              onClick={() => {
+                              type="button"
+                              role="menuitem"
+                              onClick={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
                                 window.dispatchEvent(
                                   new CustomEvent("flicks:open-reel-studio", {
                                     detail: { reel: post },
@@ -6271,7 +6338,11 @@ const FameFeed = ({
                             </button>
                           )}
                           <button
-                            onClick={() => {
+                            type="button"
+                            role="menuitem"
+                            onClick={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
                               setEditingPost({
                                 id: post.id,
                                 text: post.content || "",
@@ -6284,7 +6355,18 @@ const FameFeed = ({
                             Edit Post
                           </button>
                           <button
-                            onClick={() => handleDelete(post.id)}
+                            type="button"
+                            role="menuitem"
+                            onClick={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              setOpenMenuId(null);
+                              setPendingDeletePost({
+                                id: String(post.id),
+                                author: post.author,
+                                content: post.content,
+                              });
+                            }}
                             className="w-full flex items-center gap-3 px-4 py-3.5 text-red-400 hover:bg-white/10 text-sm font-semibold border-b border-white/10"
                           >
                             <Trash2 size={15} /> Delete
@@ -6294,7 +6376,13 @@ const FameFeed = ({
                       {isAdmin && (
                         <>
                           <button
-                            onClick={() => handleAdminDelete(post.id)}
+                            type="button"
+                            role="menuitem"
+                            onClick={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              void handleAdminDelete(String(post.id));
+                            }}
                             className="w-full flex items-center gap-3 px-4 py-3.5 text-red-400 hover:bg-red-900/30 text-sm font-bold border-b border-white/10"
                           >
                             <Trash2 size={15} /> Delete Post (Admin)
@@ -6302,9 +6390,13 @@ const FameFeed = ({
                           {post.author_id &&
                             post.author_id !== currentUserId && (
                               <button
-                                onClick={() =>
-                                  handleAdminBan(post.author_id, post.author)
-                                }
+                                type="button"
+                                role="menuitem"
+                                onClick={(event) => {
+                                  event.preventDefault();
+                                  event.stopPropagation();
+                                  void handleAdminBan(post.author_id, post.author);
+                                }}
                                 className="w-full flex items-center gap-3 px-4 py-3.5 text-red-300 hover:bg-red-900/30 text-sm font-bold border-b border-white/10"
                               >
                                 <Ban size={15} /> Ban User (Admin)
@@ -6313,13 +6405,23 @@ const FameFeed = ({
                         </>
                       )}
                       <button
-                        onClick={() => handleHide(post.id)}
+                        type="button"
+                        role="menuitem"
+                        onClick={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          handleHide(String(post.id));
+                        }}
                         className="w-full flex items-center gap-3 px-4 py-3.5 text-white/60 hover:bg-white/10 text-sm font-semibold border-b border-white/10"
                       >
                         <EyeOff size={15} /> Hide
                       </button>
                       <button
+                        type="button"
+                        role="menuitem"
                         onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
                           const popupH = 340;
                           const spaceBelow = window.innerHeight - e.clientY;
                           const top = spaceBelow >= popupH + 16
@@ -6341,19 +6443,28 @@ const FameFeed = ({
                         post.author_id !== currentUserId &&
                         (blockedUserIds.has(post.author_id) ? (
                           <button
-                            onClick={() =>
-                              handleUnblockUser(
+                            type="button"
+                            role="menuitem"
+                            onClick={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              setOpenMenuId(null);
+                              void handleUnblockUser(
                                 post.author_id,
                                 post.author || "User",
-                              )
-                            }
+                              );
+                            }}
                             className="w-full flex items-center gap-3 px-4 py-3.5 text-blue-400 hover:bg-white/10 text-sm font-semibold"
                           >
                             <ShieldOff size={15} /> Unblock User
                           </button>
                         ) : (
                           <button
-                            onClick={() => {
+                            type="button"
+                            role="menuitem"
+                            onClick={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
                               setOpenMenuId(null);
                               setBlockConfirm({
                                 userId: post.author_id,
@@ -6413,7 +6524,7 @@ const FameFeed = ({
                     </p>
                   </div>
                 )}
-                {post.content &&
+                {(post.content || editingPost?.id === post.id) &&
                   (editingPost?.id === post.id ? (
                     <div className="px-4 pb-3 pt-1">
                       <textarea
@@ -6429,17 +6540,27 @@ const FameFeed = ({
                       />
                       <div className="flex gap-2 mt-2">
                         <button
-                          onClick={() => setEditingPost(null)}
+                          type="button"
+                          onClick={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            setEditingPost(null);
+                          }}
                           className="flex-1 py-2 rounded-xl bg-white/10 text-white/70 text-[12px] font-bold"
                         >
                           Cancel
                         </button>
                         <button
-                          onClick={savePostEdit}
-                          disabled={!editingPost.text.trim()}
+                          type="button"
+                          onClick={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            void savePostEdit();
+                          }}
+                          disabled={savingPostEdit || !editingPost.text.trim()}
                           className="flex-1 py-2 rounded-xl bg-blue-600 text-white text-[12px] font-bold disabled:opacity-40"
                         >
-                          Save
+                          {savingPostEdit ? "Saving…" : "Save"}
                         </button>
                       </div>
                     </div>
@@ -8085,6 +8206,79 @@ const FameFeed = ({
         )}
         </AnimatePresence>,
         document.body
+      )}
+
+      {/* ── Confirm owner post deletion ─────────────────────────────────── */}
+      {createPortal(
+        <AnimatePresence>
+          {pendingDeletePost && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 flex items-center justify-center bg-black/70 px-6 backdrop-blur-sm"
+              style={{ zIndex: 100000 }}
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                if (!deleteSubmitting) setPendingDeletePost(null);
+              }}
+            >
+              <motion.div
+                role="alertdialog"
+                aria-modal="true"
+                aria-labelledby="fame-feed-delete-title"
+                initial={{ opacity: 0, scale: 0.92, y: 8 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.92, y: 8 }}
+                className="w-full max-w-sm rounded-3xl border border-white/10 bg-[#1a0d1e] p-5 shadow-2xl"
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                }}
+              >
+                <h2 id="fame-feed-delete-title" className="text-base font-black text-white">
+                  Delete this post?
+                </h2>
+                <p className="mt-2 text-sm leading-relaxed text-white/60">
+                  This will permanently remove your post from the feed.
+                </p>
+                {pendingDeletePost.content && (
+                  <p className="mt-3 line-clamp-2 rounded-xl bg-white/5 px-3 py-2 text-xs text-white/45">
+                    {pendingDeletePost.content}
+                  </p>
+                )}
+                <div className="mt-5 flex gap-2">
+                  <button
+                    type="button"
+                    disabled={deleteSubmitting}
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      setPendingDeletePost(null);
+                    }}
+                    className="flex-1 rounded-xl border border-white/10 px-4 py-3 text-sm font-bold text-white/70 hover:bg-white/5 disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    disabled={deleteSubmitting}
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      void handleDelete(pendingDeletePost.id);
+                    }}
+                    className="flex-1 rounded-xl bg-red-600 px-4 py-3 text-sm font-bold text-white hover:bg-red-500 disabled:cursor-wait disabled:opacity-60"
+                  >
+                    {deleteSubmitting ? "Deleting…" : "Delete"}
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>,
+        document.body,
       )}
 
       {/* ── Block Confirmation Dialog ─────────────────────────────────── */}

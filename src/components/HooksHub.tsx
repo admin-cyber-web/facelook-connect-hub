@@ -730,6 +730,7 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
   const [editingPost, setEditingPost]         = useState<{ id: string; content: string; author_id: string } | null>(null);
   const [editPostText, setEditPostText]       = useState("");
   const [editPostSaving, setEditPostSaving]   = useState(false);
+  const [deletePostSaving, setDeletePostSaving] = useState(false);
   const [confirmDeletePost, setConfirmDeletePost] = useState<string | null>(null);
   const [showDeletePageConfirm, setShowDeletePageConfirm] = useState(false);
   const [deletingPage, setDeletingPage]       = useState(false);
@@ -912,13 +913,24 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
       return;
     }
     setEditPostSaving(true);
-    await supabase.from("hook_page_posts")
-      .update({ content: editPostText.trim() })
-      .eq("id", editingPost.id)
-      .eq("author_id", isOwner ? editingPost.author_id : userId); // server-side author lock for contributors
-    setPosts(prev => prev.map(p => p.id === editingPost.id ? { ...p, content: editPostText.trim() } : p));
-    setEditPostSaving(false);
-    setEditingPost(null);
+    try {
+      const { data, error } = await supabase.from("hook_page_posts")
+        .update({ content: editPostText.trim() })
+        .eq("id", editingPost.id)
+        .eq("author_id", isOwner ? editingPost.author_id : userId)
+        .select("id")
+        .maybeSingle(); // server-side author lock for contributors
+      if (error) throw error;
+      if (!data?.id) throw new Error("Post was not updated. Check your permissions.");
+      setPosts(prev => prev.map(p => p.id === editingPost.id ? { ...p, content: editPostText.trim() } : p));
+      setEditingPost(null);
+      toast.success("Post updated.");
+    } catch (error) {
+      console.error("[HooksHub] Post edit failed:", error);
+      toast.error(error instanceof Error ? error.message : "Post update failed. Please try again.");
+    } finally {
+      setEditPostSaving(false);
+    }
   };
 
   const deletePost = async (postId: string) => {
@@ -930,13 +942,24 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
       return;
     }
     // Server-side: owner deletes by id; contributor can only delete their own post
-    const query = supabase.from("hook_page_posts").delete().eq("id", postId);
-    if (!isOwner) query.eq("author_id", userId);
-    await query;
-    setPosts(prev => prev.filter(p => p.id !== postId));
-    setConfirmDeletePost(null);
-    const curPage = await safeHpRead(supabase.from("hook_pages").select("hook_count").eq("id", page.id).single());
-    safeHp(supabase.from("hook_pages").update({ hook_count: Math.max((curPage?.hook_count || 1) - 1, 0) }).eq("id", page.id));
+    setDeletePostSaving(true);
+    try {
+      const query = supabase.from("hook_page_posts").delete().eq("id", postId);
+      if (!isOwner) query.eq("author_id", userId);
+      const { data, error } = await query.select("id").maybeSingle();
+      if (error) throw error;
+      if (!data?.id) throw new Error("Post was not deleted. Check your permissions.");
+      setPosts(prev => prev.filter(p => p.id !== postId));
+      setConfirmDeletePost(null);
+      const curPage = await safeHpRead(supabase.from("hook_pages").select("hook_count").eq("id", page.id).single());
+      safeHp(supabase.from("hook_pages").update({ hook_count: Math.max((curPage?.hook_count || 1) - 1, 0) }).eq("id", page.id));
+      toast.success("Post deleted.");
+    } catch (error) {
+      console.error("[HooksHub] Post delete failed:", error);
+      toast.error(error instanceof Error ? error.message : "Post delete failed. Please try again.");
+    } finally {
+      setDeletePostSaving(false);
+    }
   };
 
   const deletePage = async () => {
@@ -1649,8 +1672,13 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
                     </div>
                     {/* Three-dot menu */}
                     {canEditPost && (
-                      <div className="relative shrink-0">
-                        <button onClick={() => setPostMenuId(postMenuId === post.id ? null : post.id)}
+                      <div className="relative shrink-0" onClick={event => event.stopPropagation()}>
+                        <button type="button" aria-label="Post actions" aria-haspopup="menu" aria-expanded={postMenuId === post.id}
+                          onClick={event => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            setPostMenuId(postMenuId === post.id ? null : post.id);
+                          }}
                           className="p-1.5 rounded-full text-white/38 hover:text-white/70 hover:bg-white/10 transition-colors">
                           <MoreVertical size={16} />
                         </button>
@@ -1660,14 +1688,25 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
                               exit={{ opacity: 0, scale: 0.9, y: -4 }} transition={{ duration: 0.12 }}
                               className="absolute right-0 top-8 z-50 w-36 rounded-2xl shadow-2xl overflow-hidden"
                               style={{ background: "rgba(14,16,28,0.97)", border: "1px solid rgba(255,255,255,0.14)", backdropFilter: "blur(20px)" }}
-                              onClick={e => e.stopPropagation()}>
+                              onClick={event => { event.preventDefault(); event.stopPropagation(); }}>
                               {(isOwner || post.author_id === userId) && (
-                                <button onClick={() => { setEditingPost({ id: post.id, content: post.content, author_id: post.author_id }); setEditPostText(post.content); setPostMenuId(null); }}
+                                <button type="button" role="menuitem" onClick={event => {
+                                  event.preventDefault();
+                                  event.stopPropagation();
+                                  setEditingPost({ id: post.id, content: post.content, author_id: post.author_id });
+                                  setEditPostText(post.content);
+                                  setPostMenuId(null);
+                                }}
                                   className="w-full flex items-center gap-2.5 px-4 py-3 text-blue-400 hover:bg-white/8 text-[13px] font-semibold border-b border-white/10">
                                   <Pencil size={14} /> Edit
                                 </button>
                               )}
-                              <button onClick={() => { setConfirmDeletePost(post.id); setPostMenuId(null); }}
+                              <button type="button" role="menuitem" onClick={event => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                setConfirmDeletePost(post.id);
+                                setPostMenuId(null);
+                              }}
                                 className="w-full flex items-center gap-2.5 px-4 py-3 text-red-400 hover:bg-white/8 text-[13px] font-semibold">
                                 <Trash2 size={14} /> Delete
                               </button>
@@ -1781,11 +1820,15 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="fixed inset-0 z-[500] flex items-center justify-center px-6"
             style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(14px)" }}
-            onClick={() => setConfirmDeletePost(null)}>
+            onClick={event => {
+              event.preventDefault();
+              event.stopPropagation();
+              if (!deletePostSaving) setConfirmDeletePost(null);
+            }}>
             <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
               className="rounded-3xl p-6 w-full max-w-xs shadow-2xl"
               style={{ background: "rgba(14,16,28,0.97)", border: "1px solid rgba(255,255,255,0.13)", backdropFilter: "blur(24px)" }}
-              onClick={e => e.stopPropagation()}>
+              onClick={event => { event.preventDefault(); event.stopPropagation(); }}>
               <div className="w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-4"
                 style={{ background: "rgba(239,68,68,0.18)", border: "1px solid rgba(239,68,68,0.35)" }}>
                 <Trash2 size={22} className="text-red-400" />
@@ -1793,11 +1836,21 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
               <p className="text-white font-black text-center text-[16px] mb-1">Post Delete Karo?</p>
               <p className="text-white/40 text-center text-[12px] mb-5">Yeh post hamesha ke liye delete ho jayegi.</p>
               <div className="flex gap-2">
-                <button onClick={() => setConfirmDeletePost(null)}
+                <button type="button" disabled={deletePostSaving} onClick={event => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  setConfirmDeletePost(null);
+                }}
                   className="flex-1 py-3 rounded-2xl font-black text-sm text-white/55"
                   style={{ background: "rgba(255,255,255,0.08)" }}>Cancel</button>
-                <button onClick={() => deletePost(confirmDeletePost)}
-                  className="flex-1 py-3 rounded-2xl bg-red-500 text-white font-black text-sm">Delete</button>
+                <button type="button" disabled={deletePostSaving} onClick={event => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  void deletePost(confirmDeletePost);
+                }}
+                  className="flex-1 py-3 rounded-2xl bg-red-500 text-white font-black text-sm disabled:cursor-wait disabled:opacity-60">
+                  {deletePostSaving ? "Deleting…" : "Delete"}
+                </button>
               </div>
             </motion.div>
           </motion.div>

@@ -491,9 +491,14 @@ const SurveyCard: React.FC<{ survey: Survey; userId: string; onUpdate: () => voi
             <span className="text-indigo-300 text-[11px] font-bold">Survey</span>
           </div>
           {isOwner && (
-            <div className="relative">
-              <motion.button whileTap={{ scale: 0.85 }}
-                onClick={() => setShowOwnerMenu(v => !v)}
+            <div className="relative" onClick={event => event.stopPropagation()}>
+              <motion.button type="button" aria-label="Survey actions" aria-haspopup="menu" aria-expanded={showOwnerMenu}
+                whileTap={{ scale: 0.85 }}
+                onClick={event => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  setShowOwnerMenu(v => !v);
+                }}
                 className="w-8 h-8 rounded-full flex items-center justify-center"
                 style={{ background: "rgba(255,255,255,0.07)" }}>
                 <MoreVertical size={15} className="text-white/50" />
@@ -503,14 +508,26 @@ const SurveyCard: React.FC<{ survey: Survey; userId: string; onUpdate: () => voi
                   <motion.div initial={{ opacity: 0, scale: 0.9, y: -4 }} animate={{ opacity: 1, scale: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.9, y: -4 }} transition={{ duration: 0.15 }}
                     className="absolute right-0 top-9 z-50 rounded-2xl overflow-hidden min-w-[150px]"
+                    role="menu"
+                    onClick={event => { event.preventDefault(); event.stopPropagation(); }}
                     style={{ background: "linear-gradient(145deg,#1e1e32,#14142a)", border: "1px solid rgba(255,255,255,0.1)", boxShadow: "0 8px 32px rgba(0,0,0,0.5)" }}>
-                    <button onClick={() => { setShowOwnerMenu(false); setEditQuestion(survey.question); setShowEditModal(true); }}
+                    <button type="button" role="menuitem" onClick={event => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      setShowOwnerMenu(false);
+                      setEditQuestion(survey.question);
+                      setShowEditModal(true);
+                    }}
                       className="w-full flex items-center gap-2.5 px-4 py-3 text-left hover:bg-white/5 transition-colors">
                       <Pencil size={14} className="text-indigo-400" />
                       <span className="text-white/80 text-[13px] font-semibold">Edit Question</span>
                     </button>
                     <div className="h-px bg-white/6 mx-3" />
-                    <button onClick={handleDelete} disabled={deleting}
+                    <button type="button" role="menuitem" onClick={event => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      void handleDelete();
+                    }} disabled={deleting}
                       className="w-full flex items-center gap-2.5 px-4 py-3 text-left hover:bg-red-500/10 transition-colors disabled:opacity-50">
                       {deleting ? <Loader2 size={14} className="text-red-400 animate-spin" /> : <Trash2 size={14} className="text-red-400" />}
                       <span className="text-red-400 text-[13px] font-semibold">Delete Survey</span>
@@ -519,7 +536,11 @@ const SurveyCard: React.FC<{ survey: Survey; userId: string; onUpdate: () => voi
                 )}
               </AnimatePresence>
               {showOwnerMenu && (
-                <div className="fixed inset-0 z-40" onClick={() => setShowOwnerMenu(false)} />
+                <div className="fixed inset-0 z-40" onClick={event => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  setShowOwnerMenu(false);
+                }} />
               )}
             </div>
           )}
