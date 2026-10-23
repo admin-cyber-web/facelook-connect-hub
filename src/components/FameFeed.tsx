@@ -2748,6 +2748,10 @@ const SingleReelBlock = ({
   const [muted, setMuted] = useState(false);
   const [audioNeedsGesture, setAudioNeedsGesture] = useState(false);
   const [showReelMenu, setShowReelMenu] = useState(false);
+  const [reelMenuPosition, setReelMenuPosition] = useState({
+    top: 12,
+    right: 12,
+  });
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [viewerPreviews, setViewerPreviews] = useState<Array<{ id: string; full_name: string; avatar_url: string | null }>>([]);
   const viewerPreviewLoadedRef = useRef(false);
@@ -2759,6 +2763,86 @@ const SingleReelBlock = ({
   const reelVideoUrl = reelSettings.videoUrl || post.media_url;
   const hasBackgroundAudio = Boolean(reelSettings.audioUrl);
   const isOwner = Boolean(currentUserId && post.author_id === currentUserId);
+  const toggleReelMenu = (event: React.SyntheticEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
+    if (event.cancelable) event.preventDefault();
+    if (showReelMenu) {
+      setShowReelMenu(false);
+      return;
+    }
+
+    const rect = event.currentTarget.getBoundingClientRect();
+    const menuWidth = Math.min(176, Math.max(160, window.innerWidth - 24));
+    const maxRight = Math.max(12, window.innerWidth - menuWidth - 12);
+    const right = Math.max(
+      12,
+      Math.min(maxRight, window.innerWidth - rect.right),
+    );
+    const estimatedMenuHeight = isOwner ? 120 : 64;
+    const top =
+      rect.bottom + estimatedMenuHeight + 8 <= window.innerHeight
+        ? rect.bottom + 8
+        : Math.max(12, rect.top - estimatedMenuHeight - 8);
+
+    setReelMenuPosition({ top, right });
+    setShowReelMenu(true);
+  };
+  const toggleReelMenuFromKeyboard = (
+    event: React.KeyboardEvent<HTMLButtonElement>,
+  ) => {
+    if (event.repeat || (event.key !== "Enter" && event.key !== " ")) return;
+    toggleReelMenu(event);
+  };
+  const runReelMenuAction = (
+    event: React.SyntheticEvent<HTMLButtonElement>,
+    actionType: string,
+    action: () => void,
+  ) => {
+    event.stopPropagation();
+    if (event.cancelable) event.preventDefault();
+    console.log("ACTION TRIGGERED:", actionType, String(post.id));
+    try {
+      action();
+    } finally {
+      setShowReelMenu(false);
+    }
+  };
+  const runReelMenuActionFromKeyboard = (
+    event: React.KeyboardEvent<HTMLButtonElement>,
+    actionType: string,
+    action: () => void,
+  ) => {
+    if (event.repeat || (event.key !== "Enter" && event.key !== " ")) return;
+    runReelMenuAction(event, actionType, action);
+  };
+  useEffect(() => {
+    if (!showReelMenu) return;
+    const closeOnOutsidePointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      if (
+        target.closest("[data-fame-reel-menu]") ||
+        target.closest("[data-fame-reel-menu-trigger]")
+      ) {
+        return;
+      }
+      setShowReelMenu(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setShowReelMenu(false);
+    };
+
+    document.addEventListener("pointerdown", closeOnOutsidePointerDown, true);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener(
+        "pointerdown",
+        closeOnOutsidePointerDown,
+        true,
+      );
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [showReelMenu]);
   // Warm the shared media cache so the full-screen Reels overlay (and later
   // scroll position on this reel) starts instantly with the attached track.
   useEffect(() => {
@@ -3061,90 +3145,57 @@ const SingleReelBlock = ({
         type="button"
         aria-label="Reel actions"
         aria-expanded={showReelMenu}
-        onPointerDown={(event) => {
-          event.stopPropagation();
-          if (event.cancelable) event.preventDefault();
-          const now = Date.now();
-          if (now - menuToggleTimeRef.current < 200) return;
-          menuToggleTimeRef.current = now;
-          setShowReelMenu((open) => !open);
-        }}
-        onClick={(event) => {
-          event.stopPropagation();
-          if (event.cancelable) event.preventDefault();
-          const now = Date.now();
-          if (now - menuToggleTimeRef.current < 200) return;
-          menuToggleTimeRef.current = now;
-          setShowReelMenu((open) => !open);
-        }}
+        data-fame-reel-menu-trigger
+        onPointerDown={toggleReelMenu}
+        onKeyDown={toggleReelMenuFromKeyboard}
         className="absolute right-16 top-4 z-40 pointer-events-auto touch-manipulation grid h-9 w-9 place-items-center rounded-full border border-white/15 bg-black/70 text-white backdrop-blur-sm transition hover:bg-black/90 cursor-pointer"
         style={{ pointerEvents: "auto", touchAction: "manipulation" }}
       >
         <MoreVertical size={18} />
       </button>
-      {showReelMenu && (
-        <>
-          <button
-            type="button"
-            aria-label="Close Reel actions"
-            onPointerDown={(event) => {
-              event.stopPropagation();
-              if (event.cancelable) event.preventDefault();
-              setShowReelMenu(false);
-            }}
-            onClick={(event) => {
-              event.stopPropagation();
-              if (event.cancelable) event.preventDefault();
-              setShowReelMenu(false);
-            }}
-            className="fixed inset-0 z-20 cursor-default"
-          />
+      {showReelMenu &&
+        createPortal(
           <div
             role="menu"
+            data-fame-reel-menu
             onClick={(event) => event.stopPropagation()}
             onPointerDown={(event) => event.stopPropagation()}
-            className="absolute right-4 top-14 z-30 pointer-events-auto min-w-44 overflow-hidden rounded-xl border border-white/10 bg-[#160d12]/95 py-1 shadow-2xl backdrop-blur-xl"
-            style={{ pointerEvents: "auto" }}
+            className="fixed z-[9999] min-w-44 max-w-[calc(100vw-24px)] max-h-[calc(100dvh-24px)] overflow-y-auto overscroll-contain rounded-xl border border-white/10 bg-[#160d12]/95 py-1 shadow-2xl backdrop-blur-xl pointer-events-auto"
+            style={{
+              top: reelMenuPosition.top,
+              right: reelMenuPosition.right,
+              pointerEvents: "auto",
+            }}
           >
             {isOwner ? (
               <>
                 <button
                   type="button"
                   role="menuitem"
-                  onPointerDown={(event) => {
-                    event.stopPropagation();
-                    if (event.cancelable) event.preventDefault();
-                    setShowReelMenu(false);
-                    onEdit();
-                  }}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    if (event.cancelable) event.preventDefault();
-                    setShowReelMenu(false);
-                    onEdit();
-                  }}
+                  onPointerDown={(event) =>
+                    runReelMenuAction(event, "Edit Reel", onEdit)
+                  }
+                  onKeyDown={(event) =>
+                    runReelMenuActionFromKeyboard(event, "Edit Reel", onEdit)
+                  }
                   className="pointer-events-auto flex w-full items-center gap-2.5 px-3.5 py-3 text-left text-xs font-bold text-white/80 transition hover:bg-white/10 cursor-pointer"
-                  style={{ pointerEvents: "auto" }}
                 >
                   <SlidersHorizontal size={15} className="text-cyan-200" /> Edit Reel
                 </button>
                 <button
                   type="button"
                   role="menuitem"
-                  onPointerDown={(event) => {
-                    event.stopPropagation();
-                    if (event.cancelable) event.preventDefault();
-                    setShowReelMenu(false);
-                    setShowDeleteConfirm(true);
-                  }}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    if (event.cancelable) event.preventDefault();
-                    setShowReelMenu(false);
-                    setShowDeleteConfirm(true);
-                  }}
+                  onPointerDown={(event) =>
+                    runReelMenuAction(event, "Delete Reel", () =>
+                      setShowDeleteConfirm(true),
+                    )
+                  }
+                  onKeyDown={(event) =>
+                    runReelMenuActionFromKeyboard(event, "Delete Reel", () =>
+                      setShowDeleteConfirm(true),
+                    )
+                  }
                   className="pointer-events-auto flex w-full items-center gap-2.5 border-t border-white/[0.07] px-3.5 py-3 text-left text-xs font-bold text-rose-300 transition hover:bg-rose-500/10 cursor-pointer"
-                  style={{ pointerEvents: "auto" }}
                 >
                   <Trash2 size={15} /> Delete Reel
                 </button>
@@ -3153,27 +3204,20 @@ const SingleReelBlock = ({
               <button
                 type="button"
                 role="menuitem"
-                onPointerDown={(event) => {
-                  event.stopPropagation();
-                  if (event.cancelable) event.preventDefault();
-                  setShowReelMenu(false);
-                  onReport();
-                }}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  if (event.cancelable) event.preventDefault();
-                  setShowReelMenu(false);
-                  onReport();
-                }}
+                onPointerDown={(event) =>
+                  runReelMenuAction(event, "Report Reel", onReport)
+                }
+                onKeyDown={(event) =>
+                  runReelMenuActionFromKeyboard(event, "Report Reel", onReport)
+                }
                 className="pointer-events-auto flex w-full items-center gap-2.5 px-3.5 py-3 text-left text-xs font-bold text-orange-200 transition hover:bg-orange-500/10 cursor-pointer"
-                style={{ pointerEvents: "auto" }}
               >
                 <Flag size={15} /> Report Reel
               </button>
             )}
-          </div>
-        </>
-      )}
+          </div>,
+          document.body,
+        )}
       {showDeleteConfirm && (
         <div
           className="absolute inset-0 z-[100] flex items-center justify-center bg-black/75 p-5 backdrop-blur-sm"
@@ -3871,26 +3915,97 @@ const FameFeed = ({
     profileAdminUserId === currentUserId ||
     isAdminEmail(currentUserEmail);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
-  const menuToggleTimeRef = useRef(0);
-  const lastActionTimeRef = useRef(0);
+  const [postMenuPosition, setPostMenuPosition] = useState({
+    top: 12,
+    right: 12,
+  });
 
-  const handleTogglePostMenu = (e: React.SyntheticEvent, postId: string) => {
-    e.stopPropagation();
-    if (e.cancelable) e.preventDefault();
-    const now = Date.now();
-    if (now - menuToggleTimeRef.current < 200) return;
-    menuToggleTimeRef.current = now;
-    setOpenMenuId((current) => (current === postId ? null : postId));
+  useEffect(() => {
+    if (openMenuId === null) return;
+
+    const closeOnOutsidePointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      if (
+        target.closest("[data-fame-post-menu]") ||
+        target.closest("[data-fame-post-menu-trigger]")
+      ) {
+        return;
+      }
+      setOpenMenuId(null);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpenMenuId(null);
+    };
+
+    document.addEventListener("pointerdown", closeOnOutsidePointerDown, true);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener(
+        "pointerdown",
+        closeOnOutsidePointerDown,
+        true,
+      );
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [openMenuId]);
+
+  const handleTogglePostMenu = (
+    event: React.SyntheticEvent<HTMLButtonElement>,
+    postId: string,
+  ) => {
+    event.stopPropagation();
+    if (event.cancelable) event.preventDefault();
+    if (openMenuId !== postId) {
+      const rect = event.currentTarget.getBoundingClientRect();
+      const menuWidth = Math.min(208, Math.max(160, window.innerWidth - 24));
+      const maxRight = Math.max(12, window.innerWidth - menuWidth - 12);
+      const right = Math.max(
+        12,
+        Math.min(maxRight, window.innerWidth - rect.right),
+      );
+      const estimatedMenuHeight = 440;
+      const top =
+        rect.bottom + estimatedMenuHeight + 8 <= window.innerHeight
+          ? rect.bottom + 8
+          : Math.max(12, rect.top - estimatedMenuHeight - 8);
+
+      setPostMenuPosition({ top, right });
+    }
+
+    setOpenMenuId(openMenuId === postId ? null : postId);
+  };
+  const handleTogglePostMenuFromKeyboard = (
+    event: React.KeyboardEvent<HTMLButtonElement>,
+    postId: string,
+  ) => {
+    if (event.repeat || (event.key !== "Enter" && event.key !== " ")) return;
+    handleTogglePostMenu(event, postId);
   };
 
-  const handleRunMenuAction = (e: React.SyntheticEvent, actionFn: () => void) => {
-    e.stopPropagation();
-    if (e.cancelable) e.preventDefault();
-    const now = Date.now();
-    if (now - lastActionTimeRef.current < 200) return;
-    lastActionTimeRef.current = now;
-    setOpenMenuId(null);
-    actionFn();
+  const handleRunMenuAction = (
+    event: React.SyntheticEvent<HTMLButtonElement>,
+    actionType: string,
+    postId: string,
+    actionFn: () => void,
+  ) => {
+    event.stopPropagation();
+    if (event.cancelable) event.preventDefault();
+    console.log("ACTION TRIGGERED:", actionType, postId);
+    try {
+      actionFn();
+    } finally {
+      setOpenMenuId(null);
+    }
+  };
+  const handleRunMenuActionFromKeyboard = (
+    event: React.KeyboardEvent<HTMLButtonElement>,
+    actionType: string,
+    postId: string,
+    actionFn: () => void,
+  ) => {
+    if (event.repeat || (event.key !== "Enter" && event.key !== " ")) return;
+    handleRunMenuAction(event, actionType, postId, actionFn);
   };
   const [pendingDeletePost, setPendingDeletePost] = useState<{
     id: string;
@@ -6389,251 +6504,341 @@ const FameFeed = ({
                 type="button"
                 aria-label="Post actions"
                 aria-haspopup="menu"
-                aria-expanded={openMenuId === post.id}
-                onPointerDown={(event) => handleTogglePostMenu(event, post.id)}
-                onClick={(event) => handleTogglePostMenu(event, post.id)}
+                aria-expanded={openMenuId === String(post.id)}
+                data-fame-post-menu-trigger
+                onPointerDown={(event) =>
+                  handleTogglePostMenu(event, String(post.id))
+                }
+                onKeyDown={(event) =>
+                  handleTogglePostMenuFromKeyboard(event, String(post.id))
+                }
                 className="relative z-[60] pointer-events-auto touch-manipulation p-2 rounded-full hover:bg-lime-400/10 transition-colors cursor-pointer"
                 style={{ pointerEvents: "auto", touchAction: "manipulation" }}
               >
                 <MoreVertical size={18} className="text-lime-400" />
               </button>
-              <AnimatePresence>
-                {openMenuId === post.id && (
-                  <>
-                    <div
-                      className="fixed inset-0 z-[70] pointer-events-auto cursor-default"
-                      style={{ pointerEvents: "auto" }}
-                      onPointerDown={(e) => {
-                        e.stopPropagation();
-                        if (e.cancelable) e.preventDefault();
-                        setOpenMenuId(null);
-                      }}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (e.cancelable) e.preventDefault();
-                        setOpenMenuId(null);
-                      }}
-                    />
-                    <motion.div
-                      initial={{ opacity: 0, scale: 0.88, y: -6 }}
-                      animate={{ opacity: 1, scale: 1, y: 0 }}
-                      exit={{ opacity: 0, scale: 0.88, y: -6 }}
-                      transition={{ duration: 0.12 }}
-                      role="menu"
-                      className="absolute right-0 top-10 z-[80] w-52 bg-[#1a0d1e] border border-white/10 rounded-2xl overflow-hidden shadow-2xl pointer-events-auto"
-                      style={{ pointerEvents: "auto" }}
-                      onPointerDown={(event) => event.stopPropagation()}
-                      onClick={(event) => event.stopPropagation()}
-                    >
-                      {post.author_id === currentUserId && (
-                        <>
-                          {isVideo && (
+              {openMenuId === String(post.id) &&
+                createPortal(
+                  <div
+                    role="menu"
+                    data-fame-post-menu
+                    className="fixed z-[9999] w-52 max-w-[calc(100vw-24px)] max-h-[calc(100dvh-24px)] overflow-y-auto overscroll-contain bg-[#1a0d1e] border border-white/10 rounded-2xl shadow-2xl pointer-events-auto"
+                    style={{
+                      top: postMenuPosition.top,
+                      right: postMenuPosition.right,
+                      pointerEvents: "auto",
+                    }}
+                    onPointerDown={(event) => event.stopPropagation()}
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    {post.author_id === currentUserId && (
+                      <>
+                        {isVideo && (
+                          <button
+                            type="button"
+                            role="menuitem"
+                            onPointerDown={(event) =>
+                              handleRunMenuAction(
+                                event,
+                                "Edit Reel",
+                                String(post.id),
+                                () =>
+                                  window.dispatchEvent(
+                                    new CustomEvent("flicks:open-reel-studio", {
+                                      detail: { reel: post },
+                                    }),
+                                  ),
+                              )
+                            }
+                            onKeyDown={(event) =>
+                              handleRunMenuActionFromKeyboard(
+                                event,
+                                "Edit Reel",
+                                String(post.id),
+                                () =>
+                                  window.dispatchEvent(
+                                    new CustomEvent("flicks:open-reel-studio", {
+                                      detail: { reel: post },
+                                    }),
+                                  ),
+                              )
+                            }
+                            className="pointer-events-auto w-full flex items-center gap-3 px-4 py-3.5 text-cyan-300 hover:bg-white/10 text-sm font-semibold border-b border-white/10 cursor-pointer"
+                          >
+                            <SlidersHorizontal size={15} /> Edit Reel
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          role="menuitem"
+                          onPointerDown={(event) =>
+                            handleRunMenuAction(
+                              event,
+                              "Edit",
+                              String(post.id),
+                              () =>
+                                setEditingPost({
+                                  id: String(post.id),
+                                  text: post.content || "",
+                                }),
+                            )
+                          }
+                          onKeyDown={(event) =>
+                            handleRunMenuActionFromKeyboard(
+                              event,
+                              "Edit",
+                              String(post.id),
+                              () =>
+                                setEditingPost({
+                                  id: String(post.id),
+                                  text: post.content || "",
+                                }),
+                            )
+                          }
+                          className="pointer-events-auto w-full flex items-center gap-3 px-4 py-3.5 text-blue-400 hover:bg-white/10 text-sm font-semibold border-b border-white/10 cursor-pointer"
+                        >
+                          <span className="text-base leading-none">✏️</span>{" "}
+                          Edit Post
+                        </button>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          onPointerDown={(event) =>
+                            handleRunMenuAction(
+                              event,
+                              "Delete",
+                              String(post.id),
+                              () =>
+                                setPendingDeletePost({
+                                  id: String(post.id),
+                                  author: post.author,
+                                  content: post.content,
+                                }),
+                            )
+                          }
+                          onKeyDown={(event) =>
+                            handleRunMenuActionFromKeyboard(
+                              event,
+                              "Delete",
+                              String(post.id),
+                              () =>
+                                setPendingDeletePost({
+                                  id: String(post.id),
+                                  author: post.author,
+                                  content: post.content,
+                                }),
+                            )
+                          }
+                          className="pointer-events-auto w-full flex items-center gap-3 px-4 py-3.5 text-red-400 hover:bg-white/10 text-sm font-semibold border-b border-white/10 cursor-pointer"
+                        >
+                          <Trash2 size={15} /> Delete
+                        </button>
+                      </>
+                    )}
+                    {isAdmin && (
+                      <>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          onPointerDown={(event) =>
+                            handleRunMenuAction(
+                              event,
+                              "Delete Post (Admin)",
+                              String(post.id),
+                              () => void handleAdminDelete(String(post.id)),
+                            )
+                          }
+                          onKeyDown={(event) =>
+                            handleRunMenuActionFromKeyboard(
+                              event,
+                              "Delete Post (Admin)",
+                              String(post.id),
+                              () => void handleAdminDelete(String(post.id)),
+                            )
+                          }
+                          className="pointer-events-auto w-full flex items-center gap-3 px-4 py-3.5 text-red-400 hover:bg-red-900/30 text-sm font-bold border-b border-white/10 cursor-pointer"
+                        >
+                          <Trash2 size={15} /> Delete Post (Admin)
+                        </button>
+                        {post.author_id &&
+                          post.author_id !== currentUserId && (
                             <button
                               type="button"
                               role="menuitem"
-                              onPointerDown={(e) => handleRunMenuAction(e, () => {
-                                window.dispatchEvent(
-                                  new CustomEvent("flicks:open-reel-studio", {
-                                    detail: { reel: post },
-                                  }),
-                                );
-                              })}
-                              onClick={(e) => handleRunMenuAction(e, () => {
-                                window.dispatchEvent(
-                                  new CustomEvent("flicks:open-reel-studio", {
-                                    detail: { reel: post },
-                                  }),
-                                );
-                              })}
-                              className="pointer-events-auto w-full flex items-center gap-3 px-4 py-3.5 text-cyan-300 hover:bg-white/10 text-sm font-semibold border-b border-white/10 cursor-pointer"
-                              style={{ pointerEvents: "auto" }}
+                              onPointerDown={(event) =>
+                                handleRunMenuAction(
+                                  event,
+                                  "Ban User (Admin)",
+                                  String(post.id),
+                                  () =>
+                                    void handleAdminBan(
+                                      post.author_id,
+                                      post.author,
+                                    ),
+                                )
+                              }
+                              onKeyDown={(event) =>
+                                handleRunMenuActionFromKeyboard(
+                                  event,
+                                  "Ban User (Admin)",
+                                  String(post.id),
+                                  () =>
+                                    void handleAdminBan(
+                                      post.author_id,
+                                      post.author,
+                                    ),
+                                )
+                              }
+                              className="pointer-events-auto w-full flex items-center gap-3 px-4 py-3.5 text-red-300 hover:bg-red-900/30 text-sm font-bold border-b border-white/10 cursor-pointer"
                             >
-                              <SlidersHorizontal size={15} /> Edit Reel
+                              <Ban size={15} /> Ban User (Admin)
                             </button>
                           )}
-                          <button
-                            type="button"
-                            role="menuitem"
-                            onPointerDown={(e) => handleRunMenuAction(e, () => {
-                              setEditingPost({
-                                id: post.id,
-                                text: post.content || "",
-                              });
-                            })}
-                            onClick={(e) => handleRunMenuAction(e, () => {
-                              setEditingPost({
-                                id: post.id,
-                                text: post.content || "",
-                              });
-                            })}
-                            className="pointer-events-auto w-full flex items-center gap-3 px-4 py-3.5 text-blue-400 hover:bg-white/10 text-sm font-semibold border-b border-white/10 cursor-pointer"
-                            style={{ pointerEvents: "auto" }}
-                          >
-                            <span className="text-base leading-none">✏️</span>{" "}
-                            Edit Post
-                          </button>
-                          <button
-                            type="button"
-                            role="menuitem"
-                            onPointerDown={(e) => handleRunMenuAction(e, () => {
-                              setPendingDeletePost({
-                                id: String(post.id),
-                                author: post.author,
-                                content: post.content,
-                              });
-                            })}
-                            onClick={(e) => handleRunMenuAction(e, () => {
-                              setPendingDeletePost({
-                                id: String(post.id),
-                                author: post.author,
-                                content: post.content,
-                              });
-                            })}
-                            className="pointer-events-auto w-full flex items-center gap-3 px-4 py-3.5 text-red-400 hover:bg-white/10 text-sm font-semibold border-b border-white/10 cursor-pointer"
-                            style={{ pointerEvents: "auto" }}
-                          >
-                            <Trash2 size={15} /> Delete
-                          </button>
-                        </>
-                      )}
-                      {isAdmin && (
-                        <>
-                          <button
-                            type="button"
-                            role="menuitem"
-                            onPointerDown={(e) => handleRunMenuAction(e, () => {
-                              void handleAdminDelete(String(post.id));
-                            })}
-                            onClick={(e) => handleRunMenuAction(e, () => {
-                              void handleAdminDelete(String(post.id));
-                            })}
-                            className="pointer-events-auto w-full flex items-center gap-3 px-4 py-3.5 text-red-400 hover:bg-red-900/30 text-sm font-bold border-b border-white/10 cursor-pointer"
-                            style={{ pointerEvents: "auto" }}
-                          >
-                            <Trash2 size={15} /> Delete Post (Admin)
-                          </button>
-                          {post.author_id &&
-                            post.author_id !== currentUserId && (
-                              <button
-                                type="button"
-                                role="menuitem"
-                                onPointerDown={(e) => handleRunMenuAction(e, () => {
-                                  void handleAdminBan(post.author_id, post.author);
-                                })}
-                                onClick={(e) => handleRunMenuAction(e, () => {
-                                  void handleAdminBan(post.author_id, post.author);
-                                })}
-                                className="pointer-events-auto w-full flex items-center gap-3 px-4 py-3.5 text-red-300 hover:bg-red-900/30 text-sm font-bold border-b border-white/10 cursor-pointer"
-                                style={{ pointerEvents: "auto" }}
-                              >
-                                <Ban size={15} /> Ban User (Admin)
-                              </button>
-                            )}
-                        </>
-                      )}
-                      <button
-                        type="button"
-                        role="menuitem"
-                        onPointerDown={(e) => handleRunMenuAction(e, () => {
-                          handleHide(String(post.id));
-                        })}
-                        onClick={(e) => handleRunMenuAction(e, () => {
-                          handleHide(String(post.id));
-                        })}
-                        className="pointer-events-auto w-full flex items-center gap-3 px-4 py-3.5 text-white/60 hover:bg-white/10 text-sm font-semibold border-b border-white/10 cursor-pointer"
-                        style={{ pointerEvents: "auto" }}
-                      >
-                        <EyeOff size={15} /> Hide
-                      </button>
-                      <button
-                        type="button"
-                        role="menuitem"
-                        onPointerDown={(e) => {
-                          const clientY = (e as any).clientY || (e as any).touches?.[0]?.clientY || window.innerHeight / 2;
-                          const popupH = 340;
-                          const spaceBelow = window.innerHeight - clientY;
-                          const top = spaceBelow >= popupH + 16
-                            ? clientY + 8
-                            : Math.max(8, clientY - popupH - 8);
-                          handleRunMenuAction(e, () => {
+                      </>
+                    )}
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onPointerDown={(event) =>
+                        handleRunMenuAction(
+                          event,
+                          "Hide",
+                          String(post.id),
+                          () => handleHide(String(post.id)),
+                        )
+                      }
+                      onKeyDown={(event) =>
+                        handleRunMenuActionFromKeyboard(
+                          event,
+                          "Hide",
+                          String(post.id),
+                          () => handleHide(String(post.id)),
+                        )
+                      }
+                      className="pointer-events-auto w-full flex items-center gap-3 px-4 py-3.5 text-white/60 hover:bg-white/10 text-sm font-semibold border-b border-white/10 cursor-pointer"
+                    >
+                      <EyeOff size={15} /> Hide
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onPointerDown={(event) =>
+                        handleRunMenuAction(
+                          event,
+                          "Report",
+                          String(post.id),
+                          () => {
+                            const clientY =
+                              event.clientY || window.innerHeight / 2;
+                            const popupHeight = 340;
+                            const top =
+                              window.innerHeight - clientY >= popupHeight + 16
+                                ? clientY + 8
+                                : Math.max(8, clientY - popupHeight - 8);
                             setReportModal({
-                              postId: post.id,
+                              postId: String(post.id),
                               targetId: post.author_id,
                               reason: "",
                               anchor: { top, right: 16 },
                             });
-                          });
-                        }}
-                        onClick={(e) => {
-                          const clientY = (e as any).clientY || (e as any).touches?.[0]?.clientY || window.innerHeight / 2;
-                          const popupH = 340;
-                          const spaceBelow = window.innerHeight - clientY;
-                          const top = spaceBelow >= popupH + 16
-                            ? clientY + 8
-                            : Math.max(8, e.clientY - popupH - 8);
-                          handleRunMenuAction(e, () => {
+                          },
+                        )
+                      }
+                      onKeyDown={(event) =>
+                        handleRunMenuActionFromKeyboard(
+                          event,
+                          "Report",
+                          String(post.id),
+                          () => {
+                            const clientY = window.innerHeight / 2;
+                            const popupHeight = 340;
+                            const top =
+                              window.innerHeight - clientY >= popupHeight + 16
+                                ? clientY + 8
+                                : Math.max(8, clientY - popupHeight - 8);
                             setReportModal({
-                              postId: post.id,
+                              postId: String(post.id),
                               targetId: post.author_id,
                               reason: "",
                               anchor: { top, right: 16 },
                             });
-                          });
-                        }}
-                        className="pointer-events-auto w-full flex items-center gap-3 px-4 py-3.5 text-orange-400 hover:bg-white/10 text-sm font-semibold border-b border-white/10 cursor-pointer"
-                        style={{ pointerEvents: "auto" }}
-                      >
-                        <Flag size={15} /> Report
-                      </button>
-                      {post.author_id &&
-                        post.author_id !== currentUserId &&
-                        (blockedUserIds.has(post.author_id) ? (
-                          <button
-                            type="button"
-                            role="menuitem"
-                            onPointerDown={(e) => handleRunMenuAction(e, () => {
-                              void handleUnblockUser(
-                                post.author_id,
-                                post.author || "User",
-                              );
-                            })}
-                            onClick={(e) => handleRunMenuAction(e, () => {
-                              void handleUnblockUser(
-                                post.author_id,
-                                post.author || "User",
-                              );
-                            })}
-                            className="pointer-events-auto w-full flex items-center gap-3 px-4 py-3.5 text-blue-400 hover:bg-white/10 text-sm font-semibold cursor-pointer"
-                            style={{ pointerEvents: "auto" }}
-                          >
-                            <ShieldOff size={15} /> Unblock User
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            role="menuitem"
-                            onPointerDown={(e) => handleRunMenuAction(e, () => {
-                              setBlockConfirm({
-                                userId: post.author_id,
-                                name: post.author || "User",
-                              });
-                            })}
-                            onClick={(e) => handleRunMenuAction(e, () => {
-                              setBlockConfirm({
-                                userId: post.author_id,
-                                name: post.author || "User",
-                              });
-                            })}
-                            className="pointer-events-auto w-full flex items-center gap-3 px-4 py-3.5 text-red-400 hover:bg-white/10 text-sm font-semibold cursor-pointer"
-                            style={{ pointerEvents: "auto" }}
-                          >
-                            <Ban size={15} /> Block User
-                          </button>
-                        ))}
-                    </motion.div>
-                  </>
+                          },
+                        )
+                      }
+                      className="pointer-events-auto w-full flex items-center gap-3 px-4 py-3.5 text-orange-400 hover:bg-white/10 text-sm font-semibold border-b border-white/10 cursor-pointer"
+                    >
+                      <Flag size={15} /> Report
+                    </button>
+                    {post.author_id &&
+                      post.author_id !== currentUserId &&
+                      (blockedUserIds.has(post.author_id) ? (
+                        <button
+                          type="button"
+                          role="menuitem"
+                          onPointerDown={(event) =>
+                            handleRunMenuAction(
+                              event,
+                              "Unblock User",
+                              String(post.id),
+                              () =>
+                                void handleUnblockUser(
+                                  post.author_id,
+                                  post.author || "User",
+                                ),
+                            )
+                          }
+                          onKeyDown={(event) =>
+                            handleRunMenuActionFromKeyboard(
+                              event,
+                              "Unblock User",
+                              String(post.id),
+                              () =>
+                                void handleUnblockUser(
+                                  post.author_id,
+                                  post.author || "User",
+                                ),
+                            )
+                          }
+                          className="pointer-events-auto w-full flex items-center gap-3 px-4 py-3.5 text-blue-400 hover:bg-white/10 text-sm font-semibold cursor-pointer"
+                        >
+                          <ShieldOff size={15} /> Unblock User
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          role="menuitem"
+                          onPointerDown={(event) =>
+                            handleRunMenuAction(
+                              event,
+                              "Block User",
+                              String(post.id),
+                              () =>
+                                setBlockConfirm({
+                                  userId: post.author_id,
+                                  name: post.author || "User",
+                                }),
+                            )
+                          }
+                          onKeyDown={(event) =>
+                            handleRunMenuActionFromKeyboard(
+                              event,
+                              "Block User",
+                              String(post.id),
+                              () =>
+                                setBlockConfirm({
+                                  userId: post.author_id,
+                                  name: post.author || "User",
+                                }),
+                            )
+                          }
+                          className="pointer-events-auto w-full flex items-center gap-3 px-4 py-3.5 text-red-400 hover:bg-white/10 text-sm font-semibold cursor-pointer"
+                        >
+                          <Ban size={15} /> Block User
+                        </button>
+                      ))}
+                  </div>,
+                  document.body,
                 )}
-              </AnimatePresence>
             </div>
           </div>
 
