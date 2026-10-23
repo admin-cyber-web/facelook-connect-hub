@@ -6739,7 +6739,7 @@ const FameFeed = ({
                     <button
                       type="button"
                       role="menuitem"
-                      onPointerDown={(event) =>
+                      onClick={(event) =>
                         handleRunMenuAction(
                           event,
                           "Report",
@@ -8528,8 +8528,8 @@ const FameFeed = ({
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="fixed inset-0 bg-black/60 backdrop-blur-sm"
-                style={{ zIndex: 99998 }}
+                className="pointer-events-auto fixed inset-0 z-[9998] cursor-default bg-black/60 backdrop-blur-sm"
+                style={{ zIndex: 9998, pointerEvents: "auto" }}
                 onClick={() => setReportModal(null)}
               />
               <motion.div
@@ -8542,9 +8542,14 @@ const FameFeed = ({
                   top: reportModal.anchor.top,
                   right: reportModal.anchor.right,
                   zIndex: 99999,
+                  pointerEvents: "auto",
                 }}
-                className="w-72 bg-white rounded-2xl shadow-2xl border border-gray-100 p-4"
-                onClick={(e) => e.stopPropagation()}
+                role="dialog"
+                aria-modal="true"
+                aria-label="Report post"
+                className="pointer-events-auto fixed z-[9999] w-[min(18rem,calc(100vw-2rem))] cursor-default rounded-2xl border border-gray-100 bg-white p-4 shadow-2xl"
+                onPointerDown={(event) => event.stopPropagation()}
+                onClick={(event) => event.stopPropagation()}
               >
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
@@ -8554,8 +8559,10 @@ const FameFeed = ({
                   <span className="text-gray-900 font-black text-sm">Report Post</span>
                 </div>
                 <button
+                  type="button"
                   onClick={() => setReportModal(null)}
-                  className="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 hover:bg-gray-200 transition-colors"
+                  className="pointer-events-auto flex h-7 w-7 cursor-pointer items-center justify-center rounded-full bg-gray-100 text-gray-500 transition-colors hover:bg-gray-200"
+                  style={{ pointerEvents: "auto", touchAction: "manipulation" }}
                 >
                   <X size={14} />
                 </button>
@@ -8573,12 +8580,17 @@ const FameFeed = ({
                     type="button"
                     disabled={reportSubmitting}
                     aria-pressed={reportModal.reason === r}
-                    onClick={() => void handleReportSubmit(r)}
-                    className={`w-full text-left px-3 py-2.5 rounded-xl text-sm font-semibold border transition-all ${
+                    onPointerDown={(event) => event.stopPropagation()}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      void handleReportSubmit(r);
+                    }}
+                    className={`pointer-events-auto w-full cursor-pointer text-left px-3 py-2.5 rounded-xl text-sm font-semibold border transition-all ${
                       reportModal.reason === r
                         ? "bg-orange-50 border-orange-300 text-orange-700"
                         : "bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100"
                     }`}
+                    style={{ pointerEvents: "auto", touchAction: "manipulation" }}
                   >
                     {r}
                   </button>
