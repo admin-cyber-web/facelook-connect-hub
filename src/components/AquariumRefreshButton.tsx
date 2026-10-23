@@ -23,27 +23,27 @@ export default function AquariumRefreshButton({
     [],
   );
 
-  const handleRefresh = () => {
+  const handleRefresh = async () => {
     if (refreshInFlightRef.current) return;
 
     refreshInFlightRef.current = true;
     setIsRefreshing(true);
     setIsWiping(true);
+
+    if (wipeTimerRef.current) clearTimeout(wipeTimerRef.current);
     wipeTimerRef.current = setTimeout(() => {
       wipeTimerRef.current = null;
       setIsWiping(false);
     }, AQUARIUM_REFRESH_WIPE_MS);
 
-    void Promise.resolve()
-      .then(onRefresh)
-      .catch((error) => {
-        console.error("[AquariumRefresh] Refresh failed:", error);
-        window.location.reload();
-      })
-      .finally(() => {
-        refreshInFlightRef.current = false;
-        setIsRefreshing(false);
-      });
+    try {
+      await Promise.resolve(onRefresh());
+    } catch (error) {
+      console.error("[AquariumRefresh] Refresh failed:", error);
+    } finally {
+      refreshInFlightRef.current = false;
+      setIsRefreshing(false);
+    }
   };
 
   if (typeof document === "undefined" || !document.body) return null;
@@ -53,14 +53,10 @@ export default function AquariumRefreshButton({
       <button
         type="button"
         className="aquarium-refresh-marble"
-        onPointerDownCapture={(event) => event.stopPropagation()}
-        onPointerUpCapture={(event) => event.stopPropagation()}
-        onTouchStartCapture={(event) => event.stopPropagation()}
-        onTouchEndCapture={(event) => event.stopPropagation()}
         onClick={(event) => {
           event.preventDefault();
           event.stopPropagation();
-          handleRefresh();
+          void handleRefresh();
         }}
         disabled={isRefreshing}
         aria-label={isRefreshing ? "Refreshing feed" : "Refresh feed"}
