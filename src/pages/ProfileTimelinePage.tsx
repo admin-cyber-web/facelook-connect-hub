@@ -9,6 +9,7 @@ import {
 } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/lib/supabaseClient";
+import { openFilePicker } from "@/lib/nativeFilePicker";
 import { canViewPrivateProfile } from "@/lib/profileSearch";
 import { toast } from "sonner";
 import { sharePost } from "@/lib/sharePost";
@@ -866,7 +867,7 @@ export default function ProfileTimelinePage({
         state={viewState}
         isOwnProfile={profile?.id === currentUserId}
         isCoverUploading={isCoverUploading}
-        onEditCover={() => coverInputRef.current?.click()}
+        onEditCover={() => openFilePicker(coverInputRef.current)}
         errorMessage={errorMessage}
         hasMoreMedia={hasMoreMedia}
         isLoadingMoreMedia={isLoadingMoreMedia}

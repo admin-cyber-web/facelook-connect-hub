@@ -59,6 +59,7 @@ import {
 
 // DHAYAN DEIN: Sirf ye ek supabase import rehna chahiye
 import { supabase } from "@/lib/supabaseClient";
+import { openFilePicker } from "@/lib/nativeFilePicker";
 import { subscribeWhileVisible } from "@/lib/realtimeVisibility";
 import { memGet, memSet, memClear, memDel } from "@/lib/memCache";
 import { Helmet } from "react-helmet-async";
@@ -2031,7 +2032,7 @@ const PersonalInfoView = React.memo(({
 
             {/* Camera edit button */}
             <button
-              onClick={() => fileInputRef.current?.click()}
+              onClick={() => openFilePicker(fileInputRef.current)}
               disabled={isUploadingAvatar}
               className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full flex items-center justify-center border-2 border-slate-900 transition-transform active:scale-90 disabled:opacity-50"
               style={{ background: "linear-gradient(135deg, #2563eb, #4f46e5)", boxShadow: "0 4px 12px rgba(79,70,229,0.5)" }}

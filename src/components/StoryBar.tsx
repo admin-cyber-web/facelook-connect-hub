@@ -1714,43 +1714,46 @@ export const StoryBar = ({
 
   return (
     <>
-      <div className="bg-[#0F172A] border-b border-white/8 py-3">
-        <div className="flex gap-2 overflow-x-auto px-3 no-scrollbar">
+      <div className="w-full min-w-0 max-w-full box-border overflow-hidden border-b border-white/8 bg-[#0F172A] py-3">
+        <div className="flex w-full min-w-0 max-w-full box-border gap-2 overflow-x-auto overflow-y-hidden px-4 scrollbar-none">
           {/* Your Story bubble */}
-          <StoryBubble
-            isSelf
-            hasStory={!!myGroup}
-            group={myGroup ?? {
-              user_id: currentUserId || "",
-              profile: { full_name: userProfile?.full_name || "You", avatar_url: userProfile?.avatar_url },
-              stories: [],
-            }}
-            onClick={() => {
-              if (myGroup) {
-                const idx = groups.findIndex(g => g.user_id === currentUserId);
-                if (idx >= 0) openViewer(idx);
-              } else {
-                setShowUploader(true);
-              }
-            }}
-          />
+          <div className="shrink-0">
+            <StoryBubble
+              isSelf
+              hasStory={!!myGroup}
+              group={myGroup ?? {
+                user_id: currentUserId || "",
+                profile: { full_name: userProfile?.full_name || "You", avatar_url: userProfile?.avatar_url },
+                stories: [],
+              }}
+              onClick={() => {
+                if (myGroup) {
+                  const idx = groups.findIndex(g => g.user_id === currentUserId);
+                  if (idx >= 0) openViewer(idx);
+                } else {
+                  setShowUploader(true);
+                }
+              }}
+            />
+          </div>
 
           {/* Friend stories */}
           {otherGroups.map((group) => {
             const groupIdx = groups.findIndex(g => g.user_id === group.user_id);
             return (
-              <StoryBubble
-                key={group.user_id}
-                group={group}
-                hasStory
-                onClick={() => openViewer(groupIdx)}
-              />
+              <div key={group.user_id} className="shrink-0">
+                <StoryBubble
+                  group={group}
+                  hasStory
+                  onClick={() => openViewer(groupIdx)}
+                />
+              </div>
             );
           })}
 
           {/* Empty state */}
           {otherGroups.length === 0 && (
-            <div className="flex items-center">
+            <div className="flex shrink-0 items-center">
               <p className="text-[11px] text-white/40 font-medium italic">
                 No stories yet · Be the first! 🌟
               </p>

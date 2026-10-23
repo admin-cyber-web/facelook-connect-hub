@@ -8,6 +8,7 @@ import {
   memo,
   useContext,
 } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { createPortal } from "react-dom";
 import { supabase } from "../lib/supabaseClient";
 import { smartTime } from "../lib/timeAgo";
@@ -3822,6 +3823,7 @@ const FameFeed = ({
   const { openProfile } = useProfileViewer();
   const { playPop, playSwoosh } = useSoundEffects();
   const dataCache = useDataCache();
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     const onScroll = scheduleCenteredFameFeedReelSync;
@@ -5320,8 +5322,20 @@ const FameFeed = ({
   // The global event listener is intentionally installed once, so invoking
   // these through a ref avoids stale user/location/cache state.
   const pullRefreshActionRef = useRef<() => Promise<void>>(async () => {});
+  const refetch = async () => {
+    await fetchPosts(true, true);
+  };
   pullRefreshActionRef.current = async () => {
-    await Promise.all([fetchPosts(true, true), fetchFlicks()]);
+    setPosts([]);
+    postsRef.current = [];
+    setLoading(true);
+    setLoadingMore(false);
+    pageRef.current = 0;
+    setHasMore(true);
+    dataCache.setCache("famePosts", { data: [], fetchedAt: Date.now() });
+
+    await queryClient.invalidateQueries({ queryKey: ["posts"] });
+    await Promise.all([refetch(), fetchFlicks()]);
   };
 
   // Pull-to-refresh listener — fired by <PullToRefresh> in Index.tsx.
