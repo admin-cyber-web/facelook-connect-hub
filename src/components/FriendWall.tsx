@@ -50,6 +50,8 @@ type Props = {
   currentUserId: string;
   isOwnProfile?: boolean;
   onCreateHook?: () => void;
+  onPostEditedInProfile?: (postId: string, content: string) => void;
+  onPostDeletedInProfile?: (postId: string) => void;
 };
 
 export default function FriendWall({
@@ -59,6 +61,8 @@ export default function FriendWall({
   currentUserId,
   isOwnProfile = false,
   onCreateHook,
+  onPostEditedInProfile,
+  onPostDeletedInProfile,
 }: Props) {
   const [posts, setPosts] = useState<FriendWallPostView[]>([]);
   const [loading, setLoading] = useState(true);
@@ -183,6 +187,7 @@ export default function FriendWall({
               : null;
           return {
             id: row.id,
+            authorId: row.author_id,
             authorName: row.author || author?.full_name || "Flicks member",
             authorAvatarUrl: author?.avatar_url || metadataAvatar,
             content: row.content ?? "",
@@ -674,10 +679,24 @@ export default function FriendWall({
         loading={loading}
         error={error}
         likeBusyPostId={likeBusyPostId}
+        currentUserId={currentUserId}
         onOpenComposer={() => setComposerOpen(true)}
         onCreateHook={onCreateHook}
         onLike={(postId, reactionType) => void handleLike(postId, reactionType)}
         onShare={(postId) => void handleShare(postId)}
+        onPostEdited={(postId, content) => {
+          setPosts((previous) =>
+            previous.map((post) =>
+              post.id === postId ? { ...post, content } : post,
+            ),
+          );
+          onPostEditedInProfile?.(postId, content);
+        }}
+        onPostDeleted={(postId) => {
+          setPosts((previous) => previous.filter((post) => post.id !== postId));
+          if (postDetailId === postId) closePostDetail();
+          onPostDeletedInProfile?.(postId);
+        }}
         onOpenPostDetail={openPostDetail}
         onRetry={reload}
       />

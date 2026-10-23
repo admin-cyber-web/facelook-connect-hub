@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import AutoPlayMutedVideo from "@/components/AutoPlayMutedVideo";
+import ProfilePostActions from "@/components/ProfilePostActions";
 import {
   ProfileTimelineAudioProvider,
   ProfileTimelineSoundControl,
@@ -623,7 +624,21 @@ function FriendsList({
   );
 }
 
-function HooksSection({ posts }: { posts: ProfileNavigationPost[] }) {
+function HooksSection({
+  posts,
+  authorName,
+  currentUserId,
+  onPostEdited,
+  onPostDeleted,
+  onSharePost,
+}: {
+  posts: ProfileNavigationPost[];
+  authorName: string;
+  currentUserId: string;
+  onPostEdited: (postId: string, content: string) => void;
+  onPostDeleted: (postId: string) => void;
+  onSharePost: (postId: string) => void | Promise<void>;
+}) {
   return (
     <section className="profile-nav-section" aria-labelledby="profile-nav-hooks-heading">
       <div className="profile-nav-section-head">
@@ -647,6 +662,18 @@ function HooksSection({ posts }: { posts: ProfileNavigationPost[] }) {
               className="profile-nav-hook-card"
               data-testid={`card-profile-hook-${post.id}`}
             >
+              <div className="absolute right-12 top-2 z-[60]">
+                <ProfilePostActions
+                  postId={post.id}
+                  authorId={post.author_id}
+                  authorName={authorName}
+                  content={post.content ?? ""}
+                  currentUserId={currentUserId}
+                  onEdited={onPostEdited}
+                  onDeleted={onPostDeleted}
+                  onShare={onSharePost}
+                />
+              </div>
               {post.media_url && (
                 <AutoPlayMutedVideo
                   src={post.media_url}
@@ -682,7 +709,21 @@ function HooksSection({ posts }: { posts: ProfileNavigationPost[] }) {
   );
 }
 
-function ImagePostsSection({ posts }: { posts: ProfileNavigationPost[] }) {
+function ImagePostsSection({
+  posts,
+  authorName,
+  currentUserId,
+  onPostEdited,
+  onPostDeleted,
+  onSharePost,
+}: {
+  posts: ProfileNavigationPost[];
+  authorName: string;
+  currentUserId: string;
+  onPostEdited: (postId: string, content: string) => void;
+  onPostDeleted: (postId: string) => void;
+  onSharePost: (postId: string) => void | Promise<void>;
+}) {
   const imagePosts = posts
     .map((post) => ({
       post,
@@ -717,6 +758,18 @@ function ImagePostsSection({ posts }: { posts: ProfileNavigationPost[] }) {
               className="profile-nav-image-tile"
               data-testid={`card-profile-image-post-${post.id}`}
             >
+              <div className="absolute right-2 top-2 z-[60]">
+                <ProfilePostActions
+                  postId={post.id}
+                  authorId={post.author_id}
+                  authorName={authorName}
+                  content={post.content ?? ""}
+                  currentUserId={currentUserId}
+                  onEdited={onPostEdited}
+                  onDeleted={onPostDeleted}
+                  onShare={onSharePost}
+                />
+              </div>
               <div className={`profile-nav-image-collage ${imageUrls.length > 1 ? "is-multiple" : ""}`}>
                 {imageUrls.slice(0, 4).map((url, index) => (
                   <img
@@ -830,6 +883,10 @@ export function FullProfilePage({
   sendingFriendIds,
   onBack,
   onEditCover,
+  currentUserId = "",
+  onPostEdited = () => {},
+  onPostDeleted = () => {},
+  onSharePost = () => {},
 }: FullProfilePageProps) {
   if (state === "loading") {
     return <main className="profile-nav profile-nav-page"><ProfileLoading /></main>;
@@ -878,8 +935,22 @@ export function FullProfilePage({
                   {friendWall}
                 </div>
                 <aside className="profile-nav-rail" aria-label={`${profile.full_name} profile details`}>
-                  <HooksSection posts={hooks} />
-                  <ImagePostsSection posts={imagePosts} />
+                  <HooksSection
+                    posts={hooks}
+                    authorName={profile.full_name || "Flicks member"}
+                    currentUserId={currentUserId}
+                    onPostEdited={onPostEdited}
+                    onPostDeleted={onPostDeleted}
+                    onSharePost={onSharePost}
+                  />
+                  <ImagePostsSection
+                    posts={imagePosts}
+                    authorName={profile.full_name || "Flicks member"}
+                    currentUserId={currentUserId}
+                    onPostEdited={onPostEdited}
+                    onPostDeleted={onPostDeleted}
+                    onSharePost={onSharePost}
+                  />
                   <MediaGallery
                     media={media}
                     hasMoreMedia={hasMoreMedia}
