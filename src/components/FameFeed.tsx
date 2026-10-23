@@ -6197,51 +6197,68 @@ const FameFeed = ({
     toast.success("Sare hidden posts restore ho gaye ✅");
   };
 
-  const handleReportSubmit = async () => {
-    if (!reportModal?.reason.trim()) return;
-    setReportSubmitting(true);
+  const handleReportSubmit = async (selectedReason?: string) => {
+    const report = reportModal;
+    const reason = (selectedReason ?? report?.reason ?? "").trim();
+    if (!report || !reason || reportSubmitting) return;
 
-    // Always capture the logged-in user's id so reporter_id is never null
-    const reporterId = currentUserId || null;
+    if (selectedReason) {
+      setReportModal((current) => (current ? { ...current, reason } : current));
+    }
 
-    const reportPayload = {
-      reporter_id: reporterId,
-      post_id: reportModal.postId || null,
-      target_id: reportModal.targetId || null,
-      type: "post",
-      reason: reportModal.reason.trim(),
-      status: "pending",
-    };
-
-    // Database mein insert query
-    const { error: reportErr } = await supabase
-      .from("reports")
-      .insert([reportPayload]);
-
-    if (reportErr) {
-      console.warn("[FameFeed] report insert error:", reportErr.message);
-      toast.error("Report submit nahi ho saka. Dobara try karo.");
-      setReportSubmitting(false);
+    // currentUserId comes from the active Supabase auth session (auth.uid()).
+    if (!currentUserId) {
+      toast.error("Please sign in to submit a report.");
       return;
     }
 
-    // Notification logic mein se entity_id ka chakkar hi khatam kar diya
-    if (currentUserId) {
-      await supabase.from("notifications").insert({
-        notifier_id: currentUserId,
-        actor_id: currentUserId,
-        type: "report_submitted",
-        entity_id: reportModal.postId || null,
-        entity_type: "post",
-        content: `Your report for post is under review. We'll notify you soon.`,
-        is_read: false,
+    setReportSubmitting(true);
+    try {
+      const { error: reportError } = await supabase.from("reports").insert({
+        reporter_id: currentUserId,
+        post_id: report.postId,
+        target_id: report.targetId || null,
+        type: "post",
+        reason,
+        status: "pending",
       });
-    }
+      if (reportError) throw reportError;
 
-    // Success state
-    toast.success("✅ Report submitted. We'll review it shortly.");
-    setReportSubmitting(false);
-    setReportModal(null);
+      setReportModal(null);
+      toast.success("Report submitted successfully");
+
+      // Notifications are secondary; a notification failure must not make a
+      // successful report look like it failed or leave the report modal stuck.
+      try {
+        const { error: notificationError } = await supabase
+          .from("notifications")
+          .insert({
+            notifier_id: currentUserId,
+            actor_id: currentUserId,
+            type: "report_submitted",
+            entity_id: report.postId,
+            entity_type: "post",
+            content: "Your report for this post is under review. We'll notify you soon.",
+            is_read: false,
+          });
+        if (notificationError) {
+          console.error(
+            "[FameFeed] report notification insert failed:",
+            notificationError,
+          );
+        }
+      } catch (notificationError) {
+        console.error(
+          "[FameFeed] report notification insert failed:",
+          notificationError,
+        );
+      }
+    } catch (error) {
+      console.error("[FameFeed] report submission failed:", error);
+      toast.error("Report submission failed. Please try again.");
+    } finally {
+      setReportSubmitting(false);
+    }
   };
   const renderPost = (post: any) => {
     const vibe = resolvePostVibe(post);
@@ -8553,9 +8570,10 @@ const FameFeed = ({
                 ].map((r) => (
                   <button
                     key={r}
-                    onClick={() =>
-                      setReportModal((p) => (p ? { ...p, reason: r } : p))
-                    }
+                    type="button"
+                    disabled={reportSubmitting}
+                    aria-pressed={reportModal.reason === r}
+                    onClick={() => void handleReportSubmit(r)}
                     className={`w-full text-left px-3 py-2.5 rounded-xl text-sm font-semibold border transition-all ${
                       reportModal.reason === r
                         ? "bg-orange-50 border-orange-300 text-orange-700"
@@ -8566,14 +8584,9 @@ const FameFeed = ({
                   </button>
                 ))}
               </div>
-              <button
-                onClick={handleReportSubmit}
-                disabled={!reportModal.reason || reportSubmitting}
-                className="w-full py-3 rounded-2xl text-white font-black text-sm disabled:opacity-40"
-                style={{ background: "linear-gradient(135deg,#f97316,#dc2626)" }}
-              >
-                {reportSubmitting ? "Submitting…" : "Submit Report"}
-              </button>
+              <p className="text-center text-xs text-gray-400">
+                {reportSubmitting ? "Submitting report…" : "Select a reason to submit your report."}
+              </p>
             </motion.div>
           </>
         )}

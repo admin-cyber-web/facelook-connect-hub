@@ -781,7 +781,10 @@ const AdminDashboard: React.FC<Props> = ({
         {TABS.map((t) => (
           <button
             key={t.key}
-            onClick={() => setTab(t.key)}
+            onClick={() => {
+              setTab(t.key);
+              if (t.key === "reports") void fetchAll(true);
+            }}
             className={`flex-1 flex items-center justify-center gap-1 py-2 rounded-xl text-[11px] font-black transition-all ${
               tab === t.key
                 ? "bg-white/15 text-white border border-white/20"
