@@ -6635,14 +6635,6 @@ const FameFeed = ({
                 )}
               </AnimatePresence>
             </div>
-                            <Ban size={15} /> Block User
-                          </button>
-                        ))}
-                    </motion.div>
-                  </>
-                )}
-              </AnimatePresence>
-            </div>
           </div>
 
           {(() => {
