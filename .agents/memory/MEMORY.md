@@ -22,3 +22,4 @@
 - [Marketplace UPI verification](marketplace-upi-verification.md) — submitted UTRs require manual bank matching before a marketplace order can ship.
 - [Flicks India request scope](flicks-request-scope.md) — implement only the explicit current prompt; do not add unrelated features or resume older unfinished requests.
 - [Profile comment actions](comment-action-delegation.md) — use direct Edit/Save/Delete handlers rather than submenu-dependent delegation for profile comments.
+- [Report modal pointer lifecycle](report-modal-pointer-lifecycle.md) — launch overlays from click after a menu action; opening on pointerdown can let the same gesture dismiss the new backdrop.
