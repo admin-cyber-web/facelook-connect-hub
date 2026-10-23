@@ -17,6 +17,7 @@ import {
   Music2,
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
+import { openFilePicker } from "@/lib/nativeFilePicker";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import MentionInput, { MentionCandidate } from "./MentionInput";
@@ -70,6 +71,7 @@ const CreatePost = ({
   const [loadingMsg, setLoadingMsg] = useState("Post Vibe");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
+  const addMoreInputRef = useRef<HTMLInputElement>(null);
   const audioFileInputRef = useRef<HTMLInputElement>(null);
   const [candidates, setCandidates] = useState<MentionCandidate[]>([]);
   const [visibility, setVisibility] = useState<"public" | "friends_only">("public");
@@ -889,7 +891,7 @@ const CreatePost = ({
                     <div className="relative shrink-0">
                       <button
                         type="button"
-                        onClick={() => fileInputRef.current?.click()}
+                        onClick={() => openFilePicker(fileInputRef.current)}
                         data-testid="button-add-media"
                         className="flex h-[3.35rem] min-w-[6.25rem] items-center justify-center gap-2 rounded-full bg-gradient-to-r from-fuchsia-600 via-violet-600 to-sky-500 px-3 text-[12px] font-extrabold leading-tight text-white shadow-[0_8px_22px_rgba(124,58,237,.32)] transition hover:brightness-105 active:scale-95 sm:min-w-[7.5rem] sm:px-4 sm:text-sm"
                       >
@@ -907,7 +909,7 @@ const CreatePost = ({
                       />
                       <button
                         type="button"
-                        onClick={() => cameraInputRef.current?.click()}
+                        onClick={() => openFilePicker(cameraInputRef.current)}
                         aria-label="Open camera"
                         data-testid="button-open-camera"
                         className="absolute -right-1 -top-1 flex h-6 w-6 items-center justify-center rounded-full border-2 border-white bg-emerald-500 text-white shadow-md"
@@ -1175,14 +1177,28 @@ const CreatePost = ({
                             {files.length}/5 images selected
                           </p>
                         )}
-                        <label
-                          htmlFor="add-more-picker"
-                          data-testid="label-add-more-media"
-                          className="absolute bottom-2 right-2 flex cursor-pointer items-center gap-1 rounded-full bg-slate-950/70 px-3 py-1.5 text-[11px] font-bold text-white transition-colors hover:bg-[#FF3B4D]"
+                        <div
+                          className="absolute bottom-2 right-2"
                         >
-                          <ImageIcon size={11} /> Add More
-                          <input id="add-more-picker" type="file" multiple className="sr-only" accept="image/*" onChange={handleFileChange} data-testid="input-add-more-media" />
-                        </label>
+                          <button
+                            type="button"
+                            onClick={() => openFilePicker(addMoreInputRef.current)}
+                            data-testid="label-add-more-media"
+                            className="flex items-center gap-1 rounded-full bg-slate-950/70 px-3 py-1.5 text-[11px] font-bold text-white transition-colors hover:bg-[#FF3B4D]"
+                          >
+                            <ImageIcon size={11} /> Add More
+                          </button>
+                          <input
+                            ref={addMoreInputRef}
+                            id="add-more-picker"
+                            type="file"
+                            multiple
+                            className="sr-only"
+                            accept="image/*"
+                            onChange={handleFileChange}
+                            data-testid="input-add-more-media"
+                          />
+                        </div>
                       </motion.div>
                     )}
                   </AnimatePresence>
@@ -1232,7 +1248,7 @@ const CreatePost = ({
                                 <option value="">{musicTracks.length ? "Choose from music library" : "No curated tracks available"}</option>
                                 {musicTracks.map((track) => <option key={track.id} value={track.id}>{track.title} · {track.artist}</option>)}
                               </select>
-                              <button type="button" onClick={() => audioFileInputRef.current?.click()} className="flex h-10 items-center justify-center gap-2 rounded-xl border border-dashed border-pink-300 bg-white px-3 text-xs font-bold text-pink-700 hover:bg-pink-50">
+                              <button type="button" onClick={() => openFilePicker(audioFileInputRef.current)} className="flex h-10 items-center justify-center gap-2 rounded-xl border border-dashed border-pink-300 bg-white px-3 text-xs font-bold text-pink-700 hover:bg-pink-50">
                                 <Music2 size={14} /> 📱 Phone Upload
                               </button>
                               <input

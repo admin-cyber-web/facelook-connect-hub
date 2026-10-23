@@ -1449,8 +1449,10 @@ html[data-app-hidden="true"] *::after {
   }
 }
 
-.no-scrollbar::-webkit-scrollbar { display: none; }
-.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar,
+.scrollbar-none::-webkit-scrollbar { display: none; }
+.no-scrollbar,
+.scrollbar-none { -ms-overflow-style: none; scrollbar-width: none; }
 
 /* ── Creator badge: smooth Royal Blue ↔ Metallic Gold pulse ── */
 @keyframes creator-badge-pulse {
