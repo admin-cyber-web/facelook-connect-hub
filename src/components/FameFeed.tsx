@@ -3063,15 +3063,21 @@ const SingleReelBlock = ({
         aria-expanded={showReelMenu}
         onPointerDown={(event) => {
           event.stopPropagation();
-          console.log("RAW CLICK DETECTED ON 3-DOTS TRIGGER");
-        }}
-        onClick={(event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          console.log("RAW CLICK DETECTED ON 3-DOTS TRIGGER");
+          if (event.cancelable) event.preventDefault();
+          const now = Date.now();
+          if (now - menuToggleTimeRef.current < 200) return;
+          menuToggleTimeRef.current = now;
           setShowReelMenu((open) => !open);
         }}
-        className="absolute right-16 top-4 z-40 pointer-events-auto touch-manipulation grid h-9 w-9 place-items-center rounded-full border border-white/15 bg-black/70 text-white backdrop-blur-sm transition hover:bg-black/90"
+        onClick={(event) => {
+          event.stopPropagation();
+          if (event.cancelable) event.preventDefault();
+          const now = Date.now();
+          if (now - menuToggleTimeRef.current < 200) return;
+          menuToggleTimeRef.current = now;
+          setShowReelMenu((open) => !open);
+        }}
+        className="absolute right-16 top-4 z-40 pointer-events-auto touch-manipulation grid h-9 w-9 place-items-center rounded-full border border-white/15 bg-black/70 text-white backdrop-blur-sm transition hover:bg-black/90 cursor-pointer"
         style={{ pointerEvents: "auto", touchAction: "manipulation" }}
       >
         <MoreVertical size={18} />
@@ -3081,9 +3087,14 @@ const SingleReelBlock = ({
           <button
             type="button"
             aria-label="Close Reel actions"
-            onClick={(event) => {
-              event.preventDefault();
+            onPointerDown={(event) => {
               event.stopPropagation();
+              if (event.cancelable) event.preventDefault();
+              setShowReelMenu(false);
+            }}
+            onClick={(event) => {
+              event.stopPropagation();
+              if (event.cancelable) event.preventDefault();
               setShowReelMenu(false);
             }}
             className="fixed inset-0 z-20 cursor-default"
@@ -3100,15 +3111,19 @@ const SingleReelBlock = ({
                 <button
                   type="button"
                   role="menuitem"
-                  onPointerDown={(event) => event.stopPropagation()}
-                  onClick={(event) => {
-                    event.preventDefault();
+                  onPointerDown={(event) => {
                     event.stopPropagation();
-                    console.log("3-dot action clicked:", "Edit Reel", post.id);
+                    if (event.cancelable) event.preventDefault();
                     setShowReelMenu(false);
                     onEdit();
                   }}
-                  className="pointer-events-auto flex w-full items-center gap-2.5 px-3.5 py-3 text-left text-xs font-bold text-white/80 transition hover:bg-white/10"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    if (event.cancelable) event.preventDefault();
+                    setShowReelMenu(false);
+                    onEdit();
+                  }}
+                  className="pointer-events-auto flex w-full items-center gap-2.5 px-3.5 py-3 text-left text-xs font-bold text-white/80 transition hover:bg-white/10 cursor-pointer"
                   style={{ pointerEvents: "auto" }}
                 >
                   <SlidersHorizontal size={15} className="text-cyan-200" /> Edit Reel
@@ -3116,32 +3131,43 @@ const SingleReelBlock = ({
                 <button
                   type="button"
                   role="menuitem"
-                  onPointerDown={(event) => event.stopPropagation()}
-                  onClick={(event) => {
-                    event.preventDefault();
+                  onPointerDown={(event) => {
                     event.stopPropagation();
-                    console.log("3-dot action clicked:", "Delete Reel", post.id);
+                    if (event.cancelable) event.preventDefault();
                     setShowReelMenu(false);
                     setShowDeleteConfirm(true);
                   }}
-                  className="pointer-events-auto flex w-full items-center gap-2.5 border-t border-white/[0.07] px-3.5 py-3 text-left text-xs font-bold text-rose-300 transition hover:bg-rose-500/10"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    if (event.cancelable) event.preventDefault();
+                    setShowReelMenu(false);
+                    setShowDeleteConfirm(true);
+                  }}
+                  className="pointer-events-auto flex w-full items-center gap-2.5 border-t border-white/[0.07] px-3.5 py-3 text-left text-xs font-bold text-rose-300 transition hover:bg-rose-500/10 cursor-pointer"
                   style={{ pointerEvents: "auto" }}
                 >
                   <Trash2 size={15} /> Delete Reel
                 </button>
               </>
             ) : (
-              <button type="button" role="menuitem"
-                onPointerDown={(event) => event.stopPropagation()}
-                onClick={(event) => {
-                  event.preventDefault();
+              <button
+                type="button"
+                role="menuitem"
+                onPointerDown={(event) => {
                   event.stopPropagation();
-                  console.log("3-dot action clicked:", "Report Reel", post.id);
+                  if (event.cancelable) event.preventDefault();
                   setShowReelMenu(false);
                   onReport();
                 }}
-                className="pointer-events-auto flex w-full items-center gap-2.5 px-3.5 py-3 text-left text-xs font-bold text-orange-200 transition hover:bg-orange-500/10"
-                style={{ pointerEvents: "auto" }}>
+                onClick={(event) => {
+                  event.stopPropagation();
+                  if (event.cancelable) event.preventDefault();
+                  setShowReelMenu(false);
+                  onReport();
+                }}
+                className="pointer-events-auto flex w-full items-center gap-2.5 px-3.5 py-3 text-left text-xs font-bold text-orange-200 transition hover:bg-orange-500/10 cursor-pointer"
+                style={{ pointerEvents: "auto" }}
+              >
                 <Flag size={15} /> Report Reel
               </button>
             )}
@@ -3845,7 +3871,27 @@ const FameFeed = ({
     profileAdminUserId === currentUserId ||
     isAdminEmail(currentUserEmail);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
-  const menuTriggerPointerRef = useRef(false);
+  const menuToggleTimeRef = useRef(0);
+  const lastActionTimeRef = useRef(0);
+
+  const handleTogglePostMenu = (e: React.SyntheticEvent, postId: string) => {
+    e.stopPropagation();
+    if (e.cancelable) e.preventDefault();
+    const now = Date.now();
+    if (now - menuToggleTimeRef.current < 200) return;
+    menuToggleTimeRef.current = now;
+    setOpenMenuId((current) => (current === postId ? null : postId));
+  };
+
+  const handleRunMenuAction = (e: React.SyntheticEvent, actionFn: () => void) => {
+    e.stopPropagation();
+    if (e.cancelable) e.preventDefault();
+    const now = Date.now();
+    if (now - lastActionTimeRef.current < 200) return;
+    lastActionTimeRef.current = now;
+    setOpenMenuId(null);
+    actionFn();
+  };
   const [pendingDeletePost, setPendingDeletePost] = useState<{
     id: string;
     author?: string;
@@ -6344,24 +6390,9 @@ const FameFeed = ({
                 aria-label="Post actions"
                 aria-haspopup="menu"
                 aria-expanded={openMenuId === post.id}
-                onPointerDown={(event) => {
-                  event.stopPropagation();
-                  console.log("RAW CLICK DETECTED ON 3-DOTS TRIGGER");
-                  menuTriggerPointerRef.current = true;
-                  setOpenMenuId((current) => current === post.id ? null : post.id);
-                }}
-                onClick={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  console.log("RAW CLICK DETECTED ON 3-DOTS TRIGGER");
-                  if (menuTriggerPointerRef.current) {
-                    menuTriggerPointerRef.current = false;
-                    return;
-                  }
-                  setOpenMenuId((current) => current === post.id ? null : post.id);
-                }}
-                onPointerCancel={() => { menuTriggerPointerRef.current = false; }}
-                className="relative z-[60] pointer-events-auto touch-manipulation p-2 rounded-full hover:bg-lime-400/10 transition-colors"
+                onPointerDown={(event) => handleTogglePostMenu(event, post.id)}
+                onClick={(event) => handleTogglePostMenu(event, post.id)}
+                className="relative z-[60] pointer-events-auto touch-manipulation p-2 rounded-full hover:bg-lime-400/10 transition-colors cursor-pointer"
                 style={{ pointerEvents: "auto", touchAction: "manipulation" }}
               >
                 <MoreVertical size={18} className="text-lime-400" />
@@ -6370,8 +6401,18 @@ const FameFeed = ({
                 {openMenuId === post.id && (
                   <>
                     <div
-                      className="fixed inset-0 z-40"
-                      onClick={() => setOpenMenuId(null)}
+                      className="fixed inset-0 z-[70] pointer-events-auto cursor-default"
+                      style={{ pointerEvents: "auto" }}
+                      onPointerDown={(e) => {
+                        e.stopPropagation();
+                        if (e.cancelable) e.preventDefault();
+                        setOpenMenuId(null);
+                      }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (e.cancelable) e.preventDefault();
+                        setOpenMenuId(null);
+                      }}
                     />
                     <motion.div
                       initial={{ opacity: 0, scale: 0.88, y: -6 }}
@@ -6379,7 +6420,7 @@ const FameFeed = ({
                       exit={{ opacity: 0, scale: 0.88, y: -6 }}
                       transition={{ duration: 0.12 }}
                       role="menu"
-                      className="absolute right-0 top-10 z-50 w-48 bg-[#1a0d1e] border border-white/10 rounded-2xl overflow-hidden"
+                      className="absolute right-0 top-10 z-[80] w-52 bg-[#1a0d1e] border border-white/10 rounded-2xl overflow-hidden shadow-2xl pointer-events-auto"
                       style={{ pointerEvents: "auto" }}
                       onPointerDown={(event) => event.stopPropagation()}
                       onClick={(event) => event.stopPropagation()}
@@ -6390,19 +6431,21 @@ const FameFeed = ({
                             <button
                               type="button"
                               role="menuitem"
-                              onPointerDown={(event) => event.stopPropagation()}
-                              onClick={(event) => {
-                                event.preventDefault();
-                                event.stopPropagation();
-                                console.log("3-dot action clicked:", "Edit Reel", post.id);
+                              onPointerDown={(e) => handleRunMenuAction(e, () => {
                                 window.dispatchEvent(
                                   new CustomEvent("flicks:open-reel-studio", {
                                     detail: { reel: post },
                                   }),
                                 );
-                                setOpenMenuId(null);
-                              }}
-                              className="pointer-events-auto w-full flex items-center gap-3 px-4 py-3.5 text-cyan-300 hover:bg-white/10 text-sm font-semibold border-b border-white/10"
+                              })}
+                              onClick={(e) => handleRunMenuAction(e, () => {
+                                window.dispatchEvent(
+                                  new CustomEvent("flicks:open-reel-studio", {
+                                    detail: { reel: post },
+                                  }),
+                                );
+                              })}
+                              className="pointer-events-auto w-full flex items-center gap-3 px-4 py-3.5 text-cyan-300 hover:bg-white/10 text-sm font-semibold border-b border-white/10 cursor-pointer"
                               style={{ pointerEvents: "auto" }}
                             >
                               <SlidersHorizontal size={15} /> Edit Reel
@@ -6411,18 +6454,19 @@ const FameFeed = ({
                           <button
                             type="button"
                             role="menuitem"
-                            onPointerDown={(event) => event.stopPropagation()}
-                            onClick={(event) => {
-                              event.preventDefault();
-                              event.stopPropagation();
-                              console.log("3-dot action clicked:", "Edit Post", post.id);
+                            onPointerDown={(e) => handleRunMenuAction(e, () => {
                               setEditingPost({
                                 id: post.id,
                                 text: post.content || "",
                               });
-                              setOpenMenuId(null);
-                            }}
-                            className="pointer-events-auto w-full flex items-center gap-3 px-4 py-3.5 text-blue-400 hover:bg-white/10 text-sm font-semibold border-b border-white/10"
+                            })}
+                            onClick={(e) => handleRunMenuAction(e, () => {
+                              setEditingPost({
+                                id: post.id,
+                                text: post.content || "",
+                              });
+                            })}
+                            className="pointer-events-auto w-full flex items-center gap-3 px-4 py-3.5 text-blue-400 hover:bg-white/10 text-sm font-semibold border-b border-white/10 cursor-pointer"
                             style={{ pointerEvents: "auto" }}
                           >
                             <span className="text-base leading-none">✏️</span>{" "}
@@ -6431,19 +6475,21 @@ const FameFeed = ({
                           <button
                             type="button"
                             role="menuitem"
-                            onPointerDown={(event) => event.stopPropagation()}
-                            onClick={(event) => {
-                              event.preventDefault();
-                              event.stopPropagation();
-                              console.log("3-dot action clicked:", "Delete", post.id);
-                              setOpenMenuId(null);
+                            onPointerDown={(e) => handleRunMenuAction(e, () => {
                               setPendingDeletePost({
                                 id: String(post.id),
                                 author: post.author,
                                 content: post.content,
                               });
-                            }}
-                            className="pointer-events-auto w-full flex items-center gap-3 px-4 py-3.5 text-red-400 hover:bg-white/10 text-sm font-semibold border-b border-white/10"
+                            })}
+                            onClick={(e) => handleRunMenuAction(e, () => {
+                              setPendingDeletePost({
+                                id: String(post.id),
+                                author: post.author,
+                                content: post.content,
+                              });
+                            })}
+                            className="pointer-events-auto w-full flex items-center gap-3 px-4 py-3.5 text-red-400 hover:bg-white/10 text-sm font-semibold border-b border-white/10 cursor-pointer"
                             style={{ pointerEvents: "auto" }}
                           >
                             <Trash2 size={15} /> Delete
@@ -6455,14 +6501,13 @@ const FameFeed = ({
                           <button
                             type="button"
                             role="menuitem"
-                            onPointerDown={(event) => event.stopPropagation()}
-                            onClick={(event) => {
-                              event.preventDefault();
-                              event.stopPropagation();
-                              console.log("3-dot action clicked:", "Delete (Admin)", post.id);
+                            onPointerDown={(e) => handleRunMenuAction(e, () => {
                               void handleAdminDelete(String(post.id));
-                            }}
-                            className="pointer-events-auto w-full flex items-center gap-3 px-4 py-3.5 text-red-400 hover:bg-red-900/30 text-sm font-bold border-b border-white/10"
+                            })}
+                            onClick={(e) => handleRunMenuAction(e, () => {
+                              void handleAdminDelete(String(post.id));
+                            })}
+                            className="pointer-events-auto w-full flex items-center gap-3 px-4 py-3.5 text-red-400 hover:bg-red-900/30 text-sm font-bold border-b border-white/10 cursor-pointer"
                             style={{ pointerEvents: "auto" }}
                           >
                             <Trash2 size={15} /> Delete Post (Admin)
@@ -6472,14 +6517,13 @@ const FameFeed = ({
                               <button
                                 type="button"
                                 role="menuitem"
-                                onPointerDown={(event) => event.stopPropagation()}
-                                onClick={(event) => {
-                                  event.preventDefault();
-                                  event.stopPropagation();
-                                  console.log("3-dot action clicked:", "Ban User", post.id);
+                                onPointerDown={(e) => handleRunMenuAction(e, () => {
                                   void handleAdminBan(post.author_id, post.author);
-                                }}
-                                className="pointer-events-auto w-full flex items-center gap-3 px-4 py-3.5 text-red-300 hover:bg-red-900/30 text-sm font-bold border-b border-white/10"
+                                })}
+                                onClick={(e) => handleRunMenuAction(e, () => {
+                                  void handleAdminBan(post.author_id, post.author);
+                                })}
+                                className="pointer-events-auto w-full flex items-center gap-3 px-4 py-3.5 text-red-300 hover:bg-red-900/30 text-sm font-bold border-b border-white/10 cursor-pointer"
                                 style={{ pointerEvents: "auto" }}
                               >
                                 <Ban size={15} /> Ban User (Admin)
@@ -6490,14 +6534,13 @@ const FameFeed = ({
                       <button
                         type="button"
                         role="menuitem"
-                        onPointerDown={(event) => event.stopPropagation()}
-                        onClick={(event) => {
-                          event.preventDefault();
-                          event.stopPropagation();
-                          console.log("3-dot action clicked:", "Hide", post.id);
+                        onPointerDown={(e) => handleRunMenuAction(e, () => {
                           handleHide(String(post.id));
-                        }}
-                        className="pointer-events-auto w-full flex items-center gap-3 px-4 py-3.5 text-white/60 hover:bg-white/10 text-sm font-semibold border-b border-white/10"
+                        })}
+                        onClick={(e) => handleRunMenuAction(e, () => {
+                          handleHide(String(post.id));
+                        })}
+                        className="pointer-events-auto w-full flex items-center gap-3 px-4 py-3.5 text-white/60 hover:bg-white/10 text-sm font-semibold border-b border-white/10 cursor-pointer"
                         style={{ pointerEvents: "auto" }}
                       >
                         <EyeOff size={15} /> Hide
@@ -6505,25 +6548,39 @@ const FameFeed = ({
                       <button
                         type="button"
                         role="menuitem"
-                        onPointerDown={(event) => event.stopPropagation()}
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          console.log("3-dot action clicked:", "Report", post.id);
+                        onPointerDown={(e) => {
+                          const clientY = (e as any).clientY || (e as any).touches?.[0]?.clientY || window.innerHeight / 2;
                           const popupH = 340;
-                          const spaceBelow = window.innerHeight - e.clientY;
+                          const spaceBelow = window.innerHeight - clientY;
                           const top = spaceBelow >= popupH + 16
-                            ? e.clientY + 8
-                            : Math.max(8, e.clientY - popupH - 8);
-                          setOpenMenuId(null);
-                          setReportModal({
-                            postId: post.id,
-                            targetId: post.author_id,
-                            reason: "",
-                            anchor: { top, right: 16 },
+                            ? clientY + 8
+                            : Math.max(8, clientY - popupH - 8);
+                          handleRunMenuAction(e, () => {
+                            setReportModal({
+                              postId: post.id,
+                              targetId: post.author_id,
+                              reason: "",
+                              anchor: { top, right: 16 },
+                            });
                           });
                         }}
-                        className="pointer-events-auto w-full flex items-center gap-3 px-4 py-3.5 text-orange-400 hover:bg-white/10 text-sm font-semibold border-b border-white/10"
+                        onClick={(e) => {
+                          const clientY = (e as any).clientY || (e as any).touches?.[0]?.clientY || window.innerHeight / 2;
+                          const popupH = 340;
+                          const spaceBelow = window.innerHeight - clientY;
+                          const top = spaceBelow >= popupH + 16
+                            ? clientY + 8
+                            : Math.max(8, e.clientY - popupH - 8);
+                          handleRunMenuAction(e, () => {
+                            setReportModal({
+                              postId: post.id,
+                              targetId: post.author_id,
+                              reason: "",
+                              anchor: { top, right: 16 },
+                            });
+                          });
+                        }}
+                        className="pointer-events-auto w-full flex items-center gap-3 px-4 py-3.5 text-orange-400 hover:bg-white/10 text-sm font-semibold border-b border-white/10 cursor-pointer"
                         style={{ pointerEvents: "auto" }}
                       >
                         <Flag size={15} /> Report
@@ -6534,18 +6591,19 @@ const FameFeed = ({
                           <button
                             type="button"
                             role="menuitem"
-                            onPointerDown={(event) => event.stopPropagation()}
-                            onClick={(event) => {
-                              event.preventDefault();
-                              event.stopPropagation();
-                              console.log("3-dot action clicked:", "Unblock User", post.id);
-                              setOpenMenuId(null);
+                            onPointerDown={(e) => handleRunMenuAction(e, () => {
                               void handleUnblockUser(
                                 post.author_id,
                                 post.author || "User",
                               );
-                            }}
-                            className="pointer-events-auto w-full flex items-center gap-3 px-4 py-3.5 text-blue-400 hover:bg-white/10 text-sm font-semibold"
+                            })}
+                            onClick={(e) => handleRunMenuAction(e, () => {
+                              void handleUnblockUser(
+                                post.author_id,
+                                post.author || "User",
+                              );
+                            })}
+                            className="pointer-events-auto w-full flex items-center gap-3 px-4 py-3.5 text-blue-400 hover:bg-white/10 text-sm font-semibold cursor-pointer"
                             style={{ pointerEvents: "auto" }}
                           >
                             <ShieldOff size={15} /> Unblock User
@@ -6554,20 +6612,29 @@ const FameFeed = ({
                           <button
                             type="button"
                             role="menuitem"
-                            onPointerDown={(event) => event.stopPropagation()}
-                            onClick={(event) => {
-                              event.preventDefault();
-                              event.stopPropagation();
-                              console.log("3-dot action clicked:", "Block User", post.id);
-                              setOpenMenuId(null);
+                            onPointerDown={(e) => handleRunMenuAction(e, () => {
                               setBlockConfirm({
                                 userId: post.author_id,
                                 name: post.author || "User",
                               });
-                            }}
-                            className="pointer-events-auto w-full flex items-center gap-3 px-4 py-3.5 text-red-400 hover:bg-white/10 text-sm font-semibold"
+                            })}
+                            onClick={(e) => handleRunMenuAction(e, () => {
+                              setBlockConfirm({
+                                userId: post.author_id,
+                                name: post.author || "User",
+                              });
+                            })}
+                            className="pointer-events-auto w-full flex items-center gap-3 px-4 py-3.5 text-red-400 hover:bg-white/10 text-sm font-semibold cursor-pointer"
                             style={{ pointerEvents: "auto" }}
                           >
+                            <Ban size={15} /> Block User
+                          </button>
+                        ))}
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
+            </div>
                             <Ban size={15} /> Block User
                           </button>
                         ))}
