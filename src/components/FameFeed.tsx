@@ -2381,9 +2381,14 @@ const PostDetailView = ({
                                 aria-expanded={
                                   activeCommentMenuId === String(comment.id)
                                 }
+                                onPointerDown={(event) => {
+                                  event.stopPropagation();
+                                  console.log("RAW CLICK DETECTED ON 3-DOTS TRIGGER");
+                                }}
                                 onClick={(event) => {
                                   event.preventDefault();
                                   event.stopPropagation();
+                                  console.log("RAW CLICK DETECTED ON 3-DOTS TRIGGER");
                                   const menuId = String(comment.id);
                                   setActiveCommentMenuId((current) =>
                                     current === menuId ? null : menuId,
@@ -2396,11 +2401,15 @@ const PostDetailView = ({
                               {activeCommentMenuId === String(comment.id) && (
                                 <div
                                   role="menu"
-                                  className="absolute right-0 top-full z-50 mt-1 min-w-[140px] rounded-xl border border-white/10 bg-[#1e1424] p-1 shadow-xl"
+                                  className="pointer-events-auto absolute right-0 top-full z-50 mt-1 min-w-[140px] rounded-xl border border-white/10 bg-[#1e1424] p-1 shadow-xl"
+                                  style={{ pointerEvents: "auto" }}
+                                  onPointerDown={(event) => event.stopPropagation()}
+                                  onClick={(event) => event.stopPropagation()}
                                 >
                                   <button
                                     type="button"
                                     role="menuitem"
+                                    onPointerDown={(event) => event.stopPropagation()}
                                     onClick={(event) => {
                                       event.preventDefault();
                                       event.stopPropagation();
@@ -2408,13 +2417,15 @@ const PostDetailView = ({
                                       setActiveCommentMenuId(null);
                                       onStartCommentEdit(comment);
                                     }}
-                                    className="w-full cursor-pointer rounded-lg px-3 py-2 text-left text-sm text-white/85 hover:bg-white/10"
+                                    className="pointer-events-auto w-full cursor-pointer rounded-lg px-3 py-2 text-left text-sm text-white/85 hover:bg-white/10"
+                                    style={{ pointerEvents: "auto" }}
                                   >
                                     Edit
                                   </button>
                                   <button
                                     type="button"
                                     role="menuitem"
+                                    onPointerDown={(event) => event.stopPropagation()}
                                     onClick={(event) => {
                                       event.preventDefault();
                                       event.stopPropagation();
@@ -2422,7 +2433,8 @@ const PostDetailView = ({
                                       setActiveCommentMenuId(null);
                                       onDeleteComment(String(comment.id));
                                     }}
-                                    className="w-full cursor-pointer rounded-lg px-3 py-2 text-left text-sm text-red-400 hover:bg-white/10"
+                                    className="pointer-events-auto w-full cursor-pointer rounded-lg px-3 py-2 text-left text-sm text-red-400 hover:bg-white/10"
+                                    style={{ pointerEvents: "auto" }}
                                   >
                                     Delete
                                   </button>
@@ -2558,9 +2570,14 @@ const PostDetailView = ({
                                           activeCommentMenuId ===
                                           String(reply.id)
                                         }
+                                        onPointerDown={(event) => {
+                                          event.stopPropagation();
+                                          console.log("RAW CLICK DETECTED ON 3-DOTS TRIGGER");
+                                        }}
                                         onClick={(event) => {
                                           event.preventDefault();
                                           event.stopPropagation();
+                                          console.log("RAW CLICK DETECTED ON 3-DOTS TRIGGER");
                                           const menuId = String(reply.id);
                                           setActiveCommentMenuId((current) =>
                                             current === menuId ? null : menuId,
@@ -2574,11 +2591,15 @@ const PostDetailView = ({
                                         String(reply.id) && (
                                         <div
                                           role="menu"
-                                          className="absolute right-0 top-full z-50 mt-1 min-w-[140px] rounded-xl border border-white/10 bg-[#1e1424] p-1 shadow-xl"
+                                          className="pointer-events-auto absolute right-0 top-full z-50 mt-1 min-w-[140px] rounded-xl border border-white/10 bg-[#1e1424] p-1 shadow-xl"
+                                          style={{ pointerEvents: "auto" }}
+                                          onPointerDown={(event) => event.stopPropagation()}
+                                          onClick={(event) => event.stopPropagation()}
                                         >
                                           <button
                                             type="button"
                                             role="menuitem"
+                                            onPointerDown={(event) => event.stopPropagation()}
                                             onClick={(event) => {
                                               event.preventDefault();
                                               event.stopPropagation();
@@ -2586,13 +2607,15 @@ const PostDetailView = ({
                                               setActiveCommentMenuId(null);
                                               onStartCommentEdit(reply);
                                             }}
-                                            className="w-full cursor-pointer rounded-lg px-3 py-2 text-left text-sm text-white/85 hover:bg-white/10"
+                                            className="pointer-events-auto w-full cursor-pointer rounded-lg px-3 py-2 text-left text-sm text-white/85 hover:bg-white/10"
+                                            style={{ pointerEvents: "auto" }}
                                           >
                                             Edit
                                           </button>
                                           <button
                                             type="button"
                                             role="menuitem"
+                                            onPointerDown={(event) => event.stopPropagation()}
                                             onClick={(event) => {
                                               event.preventDefault();
                                               event.stopPropagation();
@@ -2600,7 +2623,8 @@ const PostDetailView = ({
                                               setActiveCommentMenuId(null);
                                               onDeleteComment(String(reply.id));
                                             }}
-                                            className="w-full cursor-pointer rounded-lg px-3 py-2 text-left text-sm text-red-400 hover:bg-white/10"
+                                            className="pointer-events-auto w-full cursor-pointer rounded-lg px-3 py-2 text-left text-sm text-red-400 hover:bg-white/10"
+                                            style={{ pointerEvents: "auto" }}
                                           >
                                             Delete
                                           </button>
@@ -3037,12 +3061,18 @@ const SingleReelBlock = ({
         type="button"
         aria-label="Reel actions"
         aria-expanded={showReelMenu}
+        onPointerDown={(event) => {
+          event.stopPropagation();
+          console.log("RAW CLICK DETECTED ON 3-DOTS TRIGGER");
+        }}
         onClick={(event) => {
           event.preventDefault();
           event.stopPropagation();
+          console.log("RAW CLICK DETECTED ON 3-DOTS TRIGGER");
           setShowReelMenu((open) => !open);
         }}
-        className="absolute right-16 top-4 z-20 grid h-9 w-9 place-items-center rounded-full border border-white/15 bg-black/70 text-white backdrop-blur-sm transition hover:bg-black/90"
+        className="absolute right-16 top-4 z-40 pointer-events-auto touch-manipulation grid h-9 w-9 place-items-center rounded-full border border-white/15 bg-black/70 text-white backdrop-blur-sm transition hover:bg-black/90"
+        style={{ pointerEvents: "auto", touchAction: "manipulation" }}
       >
         <MoreVertical size={18} />
       </button>
@@ -3061,7 +3091,9 @@ const SingleReelBlock = ({
           <div
             role="menu"
             onClick={(event) => event.stopPropagation()}
-            className="absolute right-4 top-14 z-30 min-w-44 overflow-hidden rounded-xl border border-white/10 bg-[#160d12]/95 py-1 shadow-2xl backdrop-blur-xl"
+            onPointerDown={(event) => event.stopPropagation()}
+            className="absolute right-4 top-14 z-30 pointer-events-auto min-w-44 overflow-hidden rounded-xl border border-white/10 bg-[#160d12]/95 py-1 shadow-2xl backdrop-blur-xl"
+            style={{ pointerEvents: "auto" }}
           >
             {isOwner ? (
               <>
@@ -3805,6 +3837,7 @@ const FameFeed = ({
     profileAdminUserId === currentUserId ||
     isAdminEmail(currentUserEmail);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const menuTriggerPointerRef = useRef(false);
   const [pendingDeletePost, setPendingDeletePost] = useState<{
     id: string;
     author?: string;
@@ -6292,18 +6325,36 @@ const FameFeed = ({
                 )}
               </div>
             </div>
-            <div className="relative" onClick={(e) => e.stopPropagation()}>
+            <div
+              className="relative z-[60] pointer-events-auto"
+              style={{ pointerEvents: "auto" }}
+              onPointerDown={(event) => event.stopPropagation()}
+              onClick={(event) => event.stopPropagation()}
+            >
               <button
                 type="button"
                 aria-label="Post actions"
                 aria-haspopup="menu"
                 aria-expanded={openMenuId === post.id}
+                onPointerDown={(event) => {
+                  event.stopPropagation();
+                  console.log("RAW CLICK DETECTED ON 3-DOTS TRIGGER");
+                  menuTriggerPointerRef.current = true;
+                  setOpenMenuId((current) => current === post.id ? null : post.id);
+                }}
                 onClick={(event) => {
                   event.preventDefault();
                   event.stopPropagation();
-                  setOpenMenuId(openMenuId === post.id ? null : post.id);
+                  console.log("RAW CLICK DETECTED ON 3-DOTS TRIGGER");
+                  if (menuTriggerPointerRef.current) {
+                    menuTriggerPointerRef.current = false;
+                    return;
+                  }
+                  setOpenMenuId((current) => current === post.id ? null : post.id);
                 }}
-                className="p-2 rounded-full hover:bg-lime-400/10 transition-colors"
+                onPointerCancel={() => { menuTriggerPointerRef.current = false; }}
+                className="relative z-[60] pointer-events-auto touch-manipulation p-2 rounded-full hover:bg-lime-400/10 transition-colors"
+                style={{ pointerEvents: "auto", touchAction: "manipulation" }}
               >
                 <MoreVertical size={18} className="text-lime-400" />
               </button>
@@ -6321,7 +6372,9 @@ const FameFeed = ({
                       transition={{ duration: 0.12 }}
                       role="menu"
                       className="absolute right-0 top-10 z-50 w-48 bg-[#1a0d1e] border border-white/10 rounded-2xl overflow-hidden"
-                      onClick={(e) => e.stopPropagation()}
+                      style={{ pointerEvents: "auto" }}
+                      onPointerDown={(event) => event.stopPropagation()}
+                      onClick={(event) => event.stopPropagation()}
                     >
                       {post.author_id === currentUserId && (
                         <>
@@ -6329,6 +6382,7 @@ const FameFeed = ({
                             <button
                               type="button"
                               role="menuitem"
+                              onPointerDown={(event) => event.stopPropagation()}
                               onClick={(event) => {
                                 event.preventDefault();
                                 event.stopPropagation();
@@ -6340,7 +6394,8 @@ const FameFeed = ({
                                 );
                                 setOpenMenuId(null);
                               }}
-                              className="w-full flex items-center gap-3 px-4 py-3.5 text-cyan-300 hover:bg-white/10 text-sm font-semibold border-b border-white/10"
+                              className="pointer-events-auto w-full flex items-center gap-3 px-4 py-3.5 text-cyan-300 hover:bg-white/10 text-sm font-semibold border-b border-white/10"
+                              style={{ pointerEvents: "auto" }}
                             >
                               <SlidersHorizontal size={15} /> Edit Reel
                             </button>
@@ -6348,6 +6403,7 @@ const FameFeed = ({
                           <button
                             type="button"
                             role="menuitem"
+                            onPointerDown={(event) => event.stopPropagation()}
                             onClick={(event) => {
                               event.preventDefault();
                               event.stopPropagation();
@@ -6358,7 +6414,8 @@ const FameFeed = ({
                               });
                               setOpenMenuId(null);
                             }}
-                            className="w-full flex items-center gap-3 px-4 py-3.5 text-blue-400 hover:bg-white/10 text-sm font-semibold border-b border-white/10"
+                            className="pointer-events-auto w-full flex items-center gap-3 px-4 py-3.5 text-blue-400 hover:bg-white/10 text-sm font-semibold border-b border-white/10"
+                            style={{ pointerEvents: "auto" }}
                           >
                             <span className="text-base leading-none">✏️</span>{" "}
                             Edit Post
@@ -6366,6 +6423,7 @@ const FameFeed = ({
                           <button
                             type="button"
                             role="menuitem"
+                            onPointerDown={(event) => event.stopPropagation()}
                             onClick={(event) => {
                               event.preventDefault();
                               event.stopPropagation();
@@ -6377,7 +6435,8 @@ const FameFeed = ({
                                 content: post.content,
                               });
                             }}
-                            className="w-full flex items-center gap-3 px-4 py-3.5 text-red-400 hover:bg-white/10 text-sm font-semibold border-b border-white/10"
+                            className="pointer-events-auto w-full flex items-center gap-3 px-4 py-3.5 text-red-400 hover:bg-white/10 text-sm font-semibold border-b border-white/10"
+                            style={{ pointerEvents: "auto" }}
                           >
                             <Trash2 size={15} /> Delete
                           </button>
@@ -6388,13 +6447,15 @@ const FameFeed = ({
                           <button
                             type="button"
                             role="menuitem"
+                            onPointerDown={(event) => event.stopPropagation()}
                             onClick={(event) => {
                               event.preventDefault();
                               event.stopPropagation();
                               console.log("3-dot action clicked:", "Delete (Admin)", post.id);
                               void handleAdminDelete(String(post.id));
                             }}
-                            className="w-full flex items-center gap-3 px-4 py-3.5 text-red-400 hover:bg-red-900/30 text-sm font-bold border-b border-white/10"
+                            className="pointer-events-auto w-full flex items-center gap-3 px-4 py-3.5 text-red-400 hover:bg-red-900/30 text-sm font-bold border-b border-white/10"
+                            style={{ pointerEvents: "auto" }}
                           >
                             <Trash2 size={15} /> Delete Post (Admin)
                           </button>
@@ -6403,13 +6464,15 @@ const FameFeed = ({
                               <button
                                 type="button"
                                 role="menuitem"
+                                onPointerDown={(event) => event.stopPropagation()}
                                 onClick={(event) => {
                                   event.preventDefault();
                                   event.stopPropagation();
                                   console.log("3-dot action clicked:", "Ban User", post.id);
                                   void handleAdminBan(post.author_id, post.author);
                                 }}
-                                className="w-full flex items-center gap-3 px-4 py-3.5 text-red-300 hover:bg-red-900/30 text-sm font-bold border-b border-white/10"
+                                className="pointer-events-auto w-full flex items-center gap-3 px-4 py-3.5 text-red-300 hover:bg-red-900/30 text-sm font-bold border-b border-white/10"
+                                style={{ pointerEvents: "auto" }}
                               >
                                 <Ban size={15} /> Ban User (Admin)
                               </button>
@@ -6419,19 +6482,22 @@ const FameFeed = ({
                       <button
                         type="button"
                         role="menuitem"
+                        onPointerDown={(event) => event.stopPropagation()}
                         onClick={(event) => {
                           event.preventDefault();
                           event.stopPropagation();
                           console.log("3-dot action clicked:", "Hide", post.id);
                           handleHide(String(post.id));
                         }}
-                        className="w-full flex items-center gap-3 px-4 py-3.5 text-white/60 hover:bg-white/10 text-sm font-semibold border-b border-white/10"
+                        className="pointer-events-auto w-full flex items-center gap-3 px-4 py-3.5 text-white/60 hover:bg-white/10 text-sm font-semibold border-b border-white/10"
+                        style={{ pointerEvents: "auto" }}
                       >
                         <EyeOff size={15} /> Hide
                       </button>
                       <button
                         type="button"
                         role="menuitem"
+                        onPointerDown={(event) => event.stopPropagation()}
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
@@ -6449,7 +6515,8 @@ const FameFeed = ({
                             anchor: { top, right: 16 },
                           });
                         }}
-                        className="w-full flex items-center gap-3 px-4 py-3.5 text-orange-400 hover:bg-white/10 text-sm font-semibold border-b border-white/10"
+                        className="pointer-events-auto w-full flex items-center gap-3 px-4 py-3.5 text-orange-400 hover:bg-white/10 text-sm font-semibold border-b border-white/10"
+                        style={{ pointerEvents: "auto" }}
                       >
                         <Flag size={15} /> Report
                       </button>
@@ -6459,6 +6526,7 @@ const FameFeed = ({
                           <button
                             type="button"
                             role="menuitem"
+                            onPointerDown={(event) => event.stopPropagation()}
                             onClick={(event) => {
                               event.preventDefault();
                               event.stopPropagation();
@@ -6469,7 +6537,8 @@ const FameFeed = ({
                                 post.author || "User",
                               );
                             }}
-                            className="w-full flex items-center gap-3 px-4 py-3.5 text-blue-400 hover:bg-white/10 text-sm font-semibold"
+                            className="pointer-events-auto w-full flex items-center gap-3 px-4 py-3.5 text-blue-400 hover:bg-white/10 text-sm font-semibold"
+                            style={{ pointerEvents: "auto" }}
                           >
                             <ShieldOff size={15} /> Unblock User
                           </button>
@@ -6477,6 +6546,7 @@ const FameFeed = ({
                           <button
                             type="button"
                             role="menuitem"
+                            onPointerDown={(event) => event.stopPropagation()}
                             onClick={(event) => {
                               event.preventDefault();
                               event.stopPropagation();
@@ -6487,7 +6557,8 @@ const FameFeed = ({
                                 name: post.author || "User",
                               });
                             }}
-                            className="w-full flex items-center gap-3 px-4 py-3.5 text-red-400 hover:bg-white/10 text-sm font-semibold"
+                            className="pointer-events-auto w-full flex items-center gap-3 px-4 py-3.5 text-red-400 hover:bg-white/10 text-sm font-semibold"
+                            style={{ pointerEvents: "auto" }}
                           >
                             <Ban size={15} /> Block User
                           </button>
