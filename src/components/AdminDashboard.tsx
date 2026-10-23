@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { useProfileViewer } from "../context/ProfileViewerContext";
 import { useOnlineUsers } from "../context/OnlineUsersContext";
+import ActiveStatusAvatar from "./ActiveStatusAvatar";
 
 export { ADMIN_EMAILS, isAdminEmail } from "../lib/adminConfig";
 import { ADMIN_EMAILS } from "../lib/adminConfig";
