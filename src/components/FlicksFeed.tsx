@@ -296,6 +296,7 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, on
   const [deleting,          setDeleting]           = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [editingCaption,    setEditingCaption]     = useState(false);
+  const [savingCaption,     setSavingCaption]      = useState(false);
   const [localContent,      setLocalContent]       = useState(() => getPostCaption(post));
   // ── Video health states ────────────────────────────────────────────────
   const [videoError,        setVideoError]         = useState<string | null>(null);
@@ -669,12 +670,34 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, on
 
   const saveCaption = async () => {
     const trimmed = localContent.trim();
-    if (!trimmed) return;
-    const table = post._source === "flicks" ? "flicks" : "posts";
+    if (!trimmed || savingCaption || !isOwner) return;
+    const postId = String(post?._raw_id ?? "").trim();
+    if (!postId) {
+      toast.error("Could not determine the Reel database ID.");
+      return;
+    }
+
+    setSavingCaption(true);
     const field = post._source === "flicks" ? "caption" : "content";
-    await supabase.from(table).update({ [field]: trimmed }).eq("id", post._raw_id);
-    setEditingCaption(false);
-    toast.success("Post updated.");
+    try {
+      const { data, error } = post._source === "flicks"
+        ? await supabase.from("flicks").update({ [field]: trimmed }).eq("id", postId).select("id").maybeSingle()
+        : await supabase.from("posts").update({ [field]: trimmed }).eq("id", postId).select("id").maybeSingle();
+      if (error) throw error;
+      if (!data) throw new Error("The Reel was not updated. Check your permissions and try again.");
+
+      setLocalContent(trimmed);
+      setEditingCaption(false);
+      window.dispatchEvent(new CustomEvent("flicks:reel-updated", {
+        detail: { id: postId, [field]: trimmed, content: trimmed },
+      }));
+      toast.success("Reel updated.");
+    } catch (error: any) {
+      console.error("[Flicks] inline Reel edit failed:", error);
+      toast.error(error?.message || "Reel could not be updated.");
+    } finally {
+      setSavingCaption(false);
+    }
   };
 
   const handleReport = async () => {
@@ -699,21 +722,26 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, on
   };
 
   const deletePostRow = async (): Promise<string> => {
-    const postId = post?._raw_id;
-    if (typeof postId !== "string" || !postId.trim()) {
+    const postId = String(post?._raw_id ?? "").trim();
+    if (!postId) {
       throw new Error("Could not determine the Reel database ID.");
     }
 
-    const { data, error } = await supabase
-      .from("posts")
-      .delete()
-      .eq("id", postId)
-      .select("id")
-      .maybeSingle();
-
+    // Avoid DELETE ... RETURNING: Supabase may apply a valid delete while RLS
+    // prevents returning the deleted row to the client.
+    const result = post?._source === "flicks"
+      ? await supabase.from("flicks").delete().eq("id", postId)
+      : await supabase.from("posts").delete().eq("id", postId);
+    const { error } = result;
     if (error) throw error;
-    if (!data || data.id !== postId) {
-      throw new Error("The Reel was not deleted from the database.");
+
+    // Detect a silent RLS no-op where the row is still visible. If SELECT
+    // itself is restricted, trust the successful DELETE response instead.
+    const remaining = post?._source === "flicks"
+      ? await supabase.from("flicks").select("id").eq("id", postId).maybeSingle()
+      : await supabase.from("posts").select("id").eq("id", postId).maybeSingle();
+    if (!remaining.error && remaining.data) {
+      throw new Error("The Reel could not be deleted. Check your permissions and try again.");
     }
     return postId;
   };
@@ -732,13 +760,13 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, on
     if (!window.confirm("ADMIN: Delete this video permanently?")) return;
 
     setDeleting(true);
-    onPostDeleteOptimistic?.(post._raw_id, post);
+    onPostDeleteOptimistic?.(String(post._raw_id), post);
     try {
       const deletedId = await deletePostRow();
       toast.success("Deleted permanently.");
       onPostDeleted?.(deletedId);
     } catch (error: unknown) {
-      onPostDeleteRollback?.(post._raw_id);
+      onPostDeleteRollback?.(String(post._raw_id));
       console.error("[Flicks] admin reel delete failed:", error);
       toast.error(getDeleteErrorMessage(error));
     } finally {
@@ -747,11 +775,11 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, on
   };
 
   const handleOwnerDelete = async () => {
-    if (!isOwner || !currentUserId || !post._raw_id || deleting) return;
+    if (!isOwner || !currentUserId || !String(post?._raw_id ?? "").trim() || deleting) return;
 
     setConfirmDeleteOpen(false);
     setDeleting(true);
-    onPostDeleteOptimistic?.(post._raw_id, post);
+    onPostDeleteOptimistic?.(String(post._raw_id), post);
     try {
       // Supabase RLS remains the final authorization check. The UI owner
       // check only controls visibility of this action.
@@ -760,7 +788,7 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, on
       toast.success("Reel deleted.");
       onPostDeleted?.(deletedId);
     } catch (error: unknown) {
-      onPostDeleteRollback?.(post._raw_id);
+      onPostDeleteRollback?.(String(post._raw_id));
       console.error("[Flicks] owner reel delete failed:", error);
       toast.error(getDeleteErrorMessage(error));
     } finally {
@@ -792,10 +820,22 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, on
   // contract. Keep user_id as a fallback for older cached Reel objects.
   const reelOwnerId = post.author_id || post.user_id;
   const isOwner = Boolean(currentUserId && reelOwnerId === currentUserId);
+  const handleInlineEdit = (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setMenuOpen(false);
+    setLocalContent(getPostCaption(post));
+    setEditingCaption(true);
+  };
   const handleEditReel = (event: React.MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
     event.stopPropagation();
     setMenuOpen(false);
+    if (!isOwner) return;
+    if (!String(post?._raw_id ?? "").trim()) {
+      toast.error("Could not determine the Reel database ID.");
+      return;
+    }
     if (onEditReel) {
       onEditReel(post);
     } else {
@@ -1031,7 +1071,7 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, on
                     </button>
                   )}
                   {isOwner && (
-                    <button type="button" onClick={e => { e.preventDefault(); e.stopPropagation(); setMenuOpen(false); setEditingCaption(true); }}
+                   <button type="button" onClick={handleInlineEdit}
                       className="w-full flex items-center gap-3 px-4 py-3.5 text-[#FF6B85] hover:bg-white/5 text-sm font-bold border-b border-white/5">
                       <Pencil size={14} /> Edit Post
                     </button>
@@ -1154,10 +1194,14 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, on
                 style={{ fontSize: 16 }}
                 rows={2} value={localContent} onChange={e => setLocalContent(e.target.value)} autoFocus />
               <div className="flex gap-2 mt-1.5">
-                <button onClick={() => { setLocalContent(getPostCaption(post)); setEditingCaption(false); }}
+                <button type="button" onClick={e => { e.preventDefault(); e.stopPropagation(); setLocalContent(getPostCaption(post)); setEditingCaption(false); }}
                   className="flex-1 py-1.5 rounded-xl bg-white/15 text-white/80 text-[11px] font-bold">Cancel</button>
-                <button onClick={saveCaption} className="flex-1 py-1.5 rounded-xl text-white text-[11px] font-bold"
-                  style={{ background: "linear-gradient(135deg,#E11D48,#A01030)" }}>Save</button>
+                <button type="button" onClick={e => { e.preventDefault(); e.stopPropagation(); void saveCaption(); }}
+                  disabled={savingCaption}
+                  className="flex-1 py-1.5 rounded-xl text-white text-[11px] font-bold disabled:opacity-60"
+                  style={{ background: "linear-gradient(135deg,#E11D48,#A01030)" }}>
+                  {savingCaption ? "Saving…" : "Save"}
+                </button>
               </div>
             </div>
           ) : (
