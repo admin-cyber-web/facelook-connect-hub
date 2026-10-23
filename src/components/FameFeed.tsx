@@ -2258,7 +2258,7 @@ const PostDetailView = ({
     <div
       className="post-vibe-in-view fixed inset-0 z-[90000] flex h-[100dvh] flex-col overflow-hidden bg-[#10090d] text-white"
       style={{
-        paddingTop: "env(safe-area-inset-top, 0px)",
+        paddingTop: "var(--cap-safe-top, env(safe-area-inset-top, 0px))",
         paddingBottom: "env(safe-area-inset-bottom, 0px)",
         overscrollBehavior: "none",
       }}
@@ -5728,6 +5728,34 @@ const FameFeed = ({
   const handleShare = (post: any, e: React.MouseEvent<HTMLButtonElement>) => {
     e.stopPropagation();
     e.preventDefault();
+    if (
+      typeof window.AndroidShare?.shareMedia === "function" ||
+      typeof window.AndroidShare?.shareText === "function"
+    ) {
+      void sharePost({
+        postId: String(post.id),
+        caption: post.content || "",
+        mediaUrl:
+          post.media_url ||
+          post.image_url ||
+          post.image_urls?.[0] ||
+          post.video_url ||
+          post.cover_url,
+        mediaType: post.media_type || post.type,
+        authorName: post.author || post.author_name || "Flicks India",
+        metaTitle: post.meta_title,
+        metaDescription: post.meta_description,
+      })
+        .then((outcome) => {
+          if (outcome !== "cancelled") void executeShare(post, "system");
+        })
+        .catch((error) => {
+          console.error("[FameFeed] Native share failed:", error);
+          toast.error("Could not open the Android share sheet.");
+        });
+      return;
+    }
+
     const el = e.currentTarget as HTMLElement;
     // Defer DOM read to rAF to avoid forced reflow mid-event
     requestAnimationFrame(() => {

@@ -196,7 +196,7 @@ export default function ProfilePostDetail({
     <div
       className="profile-post-detail fixed inset-0 z-[90000] flex h-[100dvh] justify-center bg-black/65 text-[#39272a] backdrop-blur-sm"
       style={{
-        paddingTop: "env(safe-area-inset-top, 0px)",
+        paddingTop: "var(--cap-safe-top, env(safe-area-inset-top, 0px))",
         paddingBottom: 0,
         overscrollBehavior: "none",
       }}

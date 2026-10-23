@@ -1,6 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { toast } from "sonner";
+import { sharePost } from "@/lib/sharePost";
 import FriendWallPresentation, {
   type FriendWallCommentView,
   type FriendWallPostView,
@@ -626,16 +627,27 @@ export default function FriendWall({
   };
 
   const handleShare = async (postId: string) => {
-    const url = `${window.location.origin}/post/${encodeURIComponent(postId)}`;
+    const post = posts.find((item) => item.id === postId);
+    if (!post) {
+      toast.error("This post is no longer available.");
+      return;
+    }
+
     try {
-      if (navigator.share) {
-        await navigator.share({ title: `${friendName}'s post`, url });
-      } else if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(url);
-        toast.success("Post link copied.");
-      } else if (window.prompt("Copy this post link:", url) === null) {
-        return;
-      }
+      const outcome = await sharePost({
+        postId,
+        caption: post.content,
+        mediaUrl:
+          post.mediaUrl ||
+          post.imageUrl ||
+          post.imageUrls?.[0] ||
+          post.coverUrl ||
+          undefined,
+        mediaType: post.mediaType || post.type || undefined,
+        authorName: post.authorName || friendName,
+      });
+      if (outcome === "cancelled") return;
+      if (outcome === "copied") toast.success("Post link copied.");
 
       if (currentUserId) {
         const { error: shareError } = await supabase

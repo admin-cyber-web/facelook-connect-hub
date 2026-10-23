@@ -1901,7 +1901,7 @@ export default function FlicksApp({
       <div
         className="fixed top-0 left-0 right-0 z-[120]"
         style={{
-          paddingTop: "env(safe-area-inset-top, 0px)",
+          paddingTop: "var(--cap-safe-top, env(safe-area-inset-top, 0px))",
           background: "rgba(11,10,14,0.55)",
           backdropFilter: "blur(18px)",
           WebkitBackdropFilter: "blur(18px)",

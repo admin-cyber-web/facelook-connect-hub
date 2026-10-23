@@ -590,7 +590,7 @@
   display: grid;
   place-items: center;
   overflow-y: auto;
-  padding: max(18px, env(safe-area-inset-top)) 16px max(18px, env(safe-area-inset-bottom));
+  padding: max(18px, var(--cap-safe-top, env(safe-area-inset-top))) 16px max(18px, var(--cap-safe-bottom, env(safe-area-inset-bottom)));
   background: rgba(14, 8, 15, 0.78);
   backdrop-filter: blur(16px);
   animation: pn-fade-in 180ms ease both;
@@ -1682,7 +1682,7 @@
   display: grid;
   place-items: center;
   overflow: auto;
-  padding: max(18px, env(safe-area-inset-top)) 16px max(18px, env(safe-area-inset-bottom));
+  padding: max(18px, var(--cap-safe-top, env(safe-area-inset-top))) 16px max(18px, var(--cap-safe-bottom, env(safe-area-inset-bottom)));
   background: rgba(14, 8, 15, 0.78);
   backdrop-filter: blur(16px);
   animation: pn-fade-in 180ms ease both;

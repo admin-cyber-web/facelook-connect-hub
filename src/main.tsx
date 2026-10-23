@@ -9,10 +9,9 @@ import { installGlobalInteractionIsolation } from "./lib/globalInteractionIsolat
 //    minimums. Must run before React renders so the CSS variable is live.
 (function detectCapacitorPlatform() {
   try {
-    const cap = (window as any).Capacitor;
-    if (!cap?.isNativePlatform?.()) return;
+    if (!Capacitor.isNativePlatform()) return;
     document.documentElement.classList.add("cap-native");
-    if (cap.getPlatform?.() === "android") {
+    if (Capacitor.getPlatform() === "android") {
       document.documentElement.classList.add("cap-android");
     }
   } catch {
@@ -27,16 +26,17 @@ if (import.meta.hot) {
 
 // Load the plugin only on native platforms so browser sessions never execute it.
 // The dynamic import also keeps the web entry point independent of the native API.
-async function hideNativeStatusBar() {
+async function configureNativeStatusBar() {
   try {
     if (!Capacitor.isNativePlatform()) return;
-    const { StatusBar } = await import("@capacitor/status-bar");
-    await StatusBar.hide();
+    const { StatusBar, Style } = await import("@capacitor/status-bar");
+    await StatusBar.setStyle({ style: Style.Dark });
+    await StatusBar.show();
   } catch (error) {
     console.warn("[Native] Status bar setup was skipped:", error);
   }
 }
-void hideNativeStatusBar();
+void configureNativeStatusBar();
 
 // OneSignal is loaded via CDN script in index.html.
 // Only initialise on the production domain — skip silently on Replit dev / localhost.
