@@ -1234,11 +1234,11 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
   const canPost = isOwner || (isContributor && !contributorExpired);
 
   return (
-    <div className="flex flex-col min-h-screen relative" style={{ background: "#090b14" }}>
+    <div className="relative flex min-h-screen flex-col overflow-y-auto touch-scroll-y pointer-events-auto" style={{ background: "#090b14" }}>
 
       {/* ── Ambient BG: cover art faintly bleeds through entire page ── */}
       {livePage.cover_url && (
-        <div className="fixed inset-0 -z-10 pointer-events-none" style={{
+        <div className="absolute inset-0 -z-10 pointer-events-none" style={{
           backgroundImage: `url('${livePage.cover_url}')`,
           backgroundSize: "cover", backgroundPosition: "center",
           filter: "blur(48px) brightness(0.16) saturate(1.5)",
@@ -1595,7 +1595,7 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
                     const url = post.media_url.toLowerCase();
                     const isVideo = mt === "video" || url.includes(".mp4") || url.includes(".mov") || url.includes(".webm");
                     return isVideo
-                      ? <video src={post.media_url} className="w-full rounded-xl mb-2 max-h-64" controls preload="metadata" />
+                      ? <video src={post.media_url} className="w-full rounded-xl mb-2 max-h-64" controls preload="none" />
                       : <img src={post.media_url} alt="" className="w-full rounded-xl object-cover mb-2 max-h-64" loading="lazy" />;
                   })()}
                 </div>
@@ -1736,7 +1736,7 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
                     const showMedia = isVideo || isImage || (!mt && post.media_url);
                     if (!showMedia) return null;
                     return isVideo
-                      ? <video src={post.media_url} className="w-full rounded-xl mt-2 max-h-80" controls preload="metadata" style={{ display: "block" }} />
+                      ? <video src={post.media_url} className="w-full rounded-xl mt-2 max-h-80" controls preload="none" style={{ display: "block" }} />
                       : <img src={post.media_url} alt="Post media" className="w-full rounded-xl object-cover mt-2 max-h-80" loading="lazy" decoding="async" style={{ display: "block" }} />;
                   })()}
                 </div>
