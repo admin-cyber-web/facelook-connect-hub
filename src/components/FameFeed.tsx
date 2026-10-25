@@ -3596,7 +3596,7 @@ interface FameFeedProps {
   currentUserId?: string;
   currentUserEmail?: string;
   refreshRequestId?: number;
-  onRefreshRequestComplete?: () => void;
+  onRefreshRequestComplete?: (refreshed: boolean) => void;
 }
 
 // ── Hidden Posts Archive Drawer ───────────────────────────────────────────────
@@ -3853,12 +3853,15 @@ const FameFeed = ({
   // ensures the forced Supabase fetch runs after this lazy-loaded page mounts.
   useEffect(() => {
     if (refreshRequestId <= 0) return;
-    void pullRefreshActionRef.current()
+    let refreshed = false;
+    void pullRefreshActionRef.current(true)
+      .then(() => {
+        refreshed = true;
+      })
       .catch((error) => {
         console.error("[FameFeed] Requested refresh failed:", error);
-        toast.error("The feed could not be refreshed. Please try again.");
       })
-      .finally(() => onRefreshRequestComplete?.());
+      .finally(() => onRefreshRequestComplete?.(refreshed));
   }, [refreshRequestId, onRefreshRequestComplete]);
 
   const cachedPosts = dataCache.cacheRef.current.famePosts;
@@ -5327,7 +5330,7 @@ const FameFeed = ({
     enabled: false,
   });
 
-  const refreshFeed = async () => {
+  const refreshFeed = async (skipInvalidation = false) => {
     setPosts([]);
     postsRef.current = [];
     setLoading(true);
@@ -5336,7 +5339,9 @@ const FameFeed = ({
     setHasMore(true);
     dataCache.setCache("famePosts", { data: [], fetchedAt: Date.now() });
 
-    await queryClient.invalidateQueries({ queryKey: ["posts"] });
+    if (!skipInvalidation) {
+      await queryClient.invalidateQueries({ queryKey: ["posts"] });
+    }
     await Promise.all([
       refetch({ throwOnError: true }),
       fetchFlicks(),
@@ -5345,7 +5350,9 @@ const FameFeed = ({
 
   // Keep the event bridge pointed at this mounted feed's latest loader for
   // native pull-to-refresh and navigation requests.
-  const pullRefreshActionRef = useRef<() => Promise<void>>(async () => {});
+  const pullRefreshActionRef = useRef<(skipInvalidation?: boolean) => Promise<void>>(
+    async () => {},
+  );
   pullRefreshActionRef.current = refreshFeed;
 
   // Pull-to-refresh listener — fired by <PullToRefresh> in Index.tsx.
