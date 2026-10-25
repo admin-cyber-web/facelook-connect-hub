@@ -29,7 +29,7 @@ android {
     signingConfigs {
         release {
             if (releaseSigningConfigured) {
-                storeFile     file(releaseKeystorePath)
+                storeFile      file(releaseKeystorePath)
                 storePassword releaseKeystorePass
                 keyAlias      releaseKeyAlias
                 keyPassword   releaseKeyPass
@@ -69,6 +69,11 @@ dependencies {
     implementation "androidx.appcompat:appcompat:$rootProject.ext.androidxAppCompatVersion"
     implementation project(':capacitor-android')
     implementation project(':capacitor-cordova-android-plugins')
+    
+    // Added JUnit and Test dependencies to resolve compilation issues
+    testImplementation 'junit:junit:4.13.2'
+    androidTestImplementation 'androidx.test.ext:junit:1.1.5'
+    androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
 }
 
 apply from: 'capacitor.build.gradle'

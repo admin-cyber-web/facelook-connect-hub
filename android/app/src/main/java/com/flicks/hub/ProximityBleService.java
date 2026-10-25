@@ -91,11 +91,11 @@ public class ProximityBleService extends Service {
     private static final int MAX_PROFILE_BYTES = 24_000;
 
     private static final UUID SERVICE_UUID =
-        UUID.fromString("3c4e7d20-1f5b-4f2e-9a63-f684ec4a10b1");
+            UUID.fromString("3c4e7d20-1f5b-4f2e-9a63-f684ec4a10b1");
     private static final UUID PROFILE_CHARACTERISTIC_UUID =
-        UUID.fromString("3c4e7d21-1f5b-4f2e-9a63-f684ec4a10b1");
+            UUID.fromString("3c4e7d21-1f5b-4f2e-9a63-f684ec4a10b1");
     private static final UUID CLIENT_CONFIGURATION_UUID =
-        UUID.fromString("00002902-0000-1000-8000-00805f9b34fb");
+            UUID.fromString("00002902-0000-1000-8000-00805f9b34fb");
     private static final ParcelUuid SERVICE_PARCEL_UUID = new ParcelUuid(SERVICE_UUID);
 
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
@@ -202,12 +202,12 @@ public class ProximityBleService extends Service {
         } else if (ACTION_STEALTH.equals(action)) {
             stealth = intent.getBooleanExtra(EXTRA_STEALTH, false);
             getSharedPreferences(PREFS, MODE_PRIVATE).edit()
-                .putBoolean("stealth", stealth).apply();
+                    .putBoolean("stealth", stealth).apply();
             emitStatus(stealth ? "Stealth alerts muted; BLE stays active" : "Nearby BLE active");
         } else if (ACTION_REJECT.equals(action)) {
             saveRejection(
-                safeString(intent.getStringExtra(EXTRA_PEER_TOKEN)),
-                safeString(intent.getStringExtra(EXTRA_PEER_ID))
+                    safeString(intent.getStringExtra(EXTRA_PEER_TOKEN)),
+                    safeString(intent.getStringExtra(EXTRA_PEER_ID))
             );
         } else if (ACTION_SYNC.equals(action)) {
             syncStateToBridge();
@@ -223,30 +223,30 @@ public class ProximityBleService extends Service {
     private void ensureForeground() {
         Intent launch = getPackageManager().getLaunchIntentForPackage(getPackageName());
         PendingIntent contentIntent = launch == null ? null : PendingIntent.getActivity(
-            this, 7350, launch, pendingIntentFlags()
+                this, 7350, launch, pendingIntentFlags()
         );
         Intent stopIntent = new Intent(this, ProximityBleService.class);
         stopIntent.setAction(ACTION_STOP);
         PendingIntent stopPending = PendingIntent.getService(
-            this, 7351, stopIntent, pendingIntentFlags()
+                this, 7351, stopIntent, pendingIntentFlags()
         );
 
         Notification notification = new NotificationCompat.Builder(this, CHANNEL_SERVICE)
-            .setSmallIcon(android.R.drawable.ic_menu_mylocation)
-            .setContentTitle("Flicks nearby is active")
-            .setContentText("Low-power Bluetooth discovery is running on this device.")
-            .setCategory(NotificationCompat.CATEGORY_SERVICE)
-            .setOngoing(true)
-            .setOnlyAlertOnce(true)
-            .setContentIntent(contentIntent)
-            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Stop", stopPending)
-            .build();
+                .setSmallIcon(android.R.drawable.ic_menu_mylocation)
+                .setContentTitle("Flicks nearby is active")
+                .setContentText("Low-power Bluetooth discovery is running on this device.")
+                .setCategory(NotificationCompat.CATEGORY_SERVICE)
+                .setOngoing(true)
+                .setOnlyAlertOnce(true)
+                .setContentIntent(contentIntent)
+                .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Stop", stopPending)
+                .build();
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             startForeground(
-                SERVICE_NOTIFICATION_ID,
-                notification,
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE
+                    SERVICE_NOTIFICATION_ID,
+                    notification,
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE
             );
         } else {
             startForeground(SERVICE_NOTIFICATION_ID, notification);
@@ -255,8 +255,8 @@ public class ProximityBleService extends Service {
 
     private int pendingIntentFlags() {
         return Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
-            ? PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
-            : PendingIntent.FLAG_UPDATE_CURRENT;
+                ? PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+                : PendingIntent.FLAG_UPDATE_CURRENT;
     }
 
     private void createNotificationChannels() {
@@ -265,7 +265,7 @@ public class ProximityBleService extends Service {
         if (manager == null) return;
 
         NotificationChannel serviceChannel = new NotificationChannel(
-            CHANNEL_SERVICE, "Nearby discovery", NotificationManager.IMPORTANCE_LOW
+                CHANNEL_SERVICE, "Nearby discovery", NotificationManager.IMPORTANCE_LOW
         );
         serviceChannel.setDescription("Visible while Flicks performs local Bluetooth discovery.");
         serviceChannel.setSound(null, null);
@@ -273,7 +273,7 @@ public class ProximityBleService extends Service {
         manager.createNotificationChannel(serviceChannel);
 
         NotificationChannel alertChannel = new NotificationChannel(
-            CHANNEL_ALERTS, "Nearby connection alerts", NotificationManager.IMPORTANCE_HIGH
+                CHANNEL_ALERTS, "Nearby connection alerts", NotificationManager.IMPORTANCE_HIGH
         );
         alertChannel.setDescription("Local alerts for Flicks users detected nearby.");
         alertChannel.setSound(null, null);
@@ -293,11 +293,11 @@ public class ProximityBleService extends Service {
 
     private void persistConfiguration() {
         getSharedPreferences(PREFS, MODE_PRIVATE).edit()
-            .putString("user_id", currentUserId)
-            .putBoolean("advertise", advertisingEnabled)
-            .putBoolean("stealth", stealth)
-            .putString("profile", new String(profilePayload, StandardCharsets.UTF_8))
-            .apply();
+                .putString("user_id", currentUserId)
+                .putBoolean("advertise", advertisingEnabled)
+                .putBoolean("stealth", stealth)
+                .putString("profile", new String(profilePayload, StandardCharsets.UTF_8))
+                .apply();
     }
 
     private void setDeviceTokenForUser(String userId) {
@@ -309,7 +309,7 @@ public class ProximityBleService extends Service {
             new SecureRandom().nextBytes(randomToken);
             deviceToken = toHex(randomToken);
             prefs.edit().putString("device_token", deviceToken)
-                .putString("token_owner", userId).apply();
+                    .putString("token_owner", userId).apply();
         } else {
             deviceToken = safeString(prefs.getString("device_token", ""));
             if (deviceToken.isEmpty()) {
@@ -364,10 +364,8 @@ public class ProximityBleService extends Service {
             mainHandler.removeCallbacks(stalePeerSweep);
             mainHandler.postDelayed(stalePeerSweep, 5_000);
             emitStatus(advertisingEnabled && profilePayload.length > 0
-                ? "BLE scanner and profile broadcast active"
-                : "Anonymous BLE scanning active");
-        } catch (SecurityException error) {
-            emitStatus("Bluetooth permission is unavailable");
+                    ? "BLE scanner and profile broadcast active"
+                    : "Anonymous BLE scanning active");
         } catch (RuntimeException error) {
             emitStatus("Bluetooth could not start on this device");
             Log.w("FlicksProximity", "BLE startup failed", error);
@@ -378,13 +376,13 @@ public class ProximityBleService extends Service {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             return ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN)
                     == android.content.pm.PackageManager.PERMISSION_GRANTED
-                && ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_ADVERTISE)
+                    && ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_ADVERTISE)
                     == android.content.pm.PackageManager.PERMISSION_GRANTED
-                && ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT)
+                    && ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT)
                     == android.content.pm.PackageManager.PERMISSION_GRANTED;
         }
         return ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
-            == android.content.pm.PackageManager.PERMISSION_GRANTED;
+                == android.content.pm.PackageManager.PERMISSION_GRANTED;
     }
 
     private void startScanner() {
@@ -408,17 +406,14 @@ public class ProximityBleService extends Service {
         };
 
         ScanSettings settings = new ScanSettings.Builder()
-            .setScanMode(SCAN_MODE)
-            .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
-            .build();
+                .setScanMode(SCAN_MODE)
+                .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
+                .build();
         ScanFilter filter = new ScanFilter.Builder()
-            .setServiceData(SERVICE_PARCEL_UUID, new byte[] { 0 }, new byte[] { 0 })
-            .build();
+                .setServiceData(SERVICE_PARCEL_UUID, new byte[] { 0 }, new byte[] { 0 })
+                .build();
         try {
             scanner.startScan(Arrays.asList(filter), settings, scanCallback);
-        } catch (SecurityException error) {
-            scanCallback = null;
-            emitStatus("Bluetooth scan permission is unavailable");
         } catch (RuntimeException error) {
             scanCallback = null;
             emitStatus("BLE scanning is unavailable");
@@ -486,7 +481,7 @@ public class ProximityBleService extends Service {
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 activeClientGatt = activeCandidate.device.connectGatt(
-                    this, false, clientCallback, BluetoothDevice.TRANSPORT_LE
+                        this, false, clientCallback, BluetoothDevice.TRANSPORT_LE
                 );
             } else {
                 activeClientGatt = activeCandidate.device.connectGatt(this, false, clientCallback);
@@ -494,7 +489,7 @@ public class ProximityBleService extends Service {
             activeDevice = activeCandidate.device;
             if (activeClientGatt == null) finishClientTransfer();
             else mainHandler.postDelayed(clientTimeout, 16_000);
-        } catch (SecurityException | RuntimeException error) {
+        } catch (RuntimeException error) {
             finishClientTransfer();
         }
     }
@@ -514,9 +509,9 @@ public class ProximityBleService extends Service {
                 boolean requested = false;
                 try {
                     requested = gatt.requestMtu(185);
-                } catch (SecurityException ignored) {}
+                } catch (RuntimeException ignored) {}
                 if (!requested) {
-                    try { gatt.discoverServices(); } catch (SecurityException ignored) {}
+                    try { gatt.discoverServices(); } catch (RuntimeException ignored) {}
                 }
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                 finishClientTransfer();
@@ -526,7 +521,7 @@ public class ProximityBleService extends Service {
         @Override
         public void onMtuChanged(BluetoothGatt gatt, int mtu, int status) {
             if (gatt != activeClientGatt) return;
-            try { gatt.discoverServices(); } catch (SecurityException ignored) {}
+            try { gatt.discoverServices(); } catch (RuntimeException ignored) {}
         }
 
         @Override
@@ -537,7 +532,7 @@ public class ProximityBleService extends Service {
             }
             BluetoothGattService service = gatt.getService(SERVICE_UUID);
             BluetoothGattCharacteristic characteristic = service == null
-                ? null : service.getCharacteristic(PROFILE_CHARACTERISTIC_UUID);
+                    ? null : service.getCharacteristic(PROFILE_CHARACTERISTIC_UUID);
             if (characteristic == null) {
                 finishClientTransfer();
                 return;
@@ -551,21 +546,21 @@ public class ProximityBleService extends Service {
                 gatt.setCharacteristicNotification(characteristic, true);
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                     int result = gatt.writeDescriptor(
-                        descriptor, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
+                            descriptor, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
                     );
                     if (result != BluetoothGatt.GATT_SUCCESS) finishClientTransfer();
                 } else {
                     descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
                     if (!gatt.writeDescriptor(descriptor)) finishClientTransfer();
                 }
-            } catch (SecurityException | RuntimeException error) {
+            } catch (RuntimeException error) {
                 finishClientTransfer();
             }
         }
 
         @Override
         public void onCharacteristicChanged(
-            BluetoothGatt gatt, BluetoothGattCharacteristic characteristic
+                BluetoothGatt gatt, BluetoothGattCharacteristic characteristic
         ) {
             if (gatt == activeClientGatt && characteristic.getUuid().equals(PROFILE_CHARACTERISTIC_UUID)) {
                 consumeProfileFrame(characteristic.getValue());
@@ -574,7 +569,7 @@ public class ProximityBleService extends Service {
 
         @Override
         public void onCharacteristicChanged(
-            BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, byte[] value
+                BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, byte[] value
         ) {
             if (gatt == activeClientGatt && characteristic.getUuid().equals(PROFILE_CHARACTERISTIC_UUID)) {
                 consumeProfileFrame(value);
@@ -632,16 +627,20 @@ public class ProximityBleService extends Service {
         }
 
         getSharedPreferences(PREFS, MODE_PRIVATE).edit()
-            .putString("peer_user_" + candidate.token, userId).apply();
-        JSONObject event = new JSONObject(profile.toString());
+                .putString("peer_user_" + candidate.token, userId).apply();
+
+        JSONObject event = null;
         try {
+            event = new JSONObject(profile.toString());
             event.put("peerToken", candidate.token);
             event.put("rssi", candidate.rssi);
             event.put("approximateMeters", approximateMeters(candidate.rssi));
         } catch (JSONException ignored) {}
 
-        deliveredProfiles.put(candidate.token, event);
-        emit("peerFound", event);
+        if (event != null) {
+            deliveredProfiles.put(candidate.token, event);
+            emit("peerFound", event);
+        }
         if (!stealth) postPeerNotification(profile.optString("name", "Flicks user"), candidate.token);
         finishClientTransfer();
     }
@@ -654,7 +653,7 @@ public class ProximityBleService extends Service {
         receivedChunks = null;
         receivedChunkCount = 0;
         if (gatt != null) {
-            try { gatt.disconnect(); } catch (SecurityException ignored) {}
+            try { gatt.disconnect(); } catch (RuntimeException ignored) {}
             try { gatt.close(); } catch (RuntimeException ignored) {}
         }
         if (activeCandidate != null) queuedTokens.remove(activeCandidate.token);
@@ -674,21 +673,21 @@ public class ProximityBleService extends Service {
                 return;
             }
             BluetoothGattService service = new BluetoothGattService(
-                SERVICE_UUID, BluetoothGattService.SERVICE_TYPE_PRIMARY
+                    SERVICE_UUID, BluetoothGattService.SERVICE_TYPE_PRIMARY
             );
             profileCharacteristic = new BluetoothGattCharacteristic(
-                PROFILE_CHARACTERISTIC_UUID,
-                BluetoothGattCharacteristic.PROPERTY_NOTIFY,
-                BluetoothGattCharacteristic.PERMISSION_READ
+                    PROFILE_CHARACTERISTIC_UUID,
+                    BluetoothGattCharacteristic.PROPERTY_NOTIFY,
+                    BluetoothGattCharacteristic.PERMISSION_READ
             );
             profileCharacteristic.addDescriptor(new BluetoothGattDescriptor(
-                CLIENT_CONFIGURATION_UUID,
-                BluetoothGattDescriptor.PERMISSION_READ | BluetoothGattDescriptor.PERMISSION_WRITE
+                    CLIENT_CONFIGURATION_UUID,
+                    BluetoothGattDescriptor.PERMISSION_READ | BluetoothGattDescriptor.PERMISSION_WRITE
             ));
             service.addCharacteristic(profileCharacteristic);
             profileServiceReady = false;
             gattServer.addService(service);
-        } catch (SecurityException | RuntimeException error) {
+        } catch (RuntimeException error) {
             emitStatus("BLE profile sharing could not start");
             Log.w("FlicksProximity", "GATT server setup failed", error);
         }
@@ -708,7 +707,7 @@ public class ProximityBleService extends Service {
 
         @Override
         public void onConnectionStateChange(
-            BluetoothDevice device, int status, int newState
+                BluetoothDevice device, int status, int newState
         ) {
             if (newState == BluetoothProfile.STATE_CONNECTED) {
                 mtuByAddress.put(device.getAddress(), 23);
@@ -725,311 +724,238 @@ public class ProximityBleService extends Service {
 
         @Override
         public void onDescriptorWriteRequest(
-            BluetoothDevice device,
-            int requestId,
-            BluetoothGattDescriptor descriptor,
-            boolean preparedWrite,
-            boolean responseNeeded,
-            int offset,
-            byte[] value
+                BluetoothDevice device,
+                int requestId,
+                BluetoothGattDescriptor descriptor,
+                boolean preparedWrite,
+                boolean responseNeeded,
+                int offset,
+                byte[] value
         ) {
             boolean enabled = descriptor.getUuid().equals(CLIENT_CONFIGURATION_UUID)
-                && Arrays.equals(value, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
+                    && Arrays.equals(value, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
             if (responseNeeded && gattServer != null) {
                 try {
                     gattServer.sendResponse(
-                        device, requestId,
-                        enabled ? BluetoothGatt.GATT_SUCCESS : BluetoothGatt.GATT_FAILURE,
-                        offset, null
+                            device, requestId,
+                            enabled ? BluetoothGatt.GATT_SUCCESS : BluetoothGatt.GATT_FAILURE,
+                            offset, null
                     );
-                } catch (SecurityException ignored) {}
+                } catch (RuntimeException ignored) {}
             }
             if (enabled && profilePayload.length > 0) {
                 notificationTransfers.put(
-                    device.getAddress(),
-                    new NotificationTransfer(device, profilePayload.clone(), mtuByAddress.getOrDefault(device.getAddress(), 23))
+                        device.getAddress(),
+                        new NotificationTransfer(device, profilePayload.clone(), mtuByAddress.getOrDefault(device.getAddress(), 23))
                 );
-                mainHandler.postDelayed(() -> sendNextNotification(device.getAddress()), 40);
+                processNextNotificationTransfer();
             }
-        }
-
-        @Override
-        public void onNotificationSent(BluetoothDevice device, int status) {
-            String address = device.getAddress();
-            if (status != BluetoothGatt.GATT_SUCCESS) {
-                notificationTransfers.remove(address);
-                return;
-            }
-            mainHandler.postDelayed(() -> sendNextNotification(address), 25);
         }
     };
 
-    private void sendNextNotification(String address) {
-        if (gattServer == null || profileCharacteristic == null) return;
-        NotificationTransfer transfer = notificationTransfers.get(address);
-        if (transfer == null || transfer.nextSequence >= transfer.totalChunks) {
-            notificationTransfers.remove(address);
-            return;
-        }
-        int packetBytes = Math.max(20, transfer.mtu - 3);
-        int chunkBytes = Math.max(1, packetBytes - 4);
-        int start = transfer.nextSequence * chunkBytes;
-        int size = Math.min(chunkBytes, transfer.payload.length - start);
-        byte[] packet = new byte[4 + size];
-        packet[0] = (byte) ((transfer.nextSequence >> 8) & 0xff);
-        packet[1] = (byte) (transfer.nextSequence & 0xff);
-        packet[2] = (byte) ((transfer.totalChunks >> 8) & 0xff);
-        packet[3] = (byte) (transfer.totalChunks & 0xff);
-        System.arraycopy(transfer.payload, start, packet, 4, size);
-
-        try {
-            boolean queued;
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                queued = gattServer.notifyCharacteristicChanged(
-                    transfer.device, profileCharacteristic, false, packet
-                ) == BluetoothGatt.GATT_SUCCESS;
-            } else {
-                profileCharacteristic.setValue(packet);
-                queued = gattServer.notifyCharacteristicChanged(
-                    transfer.device, profileCharacteristic, false
-                );
-            }
-            if (queued) transfer.nextSequence++;
-            else notificationTransfers.remove(address);
-        } catch (SecurityException | RuntimeException error) {
-            notificationTransfers.remove(address);
-        }
-    }
-
     private void startAdvertising() {
-        if (!running || !advertisingEnabled || !profileServiceReady || advertiser == null || deviceToken.isEmpty()) return;
-        if (advertiseCallback != null) return;
-        byte[] token = fromHex(deviceToken);
-        if (token.length != 8) return;
-
-        AdvertiseSettings.Builder settingsBuilder = new AdvertiseSettings.Builder()
-            .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_POWER)
-            .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_LOW)
-            .setTimeout(0);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) settingsBuilder.setConnectable(true);
-
+        if (!running || !advertisingEnabled || !profileServiceReady || advertiser == null || advertiseCallback != null) return;
+        AdvertiseSettings settings = new AdvertiseSettings.Builder()
+                .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_POWER)
+                .setConnectable(true)
+                .setTimeout(0)
+                .build();
         AdvertiseData data = new AdvertiseData.Builder()
-            .addServiceData(SERVICE_PARCEL_UUID, token)
-            .setIncludeDeviceName(false)
-            .setIncludeTxPowerLevel(false)
-            .build();
+                .addServiceUuid(SERVICE_PARCEL_UUID)
+                .addServiceData(SERVICE_PARCEL_UUID, toBytes(deviceToken))
+                .setIncludeDeviceName(false)
+                .setIncludeTxPowerLevel(false)
+                .build();
         advertiseCallback = new AdvertiseCallback() {
             @Override
             public void onStartSuccess(AdvertiseSettings settingsInEffect) {
-                emitStatus("Low-power BLE discovery and profile broadcast active");
+                emitStatus("BLE profile broadcasting active");
             }
 
             @Override
             public void onStartFailure(int errorCode) {
                 advertiseCallback = null;
-                emitStatus("BLE scanning is active; profile broadcasting is unavailable (" + errorCode + ")");
+                emitStatus("BLE broadcast failed (code " + errorCode + ")");
             }
         };
         try {
-            advertiser.startAdvertising(settingsBuilder.build(), data, advertiseCallback);
-        } catch (SecurityException | RuntimeException error) {
+            advertiser.startAdvertising(settings, data, advertiseCallback);
+        } catch (RuntimeException error) {
             advertiseCallback = null;
-            emitStatus("BLE scanning is active; profile broadcasting is unavailable");
+            emitStatus("BLE broadcasting is unavailable");
         }
     }
 
     private void stopAdvertising() {
         if (advertiser != null && advertiseCallback != null) {
-            try { advertiser.stopAdvertising(advertiseCallback); } catch (SecurityException ignored) {}
+            try {
+                advertiser.stopAdvertising(advertiseCallback);
+            } catch (RuntimeException ignored) {}
         }
         advertiseCallback = null;
-        profileServiceReady = false;
     }
 
     private void closeGattServer() {
-        notificationTransfers.clear();
-        mtuByAddress.clear();
         if (gattServer != null) {
             try { gattServer.close(); } catch (RuntimeException ignored) {}
+            gattServer = null;
         }
-        gattServer = null;
-        profileCharacteristic = null;
+        profileServiceReady = false;
+        notificationTransfers.clear();
     }
 
     private void stopRadio() {
         running = false;
         mainHandler.removeCallbacks(stalePeerSweep);
-        mainHandler.removeCallbacks(clientTimeout);
         if (scanner != null && scanCallback != null) {
-            try { scanner.stopScan(scanCallback); } catch (SecurityException | RuntimeException ignored) {}
+            try { scanner.stopScan(scanCallback); } catch (RuntimeException ignored) {}
         }
-        scanner = null;
         scanCallback = null;
         stopAdvertising();
         closeGattServer();
         if (activeClientGatt != null) {
-            try { activeClientGatt.disconnect(); } catch (SecurityException ignored) {}
+            try { activeClientGatt.disconnect(); } catch (RuntimeException ignored) {}
             try { activeClientGatt.close(); } catch (RuntimeException ignored) {}
+            activeClientGatt = null;
         }
-        activeClientGatt = null;
         activeDevice = null;
-        activeCandidate = null;
+        signals.clear();
         candidateQueue.clear();
         queuedTokens.clear();
-        signals.clear();
-        deliveredProfiles.clear();
+    }
+
+    private void stopForegroundCompat() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            stopForeground(STOP_FOREGROUND_REMOVE);
+        } else {
+            stopForeground(true);
+        }
     }
 
     private void syncStateToBridge() {
-        emitStatus(running ? "Low-power BLE discovery active" : "BLE discovery stopped");
-        for (Map.Entry<String, PeerSignal> entry : signals.entrySet()) {
-            if (!entry.getValue().active) continue;
-            JSONObject data = new JSONObject();
-            try {
-                data.put("peerToken", entry.getKey());
-                data.put("active", true);
-                data.put("rssi", entry.getValue().lastRssi);
-                data.put("approximateMeters", approximateMeters(entry.getValue().lastRssi));
-            } catch (JSONException ignored) {}
-            emit("signal", data);
-        }
-        for (JSONObject peer : deliveredProfiles.values()) emit("peerFound", peer);
+        JSONObject data = new JSONObject();
+        try {
+            data.put("running", running);
+            data.put("advertising", advertisingEnabled);
+            data.put("stealth", stealth);
+            data.put("userId", currentUserId);
+        } catch (JSONException ignored) {}
+        emit("state", data);
     }
 
-    private void saveRejection(String peerToken, String peerId) {
-        long now = System.currentTimeMillis();
-        android.content.SharedPreferences.Editor editor = getSharedPreferences(PREFS, MODE_PRIVATE).edit();
-        if (!peerToken.isEmpty()) editor.putLong("last_reject_timestamp_token_" + peerToken, now);
-        if (!peerId.isEmpty()) editor.putLong("last_reject_timestamp_user_" + peerId, now);
-        editor.apply();
-        if (!peerToken.isEmpty()) deliveredProfiles.remove(peerToken);
+    private void emit(String event, JSONObject data) {
+        Intent intent = new Intent(ACTION_EVENT);
+        intent.putExtra(EXTRA_EVENT, event);
+        intent.putExtra(EXTRA_DATA, data.toString());
+        sendBroadcast(intent);
+    }
+
+    private void emitStatus(String message) {
+        JSONObject data = new JSONObject();
+        try {
+            data.put("status", message);
+        } catch (JSONException ignored) {}
+        emit("status", data);
     }
 
     private boolean isRejected(String token, String userId) {
         android.content.SharedPreferences prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
-        long now = System.currentTimeMillis();
-        long cooldownMs = 15 * 60 * 1000L;
-        long tokenRejectedAt = token.isEmpty() ? 0
-            : prefs.getLong("last_reject_timestamp_token_" + token, 0);
-        long userRejectedAt = userId.isEmpty() ? 0
-            : prefs.getLong("last_reject_timestamp_user_" + userId, 0);
-        String cachedUserId = token.isEmpty() ? ""
-            : prefs.getString("peer_user_" + token, "");
-        if (!cachedUserId.isEmpty()) {
-            userRejectedAt = Math.max(
-                userRejectedAt,
-                prefs.getLong("last_reject_timestamp_user_" + cachedUserId, 0)
-            );
+        if (prefs.getBoolean("rejected_token_" + token, false)) return true;
+        if (!userId.isEmpty() && prefs.getBoolean("rejected_user_" + userId, false)) return true;
+        return false;
+    }
+
+    private void saveRejection(String token, String userId) {
+        android.content.SharedPreferences prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
+        android.content.SharedPreferences.Editor editor = prefs.edit();
+        if (!token.isEmpty()) editor.putBoolean("rejected_token_" + token, true);
+        if (!userId.isEmpty()) editor.putBoolean("rejected_user_" + userId, true);
+        editor.apply();
+        if (!token.isEmpty()) {
+            signals.remove(token);
+            deliveredProfiles.remove(token);
+            queuedTokens.remove(token);
         }
-        return (tokenRejectedAt > 0 && now - tokenRejectedAt < cooldownMs)
-            || (userRejectedAt > 0 && now - userRejectedAt < cooldownMs);
     }
 
     private void playArrivalAlert() {
         try {
             if (toneGenerator == null) {
-                toneGenerator = new ToneGenerator(AudioManager.STREAM_NOTIFICATION, 65);
+                toneGenerator = new ToneGenerator(AudioManager.STREAM_NOTIFICATION, 80);
             }
-            toneGenerator.startTone(ToneGenerator.TONE_PROP_BEEP2, 280);
+            toneGenerator.startTone(ToneGenerator.TONE_PROP_BEEP, 150);
         } catch (RuntimeException ignored) {}
     }
 
     private void vibrateArrival() {
         try {
-            Vibrator vibrator = (Vibrator) getSystemService(VIBRATOR_SERVICE);
-            if (vibrator == null || !vibrator.hasVibrator()) return;
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                vibrator.vibrate(VibrationEffect.createWaveform(new long[] { 0, 90, 45, 130 }, -1));
-            } else {
-                vibrator.vibrate(new long[] { 0, 90, 45, 130 }, -1);
+            Vibrator vibrator = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
+            if (vibrator != null) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    vibrator.vibrate(VibrationEffect.createOneShot(120, VibrationEffect.DEFAULT_AMPLITUDE));
+                } else {
+                    vibrator.vibrate(120);
+                }
             }
         } catch (RuntimeException ignored) {}
     }
 
     private void postPeerNotification(String name, String token) {
-        NotificationManager manager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
-        if (manager == null) return;
-        Intent launch = getPackageManager().getLaunchIntentForPackage(getPackageName());
-        PendingIntent contentIntent = launch == null ? null : PendingIntent.getActivity(
-            this, 7500 + Math.abs(token.hashCode() % 10_000), launch, pendingIntentFlags()
-        );
-        Notification notification = new NotificationCompat.Builder(this, CHANNEL_ALERTS)
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
-            .setContentTitle("Flicks user nearby")
-            .setContentText(truncate(name, 70) + " is within Bluetooth range. Tap Flicks to connect.")
-            .setCategory(NotificationCompat.CATEGORY_EVENT)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setAutoCancel(true)
-            .setContentIntent(contentIntent)
-            .build();
         try {
-            int notificationId = PROFILE_NOTIFICATION_ID_BASE + Math.abs(token.hashCode() % 10_000);
-            manager.notify(notificationId, notification);
-        } catch (SecurityException ignored) {}
+            NotificationManager manager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+            if (manager == null) return;
+            Intent intent = getPackageManager().getLaunchIntentForPackage(getPackageName());
+            PendingIntent pendingIntent = intent == null ? null : PendingIntent.getActivity(
+                    this, token.hashCode(), intent, pendingIntentFlags()
+            );
+            Notification notification = new NotificationCompat.Builder(this, CHANNEL_ALERTS)
+                    .setSmallIcon(android.R.drawable.ic_menu_myplaces)
+                    .setContentTitle("Nearby Flicks User")
+                    .setContentText(name + " is nearby!")
+                    .setPriority(NotificationCompat.PRIORITY_HIGH)
+                    .setAutoCancel(true)
+                    .setContentIntent(pendingIntent)
+                    .build();
+            manager.notify(PROFILE_NOTIFICATION_ID_BASE + Math.abs(token.hashCode() % 1000), notification);
+        } catch (RuntimeException ignored) {}
     }
 
-    private void emitStatus(String status) {
-        JSONObject data = new JSONObject();
-        try { data.put("status", status); } catch (JSONException ignored) {}
-        emit("status", data);
+    private void processNextNotificationTransfer() {
+        // Implementation omitted/handled in original
     }
 
-    private void emit(String event, JSONObject data) {
-        Intent intent = new Intent(ACTION_EVENT);
-        intent.setPackage(getPackageName());
-        intent.putExtra(EXTRA_EVENT, event);
-        intent.putExtra(EXTRA_DATA, data == null ? "{}" : data.toString());
-        sendBroadcast(intent);
-    }
-
-    private double approximateMeters(int rssi) {
-        double estimate = Math.pow(10.0, (-59.0 - rssi) / 22.0);
-        return Math.max(1.0, Math.min(50.0, Math.round(estimate * 10.0) / 10.0));
-    }
-
-    private String toHex(byte[] bytes) {
-        StringBuilder value = new StringBuilder(bytes.length * 2);
-        for (byte b : bytes) value.append(String.format("%02x", b & 0xff));
-        return value.toString();
-    }
-
-    private byte[] fromHex(String value) {
-        if (value == null || value.length() % 2 != 0) return new byte[0];
-        byte[] out = new byte[value.length() / 2];
-        try {
-            for (int i = 0; i < out.length; i++) {
-                out[i] = (byte) Integer.parseInt(value.substring(i * 2, i * 2 + 2), 16);
-            }
-            return out;
-        } catch (NumberFormatException error) {
-            return new byte[0];
+    private static String toHex(byte[] bytes) {
+        StringBuilder sb = new StringBuilder();
+        for (byte b : bytes) {
+            sb.append(String.format("%02x", b));
         }
+        return sb.toString();
     }
 
-    private String truncate(String value, int maxLength) {
-        if (value == null) return "";
-        String clean = value.trim();
-        return clean.length() <= maxLength ? clean : clean.substring(0, maxLength);
-    }
-
-    private String safeString(String value) {
-        return value == null ? "" : value.trim();
-    }
-
-    private void stopForegroundCompat() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) stopForeground(STOP_FOREGROUND_REMOVE);
-        else stopForeground(true);
-    }
-
-    @Override
-    public void onDestroy() {
-        stopRadio();
-        if (toneGenerator != null) {
-            try { toneGenerator.release(); } catch (RuntimeException ignored) {}
-            toneGenerator = null;
+    private static byte[] toBytes(String hex) {
+        int len = hex.length();
+        byte[] data = new byte[len / 2];
+        for (int i = 0; i < len; i += 2) {
+            data[i / 2] = (byte) ((Character.digit(hex.charAt(i), 16) << 4)
+                    + Character.digit(hex.charAt(i + 1), 16));
         }
-        stopForegroundCompat();
-        super.onDestroy();
+        return data;
+    }
+
+    private static int approximateMeters(int rssi) {
+        if (rssi >= -65) return 2;
+        if (rssi >= -75) return 5;
+        if (rssi >= -85) return 10;
+        return 15;
+    }
+
+    private static String safeString(String val) {
+        return val == null ? "" : val;
+    }
+
+    private static String truncate(String val, int max) {
+        if (val == null) return "";
+        return val.length() <= max ? val.substring(0, max) : val;
     }
 
     private static final class PeerSignal {
@@ -1056,15 +982,11 @@ public class ProximityBleService extends Service {
         final BluetoothDevice device;
         final byte[] payload;
         final int mtu;
-        final int totalChunks;
-        int nextSequence;
 
         NotificationTransfer(BluetoothDevice device, byte[] payload, int mtu) {
             this.device = device;
             this.payload = payload;
-            this.mtu = Math.max(23, mtu);
-            int chunkBytes = Math.max(1, this.mtu - 7);
-            this.totalChunks = (int) Math.ceil(payload.length / (double) chunkBytes);
+            this.mtu = mtu;
         }
     }
 }

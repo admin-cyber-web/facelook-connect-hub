@@ -23,24 +23,24 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 @CapacitorPlugin(
-    name = "ProximityBle",
-    permissions = {
-        @Permission(alias = "bleScan", strings = {
-            Manifest.permission.BLUETOOTH_SCAN
-        }),
-        @Permission(alias = "bleAdvertise", strings = {
-            Manifest.permission.BLUETOOTH_ADVERTISE
-        }),
-        @Permission(alias = "bleConnect", strings = {
-            Manifest.permission.BLUETOOTH_CONNECT
-        }),
-        @Permission(alias = "legacyLocation", strings = {
-            Manifest.permission.ACCESS_FINE_LOCATION
-        }),
-        @Permission(alias = "notifications", strings = {
-            Manifest.permission.POST_NOTIFICATIONS
-        })
-    }
+        name = "ProximityBle",
+        permissions = {
+                @Permission(alias = "bleScan", strings = {
+                        Manifest.permission.BLUETOOTH_SCAN
+                }),
+                @Permission(alias = "bleAdvertise", strings = {
+                        Manifest.permission.BLUETOOTH_ADVERTISE
+                }),
+                @Permission(alias = "bleConnect", strings = {
+                        Manifest.permission.BLUETOOTH_CONNECT
+                }),
+                @Permission(alias = "legacyLocation", strings = {
+                        Manifest.permission.ACCESS_FINE_LOCATION
+                }),
+                @Permission(alias = "notifications", strings = {
+                        Manifest.permission.POST_NOTIFICATIONS
+                })
+        }
 )
 public class ProximityBlePlugin extends Plugin {
     private boolean receiverRegistered;
@@ -74,10 +74,10 @@ public class ProximityBlePlugin extends Plugin {
     public void start(PluginCall call) {
         if (!hasRequiredPermissions()) {
             String[] aliases = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
-                ? (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
-                    ? new String[] { "bleScan", "bleAdvertise", "bleConnect", "notifications" }
-                    : new String[] { "bleScan", "bleAdvertise", "bleConnect" })
-                : new String[] { "legacyLocation" };
+                    ? (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+                       ? new String[] { "bleScan", "bleAdvertise", "bleConnect", "notifications" }
+                       : new String[] { "bleScan", "bleAdvertise", "bleConnect" })
+                    : new String[] { "legacyLocation" };
             requestPermissionForAliases(aliases, call, "blePermissionResult");
             return;
         }
@@ -93,18 +93,19 @@ public class ProximityBlePlugin extends Plugin {
         startService(call);
     }
 
-    private boolean hasRequiredPermissions() {
+    @Override
+    public boolean hasRequiredPermissions() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             return has(Manifest.permission.BLUETOOTH_SCAN)
-                && has(Manifest.permission.BLUETOOTH_ADVERTISE)
-                && has(Manifest.permission.BLUETOOTH_CONNECT);
+                    && has(Manifest.permission.BLUETOOTH_ADVERTISE)
+                    && has(Manifest.permission.BLUETOOTH_CONNECT);
         }
         return has(Manifest.permission.ACCESS_FINE_LOCATION);
     }
 
     private boolean has(String permission) {
         return ContextCompat.checkSelfPermission(getContext(), permission)
-            == PackageManager.PERMISSION_GRANTED;
+                == PackageManager.PERMISSION_GRANTED;
     }
 
     private void startService(PluginCall call) {
