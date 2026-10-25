@@ -12,9 +12,12 @@
   overflow: auto;
   padding: 28px;
   color: var(--hsm-ink);
+  pointer-events: auto;
   background:
-    radial-gradient(ellipse at 49% 46%, rgba(12, 28, 38, 0.22), transparent 46%),
-    #010204;
+    radial-gradient(ellipse 42% 48% at 15% 18%, rgba(30, 64, 175, 0.3), transparent 72%),
+    radial-gradient(ellipse 46% 42% at 86% 77%, rgba(91, 33, 182, 0.24), transparent 72%),
+    radial-gradient(ellipse at 52% 48%, rgba(8, 47, 73, 0.22), transparent 55%),
+    linear-gradient(135deg, #020617 0%, #09090b 54%, #0a0a0a 100%);
   font-family: "Avenir Next", Avenir, "Segoe UI", sans-serif;
   isolation: isolate;
 }
@@ -35,10 +38,10 @@
   border: 1px solid rgba(112, 237, 255, 0.55);
   border-radius: 24px;
   background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.085), transparent 22%, transparent 75%, rgba(125, 216, 238, 0.055)),
-    radial-gradient(ellipse at 73% 12%, rgba(76, 143, 170, 0.2), transparent 42%),
-    radial-gradient(ellipse at 9% 81%, rgba(66, 100, 127, 0.17), transparent 44%),
-    rgba(24, 30, 37, 0.94);
+    linear-gradient(135deg, rgba(255, 255, 255, 0.095), transparent 22%, transparent 75%, rgba(125, 216, 238, 0.075)),
+    radial-gradient(ellipse at 73% 12%, rgba(37, 99, 235, 0.19), transparent 42%),
+    radial-gradient(ellipse at 9% 81%, rgba(91, 33, 182, 0.16), transparent 44%),
+    linear-gradient(145deg, rgba(28, 32, 42, 0.96), rgba(14, 17, 24, 0.95));
   box-shadow:
     0 0 0 1px rgba(128, 237, 255, 0.11),
     0 0 18px rgba(67, 222, 255, 0.36),
@@ -71,6 +74,7 @@
   height: 1px;
   background: linear-gradient(90deg, transparent, rgba(183, 250, 255, 0.88), transparent);
   box-shadow: 0 0 14px rgba(93, 225, 255, 0.62);
+  animation: hsm-edge-flicker 4.2s ease-in-out infinite;
 }
 
 .hsm-window__texture {
@@ -80,6 +84,9 @@
   overflow: hidden;
   pointer-events: none;
   background:
+    radial-gradient(ellipse 48% 42% at 18% 24%, rgba(37, 99, 235, 0.16), transparent 74%),
+    radial-gradient(ellipse 45% 47% at 84% 62%, rgba(124, 58, 237, 0.13), transparent 73%),
+    radial-gradient(ellipse at 50% 30%, rgba(72, 194, 229, 0.08), transparent 58%),
     repeating-linear-gradient(127deg, transparent 0 34px, rgba(177, 220, 231, 0.022) 35px, transparent 36px 68px),
     radial-gradient(ellipse at 50% 30%, rgba(215, 236, 243, 0.035), transparent 55%);
 }
@@ -98,12 +105,14 @@
   top: -168px;
   right: -105px;
   box-shadow: 0 0 50px rgba(92, 189, 221, 0.07), inset 0 0 50px rgba(92, 189, 221, 0.045);
+  animation: hsm-smoke-drift 15s ease-in-out infinite alternate;
 }
 
 .hsm-window__texture::after {
   bottom: -188px;
   left: -120px;
   border-color: rgba(176, 208, 221, 0.07);
+  animation: hsm-smoke-drift 19s ease-in-out infinite alternate-reverse;
 }
 
 .hsm-header,
@@ -310,11 +319,11 @@
   min-width: 0;
   min-height: 82px;
   flex-direction: column;
-  align-items: flex-start;
+  align-items: center;
   justify-content: center;
   gap: 11px;
   overflow: hidden;
-  padding: 12px 16px;
+  padding: 12px 23px;
   border: 1px solid rgba(144, 218, 230, 0.22);
   background:
     linear-gradient(145deg, rgba(104, 161, 179, 0.11), transparent 66%),
@@ -322,8 +331,8 @@
   color: #d9e9ed;
   cursor: pointer;
   font: inherit;
-  text-align: left;
-  clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px));
+  text-align: center;
+  clip-path: polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%);
   transition: background-color 170ms ease, border-color 170ms ease, transform 170ms ease, box-shadow 170ms ease;
 }
 
@@ -366,7 +375,7 @@
 
 .hsm-destination__arrow {
   position: absolute;
-  right: 12px;
+  right: 24%;
   bottom: 10px;
   color: rgba(158, 228, 238, 0.75);
   font-size: 12px;
@@ -460,6 +469,19 @@
   min-height: 118px;
   overflow: hidden;
   background: linear-gradient(145deg, #18353e, #111a23);
+}
+
+.hsm-circle-card__cover--empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(ellipse at 50% 35%, rgba(36, 142, 186, 0.34), transparent 55%),
+    linear-gradient(145deg, #162d43, #17162b);
+  color: rgba(186, 238, 255, 0.7);
+  font-size: 31px;
+  font-weight: 250;
 }
 
 .hsm-circle-card__cover::after {
@@ -809,6 +831,33 @@
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes hsm-smoke-drift {
+  from {
+    opacity: 0.42;
+    transform: translate3d(0, 0, 0) rotate(-28deg) skewX(18deg);
+  }
+  to {
+    opacity: 0.88;
+    transform: translate3d(-15px, 10px, 0) rotate(-24deg) skewX(18deg);
+  }
+}
+
+@keyframes hsm-edge-flicker {
+  0%,
+  100% {
+    opacity: 0.58;
+  }
+  46% {
+    opacity: 1;
+  }
+  51% {
+    opacity: 0.72;
+  }
+  57% {
+    opacity: 0.96;
   }
 }
 
