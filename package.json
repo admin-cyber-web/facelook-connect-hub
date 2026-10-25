@@ -7,6 +7,7 @@
     "dev": "vite",
     "prebuild": "node scripts/generateSitemap.mjs",
     "build": "vite build",
+    "android:sync": "npm run build && cap sync android",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "migrate:cloudinary": "node scripts/migrateToCloudinary.mjs",
@@ -15,8 +16,8 @@
     "sitemap": "node scripts/generateSitemap.mjs"
   },
   "dependencies": {
-    "@capacitor/android": "^8.3.1",
-    "@capacitor/cli": "^7.6.2",
+    "@capacitor/android": "^8.5.3",
+    "@capacitor/cli": "^8.5.3",
     "@capacitor/core": "^8.5.3",
     "@capacitor/status-bar": "^8.0.4",
     "@google/genai": "^2.7.0",
