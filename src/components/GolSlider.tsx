@@ -1,33 +1,31 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { KeyboardEvent, PointerEvent } from "react";
-import { RefreshCw, TrendingUp, type LucideIcon } from "lucide-react";
+import { createPortal } from "react-dom";
+import { RefreshCw } from "lucide-react";
+import { useProfileViewer } from "../context/ProfileViewerContext";
+import HolographicStartMenu, {
+  type HolographicStartMenuProps,
+} from "./HolographicStartMenu";
 import "./GolSlider.css";
 
-type StartMenuItem = {
-  label: string;
-  feature: string;
-  emoji?: string;
-  icon?: LucideIcon;
-};
-
-const START_MENU_ITEMS = [
-  { label: "Fame Feed", emoji: "🏠", feature: "Fame" },
-  { label: "Circles", emoji: "🔵", feature: "Circle" },
-  { label: "Hook Pages", emoji: "⚡", feature: "Hooks" },
-  { label: "Flicks", emoji: "🎬", feature: "Flicks" },
-  { label: "Surveys", emoji: "📊", feature: "Task" },
-  { label: "Quotes Maker", emoji: "💬", feature: "QuotesMaker" },
-  { label: "Studio", icon: TrendingUp, feature: "Studio" },
-] satisfies StartMenuItem[];
-const ADMIN_MENU_ITEM: StartMenuItem = {
-  label: "Admin",
-  emoji: "🛡️",
-  feature: "Admin",
-};
+type StartMenuDataProps = Pick<
+  HolographicStartMenuProps,
+  | "circles"
+  | "pages"
+  | "flicks"
+  | "members"
+  | "hotTag"
+  | "onNavigateToCircles"
+  | "onNavigateToPages"
+  | "onNavigateToFlicks"
+  | "onJoinCircle"
+  | "onToggleHookPage"
+  | "onOpenFlick"
+>;
 
 const AUTO_CLOSE_MS = 10_000;
 
-interface GolSliderProps {
+interface GolSliderProps extends StartMenuDataProps {
   onFeatureChange?: (feature: string) => void;
   activeFeature?: string;
   isAdmin?: boolean;
@@ -37,10 +35,21 @@ const GolSlider = ({
   onFeatureChange,
   activeFeature,
   isAdmin = false,
+  circles,
+  pages,
+  flicks,
+  members,
+  hotTag,
+  onNavigateToCircles,
+  onNavigateToPages,
+  onNavigateToFlicks,
+  onJoinCircle,
+  onToggleHookPage,
+  onOpenFlick,
 }: GolSliderProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const [mode, setMode] = useState<"start" | "refresh">("start");
-  const menuRef = useRef<HTMLDivElement>(null);
+  const { openProfile } = useProfileViewer();
   const startButtonRef = useRef<HTMLButtonElement>(null);
   const autoCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const suppressClickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -66,7 +75,9 @@ const GolSlider = ({
 
     const handleOutsidePointerDown = (event: PointerEvent) => {
       const target = event.target;
-      const insideMenu = target instanceof Node && menuRef.current?.contains(target);
+      const insideMenu =
+        target instanceof Node &&
+        document.getElementById("gol-start-menu")?.contains(target);
       const insideStartButton =
         target instanceof Node && startButtonRef.current?.contains(target);
 
@@ -83,7 +94,13 @@ const GolSlider = ({
         startButtonRef.current?.focus();
         return;
       }
-      if (menuRef.current?.contains(document.activeElement)) scheduleIdleClose();
+      if (
+        document
+          .getElementById("gol-start-menu")
+          ?.contains(document.activeElement)
+      ) {
+        scheduleIdleClose();
+      }
     };
 
     document.addEventListener("pointerdown", handleOutsidePointerDown);
@@ -141,42 +158,55 @@ const GolSlider = ({
     }
   };
 
-  const menuItems: StartMenuItem[] = isAdmin
-    ? [...START_MENU_ITEMS, ADMIN_MENU_ITEM]
-    : START_MENU_ITEMS;
-
   return (
     <div className="gol-start-dock">
       {mode === "start" && isOpen && (
-        <div
-          id="gol-start-menu"
-          ref={menuRef}
-          className="gol-start-menu"
-          role="menu"
-          aria-label="Start menu"
-        >
-          {menuItems.map(({ label, emoji, icon: Icon, feature }) => {
-            const isActive = activeFeature === feature;
-            return (
-              <button
-                key={feature}
-                type="button"
-                role="menuitem"
-                aria-current={isActive ? "page" : undefined}
-                className={`gol-start-menu__item${isActive ? " is-active" : ""}`}
-                onClick={() => {
-                  onFeatureChange?.(feature);
-                  setIsOpen(false);
-                }}
-              >
-                <span className="gol-start-menu__emoji" aria-hidden="true">
-                  {Icon ? <Icon size={16} strokeWidth={2.5} /> : emoji}
-                </span>
-                <span className="gol-start-menu__label">{label}</span>
-              </button>
-            );
-          })}
-        </div>
+        createPortal(
+          <HolographicStartMenu
+            isOpen={isOpen}
+            onClose={() => setIsOpen(false)}
+            activeFeature={activeFeature}
+            isAdmin={isAdmin}
+            circles={circles}
+            pages={pages}
+            flicks={flicks}
+            members={members}
+            hotTag={hotTag}
+            onFeatureChange={(feature) => {
+              setIsOpen(false);
+              onFeatureChange?.(feature);
+            }}
+            onNavigateToCircles={() => {
+              setIsOpen(false);
+              onNavigateToCircles();
+            }}
+            onNavigateToPages={() => {
+              setIsOpen(false);
+              onNavigateToPages();
+            }}
+            onNavigateToFlicks={() => {
+              setIsOpen(false);
+              onNavigateToFlicks();
+            }}
+            onOpenProfile={(id) => {
+              setIsOpen(false);
+              openProfile(String(id));
+            }}
+            onJoinCircle={(id) => {
+              setIsOpen(false);
+              onJoinCircle(id);
+            }}
+            onToggleHookPage={(id) => {
+              setIsOpen(false);
+              onToggleHookPage(id);
+            }}
+            onOpenFlick={(id) => {
+              setIsOpen(false);
+              onOpenFlick(id);
+            }}
+          />,
+          document.body,
+        )
       )}
 
       <button

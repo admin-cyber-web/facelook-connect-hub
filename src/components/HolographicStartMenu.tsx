@@ -16,11 +16,11 @@ export interface HolographicStartMenuProps {
   circles: Array<{
     id: HolographicId;
     name: string;
-    coverUrl: string;
+    coverUrl?: string;
     description?: string;
     memberCount?: number;
     ownerName?: string;
-    joined: boolean;
+    joined?: boolean;
   }>;
   pages: Array<{
     id: HolographicId;
@@ -28,14 +28,16 @@ export interface HolographicStartMenuProps {
     coverUrl?: string;
     category?: string;
     followerCount?: number;
+    hookCount?: number;
     ownerName?: string;
-    hooked: boolean;
+    hooked?: boolean;
   }>;
   flicks: Array<{
     id: HolographicId;
     author: string;
     avatarUrl?: string;
     mediaUrl?: string;
+    isVideo?: boolean;
     likesCount?: number;
     caption?: string;
   }>;
@@ -159,7 +161,14 @@ export function HolographicStartMenu({
     : destinations.filter((item) => item.feature !== "Admin");
 
   return (
-    <div className="hsm-void" data-testid="overlay-start-menu">
+    <div
+      id="gol-start-menu"
+      className="hsm-void"
+      data-testid="overlay-start-menu"
+      onClick={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
       <section
         className="hsm-window"
         role="dialog"
@@ -184,7 +193,7 @@ export function HolographicStartMenu({
             {hotTag && (
               <div className="hsm-hot-tag" data-testid="text-hot-tag" aria-label={`Live topic: ${hotTag}`}>
                 <span className="hsm-hot-tag__pulse" aria-hidden="true" />
-                <span>IN THE AIR</span>
+                <span>HOT NOW</span>
                 <strong>{hotTag}</strong>
               </div>
             )}
@@ -237,7 +246,7 @@ export function HolographicStartMenu({
             <section className="hsm-panel hsm-panel--circles" aria-labelledby="hsm-circles-title">
               <SectionHeading
                 eyebrow="Find your people"
-                title="Circles"
+                title="Trending Circles"
                 actionLabel="Explore circles"
                 onAction={onNavigateToCircles}
                 testId="button-explore-circles"
@@ -249,7 +258,13 @@ export function HolographicStartMenu({
                   {circles.map((circle) => (
                     <article className="hsm-circle-card" key={circle.id} data-testid={`card-circle-${circle.id}`}>
                       <div className="hsm-circle-card__cover">
-                        <img src={circle.coverUrl} alt="" loading="lazy" />
+                        {circle.coverUrl ? (
+                          <img src={circle.coverUrl} alt="" loading="lazy" />
+                        ) : (
+                          <div className="hsm-circle-card__cover--empty" aria-hidden="true">
+                            <span>C</span>
+                          </div>
+                        )}
                         <span className="hsm-card-index" aria-hidden="true">CIRCLE</span>
                       </div>
                       <div className="hsm-card-copy">
@@ -264,15 +279,15 @@ export function HolographicStartMenu({
                           {circle.ownerName && <span>by {circle.ownerName}</span>}
                         </div>
                         <button
-                          className={`hsm-pill-action${circle.joined ? " is-complete" : ""}`}
+                          className={`hsm-pill-action${circle.joined === true ? " is-complete" : ""}`}
                           type="button"
                           onClick={() => {
-                            if (!circle.joined) onJoinCircle(circle.id);
+                            if (circle.joined !== true) onJoinCircle(circle.id);
                           }}
-                          disabled={circle.joined}
+                          disabled={circle.joined === true}
                           data-testid={`button-join-circle-${circle.id}`}
                         >
-                          {circle.joined ? "Joined" : "Join circle"}
+                          {circle.joined === true ? "Joined" : "Join Circle"}
                         </button>
                       </div>
                     </article>
@@ -284,7 +299,7 @@ export function HolographicStartMenu({
             <section className="hsm-panel hsm-panel--pages" aria-labelledby="hsm-pages-title">
               <SectionHeading
                 eyebrow="Follow the signal"
-                title="Hook Pages"
+                title="Hook Pages India"
                 actionLabel="Explore pages"
                 onAction={onNavigateToPages}
                 testId="button-explore-pages"
@@ -306,18 +321,26 @@ export function HolographicStartMenu({
                         <h3 data-testid={`text-page-name-${page.id}`}>{page.name}</h3>
                         {page.category && <p className="hsm-page-card__category">{page.category}</p>}
                         {page.ownerName && <p className="hsm-page-card__owner">by {page.ownerName}</p>}
+                        {page.hookCount !== undefined && (
+                          <p className="hsm-page-card__count" data-testid={`text-page-hooks-${page.id}`}>
+                            {formatCount(page.hookCount)} hooks
+                          </p>
+                        )}
                         {page.followerCount !== undefined && (
                           <p className="hsm-page-card__count" data-testid={`text-page-followers-${page.id}`}>
                             {formatCount(page.followerCount)} followers
                           </p>
                         )}
                         <button
-                          className={`hsm-pill-action${page.hooked ? " is-complete" : ""}`}
+                          className={`hsm-pill-action${page.hooked === true ? " is-complete" : ""}`}
                           type="button"
-                          onClick={() => onToggleHookPage(page.id)}
+                          onClick={() => {
+                            if (page.hooked !== true) onToggleHookPage(page.id);
+                          }}
+                          disabled={page.hooked === true}
                           data-testid={`button-toggle-hook-page-${page.id}`}
                         >
-                          {page.hooked ? "Hooked" : "Hook in"}
+                          {page.hooked === true ? "Hooked" : "Hook in"}
                         </button>
                       </div>
                     </article>
@@ -330,7 +353,7 @@ export function HolographicStartMenu({
           <section className="hsm-panel hsm-panel--flicks" aria-labelledby="hsm-flicks-title">
             <SectionHeading
               eyebrow="Made by the community"
-              title="Flicks in motion"
+              title="Trending Flicks"
               actionLabel="See all flicks"
               onAction={onNavigateToFlicks}
               testId="button-explore-flicks"
@@ -350,7 +373,7 @@ export function HolographicStartMenu({
                   >
                     <span className="hsm-flick-card__media">
                       {flick.mediaUrl ? (
-                        isVideoUrl(flick.mediaUrl) ? (
+                        flick.isVideo || isVideoUrl(flick.mediaUrl) ? (
                           <video src={flick.mediaUrl} muted playsInline preload="metadata" />
                         ) : (
                           <img src={flick.mediaUrl} alt="" loading="lazy" />

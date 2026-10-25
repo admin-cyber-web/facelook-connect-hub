@@ -5465,6 +5465,92 @@ const PersonalizationView = React.memo(({
       <GolSlider
         activeFeature={activeFeature}
         isAdmin={isAppAdmin}
+        circles={sidebarCircles.map((circle) => ({
+          id: circle.id,
+          name: circle.name ?? "",
+          coverUrl: circle.cover_url || undefined,
+          description: circle.category || undefined,
+          memberCount:
+            typeof circle.member_count === "number"
+              ? circle.member_count
+              : undefined,
+          joined:
+            typeof circle.joined === "boolean"
+              ? circle.joined
+              : undefined,
+        }))}
+        pages={homeHookPages.map((page) => ({
+          id: page.id,
+          name: page.name ?? "",
+          coverUrl: page.cover_url || undefined,
+          category: page.category || undefined,
+          ownerName: page.owner_name || undefined,
+          followerCount:
+            typeof page.follower_count === "number"
+              ? page.follower_count
+              : typeof page.followers_count === "number"
+                ? page.followers_count
+                : undefined,
+          hookCount:
+            typeof page.hook_count === "number"
+              ? page.hook_count
+              : undefined,
+          hooked:
+            typeof page.hooked === "boolean"
+              ? page.hooked
+              : undefined,
+        }))}
+        flicks={reelPosts.slice(0, 8).map((post) => {
+          const authorProfile = onlineUsers.find(
+            (member) => member.id === post.author_id,
+          );
+          return {
+            id: post.id,
+            author: post.author || authorProfile?.full_name || "",
+            avatarUrl:
+              post.author_avatar_url ||
+              authorProfile?.avatar_url ||
+              undefined,
+            mediaUrl: post.media_url || undefined,
+            isVideo: post.type === "video",
+            likesCount:
+              typeof post.likes_count === "number"
+                ? post.likes_count
+                : undefined,
+            caption: post.content || undefined,
+          };
+        })}
+        members={onlineUsers.map((member) => ({
+          id: member.id,
+          name: member.full_name ?? "",
+          avatarUrl: member.avatar_url || undefined,
+        }))}
+        hotTag={
+          typeof trendingSurveys[0]?.question === "string"
+            ? trendingSurveys[0].question
+            : null
+        }
+        onNavigateToCircles={() => setActiveFeature("Circle")}
+        onNavigateToPages={() => {
+          setInitialHookPageId(null);
+          setActiveFeature("Hooks");
+        }}
+        onNavigateToFlicks={() => openFlicks()}
+        onJoinCircle={(id) => {
+          window.dispatchEvent(
+            new CustomEvent("flicks:open-circle", {
+              detail: { circleId: String(id) },
+            }),
+          );
+        }}
+        onToggleHookPage={(id) => {
+          window.dispatchEvent(
+            new CustomEvent("flicks:open-hook", {
+              detail: { hookId: String(id) },
+            }),
+          );
+        }}
+        onOpenFlick={(id) => openFlicks(String(id))}
         onFeatureChange={(f) => {
           if (f === "Admin") {
             if (isAppAdmin) setIsAdminPanelOpen(true);
