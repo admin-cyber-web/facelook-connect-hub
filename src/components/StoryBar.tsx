@@ -1714,7 +1714,7 @@ export const StoryBar = ({
 
   return (
     <>
-      <div className="w-full min-w-0 max-w-full box-border overflow-hidden border-b border-white/8 bg-[#0F172A] py-3">
+      <div className="mt-0 w-full min-w-0 max-w-full box-border overflow-hidden border-b border-white/8 bg-[#0F172A] pt-2 pb-3">
         <div className="flex w-full min-w-0 max-w-full box-border gap-2 overflow-x-auto overflow-y-hidden px-4 scrollbar-none">
           {/* Your Story bubble */}
           <div className="shrink-0">
