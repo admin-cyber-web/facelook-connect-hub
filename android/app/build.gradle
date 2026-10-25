@@ -1,5 +1,20 @@
 apply plugin: 'com.android.application'
 
+def releaseKeystorePath = System.getenv("KEYSTORE_PATH")
+def releaseKeystorePass = System.getenv("KEYSTORE_PASS")
+def releaseKeyAlias = System.getenv("KEY_ALIAS")
+def releaseKeyPass = System.getenv("KEY_PASS")
+def releaseSigningConfigured = releaseKeystorePath && releaseKeystorePass && releaseKeyAlias && releaseKeyPass
+def missingReleaseSigningMessage =
+    "Cannot build a release APK without signing env vars. Set KEYSTORE_PATH, KEYSTORE_PASS, KEY_ALIAS, and KEY_PASS."
+def isReleaseArtifactTaskName = { taskName ->
+    taskName.tokenize(':').last() ==~ /^(assemble|bundle|package).*Release$/
+}
+
+if (!releaseSigningConfigured && gradle.startParameter.taskNames.any { isReleaseArtifactTaskName(it) }) {
+    throw new GradleException(missingReleaseSigningMessage)
+}
+
 android {
     namespace "com.flicks.hub"
     compileSdk rootProject.ext.compileSdkVersion
@@ -13,19 +28,16 @@ android {
     }
     signingConfigs {
         release {
-            def keystorePath = System.getenv("KEYSTORE_PATH")
-            def keystorePass = System.getenv("KEYSTORE_PASS")
-            def keyAlias_    = System.getenv("KEY_ALIAS")
-            def keyPass      = System.getenv("KEY_PASS")
-            if (!keystorePath || !keystorePass || !keyAlias_ || !keyPass) {
-                throw new GradleException(
-                    "Missing signing env vars. Set KEYSTORE_PATH, KEYSTORE_PASS, KEY_ALIAS, KEY_PASS."
+            if (releaseSigningConfigured) {
+                storeFile     file(releaseKeystorePath)
+                storePassword releaseKeystorePass
+                keyAlias      releaseKeyAlias
+                keyPassword   releaseKeyPass
+            } else {
+                project.logger.warn(
+                    "Release signing is not configured. Debug builds will use the standard debug keystore; release APK tasks require KEYSTORE_PATH, KEYSTORE_PASS, KEY_ALIAS, and KEY_PASS."
                 )
             }
-            storeFile     file(keystorePath)
-            storePassword keystorePass
-            keyAlias      keyAlias_
-            keyPassword   keyPass
         }
     }
     buildTypes {
@@ -34,6 +46,15 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
             signingConfig signingConfigs.release
         }
+    }
+}
+
+gradle.taskGraph.whenReady { taskGraph ->
+    def releaseArtifactTask = taskGraph.allTasks.find { task ->
+        task.name ==~ /^(assemble|bundle|package).*Release$/
+    }
+    if (releaseArtifactTask && !releaseSigningConfigured) {
+        throw new GradleException(missingReleaseSigningMessage)
     }
 }
 
