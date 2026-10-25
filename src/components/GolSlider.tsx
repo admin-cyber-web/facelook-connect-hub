@@ -30,26 +30,22 @@ const AUTO_CLOSE_MS = 10_000;
 interface GolSliderProps {
   onFeatureChange?: (feature: string) => void;
   activeFeature?: string;
-  onRefresh: () => Promise<void> | void;
   isAdmin?: boolean;
 }
 
 const GolSlider = ({
   onFeatureChange,
   activeFeature,
-  onRefresh,
   isAdmin = false,
 }: GolSliderProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const [mode, setMode] = useState<"start" | "refresh">("start");
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const startButtonRef = useRef<HTMLButtonElement>(null);
   const autoCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const suppressClickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pointerStartRef = useRef<{ x: number; y: number } | null>(null);
   const suppressClickRef = useRef(false);
-  const refreshInFlightRef = useRef(false);
 
   const scheduleIdleClose = useCallback(() => {
     if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
@@ -108,13 +104,12 @@ const GolSlider = ({
   );
 
   const switchMode = (nextMode: "start" | "refresh") => {
-    if (isRefreshing) return;
     setMode(nextMode);
     setIsOpen(false);
   };
 
   const handlePointerDown = (event: PointerEvent<HTMLButtonElement>) => {
-    if (event.button !== 0 || isRefreshing) return;
+    if (event.button !== 0) return;
     pointerStartRef.current = { x: event.clientX, y: event.clientY };
     event.currentTarget.setPointerCapture?.(event.pointerId);
   };
@@ -144,35 +139,6 @@ const GolSlider = ({
       event.preventDefault();
       switchMode(event.key === "ArrowLeft" ? "refresh" : "start");
     }
-  };
-
-  const handleButtonClick = () => {
-    if (suppressClickRef.current) {
-      suppressClickRef.current = false;
-      if (suppressClickTimerRef.current) clearTimeout(suppressClickTimerRef.current);
-      suppressClickTimerRef.current = null;
-      return;
-    }
-
-    if (mode === "start") {
-      setIsOpen((open) => !open);
-      return;
-    }
-    if (refreshInFlightRef.current) return;
-
-    refreshInFlightRef.current = true;
-    setIsOpen(false);
-    setIsRefreshing(true);
-    void Promise.resolve()
-      .then(onRefresh)
-      .catch((error) => {
-        console.error("[GolSlider] Refresh failed:", error);
-        window.location.reload();
-      })
-      .finally(() => {
-        refreshInFlightRef.current = false;
-        setIsRefreshing(false);
-      });
   };
 
   const menuItems: StartMenuItem[] = isAdmin
@@ -220,33 +186,44 @@ const GolSlider = ({
         data-mode={mode}
         aria-label={
           mode === "refresh"
-            ? isRefreshing
-              ? "Refreshing timeline"
-              : "Refresh timeline. Swipe left or right to switch to Start."
+            ? "Refresh timeline. Swipe left or right to switch to Start."
             : isOpen
               ? "Close Start menu. Swipe left or right to switch to Refresh."
               : "Open Start menu. Swipe left or right to switch to Refresh."
         }
         aria-expanded={mode === "start" && isOpen}
         aria-controls={mode === "start" ? "gol-start-menu" : undefined}
-        aria-busy={isRefreshing}
         data-testid="button-start-refresh"
         title={mode === "refresh" ? "Swipe left or right to switch to Start" : "Swipe left or right to switch to Refresh"}
-        disabled={isRefreshing}
         onPointerDown={handlePointerDown}
         onPointerUp={handlePointerUp}
         onPointerCancel={() => {
           pointerStartRef.current = null;
         }}
         onKeyDown={handleButtonKeyDown}
-        onClick={handleButtonClick}
+        onClick={() => {
+          if (suppressClickRef.current) {
+            suppressClickRef.current = false;
+            if (suppressClickTimerRef.current) {
+              clearTimeout(suppressClickTimerRef.current);
+            }
+            suppressClickTimerRef.current = null;
+            return;
+          }
+
+          if (mode === "refresh") {
+            window.location.reload();
+            return;
+          }
+
+          setIsOpen((open) => !open);
+        }}
       >
         <span className="gol-hybrid-button__icon" aria-hidden="true">
           {mode === "refresh" ? (
             <RefreshCw
               size={20}
               strokeWidth={2.5}
-              className={isRefreshing ? "gol-hybrid-button__refresh-icon is-spinning" : ""}
             />
           ) : (
             <svg viewBox="0 0 36 36" className="gol-hybrid-button__tiranga-mark">
@@ -261,7 +238,7 @@ const GolSlider = ({
           )}
         </span>
         <span className="gol-hybrid-button__label">
-          {isRefreshing ? "Refreshing…" : mode === "start" ? "Start" : "Refresh"}
+          {mode === "start" ? "Start" : "Refresh"}
         </span>
         <span className="gol-hybrid-button__switch" aria-hidden="true">
           <span className={mode === "start" ? "is-active" : ""} />

@@ -3595,8 +3595,6 @@ interface FameFeedProps {
   localProfile?: LocalProfile;
   currentUserId?: string;
   currentUserEmail?: string;
-  refreshRequestId?: number;
-  onRefreshRequestComplete?: (refreshed: boolean) => void;
 }
 
 // ── Hidden Posts Archive Drawer ───────────────────────────────────────────────
@@ -3817,8 +3815,6 @@ const FameFeed = ({
   localProfile = {},
   currentUserId: currentUserIdProp,
   currentUserEmail: currentUserEmailProp,
-  refreshRequestId = 0,
-  onRefreshRequestComplete,
 }: FameFeedProps) => {
   const { openProfile } = useProfileViewer();
   const { playPop, playSwoosh } = useSoundEffects();
@@ -3848,21 +3844,6 @@ const FameFeed = ({
       cancelCenteredFameFeedReelSync();
     };
   }, []);
-
-  // The global navigation dock can navigate here from Settings. A prop request
-  // ensures the forced Supabase fetch runs after this lazy-loaded page mounts.
-  useEffect(() => {
-    if (refreshRequestId <= 0) return;
-    let refreshed = false;
-    void pullRefreshActionRef.current(true)
-      .then(() => {
-        refreshed = true;
-      })
-      .catch((error) => {
-        console.error("[FameFeed] Requested refresh failed:", error);
-      })
-      .finally(() => onRefreshRequestComplete?.(refreshed));
-  }, [refreshRequestId, onRefreshRequestComplete]);
 
   const cachedPosts = dataCache.cacheRef.current.famePosts;
   const cachedFlicks = dataCache.cacheRef.current.fameFlicks;
@@ -5330,7 +5311,7 @@ const FameFeed = ({
     enabled: false,
   });
 
-  const refreshFeed = async (skipInvalidation = false) => {
+  const refreshFeed = async () => {
     setPosts([]);
     postsRef.current = [];
     setLoading(true);
@@ -5339,9 +5320,7 @@ const FameFeed = ({
     setHasMore(true);
     dataCache.setCache("famePosts", { data: [], fetchedAt: Date.now() });
 
-    if (!skipInvalidation) {
-      await queryClient.invalidateQueries({ queryKey: ["posts"] });
-    }
+    await queryClient.invalidateQueries({ queryKey: ["posts"] });
     await Promise.all([
       refetch({ throwOnError: true }),
       fetchFlicks(),
@@ -5350,9 +5329,7 @@ const FameFeed = ({
 
   // Keep the event bridge pointed at this mounted feed's latest loader for
   // native pull-to-refresh and navigation requests.
-  const pullRefreshActionRef = useRef<(skipInvalidation?: boolean) => Promise<void>>(
-    async () => {},
-  );
+  const pullRefreshActionRef = useRef<() => Promise<void>>(async () => {});
   pullRefreshActionRef.current = refreshFeed;
 
   // Pull-to-refresh listener — fired by <PullToRefresh> in Index.tsx.
@@ -5444,7 +5421,6 @@ const FameFeed = ({
     // Cache-aware mount: restore from cache instantly, refetch silently if stale (>2min).
     // The posts query is registered inside FameFeed, so its own refetch method
     // owns both the initial network load and later manual refreshes.
-    if (refreshRequestId > 0) return;
     if (posts.length === 0) void refetch();
     else if (dataCache.isStale("famePosts")) {
       // Background refresh — data already visible from cache
@@ -5453,7 +5429,7 @@ const FameFeed = ({
     }
     if (!flicksLoaded) fetchFlicks();
     else if (dataCache.isStale("fameFlicks")) fetchFlicks();
-  }, [refreshRequestId]);
+  }, []);
 
   // ── Suggestions fetch — runs immediately on mount, NO auth gate needed ────
   // circles / hook_pages are public data; do NOT gate on currentUserId.
