@@ -4,6 +4,7 @@ import { createPortal } from "react-dom";
 import { requestShareModal } from "../lib/shareModal";
 import { useVisibleInterval } from "../hooks/usePageVisibility";
 import { motion, AnimatePresence } from "framer-motion";
+import { useQueryClient } from "@tanstack/react-query";
 import type { Session } from "@supabase/supabase-js";
 import {
   Camera,
@@ -2154,6 +2155,7 @@ const RotatingFrameHelpTagline = () => {
 // ── Component ────────────────────────────────────────────────────────────────
 const Index = ({ session, initialAdminOpen, isGuest = false }: { session: Session; initialAdminOpen?: boolean; isGuest?: boolean }) => {
   const { pathname } = useLocation();
+  const queryClient = useQueryClient();
   const normalizedPathname = pathname.replace(/\/+$/, "") || "/";
   const isFameFeedRoute = normalizedPathname === "/" || normalizedPathname === "/feed";
   const onlineUserIds = useOnlineUsers();
@@ -2524,9 +2526,9 @@ const Index = ({ session, initialAdminOpen, isGuest = false }: { session: Sessio
     !isFrameMode &&
     !reelStudioOpen;
   const [feedRefreshRequestId, setFeedRefreshRequestId] = useState(0);
-  const pendingFeedRefreshResolverRef = useRef<(() => void) | null>(null);
-  const completeRequestedFeedRefresh = React.useCallback(() => {
-    pendingFeedRefreshResolverRef.current?.();
+  const pendingFeedRefreshResolverRef = useRef<((refreshed: boolean) => void) | null>(null);
+  const completeRequestedFeedRefresh = React.useCallback((refreshed: boolean) => {
+    pendingFeedRefreshResolverRef.current?.(refreshed);
     setFeedRefreshRequestId(0);
   }, []);
 
@@ -3177,30 +3179,47 @@ const Index = ({ session, initialAdminOpen, isGuest = false }: { session: Sessio
     restoreFameFeedScrollRef.current = false;
     setSettingsView("main");
     setActiveFeature("Fame");
-    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    window.scrollTo({ top: 0, left: 0, behavior: "smooth" });
 
-    await new Promise<void>((resolve) => {
-      let completed = false;
-      let timeout = 0;
-      const complete = () => {
-        if (completed) return;
-        completed = true;
-        window.clearTimeout(timeout);
-        if (pendingFeedRefreshResolverRef.current === complete) {
-          pendingFeedRefreshResolverRef.current = null;
-        }
-        resolve();
-      };
+    try {
+      const invalidation = queryClient.invalidateQueries({
+        queryKey: ["posts"],
+      });
+      const refreshResult = new Promise<boolean>((resolve) => {
+        let completed = false;
+        let timeout = 0;
+        const complete = (succeeded: boolean) => {
+          if (completed) return;
+          completed = true;
+          window.clearTimeout(timeout);
+          if (pendingFeedRefreshResolverRef.current === complete) {
+            pendingFeedRefreshResolverRef.current = null;
+          }
+          resolve(succeeded);
+        };
 
-      pendingFeedRefreshResolverRef.current?.();
-      pendingFeedRefreshResolverRef.current = complete;
-      timeout = window.setTimeout(() => {
-        console.warn("[FameFeed] Navigation refresh request timed out.");
-        complete();
-      }, 12000);
-      setFeedRefreshRequestId((requestId) => requestId + 1);
-    });
-  }, []);
+        pendingFeedRefreshResolverRef.current?.(false);
+        pendingFeedRefreshResolverRef.current = complete;
+        timeout = window.setTimeout(() => {
+          console.warn("[FameFeed] Bottom menu refresh timed out.");
+          complete(false);
+        }, 12000);
+        setFeedRefreshRequestId((requestId) => requestId + 1);
+      });
+
+      await invalidation;
+      const refreshed = await refreshResult;
+      if (refreshed) {
+        toast.success("Feed refreshed!");
+      } else {
+        toast.error("The feed could not be refreshed. Please try again.");
+      }
+    } catch (error) {
+      pendingFeedRefreshResolverRef.current?.(false);
+      console.error("[FameFeed] Bottom menu refresh failed:", error);
+      toast.error("The feed could not be refreshed. Please try again.");
+    }
+  }, [queryClient]);
 
 
   // ── Settings: Block List sub-view ─────────────────────────────────────────
