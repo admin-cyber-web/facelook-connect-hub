@@ -1,4 +1,15 @@
 import "./HolographicStartMenu.css";
+import {
+  ClipboardList,
+  Film,
+  Home,
+  Quote,
+  Shield,
+  TrendingUp,
+  Users,
+  Zap,
+} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
 export type StartDestination = {
   feature: string;
@@ -66,6 +77,17 @@ const ORIGINAL_DESTINATIONS: StartDestination[] = [
   { label: "Quotes Maker", feature: "QuotesMaker" },
   { label: "Studio", feature: "Studio" },
 ];
+
+const DESTINATION_ICONS: Record<string, LucideIcon> = {
+  Fame: Home,
+  Circle: Users,
+  Hooks: Zap,
+  Flicks: Film,
+  Task: ClipboardList,
+  QuotesMaker: Quote,
+  Studio: TrendingUp,
+  Admin: Shield,
+};
 
 const formatCount = (count: number) =>
   new Intl.NumberFormat(undefined, { notation: "compact", maximumFractionDigits: 1 }).format(count);
@@ -221,18 +243,23 @@ export function HolographicStartMenu({
             <div className="hsm-destination-grid" role="list" aria-label="Start destinations">
               {visibleDestinations.map(({ feature, label }, index) => {
                 const isActive = activeFeature === feature;
+                const DestinationIcon = DESTINATION_ICONS[feature] ?? Home;
                 return (
                   <button
                     key={feature}
                     className={`hsm-destination${isActive ? " is-active" : ""}`}
                     type="button"
                     role="listitem"
+                    data-feature={feature}
                     aria-current={isActive ? "page" : undefined}
                     onClick={() => onFeatureChange(feature)}
                     data-testid={`button-feature-${feature}`}
                   >
                     <span className="hsm-destination__index" aria-hidden="true">
                       {String(index + 1).padStart(2, "0")}
+                    </span>
+                    <span className="hsm-destination__icon" aria-hidden="true">
+                      <DestinationIcon size={18} strokeWidth={2.25} />
                     </span>
                     <span className="hsm-destination__label">{label}</span>
                     <span className="hsm-destination__arrow" aria-hidden="true">↗</span>
