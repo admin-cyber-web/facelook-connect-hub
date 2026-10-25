@@ -19,6 +19,10 @@ public class MainActivity extends BridgeActivity {
 
         WebView webView = getBridge() != null ? getBridge().getWebView() : null;
         if (webView != null) {
+            // BridgeActivity has already installed Capacitor's BridgeWebChromeClient.
+            // It implements onShowFileChooser for HTML file inputs, launches the
+            // native picker, and requests CAMERA at runtime for capture-enabled inputs.
+            // Keep that client installed so Capacitor's Activity Result bridge stays active.
             shareBridge = new AndroidShareBridge(this);
             webView.addJavascriptInterface(shareBridge, "AndroidShare");
             scrollModeBridge = new ScrollModeBridge(this, webView);
