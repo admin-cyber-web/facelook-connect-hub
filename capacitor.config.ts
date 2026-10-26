@@ -11,13 +11,6 @@ const config: CapacitorConfig = {
     // Allow all in-app navigation routes & external API hosts directly inside native WebView
     allowNavigation: ['*'],
   },
-  plugins: {
-    StatusBar: {
-      overlaysWebView: false,
-      backgroundColor: '#0F172A',
-      style: 'DARK',
-    },
-  },
   android: {
     allowMixedContent: true,
     captureInput: true,
