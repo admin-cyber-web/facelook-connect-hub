@@ -1503,6 +1503,16 @@ html[data-app-hidden="true"] *::after {
   --top-nav-safe-top: max(env(safe-area-inset-top, 0px), 8px);
 }
 
+/* Add only the Android fallback portion here; #root already applies the
+   platform-reported safe-area inset. This keeps the app's top content below
+   the status bar without counting an available inset twice. */
+.pt-safe-top {
+  padding-top: max(
+    0px,
+    calc(var(--cap-safe-top, env(safe-area-inset-top, 0px)) - env(safe-area-inset-top, 0px))
+  );
+}
+
 /* ── Mobile safety ────────────────────────────────────────────────────────
    1. Prevent horizontal overflow without constraining page height
    2. Honor iOS notches / Android nav bars with safe-area insets
@@ -1535,7 +1545,7 @@ body,
   min-height: 100dvh;
   padding-left:  env(safe-area-inset-left);
   padding-right: env(safe-area-inset-right);
-  padding-top:    var(--cap-safe-top);
+  padding-top:    env(safe-area-inset-top, 0px);
   padding-bottom: var(--cap-safe-bottom);
   touch-action: pan-y;
   overflow-x: hidden;

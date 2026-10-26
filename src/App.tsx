@@ -405,6 +405,7 @@ const App = () => {
             <OnlineUsersProvider userId={session?.user?.id}>
               <DataCacheProvider>
                 <SavedPostsProvider userId={session?.user?.id ?? null}>
+                <div className="pt-safe-top">
                 <BrowserRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
                   <GlobalRouteMediaIsolation />
                   <NativeAndroidRoutePolicy authenticated={Boolean(session)} />
@@ -458,6 +459,7 @@ const App = () => {
                   </Suspense>
                 </BrowserRouter>
                 <SharePopupHost />
+                </div>
                 </SavedPostsProvider>
               </DataCacheProvider>
             </OnlineUsersProvider>
