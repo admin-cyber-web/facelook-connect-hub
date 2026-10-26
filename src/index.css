@@ -1482,8 +1482,9 @@ html[data-app-hidden="true"] *::after {
 
 /* ── Capacitor Android safe-area CSS variables ────────────────────────────
    --cap-safe-top / --cap-safe-bottom are conservative insets for overlays
-   and screens. The top navigation uses --top-nav-safe-top so it can preserve
-   the real device inset without inheriting the 24px Android fallback.
+   and screens. Top navigation uses the actual safe-area inset only: Android's
+   non-translucent status bar is already outside the WebView content area, so
+   a fixed fallback here would create an empty gap above the header.
 
    Web / iOS  : follows env(safe-area-inset-*) directly (0 on plain browser,
                 notch height on iPhone).
@@ -1498,19 +1499,9 @@ html[data-app-hidden="true"] *::after {
   --top-nav-safe-top: env(safe-area-inset-top, 0px);
 }
 .cap-android {
-    --cap-safe-top:    max(env(safe-area-inset-top, 24px), 24px);
+  --cap-safe-top: max(env(safe-area-inset-top, 24px), 24px);
   --cap-safe-bottom: max(env(safe-area-inset-bottom, 0px), 24px);
-  --top-nav-safe-top: max(env(safe-area-inset-top, 0px), 8px);
-}
-
-/* Add only the Android fallback portion here; #root already applies the
-   platform-reported safe-area inset. This keeps the app's top content below
-   the status bar without counting an available inset twice. */
-.pt-safe-top {
-  padding-top: max(
-    0px,
-    calc(var(--cap-safe-top, env(safe-area-inset-top, 0px)) - env(safe-area-inset-top, 0px))
-  );
+  --top-nav-safe-top: env(safe-area-inset-top, 0px);
 }
 
 /* ── Mobile safety ────────────────────────────────────────────────────────

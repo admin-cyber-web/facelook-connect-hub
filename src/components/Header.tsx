@@ -2338,40 +2338,50 @@ const Header = ({
     <>
       {/* ── GLASS HEADER ─────────────────────────────────────────────────── */}
       <header
-        className="w-full min-h-[48px] pt-2 pb-1.5 backdrop-blur-2xl border-b border-white/10 sticky top-0 z-[100] px-2 sm:px-5 flex items-center gap-1.5 sm:gap-3 transition-all relative"
+        aria-label="Primary navigation"
+        className="relative flex min-h-[48px] w-full items-center gap-1 px-2 py-1 backdrop-blur-2xl border-b border-white/10 sticky top-0 z-[100] sm:px-5 sm:gap-3 transition-colors"
         style={{
           background: "rgba(10,10,20,0.95)",
-          top: "var(--cap-safe-top, env(safe-area-inset-top, 0px))",
+          top: "var(--top-nav-safe-top, env(safe-area-inset-top, 0px))",
         }}
       >
-        <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0 min-w-0">
+        <div className="flex min-w-0 flex-shrink-0 items-center gap-1 sm:gap-2">
           <div
             className="perf-flag w-7 h-7 rounded-lg bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center shadow-lg shadow-blue-500/30 flex-shrink-0"
           >
             <span className="text-white font-black text-[12px] italic">F</span>
           </div>
-          <FlicksLogo />
+          <div className="max-[359px]:hidden">
+            <FlicksLogo />
+          </div>
           <TirangaFlag />
         </div>
         <div className="flex-1" />
-        <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+        <div className="flex flex-shrink-0 items-center gap-0.5 sm:gap-1.5">
           <motion.button
+            type="button"
             whileTap={{ scale: 0.88 }}
             onClick={onHomeClick}
-            className="p-1.5 sm:p-2 rounded-xl transition-all active:scale-90 flex-shrink-0 border border-lime-400/25 hover:bg-lime-400/10"
+            aria-label="Home"
+            title="Home"
+            className="flex-shrink-0 rounded-xl border border-lime-400/25 p-1.5 transition-colors active:scale-90 hover:bg-lime-400/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-400 sm:p-2"
             style={{ background: "rgba(163,230,53,0.08)" }}
           >
-            <Home size={17} className="text-lime-400" />
+            <Home size={16} className="text-lime-400" />
           </motion.button>
           <motion.button
+            type="button"
             whileTap={{ scale: 0.88 }}
             onClick={() => setShowSearch(true)}
-            className="p-2 rounded-xl transition-all active:scale-90 flex-shrink-0 border border-lime-400/25 hover:bg-lime-400/15"
+            aria-label="Search"
+            title="Search"
+            className="flex-shrink-0 rounded-xl border border-lime-400/25 p-1.5 transition-colors active:scale-90 hover:bg-lime-400/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-400 sm:p-2"
             style={{ background: "rgba(163,230,53,0.08)" }}
           >
-            <Search size={17} className="text-lime-400" />
+            <Search size={16} className="text-lime-400" />
           </motion.button>
           <motion.button
+            type="button"
             whileTap={{ scale: 0.9 }}
             onClick={() => {
               setShowNotif((v) => !v);
@@ -2382,7 +2392,9 @@ const Header = ({
                 if (newNotifTimerRef.current) clearTimeout(newNotifTimerRef.current);
               }
             }}
-            className="p-2.5 rounded-2xl relative transition-all flex-shrink-0 border hover:bg-lime-400/15"
+            aria-label={totalBadge > 0 ? `Notifications, ${totalBadge} unread` : "Notifications"}
+            title="Notifications"
+            className="relative flex-shrink-0 rounded-xl border p-1.5 transition-colors hover:bg-lime-400/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-400 sm:p-2"
             style={{
               background: hasNewNotif ? "rgba(239,68,68,0.12)" : "rgba(163,230,53,0.08)",
               borderColor: hasNewNotif ? "rgba(239,68,68,0.5)" : "rgba(163,230,53,0.25)",
@@ -2418,16 +2430,19 @@ const Header = ({
           </motion.button>
           {/* Chat — opens full-screen messenger */}
           <motion.button
+            type="button"
             whileTap={{ scale: 0.88 }}
             onClick={(e) => {
               e.stopPropagation();
               e.preventDefault();
               onChatClick?.(e);
             }}
-            className="p-2 rounded-xl transition-all active:scale-90 flex-shrink-0 border border-lime-400/25 hover:bg-lime-400/10 relative"
+            aria-label={chatBadge && chatBadge > 0 ? `Chat, ${chatBadge} unread` : "Chat"}
+            title="Chat"
+            className="relative flex-shrink-0 rounded-xl border border-lime-400/25 p-1.5 transition-colors active:scale-90 hover:bg-lime-400/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-400 sm:p-2"
             style={{ background: "rgba(163,230,53,0.08)" }}
           >
-            <MessageCircle size={17} className="text-lime-400" />
+            <MessageCircle size={16} className="text-lime-400" />
             {chatBadge && chatBadge > 0 && (
               <span className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-red-500 text-white text-[9px] font-black rounded-full flex items-center justify-center border border-[#0a0a14] px-0.5">
                 {chatBadge > 99 ? "99+" : chatBadge}
@@ -2436,16 +2451,20 @@ const Header = ({
           </motion.button>
 
           <motion.button
+            type="button"
             whileTap={{ scale: 0.88 }}
             onClick={onSettingsClick}
-            className="p-2 rounded-xl transition-all active:scale-90 flex-shrink-0 border border-lime-400/25 hover:bg-lime-400/10"
+            aria-label="Settings"
+            title="Settings"
+            className="flex-shrink-0 rounded-xl border border-lime-400/25 p-1.5 transition-colors active:scale-90 hover:bg-lime-400/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-400 sm:p-2"
             style={{ background: "rgba(163,230,53,0.08)" }}
           >
-            <Settings size={17} className="text-lime-400" />
+            <Settings size={16} className="text-lime-400" />
           </motion.button>
 
           {/* Avatar → opens Power Dashboard */}
-          <motion.div
+          <motion.button
+            type="button"
             whileTap={{ scale: 0.88 }}
             onClick={() => {
               setDashMagnetFetched(false); // always re-fetch counts on open
@@ -2454,7 +2473,9 @@ const Header = ({
               setShowDash(true);
               setDashFriends([]);
             }}
-            className="w-9 h-9 rounded-xl overflow-hidden border-2 border-yellow-400/60 shadow-lg cursor-pointer flex-shrink-0 relative"
+            aria-label="Open profile dashboard"
+            title="Profile"
+            className="relative flex h-8 w-8 flex-shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-xl border-2 border-yellow-400/60 p-0 shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-300 sm:h-9 sm:w-9"
             style={{ boxShadow: "0 0 12px rgba(250,204,21,0.35)" }}
           >
             {userData.avatar_url ? (
@@ -2470,7 +2491,7 @@ const Header = ({
                 {userData?.full_name?.[0]?.toUpperCase() || "U"}
               </div>
             )}
-          </motion.div>
+          </motion.button>
         </div>
       </header>
 
