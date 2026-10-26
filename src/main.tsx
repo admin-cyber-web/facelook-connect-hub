@@ -24,22 +24,6 @@ if (import.meta.hot) {
   import.meta.hot.dispose(cleanupInteractionIsolation);
 }
 
-// Load the plugin only on native platforms so browser sessions never execute it.
-// The dynamic import also keeps the web entry point independent of the native API.
-async function configureNativeStatusBar() {
-  try {
-    if (!Capacitor.isNativePlatform()) return;
-    const { StatusBar, Style } = await import("@capacitor/status-bar");
-    await StatusBar.setStyle({ style: Style.Dark });
-    await StatusBar.setOverlaysWebView({ overlay: false });
-    await StatusBar.setBackgroundColor({ color: "#0F172A" });
-    await StatusBar.show();
-  } catch (error) {
-    console.warn("[Native] Status bar setup was skipped:", error);
-  }
-}
-void configureNativeStatusBar();
-
 // OneSignal is loaded via CDN script in index.html.
 // Only initialise on the production domain — skip silently on Replit dev / localhost.
 const ONESIGNAL_DOMAIN = "flicksindia.online";
