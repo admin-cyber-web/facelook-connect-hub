@@ -1,12 +1,6 @@
 import "./_group.css";
 import { motion } from "framer-motion";
-import {
-  Bell,
-  Home,
-  MessageCircle,
-  Search,
-  Settings,
-} from "lucide-react";
+import { Bell, Home, MessageCircle, Search, Settings } from "lucide-react";
 
 function FlicksWordmark() {
   return (
@@ -31,9 +25,9 @@ function IndiaMark() {
 
 export function CurrentHeader() {
   return (
-    <div className="min-h-[180px] bg-[#07080d] px-3 pt-4 text-white sm:px-6">
+    <div className="bg-[#07080d] text-white">
       <header
-        className="relative flex min-h-[48px] w-full items-center gap-1.5 border-b border-white/10 px-2 pb-1.5 pt-2 backdrop-blur-2xl sm:gap-3 sm:px-5"
+        className="relative flex min-h-[52px] w-full items-center gap-1.5 border-b border-white/10 px-3 pb-2 pt-2 backdrop-blur-2xl sm:gap-3 sm:px-5"
         style={{ background: "rgba(10,10,20,0.95)" }}
       >
         <div className="flex min-w-0 flex-shrink-0 items-center gap-1.5 sm:gap-2">
@@ -103,9 +97,6 @@ export function CurrentHeader() {
           </motion.button>
         </div>
       </header>
-      <p className="mt-3 text-[10px] font-semibold tracking-wide text-white/45">
-        Current navigation bar
-      </p>
     </div>
   );
 }
