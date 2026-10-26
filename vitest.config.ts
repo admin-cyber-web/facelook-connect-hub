@@ -13,4 +13,18 @@ export default defineConfig({
   resolve: {
     alias: { "@": path.resolve(__dirname, "./src") },
   },
+  build: {
+    rollupOptions: {
+      onwarn(warning, warn) {
+        // Rollup ke un-resolved dynamic import ya externalization warnings ko ignore karne ke liye
+        if (
+          warning.code === "UNRESOLVED_IMPORT" ||
+          warning.message.includes("externalize")
+        ) {
+          return;
+        }
+        warn(warning);
+      },
+    },
+  },
 });
