@@ -20,7 +20,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
         },
       }}
       mobileOffset={{
-        top: "calc(var(--cap-safe-top) + 16px)",
+        top: "calc(env(safe-area-inset-top, 0px) + 16px)",
         right: 12,
       }}
       {...props}

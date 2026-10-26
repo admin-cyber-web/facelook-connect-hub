@@ -1130,7 +1130,7 @@ export function MagnetModal({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      style={{ position: "fixed", inset: 0, zIndex: 99999, display: "flex", alignItems: "center", justifyContent: "center", padding: "calc(var(--cap-safe-top) + 16px) 16px calc(var(--cap-safe-bottom) + 16px) 16px", backdropFilter: "blur(4px)", background: "rgba(0,0,0,0.6)" }}
+      style={{ position: "fixed", inset: 0, zIndex: 99999, display: "flex", alignItems: "center", justifyContent: "center", padding: "calc(env(safe-area-inset-top, 0px) + 16px) 16px calc(env(safe-area-inset-bottom, 0px) + 16px) 16px", backdropFilter: "blur(4px)", background: "rgba(0,0,0,0.6)" }}
       onClick={onClose}
     >
       <motion.div

@@ -190,7 +190,7 @@ const DebateRoom: React.FC<{
       style={{ background: "linear-gradient(180deg,#0d0d1a 0%,#0a0a14 100%)" }}>
 
       {/* ── Top Bar ── */}
-      <div className="shrink-0 flex items-center justify-between px-4 py-3 safe-area-top"
+      <div className="shrink-0 flex items-center justify-between px-4 py-3"
         style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
         <div className="flex items-center gap-2">
           <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center">
