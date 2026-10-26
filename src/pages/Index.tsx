@@ -65,7 +65,6 @@ import { memGet, memSet, memClear, memDel } from "@/lib/memCache";
 import { Helmet } from "react-helmet-async";
 import { toast } from "sonner";
 
-import Header from "@/components/Header";
 import InviteCard from "@/components/InviteCard";
 import GolSlider from "@/components/GolSlider";
 import PullToRefresh from "@/components/PullToRefresh";
@@ -3934,7 +3933,7 @@ const PersonalizationView = React.memo(({
 
   return (
     <div
-      className={`min-h-screen w-full transition-colors duration-500 relative overflow-x-clip touch-scroll-y ${darkMode ? "bg-[#020617]" : "bg-slate-100 light-mode"}`}
+      className={`main-index-layout min-h-screen w-full transition-colors duration-500 relative overflow-x-clip touch-scroll-y ${darkMode ? "bg-[#020617]" : "bg-slate-100 light-mode"}`}
     >
       {/* Page-level Helmet — overrides the app-level default in App.tsx.
           The home-feed branch explicitly resets title + description so that
@@ -4223,18 +4222,6 @@ const PersonalizationView = React.memo(({
           </>
         )}
       </AnimatePresence>
-
-      {activeFeature !== "Flicks" && (
-        <Header
-          onProfileClick={() => setActiveFeature("Face")}
-          onHomeClick={() => setActiveFeature("Fame")}
-          onSettingsClick={() => { setActiveFeature("Settings"); setSettingsView("main"); }}
-          onNavigateToFeature={(feature) => setActiveFeature(feature)}
-          onChatClick={(e) => { e?.stopPropagation(); e?.preventDefault(); setIsChatOpen(true); }}
-          chatBadge={chatBadgeCount}
-          userId={userId}
-        />
-      )}
 
       <main
         className={`relative z-10 transition-all duration-500 w-full touch-scroll-y
