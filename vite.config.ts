@@ -252,7 +252,9 @@ export default defineConfig({
       external: ["onnxruntime-web", "onnxruntime-web/webgpu", "@imgly/background-removal", "@google/generative-ai"],
       onwarn(warning, warn) {
         if (warning.code === "CIRCULAR_DEPENDENCY") {
-          console.error("🔴 CIRCULAR:", warning.message);
+          // Keep dependency cycles as non-fatal Rollup warnings instead of
+          // writing them to stderr as errors (which can trip build wrappers).
+          warn(warning);
           return;
         }
         warn(warning);
