@@ -1,17 +1,17 @@
 package com.flicks.hub;
 
 import android.content.pm.ApplicationInfo;
-import android.net.Uri;
+import android.graphics.Color;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
+import android.view.Window;
 import android.webkit.JavascriptInterface;
-import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
-
 import com.getcapacitor.BridgeActivity;
 import com.getcapacitor.BridgeWebViewClient;
+
 
 public class MainActivity extends BridgeActivity {
 
@@ -23,6 +23,15 @@ public class MainActivity extends BridgeActivity {
     protected void onCreate(Bundle savedInstanceState) {
         registerPlugin(ProximityBlePlugin.class);
         super.onCreate(savedInstanceState);
+
+        // 🛑 FIX: Status bar overlap, translucent clipping aur black/gray blank space ko hatane ke liye native flags
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
+            Window window = getWindow();
+            window.clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS);
+            window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
+            // Status bar ka solid background color set kar rahe hain taaki content peeche na ghuse
+            window.setStatusBarColor(Color.parseColor("#0F172A")); // App ki theme ka color (#0F172A)
+        }
 
         if (getBridge() != null) {
             WebView webView = getBridge().getWebView();
@@ -106,7 +115,7 @@ public class MainActivity extends BridgeActivity {
                 "      window.AndroidErrorLogger.logJsError('Unhandled Promise Rejection: ' + msg, '', 0, 0, stack);" +
                 "    }" +
                 "  });" +
-                "})();";
+                })();";
         webView.evaluateJavascript(jsErrorScript, null);
     }
 
