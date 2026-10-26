@@ -24,7 +24,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(ProximityBlePlugin.class);
         super.onCreate(savedInstanceState);
 
-        // Status bar overlap aur blank space hatane ke liye native flags
+        // 🛑 NATIVE FIX: Force status bar window flags and solid background
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
             Window window = getWindow();
             window.clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS);
@@ -58,6 +58,9 @@ public class MainActivity extends BridgeActivity {
                 webView.addJavascriptInterface(new JSErrorLogger(), "AndroidErrorLogger");
 
                 injectJavaScriptErrorHandlers(webView);
+                
+                // 🛑 CSS SAFE-AREA INJECTION: Force top padding on DOM load to prevent header clipping
+                injectSafePaddingFix(webView);
 
                 getBridge().setWebViewClient(new BridgeWebViewClient(getBridge()) {
                     @Override
@@ -78,6 +81,15 @@ public class MainActivity extends BridgeActivity {
                 webView.setHorizontalScrollBarEnabled(false);
             }
         }
+    }
+
+    private void injectSafePaddingFix(WebView webView) {
+        String cssFixScript = "(function() {" +
+                "  var style = document.createElement('style');" +
+                "  style.innerHTML = 'body, html { padding-top: env(safe-area-inset-top, 0px) !important; }';" +
+                "  document.head.appendChild(style);" +
+                "})();";
+        webView.evaluateJavascript(cssFixScript, null);
     }
 
     private void injectJavaScriptErrorHandlers(WebView webView) {
