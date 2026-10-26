@@ -24,19 +24,17 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(ProximityBlePlugin.class);
         super.onCreate(savedInstanceState);
 
-        // 🛑 FIX: Status bar overlap, translucent clipping aur black/gray blank space ko hatane ke liye native flags
+        // Status bar overlap aur blank space hatane ke liye native flags
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
             Window window = getWindow();
             window.clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS);
             window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
-            // Status bar ka solid background color set kar rahe hain taaki content peeche na ghuse
-            window.setStatusBarColor(Color.parseColor("#0F172A")); // App ki theme ka color (#0F172A)
+            window.setStatusBarColor(Color.parseColor("#0F172A"));
         }
 
         if (getBridge() != null) {
             WebView webView = getBridge().getWebView();
             if (webView != null) {
-                // Configure WebSettings required for Vite/React SPA execution and local asset loading
                 WebSettings settings = webView.getSettings();
                 settings.setJavaScriptEnabled(true);
                 settings.setDomStorageEnabled(true);
@@ -44,32 +42,23 @@ public class MainActivity extends BridgeActivity {
                 settings.setJavaScriptCanOpenWindowsAutomatically(true);
                 settings.setAllowFileAccess(true);
                 settings.setAllowContentAccess(true);
-
-                // Enable cross-origin local asset resolution for ES module scripts
                 settings.setAllowFileAccessFromFileURLs(true);
                 settings.setAllowUniversalAccessFromFileURLs(true);
-
-                // Allow mixed content so HTTP API endpoints aren't blocked on local dev schemes
                 settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
 
-                // Enable Web Contents Debugging in debug builds for chrome://inspect
                 boolean isDebuggable = (getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0;
                 if (isDebuggable) {
                     WebView.setWebContentsDebuggingEnabled(true);
                 }
 
-                // Install Javascript Interfaces
                 shareBridge = new AndroidShareBridge(this);
                 webView.addJavascriptInterface(shareBridge, "AndroidShare");
                 scrollModeBridge = new ScrollModeBridge(this, webView);
                 webView.addJavascriptInterface(scrollModeBridge, "AndroidScroll");
                 webView.addJavascriptInterface(new JSErrorLogger(), "AndroidErrorLogger");
 
-                // Inject global JavaScript exception handlers to log unhandled runtime errors into Logcat
                 injectJavaScriptErrorHandlers(webView);
 
-                // Override WebViewClient so ALL web navigations stay inside native WebView frame.
-                // This prevents Android OS from launching Chrome / Custom Tabs with address bars.
                 getBridge().setWebViewClient(new BridgeWebViewClient(getBridge()) {
                     @Override
                     public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
@@ -77,14 +66,13 @@ public class MainActivity extends BridgeActivity {
                             Uri url = request.getUrl();
                             String scheme = url.getScheme();
                             if ("http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme)) {
-                                return false; // Force ALL HTTP/HTTPS links to load inside native WebView!
+                                return false;
                             }
                         }
                         return super.shouldOverrideUrlLoading(view, request);
                     }
                 });
 
-                // Start with native overscroll disabled until React confirms the Fame Feed route.
                 webView.setOverScrollMode(View.OVER_SCROLL_NEVER);
                 webView.setVerticalScrollBarEnabled(true);
                 webView.setHorizontalScrollBarEnabled(false);
@@ -93,8 +81,7 @@ public class MainActivity extends BridgeActivity {
     }
 
     private void injectJavaScriptErrorHandlers(WebView webView) {
-        String jsErrorScript =
-                "(function() {" +
+        String jsErrorScript = "(function() {" +
                 "  if (window.__flicksErrorLoggerInjected) return;" +
                 "  window.__flicksErrorLoggerInjected = true;" +
                 "  window.addEventListener('error', function(event) {" +
@@ -115,7 +102,7 @@ public class MainActivity extends BridgeActivity {
                 "      window.AndroidErrorLogger.logJsError('Unhandled Promise Rejection: ' + msg, '', 0, 0, stack);" +
                 "    }" +
                 "  });" +
-                })();";
+                "})();";
         webView.evaluateJavascript(jsErrorScript, null);
     }
 
