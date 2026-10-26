@@ -1020,7 +1020,7 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, on
       {/* ── Consolidated Right-side Interaction Bar (crimson/charcoal) ── */}
       {/* Like → Comment → Share → Hooks → 3-dots report menu; bottom-anchored above the nav handle with safe-area clearance */}
       <div className="absolute right-2.5 z-40 flex flex-col items-center gap-2.5"
-        style={{ bottom: "calc(56px + var(--cap-safe-bottom, env(safe-area-inset-bottom, 0px)))" }}>
+        style={{ bottom: "calc(56px + env(safe-area-inset-bottom, 0px))" }}>
 
         {/* Like — detailed red heart + count */}
         <button
@@ -1153,7 +1153,7 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, on
       <div
         className={`absolute left-3 z-40 ${editingCaption ? "pointer-events-auto" : "pointer-events-none"}`}
         style={{
-          bottom: "calc(46px + var(--cap-safe-bottom, env(safe-area-inset-bottom, 0px)))",
+          bottom: "calc(46px + env(safe-area-inset-bottom, 0px))",
           right: 72,
           maxWidth: "calc(100vw - 92px)",
         }}
@@ -1901,7 +1901,7 @@ export default function FlicksApp({
       <div
         className="fixed top-0 left-0 right-0 z-[120]"
         style={{
-          paddingTop: "var(--cap-safe-top, env(safe-area-inset-top, 0px))",
+          paddingTop: "env(safe-area-inset-top, 0px)",
           background: "rgba(11,10,14,0.55)",
           backdropFilter: "blur(18px)",
           WebkitBackdropFilter: "blur(18px)",
@@ -1958,7 +1958,7 @@ export default function FlicksApp({
       {(pullDistance > 0 || reelsRefreshing) && (
         <div
           className="fixed left-1/2 z-[220] flex -translate-x-1/2 items-center gap-2 rounded-full border border-white/15 bg-black/85 px-3 py-2 text-[11px] font-semibold text-white shadow-lg"
-          style={{ top: "calc(var(--cap-safe-top, 0px) + 58px)", pointerEvents: "none" }}
+          style={{ top: "calc(env(safe-area-inset-top, 0px) + 58px)", pointerEvents: "none" }}
           role={reelsRefreshing ? "status" : undefined}
           aria-live={reelsRefreshing ? "polite" : undefined}
         >

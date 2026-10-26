@@ -2259,7 +2259,7 @@ const PostDetailView = ({
     <div
       className="post-vibe-in-view fixed inset-0 z-[90000] flex h-[100dvh] flex-col overflow-hidden bg-[#10090d] text-white"
       style={{
-        paddingTop: "var(--cap-safe-top, env(safe-area-inset-top, 0px))",
+        paddingTop: "env(safe-area-inset-top, 0px)",
         paddingBottom: "env(safe-area-inset-bottom, 0px)",
         overscrollBehavior: "none",
       }}

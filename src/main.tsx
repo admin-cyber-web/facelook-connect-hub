@@ -1,23 +1,8 @@
 import { createRoot } from "react-dom/client";
-import { Capacitor } from "@capacitor/core";
 import App from "./App.tsx";
 import "./index.css";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { installGlobalInteractionIsolation } from "./lib/globalInteractionIsolation";
-
-// ── Capacitor Android: tag <html> so CSS can apply platform-aware safe-area
-//    minimums. Must run before React renders so the CSS variable is live.
-(function detectCapacitorPlatform() {
-  try {
-    if (!Capacitor.isNativePlatform()) return;
-    document.documentElement.classList.add("cap-native");
-    if (Capacitor.getPlatform() === "android") {
-      document.documentElement.classList.add("cap-android");
-    }
-  } catch {
-    // non-Capacitor environment — safe to ignore
-  }
-})();
 
 const cleanupInteractionIsolation = installGlobalInteractionIsolation();
 if (import.meta.hot) {

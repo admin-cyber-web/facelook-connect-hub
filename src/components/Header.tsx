@@ -2512,7 +2512,7 @@ const Header = ({
             exit={{ opacity: 0, y: -10, scale: 0.95 }}
             transition={{ type: "spring", damping: 22, stiffness: 260 }}
             className="fixed right-3 z-[120] w-[calc(100vw-24px)] max-w-[340px] rounded-2xl overflow-hidden shadow-2xl cursor-pointer"
-            style={{ top: "calc(var(--cap-safe-top) + 16px)", background: "rgba(12,12,24,0.97)", border: "1px solid rgba(239,68,68,0.4)", backdropFilter: "blur(20px)" }}
+            style={{ top: "calc(env(safe-area-inset-top, 0px) + 16px)", background: "rgba(12,12,24,0.97)", border: "1px solid rgba(239,68,68,0.4)", backdropFilter: "blur(20px)" }}
             onClick={() => {
               setShowNotif(true);
               setHasNewNotif(false);
@@ -2600,7 +2600,7 @@ const Header = ({
               {/* Header Section */}
               <div
                 className="px-4 pb-3 flex items-center justify-between border-b border-white/10 bg-white/5 shrink-0"
-                style={{ paddingTop: "calc(var(--cap-safe-top) + 12px)" }}
+                style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 12px)" }}
               >
                 <div className="flex items-center gap-2">
                   <Bell size={15} className="text-white/70" />
@@ -2890,7 +2890,7 @@ const Header = ({
               <div
                 className="power-dashboard-lemon-header relative px-5 pb-4 shrink-0"
                 style={{
-                  paddingTop: "calc(var(--cap-safe-top) + 20px)",
+                  paddingTop: "calc(env(safe-area-inset-top, 0px) + 20px)",
                   background: "linear-gradient(135deg, #fff8c8 0%, #fffef4 72%, #f7f8e6 100%)",
                   borderBottom: "1px solid #e6e9c8",
                 }}
@@ -2903,7 +2903,7 @@ const Header = ({
                     setDashFriends([]);
                   }}
                   className="absolute right-4 p-1.5 hover:bg-white/10 rounded-full text-white/40 hover:text-white transition-all"
-                  style={{ top: "calc(var(--cap-safe-top) + 16px)" }}
+                  style={{ top: "calc(env(safe-area-inset-top, 0px) + 16px)" }}
                 >
                   <X size={18} />
                 </button>
