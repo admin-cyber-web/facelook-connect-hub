@@ -400,10 +400,10 @@ const Avatar = ({
 }: {
   url?: string;
   name?: string;
-  size?: "sm" | "md" | "lg";
+  size?: "xs" | "sm" | "md" | "lg";
   online?: boolean;
 }) => {
-  const dim = size === "sm" ? 36 : size === "lg" ? 56 : 44;
+  const dim = size === "xs" ? 28 : size === "sm" ? 36 : size === "lg" ? 56 : 44;
   return <ActiveStatusAvatar src={url} name={name} size={dim} online={online === true} />;
 };
 
@@ -4758,7 +4758,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                 )}
                 {/* Top Bar */}
                 <div
-                  className={`relative z-50 grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-2 gap-y-2 px-3 py-2 border-b ${T.topbar} ${T.divider} shrink-0 sm:flex sm:gap-3 sm:px-4 sm:py-3`}
+                  className={`relative z-50 flex w-full flex-nowrap items-center justify-between gap-1 px-2 py-1.5 border-b ${T.topbar} ${T.divider} shrink-0 sm:gap-1.5 sm:px-3`}
                 >
                   <button
                     onClick={() => {
@@ -4770,35 +4770,39 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                       setShowChatMenu(false);
                       setShowCallMenu(false);
                     }}
-                    className={`col-start-1 row-start-1 h-8 w-8 shrink-0 rounded-xl bg-white/10 border ${T.divider} flex items-center justify-center ${T.text1} hover:bg-white/20 active:scale-90 transition-all sm:h-10 sm:w-10 sm:rounded-2xl`}
+                    className={`h-7 w-7 shrink-0 rounded-lg bg-white/10 border ${T.divider} flex items-center justify-center ${T.text1} hover:bg-white/20 active:scale-90 transition-all sm:h-8 sm:w-8 sm:rounded-xl`}
                     aria-label="Back to conversations"
                   >
-                    <ArrowLeft size={18} className="sm:hidden" />
-                    <ArrowLeft size={20} className="hidden sm:block" />
+                    <ArrowLeft size={16} />
                   </button>
                   <div
-                    className="col-start-2 row-start-1 flex min-w-0 flex-1 items-center gap-2 cursor-pointer sm:gap-2.5"
+                    className="flex min-w-0 flex-1 items-center gap-1.5 cursor-pointer sm:gap-2"
                     onClick={() => {
                       openProfile?.(selectedUser.id);
                       handlePanicUnlock();
                     }}
                   >
-                    <Avatar
-                      url={selectedUser.avatar_url}
-                      name={selectedUser.full_name}
-                      size="sm"
-                      online={onlineUsers.has(selectedUser.id)}
-                    />
-                    <div className="min-w-0 flex-1">
+                    <div className="shrink-0">
+                      <Avatar
+                        url={selectedUser.avatar_url}
+                        name={selectedUser.full_name}
+                        size="xs"
+                        online={onlineUsers.has(selectedUser.id)}
+                      />
+                    </div>
+                    <div className="flex min-w-0 flex-1 items-center gap-1">
                       <p
-                        className={`break-words text-[13px] font-black leading-tight [overflow-wrap:anywhere] sm:text-base ${T.text1}`}
+                        title={selectedUser.full_name}
+                        className={`min-w-0 flex-1 overflow-x-auto whitespace-nowrap text-[clamp(0.625rem,3.5vw,0.875rem)] font-black leading-none [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:text-sm ${T.text1}`}
                       >
                         {selectedUser.full_name}
                       </p>
                       {isOtherTyping ? (
-                        <p className="text-[11px] font-semibold text-emerald-400 flex items-center gap-1">
-                          Typing
-                          <span className="flex gap-[3px] items-center">
+                        <span
+                          title="Typing"
+                          aria-label="Typing"
+                          className="flex shrink-0 items-center gap-[3px]"
+                        >
                             {[0, 1, 2].map((i) => (
                               <span
                                 key={i}
@@ -4808,27 +4812,29 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                 }}
                               />
                             ))}
-                          </span>
-                        </p>
+                        </span>
                       ) : (
-                        <p
-                          className={`text-[11px] font-semibold ${onlineUsers.has(selectedUser.id) ? "text-green-400" : "text-white/45"}`}
+                        <span
+                          title={onlineUsers.has(selectedUser.id) ? "Online" : "Offline"}
+                          aria-label={onlineUsers.has(selectedUser.id) ? "Online" : "Offline"}
+                          className={`h-1.5 w-1.5 shrink-0 rounded-full ${onlineUsers.has(selectedUser.id) ? "bg-green-400" : "bg-white/40"}`}
                         >
-                          {onlineUsers.has(selectedUser.id)
-                            ? "● Online"
-                            : "● Offline"}
-                        </p>
+                        </span>
                       )}
                     </div>
                   </div>
-                  <div className="col-start-2 row-start-2 flex min-w-0 items-center justify-end gap-1.5 sm:ml-auto sm:gap-2">
-                  <button
-                    onClick={() => setShowChatSearch(!showChatSearch)}
-                    className={`h-8 w-8 shrink-0 rounded-lg bg-white/10 border ${T.divider} flex items-center justify-center ${T.text1} hover:bg-white/20 sm:h-9 sm:w-9 sm:rounded-xl`}
-                    aria-label={showChatSearch ? "Close chat search" : "Search this chat"}
-                  >
-                    <Search size={15} />
-                  </button>
+                  <div className="flex shrink-0 flex-nowrap items-center gap-1 sm:gap-1.5">
+                    <button
+                      onClick={() => {
+                        setShowChatSearch(!showChatSearch);
+                        setShowCallMenu(false);
+                        setShowChatMenu(false);
+                      }}
+                      className={`h-7 w-7 shrink-0 rounded-lg bg-white/10 border ${T.divider} flex items-center justify-center ${T.text1} hover:bg-white/20 sm:h-8 sm:w-8`}
+                      aria-label={showChatSearch ? "Close chat search" : "Search this chat"}
+                    >
+                      <Search size={14} />
+                    </button>
                   {/* Unified audio/video call menu */}
                   <div className="relative z-[60] shrink-0">
                     <button
@@ -4841,10 +4847,10 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                         setShowChatMenu(false);
                         setShowCallMenu((open) => !open);
                       }}
-                      className={`flex h-8 min-w-8 items-center justify-center gap-1 rounded-lg bg-white/10 border px-1.5 ${T.divider} ${T.accentText} hover:bg-white/20 active:scale-90 transition-all sm:h-9 sm:min-w-9 sm:rounded-xl`}
+                      className={`flex h-7 min-w-7 items-center justify-center gap-0.5 rounded-lg bg-white/10 border px-1 ${T.divider} ${T.accentText} hover:bg-white/20 active:scale-90 transition-all sm:h-8 sm:min-w-8 sm:gap-1 sm:px-1.5`}
                     >
-                      <Phone size={15} />
-                      <ChevronDown size={12} />
+                      <Phone size={13} />
+                      <ChevronDown size={10} />
                     </button>
                     <AnimatePresence>
                       {showCallMenu && (
@@ -4887,7 +4893,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                     onClick={() => setPanicMode((p) => !p)}
                     title="Panic Mode"
                     aria-label={panicMode ? "Turn off panic mode" : "Panic mode"}
-                    className={`h-8 w-8 shrink-0 rounded-lg border flex items-center justify-center text-sm transition-all hover:bg-white/20 sm:h-9 sm:w-9 sm:rounded-xl sm:text-base ${panicMode ? "bg-red-500/30 border-red-400/40 animate-pulse" : `bg-white/5 ${T.divider}`}`}
+                    className={`h-7 w-7 shrink-0 rounded-lg border flex items-center justify-center text-xs transition-all hover:bg-white/20 sm:h-8 sm:w-8 sm:text-sm ${panicMode ? "bg-red-500/30 border-red-400/40 animate-pulse" : `bg-white/5 ${T.divider}`}`}
                   >
                     🔴
                   </button>
@@ -4902,7 +4908,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                         setShowCallMenu(false);
                         setShowChatMenu((open) => !open);
                       }}
-                      className={`h-8 w-8 rounded-lg bg-white/10 border ${T.divider} flex items-center justify-center ${T.text1} hover:bg-white/20 sm:h-9 sm:w-9 sm:rounded-xl`}
+                      className={`h-7 w-7 rounded-lg bg-white/10 border ${T.divider} flex items-center justify-center ${T.text1} hover:bg-white/20 sm:h-8 sm:w-8`}
                     >
                       <MoreVertical size={16} />
                     </button>
