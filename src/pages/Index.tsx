@@ -66,6 +66,7 @@ import { Helmet } from "react-helmet-async";
 import { toast } from "sonner";
 
 import InviteCard from "@/components/InviteCard";
+import Header from "@/components/Header";
 import GolSlider from "@/components/GolSlider";
 import PullToRefresh from "@/components/PullToRefresh";
 import AutoPlayMutedVideo from "@/components/AutoPlayMutedVideo";
@@ -4223,6 +4224,25 @@ const PersonalizationView = React.memo(({
         )}
       </AnimatePresence>
 
+      {activeFeature !== "Flicks" && (
+        <Header
+          onProfileClick={() => setActiveFeature("Face")}
+          onHomeClick={() => setActiveFeature("Fame")}
+          onSettingsClick={() => {
+            setActiveFeature("Settings");
+            setSettingsView("main");
+          }}
+          onNavigateToFeature={(feature) => setActiveFeature(feature)}
+          onChatClick={(event) => {
+            event.stopPropagation();
+            event.preventDefault();
+            setIsChatOpen(true);
+          }}
+          chatBadge={chatBadgeCount}
+          userId={userId}
+        />
+      )}
+
       <main
         className={`relative z-10 transition-all duration-500 w-full touch-scroll-y
           ${activeFeature === "Flicks" ? "pt-0 pb-0" : "pt-0 pb-24"}`}
@@ -4242,7 +4262,7 @@ const PersonalizationView = React.memo(({
                 <div className="w-full bg-[#f0f2f5] min-h-screen" data-fame-feed-root>
 
                 {/* ── Desktop 3-column grid ─────────────────────────────────── */}
-                <div className="lg:grid lg:grid-cols-[260px_1fr_272px] lg:gap-4 lg:px-5 lg:pt-3 lg:items-start">
+                <div className="lg:grid lg:grid-cols-[260px_1fr_272px] lg:gap-4 lg:px-5 lg:items-start">
 
                 {/* ══ LEFT SIDEBAR — desktop only ══════════════════════════════ */}
                 <aside className="hidden lg:flex flex-col gap-3 self-start pb-6" style={{ position: 'sticky', top: '80px' }}>
