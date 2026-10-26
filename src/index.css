@@ -1539,8 +1539,8 @@ body,
   overflow-y: visible;
 }
 
-/* The main feed has no top navigation. Cancel only its root safe-area padding
-   on Android, where the non-translucent native status bar is outside the WebView. */
+/* Align the main feed header to the WebView edge on Android; the native status
+   bar is non-translucent and already sits outside the WebView content. */
 .cap-android .main-index-layout {
   margin-top: calc(0px - env(safe-area-inset-top, 0px));
 }

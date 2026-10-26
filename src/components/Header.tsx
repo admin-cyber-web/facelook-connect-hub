@@ -468,12 +468,16 @@ const FlicksLogo = () => {
   }, []);
 
   return (
-    <div className="relative flex flex-col items-start select-none leading-none">
+    <div
+      aria-label="Flicks"
+      role="img"
+      className="relative flex items-center select-none leading-none"
+    >
       <div className="relative flex items-baseline gap-0">
         {WORD.map((_, i) => (
           <span
             key={i}
-            className="text-[18px] sm:text-[20px] font-black tracking-tight tabular-nums"
+            className="text-[16px] sm:text-[18px] font-black tracking-tight tabular-nums"
             style={{
               color: i < 4 ? "#ffffff" : "#60a5fa",
               textShadow:
@@ -509,9 +513,6 @@ const FlicksLogo = () => {
           )}
         </AnimatePresence>
       </div>
-      <p className="text-[7px] sm:text-[8px] font-black tracking-[0.22em] text-white/40 uppercase mt-0.5">
-        Made in India
-      </p>
     </div>
   );
 };
@@ -522,7 +523,7 @@ const TirangaFlag = () => (
     style={{
       display: "inline-block",
       transformOrigin: "50% 100%",
-      fontSize: "20px",
+      fontSize: "13px",
       lineHeight: 1,
     }}
   >
@@ -2339,35 +2340,36 @@ const Header = ({
       {/* ── GLASS HEADER ─────────────────────────────────────────────────── */}
       <header
         aria-label="Primary navigation"
-        className="relative flex min-h-[48px] w-full items-center gap-1 px-2 py-1 backdrop-blur-2xl border-b border-white/10 sticky top-0 z-[100] sm:px-5 sm:gap-3 transition-colors"
+        data-testid="primary-navigation"
+        className="sticky top-0 z-[100] m-0 flex h-[50px] min-h-[50px] max-h-[50px] w-full items-center justify-between gap-1 border-b border-white/10 px-2 pt-0 pb-0 backdrop-blur-xl transition-colors sm:px-5"
         style={{
-          background: "rgba(10,10,20,0.95)",
-          top: "var(--top-nav-safe-top, env(safe-area-inset-top, 0px))",
+          background: "rgba(10, 14, 28, 0.85)",
+          WebkitBackdropFilter: "blur(24px)",
         }}
       >
         <div className="flex min-w-0 flex-shrink-0 items-center gap-1 sm:gap-2">
           <div
-            className="perf-flag w-7 h-7 rounded-lg bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center shadow-lg shadow-blue-500/30 flex-shrink-0"
+            className="perf-flag flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-blue-700 shadow-lg shadow-blue-500/30"
           >
             <span className="text-white font-black text-[12px] italic">F</span>
           </div>
-          <div className="max-[359px]:hidden">
-            <FlicksLogo />
+          <FlicksLogo />
+          <div className="max-[379px]:hidden inline-flex flex-shrink-0 items-center gap-1 rounded-full border border-white/10 bg-white/5 px-1.5 py-1 text-[8px] font-semibold tracking-wide text-white/55">
+            <span>Made in India</span>
+            <TirangaFlag />
           </div>
-          <TirangaFlag />
         </div>
-        <div className="flex-1" />
-        <div className="flex flex-shrink-0 items-center gap-0.5 sm:gap-1.5">
+        <div className="flex flex-shrink-0 items-center gap-0.5 sm:gap-1">
           <motion.button
             type="button"
             whileTap={{ scale: 0.88 }}
             onClick={onHomeClick}
             aria-label="Home"
             title="Home"
-            className="flex-shrink-0 rounded-xl border border-lime-400/25 p-1.5 transition-colors active:scale-90 hover:bg-lime-400/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-400 sm:p-2"
-            style={{ background: "rgba(163,230,53,0.08)" }}
+            data-testid="button-home"
+            className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/5 transition-all duration-150 hover:bg-white/10 hover:shadow-[0_0_12px_rgba(163,230,53,0.22)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-400 sm:h-8 sm:w-8"
           >
-            <Home size={16} className="text-lime-400" />
+            <Home size={15} className="text-lime-300" />
           </motion.button>
           <motion.button
             type="button"
@@ -2375,10 +2377,10 @@ const Header = ({
             onClick={() => setShowSearch(true)}
             aria-label="Search"
             title="Search"
-            className="flex-shrink-0 rounded-xl border border-lime-400/25 p-1.5 transition-colors active:scale-90 hover:bg-lime-400/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-400 sm:p-2"
-            style={{ background: "rgba(163,230,53,0.08)" }}
+            data-testid="button-search"
+            className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/5 transition-all duration-150 hover:bg-white/10 hover:shadow-[0_0_12px_rgba(96,165,250,0.25)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 sm:h-8 sm:w-8"
           >
-            <Search size={16} className="text-lime-400" />
+            <Search size={15} className="text-blue-300" />
           </motion.button>
           <motion.button
             type="button"
@@ -2394,10 +2396,11 @@ const Header = ({
             }}
             aria-label={totalBadge > 0 ? `Notifications, ${totalBadge} unread` : "Notifications"}
             title="Notifications"
-            className="relative flex-shrink-0 rounded-xl border p-1.5 transition-colors hover:bg-lime-400/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-400 sm:p-2"
+            data-testid="button-notifications"
+            className="relative flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/5 transition-all duration-150 hover:bg-white/10 hover:shadow-[0_0_12px_rgba(96,165,250,0.22)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 sm:h-8 sm:w-8"
             style={{
-              background: hasNewNotif ? "rgba(239,68,68,0.12)" : "rgba(163,230,53,0.08)",
-              borderColor: hasNewNotif ? "rgba(239,68,68,0.5)" : "rgba(163,230,53,0.25)",
+              background: hasNewNotif ? "rgba(239,68,68,0.12)" : undefined,
+              borderColor: hasNewNotif ? "rgba(239,68,68,0.5)" : undefined,
             }}
           >
             {/* Pulse glow ring — only when new notification */}
@@ -2413,8 +2416,8 @@ const Header = ({
             {/* Bell icon — rings on new notif */}
             <div className={hasNewNotif ? "perf-bell" : undefined}>
               <Bell
-                size={18}
-                className={hasNewNotif ? "text-red-400 drop-shadow-md" : "text-lime-400 drop-shadow-md"}
+                size={16}
+                className={hasNewNotif ? "text-red-400 drop-shadow-md" : "text-blue-300 drop-shadow-md"}
               />
             </div>
             {totalBadge > 0 && (
@@ -2422,7 +2425,7 @@ const Header = ({
                 key={totalBadge}
                 initial={{ scale: 0.5 }}
                 animate={{ scale: 1 }}
-                className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-red-500 text-white text-[9px] font-black rounded-full flex items-center justify-center border-2 border-[#0a0a14] px-0.5"
+                className="absolute -top-1 -right-1 flex h-[17px] min-w-[17px] items-center justify-center rounded-full border-2 border-[#0a0e1c] bg-red-500 px-0.5 text-[9px] font-black text-white"
               >
                 {totalBadge > 99 ? "99+" : totalBadge}
               </motion.span>
@@ -2439,12 +2442,12 @@ const Header = ({
             }}
             aria-label={chatBadge && chatBadge > 0 ? `Chat, ${chatBadge} unread` : "Chat"}
             title="Chat"
-            className="relative flex-shrink-0 rounded-xl border border-lime-400/25 p-1.5 transition-colors active:scale-90 hover:bg-lime-400/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-400 sm:p-2"
-            style={{ background: "rgba(163,230,53,0.08)" }}
+            data-testid="button-chat"
+            className="relative flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/5 transition-all duration-150 hover:bg-white/10 hover:shadow-[0_0_12px_rgba(96,165,250,0.22)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 sm:h-8 sm:w-8"
           >
-            <MessageCircle size={16} className="text-lime-400" />
+            <MessageCircle size={15} className="text-blue-300" />
             {chatBadge && chatBadge > 0 && (
-              <span className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-red-500 text-white text-[9px] font-black rounded-full flex items-center justify-center border border-[#0a0a14] px-0.5">
+              <span className="absolute -top-1 -right-1 flex h-4 min-w-[16px] items-center justify-center rounded-full border border-[#0a0e1c] bg-red-500 px-0.5 text-[9px] font-black text-white">
                 {chatBadge > 99 ? "99+" : chatBadge}
               </span>
             )}
@@ -2456,10 +2459,10 @@ const Header = ({
             onClick={onSettingsClick}
             aria-label="Settings"
             title="Settings"
-            className="flex-shrink-0 rounded-xl border border-lime-400/25 p-1.5 transition-colors active:scale-90 hover:bg-lime-400/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-400 sm:p-2"
-            style={{ background: "rgba(163,230,53,0.08)" }}
+            data-testid="button-settings"
+            className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/5 transition-all duration-150 hover:bg-white/10 hover:shadow-[0_0_12px_rgba(163,230,53,0.22)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-400 sm:h-8 sm:w-8"
           >
-            <Settings size={16} className="text-lime-400" />
+            <Settings size={15} className="text-lime-300" />
           </motion.button>
 
           {/* Avatar → opens Power Dashboard */}
@@ -2475,8 +2478,12 @@ const Header = ({
             }}
             aria-label="Open profile dashboard"
             title="Profile"
-            className="relative flex h-8 w-8 flex-shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-xl border-2 border-yellow-400/60 p-0 shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-300 sm:h-9 sm:w-9"
-            style={{ boxShadow: "0 0 12px rgba(250,204,21,0.35)" }}
+            data-testid="button-profile"
+            className="relative flex h-8 w-8 flex-shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-full border-2 border-yellow-300/80 bg-white/5 p-0 shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300"
+            style={{
+              boxShadow:
+                "0 0 0 1px rgba(96,165,250,0.75), 0 0 12px rgba(96,165,250,0.22), 0 0 10px rgba(250,204,21,0.3)",
+            }}
           >
             {userData.avatar_url ? (
               <img
