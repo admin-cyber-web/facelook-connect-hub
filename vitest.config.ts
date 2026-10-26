@@ -4,7 +4,7 @@ import path from "path";
 
 export default defineConfig({
   plugins: [react()],
-  logLevel: "warn", // warnings ko error banne se rokne ke liye
+  logLevel: "warn",
   test: {
     environment: "jsdom",
     globals: true,
@@ -15,11 +15,11 @@ export default defineConfig({
     alias: { "@": path.resolve(__dirname, "./src") },
   },
   build: {
-    // Warnings ki wajah se build exit code 1 na de, isliye false rakha hai
     reportCompressedSize: false,
     rollupOptions: {
-      onwarn(warning, defaultHandler) {
-        // Kisi bhi warning ko ignore karke build ko aage badhane ke liye
+      external: [],
+      onwarn(warning, warn) {
+        // Kisi bhi warning ko ignore karke build ko rokne se bachane ke liye
         return;
       },
     },
