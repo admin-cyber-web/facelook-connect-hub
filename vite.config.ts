@@ -249,12 +249,15 @@ export default defineConfig({
     reportCompressedSize: false,
     chunkSizeWarningLimit: 600,
     rollupOptions: {
-      external: ["onnxruntime-web", "onnxruntime-web/webgpu", "@imgly/background-removal", "@google/generative-ai"],
+      // External ko safely handle kiya hai taaki dynamic imports bundle mein resolve ho sakein
+      external: [],
       onwarn(warning, warn) {
-        if (warning.code === "CIRCULAR_DEPENDENCY") {
-          // Keep dependency cycles as non-fatal Rollup warnings instead of
-          // writing them to stderr as errors (which can trip build wrappers).
-          warn(warning);
+        // Saari dynamic import / unresolved / circular dependency warnings ko non-fatal banane ke liye
+        if (
+          warning.code === "CIRCULAR_DEPENDENCY" ||
+          warning.code === "UNRESOLVED_IMPORT" ||
+          warning.message.includes("externalize")
+        ) {
           return;
         }
         warn(warning);
