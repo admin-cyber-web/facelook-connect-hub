@@ -6,6 +6,7 @@ import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
 import android.view.Window;
+import android.view.WindowManager;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
@@ -59,9 +60,6 @@ public class MainActivity extends BridgeActivity {
 
                 injectJavaScriptErrorHandlers(webView);
                 
-                // 🛑 CSS SAFE-AREA INJECTION: Force top padding on DOM load to prevent header clipping
-                injectSafePaddingFix(webView);
-
                 getBridge().setWebViewClient(new BridgeWebViewClient(getBridge()) {
                     @Override
                     public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
@@ -81,15 +79,6 @@ public class MainActivity extends BridgeActivity {
                 webView.setHorizontalScrollBarEnabled(false);
             }
         }
-    }
-
-    private void injectSafePaddingFix(WebView webView) {
-        String cssFixScript = "(function() {" +
-                "  var style = document.createElement('style');" +
-                "  style.innerHTML = 'body, html { padding-top: env(safe-area-inset-top, 0px) !important; }';" +
-                "  document.head.appendChild(style);" +
-                "})();";
-        webView.evaluateJavascript(cssFixScript, null);
     }
 
     private void injectJavaScriptErrorHandlers(WebView webView) {

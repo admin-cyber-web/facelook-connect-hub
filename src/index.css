@@ -1482,9 +1482,7 @@ html[data-app-hidden="true"] *::after {
 
 /* ── Capacitor Android safe-area CSS variables ────────────────────────────
    --cap-safe-top / --cap-safe-bottom are conservative insets for overlays
-   and screens. Top navigation uses the actual safe-area inset only: Android's
-   non-translucent status bar is already outside the WebView content area, so
-   a fixed fallback here would create an empty gap above the header.
+   and full-screen views.
 
    Web / iOS  : follows env(safe-area-inset-*) directly (0 on plain browser,
                 notch height on iPhone).
@@ -1496,12 +1494,10 @@ html[data-app-hidden="true"] *::after {
 :root {
   --cap-safe-top:    env(safe-area-inset-top, 0px);
   --cap-safe-bottom: env(safe-area-inset-bottom, 0px);
-  --top-nav-safe-top: env(safe-area-inset-top, 0px);
 }
 .cap-android {
   --cap-safe-top: max(env(safe-area-inset-top, 24px), 24px);
   --cap-safe-bottom: max(env(safe-area-inset-bottom, 0px), 24px);
-  --top-nav-safe-top: env(safe-area-inset-top, 0px);
 }
 
 /* ── Mobile safety ────────────────────────────────────────────────────────
@@ -1541,6 +1537,12 @@ body,
   touch-action: pan-y;
   overflow-x: hidden;
   overflow-y: visible;
+}
+
+/* The main feed has no top navigation. Cancel only its root safe-area padding
+   on Android, where the non-translucent native status bar is outside the WebView. */
+.cap-android .main-index-layout {
+  margin-top: calc(0px - env(safe-area-inset-top, 0px));
 }
 
 /* Toasts and other fixed notices are outside #root's flow, so give their
