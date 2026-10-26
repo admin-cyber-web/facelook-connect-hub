@@ -36,6 +36,7 @@ import {
   LogOut,
   Archive,
   MoreVertical,
+  ChevronDown,
   Trash2,
   EyeOff,
   Eye,
@@ -1088,6 +1089,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   const [panicMode, setPanicMode] = useState(false);
   const [isOtherTyping, setIsOtherTyping] = useState(false);
   const [showChatMenu, setShowChatMenu] = useState(false);
+  const [showCallMenu, setShowCallMenu] = useState(false);
   const [deletingForMe, setDeletingForMe] = useState<string | null>(null);
   const [msgReactionBarId, setMsgReactionBarId] = useState<string | null>(null);
   const [msgReactions, setMsgReactions] = useState<
@@ -4756,7 +4758,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                 )}
                 {/* Top Bar */}
                 <div
-                  className={`flex items-center gap-3 px-4 py-3 border-b ${T.topbar} ${T.divider} shrink-0`}
+                  className={`relative z-50 grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-2 gap-y-2 px-3 py-2 border-b ${T.topbar} ${T.divider} shrink-0 sm:flex sm:gap-3 sm:px-4 sm:py-3`}
                 >
                   <button
                     onClick={() => {
@@ -4765,13 +4767,17 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                       setShowChatSearch(false);
                       setChatSearch("");
                       setShowEmojiGrid(false);
+                      setShowChatMenu(false);
+                      setShowCallMenu(false);
                     }}
-                    className={`w-10 h-10 rounded-2xl bg-white/10 border ${T.divider} flex items-center justify-center ${T.text1} hover:bg-white/20 active:scale-90 transition-all`}
+                    className={`col-start-1 row-start-1 h-8 w-8 shrink-0 rounded-xl bg-white/10 border ${T.divider} flex items-center justify-center ${T.text1} hover:bg-white/20 active:scale-90 transition-all sm:h-10 sm:w-10 sm:rounded-2xl`}
+                    aria-label="Back to conversations"
                   >
-                    <ArrowLeft size={20} />
+                    <ArrowLeft size={18} className="sm:hidden" />
+                    <ArrowLeft size={20} className="hidden sm:block" />
                   </button>
                   <div
-                    className="flex items-center gap-2.5 flex-1 min-w-0 cursor-pointer"
+                    className="col-start-2 row-start-1 flex min-w-0 flex-1 items-center gap-2 cursor-pointer sm:gap-2.5"
                     onClick={() => {
                       openProfile?.(selectedUser.id);
                       handlePanicUnlock();
@@ -4780,12 +4786,12 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                     <Avatar
                       url={selectedUser.avatar_url}
                       name={selectedUser.full_name}
-                      size="md"
+                      size="sm"
                       online={onlineUsers.has(selectedUser.id)}
                     />
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
                       <p
-                        className={`text-base font-black truncate leading-tight ${T.text1}`}
+                        className={`break-words text-[13px] font-black leading-tight [overflow-wrap:anywhere] sm:text-base ${T.text1}`}
                       >
                         {selectedUser.full_name}
                       </p>
@@ -4815,40 +4821,88 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                       )}
                     </div>
                   </div>
+                  <div className="col-start-2 row-start-2 flex min-w-0 items-center justify-end gap-1.5 sm:ml-auto sm:gap-2">
                   <button
                     onClick={() => setShowChatSearch(!showChatSearch)}
-                    className={`w-9 h-9 rounded-xl bg-white/10 border ${T.divider} flex items-center justify-center ${T.text1} hover:bg-white/20`}
+                    className={`h-8 w-8 shrink-0 rounded-lg bg-white/10 border ${T.divider} flex items-center justify-center ${T.text1} hover:bg-white/20 sm:h-9 sm:w-9 sm:rounded-xl`}
+                    aria-label={showChatSearch ? "Close chat search" : "Search this chat"}
                   >
-                    <Search size={16} />
+                    <Search size={15} />
                   </button>
-                  {/* Phone call */}
-                  <button
-                    className={`w-9 h-9 rounded-xl bg-white/10 border ${T.divider} flex items-center justify-center ${T.accentText} hover:bg-white/20 active:scale-90 transition-all`}
-                    onClick={(e) => { e.stopPropagation(); toast.info("🔊 Voice call — coming soon!"); }}
-                  >
-                    <Phone size={16} />
-                  </button>
-                  {/* Video call */}
-                  <button
-                    className={`w-9 h-9 rounded-xl bg-white/10 border ${T.divider} flex items-center justify-center ${T.accentText} hover:bg-white/20 active:scale-90 transition-all`}
-                    onClick={(e) => { e.stopPropagation(); toast.info("📹 Video call — coming soon!"); }}
-                  >
-                    <VideoIcon size={16} />
-                  </button>
-                  {/* Punch/boxing emoji blast removed per design overhaul */}
+                  {/* Unified audio/video call menu */}
+                  <div className="relative z-[60] shrink-0">
+                    <button
+                      type="button"
+                      aria-label="Call options"
+                      aria-haspopup="menu"
+                      aria-expanded={showCallMenu}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowChatMenu(false);
+                        setShowCallMenu((open) => !open);
+                      }}
+                      className={`flex h-8 min-w-8 items-center justify-center gap-1 rounded-lg bg-white/10 border px-1.5 ${T.divider} ${T.accentText} hover:bg-white/20 active:scale-90 transition-all sm:h-9 sm:min-w-9 sm:rounded-xl`}
+                    >
+                      <Phone size={15} />
+                      <ChevronDown size={12} />
+                    </button>
+                    <AnimatePresence>
+                      {showCallMenu && (
+                        <motion.div
+                          initial={{ opacity: 0, scale: 0.95, y: 4 }}
+                          animate={{ opacity: 1, scale: 1, y: 0 }}
+                          exit={{ opacity: 0, scale: 0.95, y: 4 }}
+                          role="menu"
+                          className={`absolute right-0 top-full z-[9999] mt-2 min-w-[160px] overflow-hidden rounded-xl border shadow-2xl ${T.msgMenuBg} text-white`}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <button
+                            type="button"
+                            role="menuitem"
+                            onClick={() => {
+                              setShowCallMenu(false);
+                              toast.info("🔊 Voice call — coming soon!");
+                            }}
+                            className={`flex w-full items-center gap-2 px-4 py-3 text-sm font-bold hover:bg-white/8 ${T.text1}`}
+                          >
+                            <Phone size={15} /> Audio Call
+                          </button>
+                          <button
+                            type="button"
+                            role="menuitem"
+                            onClick={() => {
+                              setShowCallMenu(false);
+                              toast.info("📹 Video call — coming soon!");
+                            }}
+                            className={`flex w-full items-center gap-2 px-4 py-3 text-sm font-bold hover:bg-white/8 ${T.text1}`}
+                          >
+                            <VideoIcon size={15} /> Video Call
+                          </button>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
                   {/* Panic toggle */}
                   <button
                     onClick={() => setPanicMode((p) => !p)}
                     title="Panic Mode"
-                    className={`w-9 h-9 rounded-xl border flex items-center justify-center text-base transition-all hover:bg-white/20 ${panicMode ? "bg-red-500/30 border-red-400/40 animate-pulse" : `bg-white/5 ${T.divider}`}`}
+                    aria-label={panicMode ? "Turn off panic mode" : "Panic mode"}
+                    className={`h-8 w-8 shrink-0 rounded-lg border flex items-center justify-center text-sm transition-all hover:bg-white/20 sm:h-9 sm:w-9 sm:rounded-xl sm:text-base ${panicMode ? "bg-red-500/30 border-red-400/40 animate-pulse" : `bg-white/5 ${T.divider}`}`}
                   >
                     🔴
                   </button>
                   {/* 3-dot chat menu */}
-                  <div className="relative">
+                  <div className="relative z-[60] shrink-0">
                     <button
-                      onClick={() => setShowChatMenu((p) => !p)}
-                      className={`w-9 h-9 rounded-xl bg-white/10 border ${T.divider} flex items-center justify-center ${T.text1} hover:bg-white/20`}
+                      type="button"
+                      aria-label="Chat options"
+                      aria-haspopup="menu"
+                      aria-expanded={showChatMenu}
+                      onClick={() => {
+                        setShowCallMenu(false);
+                        setShowChatMenu((open) => !open);
+                      }}
+                      className={`h-8 w-8 rounded-lg bg-white/10 border ${T.divider} flex items-center justify-center ${T.text1} hover:bg-white/20 sm:h-9 sm:w-9 sm:rounded-xl`}
                     >
                       <MoreVertical size={16} />
                     </button>
@@ -4858,8 +4912,8 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                           initial={{ opacity: 0, scale: 0.9, y: 4 }}
                           animate={{ opacity: 1, scale: 1, y: 0 }}
                           exit={{ opacity: 0, scale: 0.9, y: 4 }}
-                          style={{ zIndex: 9999 }}
-                          className={`absolute right-0 top-12 rounded-2xl border shadow-2xl overflow-hidden min-w-[170px] ${T.msgMenuBg} text-white`}
+                          role="menu"
+                          className={`absolute right-0 top-full z-[9999] mt-2 rounded-2xl border shadow-2xl overflow-hidden min-w-[170px] ${T.msgMenuBg} text-white`}
                           onClick={(e) => e.stopPropagation()}
                         >
                           <button
@@ -4931,6 +4985,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                         </motion.div>
                       )}
                     </AnimatePresence>
+                  </div>
                   </div>
                 </div>
 
