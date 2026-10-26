@@ -31,6 +31,8 @@ async function configureNativeStatusBar() {
     if (!Capacitor.isNativePlatform()) return;
     const { StatusBar, Style } = await import("@capacitor/status-bar");
     await StatusBar.setStyle({ style: Style.Dark });
+    await StatusBar.setOverlaysWebView({ overlay: false });
+    await StatusBar.setBackgroundColor({ color: "#0F172A" });
     await StatusBar.show();
   } catch (error) {
     console.warn("[Native] Status bar setup was skipped:", error);

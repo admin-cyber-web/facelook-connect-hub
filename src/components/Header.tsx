@@ -2338,12 +2338,8 @@ const Header = ({
     <>
       {/* ── GLASS HEADER ─────────────────────────────────────────────────── */}
       <header
-        className="w-full h-14 backdrop-blur-2xl border-b border-white/10 sticky top-0 z-[100] px-2 sm:px-5 flex items-center gap-1.5 sm:gap-3 transition-all relative"
-        style={{
-          background: "rgba(10,10,20,0.95)",
-          top: "var(--top-nav-safe-top, 0px)",
-          marginTop: "calc(var(--top-nav-safe-top, 0px) - var(--cap-safe-top, 0px))",
-        }}
+        className="w-full min-h-[48px] pt-2 pb-1.5 backdrop-blur-2xl border-b border-white/10 sticky top-0 z-[100] px-2 sm:px-5 flex items-center gap-1.5 sm:gap-3 transition-all relative"
+        style={{ background: "rgba(10,10,20,0.95)", top: 0 }}
       >
         <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0 min-w-0">
           <div
