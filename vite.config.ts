@@ -50,8 +50,11 @@ function sitemapPlugin(): Plugin {
     const esc = (s: string) =>
       s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     const d = (raw?: string) => {
-      try { return new Date(raw!).toISOString().split("T")[0]; }
-      catch { return new Date().toISOString().split("T")[0]; }
+      try {
+        return new Date(raw!).toISOString().split("T")[0];
+      } catch {
+        return new Date().toISOString().split("T")[0];
+      }
     };
 
     const urlEntries = rows
@@ -77,55 +80,56 @@ function sitemapPlugin(): Plugin {
 
   // Shared handler — used by both configureServer and configurePreviewServer
   function attachSitemapHandler(middlewares: any) {
-    middlewares.use(
-      "/sitemap.xml",
-      async (req: any, res: any, next: any) => {
-        const now = Date.now();
+    middlewares.use("/sitemap.xml", async (req: any, res: any, next: any) => {
+      const now = Date.now();
 
-        // 1. Return in-memory cache if still fresh
-        if (cache && now - cache.builtAt < TTL_MS) {
-          res.setHeader("Content-Type", "application/xml; charset=utf-8");
-          res.setHeader("Cache-Control", "public, max-age=3600");
-          res.setHeader("X-Sitemap-Cache", "HIT");
-          res.statusCode = 200;
-          res.end(cache.xml);
-          return;
-        }
+      // 1. Return in-memory cache if still fresh
+      if (cache && now - cache.builtAt < TTL_MS) {
+        res.setHeader("Content-Type", "application/xml; charset=utf-8");
+        res.setHeader("Cache-Control", "public, max-age=3600");
+        res.setHeader("X-Sitemap-Cache", "HIT");
+        res.statusCode = 200;
+        res.end(cache.xml);
+        return;
+      }
 
-        // 2. Try to serve the pre-built static file (written by `prebuild`)
-        const staticPath = path.resolve(__dirname, "public", "sitemap.xml");
-        if (fs.existsSync(staticPath)) {
-          const xml = fs.readFileSync(staticPath, "utf8");
-          cache = { xml, builtAt: now };
-          res.setHeader("Content-Type", "application/xml; charset=utf-8");
-          res.setHeader("Cache-Control", "public, max-age=3600");
-          res.setHeader("X-Sitemap-Cache", "FILE");
-          res.statusCode = 200;
-          res.end(xml);
-          return;
-        }
+      // 2. Try to serve the pre-built static file (written by `prebuild`)
+      const staticPath = path.resolve(__dirname, "public", "sitemap.xml");
+      if (fs.existsSync(staticPath)) {
+        const xml = fs.readFileSync(staticPath, "utf8");
+        cache = { xml, builtAt: now };
+        res.setHeader("Content-Type", "application/xml; charset=utf-8");
+        res.setHeader("Cache-Control", "public, max-age=3600");
+        res.setHeader("X-Sitemap-Cache", "FILE");
+        res.statusCode = 200;
+        res.end(xml);
+        return;
+      }
 
-        // 3. Fallback — generate live from Supabase (first-ever dev cold start)
-        try {
-          const xml = await buildSitemapXml();
-          cache = { xml, builtAt: now };
-          res.setHeader("Content-Type", "application/xml; charset=utf-8");
-          res.setHeader("Cache-Control", "public, max-age=3600");
-          res.setHeader("X-Sitemap-Cache", "LIVE");
-          res.statusCode = 200;
-          res.end(xml);
-        } catch (err) {
-          console.error("[sitemap] generation failed:", err);
-          next();
-        }
-      },
-    );
+      // 3. Fallback — generate live from Supabase (first-ever dev cold start)
+      try {
+        const xml = await buildSitemapXml();
+        cache = { xml, builtAt: now };
+        res.setHeader("Content-Type", "application/xml; charset=utf-8");
+        res.setHeader("Cache-Control", "public, max-age=3600");
+        res.setHeader("X-Sitemap-Cache", "LIVE");
+        res.statusCode = 200;
+        res.end(xml);
+      } catch (err) {
+        console.error("[sitemap] generation failed:", err);
+        next();
+      }
+    });
   }
 
   return {
     name: "flicks-sitemap",
-    configureServer(server) { attachSitemapHandler(server.middlewares); },
-    configurePreviewServer(server) { attachSitemapHandler(server.middlewares); },
+    configureServer(server) {
+      attachSitemapHandler(server.middlewares);
+    },
+    configurePreviewServer(server) {
+      attachSitemapHandler(server.middlewares);
+    },
   };
 }
 
@@ -140,7 +144,10 @@ function socialShareMetadataPlugin(): Plugin {
       }
 
       try {
-        const requestUrl = new URL(req.url || "/", "http://localhost").toString();
+        const requestUrl = new URL(
+          req.url || "/",
+          "http://localhost",
+        ).toString();
         const response = await createDynamicShareResponse(
           requestUrl,
           String(req.headers?.["user-agent"] || ""),
@@ -192,7 +199,10 @@ function apkDownloadPlugin(): Plugin {
       }
       const stat = fs.statSync(apkPath);
       res.setHeader("Content-Type", "application/vnd.android.package-archive");
-      res.setHeader("Content-Disposition", 'attachment; filename="FlicksIndia.apk"');
+      res.setHeader(
+        "Content-Disposition",
+        'attachment; filename="FlicksIndia.apk"',
+      );
       res.setHeader("Content-Length", stat.size);
       res.setHeader("Cache-Control", "no-store");
       res.statusCode = 200;
@@ -202,8 +212,12 @@ function apkDownloadPlugin(): Plugin {
 
   return {
     name: "flicks-apk-download",
-    configureServer(server) { attachApkHandler(server.middlewares); },
-    configurePreviewServer(server) { attachApkHandler(server.middlewares); },
+    configureServer(server) {
+      attachApkHandler(server.middlewares);
+    },
+    configurePreviewServer(server) {
+      attachApkHandler(server.middlewares);
+    },
   };
 }
 
@@ -217,8 +231,8 @@ export default defineConfig({
     hmr: { overlay: false },
     headers: {
       "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
-      "Pragma": "no-cache",
-      "Expires": "0",
+      Pragma: "no-cache",
+      Expires: "0",
     },
   },
 
@@ -228,7 +242,12 @@ export default defineConfig({
     allowedHosts: true,
   },
 
-  plugins: [react(), socialShareMetadataPlugin(), sitemapPlugin(), apkDownloadPlugin()],
+  plugins: [
+    react(),
+    socialShareMetadataPlugin(),
+    sitemapPlugin(),
+    apkDownloadPlugin(),
+  ],
 
   resolve: {
     alias: { "@": path.resolve(__dirname, "./src") },
@@ -249,10 +268,9 @@ export default defineConfig({
     reportCompressedSize: false,
     chunkSizeWarningLimit: 600,
     rollupOptions: {
-      // External ko safely handle kiya hai taaki dynamic imports bundle mein resolve ho sakein
-      external: [],
+      // External added here to fix module specifier resolution error for social login
+      external: ["@capgo/capacitor-social-login"],
       onwarn(warning, warn) {
-        // Saari dynamic import / unresolved / circular dependency warnings ko non-fatal banane ke liye
         if (
           warning.code === "CIRCULAR_DEPENDENCY" ||
           warning.code === "UNRESOLVED_IMPORT" ||
@@ -308,17 +326,18 @@ export default defineConfig({
 
           if (id.includes("node_modules/")) return "vendor-misc";
 
-          // ── Local shared modules — give each its own stable chunk so
-          //    Rollup always initialises them before any feature chunk ──
           if (id.includes("/src/lib/supabaseClient")) return "app-supabase";
-          if (id.includes("/src/lib/adminConfig"))    return "app-admin";
-          if (id.includes("/src/lib/mentions"))       return "app-mentions";
-          if (id.includes("/src/lib/sharePost"))      return "app-share";
-          if (id.includes("/src/context/"))           return "app-context";
-          if (id.includes("/src/hooks/"))             return "app-hooks";
-          if (id.includes("/src/components/ErrorBoundary")) return "app-error-boundary";
-          if (id.includes("/src/components/AutoPlayMutedVideo")) return "app-autoplay";
-          if (id.includes("/src/components/RichCaption"))  return "app-rich-caption";
+          if (id.includes("/src/lib/adminConfig")) return "app-admin";
+          if (id.includes("/src/lib/mentions")) return "app-mentions";
+          if (id.includes("/src/lib/sharePost")) return "app-share";
+          if (id.includes("/src/context/")) return "app-context";
+          if (id.includes("/src/hooks/")) return "app-hooks";
+          if (id.includes("/src/components/ErrorBoundary"))
+            return "app-error-boundary";
+          if (id.includes("/src/components/AutoPlayMutedVideo"))
+            return "app-autoplay";
+          if (id.includes("/src/components/RichCaption"))
+            return "app-rich-caption";
         },
       },
     },
