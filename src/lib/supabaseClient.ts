@@ -1,7 +1,62 @@
 import { createClient } from "@supabase/supabase-js";
+import { NETWORK_FAILURE_EVENT, SUPABASE_REACHABLE_EVENT } from "./networkStatus";
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+
+function isSupabaseRequest(input: RequestInfo | URL): boolean {
+  try {
+    const requestUrl = typeof input === "string"
+      ? input
+      : input instanceof URL
+        ? input.href
+        : input.url;
+    return new URL(requestUrl, typeof window === "undefined" ? supabaseUrl : window.location.href).origin
+      === new URL(supabaseUrl).origin;
+  } catch {
+    return false;
+  }
+}
+
+const monitoredSupabaseFetch: typeof fetch = async (input, init) => {
+  const isBackendRequest = isSupabaseRequest(input);
+  try {
+    const response = await fetch(input, init);
+    if (isBackendRequest && typeof window !== "undefined") {
+      window.dispatchEvent(new Event(SUPABASE_REACHABLE_EVENT));
+    }
+    return response;
+  } catch (error) {
+    if (
+      isBackendRequest &&
+      typeof window !== "undefined" &&
+      (error as { name?: string } | null)?.name !== "AbortError"
+    ) {
+      window.dispatchEvent(new Event(NETWORK_FAILURE_EVENT));
+    }
+    throw error;
+  }
+};
+
+export async function checkSupabaseReachable(): Promise<boolean> {
+  if (typeof navigator !== "undefined" && !navigator.onLine) return false;
+
+  const controller = new AbortController();
+  const timeout = globalThis.setTimeout(() => controller.abort(), 8000);
+  try {
+    const response = await fetch(`${supabaseUrl.replace(/\/+$/, "")}/auth/v1/health`, {
+      method: "GET",
+      headers: { apikey: supabaseKey },
+      cache: "no-store",
+      signal: controller.signal,
+    });
+    return response.status < 500;
+  } catch {
+    return false;
+  } finally {
+    globalThis.clearTimeout(timeout);
+  }
+}
 
 const memStore = new Map<string, string>();
 const sessionMemStore = new Map<string, string>();
@@ -160,6 +215,9 @@ export function flushSupabaseStorage(): void {
 
 // ── Safe client creation ────────────────────────────────────────────────────
 export const supabase = createClient(supabaseUrl, supabaseKey, {
+  global: {
+    fetch: monitoredSupabaseFetch,
+  },
   auth: {
     storage: safeStorage,
     lock: async (_name, _acquireTimeout, fn) => fn(),

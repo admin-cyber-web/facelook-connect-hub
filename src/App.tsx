@@ -1,11 +1,12 @@
-import { lazy, Suspense, useEffect, useLayoutEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { ADMIN_EMAILS, isAdminEmail } from "./lib/adminConfig";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { supabase } from "@/lib/supabaseClient";
+import { checkSupabaseReachable, supabase } from "@/lib/supabaseClient";
+import { NETWORK_FAILURE_EVENT, SUPABASE_REACHABLE_EVENT } from "@/lib/networkStatus";
 import type { Session } from "@supabase/supabase-js";
 import { registerPushPlayer } from "@/lib/oneSignalPush";
 import { Plus } from "lucide-react";
@@ -17,6 +18,7 @@ import { DataCacheProvider } from "./context/DataCacheContext";
 import { OnlineUsersProvider } from "./context/OnlineUsersContext";
 import { SavedPostsProvider } from "./context/SavedPostsContext";
 import { HelmetProvider, Helmet } from "react-helmet-async";
+import OfflineConnectionScreen from "./components/OfflineConnectionScreen";
 
 const Index         = lazy(() => import("./pages/Index"));
 const ProfileTimelinePage = lazy(() => import("./pages/ProfileTimelinePage"));
@@ -299,6 +301,123 @@ const App = () => {
   const [session, setSession]       = useState<Session | null | undefined>(undefined);
   const [splashReady, setSplashReady] = useState(false);
   const [isAdminOpen, setIsAdminOpen] = useState(false);
+  const [connectionState, setConnectionState] = useState<"online" | "offline" | "reconnecting">(
+    () => (typeof navigator === "undefined" || navigator.onLine ? "online" : "offline"),
+  );
+  const [retrySeconds, setRetrySeconds] = useState(20);
+  const connectionStateRef = useRef(connectionState);
+  const networkFailureCountRef = useRef(0);
+  const recoveryAttemptRef = useRef<Promise<void> | null>(null);
+  const attemptRecoveryRef = useRef<((backendAlreadyReached?: boolean) => Promise<void>) | null>(null);
+
+  const updateConnectionState = (state: "online" | "offline" | "reconnecting") => {
+    connectionStateRef.current = state;
+    setConnectionState(state);
+  };
+
+  useEffect(() => {
+    let disposed = false;
+
+    const attemptRecovery = async (backendAlreadyReached = false): Promise<void> => {
+      if (recoveryAttemptRef.current) return recoveryAttemptRef.current;
+
+      const task = (async () => {
+        if (!navigator.onLine && !backendAlreadyReached) {
+          updateConnectionState("offline");
+          return;
+        }
+
+        updateConnectionState("reconnecting");
+        const reachable = backendAlreadyReached || await checkSupabaseReachable();
+        if (!reachable || (!navigator.onLine && !backendAlreadyReached)) {
+          updateConnectionState("offline");
+          return;
+        }
+
+        const failuresAtStart = networkFailureCountRef.current;
+        supabase.realtime.connect();
+        const recoveryWork = Promise.allSettled([
+          supabase.auth.getSession(),
+          queryClient.invalidateQueries({ refetchType: "active" }),
+        ]);
+        updateConnectionState("online");
+        await recoveryWork;
+
+        if (disposed) return;
+        if (networkFailureCountRef.current !== failuresAtStart) {
+          updateConnectionState("offline");
+        }
+      })();
+
+      recoveryAttemptRef.current = task;
+      try {
+        await task;
+      } finally {
+        if (recoveryAttemptRef.current === task) recoveryAttemptRef.current = null;
+      }
+    };
+
+    attemptRecoveryRef.current = attemptRecovery;
+
+    const handleOffline = () => {
+      networkFailureCountRef.current += 1;
+      updateConnectionState("offline");
+    };
+    const handleOnline = () => {
+      void attemptRecovery(false);
+    };
+    const handleNetworkFailure = () => {
+      networkFailureCountRef.current += 1;
+      updateConnectionState("offline");
+    };
+    const handleBackendReachable = () => {
+      if (connectionStateRef.current !== "online") {
+        void attemptRecovery(true);
+      }
+    };
+
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    window.addEventListener(NETWORK_FAILURE_EVENT, handleNetworkFailure);
+    window.addEventListener(SUPABASE_REACHABLE_EVENT, handleBackendReachable);
+
+    if (!navigator.onLine) {
+      handleOffline();
+    } else if (connectionStateRef.current !== "online") {
+      void attemptRecovery(false);
+    }
+
+    return () => {
+      disposed = true;
+      attemptRecoveryRef.current = null;
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+      window.removeEventListener(NETWORK_FAILURE_EVENT, handleNetworkFailure);
+      window.removeEventListener(SUPABASE_REACHABLE_EVENT, handleBackendReachable);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (connectionState !== "offline") {
+      setRetrySeconds(20);
+      return;
+    }
+
+    let remaining = 20;
+    setRetrySeconds(remaining);
+    const retryTimer = window.setInterval(() => {
+      remaining -= 1;
+      if (remaining <= 0) {
+        remaining = 20;
+        setRetrySeconds(remaining);
+        void attemptRecoveryRef.current?.(false);
+      } else {
+        setRetrySeconds(remaining);
+      }
+    }, 1000);
+
+    return () => window.clearInterval(retryTimer);
+  }, [connectionState]);
 
   useEffect(() => {
     const splashTimer = window.setTimeout(() => setSplashReady(true), SPLASH_MIN_DURATION_MS);
@@ -351,10 +470,26 @@ const App = () => {
     };
   }, []);
 
-  if (session === undefined || !splashReady) return <PageLoader />;
+  const offlineFallback = connectionState !== "online" ? (
+    <OfflineConnectionScreen
+      reconnecting={connectionState === "reconnecting"}
+      retrySeconds={retrySeconds}
+      onRetry={() => void attemptRecoveryRef.current?.(false)}
+    />
+  ) : null;
+
+  if (session === undefined || !splashReady) {
+    return (
+      <>
+        <PageLoader />
+        {offlineFallback}
+      </>
+    );
+  }
 
   return (
     <QueryClientProvider client={queryClient}>
+      {offlineFallback}
       <HelmetProvider>
         <Helmet>
           <title>Flicks India | Real Connections, Real Stories</title>
