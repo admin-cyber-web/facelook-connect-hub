@@ -270,12 +270,20 @@ export default defineConfig({
     rollupOptions: {
       // External removed here so the social login module is bundled correctly for Android WebView
       onwarn(warning, warn) {
-        if (
-          warning.code === "CIRCULAR_DEPENDENCY" ||
-          warning.code === "UNRESOLVED_IMPORT" ||
-          warning.message.includes("externalize")
-        ) {
+        if (warning.code === "CIRCULAR_DEPENDENCY") {
           return;
+        }
+        // A missing native plugin must never ship as a bare package import in
+        // the Android WebView. Rollup otherwise externalizes unresolved imports,
+        // which fails at runtime with "Failed to resolve module specifier".
+        if (
+          warning.code === "UNRESOLVED_IMPORT" &&
+          (warning.message.includes("@capgo/capacitor-social-login") ||
+            warning.source === "@capgo/capacitor-social-login")
+        ) {
+          throw new Error(
+            "The @capgo/capacitor-social-login import could not be bundled. Install the plugin before building Android.",
+          );
         }
         warn(warning);
       },
