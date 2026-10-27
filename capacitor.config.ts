@@ -16,6 +16,16 @@ const config: CapacitorConfig = {
     captureInput: true,
     backgroundColor: '#0F172A',
   },
+  plugins: {
+    SocialLogin: {
+      providers: {
+        google: true,
+        apple: false,
+        facebook: false,
+        twitter: false,
+      },
+    },
+  },
 };
 
 export default config;

@@ -1,6 +1,8 @@
 package com.flicks.hub;
 
+import android.content.Intent;
 import android.content.pm.ApplicationInfo;
+import android.net.Uri;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
@@ -9,13 +11,23 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 import com.getcapacitor.BridgeActivity;
 import com.getcapacitor.BridgeWebViewClient;
+import com.getcapacitor.Plugin;
+import com.getcapacitor.PluginHandle;
+import ee.forgr.capacitor.social.login.GoogleProvider;
+import ee.forgr.capacitor.social.login.ModifiedMainActivityForSocialLoginPlugin;
+import ee.forgr.capacitor.social.login.SocialLoginPlugin;
 
 
-public class MainActivity extends BridgeActivity {
+public class MainActivity extends BridgeActivity implements ModifiedMainActivityForSocialLoginPlugin {
 
     private static final String TAG = "FlicksNative";
     private AndroidShareBridge shareBridge;
     private ScrollModeBridge scrollModeBridge;
+
+    @Override
+    public void IHaveModifiedTheMainActivityForTheUseWithSocialLoginPlugin() {
+        // Required by the native Google provider when requesting OIDC scopes.
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -67,6 +79,25 @@ public class MainActivity extends BridgeActivity {
                 webView.setVerticalScrollBarEnabled(true);
                 webView.setHorizontalScrollBarEnabled(false);
             }
+        }
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+
+        if (requestCode < GoogleProvider.REQUEST_AUTHORIZE_GOOGLE_MIN
+                || requestCode >= GoogleProvider.REQUEST_AUTHORIZE_GOOGLE_MAX
+                || getBridge() == null) {
+            return;
+        }
+
+        PluginHandle pluginHandle = getBridge().getPlugin("SocialLogin");
+        if (pluginHandle == null) return;
+
+        Plugin plugin = pluginHandle.getInstance();
+        if (plugin instanceof SocialLoginPlugin) {
+            ((SocialLoginPlugin) plugin).handleGoogleLoginIntent(requestCode, data);
         }
     }
 

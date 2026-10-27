@@ -1,5 +1,6 @@
 import { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { Capacitor } from "@capacitor/core";
 import {
   Check, Loader2, Eye, EyeOff, Mail, Lock, UserPlus, LogIn,
   Smartphone, ShieldCheck, ChevronLeft,
@@ -74,15 +75,26 @@ const LoginScreen = () => {
     setShowLegalErr(false);
 
     if (pendingAction === "google") {
-      // Immediately trigger Google OAuth — account picker pops up on device
+      // Android uses the native Google account picker; browsers retain Supabase OAuth.
       setLoading(true);
+      setError("");
       try {
-        const { error } = await supabase.auth.signInWithOAuth({
-          provider: "google",
-          options: { redirectTo: "https://flicksindia.online" },
-        });
-        if (error) { setError("Google sign-in failed: " + error.message); }
-      } catch { setError("Something went wrong. Please try again."); }
+        if (Capacitor.getPlatform() === "android") {
+          const { signInWithNativeGoogle } = await import("@/lib/googleNativeAuth");
+          await signInWithNativeGoogle();
+        } else {
+          const { error } = await supabase.auth.signInWithOAuth({
+            provider: "google",
+            options: { redirectTo: "https://flicksindia.online" },
+          });
+          if (error) throw error;
+        }
+      } catch (reason) {
+        const authError = reason as { code?: string; message?: string };
+        if (authError.code !== "USER_CANCELLED") {
+          setError(`Google sign-in failed: ${authError.message || "Please try again."}`);
+        }
+      }
       finally { setLoading(false); }
     } else if (pendingAction) {
       // Open the email/password auth sheet
@@ -289,6 +301,15 @@ const LoginScreen = () => {
               </>
           }
         </motion.button>
+
+        {error && !authMode && (
+          <p role="alert" style={{
+            margin: 0, color: "#ff7777", fontSize: 13, lineHeight: 1.45,
+            textAlign: "center", fontWeight: 600,
+          }}>
+            {error}
+          </p>
+        )}
 
         {/* Continue with Phone */}
         <motion.button
