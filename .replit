@@ -81,3 +81,4 @@ externalPort = 3001
 [userenv]
 [userenv.shared]
 VITE_SUPABASE_URL = "https://rxwvvhvretostbiknuek.supabase.co"
+VITE_GOOGLE_WEB_CLIENT_ID = "82961323095-8haq8nrdre1l518p4k8pdlhl6boo21ed.apps.googleusercontent.com"
