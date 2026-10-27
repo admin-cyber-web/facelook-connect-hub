@@ -268,8 +268,7 @@ export default defineConfig({
     reportCompressedSize: false,
     chunkSizeWarningLimit: 600,
     rollupOptions: {
-      // External added here to fix module specifier resolution error for social login
-      external: ["@capgo/capacitor-social-login"],
+      // External removed here so the social login module is bundled correctly for Android WebView
       onwarn(warning, warn) {
         if (
           warning.code === "CIRCULAR_DEPENDENCY" ||
