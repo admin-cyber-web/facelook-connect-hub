@@ -401,7 +401,24 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, on
     setVideoError(null);
     vid.currentTime = 0;
 
-    const retryActivePlayback = () => {
+    const playbackRetryBlockers =
+      '[data-no-media-playback-retry], [aria-modal="true"], [role="dialog"], dialog[open]';
+    const retryActivePlayback = (event: Event) => {
+      const target = event.target;
+      if (
+        target instanceof Element &&
+        target.closest(playbackRetryBlockers)
+      ) {
+        return;
+      }
+      // Scroll events can target document/window rather than the scrolled
+      // element. Never restart the reel behind an open dialog.
+      if (
+        !(target instanceof Element) &&
+        document.querySelector(playbackRetryBlockers)
+      ) {
+        return;
+      }
       if (document.visibilityState === "hidden") return;
       const activeVideo = videoRef.current;
       if (!activeVideo || !activeVideo.isConnected) return;

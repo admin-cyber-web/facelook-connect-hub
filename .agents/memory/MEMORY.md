@@ -1,5 +1,6 @@
 - [Mobile Performance Deep Clean](perf-deep-clean.md) — audit + fixes for CPU/GPU heating: channels, animations, console spam, DOM virtualization, media decoding
 - [Global interaction isolation layers](global-interaction-isolation.md) — full-viewport fixed backgrounds can be mistaken for modal surfaces and inert the app.
+- [Flicks modal playback guard](flicks-modal-playback-guard.md) — document-level media gesture retries must ignore active dialogs so modal taps never restart obscured reel playback.
 - [Fame Feed pull-to-refresh scope](fame-feed-pull-refresh-scope.md) — pull gestures belong only to Fame Feed on `/` or `/feed`; other screens must not intercept them.
 - [Notifications DB column naming](notif-columns.md) — `notifier_id` is the recipient, `actor_id` is the sender; never use `user_id` in the notifications table.
 - [Magnet channel collision](magnet-channel-collision.md) — MagnetModal send-only channel must use `-send` suffix to avoid Supabase topic collision with useMagnet listener channel.

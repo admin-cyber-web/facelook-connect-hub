@@ -1130,7 +1130,12 @@ export function MagnetModal({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      style={{ position: "fixed", inset: 0, zIndex: 99999, display: "flex", alignItems: "center", justifyContent: "center", padding: "calc(env(safe-area-inset-top, 0px) + 16px) 16px calc(env(safe-area-inset-bottom, 0px) + 16px) 16px", backdropFilter: "blur(4px)", background: "rgba(0,0,0,0.6)" }}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Viral Chain Engine"
+      data-global-isolation="active"
+      data-no-media-playback-retry="true"
+      style={{ position: "fixed", inset: 0, zIndex: 99999, display: "flex", alignItems: "center", justifyContent: "center", padding: "calc(env(safe-area-inset-top, 0px) + 16px) 16px calc(env(safe-area-inset-bottom, 0px) + 16px) 16px", pointerEvents: "auto", touchAction: "pan-y", background: "rgba(0,0,0,0.72)" }}
       onClick={onClose}
     >
       <motion.div
@@ -1140,6 +1145,7 @@ export function MagnetModal({
         transition={{ type: "spring", damping: 28, stiffness: 340 }}
         className="w-full max-w-lg bg-white rounded-3xl overflow-hidden shadow-2xl max-h-[80vh] flex flex-col"
         onClick={e => e.stopPropagation()}
+        onPointerDown={e => e.stopPropagation()}
       >
         {/* ── Header ── */}
         <div className="px-5 pt-4 pb-0" style={{ background: "linear-gradient(135deg,#7c3aed,#db2777)" }}>
@@ -1163,7 +1169,14 @@ export function MagnetModal({
                   <TrendingUp size={8} /> Viral Reach
                 </p>
               </div>
-              <button onClick={onClose} className="p-1.5 rounded-full bg-white/20 text-white">
+              <button
+                type="button"
+                aria-label="Close Viral Chain Engine"
+                onPointerDown={e => e.stopPropagation()}
+                onClick={e => { e.preventDefault(); e.stopPropagation(); onClose(); }}
+                className="p-1.5 rounded-full bg-white/20 text-white"
+                style={{ pointerEvents: "auto", touchAction: "manipulation" }}
+              >
                 <X size={18} />
               </button>
             </div>
