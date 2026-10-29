@@ -4,8 +4,10 @@ export const modules: ModuleMap = {
   "./components/mockups/flicks-designs/BoldSaffron.tsx": () => import("../components/mockups/flicks-designs/BoldSaffron.tsx"),
   "./components/mockups/flicks-designs/DarkCinematic.tsx": () => import("../components/mockups/flicks-designs/DarkCinematic.tsx"),
   "./components/mockups/flicks-designs/GlassGradient.tsx": () => import("../components/mockups/flicks-designs/GlassGradient.tsx"),
-  "./components/mockups/start-menu-redesign/CurrentStartMenu.tsx": () => import("../components/mockups/start-menu-redesign/CurrentStartMenu.tsx"),
-  "./components/mockups/start-menu-redesign/NeonCapsuleStartMenu.tsx": () => import("../components/mockups/start-menu-redesign/NeonCapsuleStartMenu.tsx"),
   "./components/mockups/header-redesign/CurrentHeader.tsx": () => import("../components/mockups/header-redesign/CurrentHeader.tsx"),
-  "./components/mockups/header-redesign/ModernHeader.tsx": () => import("../components/mockups/header-redesign/ModernHeader.tsx")
+  "./components/mockups/header-redesign/ModernHeader.tsx": () => import("../components/mockups/header-redesign/ModernHeader.tsx"),
+  "./components/mockups/profile-preview-redesign/Current.tsx": () => import("../components/mockups/profile-preview-redesign/Current.tsx"),
+  "./components/mockups/profile-preview-redesign/ReferenceInspired.tsx": () => import("../components/mockups/profile-preview-redesign/ReferenceInspired.tsx"),
+  "./components/mockups/start-menu-redesign/CurrentStartMenu.tsx": () => import("../components/mockups/start-menu-redesign/CurrentStartMenu.tsx"),
+  "./components/mockups/start-menu-redesign/NeonCapsuleStartMenu.tsx": () => import("../components/mockups/start-menu-redesign/NeonCapsuleStartMenu.tsx")
 };
