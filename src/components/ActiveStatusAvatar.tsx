@@ -1,3 +1,5 @@
+import ResponsiveImage from "./ResponsiveImage";
+
 interface ActiveStatusAvatarProps {
   src?: string | null;
   name?: string | null;
@@ -22,20 +24,17 @@ export default function ActiveStatusAvatar({
       title={online ? `${name || "User"} is live` : undefined}
     >
       <span className={`active-status-avatar__ring${online ? " is-live" : ""}`}>
-        {src ? (
-          <img
-            src={src}
-            alt=""
-            className="active-status-avatar__image"
-            loading="lazy"
-            decoding="async"
-            data-testid={imageTestId}
-          />
-        ) : (
-          <span className="active-status-avatar__fallback">
+        <ResponsiveImage
+          src={src ?? undefined}
+          alt=""
+          className="active-status-avatar__image"
+          loading="lazy"
+          decoding="async"
+          data-testid={imageTestId}
+          fallback={<span className="active-status-avatar__fallback">
             {(name || "?")[0].toUpperCase()}
-          </span>
-        )}
+          </span>}
+        />
       </span>
       {online && <span className="active-status-avatar__badge">LIVE</span>}
     </span>
