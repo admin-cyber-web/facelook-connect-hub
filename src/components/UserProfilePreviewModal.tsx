@@ -450,16 +450,16 @@ const UserProfilePreviewModal = ({
   }
 
   const profession =
-    profile.work ||
-    profile.profession ||
-    (profile as any).job_title ||
-    (profile as any).occupation;
+    (profile?.work ||
+      profile?.profession ||
+      (profile as any)?.job_title ||
+      (profile as any)?.occupation) || "";
 
   const locationDisplay =
-    profile.location ||
-    [profile.city, profile.district, profile.state]
+    profile?.location ||
+    [profile?.city, profile?.district, profile?.state]
       .filter(Boolean)
-      .join(", ");
+      .join(", ") || "";
 
   const mutualFriends = friends.slice(0, 4);
 
@@ -485,7 +485,7 @@ const UserProfilePreviewModal = ({
                   profile.avatar_url ||
                   "https://images.unsplash.com/photo-1476794233478-6e539e824b8e?auto=format&fit=crop&w=400&q=85"
                 }
-                alt={profile.full_name}
+                alt={profile.full_name ?? "Profile"}
                 className="h-full w-full rounded-full object-cover"
                 loading="lazy"
                 decoding="async"
@@ -527,12 +527,17 @@ const UserProfilePreviewModal = ({
 
           <div className="px-6 pt-1 pb-1 text-center">
             <h1 className="text-[20px] font-black text-[color:#263a40] tracking-tight leading-tight">
-              {profile.full_name}
+              {profile.full_name ?? "Flicks member"}
             </h1>
             {profile.username && (
               <p className="mt-1 text-[11px] font-medium text-[color:#849397]">
                 @{profile.username}
                 {locationDisplay && ` · ${locationDisplay}`}
+              </p>
+            )}
+            {!profile.username && (
+              <p className="mt-1 text-[11px] font-medium text-[color:#849397]">
+                {"Flicks member"}
               </p>
             )}
             <div className="mt-4 flex items-center justify-center gap-2 text-[12px] font-semibold text-[color:#849397]">
