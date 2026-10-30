@@ -1,8 +1,8 @@
 import React, { createContext, useContext, useState, useCallback, lazy, Suspense } from "react";
 
 // Keep avatar taps lightweight and separate from the full timeline route.
-const QuickProfileDetailsModal = lazy(
-  () => import("../components/QuickProfileDetailsModal"),
+const UserProfilePreview = lazy(
+  () => import("../components/UserProfilePreviewModal"),
 );
 
 interface ProfileViewerCtx {
@@ -33,7 +33,7 @@ export const ProfileViewerProvider = ({
       {children}
       <Suspense fallback={null}>
         {viewingId && (
-          <QuickProfileDetailsModal
+          <UserProfilePreview
             key={viewingId}
             userId={viewingId}
             currentUserId={currentUserId}
