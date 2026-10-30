@@ -104,6 +104,12 @@ export async function uploadToCloudinaryDetailed(
 
   controller.abort();
 
+  // Log the full raw Cloudinary response for debugging upload issues
+  console.log(
+    `[Cloudinary] Raw response for ${file.name}: status=${response.status}, `,
+    `body=`, await response.clone().json()
+  );
+
   let payload: CloudinaryUploadResponse = {};
   try {
     payload = (await response.json()) as CloudinaryUploadResponse;
@@ -122,13 +128,22 @@ export async function uploadToCloudinaryDetailed(
     );
   }
 
-  // For 2xx responses, ensure we have a secure URL; if missing, still return
-  // what we received so the caller can decide how to handle it.
-  if (!payload.secure_url) {
-    // Log a warning but don't crash — the upload may have succeeded on
-    // Cloudinary's side even if the immediate response is incomplete.
+  // For 2xx responses, extract the secure URL from the payload.
+  // Cloudinary typically returns secure_url at the top level, but also support
+  // falling back to .url or a nested data.secure_url pattern.
+  let secureUrl: string | undefined = payload.secure_url || payload.url;
+
+  // If still no URL, check for a data wrapper that Cloudinary occasionally uses
+  if (!secureUrl && payload.data && payload.data.secure_url) {
+    secureUrl = payload.data.secure_url;
+  }
+
+  // If still no URL, log a warning but don't crash — the upload may have
+  // succeeded on Cloudinary's side even if the immediate response is incomplete.
+  if (!secureUrl) {
     console.warn(
-      `[Cloudinary] 2xx response received but no secure_url in body for ${file.name}`,
+      `[Cloudinary] 2xx response received but no secure_url found in body for ${file.name}; ` +
+        `payload keys: ${Object.keys(payload).join(", ")}`,
     );
   }
 
