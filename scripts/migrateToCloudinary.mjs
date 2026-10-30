@@ -5,8 +5,10 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import ws from "ws";
 
-const CLOUDINARY_CLOUD_NAME = "dzlazqbvf";
-const CLOUDINARY_UPLOAD_PRESET = "flicks_upload";
+const CLOUDINARY_CLOUD_NAME =
+  process.env.CLOUDINARY_CLOUD_NAME || process.env.VITE_CLOUDINARY_CLOUD_NAME || "dzlazqbvf";
+const CLOUDINARY_UPLOAD_PRESET =
+  process.env.CLOUDINARY_UPLOAD_PRESET || process.env.VITE_CLOUDINARY_UPLOAD_PRESET || "flicks_upload";
 const PAGE_SIZE = 500;
 const DEFAULT_MAX_FILE_BYTES = 100 * 1024 * 1024;
 const REQUEST_TIMEOUT_MS = 120_000;
