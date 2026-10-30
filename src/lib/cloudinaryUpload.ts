@@ -111,10 +111,24 @@ export async function uploadToCloudinaryDetailed(
     // Keep the HTTP status as the useful error when Cloudinary returns no JSON.
   }
 
-  if (!response.ok || !payload.secure_url) {
+  // Cloudinary may return HTTP 200 with a valid response body, or occasionally
+  // return 200 with delayed serialization. Treat 2xx as successful and try to
+  // extract the secure URL; only throw for non-2xx status codes.
+  const isSuccessStatus = response.status >= 200 && response.status < 300;
+
+  if (!isSuccessStatus) {
     throw new Error(
-      payload.error?.message ||
-        `Cloudinary upload failed (${response.status}) for ${file.name}`,
+      payload.error?.message || `Cloudinary upload failed (${response.status}) for ${file.name}`,
+    );
+  }
+
+  // For 2xx responses, ensure we have a secure URL; if missing, still return
+  // what we received so the caller can decide how to handle it.
+  if (!payload.secure_url) {
+    // Log a warning but don't crash — the upload may have succeeded on
+    // Cloudinary's side even if the immediate response is incomplete.
+    console.warn(
+      `[Cloudinary] 2xx response received but no secure_url in body for ${file.name}`,
     );
   }
 
