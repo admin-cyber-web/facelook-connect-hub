@@ -1,58 +1,61 @@
-import type { VercelRequest, VercelResponse } from "@vercel/node";
+export const config = {
+  runtime: 'edge',
+};
 
-const BUNNY_STORAGE_API_KEY = process.env.BUNNY_STORAGE_API_KEY || "02778420-6acb-480a-998ba7ac08a0-df96-411c";
-const BUNNY_STORAGE_ZONE_NAME = process.env.BUNNY_STORAGE_ZONE_NAME || "flicks-india-storage";
-
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (req.method !== "POST") {
-    res.status(405).send({ error: "Method not allowed" });
-    return;
+export default async function handler(req: Request) {
+  if (req.method !== 'POST') {
+    return new Response(JSON.stringify({ success: false, message: 'Method not allowed' }), {
+      status: 405,
+      headers: { 'Content-Type': 'application/json' },
+    });
   }
 
   try {
-    // Handle multipart form data for image upload
     const formData = await req.formData();
-    const file = formData.get("file") as File;
-    const fileName = formData.get("fileName") as string || `${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
+    const file = formData.get('file') || formData.get('image');
 
-    if (!file) {
-      res.status(400).send({ error: "No file provided" });
-      return;
+    if (!file || typeof file === 'string') {
+      return new Response(JSON.stringify({ success: false, message: 'No valid image file provided' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
     }
 
-    // Convert File to Buffer for Bunny Storage PUT
-    const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
+    const storageZone = process.env.BUNNY_STORAGE_ZONE_NAME || 'flicks-india-storage';
+    const apiKey = process.env.BUNNY_STORAGE_API_KEY || '02778420-6acb-480a-998ba7ac08a0-df96-411c';
+    const pullZone = process.env.BUNNY_STORAGE_PULL_ZONE || 'https://flicks-india-storage.b-cdn.net';
 
-    // Upload to Bunny Storage via direct PUT
-    const storageUrl = `https://storage.bunnycdn.com/${BUNNY_STORAGE_ZONE_NAME}/${fileName}`;
+    const originalName = file.name || 'upload.jpg';
+    const fileName = `${Date.now()}-${originalName.replace(/\s+/g, '_')}`;
+    const uploadUrl = `https://storage.bunnycdn.com/${storageZone}/${fileName}`;
 
-    const putResponse = await fetch(storageUrl, {
-      method: "PUT",
+    const arrayBuffer = await file.arrayBuffer();
+
+    const bunnyRes = await fetch(uploadUrl, {
+      method: 'PUT',
       headers: {
-        "AccessKey": BUNNY_STORAGE_API_KEY,
-        "Content-Type": file.type || "application/octet-stream",
-        "Content-Length": buffer.length,
+        'AccessKey': apiKey,
+        'Content-Type': 'application/octet-stream',
       },
-      body: buffer,
+      body: arrayBuffer,
     });
 
-    if (!putResponse.ok) {
-      const errorText = await putResponse.text();
-      console.error("Bunny Storage upload error:", errorText);
-      res.status(putResponse.status).send({ error: errorText || "Failed to upload image" });
-      return;
+    if (!bunnyRes.ok) {
+      const errText = await bunnyRes.text();
+      throw new Error(`Bunny Storage failed (${bunnyRes.status}): ${errText}`);
     }
 
-    // Return the public CDN URL
-    const cdnUrl = `https://flicks-india-storage.b-cdn.net/${fileName}`;
+    const publicUrl = `${pullZone}/${fileName}`;
 
-    res.status(200).send({
-      url: cdnUrl,
-      fileName,
+    return new Response(JSON.stringify({ success: true, url: publicUrl }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
     });
   } catch (error: any) {
-    console.error("Bunny image upload error:", error);
-    res.status(500).send({ error: error.message || "Failed to upload image" });
+    console.error('Bunny Upload Error:', error);
+    return new Response(JSON.stringify({ success: false, message: error.message || 'Internal Server Error' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
   }
 }
