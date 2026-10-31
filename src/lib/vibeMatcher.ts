@@ -54,22 +54,14 @@ const PUBLIC_DOMAIN_AUDIO = {
 };
 
 const VIBE_AUDIO_URLS = {
-  goodMorning:
-    "https://res.cloudinary.com/dzlazqbvf/video/upload/v1790930871/alex-morgan-slow-morning-ritual-537463_ssqaxc.mp3",
-  goodNight:
-    "https://res.cloudinary.com/dzlazqbvf/video/upload/v1790930853/juliush-late-in-the-evening-short-piano-music-180518_kk3skm.mp3",
-  missYou:
-    "https://res.cloudinary.com/dzlazqbf/video/upload/v1790930849/alex-morgan-diwali-festival-lights-celebration-575884_nkmcqt.mp3",
-  diwali:
-    "https://res.cloudinary.com/dzlazqbvf/video/upload/v1790930831/tanweraman-cracker-sound-261119_jdl5mr.mp3",
-  summer:
-    "https://res.cloudinary.com/dzlazqbvf/video/upload/v1790930827/bombinsound-happy-ukulele-version-4-537782_ojokrj.mp3",
-  devotional:
-    "https://res.cloudinary.com/dzlazqbvf/video/upload/v1790930824/donaravind-24-jan-1200-293552_tojjcf.mp3",
-  storm:
-    "https://res.cloudinary.com/dzlazqbvf/video/upload/v1790930812/freesound_community-thunderstorm-with-heavy-rain1wav-14586_swfjtt.mp3",
-  hype:
-    "https://res.cloudinary.com/dzlazqbvf/video/upload/v1790930808/h-beats-music-box-beat-effect-410596_chcmqm.mp3",
+  goodMorning: "/audio/vibes/dawn.mp3",
+  goodNight: "/audio/vibes/night.mp3",
+  missYou: "/audio/vibes/miss.mp3",
+  diwali: "/audio/vibes/diwali.mp3",
+  summer: "/audio/vibes/summer.mp3",
+  devotional: "/audio/vibes/devotional.mp3",
+  storm: "/audio/vibes/storm.mp3",
+  hype: "/audio/vibes/hype.mp3",
 } as const;
 
 export const VIBE_PROFILES: VibeProfile[] = [

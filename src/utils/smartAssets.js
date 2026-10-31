@@ -14,14 +14,14 @@ export const SMART_ASSETS = [
       "headline",
     ],
     imageUrl:
-      "https://res.cloudinary.com/dzlazqbvf/image/upload/v1789906544/breaking-news-news_kbyw3w.gif",
+      "https://i.ibb.co/HT7RvFxs/flicksindia.png",
   },
   {
     key: "weather",
     label: "Rain / Weather",
     keywords: ["rain", "barish", "paani", "weather", "mausam", "storm", "baarish"],
     imageUrl:
-      "https://res.cloudinary.com/dzlazqbvf/image/upload/v1789910032/53559366_poem_51_dsooxk.gif",
+      "https://i.ibb.co/HT7RvFxs/flicksindia.png",
   },
   {
     key: "accident",
@@ -38,21 +38,21 @@ export const SMART_ASSETS = [
       "bus",
     ],
     imageUrl:
-      "https://res.cloudinary.com/dzlazqbvf/image/upload/v1789909936/accident_gif_nu6l80.gif",
+      "https://i.ibb.co/HT7RvFxs/flicksindia.png",
   },
   {
     key: "love",
     label: "Love / Romance",
     keywords: ["love", "pyaar", "romance", "ishq", "mohabbat", "cute"],
     imageUrl:
-      "https://res.cloudinary.com/dzlazqbvf/image/upload/v1789909951/romance-nithya_ryp0ii.gif",
+      "https://i.ibb.co/HT7RvFxs/flicksindia.png",
   },
   {
     key: "intimate",
     label: "Intimate Actions",
     keywords: ["kiss", "hug", "jaanejaan", "partner"],
     imageUrl:
-      "https://res.cloudinary.com/dzlazqbvf/image/upload/v1789909957/hug_nyyvtj.gif",
+      "https://i.ibb.co/HT7RvFxs/flicksindia.png",
   },
   {
     key: "crime",
@@ -70,14 +70,14 @@ export const SMART_ASSETS = [
       "loot",
     ],
     imageUrl:
-      "https://res.cloudinary.com/dzlazqbvf/image/upload/v1789909991/original-a78492f49551c56543eb2c1d6e9ccef6_kqwqwq.gif",
+      "https://i.ibb.co/HT7RvFxs/flicksindia.png",
   },
   {
     key: "politics",
     label: "Politics / Government",
     keywords: ["government", "sarkar", "neta", "minister", "politics", "election", "vote"],
     imageUrl:
-      "https://res.cloudinary.com/dzlazqbvf/image/upload/v1789909975/sarkar_neta_fina_w9oouh.gif",
+      "https://i.ibb.co/HT7RvFxs/flicksindia.png",
   },
 ];
 

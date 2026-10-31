@@ -4392,7 +4392,7 @@ const PersonalizationView = React.memo(({
                     }}
                   >
                     <img
-                      src="https://res.cloudinary.com/dzlazqbvf/image/upload/v1791806121/fun_call_ori_jxmngl.jpg"
+                      src="https://i.ibb.co/HT7RvFxs/flicksindia.png"
                       alt=""
                       aria-hidden="true"
                       className="absolute inset-0 h-full w-full select-none object-cover object-left"
@@ -4477,7 +4477,7 @@ const PersonalizationView = React.memo(({
                     </div>
 
                     <img
-                      src="https://res.cloudinary.com/dzlazqbvf/image/upload/v1791712547/help_hand_aurpup.jpg"
+                      src="https://i.ibb.co/HT7RvFxs/flicksindia.png"
                       alt=""
                       aria-hidden="true"
                       className="absolute inset-0 h-full w-full select-none object-cover object-left"
@@ -4536,7 +4536,7 @@ const PersonalizationView = React.memo(({
                     }}
                   >
                     <img
-                      src="https://res.cloudinary.com/dzlazqbvf/image/upload/v1791661480/Gemini_Generated_Image_2vsq7v2vsq7v2vsq-100kb_lx8msw.jpg"
+                      src="https://i.ibb.co/HT7RvFxs/flicksindia.png"
                       alt=""
                       aria-hidden="true"
                       className="absolute inset-0 h-full w-full select-none object-contain object-left"
@@ -4580,7 +4580,7 @@ const PersonalizationView = React.memo(({
                     }}
                   >
                     <img
-                      src="https://res.cloudinary.com/dzlazqbvf/image/upload/v1791658289/Gemini_Generated_Image_aoaezaoaezaoaeza-100kb-removebg-preview_t771na.png"
+                      src="https://i.ibb.co/HT7RvFxs/flicksindia.png"
                       alt=""
                       aria-hidden="true"
                       className="absolute inset-0 h-full w-full select-none object-contain object-right"
@@ -5536,3 +5536,4 @@ const PersonalizationView = React.memo(({
 };
 
 export default Index;
+
