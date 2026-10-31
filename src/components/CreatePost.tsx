@@ -24,7 +24,7 @@ import MentionInput, { MentionCandidate } from "./MentionInput";
 import { extractMentionTokens, nameToUsername, Mention } from "@/lib/mentions";
 import { sanitizeText } from "@/lib/profanityFilter";
 import { generatePostSEO } from "@/lib/geminiClient";
-import { uploadToCloudinary } from "@/lib/cloudinaryUpload";
+import { uploadBunnyImage } from "@/lib/bunny";
 import SceneVaultAttachment, { type SceneMood, type SceneVaultDraft } from "./SceneVaultAttachment";
 import { getSmartPostAsset } from "@/utils/smartAssets";
 import { useOnlineUsers } from "../context/OnlineUsersContext";
@@ -482,12 +482,14 @@ const CreatePost = ({
       if (files.length) {
         if (files[0].type.startsWith("video/")) {
           mediaType = "video";
-          finalMediaUrl = await uploadToCloudinary(files[0]);
+          // Create a Bunny Stream video and get playback URLs
+          const videoResult = await createBunnyVideo();
+          finalMediaUrl = videoResult.hlsUrl;
         } else {
           mediaType = "image";
           setLoadingMsg(`Uploading ${files.length} image${files.length === 1 ? "" : "s"}…`);
           imageUrls = await Promise.all(
-            files.map((selectedFile) => uploadToCloudinary(selectedFile)),
+            files.map((selectedFile) => uploadBunnyImage(selectedFile)),
           );
           finalMediaUrl = imageUrls[0] || "";
         }
@@ -497,7 +499,7 @@ const CreatePost = ({
       if (publishScene) {
         setLoadingMsg("Uploading scene photos…");
         scenePhotoUrls = await Promise.all(
-          sceneVaultDraft.photos.map((selectedFile) => uploadToCloudinary(selectedFile as File)),
+          sceneVaultDraft.photos.map((selectedFile) => uploadBunnyImage(selectedFile as File)),
         );
         if (!files.length) {
           mediaType = "image";
@@ -510,7 +512,7 @@ const CreatePost = ({
       let selectedAudioUrl = canAttachComposerAudio ? selectedMusicTrack?.audio_url || null : null;
       if (canAttachComposerAudio && musicFile) {
         setLoadingMsg("Uploading background audio…");
-        selectedAudioUrl = await uploadToCloudinary(musicFile);
+        selectedAudioUrl = await uploadBunnyImage(musicFile);
       }
 
       const tokens = extractMentionTokens(content);

@@ -10,7 +10,6 @@
     "android:sync": "npm run build && cap sync android",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
-    "migrate:cloudinary": "node scripts/migrateToCloudinary.mjs",
     "preview": "vite preview",
     "news": "node scripts/autoPost.mjs",
     "sitemap": "node scripts/generateSitemap.mjs"
@@ -112,3 +111,4 @@
     "@rollup/rollup-win32-x64-msvc": "^4.65.0"
   }
 }
+

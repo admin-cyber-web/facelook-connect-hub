@@ -14,11 +14,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabaseClient";
-import {
-  uploadToCloudinaryDetailed,
-  type CloudinaryUploadResult,
-} from "@/lib/cloudinaryUpload";
-import {
+import { createBunnyVideo, uploadBunnyImage, uploadBunnyVideo, bunnyHlsUrl, bunnyEmbedUrl } from "@/lib/bunny"; import type { BunnyVideoResult } from "@/lib/bunny"; import {
   getReelSettings,
   parseMetadata,
   REEL_FILTERS,
@@ -337,9 +333,17 @@ export default function ReelStudio({
 
       const uploadFile = async (file: File, label: string) => {
         try {
-          return await withTimeout(label, REEL_UPLOAD_TIMEOUT_MS, (signal) =>
-            uploadToCloudinaryDetailed(file, { resourceType: "video", signal }),
-          );
+          if (file.type.startsWith("video/")) {
+            // Use Bunny Stream for video uploads
+            if (!videoFile?.id) {
+              const videoResult = await createBunnyVideo();
+              videoUpload = { ...videoResult, uploadUrl: `${import.meta.env.VITE_BUNNY_STREAM_CDN_HOSTNAME || "https://vz-7117c555-c5c.b-cdn.net"}/${videoResult.videoId}` };
+            }
+            // For the uploadFile helper, we return the video result directly
+            return videoUpload;
+          } else {
+            return await uploadBunnyImage(file);
+          }
         } catch (error) {
           console.error(`[ReelStudio] ${label} failed`, error);
           throw new Error(`${label} failed: ${getErrorMessage(error)}`);
@@ -362,13 +366,13 @@ export default function ReelStudio({
         }
       };
 
-      let videoUpload: CloudinaryUploadResult | null = null;
-      let audioUpload: CloudinaryUploadResult | null = null;
+      let videoUpload: BunnyVideoResult | null = null;
+      let audioUpload: BunnyVideoResult | null = null;
       if (videoFile) {
-        videoUpload = await uploadFile(videoFile, "Video upload");
+        videoUpload = await uploadBunnyVideo(videoFile?.id || "", videoFile!);
       }
       if (audioFile) {
-        audioUpload = await uploadFile(audioFile, "Audio upload");
+        audioUpload = await uploadBunnyImage(audioFile!);
       }
 
       const videoUrl = videoUpload?.secureUrl || reelSettings.videoUrl;
@@ -387,11 +391,11 @@ export default function ReelStudio({
         audio_url: finalAudioUrl,
         video_url: videoUrl,
         audio_source: audioUpload
-          ? "cloudinary"
+          ? "bunny"
           : selectedTrack
             ? "library"
             : finalAudioUrl
-              ? existingMetadata.audio_source || "cloudinary"
+              ? existingMetadata.audio_source || "bunny"
               : null,
       };
 
@@ -727,7 +731,7 @@ export default function ReelStudio({
             <div className="mb-3 flex items-center justify-between">
               <div>
                 <p className="text-sm font-black">Music library</p>
-                <p className="mt-0.5 text-[10px] text-white/40">Cloudinary-backed tracks</p>
+                <p className="mt-0.5 text-[10px] text-white/40">Bunny-backed tracks</p>
               </div>
               <button type="button" onClick={() => setMusicOpen(false)} className="rounded-full bg-white/10 p-2">
                 <X size={15} />
@@ -747,7 +751,7 @@ export default function ReelStudio({
                 <div className="rounded-2xl border border-dashed border-white/10 px-4 py-8 text-center">
                   <Music2 size={24} className="mx-auto text-white/25" />
                   <p className="mt-2 text-xs font-bold text-white/55">No curated tracks available yet</p>
-                  <p className="mt-1 text-[10px] text-white/30">Upload an MP3 to add your own Cloudinary track.</p>
+                  <p className="mt-1 text-[10px] text-white/30">Upload an MP3 to add your own track.</p>
                 </div>
               ) : (
                 filteredTracks.map((track) => (
@@ -779,3 +783,5 @@ export default function ReelStudio({
     </div>
   );
 }
+
+
