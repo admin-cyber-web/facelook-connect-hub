@@ -63,6 +63,20 @@ export async function uploadBunnyVideo(
   }
 
   const video = await createBunnyVideo(file.name);
+  if (!/^\d+$/.test(video.libraryId)) {
+    throw new Error("Bunny Stream returned a missing or invalid library ID.");
+  }
+  if (!video.videoId || !video.authorizationSignature || !video.authorizationExpire || !video.uploadUrl) {
+    throw new Error("Bunny Stream returned incomplete upload authorization details.");
+  }
+
+  const authorizationHeaders = {
+    "AuthorizationSignature": video.authorizationSignature,
+    "AuthorizationExpire": String(video.authorizationExpire),
+    "LibraryId": video.libraryId,
+    "VideoId": video.videoId,
+    "Tus-Resumable": "1.0.0",
+  };
   const metadata = [
     `filetype ${encodeBase64(file.type || "application/octet-stream")}`,
     `title ${encodeBase64(file.name)}`,
@@ -70,11 +84,7 @@ export async function uploadBunnyVideo(
   const createResponse = await fetch(video.uploadUrl, {
     method: "POST",
     headers: {
-      "AuthorizationSignature": video.authorizationSignature,
-      "AuthorizationExpire": String(video.authorizationExpire),
-      "LibraryId": video.libraryId,
-      "VideoId": video.videoId,
-      "Tus-Resumable": "1.0.0",
+      ...authorizationHeaders,
       "Upload-Length": String(file.size),
       "Upload-Metadata": metadata,
     },
@@ -98,7 +108,7 @@ export async function uploadBunnyVideo(
     const response = await fetch(uploadUrl, {
       method: "PATCH", // PATCH to append/UPDATE existing video
       headers: {
-        "Tus-Resumable": "1.0.0",
+        ...authorizationHeaders,
         "Upload-Offset": String(offset),
         "Content-Type": "application/offset+octet-stream",
       },
