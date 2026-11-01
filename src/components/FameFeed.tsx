@@ -2842,6 +2842,12 @@ const SingleReelBlock = ({
   const likeMutationRef = useRef<Promise<void> | null>(null);
   const reelSettings = getReelSettings(post);
   const reelVideoUrl = reelSettings.videoUrl || post.media_url;
+  const [isHlsActive, setIsHlsActive] = useState(false);
+  const hlsPlayback = useHlsVideo(
+    ref,
+    reelVideoUrl,
+    isHlsActive,
+  );
   const hasBackgroundAudio = Boolean(reelSettings.audioUrl);
   const isOwner = Boolean(currentUserId && post.author_id === currentUserId);
   const toggleReelMenu = (event: React.SyntheticEvent<HTMLButtonElement>) => {
@@ -3124,6 +3130,7 @@ const SingleReelBlock = ({
           entry.boundingClientRect.top + entry.boundingClientRect.height / 2 - window.innerHeight / 2,
         );
         if (entry.isIntersecting && entry.intersectionRatio > 0) {
+          setIsHlsActive(true);
           visibleFameFeedReels.set(video, {
             ratio: entry.intersectionRatio,
             centerDistance,
@@ -3131,6 +3138,7 @@ const SingleReelBlock = ({
             settings: playbackSettingsRef,
           });
         } else {
+          setIsHlsActive(false);
           visibleFameFeedReels.delete(video);
           pauseAndMuteFameFeedReel(video, audioRef.current);
         }
