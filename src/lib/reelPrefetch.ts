@@ -46,7 +46,12 @@ export function prefetchReelMedia(
   url: string | null | undefined,
   _priority: "high" | "normal" = "normal",
 ): void {
-  if (!url || typeof url !== "string" || !/^https?:\/\//i.test(url)) return;
+  if (
+    !url ||
+    typeof url !== "string" ||
+    !/^https?:\/\//i.test(url) ||
+    /\.m3u8(?:$|[?#])/i.test(url)
+  ) return;
   if (objectUrls.has(url) || inflight.has(url)) return;
 
   const run = async (): Promise<string | null> => {

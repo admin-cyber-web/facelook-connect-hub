@@ -34,6 +34,7 @@ import SavePostButton from "./SavePostButton";
 import { sharePost } from "../lib/sharePost";
 import { getBunnyVideoId, useBunnyVideoStatus } from "../hooks/useBunnyVideoStatus";
 import BunnyVideoStatusOverlay from "./BunnyVideoStatusOverlay";
+import { isHlsUrl, useHlsVideo } from "../hooks/useHlsVideo";
 
 // ── Utilities ─────────────────────────────────────────────────────────────────
 const formatCount = (n: any): string => {
@@ -91,6 +92,7 @@ const isSupportedVideoUrl = (
   metadata?: FlickPostMetadata | null,
 ): boolean => {
   if (typeof url !== "string" || !url.trim()) return false;
+  if (isHlsUrl(url)) return true;
   const declaredMime = String(
     metadata?.mime_type || metadata?.mimeType || metadata?.content_type || "",
   ).toLowerCase();
@@ -314,19 +316,28 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, on
   const videoUrl = reelSettings.videoUrl || post.media_url || post.url;
   const bunnyVideoId = getBunnyVideoId(videoUrl, post?.metadata?.bunny_video_id);
   const bunnyVideoStatus = useBunnyVideoStatus(bunnyVideoId, isActive);
-  const visibleVideoError = bunnyVideoStatus.phase === "failed"
+  const hlsPlayback = useHlsVideo(
+    videoRef,
+    videoUrl,
+    isActive,
+    bunnyVideoStatus.phase === "ready" ? "ready" : "pending",
+    true,
+  );
+  const visibleVideoError = bunnyVideoStatus.phase !== "ready" && bunnyVideoId
     ? null
-    : videoError;
+    : videoError || hlsPlayback.error;
   const hasBackgroundAudio = Boolean(reelSettings.audioUrl);
   // Shared media cache — blobs warmed by the feed are used for instant,
   // zero-buffer playback of both the video and its attached music track.
-  const [mediaSrc, setMediaSrc] = useState(() => getMediaSrc(videoUrl) || videoUrl);
+  const [mediaSrc, setMediaSrc] = useState(() =>
+    isHlsUrl(videoUrl) ? videoUrl : getMediaSrc(videoUrl) || videoUrl,
+  );
   const [attachedAudioSrc, setAttachedAudioSrc] = useState<string | undefined>(
     () => getMediaSrc(reelSettings.audioUrl) || reelSettings.audioUrl || undefined,
   );
   useEffect(() => {
     setMediaSrc((prev) => {
-      const next = getMediaSrc(videoUrl) || videoUrl;
+      const next = isHlsUrl(videoUrl) ? videoUrl : getMediaSrc(videoUrl) || videoUrl;
       if (prev === next) return prev;
       const playingVideo = videoRef.current;
       // Never swap the source beneath a card that is already mid-playback.
@@ -373,9 +384,9 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, on
     const video = videoRef.current;
     if (!video) return;
     setVideoError(null);
-    video.load();
+    if (!hlsPlayback.isHls) video.load();
     requestPlayback(video, hasBackgroundAudio);
-  }, [bunnyVideoStatus.phase, hasBackgroundAudio, isActive, videoUrl]);
+  }, [bunnyVideoStatus.phase, hasBackgroundAudio, hlsPlayback.isHls, isActive, videoUrl]);
 
   // ── Parse MediaError into a human-readable label ──────────────────────
   const parseMediaError = (err: MediaError | null): string => {
@@ -940,7 +951,7 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, on
       <video
         ref={videoRef}
         key={videoUrl}
-        src={mediaSrc}
+        src={hlsPlayback.isHls ? undefined : mediaSrc}
         poster={post.thumb_url || post.cover_url || undefined}
         loop
         muted
@@ -970,7 +981,7 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, on
           }
         }}
       />
-      {bunnyVideoId && (
+      {bunnyVideoId && bunnyVideoStatus.phase !== "ready" && (
         <BunnyVideoStatusOverlay
           state={bunnyVideoStatus}
           onRetry={bunnyVideoStatus.retry}
@@ -1030,7 +1041,12 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, on
                 e.stopPropagation();
                 setVideoError(null);
                 const vid = videoRef.current;
-                if (vid) { vid.load(); requestPlayback(vid, hasBackgroundAudio); }
+                if (hlsPlayback.isHls) {
+                  hlsPlayback.retry();
+                } else if (vid) {
+                  vid.load();
+                  requestPlayback(vid, hasBackgroundAudio);
+                }
               }}>
               Retry
             </button>

@@ -331,6 +331,8 @@ export default defineConfig({
 
           if (id.includes("node_modules/react-icons")) return "vendor-icons";
 
+          if (id.includes("node_modules/hls.js")) return "vendor-hls";
+
           if (id.includes("node_modules/")) return "vendor-misc";
 
           if (id.includes("/src/lib/supabaseClient")) return "app-supabase";

@@ -45,6 +45,7 @@ import { getReelSettings } from "../lib/reelSettings";
 import { prefetchReelMedia } from "../lib/reelPrefetch";
 import { getBunnyVideoId, useBunnyVideoStatus } from "../hooks/useBunnyVideoStatus";
 import BunnyVideoStatusOverlay from "./BunnyVideoStatusOverlay";
+import { isHlsUrl, useHlsVideo } from "../hooks/useHlsVideo";
 import PostActionMenuPortal from "./PostActionMenuPortal";
 import {
   getPostVibeAudioUrl,
@@ -306,6 +307,13 @@ const FeedVideo = memo(({ src }: { src: string }) => {
   const [videoError, setVideoError] = useState<string | null>(null);
   const bunnyVideoId = getBunnyVideoId(src);
   const bunnyVideoStatus = useBunnyVideoStatus(bunnyVideoId, isVisible);
+  const hlsPlayback = useHlsVideo(
+    ref,
+    src,
+    isVisible,
+    bunnyVideoStatus.phase === "ready" ? "ready" : "pending",
+    true,
+  );
 
   useEffect(() => {
     const el = ref.current;
@@ -338,9 +346,11 @@ const FeedVideo = memo(({ src }: { src: string }) => {
     const video = ref.current;
     if (!video) return;
     setVideoError(null);
-    video.load();
-    void video.play().catch(() => {});
-  }, [bunnyVideoStatus.phase, isVisible, src]);
+    if (!hlsPlayback.isHls) {
+      video.load();
+      void video.play().catch(() => {});
+    }
+  }, [bunnyVideoStatus.phase, hlsPlayback.isHls, isVisible, src]);
 
   return (
     <div
@@ -349,7 +359,7 @@ const FeedVideo = memo(({ src }: { src: string }) => {
     >
       <video
         ref={ref}
-        src={src}
+        src={hlsPlayback.isHls ? undefined : src}
         loop
         muted={true}
         playsInline
@@ -369,9 +379,13 @@ const FeedVideo = memo(({ src }: { src: string }) => {
           onRetry={bunnyVideoStatus.retry}
         />
       )}
-      {videoError && bunnyVideoStatus.phase !== "failed" && (
+      {(videoError || (bunnyVideoStatus.phase === "ready" || !bunnyVideoId
+        ? hlsPlayback.error
+        : null)) && (
         <div className="absolute inset-0 z-[25] flex flex-col items-center justify-center gap-2 bg-[#090b14]/95 p-4 text-center">
-          <p className="text-sm font-bold text-white">{videoError}</p>
+          <p className="text-sm font-bold text-white">
+            {videoError || hlsPlayback.error}
+          </p>
           <button
             type="button"
             className="rounded-full border border-white/20 bg-white/10 px-4 py-2 text-xs font-bold text-white"
@@ -379,8 +393,12 @@ const FeedVideo = memo(({ src }: { src: string }) => {
               const video = ref.current;
               if (!video) return;
               setVideoError(null);
-              video.load();
-              void video.play().catch(() => {});
+              if (hlsPlayback.isHls) {
+                hlsPlayback.retry();
+              } else {
+                video.load();
+                void video.play().catch(() => {});
+              }
             }}
           >
             Retry
@@ -1218,13 +1236,14 @@ const TrendingFlicksRow = ({
       </p>
       <div className="flex gap-3 overflow-x-auto px-4 pb-2 no-scrollbar">
         {flicks.map((flick, i) => {
+          const isHls = isHlsUrl(flick.media_url);
           const isYT =
             flick.media_url?.includes("youtube.com") ||
             flick.media_url?.includes("youtu.be");
           const isVid =
             !isYT &&
             flick.media_url &&
-            /\.(mp4|webm|ogg|mov|m4v)/i.test(flick.media_url.split("?")[0]);
+            (isHls || /\.(mp4|webm|ogg|mov|m4v)/i.test(flick.media_url.split("?")[0]));
           const isImg = flick.media_url && !isVid && !isYT;
           return (
             <motion.div
@@ -1248,19 +1267,28 @@ const TrendingFlicksRow = ({
                   alt=""
                  decoding="async"/>
               )}
-              {isVid && (
+              {isHls && (flick.cover_url || flick.thumb_url) && (
+                <img
+                  src={flick.cover_url || flick.thumb_url}
+                  className="absolute inset-0 w-full h-full object-cover"
+                  loading="lazy"
+                  alt=""
+                  decoding="async"
+                />
+              )}
+              {isVid && !isHls && (
                 <AutoPlayMutedVideo
                   src={flick.media_url}
                   className="absolute inset-0 w-full h-full object-cover"
                 />
               )}
               {/* Subtle play indicator — small badge in corner so the auto-playing video isn't covered */}
-              {isVid && (
+              {isVid && !isHls && (
                 <div className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/70 flex items-center justify-center border border-white/40">
                   <VolumeX size={13} className="text-white" />
                 </div>
               )}
-              {!isVid && (
+              {(isHls || !isVid) && (
                 <div className="absolute inset-0 flex items-center justify-center bg-black/15">
                   <div className="w-12 h-12 rounded-full bg-black/70 flex items-center justify-center border-2 border-white/40">
                     <Play size={20} fill="white" className="text-white ml-1" />
@@ -3158,7 +3186,7 @@ const SingleReelBlock = ({
         <>
           <video
             ref={ref}
-            src={reelVideoUrl}
+            src={hlsPlayback.isHls ? undefined : reelVideoUrl}
             className="w-full h-full object-cover"
             style={{ touchAction: "pan-y", filter: reelSettings.cssFilter }}
             loop
@@ -3519,7 +3547,8 @@ const FlickPlayerModal = ({
   const isVid =
     !isYT &&
     reelVideoUrl &&
-    /\.(mp4|webm|ogg|mov|m4v)/i.test(reelVideoUrl.split("?")[0]);
+    (isHlsUrl(reelVideoUrl) || /\.(mp4|webm|ogg|mov|m4v)/i.test(reelVideoUrl.split("?")[0]));
+  const hlsPlayback = useHlsVideo(videoRef, reelVideoUrl, Boolean(isVid), undefined, true);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -5303,9 +5332,10 @@ const FameFeed = ({
       const res1 = await supabase
         .from("posts")
         .select(
-          "id, author, author_id, media_url, type, likes_count, content, created_at, author_profile:profiles!posts_author_id_fkey(full_name, avatar_url, account_status)",
+          "id, author, author_id, media_url, cover_url, type, likes_count, content, created_at, author_profile:profiles!posts_author_id_fkey(full_name, avatar_url, account_status)",
         )
-        .order("likes_count", { ascending: false })
+        .in("type", ["video", "reel"])
+        .order("created_at", { ascending: false })
         .limit(20);
       if (!res1.error) {
         data = res1.data;
@@ -5314,9 +5344,10 @@ const FameFeed = ({
         const res2 = await supabase
           .from("posts")
           .select(
-            "id, author, author_id, media_url, type, likes_count, content, created_at, author_profile:profiles(full_name, avatar_url, account_status)",
+            "id, author, author_id, media_url, cover_url, type, likes_count, content, created_at, author_profile:profiles(full_name, avatar_url, account_status)",
           )
-          .order("likes_count", { ascending: false })
+          .in("type", ["video", "reel"])
+          .order("created_at", { ascending: false })
           .limit(20);
         data = res2.data;
       }
@@ -8434,6 +8465,7 @@ const FameFeed = ({
                   const url = String(flick.media_url || "");
                   const isVid =
                     flick.type === "video" ||
+                    isHlsUrl(url) ||
                     /\.(mp4|webm|ogg|mov|m4v)/i.test(url.split("?")[0]);
                   // Video flicks jump straight into the full-screen Reels
                   // overlay at that video; images keep the legacy modal.

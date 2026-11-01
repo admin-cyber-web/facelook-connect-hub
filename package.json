@@ -65,6 +65,7 @@
     "date-fns": "^3.6.0",
     "embla-carousel-react": "^8.6.0",
     "framer-motion": "^12.38.0",
+    "hls.js": "^1.7.4",
     "input-otp": "^1.4.2",
     "lucide-react": "^0.462.0",
     "next-themes": "^0.3.0",
@@ -111,4 +112,3 @@
     "@rollup/rollup-win32-x64-msvc": "^4.65.0"
   }
 }
-
