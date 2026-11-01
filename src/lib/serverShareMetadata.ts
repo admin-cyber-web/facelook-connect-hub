@@ -98,33 +98,6 @@ function metadataOf(post: Record<string, any>): Record<string, any> {
   return {};
 }
 
-function cloudinaryVideoPoster(value?: string): string | undefined {
-  if (!value) return undefined;
-  try {
-    const videoUrl = new URL(value);
-    if (!videoUrl.hostname.endsWith("cloudinary.com")) return undefined;
-
-    const marker = "/video/upload/";
-    const uploadIndex = videoUrl.pathname.indexOf(marker);
-    if (uploadIndex < 0) return undefined;
-
-    const beforeUpload = videoUrl.pathname.slice(0, uploadIndex + marker.length);
-    const uploadPath = videoUrl.pathname.slice(uploadIndex + marker.length);
-    const withPosterFrame = uploadPath.startsWith("so_0/")
-      ? uploadPath
-      : `so_0/${uploadPath}`;
-    const imagePath = withPosterFrame.replace(
-      /\.(?:mp4|m4v|mov|webm|ogg|m3u8)$/i,
-      ".jpg",
-    );
-    videoUrl.pathname = `${beforeUpload}${imagePath}`;
-    videoUrl.search = "";
-    return videoUrl.toString();
-  } catch {
-    return undefined;
-  }
-}
-
 function resolveSocialImage(post: Record<string, any>): string | undefined {
   const metadata = metadataOf(post);
   const videoSource = firstMediaUrl(
@@ -187,9 +160,6 @@ function resolveSocialImage(post: Record<string, any>): string | undefined {
   );
   if (!previewUrl) return undefined;
 
-  if (/\/video\/upload\/|\.(?:mp4|m4v|mov|webm|ogg|m3u8)(?:[?#]|$)/i.test(previewUrl)) {
-    return cloudinaryVideoPoster(previewUrl) || previewUrl;
-  }
   return previewUrl;
 }
 

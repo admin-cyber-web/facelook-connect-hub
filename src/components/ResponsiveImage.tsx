@@ -13,9 +13,7 @@ interface ResponsiveImageProps {
 }
 
 /**
- * Renders an  with a graceful fallback. If the src fails to load (e.g. a
- * broken/old Cloudinary URL), the fallback element is shown instead so the
- * UI never breaks with a blank or errored image.
+ * Renders an image with a graceful fallback if the src fails to load.
  */
 export default function ResponsiveImage({
   src,

@@ -24,7 +24,7 @@ Create a robust keyword scanner utility that analyzes post text in real-time as 
 - Implement **Severity Priority**: Live weather/emergency/danger triggers take precedence for audio/effects, but blend aesthetically with festive/daily context via hybrid CSS styling so nothing breaks.
 
 ### 3. Music & Audio Handling (Free / CDN Direct URLs)
-- **Audio Assets:** Set up free standard royalty-free/public domain CDN URLs for each vibe config. If any link needs adjustment, the developer will provide custom Cloudinary links later.
+- **Audio Assets:** Set up free standard royalty-free/public domain CDN URLs for each vibe config. If any link needs adjustment, the developer will provide custom CDN links later.
 - **Audio & Video Sync in Feed:** 
   - Each post card checks if a vibe has an associated `audio_url`.
   - When the post is in view, play the ambient track via a background `<audio>` element matching the vibe, while keeping the main video strictly muted (`muted={true}`) so video background noise doesn't clash with the cinematic vibe music.

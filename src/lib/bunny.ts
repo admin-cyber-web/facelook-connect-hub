@@ -20,7 +20,7 @@ export type BunnyVideoResult = {
 };
 
 export type BunnyUploadResult = {
-  url: string; // CDN URL: https://flicks-india-storage.b-cdn.net/{fileName}
+  url: string;
 };
 
 /**
@@ -177,5 +177,5 @@ export function bunnyEmbedUrl(videoId: string, libraryId?: string): string {
  * Build a Bunny Storage CDN URL.
  */
 export function bunnyStorageUrl(fileName: string): string {
-  return `https://flicks-india-storage.b-cdn.net/${fileName}`;
+  return `https://flicksindiacdn.b-cdn.net/${fileName}`;
 }

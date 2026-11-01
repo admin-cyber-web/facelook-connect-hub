@@ -26,7 +26,7 @@ export default async function handler(req: Request) {
 
     const storageZone = process.env.BUNNY_STORAGE_ZONE_NAME || 'flicks-india-storage';
     const apiKey = process.env.BUNNY_STORAGE_API_KEY?.trim();
-    const pullZone = (process.env.BUNNY_STORAGE_PULL_ZONE || 'https://flicks-india-storage.b-cdn.net').replace(/\/+$/, '');
+    const pullZone = (process.env.BUNNY_STORAGE_PULL_ZONE || 'https://flicksindiacdn.b-cdn.net').replace(/\/+$/, '');
 
     console.log('[Bunny Storage] API key configured:', Boolean(apiKey), 'length:', apiKey?.length || 0);
 

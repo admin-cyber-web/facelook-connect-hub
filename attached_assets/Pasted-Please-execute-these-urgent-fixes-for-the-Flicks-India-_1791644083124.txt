@@ -15,7 +15,7 @@ Please execute these urgent fixes for the Flicks India application:
 
 4. Dynamic Rich Share Payload & Android WebView Compatibility:
    - Dynamic Content Payload:
-     * Image URL: Include the exact Cloudinary / media source URL so native apps and social platforms generate a visual image preview card.
+     * Image URL: Include the exact media source URL so native apps and social platforms generate a visual image preview card.
      * Creator Name: Append 'Posted by: [Author/User Display Name]' clearly in the message body.
      * Text Snippet: Include the first few lines of the caption/description followed by '...Read More'.
      * CTA Branding: Always append 'Join Flicks India: https://flicksindia.online' (or appropriate dynamic URL) at the end.
