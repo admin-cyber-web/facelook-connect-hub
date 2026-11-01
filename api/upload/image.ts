@@ -2,12 +2,15 @@ export const config = {
   runtime: 'edge',
 };
 
+const jsonResponse = (body: Record<string, unknown>, status: number) =>
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { 'Content-Type': 'application/json' },
+  });
+
 export default async function handler(req: Request) {
   if (req.method !== 'POST') {
-    return new Response(JSON.stringify({ success: false, message: 'Method not allowed' }), {
-      status: 405,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    return jsonResponse({ success: false, message: 'Method not allowed' }, 405);
   }
 
   try {
@@ -15,26 +18,32 @@ export default async function handler(req: Request) {
     const file = formData.get('file') || formData.get('image');
 
     if (!file || typeof file === 'string') {
-      return new Response(JSON.stringify({ success: false, message: 'No valid image file provided' }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' },
-      });
+      return jsonResponse({ success: false, message: 'No valid image file provided' }, 400);
+    }
+    if (file.size === 0) {
+      return jsonResponse({ success: false, message: 'Uploaded file is empty' }, 400);
     }
 
     const storageZone = process.env.BUNNY_STORAGE_ZONE_NAME || 'flicks-india-storage';
-    const apiKey = process.env.BUNNY_STORAGE_API_KEY;
-    const pullZone = process.env.BUNNY_STORAGE_PULL_ZONE || 'https://flicks-india-storage.b-cdn.net';
+    const apiKey = process.env.BUNNY_STORAGE_API_KEY?.trim();
+    const pullZone = (process.env.BUNNY_STORAGE_PULL_ZONE || 'https://flicks-india-storage.b-cdn.net').replace(/\/+$/, '');
+
+    console.log('[Bunny Storage] API key configured:', Boolean(apiKey), 'length:', apiKey?.length || 0);
 
     if (!apiKey) {
-      return new Response(JSON.stringify({ success: false, message: 'Missing Bunny Storage API Key in environment variables' }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
-      });
+      return jsonResponse({
+        success: false,
+        message: 'Missing Bunny Storage API Key in environment variables',
+      }, 500);
     }
 
-    const originalName = file.name || 'upload.jpg';
-    const fileName = `${Date.now()}-${originalName.replace(/\s+/g, '_')}`;
-    const uploadUrl = `https://storage.bunnycdn.com/${storageZone}/${fileName}`;
+    const suppliedFileName = formData.get('fileName');
+    const originalName = typeof suppliedFileName === 'string' && suppliedFileName.trim()
+      ? suppliedFileName
+      : file.name || 'upload.bin';
+    const safeName = originalName.split(/[\\/]/).pop()?.replace(/[^\w.-]/g, '_') || 'upload.bin';
+    const fileName = `${Date.now()}-${crypto.randomUUID()}-${safeName}`;
+    const uploadUrl = `https://storage.bunnycdn.com/${encodeURIComponent(storageZone)}/${encodeURIComponent(fileName)}`;
 
     const arrayBuffer = await file.arrayBuffer();
 
@@ -48,21 +57,20 @@ export default async function handler(req: Request) {
     });
 
     if (!bunnyRes.ok) {
-      const errText = await bunnyRes.text();
-      throw new Error(`Bunny Storage failed (${bunnyRes.status}): ${errText}`);
+      console.error('[Bunny Storage] Upload failed with status:', bunnyRes.status);
+      return jsonResponse({
+        success: false,
+        message: `Bunny Storage upload failed (${bunnyRes.status})`,
+        upstreamStatus: bunnyRes.status,
+      }, 502);
     }
 
     const publicUrl = `${pullZone}/${fileName}`;
 
-    return new Response(JSON.stringify({ success: true, url: publicUrl }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  } catch (error: any) {
-    console.error('Bunny Upload Error:', error);
-    return new Response(JSON.stringify({ success: false, message: error.message || 'Internal Server Error' }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    return jsonResponse({ success: true, url: publicUrl }, 200);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Internal Server Error';
+    console.error('Bunny Upload Error:', message);
+    return jsonResponse({ success: false, message }, 500);
   }
 }

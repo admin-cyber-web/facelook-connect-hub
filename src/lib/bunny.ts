@@ -2,18 +2,21 @@
  * Bunny.net client helpers for Flicks India media uploads and playback.
  *
  * Flow:
- *   1. Call `bunny.createVideo(title)` → POST /api/videos/create → returns videoId, hlsUrl, embedUrl
- *   2. Client performs direct PUT to Bunny Stream video upload URL (50MB cap)
+ *   1. Call `bunny.uploadBunnyVideo(file)` → create a video and obtain a short-lived TUS signature
+ *   2. Client uploads video chunks directly to Bunny Stream (50MB cap; API key stays server-side)
  *   3. Call `bunny.uploadImage(file)` → POST /api/upload/image → returns CDN URL
  *   4. All media URLs are stored in DB and rendered from Bunny CDN
  */
 
 export type BunnyVideoResult = {
   videoId: string;
+  libraryId: string;
   hlsUrl: string;
   embedUrl: string;
   cdnHostname: string;
   uploadUrl: string;
+  authorizationSignature: string;
+  authorizationExpire: number;
 };
 
 export type BunnyUploadResult = {
@@ -30,66 +33,98 @@ export async function createBunnyVideo(title?: string): Promise<BunnyVideoResult
     headers: {
       "Content-Type": "application/json",
     },
-    // No body needed - server generates a GUID/videoId
+    body: JSON.stringify({ title }),
   });
 
   if (!response.ok) {
-    const err = await response.json().catch(() => ({}));
-    throw new Error(err.message || "Failed to create Bunny video");
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.message || "Failed to create Bunny video");
   }
 
   return response.json() as Promise<BunnyVideoResult>;
 }
 
 /**
- * Upload a video file directly to Bunny Stream.
- * The client must PUT the binary to the uploadUrl returned by createBunnyVideo().
- * Enforces a 50MB maximum file size.
+ * Create and upload a video file directly to Bunny Stream using signed TUS authorization.
+ * Enforces a 50MB maximum file size before creating the Bunny video.
  *
- * @param videoId - The GUID returned from createBunnyVideo()
  * @param file - The video File object (max 50MB)
  * @param onProgress - Optional progress callback
  */
 export async function uploadBunnyVideo(
-  videoId: string,
   file: File,
   onProgress?: (progress: number) => void
-): Promise<void> {
+): Promise<BunnyVideoResult> {
+  if (file.size === 0) {
+    throw new Error("Video file is empty.");
+  }
   if (file.size > 50 * 1024 * 1024) {
     throw new Error(`Video file too large: ${(file.size / 1024 / 1024).toFixed(1)}MB. Max 50MB.`);
   }
 
-  const cdnHostname = import.meta.env.VITE_BUNNY_STREAM_CDN_HOSTNAME || "https://vz-7117c555-c5c.b-cdn.net";
-  const uploadUrl = `${cdnHostname}/${videoId}`;
+  const video = await createBunnyVideo(file.name);
+  const metadata = [
+    `filetype ${encodeBase64(file.type || "application/octet-stream")}`,
+    `title ${encodeBase64(file.name)}`,
+  ].join(",");
+  const createResponse = await fetch(video.uploadUrl, {
+    method: "POST",
+    headers: {
+      "AuthorizationSignature": video.authorizationSignature,
+      "AuthorizationExpire": String(video.authorizationExpire),
+      "LibraryId": video.libraryId,
+      "VideoId": video.videoId,
+      "Tus-Resumable": "1.0.0",
+      "Upload-Length": String(file.size),
+      "Upload-Metadata": metadata,
+    },
+  });
 
-  const bytes = await file.arrayBuffer();
-  const controller = new AbortController();
+  if (!createResponse.ok) {
+    const message = await createResponse.text();
+    throw new Error(`Bunny Stream upload initialization failed (${createResponse.status}): ${message}`);
+  }
 
-  // Chunked upload for large files - 5MB chunks
+  const location = createResponse.headers.get("Location");
+  if (!location) {
+    throw new Error("Bunny Stream did not return an upload location.");
+  }
+  const uploadUrl = new URL(location, video.uploadUrl).toString();
   const chunkSize = 5 * 1024 * 1024; // 5MB
   let offset = 0;
 
-  while (offset < bytes.byteLength) {
-    const chunk = bytes.slice(offset, Math.min(offset + chunkSize, bytes.byteLength));
-    const chunkEnd = Math.min(offset + chunkSize, bytes.byteLength);
-
-    await fetch(uploadUrl, {
+  while (offset < file.size) {
+    const chunkEnd = Math.min(offset + chunkSize, file.size);
+    const response = await fetch(uploadUrl, {
       method: "PATCH", // PATCH to append/UPDATE existing video
       headers: {
-        "AccessKey": import.meta.env.VITE_BUNNY_STREAM_API_KEY || "334a6c67-44ac-444e-81a3f47e584e-ac0d-41e5",
-        "Content-Type": "video/mp4",
-        "Content-Length": chunk.byteLength,
-        "Content-Range": `bytes ${offset}-${chunkEnd - 1}/${bytes.byteLength}`,
+        "Tus-Resumable": "1.0.0",
+        "Upload-Offset": String(offset),
+        "Content-Type": "application/offset+octet-stream",
       },
-      body: chunk,
-      signal: controller.signal,
+      body: file.slice(offset, chunkEnd),
     });
 
-    offset += chunkSize;
-    onProgress?.Math.round((offset / bytes.byteLength) * 100);
-  }
+    if (!response.ok) {
+      const message = await response.text();
+      throw new Error(`Bunny Stream upload failed (${response.status}): ${message}`);
+    }
 
-  controller.abort();
+    const nextOffset = Number(response.headers.get("Upload-Offset"));
+    if (!Number.isFinite(nextOffset) || nextOffset !== chunkEnd) {
+      throw new Error("Bunny Stream returned an invalid upload offset.");
+    }
+    offset = nextOffset;
+    onProgress?.(Math.round((offset / file.size) * 100));
+  }
+  return video;
+}
+
+function encodeBase64(value: string): string {
+  const bytes = new TextEncoder().encode(value);
+  let binary = "";
+  bytes.forEach((byte) => { binary += String.fromCharCode(byte); });
+  return btoa(binary);
 }
 
 /**
@@ -103,8 +138,8 @@ export async function uploadBunnyImage(file: File): Promise<BunnyUploadResult> {
   });
 
   if (!response.ok) {
-    const err = await response.json().catch(() => ({}));
-    throw new Error(err.message || "Failed to upload image to Bunny Storage");
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.message || "Failed to upload image to Bunny Storage");
   }
 
   return response.json() as Promise<BunnyUploadResult>;
@@ -116,10 +151,9 @@ export async function uploadBunnyImage(file: File): Promise<BunnyUploadResult> {
 function formDataFromFile(file: File): FormData {
   const formData = new FormData();
   formData.append("file", file);
-  // Generate a unique filename preserving the extension
   const ext = file.name.split(".").pop() || "bin";
   const fileName = `${Date.now()}-${Math.random().toString(36).slice(2, 12)}.${ext}`;
-  formData.append("fileName", fileName); // Server uses this to name the stored file
+  formData.append("fileName", fileName);
   return formData;
 }
 

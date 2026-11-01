@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabaseClient";
-import { createBunnyVideo, uploadBunnyImage, uploadBunnyVideo, bunnyHlsUrl, bunnyEmbedUrl } from "@/lib/bunny"; import type { BunnyVideoResult } from "@/lib/bunny"; import {
+import { uploadBunnyImage, uploadBunnyVideo } from "@/lib/bunny"; import type { BunnyVideoResult } from "@/lib/bunny"; import {
   getReelSettings,
   parseMetadata,
   REEL_FILTERS,
@@ -331,25 +331,6 @@ export default function ReelStudio({
         }
       };
 
-      const uploadFile = async (file: File, label: string) => {
-        try {
-          if (file.type.startsWith("video/")) {
-            // Use Bunny Stream for video uploads
-            if (!videoFile?.id) {
-              const videoResult = await createBunnyVideo();
-              videoUpload = { ...videoResult, uploadUrl: `${import.meta.env.VITE_BUNNY_STREAM_CDN_HOSTNAME || "https://vz-7117c555-c5c.b-cdn.net"}/${videoResult.videoId}` };
-            }
-            // For the uploadFile helper, we return the video result directly
-            return videoUpload;
-          } else {
-            return await uploadBunnyImage(file);
-          }
-        } catch (error) {
-          console.error(`[ReelStudio] ${label} failed`, error);
-          throw new Error(`${label} failed: ${getErrorMessage(error)}`);
-        }
-      };
-
       const savePost = async (
         label: string,
         request: (signal: AbortSignal) => PromiseLike<ReelSaveResponse>,
@@ -367,17 +348,17 @@ export default function ReelStudio({
       };
 
       let videoUpload: BunnyVideoResult | null = null;
-      let audioUpload: BunnyVideoResult | null = null;
+      let audioUpload: { url: string } | null = null;
       if (videoFile) {
-        videoUpload = await uploadBunnyVideo(videoFile?.id || "", videoFile!);
+        videoUpload = await uploadBunnyVideo(videoFile);
       }
       if (audioFile) {
         audioUpload = await uploadBunnyImage(audioFile!);
       }
 
-      const videoUrl = videoUpload?.secureUrl || reelSettings.videoUrl;
+      const videoUrl = videoUpload?.hlsUrl || reelSettings.videoUrl;
       const finalAudioUrl =
-        audioUpload?.secureUrl || selectedTrack?.audio_url || audioUrl || null;
+        audioUpload?.url || selectedTrack?.audio_url || audioUrl || null;
       if (!videoUrl) throw new Error("The video upload did not return a secure URL.");
 
       const existingMetadata = parseMetadata(reel?.metadata);
@@ -783,5 +764,3 @@ export default function ReelStudio({
     </div>
   );
 }
-
-

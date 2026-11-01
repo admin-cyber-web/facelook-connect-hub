@@ -24,7 +24,7 @@ import MentionInput, { MentionCandidate } from "./MentionInput";
 import { extractMentionTokens, nameToUsername, Mention } from "@/lib/mentions";
 import { sanitizeText } from "@/lib/profanityFilter";
 import { generatePostSEO } from "@/lib/geminiClient";
-import { uploadBunnyImage } from "@/lib/bunny";
+import { uploadBunnyImage, uploadBunnyVideo } from "@/lib/bunny";
 import SceneVaultAttachment, { type SceneMood, type SceneVaultDraft } from "./SceneVaultAttachment";
 import { getSmartPostAsset } from "@/utils/smartAssets";
 import { useOnlineUsers } from "../context/OnlineUsersContext";
@@ -482,15 +482,15 @@ const CreatePost = ({
       if (files.length) {
         if (files[0].type.startsWith("video/")) {
           mediaType = "video";
-          // Create a Bunny Stream video and get playback URLs
-          const videoResult = await createBunnyVideo();
+          const videoResult = await uploadBunnyVideo(files[0]);
           finalMediaUrl = videoResult.hlsUrl;
         } else {
           mediaType = "image";
           setLoadingMsg(`Uploading ${files.length} image${files.length === 1 ? "" : "s"}…`);
-          imageUrls = await Promise.all(
+          const uploadedImages = await Promise.all(
             files.map((selectedFile) => uploadBunnyImage(selectedFile)),
           );
+          imageUrls = uploadedImages.map((uploadedImage) => uploadedImage.url);
           finalMediaUrl = imageUrls[0] || "";
         }
         isYoutube = false;
@@ -498,9 +498,10 @@ const CreatePost = ({
 
       if (publishScene) {
         setLoadingMsg("Uploading scene photos…");
-        scenePhotoUrls = await Promise.all(
+        const uploadedPhotos = await Promise.all(
           sceneVaultDraft.photos.map((selectedFile) => uploadBunnyImage(selectedFile as File)),
         );
+        scenePhotoUrls = uploadedPhotos.map((uploadedPhoto) => uploadedPhoto.url);
         if (!files.length) {
           mediaType = "image";
           finalMediaUrl = scenePhotoUrls[0] || "";
@@ -512,7 +513,7 @@ const CreatePost = ({
       let selectedAudioUrl = canAttachComposerAudio ? selectedMusicTrack?.audio_url || null : null;
       if (canAttachComposerAudio && musicFile) {
         setLoadingMsg("Uploading background audio…");
-        selectedAudioUrl = await uploadBunnyImage(musicFile);
+        selectedAudioUrl = (await uploadBunnyImage(musicFile)).url;
       }
 
       const tokens = extractMentionTokens(content);
