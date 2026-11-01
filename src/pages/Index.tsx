@@ -4392,7 +4392,7 @@ const PersonalizationView = React.memo(({
                     }}
                   >
                     <img
-                      src="https://i.ibb.co/HT7RvFxs/flicksindia.png"
+                      src="https://flicksindiacdn.b-cdn.net/fun%20call%20ori.jpg"
                       alt=""
                       aria-hidden="true"
                       className="absolute inset-0 h-full w-full select-none object-cover object-left"
@@ -4477,7 +4477,7 @@ const PersonalizationView = React.memo(({
                     </div>
 
                     <img
-                      src="https://i.ibb.co/HT7RvFxs/flicksindia.png"
+                      src="https://flicksindiacdn.b-cdn.net/help%20hand.jpg"
                       alt=""
                       aria-hidden="true"
                       className="absolute inset-0 h-full w-full select-none object-cover object-left"
@@ -4536,7 +4536,7 @@ const PersonalizationView = React.memo(({
                     }}
                   >
                     <img
-                      src="https://i.ibb.co/HT7RvFxs/flicksindia.png"
+                      src="https://flicksindiacdn.b-cdn.net/Gemini_Generated_Image_2vsq7v2vsq7v2vsq-100kb.jpeg"
                       alt=""
                       aria-hidden="true"
                       className="absolute inset-0 h-full w-full select-none object-contain object-left"
@@ -5536,4 +5536,3 @@ const PersonalizationView = React.memo(({
 };
 
 export default Index;
-
