@@ -22,8 +22,15 @@ export default async function handler(req: Request) {
     }
 
     const storageZone = process.env.BUNNY_STORAGE_ZONE_NAME || 'flicks-india-storage';
-    const apiKey = process.env.BUNNY_STORAGE_API_KEY || '02778420-6acb-480a-998ba7ac08a0-df96-411c';
+    const apiKey = process.env.BUNNY_STORAGE_API_KEY;
     const pullZone = process.env.BUNNY_STORAGE_PULL_ZONE || 'https://flicks-india-storage.b-cdn.net';
+
+    if (!apiKey) {
+      return new Response(JSON.stringify({ success: false, message: 'Missing Bunny Storage API Key in environment variables' }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
 
     const originalName = file.name || 'upload.jpg';
     const fileName = `${Date.now()}-${originalName.replace(/\s+/g, '_')}`;
