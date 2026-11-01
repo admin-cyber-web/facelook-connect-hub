@@ -17,7 +17,7 @@ export default async function handler(req: VideoCreateRequest, res: VideoCreateR
   }
 
   const libraryId = process.env.BUNNY_STREAM_LIBRARY_ID || "795734";
-  const apiKey = (process.env.BUNNY_STREAM_API_KEY || process.env.VITE_BUNNY_STREAM_API_KEY)?.trim();
+  const apiKey = process.env.BUNNY_STREAM_API_KEY?.trim();
   if (!apiKey) {
     res.status(500).send({ message: "Missing Bunny Stream API Key in environment variables" });
     return;
@@ -54,7 +54,7 @@ export default async function handler(req: VideoCreateRequest, res: VideoCreateR
       return;
     }
 
-    const cdnHostname = (process.env.BUNNY_STREAM_CDN_HOSTNAME || process.env.VITE_BUNNY_STREAM_CDN_HOSTNAME || "https://vz-7117c555-c5c.b-cdn.net").replace(/\/+$/, "");
+    const cdnHostname = (process.env.BUNNY_STREAM_CDN_HOSTNAME || "https://vz-7117c555-c5c.b-cdn.net").replace(/\/+$/, "");
     const authorizationExpire = Math.floor(Date.now() / 1000) + 60 * 60;
     const authorizationSignature = createHash("sha256")
       .update(`${libraryId}${apiKey}${authorizationExpire}${videoId}`)

@@ -161,7 +161,7 @@ function formDataFromFile(file: File): FormData {
  * Build a Bunny Stream HLS playlist URL.
  */
 export function bunnyHlsUrl(videoId: string, cdnHostname?: string): string {
-  const host = cdnHostname || import.meta.env.VITE_BUNNY_STREAM_CDN_HOSTNAME || "https://vz-7117c555-c5c.b-cdn.net";
+  const host = (cdnHostname || "https://vz-7117c555-c5c.b-cdn.net").replace(/\/+$/, "");
   return `${host}/${videoId}/playlist.m3u8`;
 }
 
@@ -169,7 +169,7 @@ export function bunnyHlsUrl(videoId: string, cdnHostname?: string): string {
  * Build a Bunny Stream iframe embed URL.
  */
 export function bunnyEmbedUrl(videoId: string, libraryId?: string): string {
-  const id = libraryId || import.meta.env.VITE_BUNNY_STREAM_LIBRARY_ID || "795734";
+  const id = libraryId || "795734";
   return `https://iframe.mediadelivery.net/embed/${id}/${videoId}`;
 }
 
