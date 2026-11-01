@@ -32,6 +32,8 @@ import VibeAudioToggle from "./VibeAudioToggle";
 import ActiveStatusAvatar from "./ActiveStatusAvatar";
 import SavePostButton from "./SavePostButton";
 import { sharePost } from "../lib/sharePost";
+import { getBunnyVideoId, useBunnyVideoStatus } from "../hooks/useBunnyVideoStatus";
+import BunnyVideoStatusOverlay from "./BunnyVideoStatusOverlay";
 
 // ── Utilities ─────────────────────────────────────────────────────────────────
 const formatCount = (n: any): string => {
@@ -310,6 +312,11 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, on
   const onlineUserIds = useOnlineUsers();
   const reelSettings = useMemo(() => getReelSettings(post), [post]);
   const videoUrl = reelSettings.videoUrl || post.media_url || post.url;
+  const bunnyVideoId = getBunnyVideoId(videoUrl, post?.metadata?.bunny_video_id);
+  const bunnyVideoStatus = useBunnyVideoStatus(bunnyVideoId, isActive);
+  const visibleVideoError = bunnyVideoStatus.phase === "failed"
+    ? null
+    : videoError;
   const hasBackgroundAudio = Boolean(reelSettings.audioUrl);
   // Shared media cache — blobs warmed by the feed are used for instant,
   // zero-buffer playback of both the video and its attached music track.
@@ -360,6 +367,15 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, on
     if (tapTimer.current) clearTimeout(tapTimer.current);
     if (heartTimerRef.current) clearTimeout(heartTimerRef.current);
   }, []);
+
+  useEffect(() => {
+    if (!isActive || bunnyVideoStatus.phase !== "ready") return;
+    const video = videoRef.current;
+    if (!video) return;
+    setVideoError(null);
+    video.load();
+    requestPlayback(video, hasBackgroundAudio);
+  }, [bunnyVideoStatus.phase, hasBackgroundAudio, isActive, videoUrl]);
 
   // ── Parse MediaError into a human-readable label ──────────────────────
   const parseMediaError = (err: MediaError | null): string => {
@@ -936,7 +952,7 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, on
           backgroundColor: "#000",
           filter: reelSettings.cssFilter,
           zIndex: 0,
-          display: videoError ? "none" : undefined,
+          display: visibleVideoError ? "none" : undefined,
           touchAction: "pan-y",
         }}
         onLoadStart={() => setVideoError(null)}
@@ -944,6 +960,7 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, on
           const vid = e.currentTarget;
           const msg = parseMediaError(vid.error);
           console.warn("[FlickCard] video error:", msg, vid.src);
+          if (bunnyVideoId && bunnyVideoStatus.phase !== "ready") return;
           setVideoError(msg);
           if (
             vid.error?.code === MediaError.MEDIA_ERR_DECODE ||
@@ -953,6 +970,12 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, on
           }
         }}
       />
+      {bunnyVideoId && (
+        <BunnyVideoStatusOverlay
+          state={bunnyVideoStatus}
+          onRetry={bunnyVideoStatus.retry}
+        />
+      )}
       {vibeAudioUrl && (
         <VibeAudioToggle
           postId={vibePostId}
@@ -987,7 +1010,7 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, on
         style={{ background: "linear-gradient(to bottom, rgba(0,0,0,0.28) 0%, transparent 35%, transparent 55%, rgba(0,0,0,0.78) 100%)" }} />
 
       {/* ── Video error fallback — z-[25], interactive (Retry button) ── */}
-      {videoError && (
+      {visibleVideoError && (
         <div className="absolute inset-0 z-[25] flex flex-col items-center justify-center gap-4 bg-[#090b14] px-8">
           {post.thumb_url && (
             <img src={post.thumb_url} alt=""
@@ -997,7 +1020,7 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, on
             <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center">
               <span style={{ fontSize: 32 }}>📵</span>
             </div>
-            <p className="text-white/80 font-bold text-sm">{videoError}</p>
+            <p className="text-white/80 font-bold text-sm">{visibleVideoError}</p>
             <p className="text-white/35 text-[11px] leading-relaxed max-w-[220px]">
               This video couldn't be played. Try again or scroll to the next one.
             </p>

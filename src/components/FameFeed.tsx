@@ -43,6 +43,8 @@ import { maskProfanity, sanitizeText } from "../lib/profanityFilter";
 import { resolveMediaUrl } from "../lib/mediaUrl";
 import { getReelSettings } from "../lib/reelSettings";
 import { prefetchReelMedia } from "../lib/reelPrefetch";
+import { getBunnyVideoId, useBunnyVideoStatus } from "../hooks/useBunnyVideoStatus";
+import BunnyVideoStatusOverlay from "./BunnyVideoStatusOverlay";
 import PostActionMenuPortal from "./PostActionMenuPortal";
 import {
   getPostVibeAudioUrl,
@@ -300,11 +302,17 @@ const PostViewTracker = memo(({
 // ── Inline video ───────────────────────────────────────────────────────────────
 const FeedVideo = memo(({ src }: { src: string }) => {
   const ref = useRef<HTMLVideoElement>(null);
+  const [isVisible, setIsVisible] = useState(false);
+  const [videoError, setVideoError] = useState<string | null>(null);
+  const bunnyVideoId = getBunnyVideoId(src);
+  const bunnyVideoStatus = useBunnyVideoStatus(bunnyVideoId, isVisible);
+
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
     const obs = new IntersectionObserver(
       ([entry]) => {
+        setIsVisible(entry.isIntersecting);
         if (entry.isIntersecting) {
           el.muted = true;
           void el.play().catch(() => {
@@ -324,6 +332,16 @@ const FeedVideo = memo(({ src }: { src: string }) => {
       el.pause();
     };
   }, [src]);
+
+  useEffect(() => {
+    if (!isVisible || bunnyVideoStatus.phase !== "ready") return;
+    const video = ref.current;
+    if (!video) return;
+    setVideoError(null);
+    video.load();
+    void video.play().catch(() => {});
+  }, [bunnyVideoStatus.phase, isVisible, src]);
+
   return (
     <div
       className="relative aspect-[4/5] w-full overflow-hidden bg-[#09090b]"
@@ -337,7 +355,38 @@ const FeedVideo = memo(({ src }: { src: string }) => {
         playsInline
         className="w-full h-full object-cover"
         style={{ touchAction: "pan-y" }}
-       preload="none"/>
+        preload="none"
+        onLoadStart={() => setVideoError(null)}
+        onError={(event) => {
+          if (bunnyVideoId && bunnyVideoStatus.phase !== "ready") return;
+          setVideoError("This video couldn't be played. Try again later.");
+          console.warn("[FameFeed] Video playback failed:", event.currentTarget.error, src);
+        }}
+      />
+      {bunnyVideoId && (
+        <BunnyVideoStatusOverlay
+          state={bunnyVideoStatus}
+          onRetry={bunnyVideoStatus.retry}
+        />
+      )}
+      {videoError && bunnyVideoStatus.phase !== "failed" && (
+        <div className="absolute inset-0 z-[25] flex flex-col items-center justify-center gap-2 bg-[#090b14]/95 p-4 text-center">
+          <p className="text-sm font-bold text-white">{videoError}</p>
+          <button
+            type="button"
+            className="rounded-full border border-white/20 bg-white/10 px-4 py-2 text-xs font-bold text-white"
+            onClick={() => {
+              const video = ref.current;
+              if (!video) return;
+              setVideoError(null);
+              video.load();
+              void video.play().catch(() => {});
+            }}
+          >
+            Retry
+          </button>
+        </div>
+      )}
     </div>
   );
 });

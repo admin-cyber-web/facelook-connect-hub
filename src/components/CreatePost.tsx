@@ -471,6 +471,7 @@ const CreatePost = ({
       let smartAssetKey: string | null = null;
       let imageUrls: string[] = [];
       let scenePhotoUrls: string[] = [];
+      let bunnyVideo: { videoId: string; libraryId: string } | null = null;
 
       if (!files.length) {
         const detection = getMediaInfoFromUrl(content);
@@ -483,6 +484,7 @@ const CreatePost = ({
         if (files[0].type.startsWith("video/")) {
           mediaType = "video";
           const videoResult = await uploadBunnyVideo(files[0]);
+          bunnyVideo = { videoId: videoResult.videoId, libraryId: videoResult.libraryId };
           finalMediaUrl = videoResult.hlsUrl;
         } else {
           mediaType = "image";
@@ -596,6 +598,12 @@ const CreatePost = ({
         seo_keywords: seo.seo_keywords,
         metadata: {
           is_youtube: isYoutube,
+          ...(bunnyVideo
+            ? {
+                bunny_video_id: bunnyVideo.videoId,
+                bunny_library_id: bunnyVideo.libraryId,
+              }
+            : {}),
           vibe_tag: postVibe.primary?.tag ?? null,
           vibe_matches: postVibe.matches.map((profile) => profile.tag),
           vibe_manual: postVibe.manual,

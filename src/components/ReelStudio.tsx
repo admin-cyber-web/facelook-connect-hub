@@ -365,6 +365,12 @@ export default function ReelStudio({
       const metadata = {
         ...existingMetadata,
         is_youtube: false,
+        ...(videoUpload
+          ? {
+              bunny_video_id: videoUpload.videoId,
+              bunny_library_id: videoUpload.libraryId,
+            }
+          : {}),
         mime_type: videoFile?.type || existingMetadata.mime_type || "video/mp4",
         reel_filter: filter,
         filters: filter,
