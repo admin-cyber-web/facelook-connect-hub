@@ -35,15 +35,29 @@ export default async function handler(req: VideoCreateRequest, res: VideoCreateR
           "AccessKey": apiKey,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ name: title }),
+        body: JSON.stringify({ title }),
       }
     );
 
-    const data = await response.json() as { guid?: string; id?: string; message?: string };
+    const responseText = await response.text();
+    let data: { guid?: string; id?: string; message?: string; error?: string } = {};
+    try {
+      data = JSON.parse(responseText);
+    } catch {
+      if (response.ok) {
+        console.error("Bunny Stream create video returned invalid JSON:", responseText);
+        res.status(502).send({ message: "Bunny Stream returned an invalid response" });
+        return;
+      }
+    }
 
     if (!response.ok) {
-      console.error("Bunny Stream create video failed with status:", response.status);
-      res.status(response.status).send({ message: data.message || "Failed to create video" });
+      const errorMessage = data.message || data.error || responseText || "Failed to create video";
+      console.error("Bunny Stream create video failed:", {
+        status: response.status,
+        message: errorMessage,
+      });
+      res.status(response.status).send({ message: errorMessage });
       return;
     }
 
@@ -73,7 +87,10 @@ export default async function handler(req: VideoCreateRequest, res: VideoCreateR
       authorizationExpire,
     });
   } catch (error: unknown) {
-    console.error("Bunny video creation error:", error);
+    console.error("Bunny video creation error:", {
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    });
     res.status(500).send({
       message: error instanceof Error ? error.message : "Failed to create video",
     });
