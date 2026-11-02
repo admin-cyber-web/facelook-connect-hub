@@ -1,7 +1,11 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import AutoPlayMutedVideo from "@/components/AutoPlayMutedVideo";
 import ProfilePostActions from "@/components/ProfilePostActions";
+import { getBunnyVideoId, useBunnyVideoStatus } from "@/hooks/useBunnyVideoStatus";
+import { isHlsUrl, useHlsVideo } from "@/hooks/useHlsVideo";
+import BunnyCreatorProcessingOverlay from "@/components/BunnyCreatorProcessingOverlay";
+import BunnyVideoStatusOverlay from "@/components/BunnyVideoStatusOverlay";
 import {
   ProfileTimelineAudioProvider,
   ProfileTimelineSoundControl,
@@ -409,11 +413,13 @@ function EmptyState({
 
 function MediaGallery({
   media,
+  isCreator,
   hasMoreMedia,
   isLoadingMoreMedia,
   onLoadMoreMedia,
 }: {
   media: ProfileNavigationMedia[];
+  isCreator: boolean;
   hasMoreMedia: boolean;
   isLoadingMoreMedia: boolean;
   onLoadMoreMedia?: () => void;
@@ -444,14 +450,10 @@ function MediaGallery({
             return (
               <div className="profile-nav-media" key={item.id} data-testid={`media-profile-${item.id}`}>
                 {isVideo ? (
-                  <AutoPlayMutedVideo
+                  <ProfileHookVideo
                     src={item.url}
                     poster={item.preview_url || undefined}
-                    controls
-                    ariaLabel="Video from timeline"
-                    preload="none"
-                    autoplayWithSound
-                    passThroughClicks={false}
+                    isCreator={isCreator}
                   />
                 ) : (
                   <img
@@ -624,6 +626,85 @@ function FriendsList({
   );
 }
 
+function ProfileHookVideo({
+  src,
+  poster,
+  isCreator,
+}: {
+  src: string;
+  poster?: string;
+  isCreator: boolean;
+}) {
+  const ref = useRef<HTMLVideoElement>(null);
+  const [isVisible, setIsVisible] = useState(false);
+  const videoId = getBunnyVideoId(src);
+  const status = useBunnyVideoStatus(videoId, isCreator && isVisible);
+  const hls = useHlsVideo(
+    ref,
+    src,
+    isHlsUrl(src) && isVisible && (!isCreator || status.phase === "ready"),
+    status.phase === "ready" ? "ready" : "pending",
+    true,
+  );
+
+  useEffect(() => {
+    if (!hls.isHls) return;
+    const video = ref.current;
+    if (!video) return;
+    const observer = new IntersectionObserver(([entry]) => {
+      const visible = Boolean(entry?.isIntersecting);
+      setIsVisible(visible);
+      if (!visible) video.pause();
+    }, { threshold: 0.4 });
+    observer.observe(video);
+    return () => observer.disconnect();
+  }, [hls.isHls, src]);
+
+  if (!hls.isHls) {
+    return (
+      <AutoPlayMutedVideo
+        src={src}
+        poster={poster}
+        controls
+        ariaLabel="Short video from timeline"
+        className="profile-nav-hook-video"
+        preload="none"
+        autoplayWithSound
+        passThroughClicks={false}
+      />
+    );
+  }
+
+  return (
+    <div className="relative">
+      <video
+        ref={ref}
+        src={undefined}
+        poster={poster}
+        controls
+        muted
+        playsInline
+        preload="none"
+        aria-label="Short video from timeline"
+        className="profile-nav-hook-video"
+      />
+      {isCreator && videoId && (
+        <>
+          <BunnyCreatorProcessingOverlay state={status} />
+          {status.phase === "failed" && (
+            <BunnyVideoStatusOverlay state={status} onRetry={status.retry} />
+          )}
+        </>
+      )}
+      {hls.error && (!isCreator || status.phase === "ready") && (
+        <div className="absolute inset-0 z-[30] flex items-center justify-center bg-black/90 p-4 text-center text-sm font-bold text-white">
+          {hls.error}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function HooksSection({
   posts,
   authorName,
@@ -675,15 +756,10 @@ function HooksSection({
                 />
               </div>
               {post.media_url && (
-                <AutoPlayMutedVideo
+                <ProfileHookVideo
                   src={post.media_url}
                   poster={post.cover_url || post.image_url || undefined}
-                  controls
-                  ariaLabel="Short video from timeline"
-                  className="profile-nav-hook-video"
-                  preload="none"
-                  autoplayWithSound
-                  passThroughClicks={false}
+                  isCreator={post.author_id === currentUserId}
                 />
               )}
               <div className="profile-nav-hook-save">
@@ -953,6 +1029,7 @@ export function FullProfilePage({
                   />
                   <MediaGallery
                     media={media}
+                    isCreator={Boolean(isOwnProfile)}
                     hasMoreMedia={hasMoreMedia}
                     isLoadingMoreMedia={isLoadingMoreMedia}
                     onLoadMoreMedia={onLoadMoreMedia}

@@ -46,6 +46,12 @@ import { prefetchReelMedia } from "../lib/reelPrefetch";
 import { getBunnyVideoId, useBunnyVideoStatus } from "../hooks/useBunnyVideoStatus";
 import BunnyVideoStatusOverlay from "./BunnyVideoStatusOverlay";
 import { isHlsUrl, useHlsVideo } from "../hooks/useHlsVideo";
+import BunnyCreatorProcessingOverlay from "./BunnyCreatorProcessingOverlay";
+import {
+  fetchBunnyVideoReadiness,
+  getPostBunnyVideoId,
+  isBunnyVideoVisibleToViewer,
+} from "../lib/bunnyVideoReadiness";
 import PostActionMenuPortal from "./PostActionMenuPortal";
 import {
   getPostVibeAudioUrl,
@@ -301,16 +307,16 @@ const PostViewTracker = memo(({
 });
 
 // ── Inline video ───────────────────────────────────────────────────────────────
-const FeedVideo = memo(({ src }: { src: string }) => {
+const FeedVideo = memo(({ src, isCreator }: { src: string; isCreator: boolean }) => {
   const ref = useRef<HTMLVideoElement>(null);
   const [isVisible, setIsVisible] = useState(false);
   const [videoError, setVideoError] = useState<string | null>(null);
   const bunnyVideoId = getBunnyVideoId(src);
-  const bunnyVideoStatus = useBunnyVideoStatus(bunnyVideoId, isVisible);
+  const bunnyVideoStatus = useBunnyVideoStatus(bunnyVideoId, isCreator && isVisible);
   const hlsPlayback = useHlsVideo(
     ref,
     src,
-    isVisible,
+    isVisible && (!isCreator || bunnyVideoStatus.phase === "ready"),
     bunnyVideoStatus.phase === "ready" ? "ready" : "pending",
     true,
   );
@@ -373,11 +379,13 @@ const FeedVideo = memo(({ src }: { src: string }) => {
           console.warn("[FameFeed] Video playback failed:", event.currentTarget.error, src);
         }}
       />
-      {bunnyVideoId && (
-        <BunnyVideoStatusOverlay
-          state={bunnyVideoStatus}
-          onRetry={bunnyVideoStatus.retry}
-        />
+      {isCreator && bunnyVideoId && (
+        <>
+          <BunnyCreatorProcessingOverlay state={bunnyVideoStatus} />
+          {bunnyVideoStatus.phase === "failed" && (
+            <BunnyVideoStatusOverlay state={bunnyVideoStatus} onRetry={bunnyVideoStatus.retry} />
+          )}
+        </>
       )}
       {(videoError || (bunnyVideoStatus.phase === "ready" || !bunnyVideoId
         ? hlsPlayback.error
@@ -585,7 +593,15 @@ const VibeMediaFrame = memo(
   },
 );
 
-const PostMedia = memo(({ post, vibeTag }: { post: any; vibeTag?: VibeTag }) => {
+const PostMedia = memo(({
+  post,
+  vibeTag,
+  isCreator = false,
+}: {
+  post: any;
+  vibeTag?: VibeTag;
+  isCreator?: boolean;
+}) => {
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   const sceneVault = post?.metadata?.scene_vault;
   const scenePhotos = Array.isArray(sceneVault?.photos)
@@ -662,7 +678,7 @@ const PostMedia = memo(({ post, vibeTag }: { post: any; vibeTag?: VibeTag }) => 
   const media = isYT ? (
     <YouTubeEmbed url={url} />
   ) : isVid ? (
-    <FeedVideo src={url} />
+    <FeedVideo src={url} isCreator={isCreator} />
   ) : (
     <div className="relative aspect-[4/5] w-full overflow-hidden bg-[#09090b]" style={{ touchAction: "pan-y" }}>
       <img
@@ -2395,7 +2411,10 @@ const PostDetailView = ({
               <RichCaption content={post.content} />
             </div>
           )}
-          <PostMedia post={post} />
+          <PostMedia
+            post={post}
+            isCreator={Boolean(currentUserId && (post.author_id === currentUserId || post.user_id === currentUserId))}
+          />
         </article>
 
         <section aria-label="Comments" className="px-4 pb-5">
@@ -2843,13 +2862,15 @@ const SingleReelBlock = ({
   const reelSettings = getReelSettings(post);
   const reelVideoUrl = reelSettings.videoUrl || post.media_url;
   const [isHlsActive, setIsHlsActive] = useState(false);
+  const isOwner = Boolean(currentUserId && post.author_id === currentUserId);
+  const bunnyVideoId = getBunnyVideoId(reelVideoUrl, post?.metadata?.bunny_video_id);
+  const bunnyVideoStatus = useBunnyVideoStatus(bunnyVideoId, isOwner && isHlsActive);
   const hlsPlayback = useHlsVideo(
     ref,
     reelVideoUrl,
-    isHlsActive,
+    isHlsActive && (!isOwner || bunnyVideoStatus.phase === "ready"),
   );
   const hasBackgroundAudio = Boolean(reelSettings.audioUrl);
-  const isOwner = Boolean(currentUserId && post.author_id === currentUserId);
   const toggleReelMenu = (event: React.SyntheticEvent<HTMLButtonElement>) => {
     event.stopPropagation();
     if (event.cancelable) event.preventDefault();
@@ -3119,6 +3140,7 @@ const SingleReelBlock = ({
         const entry = entries[0];
         const video = ref.current;
         if (!entry || !isConnectedMediaElement(video)) {
+          setIsHlsActive(false);
           if (video) {
             visibleFameFeedReels.delete(video);
             pauseAndMuteFameFeedReel(video, audioRef.current);
@@ -3202,6 +3224,17 @@ const SingleReelBlock = ({
             playsInline
             preload="metadata"
           />
+          {isOwner && bunnyVideoId && (
+            <>
+              <BunnyCreatorProcessingOverlay state={bunnyVideoStatus} />
+              {bunnyVideoStatus.phase === "failed" && (
+                <BunnyVideoStatusOverlay
+                  state={bunnyVideoStatus}
+                  onRetry={bunnyVideoStatus.retry}
+                />
+              )}
+            </>
+          )}
           {hasBackgroundAudio && (
             <audio ref={audioRef} src={reelSettings.audioUrl || undefined} preload="metadata" loop muted />
           )}
@@ -3933,12 +3966,18 @@ const FameFeed = ({
 
   const cachedPosts = dataCache.cacheRef.current.famePosts;
   const cachedFlicks = dataCache.cacheRef.current.fameFlicks;
+  const cachedVisiblePosts = (cachedPosts?.data ?? []).filter((post: any) =>
+    isBunnyVideoVisibleToViewer(post, currentUserIdProp ?? null),
+  );
+  const cachedVisibleFlicks = (cachedFlicks?.data ?? []).filter((post: any) =>
+    isBunnyVideoVisibleToViewer(post, currentUserIdProp ?? null),
+  );
   const [posts, setPosts] = useState<any[]>(() =>
-    (cachedPosts?.data ?? []).map(normalizePostLikeCount),
+    cachedVisiblePosts.map(normalizePostLikeCount),
   );
   // Mirror of posts in a ref so callbacks can read the current count synchronously
   // without being listed as a dep (which would break memoised callbacks).
-  const postsRef = useRef<any[]>(cachedPosts?.data ?? []);
+  const postsRef = useRef<any[]>(cachedVisiblePosts);
   const [loading, setLoading] = useState(() => !cachedPosts?.data);
   const [activeComment, setActiveComment] = useState<string | null>(null);
   const [postDetailId, setPostDetailId] = useState<string | null>(null);
@@ -4185,7 +4224,7 @@ const FameFeed = ({
     [key: string]: number;
   }>({});
   const [trendingFlicks, setTrendingFlicks] = useState<any[]>(
-    () => (cachedFlicks?.data ?? []).map(normalizePostLikeCount),
+    () => cachedVisibleFlicks.map(normalizePostLikeCount),
   );
   const [flicksLoaded, setFlicksLoaded] = useState(() => !!cachedFlicks?.data);
   const [flickModal, setFlickModal] = useState<any | null>(null);
@@ -5203,6 +5242,7 @@ const FameFeed = ({
       return [];
     }
 
+    const hasMorePosts = (data?.length ?? 0) === PAGE_SIZE;
     let rows = (data ?? []).map(normalizePostLikeCount);
 
     // ── Local-first reordering ────────────────────────────────────────────────
@@ -5278,6 +5318,23 @@ const FameFeed = ({
       } catch (_) { /* magnet_chains unavailable — skip */ }
     }
 
+    const viewerId = currentUserId ?? null;
+    const pendingCheckIds = rows
+      .map((row) => getPostBunnyVideoId(row))
+      .filter((id: string | null): id is string => Boolean(id));
+    const readiness = await fetchBunnyVideoReadiness(pendingCheckIds);
+    rows = rows
+      .map((row) => {
+        const videoId = getPostBunnyVideoId(row);
+        return {
+          ...row,
+          bunny_ready: videoId
+            ? readiness.get(videoId) === true
+            : undefined,
+        };
+      })
+      .filter((row) => isBunnyVideoVisibleToViewer(row, viewerId));
+
     // Eagerly hydrate the avatar/name caches from the join result so the
     // first paint already has the right dp (no waiting for batch fetch).
     if (rows.length > 0) {
@@ -5316,7 +5373,7 @@ const FameFeed = ({
       });
     }
     pageRef.current += 1;
-    setHasMore(rows.length === PAGE_SIZE);
+    setHasMore(hasMorePosts);
     setLoading(false);
     setLoadingMore(false);
     // Safety net: still batch-fetch any author_ids whose join row was empty
@@ -5340,11 +5397,11 @@ const FameFeed = ({
       const res1 = await supabase
         .from("posts")
         .select(
-          "id, author, author_id, media_url, cover_url, type, likes_count, content, created_at, author_profile:profiles!posts_author_id_fkey(full_name, avatar_url, account_status)",
+          "id, author, author_id, media_url, cover_url, metadata, type, likes_count, content, created_at, author_profile:profiles!posts_author_id_fkey(full_name, avatar_url, account_status)",
         )
         .in("type", ["video", "reel"])
         .order("created_at", { ascending: false })
-        .limit(20);
+        .limit(60);
       if (!res1.error) {
         data = res1.data;
       } else {
@@ -5352,11 +5409,11 @@ const FameFeed = ({
         const res2 = await supabase
           .from("posts")
           .select(
-            "id, author, author_id, media_url, cover_url, type, likes_count, content, created_at, author_profile:profiles(full_name, avatar_url, account_status)",
+            "id, author, author_id, media_url, cover_url, metadata, type, likes_count, content, created_at, author_profile:profiles(full_name, avatar_url, account_status)",
           )
           .in("type", ["video", "reel"])
           .order("created_at", { ascending: false })
-          .limit(20);
+          .limit(60);
         data = res2.data;
       }
 
@@ -5365,12 +5422,25 @@ const FameFeed = ({
         const status = p.author_profile?.account_status;
         return !status || status === "active";
       });
+      const viewerId = currentUserId ?? null;
+      const statusIds = filtered
+        .map((post) => getPostBunnyVideoId(post))
+        .filter((id: string | null): id is string => Boolean(id));
+      const readiness = await fetchBunnyVideoReadiness(statusIds);
 
-      const enriched = filtered.map((p: any) => ({
-        ...normalizePostLikeCount(p),
-        author: p.author_profile?.full_name || p.author || "user",
-        author_avatar: p.author_profile?.avatar_url || null,
-      }));
+      const enriched = filtered
+        .map((p) => {
+          const videoId = getPostBunnyVideoId(p);
+          return {
+            ...normalizePostLikeCount(p),
+            author: p.author_profile?.full_name || p.author || "user",
+            author_avatar: p.author_profile?.avatar_url || null,
+            bunny_ready: videoId
+              ? readiness.get(videoId) === true
+              : undefined,
+          };
+        })
+        .filter((post) => isBunnyVideoVisibleToViewer(post, viewerId));
 
       setTrendingFlicks(enriched);
       // Warm the shared reel media cache for the trending row videos — the
@@ -5457,11 +5527,12 @@ const FameFeed = ({
   // 3) Posts from private-mode accounts are hidden from the global feed
   const visiblePosts = useMemo(() => posts.filter((p) => {
     if (blockedUserIds.has(p.author_id)) return false;
+    if (!isBunnyVideoVisibleToViewer(p, currentUserId)) return false;
     // Global feed: only public posts from public-mode accounts
     const isPublicPost = (p.visibility || "public") === "public";
     const authorPrivate = p.author_profile?.is_private_mode === true;
     return isPublicPost && !authorPrivate;
-  }), [posts, blockedUserIds]);
+  }), [posts, blockedUserIds, currentUserId]);
 
   // ── Live Mini-Ticker: Trending hashtags from current posts ─────────────────
   const trendingTickerTags = useMemo(() => {
@@ -7100,7 +7171,11 @@ const FameFeed = ({
               </>
             );
           })()}
-          <PostMedia post={post} vibeTag={primaryVibe?.tag} />
+          <PostMedia
+            post={post}
+            vibeTag={primaryVibe?.tag}
+            isCreator={Boolean(currentUserId && (post.author_id === currentUserId || post.user_id === currentUserId))}
+          />
 
           {/* ── Magnet Voice Display (warning overlay / normal pill) ───── */}
           <PostVoiceStrip

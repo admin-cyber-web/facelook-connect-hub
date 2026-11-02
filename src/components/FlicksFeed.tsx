@@ -35,6 +35,12 @@ import { sharePost } from "../lib/sharePost";
 import { getBunnyVideoId, useBunnyVideoStatus } from "../hooks/useBunnyVideoStatus";
 import BunnyVideoStatusOverlay from "./BunnyVideoStatusOverlay";
 import { isHlsUrl, useHlsVideo } from "../hooks/useHlsVideo";
+import BunnyCreatorProcessingOverlay from "./BunnyCreatorProcessingOverlay";
+import {
+  fetchBunnyVideoReadiness,
+  getPostBunnyVideoId,
+  isBunnyVideoVisibleToViewer,
+} from "../lib/bunnyVideoReadiness";
 
 // ── Utilities ─────────────────────────────────────────────────────────────────
 const formatCount = (n: any): string => {
@@ -54,6 +60,7 @@ type FlickPostMetadata = {
 };
 type FlickPostRow = {
   id: string;
+  author_id?: string | null;
   media_url?: string | null;
   metadata?: FlickPostMetadata | null;
   created_at?: string | null;
@@ -315,15 +322,16 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, on
   const reelSettings = useMemo(() => getReelSettings(post), [post]);
   const videoUrl = reelSettings.videoUrl || post.media_url || post.url;
   const bunnyVideoId = getBunnyVideoId(videoUrl, post?.metadata?.bunny_video_id);
-  const bunnyVideoStatus = useBunnyVideoStatus(bunnyVideoId, isActive);
+  const isCreator = Boolean(currentUserId && post.author_id === currentUserId);
+  const bunnyVideoStatus = useBunnyVideoStatus(bunnyVideoId, isActive && isCreator);
   const hlsPlayback = useHlsVideo(
     videoRef,
     videoUrl,
-    isActive,
+    isActive && (!isCreator || bunnyVideoStatus.phase === "ready"),
     bunnyVideoStatus.phase === "ready" ? "ready" : "pending",
     true,
   );
-  const visibleVideoError = bunnyVideoStatus.phase !== "ready" && bunnyVideoId
+  const visibleVideoError = isCreator && bunnyVideoStatus.phase !== "ready" && bunnyVideoId
     ? null
     : videoError || hlsPlayback.error;
   const hasBackgroundAudio = Boolean(reelSettings.audioUrl);
@@ -971,7 +979,7 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, on
           const vid = e.currentTarget;
           const msg = parseMediaError(vid.error);
           console.warn("[FlickCard] video error:", msg, vid.src);
-          if (bunnyVideoId && bunnyVideoStatus.phase !== "ready") return;
+          if (isCreator && bunnyVideoId && bunnyVideoStatus.phase !== "ready") return;
           setVideoError(msg);
           if (
             vid.error?.code === MediaError.MEDIA_ERR_DECODE ||
@@ -981,11 +989,13 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, on
           }
         }}
       />
-      {bunnyVideoId && bunnyVideoStatus.phase !== "ready" && (
-        <BunnyVideoStatusOverlay
-          state={bunnyVideoStatus}
-          onRetry={bunnyVideoStatus.retry}
-        />
+      {isCreator && bunnyVideoId && (
+        <>
+          <BunnyCreatorProcessingOverlay state={bunnyVideoStatus} />
+          {bunnyVideoStatus.phase === "failed" && (
+            <BunnyVideoStatusOverlay state={bunnyVideoStatus} onRetry={bunnyVideoStatus.retry} />
+          )}
+        </>
       )}
       {vibeAudioUrl && (
         <VibeAudioToggle
@@ -1419,8 +1429,11 @@ export default function FlicksApp({
 }: any) {
   const dataCache    = useDataCache();
   const cachedFlicks = dataCache.cacheRef.current.flicksFeed;
+  const cachedVisibleFlicks = (cachedFlicks?.data ?? []).filter((post: any) =>
+    isBunnyVideoVisibleToViewer(post, currentUserIdProp ?? null),
+  );
   const [flicks,       setFlicks]       = useState<any[]>(() =>
-    (cachedFlicks?.data ?? []).map((post: any) => ({
+    cachedVisibleFlicks.map((post: any) => ({
       ...post,
       content: getPostCaption(post),
     })),
@@ -1453,13 +1466,16 @@ export default function FlicksApp({
   // Compact header search — client-side filter over author + caption
   const [searchQuery, setSearchQuery] = useState("");
   const visibleFlicks = useMemo(() => {
+    const viewerFlicks = flicks.filter((post: any) =>
+      isBunnyVideoVisibleToViewer(post, currentUserId),
+    );
     const q = searchQuery.trim().toLowerCase();
-    if (!q) return flicks;
-    return flicks.filter((f: any) =>
+    if (!q) return viewerFlicks;
+    return viewerFlicks.filter((f: any) =>
       String(f.author || "").toLowerCase().includes(q) ||
       String(f.content || "").toLowerCase().includes(q),
     );
-  }, [flicks, searchQuery]);
+  }, [currentUserId, flicks, searchQuery]);
 
   // Inject CSS keyframes once on mount
   useEffect(() => { injectFlicksStyles(); }, []);
@@ -1544,9 +1560,29 @@ export default function FlicksApp({
           new Date(right.created_at || 0).getTime() -
           new Date(left.created_at || 0).getTime(),
         );
-        const postIds = supportedRows.map((row: any) => row.id).filter(Boolean);
+        const viewerId = currentUserIdProp ?? null;
+        const bunnyIds = supportedRows
+          .map((row) => getPostBunnyVideoId(row))
+          .filter((id): id is string => Boolean(id));
+        const readiness = await fetchBunnyVideoReadiness(bunnyIds);
+        const visibleRows = supportedRows
+          .filter((row) => {
+            const videoId = getPostBunnyVideoId(row);
+            const isCreator = Boolean(viewerId && row.author_id === viewerId);
+            return !videoId || isCreator || readiness.get(videoId) === true;
+          })
+          .map((row) => {
+            const videoId = getPostBunnyVideoId(row);
+            return {
+              ...row,
+              bunny_ready: videoId
+                ? readiness.get(videoId) === true
+                : undefined,
+            };
+          });
+        const postIds = visibleRows.map((row: any) => row.id).filter(Boolean);
 
-        const normalized = supportedRows.map((p: any) => {
+        const normalized = visibleRows.map((p: any) => {
           const settings = getReelSettings(p);
           return {
             id: `post_${p.id}`,
@@ -1563,6 +1599,7 @@ export default function FlicksApp({
             filters: settings.filter,
             playback_rate: settings.playbackRate,
             metadata: p.metadata,
+            bunny_ready: p.bunny_ready,
             image_url: p.image_url || null,
             image_urls: p.image_urls,
             thumb_url: p.cover_url || p.thumb_url || null,

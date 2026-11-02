@@ -14,6 +14,7 @@ import { canViewPrivateProfile } from "@/lib/profileSearch";
 import { toast } from "sonner";
 import { sharePost } from "@/lib/sharePost";
 import { buildPostShareUrl } from "@/lib/universalShare";
+import { fetchBunnyVideoReadiness, getPostBunnyVideoId } from "@/lib/bunnyVideoReadiness";
 import FriendWall from "@/components/FriendWall";
 import {
   FullProfilePage,
@@ -151,6 +152,18 @@ function toMediaItems(rows: MediaPostRow[]): ProfileNavigationMedia[] {
   return items;
 }
 
+async function onlyReadyBunnyVideos(rows: MediaPostRow[], isOwnProfile: boolean) {
+  if (isOwnProfile) return rows;
+  const videoIds = rows
+    .map((row) => getPostBunnyVideoId(row))
+    .filter((id): id is string => Boolean(id));
+  const readiness = await fetchBunnyVideoReadiness(videoIds);
+  return rows.filter((row) => {
+    const videoId = getPostBunnyVideoId(row);
+    return !videoId || readiness.get(videoId) === true;
+  });
+}
+
 function isVideoTimelinePost(post: ProfileNavigationPost) {
   const sourceType = `${post.media_type || ""} ${post.type || ""}`.toLowerCase();
   const videoUrl = post.media_url || "";
@@ -231,7 +244,7 @@ export default function ProfileTimelinePage({
     return supabase
       .from("posts")
       .select(
-        "id,author_id,content,media_url,image_url,image_urls,cover_url,media_type,type,created_at,likes_count,comments_count,shares_count,views_count,meta_title,meta_description",
+        "id,author_id,content,media_url,image_url,image_urls,cover_url,media_type,type,metadata,created_at,likes_count,comments_count,shares_count,views_count,meta_title,meta_description",
         { count: "exact" },
       )
       .eq("author_id", targetUserId)
@@ -445,13 +458,15 @@ export default function ProfileTimelinePage({
         console.error("[ProfileTimelinePage] media load failed:", mediaResult.error);
         setHasMoreMedia(false);
       } else {
-        const mediaRows = (mediaResult.data ?? []) as MediaPostRow[];
+        const rawRows = (mediaResult.data ?? []) as MediaPostRow[];
+        const mediaRows = await onlyReadyBunnyVideos(rawRows, isOwnProfile);
+        if (!active || sequence !== loadSequence.current) return;
         setMedia(toMediaItems(mediaRows));
         setTimelinePosts(mediaRows);
-        setMediaPostCount(mediaResult.count ?? mediaRows.length);
-        setMediaOffset(mediaRows.length);
+        setMediaPostCount(mediaResult.count ?? rawRows.length);
+        setMediaOffset(rawRows.length);
         setHasMoreMedia(
-          (mediaResult.count ?? mediaRows.length) > mediaRows.length,
+          (mediaResult.count ?? rawRows.length) > rawRows.length,
         );
       }
 
@@ -564,7 +579,9 @@ export default function ProfileTimelinePage({
         return;
       }
 
-      const rows = (data ?? []) as MediaPostRow[];
+      const rawRows = (data ?? []) as MediaPostRow[];
+      const rows = await onlyReadyBunnyVideos(rawRows, userId === currentUserId);
+      if (sequence !== loadSequence.current) return;
       const nextItems = toMediaItems(rows);
       setTimelinePosts((current) => {
         const seen = new Set(current.map((item) => item.id));
@@ -574,7 +591,7 @@ export default function ProfileTimelinePage({
         const seen = new Set(current.map((item) => item.id));
         return [...current, ...nextItems.filter((item) => !seen.has(item.id))];
       });
-      const nextOffset = start + rows.length;
+      const nextOffset = start + rawRows.length;
       const total = count ?? mediaPostCount;
       setMediaOffset(nextOffset);
       setMediaPostCount(total);
@@ -583,7 +600,7 @@ export default function ProfileTimelinePage({
       loadingMoreRef.current = false;
       setIsLoadingMoreMedia(false);
     }
-  }, [loadMediaPage, mediaOffset, mediaPostCount, userId]);
+  }, [currentUserId, loadMediaPage, mediaOffset, mediaPostCount, userId]);
 
   const onChatReady = useCallback(() => {
     chatSystemReady.current = true;
