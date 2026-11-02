@@ -6,6 +6,7 @@ import {
   Loader2,
   Music2,
   Pause,
+  PenLine,
   Play,
   Search,
   SlidersHorizontal,
@@ -103,11 +104,16 @@ export default function ReelStudio({
   const audioInputRef = useRef<HTMLInputElement>(null);
   const previewVideoRef = useRef<HTMLVideoElement>(null);
   const previewAudioRef = useRef<HTMLAudioElement>(null);
+  const captionInputRef = useRef<HTMLTextAreaElement>(null);
+  const captionInputWrapRef = useRef<HTMLDivElement>(null);
   const [videoFile, setVideoFile] = useState<File | null>(initialVideoFile || null);
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [selectedTrack, setSelectedTrack] = useState<ReelMusicTrack | null>(null);
   const [caption, setCaption] = useState(reel?.content || "");
+  const [captionFocused, setCaptionFocused] = useState(false);
+  const [penPosition, setPenPosition] = useState({ left: 18, top: 54 });
+  const [placeholderIndex, setPlaceholderIndex] = useState(0);
   const [filter, setFilter] = useState<ReelFilterKey>("none");
   const [playbackRate, setPlaybackRate] = useState<number>(1);
   const [musicOpen, setMusicOpen] = useState(false);
@@ -132,6 +138,94 @@ export default function ReelStudio({
     [audioFile, audioUrl, selectedTrack?.audio_url],
   );
   const selectedFilter = REEL_FILTERS.find((option) => option.key === filter) || REEL_FILTERS[0];
+  const captionPlaceholder = "Type your video description...";
+
+  const updatePenPosition = () => {
+    const textarea = captionInputRef.current;
+    const inputWrap = captionInputWrapRef.current;
+    if (!textarea || !inputWrap) return;
+
+    const textareaRect = textarea.getBoundingClientRect();
+    const inputWrapRect = inputWrap.getBoundingClientRect();
+    const computed = window.getComputedStyle(textarea);
+    const mirror = document.createElement("div");
+    const copiedStyles = [
+      "fontFamily",
+      "fontSize",
+      "fontWeight",
+      "fontStyle",
+      "letterSpacing",
+      "lineHeight",
+      "textIndent",
+      "textTransform",
+      "wordSpacing",
+      "paddingTop",
+      "paddingRight",
+      "paddingBottom",
+      "paddingLeft",
+      "borderTopWidth",
+      "borderRightWidth",
+      "borderBottomWidth",
+      "borderLeftWidth",
+      "boxSizing",
+    ] as const;
+
+    mirror.style.position = "fixed";
+    mirror.style.left = `${textareaRect.left}px`;
+    mirror.style.top = `${textareaRect.top}px`;
+    mirror.style.width = `${textarea.clientWidth}px`;
+    mirror.style.visibility = "hidden";
+    mirror.style.whiteSpace = "pre-wrap";
+    mirror.style.overflowWrap = "break-word";
+    for (const property of copiedStyles) {
+      mirror.style[property] = computed[property];
+    }
+
+    mirror.append(document.createTextNode(textarea.value.slice(0, textarea.selectionStart)));
+    const marker = document.createElement("span");
+    marker.textContent = "\u200b";
+    marker.style.display = "inline-block";
+    marker.style.width = "1px";
+    marker.style.height = "1em";
+    mirror.append(marker);
+    document.body.append(mirror);
+    const markerRect = marker.getBoundingClientRect();
+    setPenPosition({
+      left: Math.min(
+        inputWrap.clientWidth - 20,
+        Math.max(4, markerRect.left - inputWrapRect.left),
+      ),
+      top: Math.max(2, markerRect.top - inputWrapRect.top - textarea.scrollTop),
+    });
+    mirror.remove();
+  };
+
+  useEffect(() => {
+    const fontLinkId = "reel-studio-handwriting-font";
+    if (!document.getElementById(fontLinkId)) {
+      const fontLink = document.createElement("link");
+      fontLink.id = fontLinkId;
+      fontLink.rel = "stylesheet";
+      fontLink.href = "https://fonts.googleapis.com/css2?family=Caveat:wght@400;500;600;700&display=swap";
+      document.head.append(fontLink);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const timeout = window.setTimeout(
+      () => setPlaceholderIndex((index) => (index >= captionPlaceholder.length ? 0 : index + 1)),
+      placeholderIndex >= captionPlaceholder.length ? 1300 : 65,
+    );
+    return () => window.clearTimeout(timeout);
+  }, [captionPlaceholder.length, isOpen, placeholderIndex]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    updatePenPosition();
+    window.addEventListener("resize", updatePenPosition);
+    return () => window.removeEventListener("resize", updatePenPosition);
+  }, [caption, isOpen]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -516,17 +610,24 @@ export default function ReelStudio({
   const musicLabel = audioFile?.name || selectedTrack?.title || (audioUrl ? "Current track" : "No background music");
 
   return (
-    <div className="fixed inset-0 z-[1200] flex items-end justify-center bg-black/70 p-0 backdrop-blur-sm sm:items-center sm:p-4">
-      <div className="flex max-h-[95dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-[28px] border border-lime-200 bg-white text-slate-900 shadow-2xl sm:rounded-[28px]">
-        <div className="flex items-center justify-between border-b border-lime-200 bg-lime-50 px-5 py-4">
+    <>
+    <style>{`
+      @keyframes reel-pen-writing {
+        0%, 100% { transform: translateY(0) rotate(-35deg); }
+        50% { transform: translateY(-3px) rotate(-28deg); }
+      }
+    `}</style>
+    <div className="fixed inset-0 z-[1200] flex items-end justify-center bg-[#071207]/80 p-0 backdrop-blur-sm sm:items-center sm:p-4">
+      <div className="flex max-h-[95dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-[28px] border border-lime-900/80 bg-[#132210] text-lime-50 shadow-2xl sm:rounded-[28px]">
+        <div className="flex items-center justify-between border-b border-lime-900 bg-[#162917] px-5 py-4">
           <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-lime-700">Flicks Studio</p>
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#84cc16]">Flicks Studio</p>
             <h2 className="mt-1 text-lg font-black">{isEditing ? "Edit Reel" : "Create Reel"}</h2>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-lime-100 text-slate-600 hover:bg-lime-200"
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-[#203b1d] text-lime-100/80 transition hover:bg-[#2b4a25]"
             aria-label="Close Reel Studio"
           >
             <X size={18} />
@@ -534,20 +635,55 @@ export default function ReelStudio({
         </div>
 
         <div className="min-h-0 overflow-y-auto px-5 py-5">
-          <section className="mb-5 overflow-hidden rounded-2xl border border-lime-300 bg-lime-50/80 shadow-sm focus-within:ring-4 focus-within:ring-lime-100">
-            <label htmlFor="reel-caption" className="block px-3.5 pb-1 pt-3 text-xs font-black uppercase tracking-widest text-lime-800">Caption</label>
-            <textarea
-              id="reel-caption"
-              value={caption}
-              onChange={(event) => setCaption(event.target.value)}
-              maxLength={2200}
-              rows={3}
-              placeholder="Add a caption to your Reel…"
-              className="w-full resize-y border-0 bg-transparent px-3.5 pb-3 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:ring-0"
-            />
+          <section
+            className="relative mb-5 overflow-hidden rounded-2xl border border-[#d6cba8] bg-[#f4efd9] px-3.5 pb-3 pt-3 shadow-[0_8px_24px_rgba(0,0,0,0.22)]"
+            style={{
+              backgroundImage:
+                "repeating-linear-gradient(to bottom, #f4efd9 0px, #f4efd9 31px, rgba(132,204,22,0.22) 32px, #f4efd9 33px)",
+            }}
+          >
+            <label htmlFor="reel-caption" className="mb-1 block text-[11px] font-bold uppercase tracking-[0.14em] text-[#55742e]">Reel caption</label>
+            <div ref={captionInputWrapRef} className="relative">
+              <textarea
+                ref={captionInputRef}
+                id="reel-caption"
+                value={caption}
+                onChange={(event) => {
+                  setCaption(event.target.value);
+                  requestAnimationFrame(updatePenPosition);
+                }}
+                onFocus={() => {
+                  setCaptionFocused(true);
+                  requestAnimationFrame(updatePenPosition);
+                }}
+                onBlur={() => setCaptionFocused(false)}
+                onClick={updatePenPosition}
+                onKeyUp={updatePenPosition}
+                onScroll={updatePenPosition}
+                maxLength={2200}
+                rows={4}
+                placeholder={captionPlaceholder.slice(0, placeholderIndex)}
+                className="relative z-[1] min-h-[8rem] w-full resize-y border-0 bg-transparent px-1 py-1 text-[25px] leading-[2rem] text-[#26351d] outline-none placeholder:text-[#899276] focus:ring-0"
+                style={{ fontFamily: "'Caveat', cursive", caretColor: "#55742e" }}
+              />
+              {captionFocused && (
+                <PenLine
+                  aria-hidden="true"
+                  className="pointer-events-none absolute z-[2] h-4 w-4 text-[#55742e] drop-shadow-sm"
+                  style={{
+                    left: penPosition.left,
+                    top: penPosition.top,
+                    animation: "reel-pen-writing 800ms ease-in-out infinite",
+                  }}
+                />
+              )}
+            </div>
+            <div className="mt-1 flex justify-end text-[10px] font-semibold text-[#71805d]">
+              {caption.length}/2200
+            </div>
           </section>
           <div className="grid gap-5 md:grid-cols-[minmax(190px,0.78fr)_1fr]">
-            <div className="relative aspect-[9/14] overflow-hidden rounded-3xl border border-lime-300 bg-lime-100 shadow-xl">
+            <div className="relative aspect-[9/14] overflow-hidden rounded-3xl border border-lime-900 bg-[#0d190c] shadow-xl">
               {videoPreviewUrl ? (
                 <video
                   ref={previewVideoRef}
@@ -564,24 +700,24 @@ export default function ReelStudio({
                   }}
                 />
               ) : (
-                <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center text-lime-800/65">
-                  <FileVideo size={34} className="text-lime-700" />
+                <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center text-lime-100/55">
+                  <FileVideo size={34} className="text-[#84cc16]" />
                   <span className="text-sm font-bold">Choose a video to preview</span>
                 </div>
               )}
               {audioPreviewUrl && (
                 <audio ref={previewAudioRef} src={audioPreviewUrl} preload="metadata" />
               )}
-              <div className="absolute inset-x-0 bottom-0 flex items-end justify-between bg-gradient-to-t from-black/80 to-transparent p-4">
+              <div className="absolute inset-x-0 bottom-0 flex items-end justify-between bg-gradient-to-t from-[#071207]/90 to-transparent p-4">
                 <div>
                   <p className="text-[10px] font-black uppercase tracking-widest text-lime-200">{selectedFilter.label}</p>
-                  <p className="mt-1 text-xs font-semibold text-white/90">{playbackRate}x playback</p>
+                  <p className="mt-1 text-xs font-semibold text-lime-50/85">{playbackRate}x playback</p>
                 </div>
                 {videoPreviewUrl && (
                   <button
                     type="button"
                     onClick={togglePreview}
-                    className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-slate-900 shadow-lg"
+                    className="flex h-10 w-10 items-center justify-center rounded-full bg-[#84cc16] text-[#132210] shadow-lg"
                     aria-label={previewPlaying ? "Pause preview" : "Play preview"}
                   >
                     {previewPlaying ? <Pause size={16} fill="currentColor" /> : <Play size={16} fill="currentColor" />}
@@ -601,17 +737,17 @@ export default function ReelStudio({
             </div>
 
             <div className="space-y-5">
-              <div className="flex items-center justify-between rounded-2xl border border-lime-200 bg-lime-50 p-3">
+              <div className="flex items-center justify-between rounded-2xl border border-lime-900 bg-[#162917] p-3">
                 <div className="flex min-w-0 items-center gap-3">
-                  <FileVideo size={18} className="shrink-0 text-lime-700" />
-                  <span className="truncate text-xs font-bold text-slate-700">
+                  <FileVideo size={18} className="shrink-0 text-[#84cc16]" />
+                  <span className="truncate text-xs font-bold text-lime-50/85">
                     {videoFile?.name || (isEditing ? "Current video" : "No video selected")}
                   </span>
                 </div>
                 <button
                   type="button"
                   onClick={() => videoInputRef.current?.click()}
-                  className="shrink-0 rounded-full bg-[#84cc16] px-3 py-2 text-[10px] font-black text-slate-950 hover:bg-lime-300"
+                  className="shrink-0 rounded-full bg-[#84cc16] px-3 py-2 text-[10px] font-black text-[#132210] transition hover:bg-lime-300"
                 >
                   {isEditing ? "Replace" : "Choose"}
                 </button>
@@ -629,8 +765,8 @@ export default function ReelStudio({
 
               <section>
                 <div className="mb-2 flex items-center gap-2">
-                  <SlidersHorizontal size={15} className="text-lime-700" />
-                  <h3 className="text-xs font-black uppercase tracking-widest text-slate-700">Visual filter</h3>
+                  <SlidersHorizontal size={15} className="text-[#84cc16]" />
+                  <h3 className="text-xs font-black uppercase tracking-widest text-lime-50/85">Visual filter</h3>
                 </div>
                 <div className="grid grid-cols-3 gap-2">
                   {REEL_FILTERS.map((option) => (
@@ -640,12 +776,12 @@ export default function ReelStudio({
                       onClick={() => setFilter(option.key)}
                       className={`rounded-2xl border p-2.5 text-left transition ${
                         filter === option.key
-                          ? "border-lime-500 bg-lime-100 text-slate-900"
-                          : "border-lime-200 bg-white text-slate-600 hover:bg-lime-50"
+                          ? "border-[#84cc16] bg-[#84cc16]/15 text-lime-50"
+                          : "border-lime-900 bg-[#162917] text-lime-100/65 hover:bg-[#1c331a]"
                       }`}
                     >
                       <span className="block truncate text-[11px] font-black">{option.label}</span>
-                      <span className="mt-0.5 block truncate text-[9px] text-slate-500">{option.description}</span>
+                      <span className="mt-0.5 block truncate text-[9px] text-lime-100/45">{option.description}</span>
                     </button>
                   ))}
                 </div>
@@ -653,8 +789,8 @@ export default function ReelStudio({
 
               <section>
                 <div className="mb-2 flex items-center gap-2">
-                  <Gauge size={15} className="text-lime-700" />
-                  <h3 className="text-xs font-black uppercase tracking-widest text-slate-700">Speed</h3>
+                  <Gauge size={15} className="text-[#84cc16]" />
+                  <h3 className="text-xs font-black uppercase tracking-widest text-lime-50/85">Speed</h3>
                 </div>
                 <div className="grid grid-cols-4 gap-2">
                   {PLAYBACK_RATES.map((rate) => (
@@ -664,8 +800,8 @@ export default function ReelStudio({
                       onClick={() => setPlaybackRate(rate)}
                       className={`rounded-xl border py-2.5 text-xs font-black ${
                         playbackRate === rate
-                          ? "border-lime-500 bg-lime-100 text-slate-900"
-                          : "border-lime-200 bg-white text-slate-600 hover:bg-lime-50"
+                          ? "border-[#84cc16] bg-[#84cc16]/15 text-lime-50"
+                          : "border-lime-900 bg-[#162917] text-lime-100/60 hover:bg-[#1c331a]"
                       }`}
                     >
                       {rate}x
@@ -676,23 +812,23 @@ export default function ReelStudio({
 
               <section>
                 <div className="mb-2 flex items-center gap-2">
-                  <Music2 size={15} className="text-lime-700" />
-                  <h3 className="text-xs font-black uppercase tracking-widest text-slate-700">Background music</h3>
+                  <Music2 size={15} className="text-[#84cc16]" />
+                  <h3 className="text-xs font-black uppercase tracking-widest text-lime-50/85">Background music</h3>
                 </div>
-                <div className="flex items-center gap-2 rounded-2xl border border-lime-200 bg-lime-50 p-3">
+                <div className="flex items-center gap-2 rounded-2xl border border-lime-900 bg-[#162917] p-3">
                   <div className="flex min-w-0 flex-1 items-center gap-2">
-                    <Music2 size={16} className="shrink-0 text-lime-700" />
-                    <span className="truncate text-xs font-bold text-slate-700">{musicLabel}</span>
+                    <Music2 size={16} className="shrink-0 text-[#84cc16]" />
+                    <span className="truncate text-xs font-bold text-lime-50/75">{musicLabel}</span>
                   </div>
                   {audioUrl || audioFile ? (
-                    <button type="button" onClick={clearAudio} className="shrink-0 text-[10px] font-black text-slate-500 hover:text-slate-900">
+                    <button type="button" onClick={clearAudio} className="shrink-0 text-[10px] font-black text-lime-100/50 hover:text-lime-50">
                       Clear
                     </button>
                   ) : null}
                   <button
                     type="button"
                     onClick={() => setMusicOpen(true)}
-                    className="shrink-0 rounded-full bg-[#84cc16] px-3 py-2 text-[10px] font-black text-slate-950 hover:bg-lime-300"
+                    className="shrink-0 rounded-full bg-[#84cc16] px-3 py-2 text-[10px] font-black text-[#132210] transition hover:bg-lime-300"
                   >
                     Choose
                   </button>
@@ -700,7 +836,7 @@ export default function ReelStudio({
                 <button
                   type="button"
                   onClick={() => audioInputRef.current?.click()}
-                  className="mt-2 flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-lime-400 py-3 text-xs font-bold text-slate-600 hover:bg-lime-50 hover:text-slate-900"
+                  className="mt-2 flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-lime-800 py-3 text-xs font-bold text-lime-100/65 hover:border-[#84cc16] hover:bg-[#162917] hover:text-lime-50"
                 >
                   <Upload size={14} /> 📱 Phone Upload
                 </button>
@@ -714,7 +850,7 @@ export default function ReelStudio({
                     event.target.value = "";
                   }}
                 />
-                <p className="mt-2 text-[10px] leading-relaxed text-slate-500">
+                <p className="mt-2 text-[10px] leading-relaxed text-lime-100/45">
                   Selecting music automatically mutes the original video audio during playback.
                 </p>
               </section>
@@ -722,15 +858,15 @@ export default function ReelStudio({
           </div>
         </div>
 
-        <div className="flex gap-3 border-t border-lime-200 bg-lime-50/60 px-5 py-4">
-          <button type="button" onClick={onClose} className="flex-1 rounded-2xl border border-lime-300 bg-white py-3 text-sm font-black text-slate-700 hover:bg-lime-50">
+        <div className="flex gap-3 border-t border-lime-900 bg-[#162917] px-5 py-4">
+          <button type="button" onClick={onClose} className="flex-1 rounded-2xl border border-lime-800 bg-[#203b1d] py-3 text-sm font-black text-lime-50/75 transition hover:bg-[#2b4a25]">
             Cancel
           </button>
           <button
             type="button"
             onClick={saveReel}
             disabled={saving || !videoPreviewUrl}
-            className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-[#84cc16] py-3 text-sm font-black text-slate-950 shadow-lg shadow-lime-900/15 transition hover:bg-lime-300 disabled:cursor-wait disabled:opacity-50"
+            className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-[#84cc16] py-3 text-sm font-black text-[#132210] shadow-lg shadow-lime-950/30 transition hover:bg-lime-300 disabled:cursor-wait disabled:opacity-50"
           >
             {saving ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
             {saving ? "Saving…" : isEditing ? "Save Changes" : "Publish Reel"}
@@ -739,32 +875,32 @@ export default function ReelStudio({
       </div>
 
       {musicOpen && (
-        <div className="absolute inset-0 z-10 flex items-end justify-center bg-slate-950/45 p-3 backdrop-blur-sm sm:items-center sm:p-8">
-          <div className="w-full max-w-md rounded-3xl border border-lime-300 bg-white p-4 text-slate-900 shadow-2xl">
+        <div className="absolute inset-0 z-10 flex items-end justify-center bg-[#071207]/75 p-3 backdrop-blur-sm sm:items-center sm:p-8">
+          <div className="w-full max-w-md rounded-3xl border border-lime-800 bg-[#162917] p-4 text-lime-50 shadow-2xl">
             <div className="mb-3 flex items-center justify-between">
               <div>
                 <p className="text-sm font-black">Music library</p>
-                <p className="mt-0.5 text-[10px] text-slate-500">Bunny-backed tracks</p>
+                <p className="mt-0.5 text-[10px] text-lime-100/50">Bunny-backed tracks</p>
               </div>
-              <button type="button" onClick={() => setMusicOpen(false)} className="rounded-full bg-lime-100 p-2 text-slate-700 hover:bg-lime-200">
+              <button type="button" onClick={() => setMusicOpen(false)} className="rounded-full bg-[#203b1d] p-2 text-lime-50 hover:bg-[#2b4a25]">
                 <X size={15} />
               </button>
             </div>
-            <div className="flex items-center gap-2 rounded-2xl border border-lime-200 bg-lime-50 px-3 py-2.5">
-              <Search size={15} className="text-lime-700" />
+            <div className="flex items-center gap-2 rounded-2xl border border-lime-900 bg-[#132210] px-3 py-2.5">
+              <Search size={15} className="text-lime-100/50" />
               <input
                 value={musicQuery}
                 onChange={(event) => setMusicQuery(event.target.value)}
                 placeholder="Search tracks or artists"
-                className="min-w-0 flex-1 bg-transparent text-xs text-slate-900 outline-none placeholder:text-slate-400"
+                className="min-w-0 flex-1 bg-transparent text-xs text-lime-50 outline-none placeholder:text-lime-100/40"
               />
             </div>
             <div className="mt-3 max-h-64 space-y-2 overflow-y-auto">
               {filteredTracks.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-lime-300 px-4 py-8 text-center">
-                  <Music2 size={24} className="mx-auto text-lime-600" />
-                  <p className="mt-2 text-xs font-bold text-slate-700">No curated tracks available yet</p>
-                  <p className="mt-1 text-[10px] text-slate-500">Upload an MP3 to add your own track.</p>
+                <div className="rounded-2xl border border-dashed border-lime-900 px-4 py-8 text-center">
+                  <Music2 size={24} className="mx-auto text-[#84cc16]" />
+                  <p className="mt-2 text-xs font-bold text-lime-50/75">No curated tracks available yet</p>
+                  <p className="mt-1 text-[10px] text-lime-100/45">Upload an MP3 to add your own track.</p>
                 </div>
               ) : (
                 filteredTracks.map((track) => (
@@ -772,20 +908,20 @@ export default function ReelStudio({
                     type="button"
                     key={track.id}
                     onClick={() => chooseTrack(track)}
-                    className="flex w-full items-center gap-3 rounded-2xl border border-lime-100 bg-white p-3 text-left hover:bg-lime-50"
+                    className="flex w-full items-center gap-3 rounded-2xl border border-lime-900 bg-[#132210] p-3 text-left transition hover:bg-[#203b1d]"
                   >
                     {track.cover_url ? (
                       <img src={track.cover_url} alt="" className="h-9 w-9 rounded-xl object-cover" />
                     ) : (
-                      <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-pink-500/30 to-violet-500/30">
+                      <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#203b1d] text-[#84cc16]">
                         <Music2 size={15} />
                       </span>
                     )}
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-xs font-black">{track.title}</span>
-                      <span className="mt-0.5 block truncate text-[10px] text-slate-500">{track.artist}</span>
+                      <span className="mt-0.5 block truncate text-[10px] text-lime-100/50">{track.artist}</span>
                     </span>
-                    <Play size={14} className="text-lime-700" />
+                    <Play size={14} className="text-[#84cc16]" />
                   </button>
                 ))
               )}
@@ -794,5 +930,6 @@ export default function ReelStudio({
         </div>
       )}
     </div>
+    </>
   );
 }
