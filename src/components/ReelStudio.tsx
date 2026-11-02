@@ -517,16 +517,16 @@ export default function ReelStudio({
 
   return (
     <div className="fixed inset-0 z-[1200] flex items-end justify-center bg-black/70 p-0 backdrop-blur-sm sm:items-center sm:p-4">
-      <div className="flex max-h-[95dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-[28px] bg-[#111326] text-white shadow-2xl sm:rounded-[28px]">
-        <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+      <div className="flex max-h-[95dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-[28px] border border-lime-200 bg-white text-slate-900 shadow-2xl sm:rounded-[28px]">
+        <div className="flex items-center justify-between border-b border-lime-200 bg-lime-50 px-5 py-4">
           <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-300">Flicks Studio</p>
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-lime-700">Flicks Studio</p>
             <h2 className="mt-1 text-lg font-black">{isEditing ? "Edit Reel" : "Create Reel"}</h2>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-white/70 hover:bg-white/15"
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-lime-100 text-slate-600 hover:bg-lime-200"
             aria-label="Close Reel Studio"
           >
             <X size={18} />
@@ -534,8 +534,20 @@ export default function ReelStudio({
         </div>
 
         <div className="min-h-0 overflow-y-auto px-5 py-5">
+          <section className="mb-5 overflow-hidden rounded-2xl border border-lime-300 bg-lime-50/80 shadow-sm focus-within:ring-4 focus-within:ring-lime-100">
+            <label htmlFor="reel-caption" className="block px-3.5 pb-1 pt-3 text-xs font-black uppercase tracking-widest text-lime-800">Caption</label>
+            <textarea
+              id="reel-caption"
+              value={caption}
+              onChange={(event) => setCaption(event.target.value)}
+              maxLength={2200}
+              rows={3}
+              placeholder="Add a caption to your Reel…"
+              className="w-full resize-y border-0 bg-transparent px-3.5 pb-3 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:ring-0"
+            />
+          </section>
           <div className="grid gap-5 md:grid-cols-[minmax(190px,0.78fr)_1fr]">
-            <div className="relative aspect-[9/14] overflow-hidden rounded-3xl border border-white/10 bg-black shadow-xl">
+            <div className="relative aspect-[9/14] overflow-hidden rounded-3xl border border-lime-300 bg-lime-100 shadow-xl">
               {videoPreviewUrl ? (
                 <video
                   ref={previewVideoRef}
@@ -552,8 +564,8 @@ export default function ReelStudio({
                   }}
                 />
               ) : (
-                <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center text-white/45">
-                  <FileVideo size={34} />
+                <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center text-lime-800/65">
+                  <FileVideo size={34} className="text-lime-700" />
                   <span className="text-sm font-bold">Choose a video to preview</span>
                 </div>
               )}
@@ -562,8 +574,8 @@ export default function ReelStudio({
               )}
               <div className="absolute inset-x-0 bottom-0 flex items-end justify-between bg-gradient-to-t from-black/80 to-transparent p-4">
                 <div>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-cyan-200">{selectedFilter.label}</p>
-                  <p className="mt-1 text-xs font-semibold text-white/75">{playbackRate}x playback</p>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-lime-200">{selectedFilter.label}</p>
+                  <p className="mt-1 text-xs font-semibold text-white/90">{playbackRate}x playback</p>
                 </div>
                 {videoPreviewUrl && (
                   <button
@@ -589,17 +601,17 @@ export default function ReelStudio({
             </div>
 
             <div className="space-y-5">
-              <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.04] p-3">
+              <div className="flex items-center justify-between rounded-2xl border border-lime-200 bg-lime-50 p-3">
                 <div className="flex min-w-0 items-center gap-3">
-                  <FileVideo size={18} className="shrink-0 text-cyan-300" />
-                  <span className="truncate text-xs font-bold text-white/75">
+                  <FileVideo size={18} className="shrink-0 text-lime-700" />
+                  <span className="truncate text-xs font-bold text-slate-700">
                     {videoFile?.name || (isEditing ? "Current video" : "No video selected")}
                   </span>
                 </div>
                 <button
                   type="button"
                   onClick={() => videoInputRef.current?.click()}
-                  className="shrink-0 rounded-full bg-white/10 px-3 py-2 text-[10px] font-black text-white/80"
+                  className="shrink-0 rounded-full bg-[#84cc16] px-3 py-2 text-[10px] font-black text-slate-950 hover:bg-lime-300"
                 >
                   {isEditing ? "Replace" : "Choose"}
                 </button>
@@ -616,22 +628,9 @@ export default function ReelStudio({
               </div>
 
               <section>
-                <label htmlFor="reel-caption" className="mb-2 block text-xs font-black uppercase tracking-widest text-white/75">Caption</label>
-                <textarea
-                  id="reel-caption"
-                  value={caption}
-                  onChange={(event) => setCaption(event.target.value)}
-                  maxLength={2200}
-                  rows={3}
-                  placeholder="Add a caption to your Reel…"
-                  className="w-full resize-y rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm text-white outline-none placeholder:text-white/35 focus:border-cyan-300/50"
-                />
-              </section>
-
-              <section>
                 <div className="mb-2 flex items-center gap-2">
-                  <SlidersHorizontal size={15} className="text-cyan-300" />
-                  <h3 className="text-xs font-black uppercase tracking-widest text-white/75">Visual filter</h3>
+                  <SlidersHorizontal size={15} className="text-lime-700" />
+                  <h3 className="text-xs font-black uppercase tracking-widest text-slate-700">Visual filter</h3>
                 </div>
                 <div className="grid grid-cols-3 gap-2">
                   {REEL_FILTERS.map((option) => (
@@ -641,12 +640,12 @@ export default function ReelStudio({
                       onClick={() => setFilter(option.key)}
                       className={`rounded-2xl border p-2.5 text-left transition ${
                         filter === option.key
-                          ? "border-cyan-300 bg-cyan-300/15 text-white"
-                          : "border-white/10 bg-white/[0.04] text-white/60 hover:bg-white/[0.08]"
+                          ? "border-lime-500 bg-lime-100 text-slate-900"
+                          : "border-lime-200 bg-white text-slate-600 hover:bg-lime-50"
                       }`}
                     >
                       <span className="block truncate text-[11px] font-black">{option.label}</span>
-                      <span className="mt-0.5 block truncate text-[9px] text-white/35">{option.description}</span>
+                      <span className="mt-0.5 block truncate text-[9px] text-slate-500">{option.description}</span>
                     </button>
                   ))}
                 </div>
@@ -654,8 +653,8 @@ export default function ReelStudio({
 
               <section>
                 <div className="mb-2 flex items-center gap-2">
-                  <Gauge size={15} className="text-violet-300" />
-                  <h3 className="text-xs font-black uppercase tracking-widest text-white/75">Speed</h3>
+                  <Gauge size={15} className="text-lime-700" />
+                  <h3 className="text-xs font-black uppercase tracking-widest text-slate-700">Speed</h3>
                 </div>
                 <div className="grid grid-cols-4 gap-2">
                   {PLAYBACK_RATES.map((rate) => (
@@ -665,8 +664,8 @@ export default function ReelStudio({
                       onClick={() => setPlaybackRate(rate)}
                       className={`rounded-xl border py-2.5 text-xs font-black ${
                         playbackRate === rate
-                          ? "border-violet-300 bg-violet-300/20 text-white"
-                          : "border-white/10 bg-white/[0.04] text-white/55"
+                          ? "border-lime-500 bg-lime-100 text-slate-900"
+                          : "border-lime-200 bg-white text-slate-600 hover:bg-lime-50"
                       }`}
                     >
                       {rate}x
@@ -677,23 +676,23 @@ export default function ReelStudio({
 
               <section>
                 <div className="mb-2 flex items-center gap-2">
-                  <Music2 size={15} className="text-pink-300" />
-                  <h3 className="text-xs font-black uppercase tracking-widest text-white/75">Background music</h3>
+                  <Music2 size={15} className="text-lime-700" />
+                  <h3 className="text-xs font-black uppercase tracking-widest text-slate-700">Background music</h3>
                 </div>
-                <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] p-3">
+                <div className="flex items-center gap-2 rounded-2xl border border-lime-200 bg-lime-50 p-3">
                   <div className="flex min-w-0 flex-1 items-center gap-2">
-                    <Music2 size={16} className="shrink-0 text-pink-300" />
-                    <span className="truncate text-xs font-bold text-white/70">{musicLabel}</span>
+                    <Music2 size={16} className="shrink-0 text-lime-700" />
+                    <span className="truncate text-xs font-bold text-slate-700">{musicLabel}</span>
                   </div>
                   {audioUrl || audioFile ? (
-                    <button type="button" onClick={clearAudio} className="shrink-0 text-[10px] font-black text-white/45 hover:text-white">
+                    <button type="button" onClick={clearAudio} className="shrink-0 text-[10px] font-black text-slate-500 hover:text-slate-900">
                       Clear
                     </button>
                   ) : null}
                   <button
                     type="button"
                     onClick={() => setMusicOpen(true)}
-                    className="shrink-0 rounded-full bg-gradient-to-r from-pink-500 to-violet-500 px-3 py-2 text-[10px] font-black"
+                    className="shrink-0 rounded-full bg-[#84cc16] px-3 py-2 text-[10px] font-black text-slate-950 hover:bg-lime-300"
                   >
                     Choose
                   </button>
@@ -701,7 +700,7 @@ export default function ReelStudio({
                 <button
                   type="button"
                   onClick={() => audioInputRef.current?.click()}
-                  className="mt-2 flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-white/15 py-3 text-xs font-bold text-white/55 hover:border-pink-300/50 hover:text-white"
+                  className="mt-2 flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-lime-400 py-3 text-xs font-bold text-slate-600 hover:bg-lime-50 hover:text-slate-900"
                 >
                   <Upload size={14} /> 📱 Phone Upload
                 </button>
@@ -715,7 +714,7 @@ export default function ReelStudio({
                     event.target.value = "";
                   }}
                 />
-                <p className="mt-2 text-[10px] leading-relaxed text-white/35">
+                <p className="mt-2 text-[10px] leading-relaxed text-slate-500">
                   Selecting music automatically mutes the original video audio during playback.
                 </p>
               </section>
@@ -723,15 +722,15 @@ export default function ReelStudio({
           </div>
         </div>
 
-        <div className="flex gap-3 border-t border-white/10 px-5 py-4">
-          <button type="button" onClick={onClose} className="flex-1 rounded-2xl bg-white/10 py-3 text-sm font-black text-white/70">
+        <div className="flex gap-3 border-t border-lime-200 bg-lime-50/60 px-5 py-4">
+          <button type="button" onClick={onClose} className="flex-1 rounded-2xl border border-lime-300 bg-white py-3 text-sm font-black text-slate-700 hover:bg-lime-50">
             Cancel
           </button>
           <button
             type="button"
             onClick={saveReel}
             disabled={saving || !videoPreviewUrl}
-            className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-500 via-blue-600 to-violet-600 py-3 text-sm font-black text-white shadow-lg shadow-blue-900/30 disabled:cursor-wait disabled:opacity-50"
+            className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-[#84cc16] py-3 text-sm font-black text-slate-950 shadow-lg shadow-lime-900/15 transition hover:bg-lime-300 disabled:cursor-wait disabled:opacity-50"
           >
             {saving ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
             {saving ? "Saving…" : isEditing ? "Save Changes" : "Publish Reel"}
@@ -740,32 +739,32 @@ export default function ReelStudio({
       </div>
 
       {musicOpen && (
-        <div className="absolute inset-0 z-10 flex items-end justify-center bg-black/60 p-3 sm:items-center sm:p-8">
-          <div className="w-full max-w-md rounded-3xl border border-white/10 bg-[#171a31] p-4 shadow-2xl">
+        <div className="absolute inset-0 z-10 flex items-end justify-center bg-slate-950/45 p-3 backdrop-blur-sm sm:items-center sm:p-8">
+          <div className="w-full max-w-md rounded-3xl border border-lime-300 bg-white p-4 text-slate-900 shadow-2xl">
             <div className="mb-3 flex items-center justify-between">
               <div>
                 <p className="text-sm font-black">Music library</p>
-                <p className="mt-0.5 text-[10px] text-white/40">Bunny-backed tracks</p>
+                <p className="mt-0.5 text-[10px] text-slate-500">Bunny-backed tracks</p>
               </div>
-              <button type="button" onClick={() => setMusicOpen(false)} className="rounded-full bg-white/10 p-2">
+              <button type="button" onClick={() => setMusicOpen(false)} className="rounded-full bg-lime-100 p-2 text-slate-700 hover:bg-lime-200">
                 <X size={15} />
               </button>
             </div>
-            <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-black/20 px-3 py-2.5">
-              <Search size={15} className="text-white/35" />
+            <div className="flex items-center gap-2 rounded-2xl border border-lime-200 bg-lime-50 px-3 py-2.5">
+              <Search size={15} className="text-lime-700" />
               <input
                 value={musicQuery}
                 onChange={(event) => setMusicQuery(event.target.value)}
                 placeholder="Search tracks or artists"
-                className="min-w-0 flex-1 bg-transparent text-xs text-white outline-none placeholder:text-white/30"
+                className="min-w-0 flex-1 bg-transparent text-xs text-slate-900 outline-none placeholder:text-slate-400"
               />
             </div>
             <div className="mt-3 max-h-64 space-y-2 overflow-y-auto">
               {filteredTracks.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-white/10 px-4 py-8 text-center">
-                  <Music2 size={24} className="mx-auto text-white/25" />
-                  <p className="mt-2 text-xs font-bold text-white/55">No curated tracks available yet</p>
-                  <p className="mt-1 text-[10px] text-white/30">Upload an MP3 to add your own track.</p>
+                <div className="rounded-2xl border border-dashed border-lime-300 px-4 py-8 text-center">
+                  <Music2 size={24} className="mx-auto text-lime-600" />
+                  <p className="mt-2 text-xs font-bold text-slate-700">No curated tracks available yet</p>
+                  <p className="mt-1 text-[10px] text-slate-500">Upload an MP3 to add your own track.</p>
                 </div>
               ) : (
                 filteredTracks.map((track) => (
@@ -773,7 +772,7 @@ export default function ReelStudio({
                     type="button"
                     key={track.id}
                     onClick={() => chooseTrack(track)}
-                    className="flex w-full items-center gap-3 rounded-2xl border border-white/5 bg-white/[0.04] p-3 text-left hover:bg-white/[0.09]"
+                    className="flex w-full items-center gap-3 rounded-2xl border border-lime-100 bg-white p-3 text-left hover:bg-lime-50"
                   >
                     {track.cover_url ? (
                       <img src={track.cover_url} alt="" className="h-9 w-9 rounded-xl object-cover" />
@@ -784,9 +783,9 @@ export default function ReelStudio({
                     )}
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-xs font-black">{track.title}</span>
-                      <span className="mt-0.5 block truncate text-[10px] text-white/40">{track.artist}</span>
+                      <span className="mt-0.5 block truncate text-[10px] text-slate-500">{track.artist}</span>
                     </span>
-                    <Play size={14} className="text-white/45" />
+                    <Play size={14} className="text-lime-700" />
                   </button>
                 ))
               )}

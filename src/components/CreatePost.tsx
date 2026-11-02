@@ -952,29 +952,16 @@ const CreatePost = ({
                     />
                   </div>
 
-                  <div className="overflow-hidden rounded-[1.5rem] border border-slate-200 bg-[#fffefa] shadow-inner transition focus-within:border-violet-300 focus-within:ring-4 focus-within:ring-violet-100/70">
+                  <div className="overflow-hidden rounded-[1.5rem] border border-lime-300 bg-lime-50/80 shadow-inner transition focus-within:border-lime-500 focus-within:ring-4 focus-within:ring-lime-100">
                     <div className="flex items-center justify-between px-4 pb-1 pt-3">
-                      <span className="text-[10px] font-black uppercase tracking-[0.16em] text-violet-500">
-                        Your notebook
+                      <span className="text-[10px] font-black uppercase tracking-[0.16em] text-lime-700">
+                        Caption
                       </span>
                       <span className="text-[11px] font-medium text-slate-400">
-                        Take your time
+                        Add a description to your post
                       </span>
                     </div>
                     <div className="relative">
-                      <div
-                        aria-hidden="true"
-                        className="pointer-events-none absolute inset-0"
-                        style={{
-                          backgroundImage:
-                            "repeating-linear-gradient(to bottom, transparent 0, transparent 27px, rgba(148,163,184,.24) 27px, rgba(148,163,184,.24) 28px)",
-                          backgroundSize: "100% 28px",
-                        }}
-                      />
-                      <div
-                        aria-hidden="true"
-                        className="pointer-events-none absolute bottom-0 left-8 top-0 w-px bg-rose-200/80"
-                      />
                       <MentionInput
                         autoFocus
                         value={content}
@@ -985,7 +972,7 @@ const CreatePost = ({
                             ? `Write something on ${wallOwnerName}'s timeline...`
                             : "Share your vibe today..."
                         }
-                        className="relative z-[1] box-border h-[min(38dvh,24rem)] min-h-[12rem] max-h-[42dvh] w-full resize-none overflow-y-auto border-0 bg-transparent py-2.5 pl-11 pr-4 text-[16px] font-medium leading-7 text-[#172554] placeholder:text-slate-400 outline-none pointer-events-auto"
+                        className="relative z-[1] box-border h-[min(38dvh,24rem)] min-h-[12rem] max-h-[42dvh] w-full resize-none overflow-y-auto border-0 bg-transparent py-2.5 pl-4 pr-4 text-[16px] font-medium leading-7 text-[#172554] placeholder:text-slate-400 outline-none pointer-events-auto"
                         testId="input-post-content"
                       />
                     </div>
@@ -1163,13 +1150,13 @@ const CreatePost = ({
                         initial={{ opacity: 0, scale: 0.97 }}
                         animate={{ opacity: 1, scale: 1 }}
                         exit={{ opacity: 0, scale: 0.97 }}
-                        className="relative overflow-hidden rounded-[1.25rem] border border-slate-200 bg-slate-950 shadow-[0_10px_30px_rgba(23,37,84,0.10)]"
+                        className="relative overflow-hidden rounded-[1.25rem] border border-lime-300 bg-lime-100 shadow-[0_10px_30px_rgba(132,204,22,0.12)]"
                       >
                         <div className={`grid gap-1.5 p-1.5 ${previews.length === 1 ? "grid-cols-1" : "grid-cols-2"}`}>
                           {previews.map((previewUrl, index) => (
                             <div
                               key={previewUrl}
-                              className={`relative overflow-hidden rounded-xl bg-slate-900 ${previews.length === 1 ? "aspect-[16/10]" : "aspect-square"}`}
+                              className={`relative overflow-hidden rounded-xl bg-lime-100 ${previews.length === 1 ? "aspect-[16/10]" : "aspect-square"}`}
                             >
                               {files[index]?.type.startsWith("video/") ? (
                                 <video src={previewUrl} className="h-full w-full object-contain" controls preload="none" />
@@ -1187,7 +1174,7 @@ const CreatePost = ({
                                   setFiles(nextFiles);
                                   setPreviews(nextPreviews);
                                 }}
-                                className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-slate-950/70 text-white transition-colors hover:bg-[#FF3B4D] active:scale-90"
+                                className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-[#84cc16] text-slate-950 transition-colors hover:bg-lime-300 active:scale-90"
                                 aria-label={`Remove image ${index + 1}`}
                                 data-testid={`button-remove-media-${index + 1}`}
                               >
@@ -1197,8 +1184,8 @@ const CreatePost = ({
                           ))}
                         </div>
                         {files.length > 1 && (
-                          <p className="px-3 pb-1 text-[11px] font-bold text-white/75">
-                            {files.length}/5 images selected
+                          <p className="px-3 pb-1 text-[11px] font-bold text-lime-900">
+                            {files.length}/5 media files selected
                           </p>
                         )}
                         <div
@@ -1208,7 +1195,7 @@ const CreatePost = ({
                             type="button"
                             onClick={() => openFilePicker(addMoreInputRef.current)}
                             data-testid="label-add-more-media"
-                            className="flex items-center gap-1 rounded-full bg-slate-950/70 px-3 py-1.5 text-[11px] font-bold text-white transition-colors hover:bg-[#FF3B4D]"
+                            className="flex items-center gap-1 rounded-full bg-[#84cc16] px-3 py-1.5 text-[11px] font-bold text-slate-950 transition-colors hover:bg-lime-300"
                           >
                             <ImageIcon size={11} /> Add More
                           </button>
