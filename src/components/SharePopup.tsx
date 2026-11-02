@@ -208,6 +208,7 @@ const SharePopup: React.FC<SharePopupProps> = ({
 }) => {
   const popupRef = useRef<HTMLDivElement>(null);
   const actionInProgressRef = useRef(false);
+  const lastTouchAtRef = useRef(0);
   const [copied, setCopied] = useState(false);
   const [activeAction, setActiveAction] = useState<ShareMode | "media" | null>(null);
   const [mediaOutcome, setMediaOutcome] = useState<ShareOutcome | null>(null);
@@ -263,7 +264,7 @@ const SharePopup: React.FC<SharePopupProps> = ({
   }, [onClose]);
 
   const handleShareAction = async (
-    event: React.MouseEvent<HTMLButtonElement>,
+    event: React.SyntheticEvent<HTMLButtonElement>,
     mode: ShareMode | "media",
   ) => {
     event.preventDefault();
@@ -358,6 +359,26 @@ const SharePopup: React.FC<SharePopupProps> = ({
     }
   };
 
+  const handleTouchShareAction = (
+    event: React.TouchEvent<HTMLButtonElement>,
+    mode: ShareMode | "media",
+  ) => {
+    lastTouchAtRef.current = Date.now();
+    void handleShareAction(event, mode);
+  };
+
+  const handleClickShareAction = (
+    event: React.MouseEvent<HTMLButtonElement>,
+    mode: ShareMode | "media",
+  ) => {
+    if (Date.now() - lastTouchAtRef.current < 700) {
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+    void handleShareAction(event, mode);
+  };
+
   const mediaButtonLabel = () => {
     if (activeAction === "media") return "Preparing media…";
     if (mediaOutcome === "shared-with-file") return "Shared with image ✓";
@@ -377,7 +398,7 @@ const SharePopup: React.FC<SharePopupProps> = ({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.15 }}
-          className="fixed inset-0 z-[10000]"
+          className="fixed inset-0 z-[10000] pointer-events-auto"
           style={{ background: "rgba(0,0,0,0.45)" }}
           onClick={onClose}
         />
@@ -390,7 +411,7 @@ const SharePopup: React.FC<SharePopupProps> = ({
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.82, y: above ? 8 : -8 }}
           transition={{ type: "spring", damping: 22, stiffness: 380 }}
-          className="fixed z-[10001] select-none"
+          className="fixed z-[10001] select-none pointer-events-auto"
           style={{
             top,
             left,
@@ -463,8 +484,12 @@ const SharePopup: React.FC<SharePopupProps> = ({
                 event.stopPropagation();
                 onClose();
               }}
+              onTouchStart={(event) => {
+                event.stopPropagation();
+                onClose();
+              }}
               aria-label="Close share options"
-              className="flex-shrink-0 w-6 h-6 cursor-pointer rounded-full flex items-center justify-center hover:bg-white/10 active:scale-95 transition-colors"
+              className="pointer-events-auto flex-shrink-0 w-6 h-6 cursor-pointer touch-manipulation rounded-full flex items-center justify-center hover:bg-white/10 active:scale-95 transition-colors"
             >
               <X size={13} className="text-white/50" />
             </button>
@@ -484,9 +509,10 @@ const SharePopup: React.FC<SharePopupProps> = ({
             <motion.button
               type="button"
               whileTap={activeAction ? {} : { scale: 0.97 }}
-              onClick={(event) => void handleShareAction(event, "media")}
+              onClick={(event) => handleClickShareAction(event, "media")}
+              onTouchStart={(event) => handleTouchShareAction(event, "media")}
               disabled={activeAction !== null}
-              className="w-full flex cursor-pointer items-center justify-center gap-2 rounded-[14px] py-2.5 px-4 font-bold text-[12px] transition-opacity hover:brightness-110 active:scale-[0.98] disabled:cursor-wait"
+              className="w-full pointer-events-auto flex cursor-pointer touch-manipulation items-center justify-center gap-2 rounded-[14px] py-2.5 px-4 font-bold text-[12px] transition-opacity hover:brightness-110 active:scale-[0.98] disabled:cursor-wait"
               style={{
                 background:
                   mediaOutcome === "shared-with-file" ||
@@ -543,10 +569,11 @@ const SharePopup: React.FC<SharePopupProps> = ({
                   type="button"
                   whileTap={{ scale: 0.88 }}
                   whileHover={{ scale: 1.06 }}
-                  onClick={(event) => void handleShareAction(event, mode)}
+                  onClick={(event) => handleClickShareAction(event, mode)}
+                  onTouchStart={(event) => handleTouchShareAction(event, mode)}
                   disabled={activeAction !== null}
                   aria-label={`Share via ${label}`}
-                  className="flex cursor-pointer flex-col items-center gap-1.5 rounded-xl outline-none transition-opacity hover:opacity-100 active:scale-95 disabled:cursor-wait disabled:opacity-60"
+                  className="pointer-events-auto flex cursor-pointer touch-manipulation flex-col items-center gap-1.5 rounded-xl outline-none transition-opacity hover:opacity-100 active:scale-95 disabled:cursor-wait disabled:opacity-60"
                 >
                   <div
                     className="w-11 h-11 rounded-[14px] flex items-center justify-center"

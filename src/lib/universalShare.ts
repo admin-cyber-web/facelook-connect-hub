@@ -134,6 +134,10 @@ export function launchShareTarget(
   const whatsappWebUrl = `https://api.whatsapp.com/send?text=${encodedWhatsAppText}`;
   const isAndroid =
     typeof navigator !== "undefined" && /android/i.test(navigator.userAgent);
+  const isMobileWebView =
+    isAndroid ||
+    (typeof navigator !== "undefined" && /iphone|ipad|ipod/i.test(navigator.userAgent)) ||
+    (typeof window !== "undefined" && Boolean(window.AndroidShare));
 
   let targetUrls: string[];
   switch (platform) {
@@ -170,17 +174,28 @@ export function launchShareTarget(
   }
 
   if (typeof window === "undefined") return Promise.resolve("error");
+  if (isMobileWebView) {
+    try {
+      window.location.href = targetUrls[0];
+      return Promise.resolve("opened");
+    } catch {
+      return copyShareText(shareText).then((copied) =>
+        copied ? "copied" : "error",
+      );
+    }
+  }
+
   for (const targetUrl of targetUrls) {
     try {
-      const shareWindow = window.open(targetUrl, "_blank");
-      if (shareWindow) {
-        shareWindow.opener = null;
-        return Promise.resolve("opened");
-      }
-      if (isAndroid && targetUrl.startsWith("intent://")) {
-        window.location.assign(targetUrl);
-        return Promise.resolve("opened");
-      }
+      const link = document.createElement("a");
+      link.href = targetUrl;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      link.style.display = "none";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      return Promise.resolve("opened");
     } catch {
       // Try the next platform URL, then copy the complete payload.
     }
@@ -402,16 +417,35 @@ export async function universalShare(
   // Keep the crawler-ready post URL in text; media is attached separately when supported.
   const text = buildShareText(input.text, url);
 
-  // Android handles the remote media natively. Do this before fetching a blob
-  // so the WebView does not duplicate the media download in JavaScript.
-  if (await shareViaAndroid(text, mediaUrl, type)) {
-    return "shared-with-file";
+  // Invoke a native bridge directly during the user gesture before awaiting
+  // media downloads, which can consume browser transient activation.
+  if (
+    typeof window !== "undefined" &&
+    mediaUrl &&
+    typeof window.AndroidShare?.shareMedia === "function"
+  ) {
+    try {
+      const result = await window.AndroidShare.shareMedia(text, mediaUrl, type);
+      if (result !== false) return "shared-with-file";
+    } catch (error) {
+      console.error("[share] Android media share failed:", error);
+    }
   }
 
-  // Text-only posts still need a native chooser on Android WebView, where the
-  // browser Web Share API may not be available.
+  // Prefer a URL share immediately when file sharing requires an asynchronous
+  // download; this keeps the native sheet within the original tap gesture.
+  if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+    try {
+      await navigator.share({ title, text: input.text, url });
+      return "shared-url-only";
+    } catch (error) {
+      if ((error as DOMException)?.name === "AbortError") return "cancelled";
+    }
+  }
+
+  // Use the native text bridge as a reliable URL-only fallback when Web Share
+  // is unavailable, even if a media URL exists but cannot be attached.
   if (
-    !mediaUrl &&
     typeof window !== "undefined" &&
     typeof window.AndroidShare?.shareText === "function"
   ) {
