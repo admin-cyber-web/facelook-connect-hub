@@ -128,46 +128,55 @@ export function launchShareTarget(
   const shareText = buildShareText(input.text, shareUrl);
   const bodyText = input.text.trim();
   const encodedUrl = encodeURIComponent(shareUrl);
-  const encodedText = encodeURIComponent(shareText);
+  const whatsappText = `${bodyText}${bodyText ? " " : ""}${shareUrl}`;
+  const encodedWhatsAppText = encodeURIComponent(whatsappText);
   const encodedBody = encodeURIComponent(bodyText);
-  const whatsappWebUrl = `https://api.whatsapp.com/send?text=${encodedText}`;
+  const whatsappWebUrl = `https://api.whatsapp.com/send?text=${encodedWhatsAppText}`;
 
-  let targetUrl: string;
+  let targetUrls: string[];
   switch (platform) {
-    case "whatsapp":
-      targetUrl =
-        typeof navigator !== "undefined" &&
-        /android/i.test(navigator.userAgent)
-          ? `intent://send?text=${encodedText}#Intent;scheme=whatsapp;package=com.whatsapp;S.browser_fallback_url=${encodeURIComponent(whatsappWebUrl)};end`
-          : whatsappWebUrl;
+    case "whatsapp": {
+      const isAndroid =
+        typeof navigator !== "undefined" && /android/i.test(navigator.userAgent);
+      targetUrls = isAndroid
+        ? [
+            `intent://send?text=${encodedWhatsAppText}#Intent;scheme=whatsapp;package=com.whatsapp;S.browser_fallback_url=${encodeURIComponent(whatsappWebUrl)};end`,
+            `whatsapp://send?text=${encodedWhatsAppText}`,
+            whatsappWebUrl,
+          ]
+        : [whatsappWebUrl, `whatsapp://send?text=${encodedWhatsAppText}`];
       break;
+    }
     case "messenger":
-      targetUrl =
+      targetUrls = [
         typeof navigator !== "undefined" &&
         /android/i.test(navigator.userAgent)
           ? `intent://share?link=${encodedUrl}#Intent;scheme=fb-messenger;package=com.facebook.orca;S.browser_fallback_url=${encodeURIComponent(`https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`)};end`
-          : `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`;
+          : `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`,
+      ];
       break;
     case "facebook":
-      targetUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`;
+      targetUrls = [`https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`];
       break;
     case "twitter":
-      targetUrl = `https://twitter.com/intent/tweet?text=${encodedBody}&url=${encodedUrl}`;
+      targetUrls = [`https://twitter.com/intent/tweet?text=${encodedBody}&url=${encodedUrl}`];
       break;
     case "telegram":
-      targetUrl = `https://t.me/share/url?url=${encodedUrl}&text=${encodedBody}`;
+      targetUrls = [`https://t.me/share/url?url=${encodedUrl}&text=${encodedBody}`];
       break;
   }
 
   if (typeof window === "undefined") return Promise.resolve("error");
-  try {
-    const shareWindow = window.open(targetUrl, "_blank");
-    if (shareWindow) {
-      shareWindow.opener = null;
-      return Promise.resolve("opened");
+  for (const targetUrl of targetUrls) {
+    try {
+      const shareWindow = window.open(targetUrl, "_blank");
+      if (shareWindow) {
+        shareWindow.opener = null;
+        return Promise.resolve("opened");
+      }
+    } catch {
+      // Try the next platform-specific or browser fallback URL.
     }
-  } catch {
-    // Fall through to copying the full share payload if popups are unavailable.
   }
   return copyShareText(shareText).then((copied) =>
     copied ? "copied" : "error",
@@ -180,15 +189,6 @@ export async function shareUrlWithNative(
   const url = canonicalShareUrl(input.url);
   const text = buildShareText(input.text, url);
 
-  if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
-    try {
-      await navigator.share({ title: input.title, text, url });
-      return "shared-url-only";
-    } catch (error) {
-      if ((error as DOMException)?.name === "AbortError") return "cancelled";
-    }
-  }
-
   if (typeof window !== "undefined" && window.AndroidShare?.shareText) {
     try {
       const result = await window.AndroidShare.shareText(
@@ -199,6 +199,15 @@ export async function shareUrlWithNative(
       if (result !== false) return "shared-url-only";
     } catch (error) {
       console.error("[share] Android text share failed:", error);
+    }
+  }
+
+  if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+    try {
+      await navigator.share({ title: input.title, text, url });
+      return "shared-url-only";
+    } catch (error) {
+      if ((error as DOMException)?.name === "AbortError") return "cancelled";
     }
   }
 
@@ -415,7 +424,7 @@ export async function universalShare(
   }
 
   // ── Step 2: Try file-based native share ───────────────────────────────────
-  if (file && typeof navigator.share === "function") {
+  if (file && typeof navigator !== "undefined" && typeof navigator.share === "function") {
     const shareData: ShareData = { title, text, url, files: [file] };
     const canShare =
       typeof navigator.canShare === "function"
@@ -434,7 +443,7 @@ export async function universalShare(
   }
 
   // ── Step 3: URL-only native share ─────────────────────────────────────────
-  if (typeof navigator.share === "function") {
+  if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
     try {
       await navigator.share({ title, text, url });
       return "shared-url-only";

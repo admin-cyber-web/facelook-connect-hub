@@ -271,47 +271,54 @@ const SharePopup: React.FC<SharePopupProps> = ({
   }, [onClose]);
 
   // ── Platform buttons — open the selected destination directly ───────────
-  const handlePlatformClick = async (mode: ShareMode) => {
-    if (mode === "system" || mode === "instagram") {
-      await handleNativeShare(mode);
-      return;
-    }
+  const handlePlatformClick = async (
+    event: React.MouseEvent<HTMLButtonElement>,
+    mode: ShareMode,
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (mediaSharing) return;
 
-    if (mode === "copy") {
-      try {
-        const copied = await copyShareText(
-          `${shareBody}\n\n${shareUrl}`,
-        );
+    try {
+      if (mode === "system" || mode === "instagram") {
+        await handleNativeShare(mode);
+        return;
+      }
+
+      if (mode === "copy") {
+        const copied = await copyShareText(shareUrl);
         if (!copied) throw new Error("Clipboard is unavailable");
-        toast.success("Link copied to clipboard!");
+        toast.success("Link copied!");
         setCopied(true);
         onShare(mode, post);
-        setTimeout(() => { setCopied(false); onClose(); }, 1200);
-      } catch {
-        toast.error("Copy failed.");
+        window.setTimeout(() => setCopied(false), 1600);
+        return;
       }
-      return;
-    }
 
-    setMediaSharing(true);
-    const outcome = await launchShareTarget(mode as ShareTarget, {
-      title: caption,
-      text: shareBody,
-      url: shareUrl,
-      mediaUrl,
-      previewUrl,
-      authorName: post.author,
-      type: (post.type as PostType) || "post",
-    });
-    setMediaSharing(false);
-    if (outcome === "opened") {
-      onShare(mode, post);
-      setTimeout(onClose, 350);
-    } else if (outcome === "copied") {
-      toast.success("Share text copied to clipboard.");
-      onShare(mode, post);
-    } else {
-      toast.error(`Couldn't share to ${mode}. Try Copy Link instead.`);
+      setMediaSharing(true);
+      const outcome = await launchShareTarget(mode as ShareTarget, {
+        title: caption,
+        text: shareBody,
+        url: shareUrl,
+        mediaUrl,
+        previewUrl,
+        authorName: post.author,
+        type: (post.type as PostType) || "post",
+      });
+      if (outcome === "opened") {
+        onShare(mode, post);
+        window.setTimeout(onClose, 350);
+      } else if (outcome === "copied") {
+        toast.success("Share text copied to clipboard.");
+        onShare(mode, post);
+      } else {
+        toast.error(`Couldn't share to ${mode}. Try Copy Link instead.`);
+      }
+    } catch (error) {
+      console.error("[SharePopup] Platform share failed:", error);
+      toast.error(mode === "copy" ? "Copy failed." : `Couldn't share to ${mode}.`);
+    } finally {
+      setMediaSharing(false);
     }
   };
 
@@ -319,61 +326,76 @@ const SharePopup: React.FC<SharePopupProps> = ({
     if (mediaSharing) return;
     setMediaSharing(true);
     setMediaOutcome(null);
-    const outcome = await shareUrlWithNative({
-      title: shareTitle,
-      text: shareBody,
-      url: shareUrl,
-      authorName: post.author,
-    });
-    setMediaSharing(false);
-    setMediaOutcome(outcome);
+    try {
+      const outcome = await shareUrlWithNative({
+        title: shareTitle,
+        text: shareBody,
+        url: shareUrl,
+        authorName: post.author,
+      });
+      setMediaOutcome(outcome);
 
-    if (outcome === "shared-url-only") {
-      onShare(mode, post);
-      setTimeout(onClose, 300);
-    } else if (outcome === "copied") {
-      toast.success(
-        mode === "instagram"
-          ? "Share text copied. Paste it into Instagram."
-          : "Share text copied to clipboard.",
-      );
-    } else if (outcome === "cancelled") {
-      setMediaOutcome(null);
-    } else {
+      if (outcome === "shared-url-only") {
+        onShare(mode, post);
+        window.setTimeout(onClose, 300);
+      } else if (outcome === "copied") {
+        toast.success(
+          mode === "instagram"
+            ? "Share text copied. Paste it into Instagram."
+            : "Share text copied to clipboard.",
+        );
+      } else if (outcome === "cancelled") {
+        setMediaOutcome(null);
+      } else {
+        toast.error("Sharing is unavailable. Try Copy Link instead.");
+      }
+    } catch (error) {
+      console.error("[SharePopup] Native share failed:", error);
       toast.error("Sharing is unavailable. Try Copy Link instead.");
+    } finally {
+      setMediaSharing(false);
     }
   };
 
   // ── File-based native share (opens OS sheet WITH the image/video) ─────────
-  const handleMediaShare = async () => {
+  const handleMediaShare = async (
+    event: React.MouseEvent<HTMLButtonElement>,
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
     if (mediaSharing) return;
     setMediaSharing(true);
     setMediaOutcome(null);
 
-    const outcome = await universalShare({
-      title: shareTitle,
-      text: shareBody,
-      url: shareUrl,
-      mediaUrl,
-      previewUrl,
-      authorName: post.author,
-      canvas: canvas ?? undefined,
-      type: (post.type as PostType) || "post",
-    });
+    try {
+      const outcome = await universalShare({
+        title: shareTitle,
+        text: shareBody,
+        url: shareUrl,
+        mediaUrl,
+        previewUrl,
+        authorName: post.author,
+        canvas: canvas ?? undefined,
+        type: (post.type as PostType) || "post",
+      });
+      setMediaOutcome(outcome);
 
-    setMediaSharing(false);
-    setMediaOutcome(outcome);
-
-    if (outcome === "shared-with-file" || outcome === "shared-url-only") {
-      // Increment share count via parent handler then close
-      onShare("system", post);
-      setTimeout(onClose, 300);
-    } else if (outcome === "cancelled") {
-      setMediaOutcome(null); // User cancelled — keep popup open
-    } else if (outcome === "copied") {
-      toast.success("Share text copied to clipboard.");
-    } else {
+      if (outcome === "shared-with-file" || outcome === "shared-url-only") {
+        onShare("system", post);
+        window.setTimeout(onClose, 300);
+      } else if (outcome === "cancelled") {
+        setMediaOutcome(null);
+      } else if (outcome === "copied") {
+        toast.success("Share text copied to clipboard.");
+      } else {
+        toast.error("Share failed. Try Copy Link instead.");
+      }
+    } catch (error) {
+      console.error("[SharePopup] Media share failed:", error);
+      setMediaOutcome("error");
       toast.error("Share failed. Try Copy Link instead.");
+    } finally {
+      setMediaSharing(false);
     }
   };
 
@@ -477,8 +499,13 @@ const SharePopup: React.FC<SharePopupProps> = ({
             </div>
 
             <button
-              onClick={onClose}
-              className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center hover:bg-white/10 transition-colors"
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onClose();
+              }}
+              aria-label="Close share options"
+              className="flex-shrink-0 w-6 h-6 cursor-pointer rounded-full flex items-center justify-center hover:bg-white/10 active:scale-95 transition-colors"
             >
               <X size={13} className="text-white/50" />
             </button>
@@ -496,10 +523,11 @@ const SharePopup: React.FC<SharePopupProps> = ({
           {/* ── "Share with Image" — file-based OS sheet ── */}
           <div className="px-3 pt-3 pb-1">
             <motion.button
+              type="button"
               whileTap={mediaSharing ? {} : { scale: 0.97 }}
               onClick={handleMediaShare}
               disabled={mediaSharing}
-              className="w-full flex items-center justify-center gap-2 rounded-[14px] py-2.5 px-4 font-bold text-[12px] transition-opacity"
+              className="w-full flex cursor-pointer items-center justify-center gap-2 rounded-[14px] py-2.5 px-4 font-bold text-[12px] transition-opacity hover:brightness-110 active:scale-[0.98] disabled:cursor-wait"
               style={{
                 background:
                   mediaOutcome === "shared-with-file" ||
@@ -553,10 +581,13 @@ const SharePopup: React.FC<SharePopupProps> = ({
               return (
                 <motion.button
                   key={mode}
+                  type="button"
                   whileTap={{ scale: 0.88 }}
                   whileHover={{ scale: 1.06 }}
-                  onClick={() => handlePlatformClick(mode)}
-                  className="flex flex-col items-center gap-1.5 outline-none"
+                  onClick={(event) => void handlePlatformClick(event, mode)}
+                  disabled={mediaSharing}
+                  aria-label={`Share via ${label}`}
+                  className="flex cursor-pointer flex-col items-center gap-1.5 rounded-xl outline-none transition-opacity hover:opacity-100 active:scale-95 disabled:cursor-wait disabled:opacity-60"
                 >
                   <div
                     className="w-11 h-11 rounded-[14px] flex items-center justify-center"
