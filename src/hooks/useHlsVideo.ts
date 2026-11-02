@@ -1,4 +1,4 @@
-import { useEffect, useState, type RefObject } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import type Hls from "hls.js";
 
 export const isHlsUrl = (url: unknown): url is string =>
@@ -14,6 +14,8 @@ export function useHlsVideo(
   const isHls = isHlsUrl(source);
   const [error, setError] = useState<string | null>(null);
   const [retryToken, setRetryToken] = useState(0);
+  const autoPlayRef = useRef(autoPlay);
+  autoPlayRef.current = autoPlay;
 
   useEffect(() => {
     const video = videoRef.current;
@@ -27,7 +29,7 @@ export function useHlsVideo(
     setError(null);
 
     if (video.canPlayType("application/vnd.apple.mpegurl")) {
-      video.autoplay = autoPlay;
+      video.autoplay = autoPlayRef.current;
       video.src = source;
       return () => {
         video.autoplay = false;
@@ -65,9 +67,9 @@ export function useHlsVideo(
             });
           },
         });
-        video.autoplay = autoPlay;
+        video.autoplay = autoPlayRef.current;
         hls.on(HlsConstructor.Events.MANIFEST_PARSED, () => {
-          if (autoPlay) void video.play().catch(() => {});
+          if (autoPlayRef.current) void video.play().catch(() => {});
         });
         hls.on(HlsConstructor.Events.ERROR, (_event, data) => {
           if (!data.fatal) return;
@@ -100,7 +102,16 @@ export function useHlsVideo(
       video.removeAttribute("src");
       video.load();
     };
-  }, [autoPlay, enabled, isHls, retryKey, retryToken, source, videoRef]);
+  }, [enabled, isHls, retryKey, retryToken, source, videoRef]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !isHls || !enabled) return;
+    video.autoplay = autoPlay;
+    if (autoPlay && video.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
+      void video.play().catch(() => {});
+    }
+  }, [autoPlay, enabled, isHls, source, videoRef]);
 
   return {
     isHls,

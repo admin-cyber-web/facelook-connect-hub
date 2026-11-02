@@ -8,6 +8,7 @@ export type BunnyVideoStatusState = {
 
 const POLL_INTERVAL_MS = 4_000;
 const MAX_POLL_DURATION_MS = 10 * 60 * 1_000;
+const readyVideoIds = new Set<string>();
 
 export function getBunnyVideoId(url: string, explicitId?: unknown): string | null {
   if (typeof explicitId === "string" && /^[\w-]{8,64}$/.test(explicitId)) {
@@ -37,17 +38,26 @@ export function getBunnyVideoThumbnailUrl(source: string, fallback?: string | nu
 }
 
 export function useBunnyVideoStatus(videoId: string | null, enabled: boolean) {
-  const [state, setState] = useState<BunnyVideoStatusState>({
-    phase: "idle",
-    progress: null,
+  const [state, setState] = useState<BunnyVideoStatusState>(() => ({
+    phase: videoId && readyVideoIds.has(videoId) ? "ready" : "idle",
+    progress: videoId && readyVideoIds.has(videoId) ? 100 : null,
     message: null,
-  });
+  }));
   const [retryToken, setRetryToken] = useState(0);
   const retry = useCallback(() => setRetryToken((token) => token + 1), []);
 
   useEffect(() => {
     if (!enabled || !videoId) {
-      setState({ phase: "idle", progress: null, message: null });
+      setState({
+        phase: videoId && readyVideoIds.has(videoId) ? "ready" : "idle",
+        progress: videoId && readyVideoIds.has(videoId) ? 100 : null,
+        message: null,
+      });
+      return;
+    }
+
+    if (readyVideoIds.has(videoId)) {
+      setState({ phase: "ready", progress: 100, message: null });
       return;
     }
 
@@ -92,6 +102,7 @@ export function useBunnyVideoStatus(videoId: string | null, enabled: boolean) {
           return;
         }
         if (result.ready) {
+          readyVideoIds.add(videoId);
           setState({ phase: "ready", progress: 100, message: null });
           return;
         }

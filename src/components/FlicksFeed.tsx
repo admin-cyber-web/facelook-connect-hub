@@ -34,7 +34,6 @@ import SavePostButton from "./SavePostButton";
 import { sharePost } from "../lib/sharePost";
 import {
   getBunnyVideoId,
-  getBunnyVideoThumbnailUrl,
   useBunnyVideoStatus,
 } from "../hooks/useBunnyVideoStatus";
 import BunnyVideoStatusOverlay from "./BunnyVideoStatusOverlay";
@@ -316,6 +315,7 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, on
   const [localContent,      setLocalContent]       = useState(() => getPostCaption(post));
   // ── Video health states ────────────────────────────────────────────────
   const [videoError,        setVideoError]         = useState<string | null>(null);
+  const [hasPlayableVideo, setHasPlayableVideo] = useState(false);
   const [sharePopupData, setSharePopupData] = useState<{
     post: SharePostData;
     anchor: ShareAnchor;
@@ -328,14 +328,18 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, on
   const bunnyVideoId = getBunnyVideoId(videoUrl, post?.metadata?.bunny_video_id);
   const isCreator = Boolean(currentUserId && post.author_id === currentUserId);
   const bunnyVideoStatus = useBunnyVideoStatus(bunnyVideoId, isActive && isCreator);
+  const bunnyVideoReady =
+    post?.bunny_ready === true ||
+    bunnyVideoStatus.phase === "ready" ||
+    hasPlayableVideo;
   const hlsPlayback = useHlsVideo(
     videoRef,
     videoUrl,
-    isActive && (!isCreator || bunnyVideoStatus.phase === "ready"),
-    bunnyVideoStatus.phase === "ready" ? "ready" : "pending",
-    true,
+    isPreloaded && (!isCreator || bunnyVideoReady),
+    post?.bunny_ready === true || bunnyVideoStatus.phase === "ready" ? "ready" : "pending",
+    isActive,
   );
-  const visibleVideoError = isCreator && bunnyVideoStatus.phase !== "ready" && bunnyVideoId
+  const visibleVideoError = isCreator && !bunnyVideoReady && bunnyVideoId
     ? null
     : videoError || hlsPlayback.error;
   const hasBackgroundAudio = Boolean(reelSettings.audioUrl);
@@ -347,6 +351,9 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, on
   const [attachedAudioSrc, setAttachedAudioSrc] = useState<string | undefined>(
     () => getMediaSrc(reelSettings.audioUrl) || reelSettings.audioUrl || undefined,
   );
+  useEffect(() => {
+    setHasPlayableVideo(false);
+  }, [videoUrl]);
   useEffect(() => {
     setMediaSrc((prev) => {
       const next = isHlsUrl(videoUrl) ? videoUrl : getMediaSrc(videoUrl) || videoUrl;
@@ -392,13 +399,13 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, on
   }, []);
 
   useEffect(() => {
-    if (!isActive || bunnyVideoStatus.phase !== "ready") return;
+    if (!isActive || !bunnyVideoReady) return;
     const video = videoRef.current;
     if (!video) return;
     setVideoError(null);
     if (!hlsPlayback.isHls) video.load();
     requestPlayback(video, hasBackgroundAudio);
-  }, [bunnyVideoStatus.phase, hasBackgroundAudio, hlsPlayback.isHls, isActive, videoUrl]);
+  }, [bunnyVideoReady, hasBackgroundAudio, hlsPlayback.isHls, isActive, videoUrl]);
 
   // ── Parse MediaError into a human-readable label ──────────────────────
   const parseMediaError = (err: MediaError | null): string => {
@@ -964,10 +971,6 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, on
         ref={videoRef}
         key={videoUrl}
         src={hlsPlayback.isHls ? undefined : mediaSrc}
-        poster={getBunnyVideoThumbnailUrl(
-          videoUrl,
-          post.thumb_url || post.cover_url || post.thumbnail_url || post.video_thumbnail_url,
-        )}
         loop
         muted
         playsInline
@@ -982,6 +985,8 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, on
           touchAction: "pan-y",
         }}
         onLoadStart={() => setVideoError(null)}
+        onCanPlay={() => setHasPlayableVideo(true)}
+        onPlaying={() => setHasPlayableVideo(true)}
         onError={e => {
           const vid = e.currentTarget;
           const msg = parseMediaError(vid.error);
@@ -996,7 +1001,7 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, on
           }
         }}
       />
-      {isCreator && bunnyVideoId && (
+      {isCreator && bunnyVideoId && !bunnyVideoReady && (
         <>
           <BunnyCreatorProcessingOverlay state={bunnyVideoStatus} />
           {bunnyVideoStatus.phase === "failed" && (
