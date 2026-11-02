@@ -257,6 +257,12 @@ const SurpriseReactionModal = ({
 
 // ── PostViewTracker — fires onView once when post scrolls into view ─────────
 const VibeVisibilityContext = createContext(false);
+const FeedVideoPreloadContext = createContext<{
+  activeIndex: number | null;
+  setActiveIndex: (
+    index: number | null | ((current: number | null) => number | null),
+  ) => void;
+} | null>(null);
 
 const PostViewTracker = memo(({
   postId,
@@ -311,18 +317,31 @@ const PostViewTracker = memo(({
 });
 
 // ── Inline video ───────────────────────────────────────────────────────────────
-const FeedVideo = memo(({ src, poster, isCreator }: { src: string; poster?: string | null; isCreator: boolean }) => {
+const FeedVideo = memo(({ src, poster, isCreator, feedIndex }: { src: string; poster?: string | null; isCreator: boolean; feedIndex?: number }) => {
   const ref = useRef<HTMLVideoElement>(null);
   const [isVisible, setIsVisible] = useState(false);
   const [videoError, setVideoError] = useState<string | null>(null);
+  const preloadContext = useContext(FeedVideoPreloadContext);
+  const setActiveFeedVideoIndex = preloadContext?.setActiveIndex;
   const bunnyVideoId = getBunnyVideoId(src);
-  const bunnyVideoStatus = useBunnyVideoStatus(bunnyVideoId, isCreator && isVisible);
+  const inPreloadWindow =
+    feedIndex !== undefined &&
+    preloadContext?.activeIndex !== null &&
+    preloadContext?.activeIndex !== undefined &&
+    feedIndex >= preloadContext.activeIndex - 3 &&
+    feedIndex <= preloadContext.activeIndex + 5;
+  const bunnyVideoStatus = useBunnyVideoStatus(
+    bunnyVideoId,
+    isCreator && (isVisible || inPreloadWindow),
+  );
   const hlsPlayback = useHlsVideo(
     ref,
     src,
-    isVisible && (!isCreator || bunnyVideoStatus.phase === "ready"),
+    (isVisible || inPreloadWindow) &&
+      (!isCreator || bunnyVideoStatus.phase === "ready"),
     bunnyVideoStatus.phase === "ready" ? "ready" : "pending",
-    true,
+    isVisible,
+    !isVisible,
   );
 
   useEffect(() => {
@@ -330,8 +349,10 @@ const FeedVideo = memo(({ src, poster, isCreator }: { src: string; poster?: stri
     if (!el) return;
     const obs = new IntersectionObserver(
       ([entry]) => {
-        setIsVisible(entry.isIntersecting);
-        if (entry.isIntersecting) {
+        const visible = entry.isIntersecting && entry.intersectionRatio >= 0.35;
+        setIsVisible(visible);
+        if (visible) {
+          if (feedIndex !== undefined) setActiveFeedVideoIndex?.(feedIndex);
           el.muted = true;
           void el.play().catch(() => {
             if (!el.isConnected) return;
@@ -340,19 +361,24 @@ const FeedVideo = memo(({ src, poster, isCreator }: { src: string; poster?: stri
           });
         } else {
           el.pause();
+          if (feedIndex !== undefined) {
+            setActiveFeedVideoIndex?.((current) =>
+              current === feedIndex ? null : current,
+            );
+          }
         }
       },
-      { threshold: 0.4 },
+      { threshold: [0, 0.35, 0.5] },
     );
     obs.observe(el);
     return () => {
       obs.disconnect();
       el.pause();
     };
-  }, [src]);
+  }, [feedIndex, setActiveFeedVideoIndex, src]);
 
   useEffect(() => {
-    if (!isVisible || bunnyVideoStatus.phase !== "ready") return;
+    if (!isVisible || (isCreator && bunnyVideoStatus.phase !== "ready")) return;
     const video = ref.current;
     if (!video) return;
     setVideoError(null);
@@ -360,7 +386,7 @@ const FeedVideo = memo(({ src, poster, isCreator }: { src: string; poster?: stri
       video.load();
       void video.play().catch(() => {});
     }
-  }, [bunnyVideoStatus.phase, hlsPlayback.isHls, isVisible, src]);
+  }, [bunnyVideoStatus.phase, hlsPlayback.isHls, isCreator, isVisible, src]);
 
   return (
     <div
@@ -376,10 +402,10 @@ const FeedVideo = memo(({ src, poster, isCreator }: { src: string; poster?: stri
         playsInline
         className="w-full h-full object-cover"
         style={{ touchAction: "pan-y" }}
-        preload="none"
+        preload="auto"
         onLoadStart={() => setVideoError(null)}
         onError={(event) => {
-          if (bunnyVideoId && bunnyVideoStatus.phase !== "ready") return;
+          if (isCreator && bunnyVideoId && bunnyVideoStatus.phase !== "ready") return;
           setVideoError("This video couldn't be played. Try again later.");
           console.warn("[FameFeed] Video playback failed:", event.currentTarget.error, src);
         }}
@@ -392,7 +418,7 @@ const FeedVideo = memo(({ src, poster, isCreator }: { src: string; poster?: stri
           )}
         </>
       )}
-      {(videoError || (bunnyVideoStatus.phase === "ready" || !bunnyVideoId
+      {(videoError || (!isCreator || bunnyVideoStatus.phase === "ready"
         ? hlsPlayback.error
         : null)) && (
         <div className="absolute inset-0 z-[25] flex flex-col items-center justify-center gap-2 bg-[#090b14]/95 p-4 text-center">
@@ -463,7 +489,7 @@ const FeedPreviewVideo = memo(({ src }: { src: string }) => {
       muted
       loop
       playsInline
-      preload="none"
+      preload="auto"
       className="absolute inset-0 h-full w-full object-cover"
       style={{ opacity: 0.85 }}
     />
@@ -517,6 +543,15 @@ const getPostImageUrls = (post: any): string[] => {
     legacyUrl.includes("rapidcdn.app");
   return isVideo ? [] : [legacyUrl];
 };
+
+const isFeedVideoPost = (post: any) =>
+  post?.type === "video" ||
+  post?.metadata?.is_youtube ||
+  (post?.media_url &&
+    (/\.(mp4|webm|ogg|mov|m4v)/i.test(post.media_url.split("?")[0]) ||
+      post.media_url.includes("youtube.com") ||
+      post.media_url.includes("youtu.be") ||
+      post.media_url.includes("rapidcdn.app")));
 
 const PostImageCollage = memo(({ urls, onOpen }: { urls: string[]; onOpen: (index: number) => void }) => {
   const visibleUrls = urls.length === 5 ? urls.slice(0, 4) : urls;
@@ -602,10 +637,12 @@ const PostMedia = memo(({
   post,
   vibeTag,
   isCreator = false,
+  feedIndex,
 }: {
   post: any;
   vibeTag?: VibeTag;
   isCreator?: boolean;
+  feedIndex?: number;
 }) => {
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   const sceneVault = post?.metadata?.scene_vault;
@@ -687,6 +724,7 @@ const PostMedia = memo(({
       src={url}
       poster={post.cover_url || post.thumb_url || post.thumbnail_url || post.video_thumbnail_url}
       isCreator={isCreator}
+      feedIndex={feedIndex}
     />
   ) : (
     <div className="relative aspect-[4/5] w-full overflow-hidden bg-[#09090b]" style={{ touchAction: "pan-y" }}>
@@ -2837,6 +2875,7 @@ const PostDetailView = ({
 const SingleReelBlock = ({
   post,
   currentUserId,
+  feedIndex,
   commentCount,
   onOpenComments,
   onEdit,
@@ -2845,6 +2884,7 @@ const SingleReelBlock = ({
 }: {
   post: any;
   currentUserId: string | null;
+  feedIndex?: number;
   commentCount: number;
   onOpenComments: () => void;
   onEdit: () => void;
@@ -2870,6 +2910,14 @@ const SingleReelBlock = ({
   const likeMutationRef = useRef<Promise<void> | null>(null);
   const reelSettings = getReelSettings(post);
   const reelVideoUrl = reelSettings.videoUrl || post.media_url;
+  const preloadContext = useContext(FeedVideoPreloadContext);
+  const setActiveFeedVideoIndex = preloadContext?.setActiveIndex;
+  const inPreloadWindow =
+    feedIndex !== undefined &&
+    preloadContext?.activeIndex !== null &&
+    preloadContext?.activeIndex !== undefined &&
+    feedIndex >= preloadContext.activeIndex - 3 &&
+    feedIndex <= preloadContext.activeIndex + 5;
   const [isHlsActive, setIsHlsActive] = useState(false);
   const isOwner = Boolean(currentUserId && post.author_id === currentUserId);
   const bunnyVideoId = getBunnyVideoId(reelVideoUrl, post?.metadata?.bunny_video_id);
@@ -2877,7 +2925,11 @@ const SingleReelBlock = ({
   const hlsPlayback = useHlsVideo(
     ref,
     reelVideoUrl,
-    isHlsActive && (!isOwner || bunnyVideoStatus.phase === "ready"),
+    (isHlsActive || inPreloadWindow) &&
+      (!isOwner || bunnyVideoStatus.phase === "ready"),
+    bunnyVideoStatus.phase === "ready" ? "ready" : "pending",
+    false,
+    !isHlsActive,
   );
   const hasBackgroundAudio = Boolean(reelSettings.audioUrl);
   const toggleReelMenu = (event: React.SyntheticEvent<HTMLButtonElement>) => {
@@ -3161,7 +3213,10 @@ const SingleReelBlock = ({
           entry.boundingClientRect.top + entry.boundingClientRect.height / 2 - window.innerHeight / 2,
         );
         if (entry.isIntersecting && entry.intersectionRatio > 0) {
-          setIsHlsActive(true);
+          setIsHlsActive(entry.intersectionRatio >= 0.35);
+          if (entry.intersectionRatio >= 0.35 && feedIndex !== undefined) {
+            setActiveFeedVideoIndex?.(feedIndex);
+          }
           visibleFameFeedReels.set(video, {
             ratio: entry.intersectionRatio,
             centerDistance,
@@ -3170,6 +3225,11 @@ const SingleReelBlock = ({
           });
         } else {
           setIsHlsActive(false);
+          if (feedIndex !== undefined) {
+            setActiveFeedVideoIndex?.((current) =>
+              current === feedIndex ? null : current,
+            );
+          }
           visibleFameFeedReels.delete(video);
           pauseAndMuteFameFeedReel(video, audioRef.current);
         }
@@ -3189,7 +3249,7 @@ const SingleReelBlock = ({
       pauseAndMuteFameFeedReel(el, audioRef.current);
       syncCenteredFameFeedReel();
     };
-  }, [reelSettings.cssFilter, reelSettings.playbackRate, reelVideoUrl]);
+  }, [feedIndex, setActiveFeedVideoIndex, reelSettings.cssFilter, reelSettings.playbackRate, reelVideoUrl]);
 
   useEffect(() => {
     const video = ref.current;
@@ -3231,7 +3291,7 @@ const SingleReelBlock = ({
             loop
             muted
             playsInline
-            preload="metadata"
+            preload="auto"
           />
           {isOwner && bunnyVideoId && (
             <>
@@ -3983,6 +4043,14 @@ const FameFeed = ({
   );
   const [posts, setPosts] = useState<any[]>(() =>
     cachedVisiblePosts.map(normalizePostLikeCount),
+  );
+  const [activeFeedVideoIndex, setActiveFeedVideoIndex] = useState<number | null>(null);
+  const feedVideoPreloadContext = useMemo(
+    () => ({
+      activeIndex: activeFeedVideoIndex,
+      setActiveIndex: setActiveFeedVideoIndex,
+    }),
+    [activeFeedVideoIndex],
   );
   // Mirror of posts in a ref so callbacks can read the current count synchronously
   // without being listed as a dep (which would break memoised callbacks).
@@ -5542,6 +5610,15 @@ const FameFeed = ({
     const authorPrivate = p.author_profile?.is_private_mode === true;
     return isPublicPost && !authorPrivate;
   }), [posts, blockedUserIds, currentUserId]);
+  const feedVideoIndexByPostId = useMemo(() => {
+    const indices = new Map<string, number>();
+    visiblePosts.forEach((post) => {
+      if (isFeedVideoPost(post)) {
+        indices.set(String(post.id), indices.size);
+      }
+    });
+    return indices;
+  }, [visiblePosts]);
 
   // ── Live Mini-Ticker: Trending hashtags from current posts ─────────────────
   const trendingTickerTags = useMemo(() => {
@@ -6521,6 +6598,7 @@ const FameFeed = ({
           post.media_url.includes("youtube.com") ||
           post.media_url.includes("youtu.be") ||
           post.media_url.includes("rapidcdn.app")));
+    const feedVideoIndex = feedVideoIndexByPostId.get(String(post.id));
 
     if (isVideo) {
       return (
@@ -6535,6 +6613,7 @@ const FameFeed = ({
             <SingleReelBlock
               post={post}
               currentUserId={currentUserId}
+              feedIndex={feedVideoIndex}
               commentCount={
                 commentsMap[post.id]?.filter((comment: any) => !comment.parent_id).length ??
                 post.comments_count ??
@@ -7184,6 +7263,7 @@ const FameFeed = ({
             post={post}
             vibeTag={primaryVibe?.tag}
             isCreator={Boolean(currentUserId && (post.author_id === currentUserId || post.user_id === currentUserId))}
+            feedIndex={feedVideoIndex}
           />
 
           {/* ── Magnet Voice Display (warning overlay / normal pill) ───── */}
@@ -8421,6 +8501,7 @@ const FameFeed = ({
   }, [visiblePosts, flicksLoaded]);
 
   return (
+    <FeedVideoPreloadContext.Provider value={feedVideoPreloadContext}>
     <div
       className="bg-[#0F172A] min-h-screen pb-32"
       style={{ willChange: "transform", touchAction: "pan-y" }}
@@ -9392,6 +9473,7 @@ const FameFeed = ({
         </>
       )}
     </div>
+    </FeedVideoPreloadContext.Provider>
   );
 };
 
