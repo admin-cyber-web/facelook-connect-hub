@@ -88,24 +88,65 @@ export interface ShareTargetInput {
   type?: PostType;
 }
 
+export type ShareTargetOutcome = "opened" | "copied" | "error";
+
+export async function copyShareText(text: string): Promise<boolean> {
+  try {
+    if (
+      typeof navigator !== "undefined" &&
+      typeof navigator.clipboard?.writeText === "function"
+    ) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    // Continue to the document-based fallback for restricted browser contexts.
+  }
+
+  if (typeof document === "undefined") return false;
+  const input = document.createElement("textarea");
+  input.value = text;
+  input.setAttribute("readonly", "");
+  input.style.position = "fixed";
+  input.style.opacity = "0";
+  document.body.appendChild(input);
+  try {
+    input.select();
+    return document.execCommand("copy");
+  } catch {
+    return false;
+  } finally {
+    input.remove();
+  }
+}
+
 export function launchShareTarget(
   platform: ShareTarget,
   input: ShareTargetInput,
-): boolean {
+): Promise<ShareTargetOutcome> {
   const shareUrl = canonicalShareUrl(input.url);
   const shareText = buildShareText(input.text, shareUrl);
   const bodyText = input.text.trim();
   const encodedUrl = encodeURIComponent(shareUrl);
   const encodedText = encodeURIComponent(shareText);
   const encodedBody = encodeURIComponent(bodyText);
+  const whatsappWebUrl = `https://api.whatsapp.com/send?text=${encodedText}`;
 
   let targetUrl: string;
   switch (platform) {
     case "whatsapp":
-      targetUrl = `https://wa.me/?text=${encodedText}`;
+      targetUrl =
+        typeof navigator !== "undefined" &&
+        /android/i.test(navigator.userAgent)
+          ? `intent://send?text=${encodedText}#Intent;scheme=whatsapp;package=com.whatsapp;S.browser_fallback_url=${encodeURIComponent(whatsappWebUrl)};end`
+          : whatsappWebUrl;
       break;
     case "messenger":
-      targetUrl = `https://www.facebook.com/dialog/send?link=${encodedUrl}`;
+      targetUrl =
+        typeof navigator !== "undefined" &&
+        /android/i.test(navigator.userAgent)
+          ? `intent://share?link=${encodedUrl}#Intent;scheme=fb-messenger;package=com.facebook.orca;S.browser_fallback_url=${encodeURIComponent(`https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`)};end`
+          : `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`;
       break;
     case "facebook":
       targetUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`;
@@ -118,13 +159,50 @@ export function launchShareTarget(
       break;
   }
 
-  if (typeof window === "undefined") return false;
+  if (typeof window === "undefined") return Promise.resolve("error");
   try {
-    window.open(targetUrl, "_blank", "noopener,noreferrer");
-    return true;
+    const shareWindow = window.open(targetUrl, "_blank");
+    if (shareWindow) {
+      shareWindow.opener = null;
+      return Promise.resolve("opened");
+    }
   } catch {
-    return false;
+    // Fall through to copying the full share payload if popups are unavailable.
   }
+  return copyShareText(shareText).then((copied) =>
+    copied ? "copied" : "error",
+  );
+}
+
+export async function shareUrlWithNative(
+  input: UniversalShareInput,
+): Promise<ShareOutcome> {
+  const url = canonicalShareUrl(input.url);
+  const text = buildShareText(input.text, url);
+
+  if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+    try {
+      await navigator.share({ title: input.title, text, url });
+      return "shared-url-only";
+    } catch (error) {
+      if ((error as DOMException)?.name === "AbortError") return "cancelled";
+    }
+  }
+
+  if (typeof window !== "undefined" && window.AndroidShare?.shareText) {
+    try {
+      const result = await window.AndroidShare.shareText(
+        input.title,
+        text,
+        url,
+      );
+      if (result !== false) return "shared-url-only";
+    } catch (error) {
+      console.error("[share] Android text share failed:", error);
+    }
+  }
+
+  return (await copyShareText(text)) ? "copied" : "error";
 }
 
 declare global {

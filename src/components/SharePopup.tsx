@@ -11,7 +11,9 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import {
+  copyShareText,
   launchShareTarget,
+  shareUrlWithNative,
   universalShare,
   resolveShareMediaUrl,
   resolveSharePreviewUrl,
@@ -271,13 +273,16 @@ const SharePopup: React.FC<SharePopupProps> = ({
   // ── Platform buttons — open the selected destination directly ───────────
   const handlePlatformClick = async (mode: ShareMode) => {
     if (mode === "system" || mode === "instagram") {
-      await handleMediaShare();
+      await handleNativeShare(mode);
       return;
     }
 
     if (mode === "copy") {
       try {
-        await navigator.clipboard.writeText(shareUrl);
+        const copied = await copyShareText(
+          `${shareBody}\n\n${shareUrl}`,
+        );
+        if (!copied) throw new Error("Clipboard is unavailable");
         toast.success("Link copied to clipboard!");
         setCopied(true);
         onShare(mode, post);
@@ -289,7 +294,7 @@ const SharePopup: React.FC<SharePopupProps> = ({
     }
 
     setMediaSharing(true);
-    const opened = await launchShareTarget(mode as ShareTarget, {
+    const outcome = await launchShareTarget(mode as ShareTarget, {
       title: caption,
       text: shareBody,
       url: shareUrl,
@@ -299,11 +304,43 @@ const SharePopup: React.FC<SharePopupProps> = ({
       type: (post.type as PostType) || "post",
     });
     setMediaSharing(false);
-    if (opened) {
+    if (outcome === "opened") {
       onShare(mode, post);
       setTimeout(onClose, 350);
+    } else if (outcome === "copied") {
+      toast.success("Share text copied to clipboard.");
+      onShare(mode, post);
     } else {
-      toast.error(`Couldn't open ${mode}. Try Direct Message or Copy Link.`);
+      toast.error(`Couldn't share to ${mode}. Try Copy Link instead.`);
+    }
+  };
+
+  const handleNativeShare = async (mode: "system" | "instagram") => {
+    if (mediaSharing) return;
+    setMediaSharing(true);
+    setMediaOutcome(null);
+    const outcome = await shareUrlWithNative({
+      title: shareTitle,
+      text: shareBody,
+      url: shareUrl,
+      authorName: post.author,
+    });
+    setMediaSharing(false);
+    setMediaOutcome(outcome);
+
+    if (outcome === "shared-url-only") {
+      onShare(mode, post);
+      setTimeout(onClose, 300);
+    } else if (outcome === "copied") {
+      toast.success(
+        mode === "instagram"
+          ? "Share text copied. Paste it into Instagram."
+          : "Share text copied to clipboard.",
+      );
+    } else if (outcome === "cancelled") {
+      setMediaOutcome(null);
+    } else {
+      toast.error("Sharing is unavailable. Try Copy Link instead.");
     }
   };
 
