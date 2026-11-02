@@ -40,7 +40,7 @@ export function useHlsVideo(
     let cancelled = false;
     let hls: Hls | null = null;
     void import("hls.js")
-      .then(({ default: HlsConstructor }) => {
+      .then(({ default: HlsConstructor, FetchLoader }) => {
         if (cancelled) return;
         if (!HlsConstructor.isSupported()) {
           setError("HLS playback is not supported by this browser.");
@@ -48,9 +48,22 @@ export function useHlsVideo(
         }
 
         hls = new HlsConstructor({
+          loader: FetchLoader,
           enableWorker: true,
           manifestLoadingMaxRetry: 2,
           levelLoadingMaxRetry: 2,
+          maxBufferLength: 30,
+          maxMaxBufferLength: 60,
+          capLevelToPlayerSize: true,
+          fetchSetup: (context, initParams) => {
+            const isMediaSegment = /\.(?:ts|m4s|mp4)(?:$|[?#])/i.test(
+              new URL(context.url).pathname,
+            );
+            return new Request(context.url, {
+              ...initParams,
+              ...(isMediaSegment ? { cache: "force-cache" } : {}),
+            });
+          },
         });
         video.autoplay = autoPlay;
         hls.on(HlsConstructor.Events.MANIFEST_PARSED, () => {

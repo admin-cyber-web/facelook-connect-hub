@@ -3,10 +3,23 @@ import type { BunnyVideoStatusState } from "@/hooks/useBunnyVideoStatus";
 interface Props {
   state: BunnyVideoStatusState;
   className?: string;
+  uploadProgress?: number | null;
 }
 
-export default function BunnyCreatorProcessingOverlay({ state, className = "" }: Props) {
-  if (state.phase !== "checking" && state.phase !== "processing") return null;
+export default function BunnyCreatorProcessingOverlay({
+  state,
+  className = "",
+  uploadProgress = null,
+}: Props) {
+  const isUploading = uploadProgress !== null;
+  if (!isUploading && state.phase !== "checking" && state.phase !== "processing") return null;
+  const progress = isUploading ? uploadProgress : state.progress;
+  const progressPercent = progress === null ? null : Math.min(100, Math.max(0, progress));
+  const progressText = isUploading
+    ? `Uploading video · ${Math.round(progressPercent ?? 0)}% complete`
+    : progressPercent === null
+      ? "Preparing high-definition optimization..."
+      : `High-definition scanning and encoding · ${Math.round(progressPercent)}% complete`;
 
   return (
     <div className={`absolute inset-0 z-[25] flex flex-col items-center justify-center overflow-hidden bg-[#080711]/95 px-7 text-center ${className}`}>
@@ -46,19 +59,31 @@ export default function BunnyCreatorProcessingOverlay({ state, className = "" }:
         </g>
       </svg>
       <p className="relative max-w-sm text-sm font-bold leading-relaxed text-white">
-        Hang tight! 🕷️ Your video is being optimized for quality by Flicks Community...
+        Hang tight! 🕷️ Flicks Community is scanning and weaving your video for high-definition cinematic quality and safety standards...
       </p>
-      {state.progress !== null && (
-        <div className="relative mt-5 w-full max-w-56">
-          <div className="h-1 overflow-hidden rounded-full bg-white/15">
+      <div className="relative mt-5 w-full max-w-56">
+        {progressPercent !== null ? (
+          <p className="mb-2 text-3xl font-black tabular-nums text-violet-200">
+            {Math.round(progressPercent)}%
+          </p>
+        ) : null}
+        <p className="mb-2 text-xs font-semibold text-white/70">{progressText}</p>
+        <div className="h-1 overflow-hidden rounded-full bg-white/15">
+          {progressPercent !== null ? (
             <div
-              className="h-full rounded-full bg-violet-300 transition-[width]"
-              style={{ width: `${Math.min(100, Math.max(0, state.progress))}%` }}
+              className="h-full bg-violet-300 transition-[width]"
+              style={{ width: `${progressPercent}%` }}
             />
-          </div>
-          <p className="mt-2 text-[11px] text-white/50">{Math.round(state.progress)}%</p>
+          ) : (
+            <div className="h-full w-1/3 animate-pulse rounded-full bg-violet-300" />
+          )}
         </div>
-      )}
+        {progressPercent !== null && (
+          <div className="mt-2 text-[11px] text-white/50">
+            {isUploading ? "Upload progress" : "Encoding progress"}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

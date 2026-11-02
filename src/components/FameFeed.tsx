@@ -43,7 +43,11 @@ import { maskProfanity, sanitizeText } from "../lib/profanityFilter";
 import { resolveMediaUrl } from "../lib/mediaUrl";
 import { getReelSettings } from "../lib/reelSettings";
 import { prefetchReelMedia } from "../lib/reelPrefetch";
-import { getBunnyVideoId, useBunnyVideoStatus } from "../hooks/useBunnyVideoStatus";
+import {
+  getBunnyVideoId,
+  getBunnyVideoThumbnailUrl,
+  useBunnyVideoStatus,
+} from "../hooks/useBunnyVideoStatus";
 import BunnyVideoStatusOverlay from "./BunnyVideoStatusOverlay";
 import { isHlsUrl, useHlsVideo } from "../hooks/useHlsVideo";
 import BunnyCreatorProcessingOverlay from "./BunnyCreatorProcessingOverlay";
@@ -307,7 +311,7 @@ const PostViewTracker = memo(({
 });
 
 // ── Inline video ───────────────────────────────────────────────────────────────
-const FeedVideo = memo(({ src, isCreator }: { src: string; isCreator: boolean }) => {
+const FeedVideo = memo(({ src, poster, isCreator }: { src: string; poster?: string | null; isCreator: boolean }) => {
   const ref = useRef<HTMLVideoElement>(null);
   const [isVisible, setIsVisible] = useState(false);
   const [videoError, setVideoError] = useState<string | null>(null);
@@ -366,6 +370,7 @@ const FeedVideo = memo(({ src, isCreator }: { src: string; isCreator: boolean })
       <video
         ref={ref}
         src={hlsPlayback.isHls ? undefined : src}
+        poster={getBunnyVideoThumbnailUrl(src, poster)}
         loop
         muted={true}
         playsInline
@@ -678,7 +683,11 @@ const PostMedia = memo(({
   const media = isYT ? (
     <YouTubeEmbed url={url} />
   ) : isVid ? (
-    <FeedVideo src={url} isCreator={isCreator} />
+    <FeedVideo
+      src={url}
+      poster={post.cover_url || post.thumb_url || post.thumbnail_url || post.video_thumbnail_url}
+      isCreator={isCreator}
+    />
   ) : (
     <div className="relative aspect-[4/5] w-full overflow-hidden bg-[#09090b]" style={{ touchAction: "pan-y" }}>
       <img

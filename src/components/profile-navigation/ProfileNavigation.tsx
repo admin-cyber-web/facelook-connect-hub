@@ -2,7 +2,11 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import AutoPlayMutedVideo from "@/components/AutoPlayMutedVideo";
 import ProfilePostActions from "@/components/ProfilePostActions";
-import { getBunnyVideoId, useBunnyVideoStatus } from "@/hooks/useBunnyVideoStatus";
+import {
+  getBunnyVideoId,
+  getBunnyVideoThumbnailUrl,
+  useBunnyVideoStatus,
+} from "@/hooks/useBunnyVideoStatus";
 import { isHlsUrl, useHlsVideo } from "@/hooks/useHlsVideo";
 import BunnyCreatorProcessingOverlay from "@/components/BunnyCreatorProcessingOverlay";
 import BunnyVideoStatusOverlay from "@/components/BunnyVideoStatusOverlay";
@@ -632,7 +636,7 @@ function ProfileHookVideo({
   isCreator,
 }: {
   src: string;
-  poster?: string;
+  poster?: string | null;
   isCreator: boolean;
 }) {
   const ref = useRef<HTMLVideoElement>(null);
@@ -680,7 +684,7 @@ function ProfileHookVideo({
       <video
         ref={ref}
         src={undefined}
-        poster={poster}
+        poster={getBunnyVideoThumbnailUrl(src, poster)}
         controls
         muted
         playsInline

@@ -6,7 +6,7 @@ export type BunnyVideoStatusState = {
   message: string | null;
 };
 
-const POLL_INTERVAL_MS = 8_000;
+const POLL_INTERVAL_MS = 4_000;
 const MAX_POLL_DURATION_MS = 10 * 60 * 1_000;
 
 export function getBunnyVideoId(url: string, explicitId?: unknown): string | null {
@@ -20,6 +20,19 @@ export function getBunnyVideoId(url: string, explicitId?: unknown): string | nul
     return match?.[1] || null;
   } catch {
     return null;
+  }
+}
+
+export function getBunnyVideoThumbnailUrl(source: string, fallback?: string | null): string | undefined {
+  if (fallback) return fallback;
+  try {
+    const parsedUrl = new URL(source);
+    if (!parsedUrl.hostname.endsWith(".b-cdn.net")) return undefined;
+    const match = parsedUrl.pathname.match(/^\/([\w-]{8,64})\/playlist\.m3u8$/i);
+    if (!match) return undefined;
+    return `${parsedUrl.origin}/${match[1]}/thumbnail.jpg`;
+  } catch {
+    return undefined;
   }
 }
 

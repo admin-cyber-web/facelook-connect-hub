@@ -32,7 +32,11 @@ import VibeAudioToggle from "./VibeAudioToggle";
 import ActiveStatusAvatar from "./ActiveStatusAvatar";
 import SavePostButton from "./SavePostButton";
 import { sharePost } from "../lib/sharePost";
-import { getBunnyVideoId, useBunnyVideoStatus } from "../hooks/useBunnyVideoStatus";
+import {
+  getBunnyVideoId,
+  getBunnyVideoThumbnailUrl,
+  useBunnyVideoStatus,
+} from "../hooks/useBunnyVideoStatus";
 import BunnyVideoStatusOverlay from "./BunnyVideoStatusOverlay";
 import { isHlsUrl, useHlsVideo } from "../hooks/useHlsVideo";
 import BunnyCreatorProcessingOverlay from "./BunnyCreatorProcessingOverlay";
@@ -960,7 +964,10 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, on
         ref={videoRef}
         key={videoUrl}
         src={hlsPlayback.isHls ? undefined : mediaSrc}
-        poster={post.thumb_url || post.cover_url || undefined}
+        poster={getBunnyVideoThumbnailUrl(
+          videoUrl,
+          post.thumb_url || post.cover_url || post.thumbnail_url || post.video_thumbnail_url,
+        )}
         loop
         muted
         playsInline

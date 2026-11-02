@@ -14,7 +14,9 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabaseClient";
-import { uploadBunnyImage, uploadBunnyVideo } from "@/lib/bunny"; import type { BunnyVideoResult } from "@/lib/bunny"; import {
+import { uploadBunnyImage, uploadBunnyVideo } from "@/lib/bunny";
+import type { BunnyVideoResult } from "@/lib/bunny";
+import {
   getReelSettings,
   parseMetadata,
   REEL_FILTERS,
@@ -24,6 +26,8 @@ import {
   attachReelAudioSync,
   getReelAudioTargetTime,
 } from "@/lib/reelAudioSync";
+import BunnyCreatorProcessingOverlay from "@/components/BunnyCreatorProcessingOverlay";
+import { useBunnyVideoStatus } from "@/hooks/useBunnyVideoStatus";
 
 export interface ReelMusicTrack {
   id: string;
@@ -110,7 +114,13 @@ export default function ReelStudio({
   const [musicQuery, setMusicQuery] = useState("");
   const [musicTracks, setMusicTracks] = useState<ReelMusicTrack[]>([]);
   const [saving, setSaving] = useState(false);
+  const [videoUploadProgress, setVideoUploadProgress] = useState<number | null>(null);
+  const [uploadingBunnyVideoId, setUploadingBunnyVideoId] = useState<string | null>(null);
   const [previewPlaying, setPreviewPlaying] = useState(false);
+  const bunnyUploadStatus = useBunnyVideoStatus(
+    uploadingBunnyVideoId,
+    saving && Boolean(uploadingBunnyVideoId),
+  );
 
   const reelSettings = useMemo(() => getReelSettings(reel), [reel]);
   const videoPreviewUrl = useMemo(
@@ -301,6 +311,8 @@ export default function ReelStudio({
     }
 
     setSaving(true);
+    setVideoUploadProgress(null);
+    setUploadingBunnyVideoId(null);
     try {
       const withTimeout = async <T,>(
         label: string,
@@ -350,7 +362,10 @@ export default function ReelStudio({
       let videoUpload: BunnyVideoResult | null = null;
       let audioUpload: { url: string } | null = null;
       if (videoFile) {
-        videoUpload = await uploadBunnyVideo(videoFile);
+        setVideoUploadProgress(0);
+        videoUpload = await uploadBunnyVideo(videoFile, setVideoUploadProgress);
+        setUploadingBunnyVideoId(videoUpload.videoId);
+        setVideoUploadProgress(null);
       }
       if (audioFile) {
         audioUpload = await uploadBunnyImage(audioFile!);
@@ -488,6 +503,8 @@ export default function ReelStudio({
       toast.error(error?.message || "Reel could not be saved.");
     } finally {
       setSaving(false);
+      setVideoUploadProgress(null);
+      setUploadingBunnyVideoId(null);
     }
   };
 
@@ -559,6 +576,16 @@ export default function ReelStudio({
                   </button>
                 )}
               </div>
+              {saving && (videoUploadProgress !== null ||
+                bunnyUploadStatus.phase === "checking" ||
+                bunnyUploadStatus.phase === "processing") && (
+                <div className="fixed inset-0 z-[1300]">
+                  <BunnyCreatorProcessingOverlay
+                    state={bunnyUploadStatus}
+                    uploadProgress={videoUploadProgress}
+                  />
+                </div>
+              )}
             </div>
 
             <div className="space-y-5">

@@ -29,6 +29,8 @@ import SceneVaultAttachment, { type SceneMood, type SceneVaultDraft } from "./Sc
 import { getSmartPostAsset } from "@/utils/smartAssets";
 import { useOnlineUsers } from "../context/OnlineUsersContext";
 import ActiveStatusAvatar from "./ActiveStatusAvatar";
+import BunnyCreatorProcessingOverlay from "./BunnyCreatorProcessingOverlay";
+import { useBunnyVideoStatus } from "../hooks/useBunnyVideoStatus";
 import {
   resolveVibeSelection,
   VIBE_PROFILES,
@@ -69,6 +71,12 @@ const CreatePost = ({
   const previewUrlsRef = useRef<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingMsg, setLoadingMsg] = useState("Post Vibe");
+  const [videoUploadProgress, setVideoUploadProgress] = useState<number | null>(null);
+  const [uploadingBunnyVideoId, setUploadingBunnyVideoId] = useState<string | null>(null);
+  const bunnyUploadStatus = useBunnyVideoStatus(
+    uploadingBunnyVideoId,
+    loading && Boolean(uploadingBunnyVideoId),
+  );
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const addMoreInputRef = useRef<HTMLInputElement>(null);
@@ -483,7 +491,10 @@ const CreatePost = ({
       if (files.length) {
         if (files[0].type.startsWith("video/")) {
           mediaType = "video";
-          const videoResult = await uploadBunnyVideo(files[0]);
+          setVideoUploadProgress(0);
+          const videoResult = await uploadBunnyVideo(files[0], setVideoUploadProgress);
+          setUploadingBunnyVideoId(videoResult.videoId);
+          setVideoUploadProgress(null);
           bunnyVideo = { videoId: videoResult.videoId, libraryId: videoResult.libraryId };
           finalMediaUrl = videoResult.hlsUrl;
         } else {
@@ -808,6 +819,8 @@ const CreatePost = ({
     } finally {
       setLoading(false);
       setLoadingMsg("Post Vibe");
+      setVideoUploadProgress(null);
+      setUploadingBunnyVideoId(null);
     }
   };
 
@@ -1469,6 +1482,16 @@ const CreatePost = ({
               </div>
             </motion.div>
           </div>
+          {loading && (videoUploadProgress !== null ||
+            bunnyUploadStatus.phase === "checking" ||
+            bunnyUploadStatus.phase === "processing") && (
+            <div className="fixed inset-0 z-[10000]">
+              <BunnyCreatorProcessingOverlay
+                state={bunnyUploadStatus}
+                uploadProgress={videoUploadProgress}
+              />
+            </div>
+          )}
         </>
       )}
     </AnimatePresence>
