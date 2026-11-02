@@ -31,7 +31,7 @@ export function buildPostShareUrl(postId: string): string {
   return `${FLICKS_BASE_URL}/post/${encodeURIComponent(postId)}`;
 }
 
-function canonicalShareUrl(value: string): string {
+export function canonicalShareUrl(value: string): string {
   try {
     const parsed = new URL(value, FLICKS_BASE_URL);
     const postPath = parsed.pathname.match(/\/post\/([^/]+)/);
@@ -128,16 +128,16 @@ export function launchShareTarget(
   const shareText = buildShareText(input.text, shareUrl);
   const bodyText = input.text.trim();
   const encodedUrl = encodeURIComponent(shareUrl);
-  const whatsappText = `${bodyText}${bodyText ? " " : ""}${shareUrl}`;
+  const whatsappText = `${bodyText}\n${shareUrl}`;
   const encodedWhatsAppText = encodeURIComponent(whatsappText);
   const encodedBody = encodeURIComponent(bodyText);
   const whatsappWebUrl = `https://api.whatsapp.com/send?text=${encodedWhatsAppText}`;
+  const isAndroid =
+    typeof navigator !== "undefined" && /android/i.test(navigator.userAgent);
 
   let targetUrls: string[];
   switch (platform) {
-    case "whatsapp": {
-      const isAndroid =
-        typeof navigator !== "undefined" && /android/i.test(navigator.userAgent);
+    case "whatsapp":
       targetUrls = isAndroid
         ? [
             `intent://send?text=${encodedWhatsAppText}#Intent;scheme=whatsapp;package=com.whatsapp;S.browser_fallback_url=${encodeURIComponent(whatsappWebUrl)};end`,
@@ -146,15 +146,18 @@ export function launchShareTarget(
           ]
         : [whatsappWebUrl, `whatsapp://send?text=${encodedWhatsAppText}`];
       break;
-    }
-    case "messenger":
-      targetUrls = [
-        typeof navigator !== "undefined" &&
-        /android/i.test(navigator.userAgent)
-          ? `intent://share?link=${encodedUrl}#Intent;scheme=fb-messenger;package=com.facebook.orca;S.browser_fallback_url=${encodeURIComponent(`https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`)};end`
-          : `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`,
-      ];
+    case "messenger": {
+      const messengerWebUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`;
+      const messengerAppUrl = `fb-messenger://share/?link=${encodedUrl}`;
+      targetUrls = isAndroid
+        ? [
+            `intent://share/?link=${encodedUrl}#Intent;scheme=fb-messenger;package=com.facebook.orca;S.browser_fallback_url=${encodeURIComponent(messengerWebUrl)};end`,
+            messengerAppUrl,
+            messengerWebUrl,
+          ]
+        : [messengerWebUrl, messengerAppUrl];
       break;
+    }
     case "facebook":
       targetUrls = [`https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`];
       break;
@@ -174,8 +177,12 @@ export function launchShareTarget(
         shareWindow.opener = null;
         return Promise.resolve("opened");
       }
+      if (isAndroid && targetUrl.startsWith("intent://")) {
+        window.location.assign(targetUrl);
+        return Promise.resolve("opened");
+      }
     } catch {
-      // Try the next platform-specific or browser fallback URL.
+      // Try the next platform URL, then copy the complete payload.
     }
   }
   return copyShareText(shareText).then((copied) =>
@@ -188,6 +195,17 @@ export async function shareUrlWithNative(
 ): Promise<ShareOutcome> {
   const url = canonicalShareUrl(input.url);
   const text = buildShareText(input.text, url);
+
+  // Call Web Share before awaiting anything so transient user activation is
+  // still available in mobile browsers.
+  if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+    try {
+      await navigator.share({ title: input.title, text: input.text, url });
+      return "shared-url-only";
+    } catch (error) {
+      if ((error as DOMException)?.name === "AbortError") return "cancelled";
+    }
+  }
 
   if (typeof window !== "undefined" && window.AndroidShare?.shareText) {
     try {
@@ -202,16 +220,7 @@ export async function shareUrlWithNative(
     }
   }
 
-  if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
-    try {
-      await navigator.share({ title: input.title, text, url });
-      return "shared-url-only";
-    } catch (error) {
-      if ((error as DOMException)?.name === "AbortError") return "cancelled";
-    }
-  }
-
-  return (await copyShareText(text)) ? "copied" : "error";
+  return (await copyShareText(`${input.text}\n${url}`)) ? "copied" : "error";
 }
 
 declare global {
