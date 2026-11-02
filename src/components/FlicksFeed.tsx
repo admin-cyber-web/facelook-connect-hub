@@ -1237,15 +1237,7 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, on
           maxWidth: "calc(100vw - 92px)",
         }}
         onClick={e => editingCaption && e.stopPropagation()}>
-        <div
-          className="rounded-2xl px-3 pt-2.5 pb-2"
-          style={{
-            background: "rgba(12,11,16,0.30)",
-            backdropFilter: "blur(10px)",
-            WebkitBackdropFilter: "blur(10px)",
-            border: "1px solid rgba(30,27,35,0.8)",
-            boxShadow: "inset 0 0 0 1px rgba(225,29,72,0.12), 0 10px 26px rgba(0,0,0,0.38)",
-          }}>
+        <div>
 
           {/* Avatar · © username · verified badge · Follow — one line */}
           <div className="flex items-center gap-1.5 mb-1">
@@ -1308,7 +1300,7 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, on
               </div>
             </div>
           ) : (
-            <p className="text-[11.5px] text-white/80 line-clamp-2 leading-snug font-medium" style={{ textShadow: "0 1px 6px rgba(0,0,0,0.9)" }}>{localContent}</p>
+            <p className="text-[11.5px] text-white drop-shadow-md line-clamp-2 leading-snug font-medium" style={{ textShadow: "0 1px 6px rgba(0,0,0,0.9)" }}>{localContent}</p>
           )}
 
           {/* Single-line music title — transparent crimson outline effect */}
