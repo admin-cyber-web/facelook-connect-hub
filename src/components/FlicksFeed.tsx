@@ -338,6 +338,7 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, on
     isPreloaded && (!isCreator || bunnyVideoReady),
     post?.bunny_ready === true || bunnyVideoStatus.phase === "ready" ? "ready" : "pending",
     isActive,
+    isPreloaded && !isActive,
   );
   const visibleVideoError = isCreator && !bunnyVideoReady && bunnyVideoId
     ? null
@@ -975,7 +976,7 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, on
         muted
         playsInline
         autoPlay={false}
-        preload="auto"
+        preload={isActive || hlsPlayback.isHls ? "auto" : "metadata"}
         className="absolute inset-0 w-full h-full object-cover"
         style={{
           backgroundColor: "#000",
@@ -1024,7 +1025,7 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, on
           ref={audioRef}
           src={attachedAudioSrc}
           muted={false}
-          preload="auto"
+          preload={isActive ? "auto" : "none"}
           loop
           onError={() => {
             console.warn("[Flicks] custom audio track failed to load:", reelSettings.audioUrl);
@@ -2089,8 +2090,8 @@ export default function FlicksApp({
           </div>
         ) : (
           visibleFlicks.map((f, i) => {
-            // DOM virtualization: only mount ±2 from active index
-            const isNear = Math.abs(i - currentIndex) <= 2;
+            // Keep the requested preload window mounted without rendering the full feed.
+            const isNear = i >= currentIndex - 3 && i <= currentIndex + 5;
             if (!isNear) {
               return <div key={f.id} className="w-full h-full bg-black snap-start snap-always shrink-0" />;
             }
@@ -2099,7 +2100,7 @@ export default function FlicksApp({
                 <FlickCard
                   post={f}
                   isActive={i === currentIndex}
-                  isPreloaded={Math.abs(i - currentIndex) <= 1}
+                  isPreloaded={isNear}
                   isNext={i === currentIndex + 1}
                   currentUserId={currentUserId}
                   onBridgeChat={onBridgeChat}

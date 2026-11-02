@@ -10,12 +10,16 @@ export function useHlsVideo(
   enabled: boolean,
   retryKey?: string,
   autoPlay = false,
+  preloadOnly = false,
 ) {
   const isHls = isHlsUrl(source);
   const [error, setError] = useState<string | null>(null);
   const [retryToken, setRetryToken] = useState(0);
   const autoPlayRef = useRef(autoPlay);
+  const preloadOnlyRef = useRef(preloadOnly);
+  const hlsRef = useRef<Hls | null>(null);
   autoPlayRef.current = autoPlay;
+  preloadOnlyRef.current = preloadOnly;
 
   useEffect(() => {
     const video = videoRef.current;
@@ -54,8 +58,10 @@ export function useHlsVideo(
           enableWorker: true,
           manifestLoadingMaxRetry: 2,
           levelLoadingMaxRetry: 2,
-          maxBufferLength: 30,
-          maxMaxBufferLength: 60,
+          startLevel: -1,
+          lowLatencyMode: true,
+          maxBufferLength: preloadOnlyRef.current ? 2 : 30,
+          maxMaxBufferLength: preloadOnlyRef.current ? 5 : 60,
           capLevelToPlayerSize: true,
           fetchSetup: (context, initParams) => {
             const isMediaSegment = /\.(?:ts|m4s|mp4)(?:$|[?#])/i.test(
@@ -67,6 +73,7 @@ export function useHlsVideo(
             });
           },
         });
+        hlsRef.current = hls;
         video.autoplay = autoPlayRef.current;
         hls.on(HlsConstructor.Events.MANIFEST_PARSED, () => {
           if (autoPlayRef.current) void video.play().catch(() => {});
@@ -97,6 +104,7 @@ export function useHlsVideo(
     return () => {
       cancelled = true;
       hls?.destroy();
+      if (hlsRef.current === hls) hlsRef.current = null;
       video.autoplay = false;
       video.pause();
       video.removeAttribute("src");
@@ -108,10 +116,15 @@ export function useHlsVideo(
     const video = videoRef.current;
     if (!video || !isHls || !enabled) return;
     video.autoplay = autoPlay;
+    const hls = hlsRef.current;
+    if (hls) {
+      hls.config.maxBufferLength = preloadOnly ? 2 : 30;
+      hls.config.maxMaxBufferLength = preloadOnly ? 5 : 60;
+    }
     if (autoPlay && video.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
       void video.play().catch(() => {});
     }
-  }, [autoPlay, enabled, isHls, source, videoRef]);
+  }, [autoPlay, enabled, isHls, preloadOnly, source, videoRef]);
 
   return {
     isHls,
