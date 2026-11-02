@@ -3992,6 +3992,62 @@ const feedCommentAuthorId = (comment: FeedCommentActionTarget) =>
 
 type FeedBlock = { type: string; post?: any; key: string; seed?: number };
 
+type PersistedFeed = {
+  data: any[];
+  fetchedAt: number;
+};
+
+const FEED_CACHE_VERSION = 1;
+const FEED_CACHE_LIMIT = 80;
+
+function readPersistedFeed(name: "posts" | "flicks"): PersistedFeed | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(`fame-feed:v${FEED_CACHE_VERSION}:${name}`);
+    if (!raw) return null;
+    const parsed: unknown = JSON.parse(raw);
+    if (
+      !parsed ||
+      typeof parsed !== "object" ||
+      !Array.isArray((parsed as PersistedFeed).data) ||
+      typeof (parsed as PersistedFeed).fetchedAt !== "number"
+    ) {
+      return null;
+    }
+    return {
+      data: (parsed as PersistedFeed).data.filter(
+        (row) => row && typeof row === "object" && typeof row.id === "string",
+      ),
+      fetchedAt: (parsed as PersistedFeed).fetchedAt,
+    };
+  } catch (error) {
+    console.warn(`[FameFeed] Could not read persisted ${name} cache:`, error);
+    return null;
+  }
+}
+
+function persistFeed(name: "posts" | "flicks", rows: any[]) {
+  if (typeof window === "undefined") return;
+  const publicRows = rows.filter((row) => {
+    if ((row.visibility || "public") !== "public") return false;
+    if (row.author_id && !row.author_profile) return false;
+    if (row.author_profile?.is_private_mode === true) return false;
+    const bunnyVideoId = getPostBunnyVideoId(row);
+    return !bunnyVideoId || row.bunny_ready === true;
+  });
+  try {
+    window.localStorage.setItem(
+      `fame-feed:v${FEED_CACHE_VERSION}:${name}`,
+      JSON.stringify({
+        data: publicRows.slice(0, FEED_CACHE_LIMIT),
+        fetchedAt: Date.now(),
+      }),
+    );
+  } catch (error) {
+    console.warn(`[FameFeed] Could not persist ${name} cache:`, error);
+  }
+}
+
 const FameFeed = ({
   userProfile,
   suggestions = [],
@@ -4035,10 +4091,14 @@ const FameFeed = ({
 
   const cachedPosts = dataCache.cacheRef.current.famePosts;
   const cachedFlicks = dataCache.cacheRef.current.fameFlicks;
-  const cachedVisiblePosts = (cachedPosts?.data ?? []).filter((post: any) =>
+  const [persistedPosts] = useState(() => readPersistedFeed("posts"));
+  const [persistedFlicks] = useState(() => readPersistedFeed("flicks"));
+  const initialPosts = cachedPosts?.data ?? persistedPosts?.data ?? [];
+  const initialFlicks = cachedFlicks?.data ?? persistedFlicks?.data ?? [];
+  const cachedVisiblePosts = initialPosts.filter((post: any) =>
     isBunnyVideoVisibleToViewer(post, currentUserIdProp ?? null),
   );
-  const cachedVisibleFlicks = (cachedFlicks?.data ?? []).filter((post: any) =>
+  const cachedVisibleFlicks = initialFlicks.filter((post: any) =>
     isBunnyVideoVisibleToViewer(post, currentUserIdProp ?? null),
   );
   const [posts, setPosts] = useState<any[]>(() =>
@@ -4055,7 +4115,9 @@ const FameFeed = ({
   // Mirror of posts in a ref so callbacks can read the current count synchronously
   // without being listed as a dep (which would break memoised callbacks).
   const postsRef = useRef<any[]>(cachedVisiblePosts);
-  const [loading, setLoading] = useState(() => !cachedPosts?.data);
+  const [loading, setLoading] = useState(
+    () => cachedVisiblePosts.length === 0,
+  );
   const [activeComment, setActiveComment] = useState<string | null>(null);
   const [postDetailId, setPostDetailId] = useState<string | null>(null);
   const [commentSheetId, setCommentSheetId] = useState<string | null>(null);
@@ -4303,7 +4365,9 @@ const FameFeed = ({
   const [trendingFlicks, setTrendingFlicks] = useState<any[]>(
     () => cachedVisibleFlicks.map(normalizePostLikeCount),
   );
-  const [flicksLoaded, setFlicksLoaded] = useState(() => !!cachedFlicks?.data);
+  const [flicksLoaded, setFlicksLoaded] = useState(
+    () => cachedFlicks?.data != null || persistedFlicks != null,
+  );
   const [flickModal, setFlickModal] = useState<any | null>(null);
   const [ownerNames, setOwnerNames] = useState<Record<string, string>>({});
   const [commentReactionBarId, setCommentReactionBarId] = useState<
@@ -4399,6 +4463,17 @@ const FameFeed = ({
   useEffect(() => { authorAvatarsRef.current = authorAvatars; }, [authorAvatars]);
   // Keep postsRef in sync so incrementView can read current counts synchronously
   useEffect(() => { postsRef.current = posts; }, [posts]);
+  useEffect(() => {
+    const timeout = window.setTimeout(() => persistFeed("posts", posts), 250);
+    return () => window.clearTimeout(timeout);
+  }, [posts]);
+  useEffect(() => {
+    const timeout = window.setTimeout(
+      () => persistFeed("flicks", trendingFlicks),
+      250,
+    );
+    return () => window.clearTimeout(timeout);
+  }, [trendingFlicks]);
 
   // A successful CreatePost mutation publishes its inserted row locally so
   // the author's feed updates before the composer finishes its cleanup.
@@ -5474,7 +5549,7 @@ const FameFeed = ({
       const res1 = await supabase
         .from("posts")
         .select(
-          "id, author, author_id, media_url, cover_url, metadata, type, likes_count, content, created_at, author_profile:profiles!posts_author_id_fkey(full_name, avatar_url, account_status)",
+            "id, author, author_id, media_url, cover_url, metadata, type, likes_count, content, created_at, visibility, author_profile:profiles!posts_author_id_fkey(full_name, avatar_url, account_status, is_private_mode)",
         )
         .in("type", ["video", "reel"])
         .order("created_at", { ascending: false })
@@ -5486,7 +5561,7 @@ const FameFeed = ({
         const res2 = await supabase
           .from("posts")
           .select(
-            "id, author, author_id, media_url, cover_url, metadata, type, likes_count, content, created_at, author_profile:profiles(full_name, avatar_url, account_status)",
+            "id, author, author_id, media_url, cover_url, metadata, type, likes_count, content, created_at, visibility, author_profile:profiles(full_name, avatar_url, account_status, is_private_mode)",
           )
           .in("type", ["video", "reel"])
           .order("created_at", { ascending: false })
@@ -5497,7 +5572,9 @@ const FameFeed = ({
       // Filter out suspended accounts — only show active/null status
       const filtered = (data || []).filter((p: any) => {
         const status = p.author_profile?.account_status;
-        return !status || status === "active";
+        return (p.visibility || "public") === "public" &&
+          p.author_profile?.is_private_mode !== true &&
+          (!status || status === "active");
       });
       const viewerId = currentUserId ?? null;
       const statusIds = filtered
@@ -5547,13 +5624,10 @@ const FameFeed = ({
   });
 
   const refreshFeed = async () => {
-    setPosts([]);
-    postsRef.current = [];
-    setLoading(true);
+    setLoading(postsRef.current.length === 0);
     setLoadingMore(false);
     pageRef.current = 0;
     setHasMore(true);
-    dataCache.setCache("famePosts", { data: [], fetchedAt: Date.now() });
 
     await queryClient.invalidateQueries({ queryKey: ["posts"] });
     await Promise.all([
@@ -8532,16 +8606,23 @@ const FameFeed = ({
         </motion.button>
       )}
 
-      {/* ── Loading ───────────────────────────────────────────────────── */}
-      {loading && (
-        <div
-          className="flex flex-col items-center justify-center py-12"
-          style={{ background: "#0F172A" }}
-        >
-          <Loader2 className="animate-spin text-pink-400 mb-2" size={26} />
-          <p className="text-white/30 text-[10px] font-black uppercase tracking-widest">
-            Loading Feed
-          </p>
+      {/* Keep the feed shaped during a first-ever fetch; cached sessions render
+          their saved posts immediately instead of taking this placeholder path. */}
+      {loading && posts.length === 0 && (
+        <div className="space-y-4 px-3 py-4" aria-label="Loading feed" aria-busy="true">
+          {[0, 1].map((item) => (
+            <div key={item} className="overflow-hidden rounded-xl border border-white/5 bg-white/[0.03]">
+              <div className="flex items-center gap-3 p-4">
+                <span className="h-10 w-10 animate-pulse rounded-full bg-white/10" />
+                <span className="h-3 w-32 animate-pulse rounded bg-white/10" />
+              </div>
+              <div className="aspect-[4/5] animate-pulse bg-white/[0.06]" />
+              <div className="space-y-2 p-4">
+                <span className="block h-3 w-3/4 animate-pulse rounded bg-white/10" />
+                <span className="block h-3 w-1/2 animate-pulse rounded bg-white/[0.07]" />
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
