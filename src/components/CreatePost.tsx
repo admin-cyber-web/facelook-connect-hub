@@ -15,6 +15,7 @@ import {
   BookmarkPlus,
   Clapperboard,
   Music2,
+  PenLine,
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { openFilePicker } from "@/lib/nativeFilePicker";
@@ -65,6 +66,10 @@ const CreatePost = ({
 }: CreatePostProps) => {
   const onlineUserIds = useOnlineUsers();
   const [content, setContent] = useState("");
+  const [captionFocused, setCaptionFocused] = useState(false);
+  const [penPosition, setPenPosition] = useState({ left: 0, top: 0 });
+  const [placeholderIndex, setPlaceholderIndex] = useState(0);
+  const captionInputWrapRef = useRef<HTMLDivElement>(null);
   const [vibeOverride, setVibeOverride] = useState<VibeOverride>(null);
   const [files, setFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
@@ -103,6 +108,94 @@ const CreatePost = ({
   const [selectedMusicTrack, setSelectedMusicTrack] = useState<ComposerMusicTrack | null>(null);
   const [musicFile, setMusicFile] = useState<File | null>(null);
   const [musicPickerOpen, setMusicPickerOpen] = useState(false);
+  const captionPlaceholder = wallOwnerName
+    ? `Write something on ${wallOwnerName}'s timeline...`
+    : "Write something worth sharing...";
+
+  const updatePenPosition = () => {
+    const wrapper = captionInputWrapRef.current;
+    const textarea = wrapper?.querySelector("textarea");
+    if (!textarea || !wrapper) return;
+
+    const textareaRect = textarea.getBoundingClientRect();
+    const wrapperRect = wrapper.getBoundingClientRect();
+    const computed = window.getComputedStyle(textarea);
+    const mirror = document.createElement("div");
+    const copiedStyles = [
+      "fontFamily",
+      "fontSize",
+      "fontWeight",
+      "fontStyle",
+      "letterSpacing",
+      "lineHeight",
+      "textIndent",
+      "textTransform",
+      "wordSpacing",
+      "paddingTop",
+      "paddingRight",
+      "paddingBottom",
+      "paddingLeft",
+      "borderTopWidth",
+      "borderRightWidth",
+      "borderBottomWidth",
+      "borderLeftWidth",
+      "boxSizing",
+    ] as const;
+
+    mirror.style.position = "fixed";
+    mirror.style.left = `${textareaRect.left}px`;
+    mirror.style.top = `${textareaRect.top}px`;
+    mirror.style.width = `${textarea.clientWidth}px`;
+    mirror.style.visibility = "hidden";
+    mirror.style.whiteSpace = "pre-wrap";
+    mirror.style.overflowWrap = "break-word";
+    for (const property of copiedStyles) {
+      mirror.style[property] = computed[property];
+    }
+
+    mirror.append(document.createTextNode(textarea.value.slice(0, textarea.selectionStart)));
+    const marker = document.createElement("span");
+    marker.textContent = "\u200b";
+    marker.style.display = "inline-block";
+    marker.style.width = "1px";
+    marker.style.height = "1em";
+    mirror.append(marker);
+    document.body.append(mirror);
+    const markerRect = marker.getBoundingClientRect();
+    setPenPosition({
+      left: Math.min(
+        wrapper.clientWidth - 20,
+        Math.max(4, markerRect.left - wrapperRect.left),
+      ),
+      top: Math.max(2, markerRect.top - wrapperRect.top - textarea.scrollTop),
+    });
+    mirror.remove();
+  };
+
+  useEffect(() => {
+    const fontLinkId = "create-post-handwriting-font";
+    if (!document.getElementById(fontLinkId)) {
+      const fontLink = document.createElement("link");
+      fontLink.id = fontLinkId;
+      fontLink.rel = "stylesheet";
+      fontLink.href = "https://fonts.googleapis.com/css2?family=Caveat:wght@400;500;600;700&display=swap";
+      document.head.append(fontLink);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen || content) {
+      setPlaceholderIndex(0);
+      return;
+    }
+    const timeout = window.setTimeout(
+      () => setPlaceholderIndex((index) =>
+        index >= captionPlaceholder.length ? 0 : index + 1,
+      ),
+      placeholderIndex >= captionPlaceholder.length ? 1300 : 65,
+    );
+    return () => window.clearTimeout(timeout);
+  }, [captionPlaceholder, content, isOpen, placeholderIndex]);
 
   const replaceMediaSelection = (nextFiles: File[]) => {
     previewUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
@@ -952,31 +1045,61 @@ const CreatePost = ({
                     />
                   </div>
 
-                  <div className="overflow-hidden rounded-[1.5rem] border border-lime-300 bg-lime-50/80 shadow-inner transition focus-within:border-lime-500 focus-within:ring-4 focus-within:ring-lime-100">
+                  <section className="overflow-hidden rounded-[1.5rem] border border-slate-200 bg-[#fffefa] shadow-[0_8px_24px_rgba(15,23,42,0.08)] transition focus-within:border-sky-300 focus-within:ring-4 focus-within:ring-sky-100">
+                    <style>{`@keyframes create-post-pen-writing { 0%,100% { transform: translateY(0) rotate(-8deg); } 50% { transform: translateY(-2px) rotate(2deg); } }`}</style>
                     <div className="flex items-center justify-between px-4 pb-1 pt-3">
-                      <span className="text-[10px] font-black uppercase tracking-[0.16em] text-lime-700">
+                      <span className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-600">
                         Caption
                       </span>
                       <span className="text-[11px] font-medium text-slate-400">
-                        Add a description to your post
+                        Your story, in your words
                       </span>
                     </div>
-                    <div className="relative">
+                    <div
+                      ref={captionInputWrapRef}
+                      className="relative border-t border-slate-200/70"
+                      style={{
+                        fontFamily: "'Caveat', cursive",
+                        backgroundImage:
+                          "linear-gradient(to right, transparent 0, transparent 38px, rgba(239,68,68,0.22) 39px, transparent 40px), repeating-linear-gradient(to bottom, #fffefa 0px, #fffefa 31px, rgba(148,163,184,0.25) 32px, #fffefa 33px)",
+                      }}
+                      onFocusCapture={() => {
+                        setCaptionFocused(true);
+                        requestAnimationFrame(updatePenPosition);
+                      }}
+                      onBlurCapture={() => setCaptionFocused(false)}
+                      onKeyUpCapture={() => requestAnimationFrame(updatePenPosition)}
+                      onClickCapture={() => requestAnimationFrame(updatePenPosition)}
+                      onScrollCapture={() => requestAnimationFrame(updatePenPosition)}
+                    >
                       <MentionInput
                         autoFocus
                         value={content}
-                        onChange={setContent}
+                        onChange={(nextContent) => {
+                          setContent(nextContent);
+                          requestAnimationFrame(updatePenPosition);
+                        }}
                         candidates={candidates}
-                        placeholder={
-                          wallOwnerName
-                            ? `Write something on ${wallOwnerName}'s timeline...`
-                            : "Share your vibe today..."
-                        }
-                        className="relative z-[1] box-border h-[min(38dvh,24rem)] min-h-[12rem] max-h-[42dvh] w-full resize-none overflow-y-auto border-0 bg-transparent py-2.5 pl-4 pr-4 text-[16px] font-medium leading-7 text-[#172554] placeholder:text-slate-400 outline-none pointer-events-auto"
+                        placeholder={captionPlaceholder.slice(0, placeholderIndex)}
+                        className="relative z-[1] box-border h-[min(38dvh,24rem)] min-h-[12rem] max-h-[42dvh] w-full resize-none overflow-y-auto border-0 bg-transparent py-2 pl-12 pr-4 text-[25px] font-medium leading-8 text-[#26351d] caret-[#55742e] placeholder:text-[#899276] outline-none pointer-events-auto"
                         testId="input-post-content"
                       />
+                      {captionFocused && (
+                        <PenLine
+                          aria-hidden="true"
+                          className="pointer-events-none absolute z-[2] h-4 w-4 text-[#55742e] drop-shadow-sm"
+                          style={{
+                            left: penPosition.left,
+                            top: penPosition.top,
+                            animation: "create-post-pen-writing 800ms ease-in-out infinite",
+                          }}
+                        />
+                      )}
                     </div>
-                  </div>
+                    <div className="flex justify-end px-4 py-2 text-[10px] font-semibold text-slate-400">
+                      {content.length} characters
+                    </div>
+                  </section>
 
                   <div className="flex justify-end">
                     <label className="flex items-center gap-1.5 text-[10px] font-bold text-violet-700">
