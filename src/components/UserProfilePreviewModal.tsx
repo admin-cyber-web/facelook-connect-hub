@@ -712,49 +712,49 @@ const UserProfilePreviewModalContent = ({
 
           {profile.bio && (
             <div className="px-6 pt-3 text-center">
-              <p className="text-[12px] leading-relaxed text-[color:#69777a]">
+              <p className="text-[12px] leading-relaxed text-[color:#facc15]">
                 {profile.bio}
               </p>
               <button
                 type="button"
                 onClick={handleMessage}
-                className="mt-4 inline-flex items-center justify-center gap-2 min-w-[142px] h-9 border border-[color:#e4e8e8] rounded-[9px] bg-[color:#f0f2f2] px-3 text-[11px] font-bold text-[color:#687477] transition hover:bg-[color:#12999a] hover:text-white active:scale-95"
+                className="mt-4 inline-flex items-center justify-center gap-2 min-w-[142px] h-9 rounded-[9px] bg-gradient-to-r from-red-600 to-red-800 px-3 text-[11px] font-bold text-white transition-colors duration-300 hover:shadow-red-500/30 active:scale-95"
               >
                 <MessageCircle size={14} />
                 Send Message
               </button>
             </div>
           )}
-          <div className="border-y border-[color:#edf1f0] grid grid-cols-4 px-6 py-3">
-            <div className="flex flex-col items-center gap-1.5 border-l border-[color:#edf1f0] first:border-l-0">
-              <span className="text-[15px] font-black text-[color:#42565a]">
+          <div className="bg-[color:#0a0a0a] grid grid-cols-4 px-6 py-3">
+            <div className="flex flex-col items-center gap-1.5 border-l border-0 border-l-[color:#222] first:border-l-0 rounded-md bg-[color:#111]">
+              <span className="text-[15px] font-black text-[color:#facc15]">
                 {postCount}
               </span>
-              <span className="text-[10px] font-medium text-[color:#9aa5a6]">
+              <span className="text-[10px] font-medium text-[color:#facc15]">
                 Posts
               </span>
             </div>
             <div className="flex flex-col items-center gap-1.5 border-l border-[color:#edf1f0]">
-              <span className="text-[15px] font-black text-[color:#42565a]">
+              <span className="text-[15px] font-black text-[color:#facc15]">
                 {friendCount}
               </span>
-              <span className="text-[10px] font-medium text-[color:#9aa5a6]">
+              <span className="text-[10px] font-medium text-[color:#facc15]">
                 Friends
               </span>
             </div>
             <div className="flex flex-col items-center gap-1.5 border-l border-[color:#edf1f0]">
-              <span className="text-[15px] font-black text-[color:#42565a]">
+              <span className="text-[15px] font-black text-[color:#facc15]">
                 {followingCount}
               </span>
-              <span className="text-[10px] font-medium text-[color:#9aa5a6]">
+              <span className="text-[10px] font-medium text-[color:#facc15]">
                 Following
               </span>
             </div>
             <div className="flex flex-col items-center gap-1.5 border-l border-[color:#edf1f0]">
-              <span className="text-[15px] font-black text-[color:#42565a]">
+              <span className="text-[15px] font-black text-[color:#facc15]">
                 {followerCount}
               </span>
-              <span className="text-[10px] font-medium text-[color:#9aa5a6]">
+              <span className="text-[10px] font-medium text-[color:#facc15]">
                 Followers
               </span>
             </div>
@@ -947,7 +947,7 @@ const UserProfilePreviewModalContent = ({
                         </small>
                       )}
                     </span>
-                    <span className="text-[9px] text-[color:#aab4b3]">Tap</span>
+                    <span className="text-[9px] text-[color:#ff0000]">Tap</span>
                     <ChevronRight size={13} className="text-[color:#b3bfbd] shrink-0" />
                   </button>
                 );
@@ -956,7 +956,7 @@ const UserProfilePreviewModalContent = ({
           </section>
 
           <footer className="border-t border-[color:#eff3f2] px-6 py-2 text-center">
-            <p className="text-[9px] text-[color:#a6b0af]">
+            <p className="text-[9px] text-[color:#ff0000]">
               A closer look at your Flicks community{" "}
               <span className="mx-1 text-[color:#c4cecc]">·</span>
               <b className="text-[color:#79a7a3] font-bold">flicks india</b>
