@@ -533,14 +533,14 @@ const App = () => {
             </div>
           )}
 
-          <ProfileViewerProvider
-            currentUserId={session?.user?.id ?? ""}
-            currentUserEmail={session?.user?.email ?? ""}
-          >
-            <OnlineUsersProvider userId={session?.user?.id}>
-              <DataCacheProvider>
-                <SavedPostsProvider userId={session?.user?.id ?? null}>
+          <OnlineUsersProvider userId={session?.user?.id}>
+            <DataCacheProvider>
+              <SavedPostsProvider userId={session?.user?.id ?? null}>
                 <BrowserRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
+                  <ProfileViewerProvider
+                    currentUserId={session?.user?.id ?? ""}
+                    currentUserEmail={session?.user?.email ?? ""}
+                  >
                   <GlobalRouteMediaIsolation />
                   <NativeAndroidRoutePolicy authenticated={Boolean(session)} />
                   <Suspense fallback={<PageLoader />}>
@@ -591,12 +591,12 @@ const App = () => {
                       </Routes>
                     )}
                   </Suspense>
+                  <SharePopupHost />
+                  </ProfileViewerProvider>
                 </BrowserRouter>
-                <SharePopupHost />
                 </SavedPostsProvider>
               </DataCacheProvider>
             </OnlineUsersProvider>
-          </ProfileViewerProvider>
         </TooltipProvider>
       </HelmetProvider>
     </QueryClientProvider>

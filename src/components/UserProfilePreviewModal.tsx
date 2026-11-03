@@ -450,13 +450,32 @@ const UserProfilePreviewModalContent = ({
 
 
 
-  if (!userId || loading) {
-    return null;
+  if (!userId) return null;
+
+  if (loading) {
+    return createPortal(
+      <div className="fixed inset-0 z-[9000] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+        <div
+          role="status"
+          aria-label="Loading profile"
+          className="w-full max-w-sm animate-pulse overflow-hidden rounded-2xl bg-white p-6 shadow-2xl"
+        >
+          <div className="mx-auto h-20 w-20 rounded-full bg-slate-200" />
+          <div className="mx-auto mt-4 h-4 w-36 rounded bg-slate-200" />
+          <div className="mx-auto mt-3 h-3 w-24 rounded bg-slate-100" />
+          <div className="mt-6 h-16 rounded-xl bg-slate-100" />
+          <div className="mt-4 grid grid-cols-3 gap-3">
+            <div className="h-12 rounded-lg bg-slate-100" />
+            <div className="h-12 rounded-lg bg-slate-100" />
+            <div className="h-12 rounded-lg bg-slate-100" />
+          </div>
+        </div>
+      </div>,
+      document.body,
+    );
   }
 
-  if (!profile) {
-    return null;
-  }
+  if (!profile) return null;
 
   const profession =
     (profile?.work ||
@@ -478,12 +497,22 @@ const UserProfilePreviewModalContent = ({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
+        className="fixed inset-0 z-[9000] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+        onClick={onClose}
+      >
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={`${profile.full_name || "User"} profile preview`}
+          className="relative max-h-[90dvh] w-full max-w-md overflow-y-auto rounded-2xl bg-white shadow-2xl"
+          onClick={(event) => event.stopPropagation()}
         >
+          <div className="h-28 bg-gradient-to-br from-[#dff4ef] via-[#dcefed] to-[#f7e8e1]" />
           <button
             type="button"
             onClick={onClose}
             aria-label="Close profile preview"
-            className="absolute left-3 top-3 z-30 flex h-10 w-10 items-center justify-center rounded-full border border-[color:#d8e2e0] bg-white text-[color:#263a40] transition hover:bg-[#f2f7f6]"
+            className="pointer-events-auto absolute left-3 top-3 z-30 flex h-10 w-10 cursor-pointer items-center justify-center rounded-full border border-[color:#d8e2e0] bg-white text-[color:#263a40] transition hover:bg-[#f2f7f6]"
           >
             <X size={17} />
           </button>
@@ -515,7 +544,7 @@ const UserProfilePreviewModalContent = ({
                         handleAddFriend();
                       }
                 }
-                className="relative pointer-events-auto z-10 h-10 w-10 rounded-full border-2 border-white bg-[color:#149da6] shadow-md flex items-center justify-center transition hover:scale-105 active:scale-95"
+                className="relative pointer-events-auto z-10 h-10 w-10 cursor-pointer rounded-full border-2 border-white bg-[color:#149da6] shadow-md flex items-center justify-center transition hover:scale-105 active:scale-95"
               >
                 {friendStatus === "accepted" ? (
                   <MessageCircle size={17} className="text-white" />
@@ -527,7 +556,7 @@ const UserProfilePreviewModalContent = ({
                 type="button"
                 aria-label="Open full profile"
                 onClick={handleViewFullProfile}
-                className="relative pointer-events-auto z-10 h-10 w-10 rounded-full border-2 border-white bg-[color:#2aaf76] shadow-md flex items-center justify-center transition hover:scale-105 active:scale-95"
+                className="relative pointer-events-auto z-10 h-10 w-10 cursor-pointer rounded-full border-2 border-white bg-[color:#2aaf76] shadow-md flex items-center justify-center transition hover:scale-105 active:scale-95"
               >
                 <UserRound size={17} className="text-white" />
               </button>
@@ -863,6 +892,7 @@ const UserProfilePreviewModalContent = ({
               <b className="text-[color:#79a7a3] font-bold">flicks india</b>
             </p>
           </footer>
+        </div>
       </motion.div>
     </AnimatePresence>,
     document.body
