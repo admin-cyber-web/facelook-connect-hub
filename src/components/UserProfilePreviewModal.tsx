@@ -5,7 +5,7 @@ import { useInRouterContext, useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabaseClient";
 import {
   X,
-  MoreHorizontal,
+  MoreVertical,
   MessageCircle,
   UserRound,
   UserRoundPlus,
@@ -17,7 +17,7 @@ import {
   Home,
   MapPin,
   Play,
-  Heart,
+  Image as ImageIcon,
   UsersRound,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -73,41 +73,6 @@ const ACTIVITY_COLORS: Record<string, { bg: string; color: string }> = {
   lilac: { bg: "#f0edfa", color: "#8d81b4" },
 };
 
-const mockActivity: ActivityItem[] = [
-  {
-    id: "act-1",
-    icon: Heart,
-    title: 'Liked the post: “The long way home”',
-    detail: "",
-    to: "/post/post-liked-001",
-    tone: "pink",
-  },
-  {
-    id: "act-2",
-    icon: Play,
-    title: 'Posted a new Flick: “Sunday market moments”',
-    detail: "",
-    to: "/post/post-flick-002",
-    tone: "blue",
-  },
-  {
-    id: "act-3",
-    icon: MessageCircle,
-    title: "Commented on: “Great capture!”",
-    detail: "in Weekend vibes",
-    to: "/post/post-comment-003",
-    tone: "mint",
-  },
-  {
-    id: "act-4",
-    icon: UsersRound,
-    title: 'Joined Circle: “Photography Lovers”',
-    detail: "",
-    to: "/circle/circle-joined-004",
-    tone: "lilac",
-  },
-];
-
 const TEAL = "#169c9a";
 const DEEP_TEAL = "#087d81";
 
@@ -143,6 +108,9 @@ const UserProfilePreviewModalContent = ({
   const [friends, setFriends] = useState<Friend[]>([]);
   const [postCount, setPostCount] = useState(0);
   const [friendCount, setFriendCount] = useState(0);
+  const [followingCount, setFollowingCount] = useState(0);
+  const [followerCount, setFollowerCount] = useState(0);
+  const [activity, setActivity] = useState<ActivityItem[]>([]);
   const [friendStatus, setFriendStatus] = useState<
     "none" | "pending" | "accepted"
   >("none");
@@ -150,11 +118,30 @@ const UserProfilePreviewModalContent = ({
   const [loading, setLoading] = useState(true);
   const [actionBusy, setActionBusy] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [menuPosition, setMenuPosition] = useState({ top: 0, right: 12 });
   const [isBlocked, setIsBlocked] = useState(false);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   const isOwnProfile = userId === currentUserId;
   const isLocked = !!profile?.profile_locked || !!profile?.is_private_mode;
   const isPublic = !isLocked;
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handleOutsidePointerDown = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (
+        !menuButtonRef.current?.contains(target) &&
+        !menuRef.current?.contains(target)
+      ) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener("pointerdown", handleOutsidePointerDown);
+    return () =>
+      document.removeEventListener("pointerdown", handleOutsidePointerDown);
+  }, [menuOpen]);
 
   // ── Data loading ─────────────────────────────────────────────────────────
   useEffect(() => {
@@ -163,6 +150,9 @@ const UserProfilePreviewModalContent = ({
       setFriends([]);
       setPostCount(0);
       setFriendCount(0);
+      setFollowingCount(0);
+      setFollowerCount(0);
+      setActivity([]);
       setLoading(false);
       return;
     }
@@ -172,7 +162,7 @@ const UserProfilePreviewModalContent = ({
 
     const run = async () => {
       const profileKey = `ppm:profile:${userId}`;
-      const friendsKey = `ppm:friends:${userId}`;
+      const friendsKey = `ppm:friends:${userId}:${currentUserId}`;
       const { memGet, memSet } = await import("../lib/memCache");
 
       const cachedProfile = memGet<ProfileData>(profileKey);
@@ -183,7 +173,17 @@ const UserProfilePreviewModalContent = ({
       const needProfile = !cachedProfile;
       const needFriends = !cachedFriends;
 
-      const [profileRes, friendsRes, blockRes, statusRes] =
+      const [
+        profileRes,
+        friendsRes,
+        currentFriendsRes,
+        blockRes,
+        statusRes,
+        postsCountRes,
+        followingCountRes,
+        followerCountRes,
+        activityRes,
+      ] =
         await Promise.all([
           needProfile
             ? supabase
@@ -197,10 +197,20 @@ const UserProfilePreviewModalContent = ({
           needFriends
             ? supabase
                 .from("friendships")
-                .select("id, sender_id, receiver_id")
+                .select("id, sender_id, receiver_id", { count: "exact" })
                 .eq("status", "accepted")
                 .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
                 .limit(30)
+            : Promise.resolve({ data: null, count: null }),
+          needFriends && currentUserId
+            ? supabase
+                .from("friendships")
+                .select("sender_id, receiver_id")
+                .eq("status", "accepted")
+                .or(
+                  `sender_id.eq.${currentUserId},receiver_id.eq.${currentUserId}`,
+                )
+                .limit(100)
             : Promise.resolve({ data: null }),
           !isOwnProfile && currentUserId
             ? supabase
@@ -219,9 +229,48 @@ const UserProfilePreviewModalContent = ({
                 )
                 .maybeSingle()
             : Promise.resolve({ data: null }),
+          supabase
+            .from("posts")
+            .select("id", { count: "exact", head: true })
+            .eq("author_id", userId),
+          supabase
+            .from("follows")
+            .select("following_id", { count: "exact", head: true })
+            .eq("follower_id", userId),
+          supabase
+            .from("follows")
+            .select("follower_id", { count: "exact", head: true })
+            .eq("following_id", userId),
+          supabase
+            .from("posts")
+            .select("id, author_id, content, type, media_type, created_at, visibility")
+            .eq("author_id", userId)
+            .eq("visibility", "public")
+            .order("created_at", { ascending: false })
+            .limit(3),
         ]);
 
       if (!active) return;
+
+      const logQueryError = (label: string, result: unknown) => {
+        if (
+          result &&
+          typeof result === "object" &&
+          "error" in result &&
+          result.error
+        ) {
+          console.error(
+            `[UserProfilePreviewModal] ${label} query failed:`,
+            result.error,
+          );
+        }
+      };
+      logQueryError("profile", profileRes);
+      logQueryError("friendships", friendsRes);
+      logQueryError("posts count", postsCountRes);
+      logQueryError("following count", followingCountRes);
+      logQueryError("follower count", followerCountRes);
+      logQueryError("public activity", activityRes);
 
       if (profileRes.data && typeof profileRes.data.id === "string") {
         setProfile(profileRes.data as ProfileData);
@@ -236,22 +285,49 @@ const UserProfilePreviewModalContent = ({
           sender_id: string;
           receiver_id: string;
         }>;
-        const parsed: Friend[] = rows
+        const targetFriendIds = rows
           .map((row) => {
-            const friendId =
-              row.sender_id === userId ? row.receiver_id : row.sender_id;
-            return {
-              id: friendId,
-              full_name: "Flicks member",
-              avatar_url: undefined,
-              friendshipId: row.id,
-            };
+            return row.sender_id === userId ? row.receiver_id : row.sender_id;
           })
-          .filter((f) => f.id !== currentUserId);
+          .filter((friendId) => friendId !== currentUserId);
+        const currentFriendIds = new Set(
+          ((currentFriendsRes.data ?? []) as Array<{
+            sender_id: string;
+            receiver_id: string;
+          }>).map((row) =>
+            row.sender_id === currentUserId ? row.receiver_id : row.sender_id,
+          ),
+        );
+        const mutualIds = targetFriendIds.filter((friendId) =>
+          currentFriendIds.has(friendId),
+        );
+        const friendProfiles =
+          mutualIds.length > 0
+            ? await supabase
+                .from("profiles")
+                .select("id, full_name, avatar_url")
+                .in("id", mutualIds)
+            : { data: [] };
+        if (!active) return;
+        logQueryError("mutual friend profiles", friendProfiles);
+        const profileById = new Map(
+          (friendProfiles.data ?? []).map((friend) => [friend.id, friend]),
+        );
+        const parsed: Friend[] = mutualIds.map((id) => {
+          const friendProfile = profileById.get(id);
+          return {
+            id,
+            full_name: friendProfile?.full_name || "Flicks member",
+            avatar_url: friendProfile?.avatar_url || undefined,
+          };
+        });
         setFriends(parsed);
-        setFriendCount(parsed.length);
+        setFriendCount(friendsRes.count ?? targetFriendIds.length);
         if (needFriends)
-          memSet(friendsKey, { friends: parsed, count: parsed.length });
+          memSet(friendsKey, {
+            friends: parsed,
+            count: friendsRes.count ?? targetFriendIds.length,
+          });
       } else if (cachedFriends) {
         const safeFriends = Array.isArray(cachedFriends.friends)
           ? cachedFriends.friends.filter((friend) => friend && typeof friend.id === "string")
@@ -261,6 +337,34 @@ const UserProfilePreviewModalContent = ({
           Number.isFinite(cachedFriends.count) ? cachedFriends.count : safeFriends.length,
         );
       }
+
+      setPostCount(postsCountRes.count ?? 0);
+      setFollowingCount(followingCountRes.count ?? 0);
+      setFollowerCount(followerCountRes.count ?? 0);
+      if (friendsRes.count == null && cachedFriends) {
+        setFriendCount(cachedFriends.count);
+      }
+      setActivity(
+        (activityRes.data ?? []).map((post) => {
+          const postKind =
+            `${String(post.type ?? "")} ${String(post.media_type ?? "")}`.toLowerCase();
+          const isVideo = postKind.includes("video") || postKind.includes("reel");
+          return {
+            id: post.id,
+            icon: isVideo ? Play : ImageIcon,
+            title: String(post.content ?? "").trim()
+              ? `Posted: ${String(post.content).trim().slice(0, 64)}`
+              : isVideo
+                ? "Shared a new video"
+                : "Published a new post",
+            detail: post.created_at
+              ? new Date(post.created_at).toLocaleDateString()
+              : "",
+            to: `/post/${encodeURIComponent(post.id)}`,
+            tone: isVideo ? "blue" : "mint",
+          };
+        }),
+      );
 
       const blockData = blockRes.data as { blocked_id: string } | null;
       setIsBlocked(!!blockData);
@@ -490,8 +594,19 @@ const UserProfilePreviewModalContent = ({
       .join(", ") || "";
 
   const mutualFriends = friends.slice(0, 4);
+  const toggleMenu = () => {
+    if (!menuOpen && menuButtonRef.current) {
+      const rect = menuButtonRef.current.getBoundingClientRect();
+      setMenuPosition({
+        top: Math.min(rect.bottom + 8, Math.max(8, window.innerHeight - 280)),
+        right: Math.max(8, window.innerWidth - rect.right),
+      });
+    }
+    setMenuOpen((open) => !open);
+  };
 
   return createPortal(
+    <>
     <AnimatePresence>
       <motion.div
         initial={{ opacity: 0 }}
@@ -507,15 +622,53 @@ const UserProfilePreviewModalContent = ({
           className="relative max-h-[90dvh] w-full max-w-md overflow-y-auto rounded-2xl bg-white shadow-2xl"
           onClick={(event) => event.stopPropagation()}
         >
-          <div className="h-28 bg-gradient-to-br from-[#dff4ef] via-[#dcefed] to-[#f7e8e1]" />
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close profile preview"
-            className="pointer-events-auto absolute left-3 top-3 z-30 flex h-10 w-10 cursor-pointer items-center justify-center rounded-full border border-[color:#d8e2e0] bg-white text-[color:#263a40] transition hover:bg-[#f2f7f6]"
-          >
-            <X size={17} />
-          </button>
+          <div className="relative h-28 bg-gradient-to-br from-[#dff4ef] via-[#dcefed] to-[#f7e8e1]">
+            <div className="absolute right-3 top-3 z-40 mr-2 flex items-center gap-2">
+              {!isOwnProfile && (
+                <button
+                  type="button"
+                  aria-label={
+                    friendStatus === "accepted"
+                      ? "Message"
+                      : friendStatus === "pending"
+                        ? "Friend request pending"
+                        : "Add friend"
+                  }
+                  disabled={actionBusy || friendStatus === "pending"}
+                  onClick={
+                    friendStatus === "accepted"
+                      ? handleMessage
+                      : handleAddFriend
+                  }
+                  className="pointer-events-auto flex h-9 w-9 cursor-pointer items-center justify-center rounded-full border border-white/80 bg-[#149da6] text-white shadow-md transition hover:scale-105 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {friendStatus === "accepted" ? (
+                    <MessageCircle size={16} />
+                  ) : (
+                    <UserRoundPlus size={17} />
+                  )}
+                </button>
+              )}
+              <button
+                ref={menuButtonRef}
+                type="button"
+                aria-label="Open profile actions"
+                aria-expanded={menuOpen}
+                onClick={toggleMenu}
+                className="pointer-events-auto flex h-9 w-9 cursor-pointer items-center justify-center rounded-full border border-white/80 bg-white text-[color:#108f90] shadow-md transition hover:bg-[#f2f7f6]"
+              >
+                <MoreVertical size={19} />
+              </button>
+              <button
+                type="button"
+                onClick={onClose}
+                aria-label="Close profile preview"
+                className="pointer-events-auto flex h-9 w-9 cursor-pointer items-center justify-center rounded-full border border-white/80 bg-white text-[color:#263a40] shadow-md transition hover:bg-[#f2f7f6]"
+              >
+                <X size={17} />
+              </button>
+            </div>
+          </div>
           <div className="relative -mt-20 px-5 pb-3">
             <div className="relative z-20 mx-auto h-24 w-24 rounded-full border-4 border-white bg-[color:#f2e6de] shadow-lg">
               <img
@@ -530,41 +683,10 @@ const UserProfilePreviewModalContent = ({
               />
             </div>
 
-            <div className="absolute z-20 top-[-5px] left-3 right-3 flex justify-between px-1 pointer-events-none">
-              <button
-                type="button"
-                aria-label={
-                  friendStatus === "accepted" ? "Message" : "Add friend"
-                }
-                onClick={
-                  friendStatus === "accepted"
-                    ? handleMessage
-                    : () => {
-                        setMenuOpen(false);
-                        handleAddFriend();
-                      }
-                }
-                className="relative pointer-events-auto z-10 h-10 w-10 cursor-pointer rounded-full border-2 border-white bg-[color:#149da6] shadow-md flex items-center justify-center transition hover:scale-105 active:scale-95"
-              >
-                {friendStatus === "accepted" ? (
-                  <MessageCircle size={17} className="text-white" />
-                ) : (
-                  <UserRoundPlus size={18} className="text-white" />
-                )}
-              </button>
-              <button
-                type="button"
-                aria-label="Open full profile"
-                onClick={handleViewFullProfile}
-                className="relative pointer-events-auto z-10 h-10 w-10 cursor-pointer rounded-full border-2 border-white bg-[color:#2aaf76] shadow-md flex items-center justify-center transition hover:scale-105 active:scale-95"
-              >
-                <UserRound size={17} className="text-white" />
-              </button>
-            </div>
           </div>
 
           <div className="px-6 pt-1 pb-1 text-center">
-            <h1 className="text-[20px] font-black text-[color:#263a40] tracking-tight leading-tight">
+            <h1 className="truncate text-[20px] font-black text-[color:#263a40] tracking-tight leading-tight">
               {profile.full_name ?? "Flicks member"}
             </h1>
             {profile.username && (
@@ -584,65 +706,7 @@ const UserProfilePreviewModalContent = ({
             </div>
             <div className="mt-1 flex items-center justify-center gap-2 text-[11px] text-[color:#849397]">
               <UsersRound size={12} className="text-[color:#169c9a]" />
-              <span>{friendCount} profile views</span>
-            </div>
-          </div>
-          <div className="px-6 pt-2">
-            <div className="relative inline-block">
-              <button
-                type="button"
-                className="h-9 w-9 rounded-lg border border-[color:#e3eae9] bg-[color:#eaf7f5] text-[color:#108f90] flex items-center justify-center transition hover:bg-[color:#d8f1ec]"
-                aria-label="Open profile actions"
-                aria-expanded={menuOpen}
-                onClick={() => setMenuOpen((o) => !o)}
-              >
-                <MoreHorizontal size={20} className="text-[color:#108f90]" />
-              </button>
-              {menuOpen && (
-                <>
-                  <div
-                    className="fixed inset-0 z-20"
-                    onClick={() => setMenuOpen(false)}
-                  />
-                  <motion.div
-                    initial={{ opacity: 0, y: -6, scale: 0.95 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: -6, scale: 0.95 }}
-                    transition={{ duration: 120 }}
-                    className="absolute z-30 top-10 right-0 w-56 rounded-xl border border-[color:#e6eeed] bg-white shadow-[0_13px_34px_rgba(32,73,77,0.18)]"
-                  >
-                    <div className="px-3 py-2 text-[9px] font-black uppercase tracking-wider text-[color:#9ba8a8]">
-                      {isBlocked ? "Blocked profile" : "Profile options"}
-                    </div>
-                    {menuItems().map(({ label, icon: Icon, action, danger }) => (
-                      <button
-                        type="button"
-                        key={label}
-                        role="menuitem"
-                        onClick={() => {
-                          action();
-                          setMenuOpen(false);
-                        }}
-                        className={`w-full flex items-center gap-3 px-3 py-2.5 text-left rounded-md text-[12px] font-semibold transition ${
-                          danger
-                            ? "text-[color:#b76a68] hover:bg-[#fff1ef]"
-                            : "text-[color:#536468] hover:bg-[#eef8f6] hover:text-[color:#087d81]"
-                        } ${
-                          label === "View Full Profile"
-                            ? "mt-2 border border-[color:#d3efea] bg-[#eaf8f5] text-[color:#087d81] font-black"
-                            : ""
-                        }`}
-                      >
-                        <Icon size={16} />
-                        <span>{label}</span>
-                        {label === "View Full Profile" && (
-                          <ChevronRight size={14} className="ml-auto" />
-                        )}
-                      </button>
-                    ))}
-                  </motion.div>
-                </>
-              )}
+              <span>{friendCount} friends</span>
             </div>
           </div>
 
@@ -680,7 +744,7 @@ const UserProfilePreviewModalContent = ({
             </div>
             <div className="flex flex-col items-center gap-1.5 border-l border-[color:#edf1f0]">
               <span className="text-[15px] font-black text-[color:#42565a]">
-                {friendCount}
+                {followingCount}
               </span>
               <span className="text-[10px] font-medium text-[color:#9aa5a6]">
                 Following
@@ -688,7 +752,7 @@ const UserProfilePreviewModalContent = ({
             </div>
             <div className="flex flex-col items-center gap-1.5 border-l border-[color:#edf1f0]">
               <span className="text-[15px] font-black text-[color:#42565a]">
-                {friendCount}
+                {followerCount}
               </span>
               <span className="text-[10px] font-medium text-[color:#9aa5a6]">
                 Followers
@@ -704,7 +768,7 @@ const UserProfilePreviewModalContent = ({
                 </h2>
                 <p className="mt-0.5 text-[10px] text-[color:#9aa6a7]">
                   You and {profile.full_name} share{" "}
-                  <strong className="text-[color:#6f8586]">{friendCount} friends</strong>
+                  <strong className="text-[color:#6f8586]">{friends.length} friends</strong>
                 </p>
               </div>
               <button
@@ -752,13 +816,15 @@ const UserProfilePreviewModalContent = ({
                     setMenuOpen(false);
                     navigateRef.current(`/profile/${userId}`);
                   }}
-                  className="ml-1 h-8 w-8 rounded-full border-2 border-white bg-[color:#e8f1f0] flex items-center justify-center text-[8px] font-black text-[color:#668184]"
+                  className="ml-1 flex h-8 min-w-8 items-center justify-center rounded-full border-2 border-white bg-[color:#e8f1f0] px-1 text-[9px] font-black text-[color:#668184]"
                 >
                   +{friends.length - 4}
                 </button>
               )}
               <span className="ml-3 text-[10px] text-[color:#899697]">
-                {mutualFriends.map((f) => f.full_name).join(", ")}&hellip;
+                {friends.length > 0
+                  ? mutualFriends.map((friend) => friend.full_name).join(", ")
+                  : "No mutual friends yet"}
               </span>
             </div>
           </section>
@@ -852,7 +918,11 @@ const UserProfilePreviewModalContent = ({
               </button>
             </div>
             <div className="space-y-px">
-              {mockActivity.map((item) => {
+              {activity.length === 0 ? (
+                <p className="py-4 text-center text-[11px] text-[color:#8d9a9b]">
+                  No recent public activity yet.
+                </p>
+              ) : activity.map((item) => {
                 const color = ACTIVITY_COLORS[item.tone];
                 return (
                   <button
@@ -894,7 +964,52 @@ const UserProfilePreviewModalContent = ({
           </footer>
         </div>
       </motion.div>
-    </AnimatePresence>,
+    </AnimatePresence>
+    {menuOpen &&
+      createPortal(
+        <motion.div
+          ref={menuRef}
+          initial={{ opacity: 0, y: -6, scale: 0.95 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: -6, scale: 0.95 }}
+          transition={{ duration: 0.12 }}
+          role="menu"
+          style={{ top: menuPosition.top, right: menuPosition.right }}
+          className="fixed right-0 z-[9050] w-56 max-w-[calc(100vw-1rem)] origin-top-right rounded-xl border border-[color:#e6eeed] bg-white shadow-[0_13px_34px_rgba(32,73,77,0.18)]"
+        >
+          <div className="px-3 py-2 text-[9px] font-black uppercase tracking-wider text-[color:#9ba8a8]">
+            {isBlocked ? "Blocked profile" : "Profile options"}
+          </div>
+          {menuItems().map(({ label, icon: Icon, action, danger }) => (
+            <button
+              type="button"
+              key={label}
+              role="menuitem"
+              onClick={() => {
+                action();
+                setMenuOpen(false);
+              }}
+              className={`flex w-full cursor-pointer items-center gap-3 rounded-md px-3 py-2.5 text-left text-[12px] font-semibold transition ${
+                danger
+                  ? "text-[color:#b76a68] hover:bg-[#fff1ef]"
+                  : "text-[color:#536468] hover:bg-[#eef8f6] hover:text-[color:#087d81]"
+              } ${
+                label === "View Full Profile"
+                  ? "mt-2 border border-[color:#d3efea] bg-[#eaf8f5] font-black text-[color:#087d81]"
+                  : ""
+              }`}
+            >
+              <Icon size={16} />
+              <span>{label}</span>
+              {label === "View Full Profile" && (
+                <ChevronRight size={14} className="ml-auto" />
+              )}
+            </button>
+          ))}
+        </motion.div>,
+        document.body,
+      )}
+    </>,
     document.body
   );
 };
