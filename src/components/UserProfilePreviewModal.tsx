@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { useNavigate } from "react-router-dom";
+import { useInRouterContext, useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabaseClient";
 import {
   X,
@@ -23,25 +23,27 @@ import {
 import { toast } from "sonner";
 
 interface Props {
-  userId: string;
-  currentUserId: string;
+  userId?: string | null;
+  currentUserId?: string | null;
   onClose: () => void;
   isAdmin?: boolean;
 }
 
 interface ProfileData {
   id: string;
-  full_name: string;
-  username?: string;
-  avatar_url?: string;
-  bio?: string;
-  location?: string;
-  city?: string;
-  state?: string;
-  district?: string;
-  school?: string;
-  work?: string;
-  profession?: string;
+  full_name?: string | null;
+  username?: string | null;
+  avatar_url?: string | null;
+  bio?: string | null;
+  location?: string | null;
+  city?: string | null;
+  state?: string | null;
+  district?: string | null;
+  school?: string | null;
+  work?: string | null;
+  profession?: string | null;
+  job_title?: string | null;
+  occupation?: string | null;
   profile_locked?: boolean;
   is_private_mode?: boolean;
   last_seen?: string;
@@ -114,23 +116,25 @@ const formatLastSeen = (iso?: string | null): string => {
   try {
     const d = new Date(iso);
     if (isNaN(d.getTime())) return "Last Seen : --";
-    const day = d.toLocaleDateString(undefined, { weekday: "short" } as any);
+    const day = d.toLocaleDateString(undefined, { weekday: "short" });
     const time = d.toLocaleTimeString(undefined, {
       hour: "numeric",
       minute: "2-digit",
-    } as any);
+    });
     return `Last Seen : ${day} ${time}`;
   } catch {
     return "Last Seen : --";
   }
 };
 
-const UserProfilePreviewModal = ({
-  userId,
-  currentUserId,
+const UserProfilePreviewModalContent = ({
+  userId: userIdProp,
+  currentUserId: currentUserIdProp,
   onClose,
   isAdmin: isAdminProp = false,
 }: Props) => {
+  const userId = userIdProp?.trim() || "";
+  const currentUserId = currentUserIdProp?.trim() || "";
   const navigate = useNavigate();
   const navigateRef = useRef(navigate);
   navigateRef.current = navigate;
@@ -154,14 +158,21 @@ const UserProfilePreviewModal = ({
 
   // ── Data loading ─────────────────────────────────────────────────────────
   useEffect(() => {
-    if (!userId) return;
+    if (!userId) {
+      setProfile(null);
+      setFriends([]);
+      setPostCount(0);
+      setFriendCount(0);
+      setLoading(false);
+      return;
+    }
     let active = true;
     setLoading(true);
+    setProfile(null);
 
     const run = async () => {
       const profileKey = `ppm:profile:${userId}`;
       const friendsKey = `ppm:friends:${userId}`;
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
       const { memGet, memSet } = await import("../lib/memCache");
 
       const cachedProfile = memGet<ProfileData>(profileKey);
@@ -212,9 +223,11 @@ const UserProfilePreviewModal = ({
 
       if (!active) return;
 
-      if (profileRes.data) {
+      if (profileRes.data && typeof profileRes.data.id === "string") {
         setProfile(profileRes.data as ProfileData);
         if (needProfile) memSet(profileKey, profileRes.data);
+      } else {
+        setProfile(null);
       }
 
       if (friendsRes.data) {
@@ -240,8 +253,13 @@ const UserProfilePreviewModal = ({
         if (needFriends)
           memSet(friendsKey, { friends: parsed, count: parsed.length });
       } else if (cachedFriends) {
-        setFriends(cachedFriends.friends);
-        setFriendCount(cachedFriends.count);
+        const safeFriends = Array.isArray(cachedFriends.friends)
+          ? cachedFriends.friends.filter((friend) => friend && typeof friend.id === "string")
+          : [];
+        setFriends(safeFriends);
+        setFriendCount(
+          Number.isFinite(cachedFriends.count) ? cachedFriends.count : safeFriends.length,
+        );
       }
 
       const blockData = blockRes.data as { blocked_id: string } | null;
@@ -274,7 +292,7 @@ const UserProfilePreviewModal = ({
 
   // ── Actions ──────────────────────────────────────────────────────────────
   const handleAddFriend = useCallback(async () => {
-    if (friendStatus !== "none" || actionBusy) return;
+    if (!userId || !currentUserId || friendStatus !== "none" || actionBusy) return;
     setActionBusy(true);
     const { error } = await supabase
       .from("friendships")
@@ -295,7 +313,7 @@ const UserProfilePreviewModal = ({
   }, [friendStatus, actionBusy, currentUserId, userId]);
 
   const handleUnfriend = useCallback(async () => {
-    if (friendStatus !== "accepted" || actionBusy) return;
+    if (!userId || !currentUserId || friendStatus !== "accepted" || actionBusy) return;
     if (!window.confirm("Unfriend this person?")) return;
     setActionBusy(true);
     if (friendshipId) {
@@ -343,7 +361,7 @@ const UserProfilePreviewModal = ({
   }, [isBlocked, profile, friendStatus, isOwnProfile, onClose]);
 
   const handleToggleBlock = useCallback(async () => {
-    if (actionBusy) return;
+    if (!userId || !currentUserId || actionBusy) return;
     setActionBusy(true);
     if (isBlocked) {
       const { error } = await supabase
@@ -393,6 +411,7 @@ const UserProfilePreviewModal = ({
   }, [actionBusy, isBlocked, currentUserId, userId]);
 
   const handleViewFullProfile = useCallback(() => {
+    if (!userId) return;
     onClose();
     navigateRef.current(`/profile/${userId}`);
   }, [onClose, userId]);
@@ -431,29 +450,19 @@ const UserProfilePreviewModal = ({
 
 
 
-  if (loading) {
+  if (!userId || loading) {
     return null;
   }
 
   if (!profile) {
-    return (
-      <AnimatePresence>
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[9000] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
-          onClick={onClose}
-        />
-      </AnimatePresence>
-    );
+    return null;
   }
 
   const profession =
     (profile?.work ||
       profile?.profession ||
-      (profile as any)?.job_title ||
-      (profile as any)?.occupation) || "";
+      profile?.job_title ||
+      profile?.occupation) || "";
 
   const locationDisplay =
     profile?.location ||
@@ -673,6 +682,7 @@ const UserProfilePreviewModal = ({
                 type="button"
                 className="text-[10px] font-bold text-[color:#0d9695] hover:underline"
                 onClick={() => {
+                  if (!userId) return;
                   setMenuOpen(false);
                   navigateRef.current(`/profile/${userId}`);
                 }}
@@ -686,6 +696,7 @@ const UserProfilePreviewModal = ({
                   type="button"
                   key={f.id}
                   onClick={() => {
+                    if (!f?.id) return;
                     onClose();
                     setTimeout(() => navigateRef.current(`/profile/${f.id}`), 150);
                   }}
@@ -708,6 +719,7 @@ const UserProfilePreviewModal = ({
                 <button
                   type="button"
                   onClick={() => {
+                    if (!userId) return;
                     setMenuOpen(false);
                     navigateRef.current(`/profile/${userId}`);
                   }}
@@ -802,6 +814,7 @@ const UserProfilePreviewModal = ({
                 type="button"
                 className="text-[10px] font-bold text-[color:#0d9695] hover:underline"
                 onClick={() => {
+                  if (!userId) return;
                   setMenuOpen(false);
                   navigateRef.current(`/profile/${userId}`);
                 }}
@@ -856,7 +869,10 @@ const UserProfilePreviewModal = ({
   );
 };
 
+const UserProfilePreviewModal = (props: Props) => {
+  const isInsideRouter = useInRouterContext();
+  if (!isInsideRouter) return null;
+  return <UserProfilePreviewModalContent {...props} />;
+};
+
 export default UserProfilePreviewModal;
-
-
-
