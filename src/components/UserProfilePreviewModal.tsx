@@ -19,6 +19,7 @@ import {
   Play,
   Image as ImageIcon,
   UsersRound,
+  Flag,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -120,6 +121,9 @@ const UserProfilePreviewModalContent = ({
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuPosition, setMenuPosition] = useState({ top: 0, right: 12 });
   const [isBlocked, setIsBlocked] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportReason, setReportReason] = useState("");
+  const [reportSubmitting, setReportSubmitting] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -398,44 +402,51 @@ const UserProfilePreviewModalContent = ({
   const handleAddFriend = useCallback(async () => {
     if (!userId || !currentUserId || friendStatus !== "none" || actionBusy) return;
     setActionBusy(true);
-    const { error } = await supabase
-      .from("friendships")
-      .insert({
-        sender_id: currentUserId,
-        receiver_id: userId,
-        status: "pending",
-      })
-      .select("id")
-      .maybeSingle();
-    setActionBusy(false);
-    if (error) {
+    try {
+      const { error } = await supabase
+        .from("friendships")
+        .insert({
+          sender_id: currentUserId,
+          receiver_id: userId,
+          status: "pending",
+        })
+        .select("id")
+        .maybeSingle();
+      if (error) throw error;
+      setFriendStatus("pending");
+      toast.success("Friend request sent");
+    } catch (error) {
+      console.error("[UserProfilePreviewModal] friend request failed:", error);
       toast.error("Could not send request");
-      return;
+    } finally {
+      setActionBusy(false);
     }
-    setFriendStatus("pending");
-    toast.success("Friend request sent");
   }, [friendStatus, actionBusy, currentUserId, userId]);
 
   const handleUnfriend = useCallback(async () => {
     if (!userId || !currentUserId || friendStatus !== "accepted" || actionBusy) return;
     if (!window.confirm("Unfriend this person?")) return;
     setActionBusy(true);
-    if (friendshipId) {
-      await supabase.from("friendships").delete().eq("id", friendshipId);
-    } else {
-      await supabase
-        .from("friendships")
-        .delete()
-        .or(
-          `and(sender_id.eq.${currentUserId},receiver_id.eq.${userId}),and(sender_id.eq.${userId},receiver_id.eq.${currentUserId})`
-        );
+    try {
+      const { error } = friendshipId
+        ? await supabase.from("friendships").delete().eq("id", friendshipId)
+        : await supabase
+            .from("friendships")
+            .delete()
+            .or(
+              `and(sender_id.eq.${currentUserId},receiver_id.eq.${userId}),and(sender_id.eq.${userId},receiver_id.eq.${currentUserId})`
+            );
+      if (error) throw error;
+      setFriendStatus("none");
+      setFriendshipId(null);
+      setFriendCount((count) => Math.max(0, count - 1));
+      toast.success("Unfriended");
+    } catch (error) {
+      console.error("[UserProfilePreviewModal] unfriend failed:", error);
+      toast.error("Could not unfriend this user");
+    } finally {
+      setActionBusy(false);
     }
-    setActionBusy(false);
-    setFriendStatus("none");
-    setFriendshipId(null);
-    setFriendCount((c) => Math.max(0, c - 1));
-    setMenuOpen(false);
-    toast.success("Unfriended");
   }, [friendStatus, actionBusy, friendshipId, currentUserId, userId]);
 
   const handleMessage = useCallback(() => {
@@ -466,62 +477,97 @@ const UserProfilePreviewModalContent = ({
 
   const handleToggleBlock = useCallback(async () => {
     if (!userId || !currentUserId || actionBusy) return;
+    if (
+      !isBlocked &&
+      !window.confirm(
+        "Block this user? You will no longer see each other's content."
+      )
+    ) {
+      return;
+    }
     setActionBusy(true);
-    if (isBlocked) {
-      const { error } = await supabase
-        .from("user_blocks")
-        .delete()
-        .eq("blocker_id", currentUserId)
-        .eq("blocked_id", userId);
-      setActionBusy(false);
-      if (error) {
-        toast.error("Could not unblock");
-        return;
-      }
-      setIsBlocked(false);
-      setMenuOpen(false);
-      toast.success("Unblocked");
-    } else {
-      if (
-        !window.confirm(
-          "Block this user? You will no longer see each other's content."
-        )
-      ) {
-        setActionBusy(false);
-        return;
-      }
-      const { error } = await supabase
-        .from("user_blocks")
-        .insert({ blocker_id: currentUserId, blocked_id: userId });
-      if (!error) {
-        await supabase
+    try {
+      if (isBlocked) {
+        const { error } = await supabase
+          .from("user_blocks")
+          .delete()
+          .eq("blocker_id", currentUserId)
+          .eq("blocked_id", userId);
+        if (error) throw error;
+        setIsBlocked(false);
+        setMenuOpen(false);
+        toast.success("Unblocked");
+      } else {
+        const { error } = await supabase
+          .from("user_blocks")
+          .insert({ blocker_id: currentUserId, blocked_id: userId });
+        if (error && !error.message?.toLowerCase().includes("duplicate")) {
+          throw error;
+        }
+        const { error: friendshipError } = await supabase
           .from("friendships")
           .delete()
           .or(
             `and(sender_id.eq.${currentUserId},receiver_id.eq.${userId}),and(sender_id.eq.${userId},receiver_id.eq.${currentUserId})`
           );
+        if (friendshipError) {
+          console.error(
+            "[UserProfilePreviewModal] friendship cleanup after block failed:",
+            friendshipError,
+          );
+        }
         setFriendStatus("none");
         setFriendshipId(null);
+        setIsBlocked(true);
+        setMenuOpen(false);
+        toast.success("User blocked");
+        onClose();
       }
+    } catch (error) {
+      console.error("[UserProfilePreviewModal] block action failed:", error);
+      toast.error(isBlocked ? "Could not unblock" : "Could not block");
+    } finally {
       setActionBusy(false);
-      if (error && !error.message?.toLowerCase().includes("duplicate")) {
-        toast.error("Could not block");
-        return;
-      }
-      setIsBlocked(true);
-      setMenuOpen(false);
-      toast.success("User blocked");
     }
-  }, [actionBusy, isBlocked, currentUserId, userId]);
+  }, [actionBusy, isBlocked, currentUserId, userId, onClose]);
 
   const handleViewProfile = useCallback(() => {
     if (!userId) return;
+    onClose();
     navigateRef.current(`/profile/${userId}`);
-  }, [navigateRef, userId]);
+  }, [onClose, userId]);
 
   const handleReport = useCallback(() => {
-    toast.error("Report feature coming soon");
-  }, []);
+    if (!currentUserId) {
+      toast.error("Please sign in to report this user.");
+      return;
+    }
+    if (isOwnProfile) return;
+    setReportReason("");
+    setReportOpen(true);
+  }, [currentUserId, isOwnProfile]);
+
+  const handleSubmitReport = useCallback(async () => {
+    const reason = reportReason.trim();
+    if (!currentUserId || !userId || !reason || reportSubmitting) return;
+    setReportSubmitting(true);
+    try {
+      const { error } = await supabase.from("reports").insert({
+        reporter_id: currentUserId,
+        target_id: userId,
+        reason,
+      });
+      if (error) throw error;
+      setReportOpen(false);
+      setReportReason("");
+      toast.success("Report submitted. Admin team will review it.");
+    } catch (error) {
+      console.error("[UserProfilePreviewModal] report failed:", error);
+      toast.error("Could not submit report");
+    } finally {
+      setReportSubmitting(false);
+    }
+  }, [currentUserId, reportReason, reportSubmitting, userId]);
 
   const handleViewFullProfile = useCallback(() => {
     if (!userId) return;
@@ -551,13 +597,13 @@ const UserProfilePreviewModalContent = ({
         { label: "Direct Chat", icon: MessageCircle, action: handleMessage },
         { label: "Unfriend", icon: UserRound, action: handleUnfriend, danger: true },
         { label: "Block User", icon: Shield, action: handleToggleBlock, danger: true },
-        { label: "Report", icon: Shield, action: handleReport, danger: true }
+        { label: "Report", icon: Flag, action: handleReport, danger: true }
       );
     } else {
       items.push(
         { label: "Add Friend", icon: UserRoundPlus, action: handleAddFriend },
         { label: "Block User", icon: Shield, action: handleToggleBlock, danger: true },
-        { label: "Report", icon: Shield, action: handleReport, danger: true }
+        { label: "Report", icon: Flag, action: handleReport, danger: true }
       );
     }
     return items;
@@ -722,17 +768,72 @@ const UserProfilePreviewModalContent = ({
           </div>
 
           {profile.bio && (
-            <div className="px-6 pt-3 text-center">
-              <p className="text-[12px] leading-relaxed text-[color:#facc15]">
-                {profile.bio}
-              </p>
+            <p className="px-6 pt-3 text-center text-[12px] leading-relaxed text-[color:#facc15]">
+              {profile.bio}
+            </p>
+          )}
+          {!isOwnProfile && (
+            <div className="px-5 pt-4 pb-3">
               <button
                 type="button"
                 onClick={handleMessage}
-                className="w-full rounded-t-lg bg-gradient-to-r from-emerald-900/80 via-teal-900/70 to-purple-950/90 border-t border-emerald-500/20 rounded-b-lg p-4 shadow-lg"
+                aria-label={`Start a chat with ${profile.full_name || "this user"}`}
+                className="group relative flex min-h-[104px] w-full cursor-pointer items-center overflow-hidden rounded-2xl border border-white/10 bg-[#11152c] text-left shadow-[0_12px_30px_rgba(16,24,48,0.28)] transition duration-300 hover:-translate-y-0.5 hover:border-emerald-300/30 hover:shadow-[0_16px_36px_rgba(32,65,112,0.36)] active:translate-y-0"
+                style={{
+                  backgroundImage:
+                    "radial-gradient(ellipse at 18% 110%, rgba(34,197,94,.36), transparent 46%), radial-gradient(ellipse at 72% -10%, rgba(139,92,246,.34), transparent 48%), radial-gradient(ellipse at 100% 100%, rgba(59,130,246,.32), transparent 52%), linear-gradient(112deg, #10251f 0%, #171a36 52%, #101a35 100%)",
+                }}
               >
-                <MessageCircle size={14} />
-                Start Chat
+                {profile.avatar_url ? (
+                  <img
+                    src={profile.avatar_url}
+                    alt=""
+                    aria-hidden="true"
+                    className="absolute inset-y-0 left-0 h-full w-[48%] object-cover object-center opacity-90 transition duration-500 group-hover:scale-[1.04] group-hover:opacity-100"
+                    style={{
+                      maskImage:
+                        "linear-gradient(to right, black 45%, rgba(0,0,0,.78) 68%, transparent 100%)",
+                      WebkitMaskImage:
+                        "linear-gradient(to right, black 45%, rgba(0,0,0,.78) 68%, transparent 100%)",
+                    }}
+                    loading="lazy"
+                    decoding="async"
+                  />
+                ) : (
+                  <div
+                    aria-hidden="true"
+                    className="absolute inset-y-0 left-0 flex w-[42%] items-center justify-center bg-gradient-to-br from-emerald-300/30 via-violet-400/25 to-blue-400/30 text-3xl font-bold text-white/80"
+                    style={{
+                      maskImage:
+                        "linear-gradient(to right, black 45%, rgba(0,0,0,.78) 68%, transparent 100%)",
+                      WebkitMaskImage:
+                        "linear-gradient(to right, black 45%, rgba(0,0,0,.78) 68%, transparent 100%)",
+                    }}
+                  >
+                    {(profile.full_name || "U").trim().charAt(0).toUpperCase()}
+                  </div>
+                )}
+                <span
+                  aria-hidden="true"
+                  className="absolute inset-0 bg-gradient-to-r from-emerald-950/10 via-indigo-950/10 to-blue-950/20"
+                />
+                <span className="relative z-10 ml-[39%] flex min-w-0 flex-1 items-center gap-2 px-4 py-5 text-white">
+                  <motion.span
+                    className="block truncate text-[22px] leading-none text-white/95 sm:text-[24px]"
+                    style={{ fontFamily: "'Caveat', 'Comic Sans MS', cursive" }}
+                    animate={{ opacity: [0.72, 1, 0.72] }}
+                    transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
+                  >
+                    Write something to chat...
+                  </motion.span>
+                  <span className="shrink-0 text-xl" role="img" aria-label="writing">
+                    ✍️
+                  </span>
+                </span>
+                <span
+                  aria-hidden="true"
+                  className="pointer-events-none absolute bottom-3 right-4 h-px w-14 bg-gradient-to-r from-transparent via-emerald-200/50 to-transparent"
+                />
               </button>
             </div>
           )}
@@ -996,11 +1097,14 @@ const UserProfilePreviewModalContent = ({
               type="button"
               key={label}
               role="menuitem"
-              onClick={() => {
-                action();
-                setMenuOpen(false);
-              }}
-              className={`flex w-full cursor-pointer items-center gap-3 rounded-md px-3 py-2.5 text-left text-[12px] font-semibold transition ${
+                  disabled={actionBusy}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    setMenuOpen(false);
+                    action();
+                  }}
+                  className={`flex w-full cursor-pointer items-center gap-3 rounded-md px-3 py-2.5 text-left text-[12px] font-semibold transition-colors duration-150 hover:bg-[#eef8f6] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60 ${
                 danger
                   ? "text-[color:#b76a68] hover:bg-[#fff1ef]"
                   : "text-[color:#536468] hover:bg-[#eef8f6] hover:text-[color:#087d81]"
@@ -1017,6 +1121,99 @@ const UserProfilePreviewModalContent = ({
               )}
             </button>
           ))}
+        </motion.div>,
+        document.body,
+      )}
+    {reportOpen &&
+      createPortal(
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-[9100] flex items-center justify-center bg-black/65 p-4 backdrop-blur-sm"
+          onClick={() => !reportSubmitting && setReportOpen(false)}
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.94, y: 8 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.94, y: 8 }}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="ppm-report-title"
+            className="w-full max-w-sm rounded-2xl border border-white/10 bg-[#151322] p-5 text-white shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mb-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-rose-500/15 text-rose-300">
+                  <Flag size={17} />
+                </span>
+                <div>
+                  <h2 id="ppm-report-title" className="text-sm font-bold">
+                    Report user
+                  </h2>
+                  <p className="text-xs text-white/55">Our team will review it</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                aria-label="Close report dialog"
+                disabled={reportSubmitting}
+                onClick={() => setReportOpen(false)}
+                className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-full text-white/70 transition-colors hover:bg-white/10 hover:text-white disabled:cursor-not-allowed"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <div className="mb-3 grid grid-cols-2 gap-2">
+              {[
+                "Spam or scam",
+                "Harassment or bullying",
+                "Hate speech",
+                "Inappropriate content",
+                "Fake account",
+                "Other",
+              ].map((reason) => (
+                <button
+                  type="button"
+                  key={reason}
+                  onClick={() => setReportReason(reason)}
+                  className={`cursor-pointer rounded-xl border px-2 py-2 text-[11px] font-semibold transition-colors ${
+                    reportReason === reason
+                      ? "border-rose-300/50 bg-rose-500/20 text-rose-100"
+                      : "border-white/10 bg-white/[0.04] text-white/70 hover:bg-white/10"
+                  }`}
+                >
+                  {reason}
+                </button>
+              ))}
+            </div>
+            <textarea
+              value={reportReason}
+              onChange={(event) => setReportReason(event.target.value)}
+              placeholder="Choose a reason or add details..."
+              rows={3}
+              className="mb-4 w-full resize-none rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2.5 text-sm text-white outline-none placeholder:text-white/35 focus:border-rose-300/50"
+            />
+            <div className="flex gap-2">
+              <button
+                type="button"
+                disabled={reportSubmitting}
+                onClick={() => setReportOpen(false)}
+                className="flex-1 cursor-pointer rounded-xl bg-white/10 py-2.5 text-sm font-semibold text-white/75 transition-colors hover:bg-white/15 disabled:cursor-not-allowed"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={reportSubmitting || !reportReason.trim()}
+                onClick={handleSubmitReport}
+                className="flex-1 cursor-pointer rounded-xl bg-gradient-to-r from-rose-500 to-red-600 py-2.5 text-sm font-bold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-45"
+              >
+                {reportSubmitting ? "Submitting..." : "Submit report"}
+              </button>
+            </div>
+          </motion.div>
         </motion.div>,
         document.body,
       )}
