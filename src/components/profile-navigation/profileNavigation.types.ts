@@ -37,6 +37,7 @@ export type ProfileNavigationPost = {
   author_id: string;
   content: string | null;
   media_url: string | null;
+  video_url?: string | null;
   image_url: string | null;
   image_urls: string[] | null;
   cover_url: string | null;

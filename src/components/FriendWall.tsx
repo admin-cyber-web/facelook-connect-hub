@@ -16,6 +16,7 @@ type WallPostRow = {
   author: string | null;
   content: string | null;
   media_url: string | null;
+  video_url: string | null;
   image_url: string | null;
   image_urls: string[] | null;
   cover_url: string | null;
@@ -105,7 +106,7 @@ export default function FriendWall({
       const query = supabase
         .from("posts")
         .select(
-          "id,author_id,author,content,media_url,image_url,image_urls,cover_url,media_type,type,likes_count,comments_count,shares_count,created_at,metadata",
+          "id,author_id,author,content,media_url,video_url,image_url,image_urls,cover_url,media_type,type,likes_count,comments_count,shares_count,created_at,metadata",
         )
         .or(
           `wall_owner_id.eq.${profileId},and(author_id.eq.${profileId},wall_owner_id.is.null)`,
@@ -186,6 +187,16 @@ export default function FriendWall({
             typeof metadata.author_avatar === "string"
               ? metadata.author_avatar
               : null;
+          const sourceType = `${row.media_type || ""} ${row.type || ""}`.toLowerCase();
+          const videoPost =
+            Boolean(row.video_url) ||
+            sourceType.includes("video") ||
+            sourceType.includes("reel") ||
+            sourceType.includes("hook") ||
+            /\.(mp4|m4v|mov|webm|ogg|m3u8)(?:[?#]|$)/i.test(row.media_url || "");
+          const videoUrl =
+            row.video_url ||
+            (videoPost ? row.media_url : null);
           return {
             id: row.id,
             authorId: row.author_id,
@@ -193,7 +204,10 @@ export default function FriendWall({
             authorAvatarUrl: author?.avatar_url || metadataAvatar,
             content: row.content ?? "",
             createdAt: row.created_at,
-            mediaUrl: row.media_url || row.image_url || row.cover_url,
+            mediaUrl: videoPost
+              ? videoUrl
+              : row.media_url || row.image_url || row.cover_url,
+            videoUrl,
             imageUrl: row.image_url,
             imageUrls: row.image_urls,
             mediaType: row.media_type || row.type,

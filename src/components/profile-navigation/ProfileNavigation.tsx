@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import AutoPlayMutedVideo from "@/components/AutoPlayMutedVideo";
 import ProfilePostActions from "@/components/ProfilePostActions";
@@ -7,7 +7,7 @@ import {
   getBunnyVideoThumbnailUrl,
   useBunnyVideoStatus,
 } from "@/hooks/useBunnyVideoStatus";
-import { isHlsUrl, useHlsVideo } from "@/hooks/useHlsVideo";
+import { isHlsUrl } from "@/hooks/useHlsVideo";
 import BunnyCreatorProcessingOverlay from "@/components/BunnyCreatorProcessingOverlay";
 import BunnyVideoStatusOverlay from "@/components/BunnyVideoStatusOverlay";
 import {
@@ -638,58 +638,32 @@ function ProfileMediaVideo({
   poster?: string | null;
   isCreator: boolean;
 }) {
-  const ref = useRef<HTMLVideoElement>(null);
   const [isVisible, setIsVisible] = useState(false);
   const videoId = getBunnyVideoId(src);
-  const status = useBunnyVideoStatus(videoId, isCreator && isVisible);
-  const hls = useHlsVideo(
-    ref,
-    src,
-    isHlsUrl(src) && isVisible && (!isCreator || status.phase === "ready"),
-    status.phase === "ready" ? "ready" : "pending",
-    true,
-  );
-
-  useEffect(() => {
-    if (!hls.isHls) return;
-    const video = ref.current;
-    if (!video) return;
-    const observer = new IntersectionObserver(([entry]) => {
-      const visible = Boolean(entry?.isIntersecting);
-      setIsVisible(visible);
-      if (!visible) video.pause();
-    }, { threshold: 0.4 });
-    observer.observe(video);
-    return () => observer.disconnect();
-  }, [hls.isHls, src]);
-
-  if (!hls.isHls) {
-    return (
-      <AutoPlayMutedVideo
-        src={src}
-        poster={poster}
-        controls
-        ariaLabel="Short video from timeline"
-        className="profile-nav-media-video"
-        preload="none"
-        autoplayWithSound
-        passThroughClicks={false}
-      />
-    );
-  }
+  const isHls = isHlsUrl(src);
+  const status = useBunnyVideoStatus(videoId, isCreator && isHls && isVisible);
+  const [playbackError, setPlaybackError] = useState<string | null>(null);
+  const handleVisibilityChange = useCallback((visible: boolean) => {
+    setIsVisible(visible);
+  }, []);
+  const handlePlaybackError = useCallback((error: string | null) => {
+    setPlaybackError(error);
+  }, []);
 
   return (
     <div className="relative">
-      <video
-        ref={ref}
-        src={undefined}
-        poster={getBunnyVideoThumbnailUrl(src, poster)}
+      <AutoPlayMutedVideo
+        src={src}
+        poster={poster || getBunnyVideoThumbnailUrl(src)}
         controls
-        muted
-        playsInline
-        preload="none"
-        aria-label="Short video from timeline"
-        className="profile-nav-media-video"
+        ariaLabel="Video shared on timeline"
+        className="profile-nav-media-player"
+        preload="auto"
+        autoplayWithSound
+        passThroughClicks={false}
+        playbackEnabled={!isCreator || !isHls || status.phase === "ready"}
+        onVisibilityChange={handleVisibilityChange}
+        onPlaybackError={handlePlaybackError}
       />
       {isCreator && videoId && (
         <>
@@ -699,9 +673,9 @@ function ProfileMediaVideo({
           )}
         </>
       )}
-      {hls.error && (!isCreator || status.phase === "ready") && (
+      {playbackError && (!isCreator || status.phase === "ready") && (
         <div className="absolute inset-0 z-[30] flex items-center justify-center bg-black/90 p-4 text-center text-sm font-bold text-white">
-          {hls.error}
+          {playbackError}
         </div>
       )}
     </div>

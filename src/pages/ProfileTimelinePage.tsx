@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { sharePost } from "@/lib/sharePost";
 import { buildPostShareUrl } from "@/lib/universalShare";
 import { fetchBunnyVideoReadiness, getPostBunnyVideoId } from "@/lib/bunnyVideoReadiness";
+import { getBunnyVideoThumbnailUrl } from "@/hooks/useBunnyVideoStatus";
 import FriendWall from "@/components/FriendWall";
 import {
   FullProfilePage,
@@ -30,7 +31,7 @@ const ReelStudio = lazy(() => import("@/components/ReelStudio"));
 
 const MEDIA_PAGE_SIZE = 24;
 const MEDIA_POST_FILTER =
-  "media_url.not.is.null,image_url.not.is.null,image_urls.not.is.null,cover_url.not.is.null";
+  "media_url.not.is.null,video_url.not.is.null,image_url.not.is.null,image_urls.not.is.null,cover_url.not.is.null";
 
 interface Props {
   currentUserId: string;
@@ -55,6 +56,7 @@ interface MediaPostRow {
   author_id: string;
   content: string | null;
   media_url: string | null;
+  video_url: string | null;
   image_url: string | null;
   image_urls: string[] | null;
   cover_url: string | null;
@@ -114,17 +116,26 @@ function toMediaItems(rows: MediaPostRow[]): ProfileNavigationMedia[] {
 
   for (const row of rows) {
     const sourceType = `${row.media_type || ""} ${row.type || ""}`.toLowerCase();
-    const videoUrlPattern = /\.(mp4|m4v|mov|webm)(?:[?#]|$)/i;
-    const videoUrl = row.media_url && videoUrlPattern.test(row.media_url)
-      ? row.media_url
+    const candidateVideoUrl = row.video_url || row.media_url;
+    const videoUrlPattern = /\.(mp4|m4v|mov|webm|ogg|m3u8)(?:[?#]|$)/i;
+    const videoUrl = candidateVideoUrl && videoUrlPattern.test(candidateVideoUrl)
+      ? candidateVideoUrl
       : null;
-    const isVideo = sourceType.includes("video") || sourceType.includes("reel") || !!videoUrl;
+    const isVideo =
+      Boolean(row.video_url) ||
+      sourceType.includes("video") ||
+      sourceType.includes("reel") ||
+      sourceType.includes("hook") ||
+      !!videoUrl;
 
-    if (isVideo && row.media_url) {
+    if (isVideo && (videoUrl || row.video_url || row.media_url)) {
       items.push({
         id: `${row.id}:video`,
-        url: row.media_url,
-        preview_url: row.cover_url || row.image_url,
+        url: videoUrl || row.video_url || row.media_url!,
+        preview_url:
+          row.cover_url ||
+          row.image_url ||
+          getBunnyVideoThumbnailUrl(videoUrl || row.video_url || row.media_url!),
         media_type: "video",
         created_at: row.created_at,
       });
@@ -172,7 +183,8 @@ function isVideoTimelinePost(post: ProfileNavigationPost) {
     sourceType.includes("reel") ||
     sourceType.includes("hook") ||
     sourceType.includes("youtube") ||
-    /\.(mp4|m4v|mov|webm)(?:[?#]|$)/i.test(videoUrl) ||
+    Boolean(post.video_url) ||
+    /\.(mp4|m4v|mov|webm|ogg|m3u8)(?:[?#]|$)/i.test(videoUrl) ||
     videoUrl.startsWith("data:video/")
   );
 }
@@ -244,7 +256,7 @@ export default function ProfileTimelinePage({
     return supabase
       .from("posts")
       .select(
-        "id,author_id,content,media_url,image_url,image_urls,cover_url,media_type,type,metadata,created_at,likes_count,comments_count,shares_count,views_count,meta_title,meta_description",
+        "id,author_id,content,media_url,video_url,image_url,image_urls,cover_url,media_type,type,metadata,created_at,likes_count,comments_count,shares_count,views_count,meta_title,meta_description",
         { count: "exact" },
       )
       .eq("author_id", targetUserId)

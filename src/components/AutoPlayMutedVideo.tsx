@@ -5,8 +5,11 @@ import {
   useState,
   type CSSProperties,
   type ReactEventHandler,
+  type SyntheticEvent,
 } from "react";
 import { useProfileTimelineAudio } from "@/components/profile-navigation/ProfileTimelineAudio";
+import { getVideoMimeType } from "@/lib/videoMimeType";
+import { isHlsUrl, useHlsVideo } from "@/hooks/useHlsVideo";
 
 interface Props {
   src: string;
@@ -20,6 +23,10 @@ interface Props {
   style?: CSSProperties;
   /** When true, parent's onClick still fires (default).  */
   passThroughClicks?: boolean;
+  playbackEnabled?: boolean;
+  visibilityThreshold?: number;
+  onVisibilityChange?: (visible: boolean) => void;
+  onPlaybackError?: (error: string | null) => void;
 }
 
 /**
@@ -43,6 +50,10 @@ export default function AutoPlayMutedVideo({
   onError,
   style,
   passThroughClicks = true,
+  playbackEnabled = true,
+  visibilityThreshold = 0.7,
+  onVisibilityChange,
+  onPlaybackError,
 }: Props) {
   const ref = useRef<HTMLVideoElement>(null);
   const profileAudio = useProfileTimelineAudio();
@@ -51,6 +62,19 @@ export default function AutoPlayMutedVideo({
   const [hasError, setHasError] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
   const [showUnmuteOverlay, setShowUnmuteOverlay] = useState(false);
+  const [isInViewport, setIsInViewport] = useState(false);
+  const isHls = isHlsUrl(src);
+  const hls = useHlsVideo(
+    ref,
+    src,
+    isHls && isInViewport && playbackEnabled,
+    undefined,
+    false,
+  );
+
+  useEffect(() => {
+    onPlaybackError?.(hls.error);
+  }, [hls.error, onPlaybackError]);
 
   useEffect(() => {
     const el = ref.current;
@@ -61,20 +85,14 @@ export default function AutoPlayMutedVideo({
       el.muted = true;
       setIsMuted(true);
     } else {
-      // Attempt audible playback; if blocked, fall back to muted
-      el.muted = false;
-      setIsMuted(false);
-      el.play().catch(() => {
-        el.muted = true;
-        setIsMuted(true);
-        setShowUnmuteOverlay(true);
-      });
+      el.muted = !audio.soundEnabled;
+      setIsMuted(!audio.soundEnabled);
     }
     let isInViewport = false;
     const syncPlayback = () => {
       const video = ref.current;
       if (!video) return;
-      const shouldPlay = isInViewport && !document.hidden;
+      const shouldPlay = isInViewport && playbackEnabled && !document.hidden;
       const activeAudio = autoplayWithSound ? profileAudioRef.current : null;
       if (activeAudio) {
         activeAudio.setVideoVisible(video, shouldPlay);
@@ -90,6 +108,7 @@ export default function AutoPlayMutedVideo({
         if (!video.isConnected || ref.current !== video) return;
         video.muted = true;
         setIsMuted(true);
+        setShowUnmuteOverlay(true);
         void video.play().catch(() => {});
       });
     };
@@ -97,11 +116,15 @@ export default function AutoPlayMutedVideo({
       (entries) => {
         const entry = entries[0];
         if (!entry) return;
-        isInViewport =
-          entry.isIntersecting && entry.intersectionRatio >= 0.6;
+        const visible =
+          entry.isIntersecting &&
+          entry.intersectionRatio >= visibilityThreshold;
+        isInViewport = visible;
+        setIsInViewport(visible);
+        onVisibilityChange?.(visible);
         syncPlayback();
       },
-      { threshold: [0, 0.6] },
+      { threshold: [0, visibilityThreshold] },
     );
     const handleVisibilityChange = () => syncPlayback();
     io.observe(el);
@@ -109,6 +132,7 @@ export default function AutoPlayMutedVideo({
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       io.disconnect();
+      onVisibilityChange?.(false);
       if (unregister) {
         unregister();
       } else {
@@ -116,10 +140,17 @@ export default function AutoPlayMutedVideo({
         el.muted = true;
       }
     };
-  }, [src, autoplayWithSound, isMuted]);
+  }, [
+    src,
+    autoplayWithSound,
+    isMuted,
+    playbackEnabled,
+    visibilityThreshold,
+    onVisibilityChange,
+  ]);
 
   const handleError = useCallback(
-    (e: ReactEventHandler<HTMLVideoElement>) => {
+    (e: SyntheticEvent<HTMLVideoElement>) => {
       setHasError(true);
       onError?.(e);
     },
@@ -142,13 +173,18 @@ export default function AutoPlayMutedVideo({
         animation: "shimmer 3s ease-in-out infinite",
       }}
     >
-      {showUnmuteOverlay && (
-        <div
-          className="absolute inset-0 flex items-center justify-center bg-black/40 z-10"
-          role="button"
-          tabIndex={0}
-          onClick={() => {
+      {(showUnmuteOverlay || (autoplayWithSound && isInViewport && profileAudio?.needsGesture)) && (
+        <button
+          type="button"
+          className="absolute bottom-3 right-3 z-20 flex cursor-pointer items-center gap-2 rounded-full border border-white/25 bg-black/65 px-3 py-2 text-xs font-bold text-white shadow-lg backdrop-blur transition hover:bg-black/80"
+          onClick={(event) => {
+            event.stopPropagation();
             const video = ref.current;
+            if (autoplayWithSound && profileAudio) {
+              profileAudio.retryWithSound();
+              setShowUnmuteOverlay(false);
+              return;
+            }
             if (video) {
               video.muted = false;
               setIsMuted(false);
@@ -156,25 +192,11 @@ export default function AutoPlayMutedVideo({
               void video.play().catch(() => {});
             }
           }}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") {
-              e.preventDefault();
-              const video = ref.current;
-              if (video) {
-                video.muted = false;
-                setIsMuted(false);
-                setShowUnmuteOverlay(false);
-                void video.play().catch(() => {});
-              }
-            }
-          }}
-          aria-label="Tap to unmute"
+          aria-label="Tap to enable video sound"
         >
-          <div className="flex flex-col items-center gap-2 text-white">
-            <span className="text-4xl">🔇</span>
-            <span className="text-sm font-medium text-white/90">Tap to Unmute</span>
-          </div>
-        </div>
+          <span aria-hidden="true">🔊</span>
+          Tap to unmute
+        </button>
       )}
       <video
         ref={ref}
@@ -193,12 +215,10 @@ export default function AutoPlayMutedVideo({
           width: "100%",
           height: "100%",
           objectFit: "cover",
-          display: hasError || showUnmuteOverlay ? "none" : "block",
+          display: hasError ? "none" : "block",
         }}
       >
-        {src && (
-          <source src={src} type="video/mp4" />
-        )}
+        {!isHls && src && <source src={src} type={getVideoMimeType(src)} />}
       </video>
       {hasError && (
         <div className="absolute inset-0 flex flex-col items-center justify-center text-white/60 bg-black/20">

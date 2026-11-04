@@ -50,6 +50,7 @@ import {
 } from "../hooks/useBunnyVideoStatus";
 import BunnyVideoStatusOverlay from "./BunnyVideoStatusOverlay";
 import { isHlsUrl, useHlsVideo } from "../hooks/useHlsVideo";
+import { getVideoMimeType } from "../lib/videoMimeType";
 import BunnyCreatorProcessingOverlay from "./BunnyCreatorProcessingOverlay";
 import {
   fetchBunnyVideoReadiness,
@@ -449,48 +450,13 @@ const FeedVideo = memo(({ src, poster, isCreator, feedIndex }: { src: string; po
 });
 
 const FeedPreviewVideo = memo(({ src }: { src: string }) => {
-  const ref = useRef<HTMLVideoElement>(null);
-  const inViewportRef = useRef(false);
-
-  useEffect(() => {
-    const video = ref.current;
-    if (!video) return;
-
-    const syncPlayback = () => {
-      if (document.hidden || !inViewportRef.current) {
-        video.pause();
-        return;
-      }
-      video.muted = true;
-      void video.play().catch(() => {});
-    };
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        inViewportRef.current =
-          entry.isIntersecting && entry.intersectionRatio >= 0.1;
-        syncPlayback();
-      },
-      { threshold: [0, 0.1] },
-    );
-    observer.observe(video);
-    document.addEventListener("visibilitychange", syncPlayback);
-
-    return () => {
-      observer.disconnect();
-      document.removeEventListener("visibilitychange", syncPlayback);
-      video.pause();
-    };
-  }, [src]);
-
   return (
-    <video
-      ref={ref}
+    <AutoPlayMutedVideo
       src={src}
-      muted
-      loop
-      playsInline
-      preload="auto"
       className="absolute inset-0 h-full w-full object-cover"
+      preload="auto"
+      passThroughClicks={false}
+      visibilityThreshold={0.1}
       style={{ opacity: 0.85 }}
     />
   );
@@ -3285,14 +3251,21 @@ const SingleReelBlock = ({
         <>
           <video
             ref={ref}
-            src={hlsPlayback.isHls ? undefined : reelVideoUrl}
             className="w-full h-full object-cover"
             style={{ touchAction: "pan-y", filter: reelSettings.cssFilter }}
             loop
             muted
             playsInline
+            crossOrigin="anonymous"
             preload="auto"
-          />
+          >
+            {!hlsPlayback.isHls && reelVideoUrl && (
+              <source
+                src={reelVideoUrl}
+                type={getVideoMimeType(reelVideoUrl)}
+              />
+            )}
+          </video>
           {isOwner && bunnyVideoId && (
             <>
               <BunnyCreatorProcessingOverlay state={bunnyVideoStatus} />

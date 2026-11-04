@@ -11,6 +11,8 @@ import {
   X,
 } from "lucide-react";
 import { ReactionBar, useDismissableReactionPicker } from "./ReactionBar";
+import AutoPlayMutedVideo from "./AutoPlayMutedVideo";
+import { getBunnyVideoThumbnailUrl } from "@/hooks/useBunnyVideoStatus";
 import type {
   FriendWallCommentView,
   FriendWallPostView,
@@ -51,7 +53,8 @@ function isVideo(post: FriendWallPostView) {
   return (
     kind.includes("video") ||
     kind.includes("reel") ||
-    /\.(mp4|m4v|mov|webm|ogg)(?:[?#]|$)/i.test(post.mediaUrl || "")
+    Boolean(post.videoUrl) ||
+    /\.(mp4|m4v|mov|webm|ogg|m3u8)(?:[?#]|$)/i.test(post.videoUrl || post.mediaUrl || "")
   );
 }
 
@@ -245,16 +248,26 @@ export default function ProfilePostDetail({
                 {post.content}
               </p>
             )}
-            {isVideo(post) && post.mediaUrl ? (
-              <video
-                src={post.mediaUrl}
-                poster={post.coverUrl || undefined}
-                controls
-                playsInline
-                preload="metadata"
-                className="max-h-[65vh] w-full rounded-xl bg-black object-contain"
-                aria-label={`Video shared by ${post.authorName}`}
-              />
+            {isVideo(post) ? (
+              post.videoUrl || post.mediaUrl ? (
+                <AutoPlayMutedVideo
+                  src={post.videoUrl || post.mediaUrl!}
+                  poster={
+                    post.coverUrl ||
+                    getBunnyVideoThumbnailUrl(post.videoUrl || post.mediaUrl!)
+                  }
+                  controls
+                  autoplayWithSound
+                  preload="auto"
+                  passThroughClicks={false}
+                  className="max-h-[65vh] w-full rounded-xl bg-black object-contain"
+                  aria-label={`Video shared by ${post.authorName}`}
+                />
+              ) : (
+                <p className="rounded-xl bg-black/5 px-4 py-8 text-center text-sm text-[#756365]">
+                  Video unavailable
+                </p>
+              )
             ) : postImages.length > 0 ? (
               <div className={`grid gap-1 overflow-hidden rounded-xl bg-black/5 ${postImages.length === 1 ? "grid-cols-1" : "grid-cols-2"}`}>
                 {postImages.map((url, index) => (

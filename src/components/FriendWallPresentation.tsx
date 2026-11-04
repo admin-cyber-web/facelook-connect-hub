@@ -14,6 +14,7 @@ import {
 import AutoPlayMutedVideo from "@/components/AutoPlayMutedVideo";
 import ProfilePostActions from "./ProfilePostActions";
 import SavePostButton from "./SavePostButton";
+import { getBunnyVideoThumbnailUrl } from "@/hooks/useBunnyVideoStatus";
 import { ReactionBar, useDismissableReactionPicker } from "./ReactionBar";
 
 const REACTION_TYPE_BY_EMOJI: Record<string, string> = {
@@ -41,6 +42,7 @@ export type FriendWallPostView = {
   content: string;
   createdAt: string;
   mediaUrl?: string | null;
+  videoUrl?: string | null;
   imageUrl?: string | null;
   imageUrls?: string[] | null;
   mediaType?: string | null;
@@ -99,11 +101,16 @@ function formatDate(value: string) {
 }
 
 function isVideoPost(post: FriendWallPostView) {
-  const kind = post.mediaType?.toLowerCase() ?? "";
-  const url = post.mediaUrl?.split("?")[0] ?? "";
+  const kind = `${post.mediaType ?? ""} ${post.type ?? ""}`.toLowerCase();
+  const url = (post.videoUrl || post.mediaUrl || "").split(/[?#]/, 1)[0];
   return (
+    Boolean(post.videoUrl) ||
     kind.includes("video") ||
-    /\.(mp4|webm|ogg|mov|m4v)$/i.test(url)
+    kind.includes("reel") ||
+    kind.includes("hook") ||
+    /\.m3u8$/i.test(url) ||
+    /\.(mp4|webm|ogg|mov|m4v)$/i.test(url) ||
+    post.videoUrl?.startsWith("data:video/") === true
   );
 }
 
@@ -192,9 +199,10 @@ function WallPost({
   );
   const created = formatDate(post.createdAt);
   const video = isVideoPost(post);
+  const videoUrl = post.videoUrl || post.mediaUrl;
   const images = (post.imageUrls ?? []).filter(Boolean);
   if (!video && images.length === 0 && post.mediaUrl) images.push(post.mediaUrl);
-  const hasMedia = video ? Boolean(post.mediaUrl) : images.length > 0;
+  const hasMedia = video ? Boolean(videoUrl) : images.length > 0;
 
   return (
     <article
@@ -254,14 +262,15 @@ function WallPost({
         <div className="profile-nav-post-media px-3 pb-3 sm:px-4">
           {video ? (
             <div className="overflow-hidden rounded-[1rem] border border-white/10 bg-black/30">
-              {post.mediaUrl && (
+              {videoUrl && (
                 <AutoPlayMutedVideo
-                  src={post.mediaUrl}
+                  src={videoUrl}
+                  poster={post.coverUrl || getBunnyVideoThumbnailUrl(videoUrl)}
                   controls
                   passThroughClicks={false}
                   ariaLabel={`Video shared by ${post.authorName}`}
                   className="max-h-[26rem] w-full bg-black object-contain"
-                  preload="none"
+                  preload="auto"
                   autoplayWithSound
                 />
               )}

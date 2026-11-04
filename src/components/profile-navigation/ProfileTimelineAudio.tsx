@@ -64,6 +64,8 @@ export function ProfileTimelineAudioProvider({
           error.name === "NotAllowedError"
         ) {
           setNeedsGesture(true);
+          video.muted = true;
+          void video.play().catch(() => {});
         }
       });
     },
