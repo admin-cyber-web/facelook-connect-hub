@@ -779,13 +779,13 @@ const LightModeStyles = () => (
 
 // Aurora color map for SettingRow icon containers
 const AURORA_COLORS: Record<string, { bg: string; border: string; color: string }> = {
-  violet:  { bg: "rgba(139,92,246,0.15)",  border: "rgba(139,92,246,0.28)",  color: "#a78bfa" },
-  pink:    { bg: "rgba(236,72,153,0.15)",  border: "rgba(236,72,153,0.28)",  color: "#f472b6" },
-  amber:   { bg: "rgba(245,158,11,0.15)",  border: "rgba(245,158,11,0.28)",  color: "#fbbf24" },
-  emerald: { bg: "rgba(16,185,129,0.15)",  border: "rgba(16,185,129,0.28)",  color: "#34d399" },
-  sky:     { bg: "rgba(56,189,248,0.15)",  border: "rgba(56,189,248,0.28)",  color: "#38bdf8" },
-  slate:   { bg: "rgba(148,163,184,0.1)",  border: "rgba(148,163,184,0.2)",  color: "#94a3b8" },
-  red:     { bg: "rgba(239,68,68,0.12)",   border: "rgba(239,68,68,0.22)",   color: "#f87171" },
+  violet:  { bg: "rgba(139,92,246,0.15)",  border: "rgba(139,92,246,0.28)",  color: "#c4b5fd" },
+  pink:    { bg: "rgba(236,72,153,0.15)",  border: "rgba(236,72,153,0.28)",  color: "#f9a8d4" },
+  amber:   { bg: "rgba(245,158,11,0.15)",  border: "rgba(245,158,11,0.28)",  color: "#fcd34d" },
+  emerald: { bg: "rgba(16,185,129,0.15)",  border: "rgba(16,185,129,0.28)",  color: "#6ee7b7" },
+  sky:     { bg: "rgba(56,189,248,0.15)",  border: "rgba(56,189,248,0.28)",  color: "#7dd3fc" },
+  slate:   { bg: "rgba(148,163,184,0.1)",  border: "rgba(148,163,184,0.2)",  color: "#cbd5e1" },
+  red:     { bg: "rgba(239,68,68,0.12)",   border: "rgba(239,68,68,0.22)",   color: "#fca5a5" },
 };
 
 const SettingRow = ({ icon, title, desc, color = "violet", onClick, right }: any) => {
@@ -808,13 +808,13 @@ const SettingRow = ({ icon, title, desc, color = "violet", onClick, right }: any
           {icon}
         </div>
         <div className="text-left">
-          <p className="text-[13px] font-semibold text-white/90 leading-tight">{title}</p>
-          <p className="text-[11px] text-white/35 font-medium mt-0.5 leading-tight">{desc}</p>
+          <p className="text-[13px] font-semibold text-white leading-tight">{title}</p>
+          <p className="text-[11px] text-white/80 font-medium mt-0.5 leading-tight">{desc}</p>
         </div>
       </div>
       <div className="ml-3 shrink-0">
         {right ?? (
-          <ChevronRight size={15} className="text-white/20 group-hover:text-white/50 transition-colors" />
+          <ChevronRight size={15} className="text-white/65 group-hover:text-white transition-colors" />
         )}
       </div>
     </button>
@@ -3459,22 +3459,22 @@ const PersonalizationView = React.memo(({
       number, title, children,
     }: { number: string; title: string; children: React.ReactNode }) => (
       <div
-        className="rounded-3xl overflow-hidden"
+        className="rounded-xl overflow-hidden backdrop-blur-md"
         style={{
-          background: "rgba(255,255,255,0.035)",
-          border: "1px solid rgba(255,255,255,0.07)",
+          background: "rgba(0,0,0,0.4)",
+          border: "1px solid rgba(255,255,255,0.1)",
         }}
       >
         {/* Section header row */}
         <div className="flex items-center gap-3 px-5 pt-4 pb-1">
           <span
             className="text-[11px] font-black shrink-0"
-            style={{ background: "linear-gradient(135deg,#8B5CF6,#EC4899)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}
+            style={{ background: "linear-gradient(135deg,#DC2626,#F87171)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}
           >
             {number}
           </span>
-          <div className="h-px flex-1" style={{ background: "linear-gradient(90deg,rgba(139,92,246,0.22),transparent)" }} />
-          <span className="text-[10px] font-black text-white/25 uppercase tracking-[0.12em] shrink-0">{title}</span>
+          <div className="h-px flex-1" style={{ background: "linear-gradient(90deg,rgba(220,38,38,0.35),transparent)" }} />
+          <span className="text-[10px] font-black uppercase tracking-[0.12em] shrink-0" style={{ color: "#DC2626", textShadow: "0 0 12px rgba(220,38,38,0.45)" }}>{title}</span>
         </div>
         <div className="pb-2">{children}</div>
       </div>
@@ -3504,22 +3504,23 @@ const PersonalizationView = React.memo(({
         <div className="relative z-10 max-w-[720px] mx-auto px-4 pt-5 pb-10 space-y-4">
 
           {/* ── Page header ──────────────────────── */}
-          <div className="flex items-start justify-between mb-2">
-            <div>
-              <h1 className="text-[22px] font-black text-white tracking-tight leading-none">
+          <div className="flex items-center gap-3 mb-2">
+            <button
+              onClick={() => setActiveFeature("Fame")}
+              aria-label={t("Back", "वापस")}
+              className="w-9 h-9 rounded-2xl flex items-center justify-center transition-all active:scale-90 shrink-0"
+              style={{ background: "rgba(0,0,0,0.4)", border: "1px solid rgba(255,255,255,0.12)" }}
+            >
+              <ArrowLeft size={16} className="text-white" />
+            </button>
+            <div className="min-w-0">
+              <h1 className="text-[22px] font-black tracking-tight leading-none" style={{ color: "#DC2626", textShadow: "0 0 16px rgba(220,38,38,0.4)" }}>
                 {t("Settings", "सेटिंग्स")}
               </h1>
-              <p className="text-[11px] text-white/35 font-medium mt-1.5">
+              <p className="text-[11px] text-white/80 font-medium mt-1.5">
                 {t("Manage your account & preferences", "खाता और प्राथमिकताएं")}
               </p>
             </div>
-            <button
-              onClick={() => setActiveFeature("Fame")}
-              className="w-9 h-9 rounded-2xl flex items-center justify-center transition-all active:scale-90 shrink-0"
-              style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.09)" }}
-            >
-              <ArrowLeft size={16} className="text-white/50" />
-            </button>
           </div>
 
           {/* ── Profile card ─────────────────────── */}
@@ -3527,12 +3528,12 @@ const PersonalizationView = React.memo(({
             initial={{ opacity: 0, y: 14 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.38 }}
-            className="rounded-3xl overflow-hidden"
+            className="rounded-xl overflow-hidden backdrop-blur-md"
             style={{
-              background: "linear-gradient(135deg, rgba(139,92,246,0.1) 0%, rgba(236,72,153,0.07) 55%, rgba(245,158,11,0.05) 100%)",
-              border: "1px solid rgba(255,255,255,0.09)",
-              backdropFilter: "blur(28px)",
-              WebkitBackdropFilter: "blur(28px)",
+              background: "rgba(0,0,0,0.4)",
+              border: "1px solid rgba(255,255,255,0.1)",
+              backdropFilter: "blur(16px)",
+              WebkitBackdropFilter: "blur(16px)",
             }}
           >
             {/* Gradient accent bar */}
@@ -3563,11 +3564,11 @@ const PersonalizationView = React.memo(({
                       ✦ Member
                     </span>
                   </div>
-                  <p className="text-[11px] text-white/35 font-medium mt-0.5">
+                  <p className="text-[11px] text-white/80 font-medium mt-0.5">
                     @{profile.username || userEmail.split("@")[0]}
                   </p>
                   {profile.bio ? (
-                    <p className="text-[10px] text-white/30 mt-1 line-clamp-1">{profile.bio}</p>
+                    <p className="text-[10px] text-white/80 mt-1 line-clamp-1">{profile.bio}</p>
                   ) : (
                     <button
                       onClick={() => setSettingsView("personal")}
@@ -3603,7 +3604,7 @@ const PersonalizationView = React.memo(({
                     style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}
                   >
                     <span className="text-[17px] leading-none">{a.emoji}</span>
-                    <span className="text-[9.5px] font-bold text-white/35 text-center leading-tight">{a.label}</span>
+                    <span className="text-[9.5px] font-bold text-white/85 text-center leading-tight">{a.label}</span>
                   </button>
                 ))}
               </div>
@@ -3643,7 +3644,7 @@ const PersonalizationView = React.memo(({
                 }}
               >
                 <span className="text-xl">🌙</span>
-                <span className="text-[10px] font-black text-white/55 uppercase tracking-wider">{t("Dark", "डार्क")}</span>
+                <span className="text-[10px] font-black text-white/90 uppercase tracking-wider">{t("Dark", "डार्क")}</span>
               </button>
               <button
                 onClick={() => toggleDarkMode(false)}
@@ -3655,7 +3656,7 @@ const PersonalizationView = React.memo(({
                 }}
               >
                 <span className="text-xl">☀️</span>
-                <span className="text-[10px] font-black text-white/55 uppercase tracking-wider">{t("Light", "लाइट")}</span>
+                <span className="text-[10px] font-black text-white/90 uppercase tracking-wider">{t("Light", "लाइट")}</span>
               </button>
             </div>
           </AuroraSection>
@@ -3784,20 +3785,20 @@ const PersonalizationView = React.memo(({
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.15 }}
-            className="rounded-3xl overflow-hidden"
+            className="rounded-xl overflow-hidden backdrop-blur-md"
             style={{
-              background: "rgba(239,68,68,0.04)",
-              border: "1px solid rgba(239,68,68,0.1)",
-              backdropFilter: "blur(24px)",
-              WebkitBackdropFilter: "blur(24px)",
+              background: "rgba(0,0,0,0.4)",
+              border: "1px solid rgba(255,255,255,0.1)",
+              backdropFilter: "blur(16px)",
+              WebkitBackdropFilter: "blur(16px)",
             }}
           >
             <div className="flex items-center gap-3 px-5 pt-4 pb-1">
-              <span className="text-[11px] font-black text-red-500/50">05</span>
+              <span className="text-[11px] font-black text-red-500">07</span>
               <div className="h-px flex-1" style={{ background: "linear-gradient(90deg,rgba(239,68,68,0.2),transparent)" }} />
               <div className="flex items-center gap-1.5">
                 <AlertTriangle size={9} className="text-red-400/40" />
-                <span className="text-[10px] font-black text-red-400/40 uppercase tracking-[0.12em]">Danger Zone</span>
+                <span className="text-[10px] font-black text-red-500 uppercase tracking-[0.12em]" style={{ textShadow: "0 0 12px rgba(220,38,38,0.45)" }}>Danger Zone</span>
               </div>
             </div>
             {/* ── Share App ──────────────────────────────────────── */}
@@ -3826,7 +3827,7 @@ const PersonalizationView = React.memo(({
                 </div>
                 <div className="flex-1 text-left">
                   <p className="text-[13px] font-semibold" style={{ color: "#CCFF00" }}>{t("Share App", "ऐप शेयर करें")}</p>
-                  <p className="text-[11px] text-white/35 mt-0.5">{t("Invite friends to Flicks India", "दोस्तों को Flicks India पर बुलाएं")}</p>
+                  <p className="text-[11px] text-white/85 mt-0.5">{t("Invite friends to Flicks India", "दोस्तों को Flicks India पर बुलाएं")}</p>
                 </div>
                 <ChevronRight size={15} className="text-white/20 group-hover:text-white/40 transition-colors shrink-0" />
               </button>
@@ -3846,7 +3847,7 @@ const PersonalizationView = React.memo(({
                 </div>
                 <div className="flex-1 text-left">
                   <p className="text-[13px] font-semibold text-red-400">{t("Delete Account", "खाता हटाएं")}</p>
-                  <p className="text-[11px] text-red-400/45 mt-0.5">{t("This action cannot be undone", "यह क्रिया पूर्ववत नहीं होगी")}</p>
+                  <p className="text-[11px] text-white/80 mt-0.5">{t("This action cannot be undone", "यह क्रिया पूर्ववत नहीं होगी")}</p>
                 </div>
                 <ChevronRight size={15} className="text-red-400/25 group-hover:text-red-400/50 transition-colors shrink-0" />
               </button>
@@ -3861,7 +3862,7 @@ const PersonalizationView = React.memo(({
             style={{
               background: "rgba(255,255,255,0.04)",
               border: "1px solid rgba(255,255,255,0.08)",
-              color: "rgba(255,255,255,0.4)",
+              color: "rgba(255,255,255,0.85)",
             }}
           >
             <LogOut size={14} />
@@ -5264,7 +5265,17 @@ const PersonalizationView = React.memo(({
             {/* 6. SETTINGS ─────────────────────────────────────────────────── */ }
             {activeFeature === "Settings" && (
               <ErrorBoundary>
-              <div className="w-full min-h-screen pb-32" style={{ background: "#09090B" }}>
+              <div
+                className="relative isolate w-full min-h-screen pb-32"
+                style={{
+                  backgroundColor: "#000000",
+                  backgroundImage:
+                    "linear-gradient(rgba(0,0,0,0.65), rgba(0,0,0,0.65)), url('https://flicksindiacdn.b-cdn.net/62394d753859943e6a1a36443ef78795-under-512kb.gif')",
+                  backgroundSize: "cover",
+                  backgroundPosition: "center",
+                  backgroundAttachment: "fixed",
+                }}
+              >
               <AnimatePresence mode="wait">
                 {settingsView === "main" && (
                   <motion.div
