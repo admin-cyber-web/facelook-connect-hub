@@ -51,6 +51,10 @@ import {
 import BunnyVideoStatusOverlay from "./BunnyVideoStatusOverlay";
 import { isHlsUrl, useHlsVideo } from "../hooks/useHlsVideo";
 import { getVideoMimeType } from "../lib/videoMimeType";
+import {
+  playVideoWithMutedFallback,
+  requestVideoPlay,
+} from "../lib/videoPlayback";
 import BunnyCreatorProcessingOverlay from "./BunnyCreatorProcessingOverlay";
 import {
   fetchBunnyVideoReadiness,
@@ -320,7 +324,9 @@ const PostViewTracker = memo(({
 // ── Inline video ───────────────────────────────────────────────────────────────
 const FeedVideo = memo(({ src, poster, isCreator, feedIndex }: { src: string; poster?: string | null; isCreator: boolean; feedIndex?: number }) => {
   const ref = useRef<HTMLVideoElement>(null);
+  const isVisibleRef = useRef(false);
   const [isVisible, setIsVisible] = useState(false);
+  const [isMuted, setIsMuted] = useState(true);
   const [videoError, setVideoError] = useState<string | null>(null);
   const preloadContext = useContext(FeedVideoPreloadContext);
   const setActiveFeedVideoIndex = preloadContext?.setActiveIndex;
@@ -351,17 +357,21 @@ const FeedVideo = memo(({ src, poster, isCreator, feedIndex }: { src: string; po
     const obs = new IntersectionObserver(
       ([entry]) => {
         const visible = entry.isIntersecting && entry.intersectionRatio >= 0.35;
+        isVisibleRef.current = visible;
         setIsVisible(visible);
         if (visible) {
           if (feedIndex !== undefined) setActiveFeedVideoIndex?.(feedIndex);
-          el.muted = true;
-          void el.play().catch(() => {
-            if (!el.isConnected) return;
-            el.muted = true;
-            void el.play().catch(() => {});
+          el.muted = false;
+          el.volume = 1;
+          setIsMuted(false);
+          playVideoWithMutedFallback(el, () => {
+            if (!isVisibleRef.current) return false;
+            setIsMuted(true);
           });
         } else {
           el.pause();
+          el.muted = true;
+          setIsMuted(true);
           if (feedIndex !== undefined) {
             setActiveFeedVideoIndex?.((current) =>
               current === feedIndex ? null : current,
@@ -385,13 +395,16 @@ const FeedVideo = memo(({ src, poster, isCreator, feedIndex }: { src: string; po
     setVideoError(null);
     if (!hlsPlayback.isHls) {
       video.load();
-      void video.play().catch(() => {});
+      playVideoWithMutedFallback(video, () => {
+        if (!isVisibleRef.current) return false;
+        setIsMuted(true);
+      });
     }
   }, [bunnyVideoStatus.phase, hlsPlayback.isHls, isCreator, isVisible, src]);
 
   return (
     <div
-      className="relative aspect-[4/5] w-full overflow-hidden bg-[#09090b]"
+      className="relative mx-auto my-3 aspect-[9/16] w-[min(100%,42.1875vh)] max-h-[75vh] overflow-hidden rounded-2xl bg-black md:w-[min(100%,45vh)] md:max-h-[80vh]"
       style={{ touchAction: "pan-y" }}
     >
       <video
@@ -399,11 +412,17 @@ const FeedVideo = memo(({ src, poster, isCreator, feedIndex }: { src: string; po
         src={hlsPlayback.isHls ? undefined : src}
         poster={getBunnyVideoThumbnailUrl(src, poster)}
         loop
-        muted={true}
+        muted={isMuted}
         playsInline
-        className="w-full h-full object-cover"
+        crossOrigin="anonymous"
+        autoPlay={isVisible}
+        className="w-full h-full rounded-2xl object-cover"
         style={{ touchAction: "pan-y" }}
         preload="auto"
+        {...{
+          "webkit-playsinline": "true",
+          "x5-playsinline": "true",
+        }}
         onLoadStart={() => setVideoError(null)}
         onError={(event) => {
           if (isCreator && bunnyVideoId && bunnyVideoStatus.phase !== "ready") return;
@@ -411,6 +430,31 @@ const FeedVideo = memo(({ src, poster, isCreator, feedIndex }: { src: string; po
           console.warn("[FameFeed] Video playback failed:", event.currentTarget.error, src);
         }}
       />
+      {isVisible && isMuted && (
+        <button
+          type="button"
+          className="absolute bottom-3 right-3 z-20 flex cursor-pointer items-center gap-2 rounded-full border border-white/25 bg-black/65 px-3 py-2 text-xs font-bold text-white shadow-lg backdrop-blur transition hover:bg-black/80"
+          aria-label="Enable video sound"
+          onClick={(event) => {
+            event.stopPropagation();
+            const video = ref.current;
+            if (!video) return;
+            video.muted = false;
+            video.volume = 1;
+            void requestVideoPlay(video).then(
+              () => setIsMuted(false),
+              () => {
+                video.muted = true;
+                setIsMuted(true);
+                playVideoWithMutedFallback(video, () => setIsMuted(true));
+              },
+            );
+          }}
+        >
+          <VolumeX size={14} aria-hidden="true" />
+          Tap for sound
+        </button>
+      )}
       {isCreator && bunnyVideoId && (
         <>
           <BunnyCreatorProcessingOverlay state={bunnyVideoStatus} />

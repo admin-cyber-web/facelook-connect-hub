@@ -2,12 +2,17 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useRef,
   useState,
   type ReactNode,
 } from "react";
 import { Volume2, VolumeX } from "lucide-react";
+import {
+  playVideoWithMutedFallback,
+  requestVideoPlay,
+} from "@/lib/videoPlayback";
 
 type ProfileTimelineAudioContextValue = {
   soundEnabled: boolean;
@@ -55,18 +60,9 @@ export function ProfileTimelineAudioProvider({
       }
 
       video.muted = !soundEnabledRef.current;
-      void video.play().catch((error: unknown) => {
-        if (
-          video.isConnected &&
-          visibleVideos.current.get(video) &&
-          soundEnabledRef.current &&
-          error instanceof Error &&
-          error.name === "NotAllowedError"
-        ) {
-          setNeedsGesture(true);
-          video.muted = true;
-          void video.play().catch(() => {});
-        }
+      playVideoWithMutedFallback(video, () => {
+        if (!visibleVideos.current.get(video) || !soundEnabledRef.current) return false;
+        setNeedsGesture(true);
       });
     },
     [],
@@ -81,6 +77,29 @@ export function ProfileTimelineAudioProvider({
     }
   }, []);
 
+  useEffect(() => {
+    if (!needsGesture || !soundEnabledRef.current) return;
+    const retryOnUserGesture = () => {
+      for (const [video, visible] of visibleVideos.current) {
+        if (!visible || !video.isConnected) continue;
+        video.muted = false;
+        void requestVideoPlay(video).then(
+          () => setNeedsGesture(false),
+          () => {
+            video.muted = true;
+            playVideoWithMutedFallback(video);
+          },
+        );
+      }
+    };
+    document.addEventListener("pointerdown", retryOnUserGesture, true);
+    document.addEventListener("touchstart", retryOnUserGesture, true);
+    return () => {
+      document.removeEventListener("pointerdown", retryOnUserGesture, true);
+      document.removeEventListener("touchstart", retryOnUserGesture, true);
+    };
+  }, [needsGesture]);
+
   const retryWithSound = useCallback(() => {
     soundEnabledRef.current = true;
     setSoundEnabled(true);
@@ -90,7 +109,7 @@ export function ProfileTimelineAudioProvider({
       .map(([video]) => {
         video.muted = false;
         try {
-          return video.play().then(
+          return requestVideoPlay(video).then(
             () => false,
             (error: unknown) =>
               error instanceof Error && error.name === "NotAllowedError",

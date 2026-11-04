@@ -261,7 +261,7 @@ function WallPost({
       {hasMedia && (
         <div className="profile-nav-post-media px-3 pb-3 sm:px-4">
           {video ? (
-            <div className="overflow-hidden rounded-[1rem] border border-white/10 bg-black/30">
+            <div className="relative mx-auto my-3 aspect-[9/16] w-[min(100%,42.1875vh)] max-h-[75vh] overflow-hidden rounded-2xl border border-white/10 bg-black md:w-[min(100%,45vh)] md:max-h-[80vh]">
               {videoUrl && (
                 <AutoPlayMutedVideo
                   src={videoUrl}
@@ -269,7 +269,7 @@ function WallPost({
                   controls
                   passThroughClicks={false}
                   ariaLabel={`Video shared by ${post.authorName}`}
-                  className="max-h-[26rem] w-full bg-black object-contain"
+                  className="h-full w-full rounded-2xl bg-black object-cover"
                   preload="auto"
                   autoplayWithSound
                 />

@@ -9,6 +9,7 @@ import {
 } from "react";
 import { useProfileTimelineAudio } from "@/components/profile-navigation/ProfileTimelineAudio";
 import { getVideoMimeType } from "@/lib/videoMimeType";
+import { playVideoWithMutedFallback } from "@/lib/videoPlayback";
 import { isHlsUrl, useHlsVideo } from "@/hooks/useHlsVideo";
 
 interface Props {
@@ -69,7 +70,7 @@ export default function AutoPlayMutedVideo({
     src,
     isHls && isInViewport && playbackEnabled,
     undefined,
-    false,
+    isInViewport && playbackEnabled,
   );
 
   useEffect(() => {
@@ -104,12 +105,10 @@ export default function AutoPlayMutedVideo({
         return;
       }
       video.muted = isMuted;
-      void video.play().catch(() => {
-        if (!video.isConnected || ref.current !== video) return;
-        video.muted = true;
+      playVideoWithMutedFallback(video, () => {
+        if (!isInViewport || !playbackEnabled || ref.current !== video) return false;
         setIsMuted(true);
         setShowUnmuteOverlay(true);
-        void video.play().catch(() => {});
       });
     };
     const io = new IntersectionObserver(
@@ -189,7 +188,11 @@ export default function AutoPlayMutedVideo({
               video.muted = false;
               setIsMuted(false);
               setShowUnmuteOverlay(false);
-              void video.play().catch(() => {});
+              playVideoWithMutedFallback(video, () => {
+                if (ref.current !== video || !isInViewport) return false;
+                setIsMuted(true);
+                setShowUnmuteOverlay(true);
+              });
             }
           }}
           aria-label="Tap to enable video sound"
@@ -203,12 +206,23 @@ export default function AutoPlayMutedVideo({
         poster={poster}
         aria-label={ariaLabel}
         controls={controls}
-        muted={hasError ? true : !autoplayWithSound || !profileAudio || isMuted}
+        muted={
+          hasError ||
+          !autoplayWithSound ||
+          !profileAudio ||
+          profileAudio.needsGesture ||
+          isMuted
+        }
         loop
         playsInline
         webkitPlaysInline
         crossOrigin="anonymous"
         preload={preload}
+        autoPlay={isInViewport && playbackEnabled}
+        {...{
+          "webkit-playsinline": "true",
+          "x5-playsinline": "true",
+        }}
         onError={handleError}
         onLoadedData={handleLoadedData}
         style={{
