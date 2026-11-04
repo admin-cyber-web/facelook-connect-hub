@@ -2658,7 +2658,21 @@ export default function CirclePage({
                     {postMedia && postMediaPreview && (
                       <div className="relative mt-2 w-20 h-20 rounded-lg overflow-hidden">
                         {postMedia.type.startsWith("video/")
-                          ? <video src={postMediaPreview} className="w-full h-full object-cover" muted playsInline preload="metadata" />
+                          ? (
+                            <video
+                              src={postMediaPreview}
+                              className="w-full h-full object-cover"
+                              muted
+                              playsInline
+                              webkitPlaysInline
+                              crossOrigin="anonymous"
+                              preload="auto"
+                            >
+                              {postMediaPreview && (
+                                <source src={postMediaPreview} type="video/mp4" />
+                              )}
+                            </video>
+                          )
                           : <img src={postMediaPreview} className="w-full h-full object-cover" alt="" loading="lazy" decoding="async"/>}
                         <button onClick={() => { setPostMedia(null); setPostMediaPreview(null); }} className="absolute top-1 right-1 bg-black/70 rounded-full p-0.5">
                           <X size={10} className="text-white" />
@@ -2905,7 +2919,22 @@ export default function CirclePage({
                             {msg.media_url && (
                               <div className="mb-1.5 rounded-xl overflow-hidden">
                                 {isVideo
-                                  ? <video src={msg.media_url} controls muted playsInline className="w-full max-h-52 object-cover"  preload="none"/>
+                                  ? (
+                                     <video
+                                       src={msg.media_url}
+                                       controls
+                                       muted
+                                       playsInline
+                                       webkitPlaysInline
+                                       crossOrigin="anonymous"
+                                       preload="auto"
+                                       className="w-full max-h-52 object-cover"
+                                     >
+                                       {msg.media_url && (
+                                         <source src={msg.media_url} type="video/mp4" />
+                                       )}
+                                     </video>
+                                   )
                                   : <img src={msg.media_url} className="w-full max-h-52 object-cover cursor-pointer" alt="" loading="lazy"  decoding="async"/>}
                               </div>
                             )}

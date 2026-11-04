@@ -731,13 +731,17 @@ const StoryViewer = ({
               ) : story.media_type === "video" ? (
                 story.mood === "grid" ? (
                   <div className="relative w-full h-full">
-                    <video ref={videoRef} src={storyPublicUrl} className="w-full h-full object-cover" autoPlay={false} muted playsInline preload="metadata" loop />
+                    <video ref={videoRef} src={storyPublicUrl} className="w-full h-full object-cover" autoPlay={false} muted playsInline webkitPlaysInline crossOrigin="anonymous" preload="auto" loop>
+                        {storyPublicUrl && <source src={storyPublicUrl} type="video/mp4" />}
+                      </video>
                     <div className="absolute inset-0 pointer-events-none grid grid-cols-2 grid-rows-2">
                       {[0, 1, 2, 3].map(j => <div key={j} className="border border-white/10" />)}
                     </div>
                   </div>
                 ) : (
-                  <video ref={videoRef} src={storyPublicUrl} className="w-full h-full object-cover" autoPlay={false} muted playsInline preload="metadata" loop style={{ filter: moodFilter }} />
+                  <video ref={videoRef} src={storyPublicUrl} className="w-full h-full object-cover" autoPlay={false} muted playsInline webkitPlaysInline crossOrigin="anonymous" preload="auto" loop style={{ filter: moodFilter }}>
+                        {storyPublicUrl && <source src={storyPublicUrl} type="video/mp4" />}
+                      </video>
                 )
               ) : story.mood === "grid" ? (
                 <div className="w-full h-full grid grid-cols-2 grid-rows-2">
@@ -1377,7 +1381,9 @@ const StoryUploader = ({
                     </div>
                   ) : files[i]?.type.startsWith("video/") ? (
                     <div className="w-full h-full relative bg-black">
-                      <video src={url} className="w-full h-full object-cover" muted playsInline  preload="none"/>
+                      <video src={url} className="w-full h-full object-cover" muted playsInline webkitPlaysInline crossOrigin="anonymous" preload="auto">
+                        {url && <source src={url} type="video/mp4" />}
+                      </video>
                       <div className="absolute inset-0 flex items-center justify-center bg-black/30">
                         <span className="text-white text-lg">🎬</span>
                       </div>

@@ -224,12 +224,19 @@ function SavedPostCard({
               src={post.mediaUrl}
               poster={post.coverUrl ?? undefined}
               controls
+              muted
               playsInline
-              preload="metadata"
+              webkitPlaysInline
+              crossOrigin="anonymous"
+              preload="auto"
               aria-label={`Video shared by ${post.author}`}
               data-testid={`video-saved-post-${post.id}`}
               className="max-h-[30rem] w-full bg-[#272a20] object-contain"
-            />
+            >
+              {post.mediaUrl && (
+                <source src={post.mediaUrl} type="video/mp4" />
+              )}
+            </video>
           </div>
         </div>
       )}

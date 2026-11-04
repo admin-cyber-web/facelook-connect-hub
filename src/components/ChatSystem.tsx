@@ -427,11 +427,16 @@ const MediaBubble = React.memo(
         <video
           src={url}
           controls
-          preload="metadata"
+          muted
           playsInline
+          webkitPlaysInline
+          crossOrigin="anonymous"
+          preload="auto"
           className="max-w-[240px] rounded-2xl shadow-lg bg-black"
           style={{ maxHeight: 200 }}
-        />
+        >
+          {url && <source src={url} type="video/mp4" />}
+        </video>
       );
     }
 
@@ -4187,8 +4192,12 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                     className="w-full h-full object-cover"
                                     muted
                                     playsInline
-                                    preload="none"
-                                  />
+                                    webkitPlaysInline
+                                    crossOrigin="anonymous"
+                                    preload="auto"
+                                  >
+                                    {url && <source src={url} type="video/mp4" />}
+                                  </video>
                                   <div className="absolute inset-0 flex items-center justify-center bg-black/30">
                                     <VideoIcon
                                       size={18}
@@ -4224,10 +4233,16 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                       className="w-full h-full object-cover"
                                       muted
                                       playsInline
-                                      preload="metadata"
+                                      webkitPlaysInline
+                                      crossOrigin="anonymous"
+                                      preload="auto"
                                       loop
                                       autoPlay
-                                    />
+                                    >
+                                      {storyPreviewUrl && (
+                                        <source src={storyPreviewUrl} type="video/mp4" />
+                                      )}
+                                    </video>
                                     <div className="absolute inset-0 pointer-events-none grid grid-cols-2 grid-rows-2">
                                       {[0, 1, 2, 3].map(k => <div key={k} className="border border-white/10" />)}
                                     </div>
