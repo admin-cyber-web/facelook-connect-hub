@@ -514,6 +514,15 @@ const UserProfilePreviewModalContent = ({
     }
   }, [actionBusy, isBlocked, currentUserId, userId]);
 
+  const handleViewProfile = useCallback(() => {
+    if (!userId) return;
+    navigateRef.current(`/profile/${userId}`);
+  }, [navigateRef, userId]);
+
+  const handleReport = useCallback(() => {
+    toast.error("Report feature coming soon");
+  }, []);
+
   const handleViewFullProfile = useCallback(() => {
     if (!userId) return;
     onClose();
@@ -532,21 +541,23 @@ const UserProfilePreviewModalContent = ({
     }> = [];
     if (isPublic) {
       items.push({
-        label: "View Full Profile",
+        label: "View Profile",
         icon: UserRound,
-        action: handleViewFullProfile,
+        action: handleViewProfile,
       });
     }
     if (friendStatus === "accepted") {
       items.push(
         { label: "Direct Chat", icon: MessageCircle, action: handleMessage },
         { label: "Unfriend", icon: UserRound, action: handleUnfriend, danger: true },
-        { label: "Block User", icon: Shield, action: handleToggleBlock, danger: true }
+        { label: "Block User", icon: Shield, action: handleToggleBlock, danger: true },
+        { label: "Report", icon: Shield, action: handleReport, danger: true }
       );
     } else {
       items.push(
         { label: "Add Friend", icon: UserRoundPlus, action: handleAddFriend },
-        { label: "Block User", icon: Shield, action: handleToggleBlock, danger: true }
+        { label: "Block User", icon: Shield, action: handleToggleBlock, danger: true },
+        { label: "Report", icon: Shield, action: handleReport, danger: true }
       );
     }
     return items;
@@ -718,10 +729,10 @@ const UserProfilePreviewModalContent = ({
               <button
                 type="button"
                 onClick={handleMessage}
-                className="mt-4 inline-flex items-center justify-center gap-2 min-w-[142px] h-9 rounded-[9px] bg-gradient-to-r from-red-600 to-red-800 px-3 text-[11px] font-bold text-white transition-colors duration-300 hover:shadow-red-500/30 active:scale-95"
+                className="w-full rounded-t-lg bg-gradient-to-r from-emerald-900/80 via-teal-900/70 to-purple-950/90 border-t border-emerald-500/20 rounded-b-lg p-4 shadow-lg"
               >
                 <MessageCircle size={14} />
-                Send Message
+                Start Chat
               </button>
             </div>
           )}
