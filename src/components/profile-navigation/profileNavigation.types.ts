@@ -57,7 +57,6 @@ export type FullProfilePageProps = {
   profile: ProfileNavigationProfile | null;
   friendWall: ReactNode;
   media: ProfileNavigationMedia[];
-  hooks: ProfileNavigationPost[];
   imagePosts: ProfileNavigationPost[];
   friends: ProfileNavigationFriend[];
   isConnected: boolean;

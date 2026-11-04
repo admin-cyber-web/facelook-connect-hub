@@ -1014,8 +1014,7 @@
 }
 
 .profile-nav-page .profile-nav-fact svg,
-.profile-nav-page .profile-nav-section-count,
-.profile-nav-page .profile-nav-hook-plays {
+.profile-nav-page .profile-nav-section-count {
   color: #858500;
 }
 
@@ -1258,24 +1257,7 @@
   scroll-margin-top: 18px;
 }
 
-.profile-nav-page .profile-nav-hooks-strip {
-  display: flex;
-  gap: 1px;
-  overflow-x: auto;
-  overscroll-behavior-inline: contain;
-  padding: 0;
-  scrollbar-width: thin;
-  scrollbar-color: #C0C000 transparent;
-}
-
-.profile-nav-page .profile-nav-hook-card {
-  position: relative;
-  flex: 0 0 clamp(170px, 22vw, 260px);
-  overflow: hidden;
-  background: #211819;
-}
-
-.profile-nav-page .profile-nav-hook-video {
+.profile-nav-page .profile-nav-media-video {
   display: block;
   width: 100%;
   aspect-ratio: 9 / 14;
@@ -1283,46 +1265,8 @@
   object-fit: cover;
 }
 
-.profile-nav-page .profile-nav-hook-save {
-  position: absolute;
-  z-index: 2;
-  top: 8px;
-  right: 8px;
-  border-radius: 999px;
-  background: rgba(20, 14, 12, 0.64);
-}
-
 .profile-nav-page .profile-nav-save-button {
   color: #D4AF37 !important;
-}
-
-.profile-nav-page .profile-nav-hook-plays {
-  position: absolute;
-  right: 8px;
-  bottom: 8px;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  border-radius: 999px;
-  padding: 5px 8px;
-  color: #fff5bf;
-  background: rgba(20, 14, 12, 0.68);
-  font-size: 10px;
-  font-weight: 800;
-}
-
-.profile-nav-page .profile-nav-hook-caption {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  margin: 0;
-  padding: 30px 10px 34px;
-  color: white;
-  background: linear-gradient(transparent, rgba(0, 0, 0, 0.76));
-  font-size: 11px;
-  line-height: 1.45;
-  pointer-events: none;
 }
 
 .profile-nav-page .profile-nav-image-grid {
@@ -1632,9 +1576,6 @@
     margin-left: 15px;
   }
 
-  .profile-nav-page .profile-nav-hook-card {
-    flex-basis: 172px;
-  }
 }
 
 @media (max-width: 420px) {

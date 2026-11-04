@@ -288,6 +288,9 @@ export default defineConfig({
         warn(warning);
       },
       output: {
+        entryFileNames: "assets/[name]-[hash].js",
+        chunkFileNames: "assets/[name]-[hash].js",
+        assetFileNames: "assets/[name]-[hash][extname]",
         manualChunks: (id: string) => {
           if (
             id.includes("node_modules/react/") ||

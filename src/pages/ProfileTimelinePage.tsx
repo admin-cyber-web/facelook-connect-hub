@@ -872,7 +872,6 @@ export default function ProfileTimelinePage({
         profile={profileForDisplay}
         friendWall={wall}
         media={media}
-        hooks={timelinePosts.filter(isVideoTimelinePost)}
         imagePosts={timelinePosts.filter(isImageTimelinePost)}
         currentUserId={currentUserId}
         onPostEdited={handleProfilePostEdited}

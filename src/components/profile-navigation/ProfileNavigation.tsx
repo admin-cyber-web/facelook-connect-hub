@@ -31,7 +31,6 @@ import {
   Users,
   UserPlus,
   X,
-  Video,
 } from "lucide-react";
 import "./profile-navigation.css";
 import SavePostButton from "@/components/SavePostButton";
@@ -454,7 +453,7 @@ function MediaGallery({
             return (
               <div className="profile-nav-media" key={item.id} data-testid={`media-profile-${item.id}`}>
                 {isVideo ? (
-                  <ProfileHookVideo
+                  <ProfileMediaVideo
                     src={item.url}
                     poster={item.preview_url || undefined}
                     isCreator={isCreator}
@@ -630,7 +629,7 @@ function FriendsList({
   );
 }
 
-function ProfileHookVideo({
+function ProfileMediaVideo({
   src,
   poster,
   isCreator,
@@ -671,7 +670,7 @@ function ProfileHookVideo({
         poster={poster}
         controls
         ariaLabel="Short video from timeline"
-        className="profile-nav-hook-video"
+        className="profile-nav-media-video"
         preload="none"
         autoplayWithSound
         passThroughClicks={false}
@@ -690,7 +689,7 @@ function ProfileHookVideo({
         playsInline
         preload="none"
         aria-label="Short video from timeline"
-        className="profile-nav-hook-video"
+        className="profile-nav-media-video"
       />
       {isCreator && videoId && (
         <>
@@ -706,86 +705,6 @@ function ProfileHookVideo({
         </div>
       )}
     </div>
-  );
-}
-
-function HooksSection({
-  posts,
-  authorName,
-  currentUserId,
-  onPostEdited,
-  onPostDeleted,
-  onSharePost,
-}: {
-  posts: ProfileNavigationPost[];
-  authorName: string;
-  currentUserId: string;
-  onPostEdited: (postId: string, content: string) => void;
-  onPostDeleted: (postId: string) => void;
-  onSharePost: (postId: string) => void | Promise<void>;
-}) {
-  return (
-    <section className="profile-nav-section" aria-labelledby="profile-nav-hooks-heading">
-      <div className="profile-nav-section-head">
-        <div>
-          <p className="profile-nav-kicker">Short videos</p>
-          <h2 className="profile-nav-section-title" id="profile-nav-hooks-heading">Hooks</h2>
-        </div>
-        <span className="profile-nav-section-count">{posts.length}</span>
-      </div>
-      {posts.length === 0 ? (
-        <EmptyState
-          icon={<Video size={17} aria-hidden="true" />}
-          title="No Hooks yet"
-          copy="Short videos shared on this timeline will appear here."
-        />
-      ) : (
-        <div className="profile-nav-hooks-strip" data-testid="grid-profile-hooks">
-          {posts.map((post) => (
-            <article
-              key={post.id}
-              className="profile-nav-hook-card"
-              data-testid={`card-profile-hook-${post.id}`}
-            >
-              <div className="absolute right-12 top-2 z-[60]">
-                <ProfilePostActions
-                  postId={post.id}
-                  authorId={post.author_id}
-                  authorName={authorName}
-                  content={post.content ?? ""}
-                  currentUserId={currentUserId}
-                  onEdited={onPostEdited}
-                  onDeleted={onPostDeleted}
-                  onShare={onSharePost}
-                />
-              </div>
-              {post.media_url && (
-                <ProfileHookVideo
-                  src={post.media_url}
-                  poster={post.cover_url || post.image_url || undefined}
-                  isCreator={post.author_id === currentUserId}
-                />
-              )}
-              <div className="profile-nav-hook-save">
-                <SavePostButton postId={post.id} className="profile-nav-save-button" />
-              </div>
-              <span
-                className="profile-nav-hook-plays"
-                data-testid={`text-hook-views-${post.id}`}
-              >
-                <Play size={13} fill="currentColor" aria-hidden="true" />
-                {(post.views_count ?? 0).toLocaleString()} plays
-              </span>
-              {post.content && (
-                <p className="profile-nav-hook-caption">
-                  {post.content}
-                </p>
-              )}
-            </article>
-          ))}
-        </div>
-      )}
-    </section>
   );
 }
 
@@ -944,7 +863,6 @@ export function FullProfilePage({
   profile,
   friendWall,
   media,
-  hooks,
   imagePosts,
   friends,
   isConnected,
@@ -1015,14 +933,6 @@ export function FullProfilePage({
                   {friendWall}
                 </div>
                 <aside className="profile-nav-rail" aria-label={`${profile.full_name} profile details`}>
-                  <HooksSection
-                    posts={hooks}
-                    authorName={profile.full_name || "Flicks member"}
-                    currentUserId={currentUserId}
-                    onPostEdited={onPostEdited}
-                    onPostDeleted={onPostDeleted}
-                    onSharePost={onSharePost}
-                  />
                   <ImagePostsSection
                     posts={imagePosts}
                     authorName={profile.full_name || "Flicks member"}

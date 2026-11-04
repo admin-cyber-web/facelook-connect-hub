@@ -946,7 +946,7 @@ const UserProfilePreviewModalContent = ({
                 <UserRound size={15} />
               </span>
               <h2 id="ppm-about-title" className="text-[13px] font-black text-[color:#37494c]">
-                Short videos Collection
+                About Me
               </h2>
             </div>
             <div className="space-y-px">
