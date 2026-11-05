@@ -16,6 +16,7 @@ interface Props {
   src: string;
   className?: string;
   poster?: string;
+  objectFit?: CSSProperties["objectFit"];
   ariaLabel?: string;
   controls?: boolean;
   preload?: "none" | "metadata" | "auto";
@@ -44,6 +45,7 @@ export default function AutoPlayMutedVideo({
   src,
   className,
   poster,
+  objectFit = "cover",
   ariaLabel,
   controls = false,
   preload = "metadata",
@@ -235,7 +237,7 @@ export default function AutoPlayMutedVideo({
         style={{
           width: "100%",
           height: "100%",
-          objectFit: "cover",
+          objectFit,
           display: hasError ? "none" : "block",
         }}
       >

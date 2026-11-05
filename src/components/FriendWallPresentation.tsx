@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   ChevronDown,
   Clock3,
@@ -12,6 +12,7 @@ import {
   Video,
 } from "lucide-react";
 import AutoPlayMutedVideo from "@/components/AutoPlayMutedVideo";
+import ProfileWallReelsModal from "@/components/ProfileWallReelsModal";
 import ProfilePostActions from "./ProfilePostActions";
 import SavePostButton from "./SavePostButton";
 import { getBunnyVideoThumbnailUrl } from "@/hooks/useBunnyVideoStatus";
@@ -181,6 +182,8 @@ function WallPost({
   onPostEdited,
   onPostDeleted,
   onOpenPostDetail,
+  onOpenReel,
+  playbackEnabled,
 }: {
   post: FriendWallPostView;
   likeBusy: boolean;
@@ -190,6 +193,8 @@ function WallPost({
   onPostEdited: (postId: string, content: string) => void;
   onPostDeleted: (postId: string) => void;
   onOpenPostDetail: (postId: string) => void;
+  onOpenReel: (postId: string) => void;
+  playbackEnabled: boolean;
 }) {
   const [reactionPickerOpen, setReactionPickerOpen] = useState(false);
   useDismissableReactionPicker(
@@ -216,7 +221,11 @@ function WallPost({
         }
         onOpenPostDetail(post.id);
       }}
-      className="profile-nav-post overflow-hidden rounded-[1.4rem] border border-white/[0.09] bg-[linear-gradient(145deg,rgba(255,255,255,0.065),rgba(255,255,255,0.025)_55%,rgba(124,58,237,0.045))] shadow-[0_14px_35px_rgba(8,4,18,0.12)]"
+      className={`profile-nav-post ${
+        video
+          ? "overflow-visible border-0 bg-transparent shadow-none"
+          : "overflow-hidden rounded-[1.4rem] border border-white/[0.09] bg-[linear-gradient(145deg,rgba(255,255,255,0.065),rgba(255,255,255,0.025)_55%,rgba(124,58,237,0.045))] shadow-[0_14px_35px_rgba(8,4,18,0.12)]"
+      }`}
       data-testid={`card-wall-post-${post.id}`}
     >
       <div className="flex items-center gap-3 px-4 pb-3 pt-4 sm:px-5">
@@ -259,22 +268,36 @@ function WallPost({
       )}
 
       {hasMedia && (
-        <div className="profile-nav-post-media px-3 pb-3 sm:px-4">
+        <div
+          className={`profile-nav-post-media ${
+            video ? "-mx-4 w-[calc(100%+2rem)] sm:-mx-5 sm:w-[calc(100%+2.5rem)]" : "px-3 pb-3 sm:px-4"
+          }`}
+        >
           {video ? (
-            <div className="relative mx-auto my-3 aspect-[9/16] w-[min(100%,42.1875vh)] max-h-[75vh] overflow-hidden rounded-2xl border border-white/10 bg-black md:w-[min(100%,45vh)] md:max-h-[80vh]">
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onOpenReel(post.id);
+              }}
+              aria-label={`Open ${post.authorName}'s video in reels`}
+              data-testid={`button-open-wall-reel-${post.id}`}
+              className="relative block aspect-[9/16] max-h-[85dvh] w-full overflow-hidden bg-black text-left"
+            >
               {videoUrl && (
                 <AutoPlayMutedVideo
                   src={videoUrl}
                   poster={post.coverUrl || getBunnyVideoThumbnailUrl(videoUrl)}
-                  controls
-                  passThroughClicks={false}
+                  objectFit="contain"
+                  passThroughClicks
                   ariaLabel={`Video shared by ${post.authorName}`}
-                  className="h-full w-full rounded-2xl bg-black object-cover"
-                  preload="auto"
-                  autoplayWithSound
+                  className="h-full w-full bg-black object-contain"
+                  preload="metadata"
+                  autoplayWithSound={false}
+                  playbackEnabled={playbackEnabled}
                 />
               )}
-            </div>
+            </button>
           ) : (
             <div
               className={`grid gap-1.5 overflow-hidden rounded-[1rem] border border-white/10 bg-black/20 ${
@@ -422,6 +445,12 @@ export default function FriendWallPresentation({
   onOpenPostDetail,
   onRetry,
 }: FriendWallPresentationProps) {
+  const [reelsPostId, setReelsPostId] = useState<string | null>(null);
+  const wallVideos = useMemo(
+    () => posts.filter((post) => isVideoPost(post) && Boolean(post.videoUrl || post.mediaUrl)),
+    [posts],
+  );
+  const initialReelIndex = wallVideos.findIndex((post) => post.id === reelsPostId);
   return (
     <section
       aria-label={`${friendName}'s wall`}
@@ -562,9 +591,21 @@ export default function FriendWallPresentation({
               onPostEdited={onPostEdited}
               onPostDeleted={onPostDeleted}
               onOpenPostDetail={onOpenPostDetail}
+              onOpenReel={setReelsPostId}
+              playbackEnabled={reelsPostId === null}
             />
           ))}
         </div>
+      )}
+      {initialReelIndex >= 0 && (
+        <ProfileWallReelsModal
+          posts={wallVideos}
+          initialIndex={initialReelIndex}
+          onClose={() => setReelsPostId(null)}
+          onLike={onLike}
+          onComments={(postId) => onOpenPostDetail(postId)}
+          onShare={onShare}
+        />
       )}
     </section>
   );
