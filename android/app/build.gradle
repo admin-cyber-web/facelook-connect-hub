@@ -67,6 +67,7 @@ repositories {
 dependencies {
     implementation fileTree(dir: 'libs', include: ['*.jar'])
     implementation "androidx.appcompat:appcompat:$rootProject.ext.androidxAppCompatVersion"
+    implementation 'androidx.browser:browser:1.8.0'
     implementation project(':capacitor-android')
     implementation project(':capacitor-cordova-android-plugins')
     
@@ -82,6 +83,9 @@ configurations.all {
     resolutionStrategy.eachDependency { details ->
         if (details.requested.group == 'org.jetbrains.kotlin') {
             details.useVersion "1.8.22"
+        }
+        if (details.requested.group == 'androidx.browser' && details.requested.name == 'browser') {
+            details.useVersion "1.8.0"
         }
     }
 }

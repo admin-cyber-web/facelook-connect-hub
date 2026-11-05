@@ -1,31 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  Link2,
-  Share2,
-  Check,
-  X,
-  Loader2,
-  ImageIcon,
-  MessageCircle,
-} from "lucide-react";
-import { toast } from "sonner";
-import {
-  copyShareText,
-  launchShareTarget,
-  shareUrlWithNative,
-  universalShare,
-  resolveShareMediaUrl,
-  resolveSharePreviewFromPost,
-  buildShareText,
-  buildPostShareUrl,
-  canonicalShareUrl,
-  type PostType,
-  type ShareTarget,
-  type ShareOutcome,
-} from "../lib/universalShare";
-
-// ── Public types ──────────────────────────────────────────────────────────────
+import { Link2, Share2, Check, X, ImageIcon } from "lucide-react";
+import { shareToSocial, type SocialPlatform, formatShareUrl } from "@/lib/shareUtils";
 
 export interface SharePostData {
   id: string;
@@ -35,31 +11,17 @@ export interface SharePostData {
   media_url?: string;
   imageUrl?: string;
   image_url?: string;
-  imageUrls?: string[];
-  image_urls?: string[];
   videoUrl?: string;
   video_url?: string;
   coverUrl?: string;
   cover_url?: string;
-  thumbUrl?: string;
-  thumb_url?: string;
-  thumbnailUrl?: string;
-  thumbnail_url?: string;
-  posterUrl?: string;
-  poster_url?: string;
-  previewUrl?: string;
-  preview_url?: string;
-  videoThumbnailUrl?: string;
-  video_thumbnail_url?: string;
   meta_image?: string;
-  metadata?: Record<string, unknown> | string | null;
   mediaType?: string;
   media_type?: string;
   type?: string;
   author?: string;
   meta_title?: string;
   meta_description?: string;
-  shares_count?: number;
   share_url?: string;
 }
 
@@ -70,183 +32,80 @@ export interface ShareAnchor {
   height: number;
 }
 
-export type ShareMode =
-  | "copy"
-  | "whatsapp"
-  | "messenger"
-  | "facebook"
-  | "instagram"
-  | "twitter"
-  | "telegram"
-  | "system";
+export type ShareMode = SocialPlatform;
 
 interface SharePopupProps {
   post: SharePostData;
-  anchor: ShareAnchor;
+  anchor?: ShareAnchor;
   onClose: () => void;
-  onShare: (mode: ShareMode, post: SharePostData) => void;
-  /** Pass canvasRef.current for QuotesMaker canvas-based sharing */
+  onShare?: (mode: ShareMode, post: SharePostData) => void;
   canvas?: HTMLCanvasElement | null;
 }
 
-// ── Layout constants ──────────────────────────────────────────────────────────
-
-const POPUP_WIDTH = 272;
-const POPUP_HEIGHT = 360; // taller to accommodate media-share button
-const MARGIN = 12;
-
-function calcPosition(anchor: ShareAnchor): {
-  top: number;
-  left: number;
-  above: boolean;
-} {
-  const vw = window.innerWidth;
-  const vh = window.innerHeight;
-  const anchorCenterX = anchor.x + anchor.width / 2;
-  const anchorBottom = anchor.y + anchor.height;
-  const anchorTop = anchor.y;
-  const spaceBelow = vh - anchorBottom - MARGIN;
-  const spaceAbove = anchorTop - MARGIN;
-  const above = spaceBelow < POPUP_HEIGHT && spaceAbove > spaceBelow;
-  let top = above ? anchorTop - POPUP_HEIGHT - 8 : anchorBottom + 8;
-  let left = anchorCenterX - POPUP_WIDTH / 2;
-  left = Math.max(MARGIN, Math.min(left, vw - POPUP_WIDTH - MARGIN));
-  top = Math.max(MARGIN, Math.min(top, vh - POPUP_HEIGHT - MARGIN));
-  return { top, left, above };
-}
-
-// ── Platform link options (URL-only deep links) ───────────────────────────────
-
-const PLATFORM_OPTIONS: {
-  mode: ShareMode;
+const PLATFORMS: {
+  id: SocialPlatform;
   label: string;
   bg: string;
   icon: React.ReactNode;
 }[] = [
   {
-    mode: "whatsapp",
+    id: "whatsapp",
     label: "WhatsApp",
     bg: "#25D366",
     icon: (
-      <svg viewBox="0 0 24 24" width="20" height="20" fill="white">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="white">
         <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z" />
         <path d="M12 2C6.477 2 2 6.477 2 12c0 1.89.525 3.66 1.438 5.168L2 22l4.978-1.306A9.953 9.953 0 0012 22c5.523 0 10-4.477 10-10S17.523 2 12 2zm0 18a7.95 7.95 0 01-4.076-1.117l-.292-.174-3.017.791.806-2.94-.19-.302A7.95 7.95 0 014 12c0-4.418 3.582-8 8-8s8 3.582 8 8-3.582 8-8 8z" />
       </svg>
     ),
   },
   {
-    mode: "messenger",
-    label: "Messenger",
-    bg: "linear-gradient(135deg, #0084ff, #a334fa)",
-    icon: (
-      <svg viewBox="0 0 24 24" width="20" height="20" fill="white">
-        <path d="M12 2C6.477 2 2 6.145 2 11.243c0 2.922 1.32 5.532 3.407 7.326V22l3.115-1.708c.831.23 1.712.354 2.624.354 5.523 0 10-4.145 10-9.243S17.523 2 12 2zm1.012 12.44l-2.544-2.714-4.967 2.714 5.469-5.8 2.608 2.714 4.903-2.714-5.469 5.8z" />
-      </svg>
-    ),
-  },
-  {
-    mode: "facebook",
+    id: "facebook",
     label: "Facebook",
     bg: "#1877F2",
     icon: (
-      <svg viewBox="0 0 24 24" width="20" height="20" fill="white">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="white">
         <path d="M24 12.073C24 5.405 18.627 0 12 0S0 5.405 0 12.073C0 18.1 4.388 23.094 10.125 24v-8.437H7.078v-3.49h3.047V9.43c0-3.007 1.792-4.669 4.532-4.669 1.313 0 2.686.234 2.686.234v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.49h-2.796V24C19.612 23.094 24 18.1 24 12.073z" />
       </svg>
     ),
   },
   {
-    mode: "instagram",
-    label: "Instagram",
-    bg: "linear-gradient(135deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888)",
-    icon: (
-      <svg viewBox="0 0 24 24" width="20" height="20" fill="white">
-        <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z" />
-      </svg>
-    ),
-  },
-  {
-    mode: "twitter",
-    label: "X / Twitter",
+    id: "twitter",
+    label: "X (Twitter)",
     bg: "#000000",
     icon: (
-      <svg viewBox="0 0 24 24" width="18" height="18" fill="white">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="white">
         <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.748l7.73-8.835L1.254 2.25H8.08l4.261 5.631 5.903-5.631zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
       </svg>
     ),
   },
   {
-    mode: "telegram",
+    id: "telegram",
     label: "Telegram",
     bg: "#229ED9",
     icon: (
-      <svg viewBox="0 0 24 24" width="20" height="20" fill="white">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="white">
         <path d="M11.944 0A12 12 0 000 12a12 12 0 0012 12 12 12 0 0012-12A12 12 0 0012 0a12 12 0 00-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 01.171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z" />
       </svg>
     ),
   },
   {
-    mode: "system",
-    label: "Direct Message",
-    bg: "linear-gradient(135deg, #475569, #64748b)",
-    icon: <MessageCircle size={19} className="text-white" />,
-  },
-  {
-    mode: "copy",
+    id: "copy",
     label: "Copy Link",
     bg: "rgba(255,255,255,0.12)",
-    icon: <Link2 size={19} className="text-white" />,
+    icon: <Link2 size={20} className="text-white" />,
+  },
+  {
+    id: "native",
+    label: "More Options",
+    bg: "linear-gradient(135deg, #475569, #64748b)",
+    icon: <Share2 size={20} className="text-white" />,
   },
 ];
 
-// ── Component ─────────────────────────────────────────────────────────────────
-
-const SharePopup: React.FC<SharePopupProps> = ({
-  post,
-  anchor,
-  onClose,
-  onShare,
-  canvas,
-}) => {
-  const popupRef = useRef<HTMLDivElement>(null);
-  const actionInProgressRef = useRef(false);
-  const lastTouchAtRef = useRef(0);
+const SharePopup: React.FC<SharePopupProps> = ({ post, onClose, onShare }) => {
   const [copied, setCopied] = useState(false);
-  const [activeAction, setActiveAction] = useState<ShareMode | "media" | null>(null);
-  const [mediaOutcome, setMediaOutcome] = useState<ShareOutcome | null>(null);
-
-  const { top, left, above } = calcPosition(anchor);
-
-  const resolvedPreviewUrl = resolveSharePreviewFromPost(post);
-  const thumbnail = canvas ? null : resolvedPreviewUrl || null;
-  const caption =
-    post.meta_title ||
-    post.title ||
-    post.content?.slice(0, 72) ||
-    "Check this out on Flicks!";
-  const shareTitle = post.meta_title || post.title || caption;
-  const shareUrl = canonicalShareUrl(post.share_url || buildPostShareUrl(post.id));
-  const shareCaption = (post.content || caption)
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, 1000);
-  const formattedShareText = buildShareText(shareCaption, shareUrl);
-  // Resolve the best media URL for this post type
-  const mediaUrl = canvas
-    ? undefined
-    : resolveShareMediaUrl({
-        type: post.type,
-        media_type: post.media_type,
-        media_url: post.media_url || post.mediaUrl,
-        video_url: post.video_url || post.videoUrl,
-        cover_url: post.cover_url || post.coverUrl,
-        meta_image: post.meta_image,
-      });
-  const previewUrl = canvas ? undefined : resolvedPreviewUrl;
-  const shareType: PostType =
-    /video|reel/i.test(`${post.type || ""} ${post.media_type || ""}`) ||
-    Boolean(post.video_url || post.videoUrl)
-      ? "reel"
-      : (post.type as PostType) || "post";
+  const touchHandledRef = useRef(false);
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
@@ -256,349 +115,144 @@ const SharePopup: React.FC<SharePopupProps> = ({
     return () => document.removeEventListener("keydown", handleKey);
   }, [onClose]);
 
-  const handleShareAction = async (
-    event: React.SyntheticEvent<HTMLButtonElement>,
-    mode: ShareMode | "media",
-  ) => {
-    event.preventDefault();
-    event.stopPropagation();
-    if (actionInProgressRef.current) return;
+  const targetUrl = formatShareUrl(
+    post.share_url || `/post/${encodeURIComponent(post.id)}`,
+  );
+  const captionText =
+    post.content?.trim() ||
+    post.title ||
+    post.meta_title ||
+    "Check this out on Flicks India!";
 
-    actionInProgressRef.current = true;
-    setActiveAction(mode);
-    setMediaOutcome(null);
-    try {
-      if (mode === "copy") {
-        if (!(await copyShareText(formattedShareText))) {
-          throw new Error("Clipboard is unavailable");
-        }
-        setCopied(true);
-        toast.success("Share message copied!");
-        onShare(mode, post);
-        window.setTimeout(() => setCopied(false), 1600);
-        return;
-      }
+  const imagePreview =
+    post.mediaUrl ||
+    post.media_url ||
+    post.imageUrl ||
+    post.image_url ||
+    post.coverUrl ||
+    post.cover_url ||
+    post.meta_image;
 
-      if (mode === "system" || mode === "instagram") {
-        const outcome = await shareUrlWithNative({
-          title: shareTitle,
-          text: shareCaption,
-          url: shareUrl,
-          mediaUrl,
-          type: shareType,
-          authorName: post.author,
-        });
-        setMediaOutcome(outcome);
-        if (outcome === "shared-with-file" || outcome === "shared-url-only") {
-          onShare(mode, post);
-          window.setTimeout(onClose, 300);
-        } else if (outcome === "copied") {
-          toast.success(
-            mode === "instagram"
-              ? "Share message copied. Paste it into Instagram."
-              : "Share text copied to clipboard.",
-          );
-        } else if (outcome === "error") {
-          toast.error("Sharing is unavailable. Try Copy Link instead.");
-        }
-        return;
-      }
+  const handleShare = async (platform: SocialPlatform) => {
+    const success = await shareToSocial(platform, {
+      title: post.title || post.meta_title || "Flicks India",
+      text: captionText,
+      url: targetUrl,
+      mediaUrl: imagePreview,
+    });
 
-      if (mode === "media") {
-        const outcome = await universalShare({
-          title: shareTitle,
-          text: shareCaption,
-          url: shareUrl,
-          mediaUrl,
-          previewUrl,
-          authorName: post.author,
-          canvas: canvas ?? undefined,
-          type: shareType,
-        });
-        setMediaOutcome(outcome);
-        if (outcome === "shared-with-file" || outcome === "shared-url-only") {
-          onShare("system", post);
-          window.setTimeout(onClose, 300);
-        } else if (outcome === "copied") {
-          toast.success("Share text copied to clipboard.");
-        } else if (outcome === "error") {
-          toast.error("Share failed. Try Copy Link instead.");
-        }
-        return;
-      }
-
-      const outcome = await launchShareTarget(mode as ShareTarget, {
-        title: shareTitle,
-        text: shareCaption,
-        url: shareUrl,
-        mediaUrl,
-        previewUrl,
-        authorName: post.author,
-        type: shareType,
-      });
-      if (outcome === "opened") {
-        onShare(mode, post);
-        window.setTimeout(onClose, 350);
-      } else if (outcome === "copied") {
-        toast.success("Share text copied to clipboard.");
-        onShare(mode, post);
-      } else {
-        toast.error(`Couldn't share to ${mode}. Try Copy Link instead.`);
-      }
-    } catch (error) {
-      console.error("[SharePopup] Share action failed:", error);
-      toast.error(mode === "copy" ? "Copy failed." : "Share failed. Try again.");
-    } finally {
-      actionInProgressRef.current = false;
-      setActiveAction(null);
+    if (platform === "copy" && success) {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
     }
-  };
 
-  const handleTouchShareAction = (
-    event: React.TouchEvent<HTMLButtonElement>,
-    mode: ShareMode | "media",
-  ) => {
-    lastTouchAtRef.current = Date.now();
-    void handleShareAction(event, mode);
-  };
-
-  const handleClickShareAction = (
-    event: React.MouseEvent<HTMLButtonElement>,
-    mode: ShareMode | "media",
-  ) => {
-    if (Date.now() - lastTouchAtRef.current < 700) {
-      event.preventDefault();
-      event.stopPropagation();
-      return;
+    if (onShare) {
+      onShare(platform, post);
     }
-    void handleShareAction(event, mode);
-  };
 
-  const mediaButtonLabel = () => {
-    if (activeAction === "media") return "Preparing media…";
-    if (mediaOutcome === "shared-with-file") return "Shared with image ✓";
-    if (mediaOutcome === "shared-url-only") return "Shared ✓";
-    if (mediaOutcome === "copied") return "Share message copied ✓";
-    const hasMedia = !!(canvas || mediaUrl || previewUrl);
-    return hasMedia ? "Share media & caption" : "Share caption & link";
+    if (platform !== "copy") {
+      onClose();
+    }
   };
 
   return (
     <AnimatePresence>
-      <>
+      <div className="fixed inset-0 z-[10000] flex items-end sm:items-center justify-center p-0 sm:p-4">
         {/* Backdrop */}
         <motion.div
-          key="share-popup-backdrop"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: 0.15 }}
-          className="fixed inset-0 z-[10000] pointer-events-auto"
-          style={{ background: "rgba(0,0,0,0.45)" }}
+          className="fixed inset-0 bg-black/60 backdrop-blur-md"
           onClick={onClose}
         />
 
-        {/* Popup card */}
+        {/* Modal Card */}
         <motion.div
-          ref={popupRef}
-          key="share-popup-panel"
-          initial={{ opacity: 0, scale: 0.82, y: above ? 8 : -8 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.82, y: above ? 8 : -8 }}
-          transition={{ type: "spring", damping: 22, stiffness: 380 }}
-          className="fixed z-[10001] select-none pointer-events-auto"
-          style={{
-            top,
-            left,
-            width: POPUP_WIDTH,
-            background: "rgba(16, 4, 24, 0.96)",
-            backdropFilter: "blur(28px) saturate(1.6)",
-            WebkitBackdropFilter: "blur(28px) saturate(1.6)",
-            border: "1px solid rgba(255,255,255,0.1)",
-            borderRadius: 22,
-            boxShadow:
-              "0 20px 60px rgba(0,0,0,0.65), 0 0 0 1px rgba(139,0,80,0.2)",
-            overflow: "hidden",
-          }}
+          initial={{ y: "100%", opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          exit={{ y: "100%", opacity: 0 }}
+          transition={{ type: "spring", damping: 25, stiffness: 350 }}
+          className="relative w-full max-w-md bg-[#0F172A] border border-white/10 rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl z-[10001] overflow-hidden"
           onClick={(e) => e.stopPropagation()}
         >
-          {/* Maroon gradient accent bar */}
-          <div
-            style={{
-              height: 3,
-              background:
-                "linear-gradient(90deg,#8b0051,#c62a6e,#ff2d55,#ff6b35)",
-            }}
-          />
-
-          {/* Post preview row */}
-          <div className="flex items-center gap-2.5 px-3.5 pt-3 pb-2.5">
-            {thumbnail ? (
-              <img
-                src={thumbnail}
-                alt=""
-                className="w-10 h-10 rounded-xl object-cover flex-shrink-0"
-                style={{ border: "1px solid rgba(255,255,255,0.1)" }}
-               decoding="async"/>
-            ) : canvas ? (
-              <div
-                className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 text-lg"
-                style={{
-                  background: "rgba(139,0,81,0.3)",
-                  border: "1px solid rgba(139,0,81,0.3)",
-                }}
-              >
-                ✍️
-              </div>
-            ) : (
-              <div
-                className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                style={{
-                  background: "rgba(139,0,81,0.25)",
-                  border: "1px solid rgba(139,0,81,0.3)",
-                }}
-              >
-                <ImageIcon size={18} className="text-pink-400" />
-              </div>
-            )}
-
-            <div className="flex-1 min-w-0">
-              <p className="text-white font-semibold text-[11.5px] leading-snug line-clamp-2">
-                {caption}
-              </p>
-              {post.author && (
-                <p className="text-white/40 text-[10px] font-medium mt-0.5 truncate">
-                  by {post.author}
-                </p>
+          {/* Header Bar */}
+          <div className="flex items-center justify-between pb-4 border-b border-white/10">
+            <div className="flex items-center gap-3 min-w-0">
+              {imagePreview ? (
+                <img
+                  src={imagePreview}
+                  alt=""
+                  className="w-12 h-12 rounded-xl object-cover border border-white/10 shrink-0"
+                />
+              ) : (
+                <div className="w-12 h-12 rounded-xl bg-white/10 border border-white/10 flex items-center justify-center shrink-0 text-pink-400">
+                  <ImageIcon size={22} />
+                </div>
               )}
+              <div className="min-w-0">
+                <p className="text-white font-bold text-sm truncate">
+                  {post.author ? `Shared by ${post.author}` : "Share Post"}
+                </p>
+                <p className="text-white/50 text-xs truncate max-w-[220px]">
+                  {captionText}
+                </p>
+              </div>
             </div>
-
             <button
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation();
-                onClose();
-              }}
-              onTouchStart={(event) => {
-                event.stopPropagation();
-                onClose();
-              }}
-              aria-label="Close share options"
-              className="pointer-events-auto flex-shrink-0 w-6 h-6 cursor-pointer touch-manipulation rounded-full flex items-center justify-center hover:bg-white/10 active:scale-95 transition-colors"
+              onClick={onClose}
+              className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white/60 hover:text-white transition-colors"
             >
-              <X size={13} className="text-white/50" />
+              <X size={18} />
             </button>
           </div>
 
-          {/* Divider */}
-          <div
-            style={{
-              height: 1,
-              background: "rgba(255,255,255,0.07)",
-              margin: "0 12px",
-            }}
-          />
-
-          {/* ── "Share with Image" — file-based OS sheet ── */}
-          <div className="px-3 pt-3 pb-1">
-            <motion.button
-              type="button"
-              whileTap={activeAction ? {} : { scale: 0.97 }}
-              onClick={(event) => handleClickShareAction(event, "media")}
-              onTouchStart={(event) => handleTouchShareAction(event, "media")}
-              disabled={activeAction !== null}
-              className="w-full pointer-events-auto flex cursor-pointer touch-manipulation items-center justify-center gap-2 rounded-[14px] py-2.5 px-4 font-bold text-[12px] transition-opacity hover:brightness-110 active:scale-[0.98] disabled:cursor-wait"
-              style={{
-                background:
-                  mediaOutcome === "shared-with-file" ||
-                  mediaOutcome === "shared-url-only" ||
-                  mediaOutcome === "copied"
-                    ? "rgba(34,197,94,0.22)"
-                    : activeAction === "media"
-                      ? "rgba(255,255,255,0.06)"
-                      : "linear-gradient(135deg,rgba(139,0,81,0.55),rgba(198,42,110,0.55))",
-                border: "1px solid rgba(255,255,255,0.12)",
-                color:
-                  mediaOutcome === "shared-with-file" ||
-                  mediaOutcome === "shared-url-only" ||
-                  mediaOutcome === "copied"
-                    ? "#4ade80"
-                    : "rgba(255,255,255,0.9)",
-                opacity: activeAction === "media" ? 0.75 : 1,
-              }}
-            >
-              {activeAction === "media" ? (
-                <Loader2 size={15} className="animate-spin text-white/70" />
-              ) : mediaOutcome === "shared-with-file" ||
-                mediaOutcome === "shared-url-only" ||
-                mediaOutcome === "copied" ? (
-                <Check size={15} />
-              ) : (
-                <Share2 size={15} />
-              )}
-              <span>{mediaButtonLabel()}</span>
-            </motion.button>
-            <p className="text-center text-white/30 text-[9px] mt-1.5 mb-0.5 leading-none">
-              {(mediaUrl || previewUrl) && window.AndroidShare?.shareMedia
-                ? "Opens the share sheet with media attached"
-                : "Shares the caption, media URL, and post link"}
-            </p>
+          {/* Platform Share Options Grid */}
+          <div className="grid grid-cols-3 gap-3 py-5">
+            {PLATFORMS.map(({ id, label, bg, icon }) => (
+              <button
+                key={id}
+                onClick={() => handleShare(id)}
+                onTouchEnd={(e) => {
+                  e.preventDefault();
+                  if (touchHandledRef.current) return;
+                  touchHandledRef.current = true;
+                  handleShare(id);
+                  setTimeout(() => {
+                    touchHandledRef.current = false;
+                  }, 500);
+                }}
+                className="flex flex-col items-center gap-2 p-3 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 active:scale-95 transition-all text-center group cursor-pointer"
+              >
+                <div
+                  className="w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform"
+                  style={{ background: id === "copy" && copied ? "#22c55e" : bg }}
+                >
+                  {id === "copy" && copied ? (
+                    <Check size={22} className="text-white" />
+                  ) : (
+                    icon
+                  )}
+                </div>
+                <span className="text-xs font-semibold text-white/80 group-hover:text-white">
+                  {id === "copy" && copied ? "Copied!" : label}
+                </span>
+              </button>
+            ))}
           </div>
 
-          {/* Divider */}
-          <div
-            style={{
-              height: 1,
-              background: "rgba(255,255,255,0.07)",
-              margin: "6px 12px",
-            }}
-          />
-
-          {/* Platform link grid (URL-only) */}
-          <div className="grid grid-cols-4 gap-x-1 gap-y-3 px-3 pb-3.5 pt-1">
-            {PLATFORM_OPTIONS.map(({ mode, label, bg, icon }) => {
-              const isCopyDone = mode === "copy" && copied;
-              return (
-                <motion.button
-                  key={mode}
-                  type="button"
-                  whileTap={{ scale: 0.88 }}
-                  whileHover={{ scale: 1.06 }}
-                  onClick={(event) => handleClickShareAction(event, mode)}
-                  onTouchStart={(event) => handleTouchShareAction(event, mode)}
-                  disabled={activeAction !== null}
-                  aria-label={`Share via ${label}`}
-                  className="pointer-events-auto flex cursor-pointer touch-manipulation flex-col items-center gap-1.5 rounded-xl outline-none transition-opacity hover:opacity-100 active:scale-95 disabled:cursor-wait disabled:opacity-60"
-                >
-                  <div
-                    className="w-11 h-11 rounded-[14px] flex items-center justify-center"
-                    style={{
-                      background: isCopyDone ? "rgba(34,197,94,0.25)" : bg,
-                      border:
-                        mode === "copy"
-                          ? "1px solid rgba(255,255,255,0.12)"
-                          : "none",
-                      boxShadow:
-                        mode !== "copy"
-                          ? "0 3px 12px rgba(0,0,0,0.35)"
-                          : "none",
-                    }}
-                  >
-                    {isCopyDone ? (
-                      <Check size={19} className="text-green-400" />
-                    ) : (
-                      icon
-                    )}
-                  </div>
-                  <span className="text-white/55 font-medium leading-none text-[9.5px] text-center w-full truncate">
-                    {isCopyDone ? "Copied!" : label}
-                  </span>
-                </motion.button>
-              );
-            })}
+          {/* Native Share Button */}
+          <div className="pt-2 border-t border-white/10">
+            <button
+              onClick={() => handleShare("native")}
+              className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-blue-600 to-purple-600 text-white font-bold text-sm flex items-center justify-center gap-2 active:scale-98 transition-transform shadow-lg"
+            >
+              <Share2 size={18} />
+              <span>Share via OS Share Sheet</span>
+            </button>
           </div>
         </motion.div>
-      </>
+      </div>
     </AnimatePresence>
   );
 };
