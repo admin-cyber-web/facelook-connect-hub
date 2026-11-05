@@ -62,6 +62,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { openFilePicker } from "@/lib/nativeFilePicker";
 import { subscribeWhileVisible } from "@/lib/realtimeVisibility";
 import { memGet, memSet, memClear, memDel } from "@/lib/memCache";
+import { isHlsUrl, useHlsVideo } from "@/hooks/useHlsVideo";
 import { Helmet } from "react-helmet-async";
 import { toast } from "sonner";
 
@@ -201,15 +202,60 @@ function readPersistedReelPreview(): ReelPreviewPost[] {
   }
 }
 
-function ReelPreviewThumbnail({ post, index }: { post: ReelPreviewPost; index: number }) {
+function ReelPreviewThumbnail({
+  post,
+  index,
+  autoplayVideo = false,
+}: {
+  post: ReelPreviewPost;
+  index: number;
+  autoplayVideo?: boolean;
+}) {
   const [posterIndex, setPosterIndex] = useState(0);
+  const [isInViewport, setIsInViewport] = useState(false);
+  const [videoPlaying, setVideoPlaying] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
   const posters = getReelPreviewPosters(post);
   const posterKey = posters.join("|");
   useEffect(() => setPosterIndex(0), [post.id, posterKey]);
   const poster = posters[posterIndex];
+  const videoUrl = post.video_url || post.media_url || "";
+  const isHls = isHlsUrl(videoUrl);
+  useHlsVideo(videoRef, videoUrl, autoplayVideo && isHls && isInViewport, undefined, isInViewport);
+
+  useEffect(() => {
+    if (!autoplayVideo) return;
+    const container = containerRef.current;
+    if (!container) return;
+    if (typeof IntersectionObserver === "undefined") {
+      setIsInViewport(true);
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => setIsInViewport(Boolean(entry?.isIntersecting)),
+      { rootMargin: "0px", threshold: 0.15 },
+    );
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [autoplayVideo]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || isHls || !autoplayVideo) return;
+    if (isInViewport) {
+      void video.play().catch(() => {});
+    } else {
+      video.pause();
+    }
+  }, [autoplayVideo, isHls, isInViewport, videoUrl]);
 
   return (
-    <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-slate-900 via-indigo-950 to-black">
+    <div
+      ref={containerRef}
+      className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-slate-900 via-indigo-950 to-black"
+    >
       {poster && (
         <img
           src={poster}
@@ -218,6 +264,24 @@ function ReelPreviewThumbnail({ post, index }: { post: ReelPreviewPost; index: n
           decoding="async"
           className="absolute inset-0 h-full w-full object-cover"
           onError={() => setPosterIndex((current) => current + 1)}
+        />
+      )}
+      {autoplayVideo && videoUrl && !/youtube\.com|youtu\.be/i.test(videoUrl) && (
+        <video
+          ref={videoRef}
+          src={isHls ? undefined : videoUrl}
+          poster={posters[0]}
+          autoPlay={isInViewport}
+          muted
+          loop
+          playsInline
+          preload="auto"
+          className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-200 ${
+            videoPlaying ? "opacity-100" : "opacity-0"
+          }`}
+          onPlaying={() => setVideoPlaying(true)}
+          onPause={() => setVideoPlaying(false)}
+          onError={() => setVideoPlaying(false)}
         />
       )}
       {!poster && <Video size={28} className="text-white/45" aria-hidden="true" />}
@@ -4972,7 +5036,7 @@ const PersonalizationView = React.memo(({
                           style={{ width: "calc((100vw - 48px) / 2.4)", height: "calc((100vw - 48px) / 2.4 * 1.78)", maxWidth: "224px", maxHeight: "392px", background: `linear-gradient(160deg,${GRAD[i % GRAD.length]} 0%,#1e1b4b 100%)` }}
                           onClick={() => openFlicks(post.id)}
                         >
-                          <ReelPreviewThumbnail post={post} index={i} />
+                          <ReelPreviewThumbnail post={post} index={i} autoplayVideo />
                           <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/85 to-transparent pt-7 pb-2 px-2.5">
                             <p className="text-white text-[11px] font-black truncate">{post.author || "User"}</p>
                           </div>
