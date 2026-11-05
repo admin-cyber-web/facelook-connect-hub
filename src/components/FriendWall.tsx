@@ -2,6 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react"
 import { supabase } from "@/lib/supabaseClient";
 import { toast } from "sonner";
 import { sharePost } from "@/lib/sharePost";
+import { fetchBunnyVideoReadiness, getPostBunnyVideoId } from "@/lib/bunnyVideoReadiness";
 import FriendWallPresentation, {
   type FriendWallCommentView,
   type FriendWallPostView,
@@ -132,12 +133,15 @@ export default function FriendWall({
       }
 
       const rows = (postRows ?? []) as WallPostRow[];
+      const bunnyVideoIds = rows
+        .map((row) => getPostBunnyVideoId(row))
+        .filter((id): id is string => Boolean(id));
       const authorIds = [...new Set([
         ...rows.map((row) => row.author_id).filter(Boolean),
         currentUserId,
       ])];
 
-      const [profilesRes, likesRes] = await Promise.all([
+      const [profilesRes, likesRes, bunnyReadiness] = await Promise.all([
         authorIds.length
           ? supabase
               .from("profiles")
@@ -151,6 +155,7 @@ export default function FriendWall({
               .eq("user_id", currentUserId)
               .in("post_id", rows.map((row) => row.id))
           : Promise.resolve({ data: [], error: null }),
+        fetchBunnyVideoReadiness(bunnyVideoIds),
       ]);
 
       if (!active || sequence !== loadSequence.current) return;
@@ -180,7 +185,16 @@ export default function FriendWall({
       );
 
       setPosts(
-        rows.map((row) => {
+        rows
+          .filter((row) => {
+            const bunnyVideoId = getPostBunnyVideoId(row);
+            return (
+              !bunnyVideoId ||
+              row.author_id === currentUserId ||
+              bunnyReadiness.get(bunnyVideoId) === true
+            );
+          })
+          .map((row) => {
           const author = profileMap.get(row.author_id);
           const metadata = row.metadata ?? {};
           const metadataAvatar =
@@ -197,6 +211,7 @@ export default function FriendWall({
           const videoUrl =
             row.video_url ||
             (videoPost ? row.media_url : null);
+          const bunnyVideoId = getPostBunnyVideoId(row);
           return {
             id: row.id,
             authorId: row.author_id,
@@ -213,13 +228,17 @@ export default function FriendWall({
             mediaType: row.media_type || row.type,
             type: row.type,
             coverUrl: row.cover_url,
+            bunnyVideoId,
+            bunnyReady: bunnyVideoId
+              ? bunnyReadiness.get(bunnyVideoId) === true
+              : true,
             likesCount: row.likes_count ?? 0,
             commentsCount: row.comments_count ?? 0,
             sharesCount: row.shares_count ?? 0,
             likedByCurrentUser: likedPostIds.has(row.id),
             reactionType: reactionTypeByPostId.get(row.id) ?? null,
           };
-        }),
+          }),
       );
       setLoading(false);
     };
@@ -724,6 +743,13 @@ export default function FriendWall({
           onPostDeletedInProfile?.(postId);
         }}
         onOpenPostDetail={openPostDetail}
+        onVideoReady={(postId) => {
+          setPosts((previous) =>
+            previous.map((post) =>
+              post.id === postId ? { ...post, bunnyReady: true } : post,
+            ),
+          );
+        }}
         onRetry={reload}
       />
       {selectedPost && (

@@ -1432,6 +1432,11 @@
   box-shadow: none;
 }
 
+.profile-nav-page .profile-nav-wall [data-video-post="true"] {
+  border-top: 0;
+  background: transparent;
+}
+
 .profile-nav-page .profile-nav-wall [data-testid^="text-post-author-"] {
   color: #800020 !important;
 }

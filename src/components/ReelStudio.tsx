@@ -731,6 +731,7 @@ export default function ReelStudio({
                   <BunnyCreatorProcessingOverlay
                     state={bunnyUploadStatus}
                     uploadProgress={videoUploadProgress}
+                    message="आपका वीडियो अपलोड हो गया है! गुणवत्ता जाँच के बाद यह फ़ीड पर दिखाई देगा।"
                   />
                 </div>
               )}

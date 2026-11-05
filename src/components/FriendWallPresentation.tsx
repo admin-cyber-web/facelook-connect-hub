@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ChevronDown,
   Clock3,
@@ -13,9 +13,10 @@ import {
 } from "lucide-react";
 import AutoPlayMutedVideo from "@/components/AutoPlayMutedVideo";
 import ProfileWallReelsModal from "@/components/ProfileWallReelsModal";
+import BunnyCreatorProcessingOverlay from "@/components/BunnyCreatorProcessingOverlay";
 import ProfilePostActions from "./ProfilePostActions";
 import SavePostButton from "./SavePostButton";
-import { getBunnyVideoThumbnailUrl } from "@/hooks/useBunnyVideoStatus";
+import { getBunnyVideoThumbnailUrl, useBunnyVideoStatus } from "@/hooks/useBunnyVideoStatus";
 import { ReactionBar, useDismissableReactionPicker } from "./ReactionBar";
 
 const REACTION_TYPE_BY_EMOJI: Record<string, string> = {
@@ -49,6 +50,8 @@ export type FriendWallPostView = {
   mediaType?: string | null;
   type?: string | null;
   coverUrl?: string | null;
+  bunnyVideoId?: string | null;
+  bunnyReady?: boolean;
   likesCount: number;
   commentsCount: number;
   sharesCount: number;
@@ -73,6 +76,7 @@ export type FriendWallPresentationProps = {
   onPostEdited: (postId: string, content: string) => void;
   onPostDeleted: (postId: string) => void;
   onOpenPostDetail: (postId: string) => void;
+  onVideoReady: (postId: string) => void;
   onRetry: () => void;
 };
 
@@ -184,6 +188,7 @@ function WallPost({
   onOpenPostDetail,
   onOpenReel,
   playbackEnabled,
+  onVideoReady,
 }: {
   post: FriendWallPostView;
   likeBusy: boolean;
@@ -195,6 +200,7 @@ function WallPost({
   onOpenPostDetail: (postId: string) => void;
   onOpenReel: (postId: string) => void;
   playbackEnabled: boolean;
+  onVideoReady: (postId: string) => void;
 }) {
   const [reactionPickerOpen, setReactionPickerOpen] = useState(false);
   useDismissableReactionPicker(
@@ -205,9 +211,23 @@ function WallPost({
   const created = formatDate(post.createdAt);
   const video = isVideoPost(post);
   const videoUrl = post.videoUrl || post.mediaUrl;
+  const isOwnBunnyVideo = Boolean(post.bunnyVideoId && post.authorId === currentUserId);
+  const bunnyStatus = useBunnyVideoStatus(
+    post.bunnyVideoId || null,
+    isOwnBunnyVideo && playbackEnabled,
+  );
+  const isBunnyReady =
+    !post.bunnyVideoId || post.bunnyReady === true || bunnyStatus.phase === "ready";
+  const isWaitingForBunny = isOwnBunnyVideo && !isBunnyReady;
   const images = (post.imageUrls ?? []).filter(Boolean);
   if (!video && images.length === 0 && post.mediaUrl) images.push(post.mediaUrl);
   const hasMedia = video ? Boolean(videoUrl) : images.length > 0;
+
+  useEffect(() => {
+    if (post.bunnyVideoId && bunnyStatus.phase === "ready" && post.bunnyReady !== true) {
+      onVideoReady(post.id);
+    }
+  }, [bunnyStatus.phase, onVideoReady, post.bunnyReady, post.bunnyVideoId, post.id]);
 
   return (
     <article
@@ -226,6 +246,7 @@ function WallPost({
           ? "overflow-visible border-0 bg-transparent shadow-none"
           : "overflow-hidden rounded-[1.4rem] border border-white/[0.09] bg-[linear-gradient(145deg,rgba(255,255,255,0.065),rgba(255,255,255,0.025)_55%,rgba(124,58,237,0.045))] shadow-[0_14px_35px_rgba(8,4,18,0.12)]"
       }`}
+      data-video-post={video ? "true" : undefined}
       data-testid={`card-wall-post-${post.id}`}
     >
       <div className="flex items-center gap-3 px-4 pb-3 pt-4 sm:px-5">
@@ -270,34 +291,69 @@ function WallPost({
       {hasMedia && (
         <div
           className={`profile-nav-post-media ${
-            video ? "-mx-4 w-[calc(100%+2rem)] sm:-mx-5 sm:w-[calc(100%+2.5rem)]" : "px-3 pb-3 sm:px-4"
+            video
+              ? "-mx-4 w-[calc(100%+2rem)] sm:-mx-5 sm:w-[calc(100%+2.5rem)]"
+              : "px-3 pb-3 sm:px-4"
           }`}
         >
           {video ? (
-            <button
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation();
-                onOpenReel(post.id);
-              }}
-              aria-label={`Open ${post.authorName}'s video in reels`}
-              data-testid={`button-open-wall-reel-${post.id}`}
-              className="relative block aspect-[9/16] max-h-[85dvh] w-full overflow-hidden bg-black text-left"
-            >
-              {videoUrl && (
-                <AutoPlayMutedVideo
-                  src={videoUrl}
-                  poster={post.coverUrl || getBunnyVideoThumbnailUrl(videoUrl)}
-                  objectFit="contain"
-                  passThroughClicks
-                  ariaLabel={`Video shared by ${post.authorName}`}
-                  className="h-full w-full bg-black object-contain"
-                  preload="metadata"
-                  autoplayWithSound={false}
-                  playbackEnabled={playbackEnabled}
-                />
-              )}
-            </button>
+            isWaitingForBunny ? (
+              <div
+                className="relative flex aspect-[9/16] max-h-[85dvh] w-full items-center justify-center overflow-hidden bg-black"
+                data-testid={`status-wall-video-processing-${post.id}`}
+              >
+                {bunnyStatus.phase === "checking" || bunnyStatus.phase === "processing" ? (
+                  <BunnyCreatorProcessingOverlay
+                    state={bunnyStatus}
+                    message="आपका वीडियो अपलोड हो गया है! गुणवत्ता जाँच के बाद यह फ़ीड पर दिखाई देगा।"
+                  />
+                ) : bunnyStatus.phase === "failed" ? (
+                  <div className="flex flex-col items-center gap-3 px-6 text-center text-white">
+                    <p className="text-sm font-bold">वीडियो की गुणवत्ता जाँच पूरी नहीं हो सकी।</p>
+                    <button
+                      type="button"
+                      onClick={bunnyStatus.retry}
+                      className="rounded-full bg-white/15 px-4 py-2 text-xs font-bold"
+                    >
+                      फिर से जाँचें
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center gap-4 px-6 text-center text-white">
+                    <span className="h-9 w-9 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                    <p className="text-sm font-bold">
+                      आपका वीडियो अपलोड हो गया है! गुणवत्ता जाँच के बाद यह फ़ीड पर दिखाई देगा।
+                    </p>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onOpenReel(post.id);
+                }}
+                aria-label={`Open ${post.authorName}'s video in reels`}
+                data-testid={`button-open-wall-reel-${post.id}`}
+                className="relative block aspect-[9/16] max-h-[85dvh] w-full overflow-hidden bg-black text-left"
+              >
+                {videoUrl && (
+                  <AutoPlayMutedVideo
+                    src={videoUrl}
+                    poster={post.coverUrl || getBunnyVideoThumbnailUrl(videoUrl)}
+                    objectFit="contain"
+                    shimmer={false}
+                    passThroughClicks
+                    ariaLabel={`Video shared by ${post.authorName}`}
+                    className="h-full w-full bg-black object-contain"
+                    preload="metadata"
+                    autoplayWithSound
+                    playbackEnabled={playbackEnabled}
+                  />
+                )}
+              </button>
+            )
           ) : (
             <div
               className={`grid gap-1.5 overflow-hidden rounded-[1rem] border border-white/10 bg-black/20 ${
@@ -443,11 +499,18 @@ export default function FriendWallPresentation({
   onPostEdited,
   onPostDeleted,
   onOpenPostDetail,
+  onVideoReady,
   onRetry,
 }: FriendWallPresentationProps) {
   const [reelsPostId, setReelsPostId] = useState<string | null>(null);
   const wallVideos = useMemo(
-    () => posts.filter((post) => isVideoPost(post) && Boolean(post.videoUrl || post.mediaUrl)),
+    () =>
+      posts.filter(
+        (post) =>
+          isVideoPost(post) &&
+          Boolean(post.videoUrl || post.mediaUrl) &&
+          (!post.bunnyVideoId || post.bunnyReady === true),
+      ),
     [posts],
   );
   const initialReelIndex = wallVideos.findIndex((post) => post.id === reelsPostId);
@@ -593,6 +656,7 @@ export default function FriendWallPresentation({
               onOpenPostDetail={onOpenPostDetail}
               onOpenReel={setReelsPostId}
               playbackEnabled={reelsPostId === null}
+              onVideoReady={onVideoReady}
             />
           ))}
         </div>

@@ -4,12 +4,14 @@ interface Props {
   state: BunnyVideoStatusState;
   className?: string;
   uploadProgress?: number | null;
+  message?: string;
 }
 
 export default function BunnyCreatorProcessingOverlay({
   state,
   className = "",
   uploadProgress = null,
+  message,
 }: Props) {
   const isUploading = uploadProgress !== null;
   if (!isUploading && state.phase !== "checking" && state.phase !== "processing") return null;
@@ -34,32 +36,39 @@ export default function BunnyCreatorProcessingOverlay({
           50% { opacity: .8; }
         }
       `}</style>
-      <svg
-        viewBox="0 0 180 190"
-        className="relative mb-5 h-44 w-44 overflow-visible"
-        role="img"
-        aria-label="Spider hanging from a web"
-      >
-        <g fill="none" stroke="rgba(215,195,255,.55)" strokeWidth="1">
-          <path d="M90 0v34M90 34L22 12M90 34L42 52M90 34L70 68M90 34L110 68M90 34l48 18M90 34l68-22" />
-          <path d="M22 12L42 52 70 68 90 72l20-4 28-16 20-40M42 52l28 16m40 0 28-16M70 68l20 4 20-4" />
-        </g>
-        <path d="M90 0v93" stroke="rgba(226,211,255,.75)" strokeWidth="1.5" />
-        <g style={{ transformOrigin: "90px 108px", animation: "bunny-spider-sway 2.4s ease-in-out infinite" }}>
-          <ellipse cx="90" cy="108" rx="8" ry="11" fill="#a78bfa" />
-          <circle cx="90" cy="96" r="6" fill="#c4b5fd" />
-          <g fill="none" stroke="#c4b5fd" strokeLinecap="round" strokeWidth="2">
-            <path d="M85 102l-10-8-7 1M84 107l-12-2-6 5M85 112l-10 6-7-1M95 102l10-8 7 1M96 107l12-2 6 5M95 112l10 6 7-1" />
+      {message ? (
+        <span className="relative mb-5 flex h-16 w-16 items-center justify-center">
+          <span className="absolute inset-0 animate-ping rounded-full border border-violet-300/40" />
+          <span className="h-8 w-8 animate-spin rounded-full border-2 border-violet-200/30 border-t-violet-100" />
+        </span>
+      ) : (
+        <svg
+          viewBox="0 0 180 190"
+          className="relative mb-5 h-44 w-44 overflow-visible"
+          role="img"
+          aria-label="Spider hanging from a web"
+        >
+          <g fill="none" stroke="rgba(215,195,255,.55)" strokeWidth="1">
+            <path d="M90 0v34M90 34L22 12M90 34L42 52M90 34L70 68M90 34L110 68M90 34l48 18M90 34l68-22" />
+            <path d="M22 12L42 52 70 68 90 72l20-4 28-16 20-40M42 52l28 16m40 0 28-16M70 68l20 4 20-4" />
           </g>
-          <circle cx="88" cy="95" r="1" fill="#21153f" />
-          <circle cx="92" cy="95" r="1" fill="#21153f" />
-        </g>
-        <g fill="none" stroke="rgba(167,139,250,.5)" strokeWidth="1" style={{ animation: "bunny-web-pulse 3s ease-in-out infinite" }}>
-          <path d="M29 145c15-17 31-23 61-23s46 6 61 23M42 163c12-12 25-16 48-16s36 4 48 16M60 179c8-6 17-8 30-8s22 2 30 8" />
-        </g>
-      </svg>
+          <path d="M90 0v93" stroke="rgba(226,211,255,.75)" strokeWidth="1.5" />
+          <g style={{ transformOrigin: "90px 108px", animation: "bunny-spider-sway 2.4s ease-in-out infinite" }}>
+            <ellipse cx="90" cy="108" rx="8" ry="11" fill="#a78bfa" />
+            <circle cx="90" cy="96" r="6" fill="#c4b5fd" />
+            <g fill="none" stroke="#c4b5fd" strokeLinecap="round" strokeWidth="2">
+              <path d="M85 102l-10-8-7 1M84 107l-12-2-6 5M85 112l-10 6-7-1M95 102l10-8 7 1M96 107l12-2 6 5M95 112l10 6 7-1" />
+            </g>
+            <circle cx="88" cy="95" r="1" fill="#21153f" />
+            <circle cx="92" cy="95" r="1" fill="#21153f" />
+          </g>
+          <g fill="none" stroke="rgba(167,139,250,.5)" strokeWidth="1" style={{ animation: "bunny-web-pulse 3s ease-in-out infinite" }}>
+            <path d="M29 145c15-17 31-23 61-23s46 6 61 23M42 163c12-12 25-16 48-16s36 4 48 16M60 179c8-6 17-8 30-8s22 2 30 8" />
+          </g>
+        </svg>
+      )}
       <p className="relative max-w-sm text-sm font-bold leading-relaxed text-white">
-        Hang tight! 🕷️ Flicks Community is scanning and weaving your video for high-definition cinematic quality and safety standards...
+        {message || "Hang tight! 🕷️ Flicks Community is scanning and weaving your video for high-definition cinematic quality and safety standards..."}
       </p>
       <div className="relative mt-5 w-full max-w-56">
         {progressPercent !== null ? (

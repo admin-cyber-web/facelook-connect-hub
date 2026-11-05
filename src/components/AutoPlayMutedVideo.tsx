@@ -17,6 +17,7 @@ interface Props {
   className?: string;
   poster?: string;
   objectFit?: CSSProperties["objectFit"];
+  shimmer?: boolean;
   ariaLabel?: string;
   controls?: boolean;
   preload?: "none" | "metadata" | "auto";
@@ -46,6 +47,7 @@ export default function AutoPlayMutedVideo({
   className,
   poster,
   objectFit = "cover",
+  shimmer = true,
   ariaLabel,
   controls = false,
   preload = "metadata",
@@ -175,10 +177,10 @@ export default function AutoPlayMutedVideo({
       style={{
         ...style,
         ...(passThroughClicks ? { pointerEvents: "none" } : {}),
-        background:
-          "linear-gradient(135deg, #1e1e2e 0%, #2d2d3a 50%, #1e1e2e 100%)",
-        backgroundSize: "200% 200%",
-        animation: "shimmer 3s ease-in-out infinite",
+        background: shimmer
+          ? "linear-gradient(135deg, #1e1e2e 0%, #2d2d3a 50%, #1e1e2e 100%)"
+          : "#000",
+        ...(shimmer ? { backgroundSize: "200% 200%", animation: "shimmer 3s ease-in-out infinite" } : {}),
       }}
     >
       {(showUnmuteOverlay || (autoplayWithSound && isInViewport && profileAudio?.needsGesture)) && (
@@ -249,7 +251,7 @@ export default function AutoPlayMutedVideo({
           <span className="text-xs font-medium mt-1">Video unavailable</span>
         </div>
       )}
-      {!poster && !hasError && !src.startsWith("blob:") && (
+      {shimmer && !poster && !hasError && !src.startsWith("blob:") && (
         <div
           className="absolute inset-0 bg-gradient-to-br from-gray-900/50 via-gray-800/30 to-gray-900/50 z-0"
         />
