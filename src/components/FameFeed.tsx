@@ -38,6 +38,7 @@ import { buildPostShareUrl } from "../lib/universalShare";
 import { RichCaption } from "./RichCaption";
 import { getPostCaption } from "../lib/postCaption";
 import AutoPlayMutedVideo from "./AutoPlayMutedVideo";
+import ReelsViewerModal from "./ReelsViewerModal";
 import SavePostButton from "./SavePostButton";
 import { maskProfanity, sanitizeText } from "../lib/profanityFilter";
 import { resolveMediaUrl } from "../lib/mediaUrl";
@@ -655,6 +656,10 @@ const PostMedia = memo(({
   feedIndex?: number;
 }) => {
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
+  const [reelsViewerOpen, setReelsViewerOpen] = useState(false);
+  const [reelsVideoSrc, setReelsVideoSrc] = useState<string>("");
+  const [reelsPost, setReelsPost] = useState<any>(null);
+  const [reelsIndex, setReelsIndex] = useState<number>(0);
   const sceneVault = post?.metadata?.scene_vault;
   const scenePhotos = Array.isArray(sceneVault?.photos)
     ? sceneVault.photos.filter((url: unknown): url is string => typeof url === "string" && /^https?:\/\//i.test(url)).slice(0, 2)
@@ -730,12 +735,23 @@ const PostMedia = memo(({
   const media = isYT ? (
     <YouTubeEmbed url={url} />
   ) : isVid ? (
-    <FeedVideo
-      src={url}
-      poster={post.cover_url || post.thumb_url || post.thumbnail_url || post.video_thumbnail_url}
-      isCreator={isCreator}
-      feedIndex={feedIndex}
-    />
+    <div
+      className="relative rounded-lg overflow-hidden cursor-pointer select-none"
+      onClick={() => {
+        setReelsVideoSrc(url);
+        setReelsPost(post);
+        setReelsIndex(0);
+        setReelsViewerOpen(true);
+      }}
+    >
+      <FeedVideo
+        src={url}
+        poster={post.cover_url || post.thumb_url || post.thumbnail_url || post.video_thumbnail_url}
+        isCreator={isCreator}
+        feedIndex={feedIndex}
+        className="w-full h-full object-contain"
+      />
+    </div>
   ) : (
     <div className="relative aspect-[4/5] w-full overflow-hidden bg-[#09090b]" style={{ touchAction: "pan-y" }}>
       <img
@@ -751,6 +767,15 @@ const PostMedia = memo(({
   return (
     <VibeMediaFrame postId={String(post.id)} vibeTag={vibeTag}>
       {media}
+      {reelsViewerOpen && (
+        <ReelsViewerModal
+          src={reelsVideoSrc}
+          post={reelsPost}
+          onClose={() => setReelsViewerOpen(false)}
+          index={reelsIndex}
+          count={0}
+        />
+      )}
     </VibeMediaFrame>
   );
 });
