@@ -26,7 +26,7 @@ import {
   Save,
   Shield,
   CheckCircle,
-  Video, VolumeX,
+  Video,
   PhoneCall,
   ArrowLeft,
   Heart,
@@ -69,13 +69,13 @@ import InviteCard from "@/components/InviteCard";
 import Header from "@/components/Header";
 import GolSlider from "@/components/GolSlider";
 import PullToRefresh from "@/components/PullToRefresh";
-import AutoPlayMutedVideo from "@/components/AutoPlayMutedVideo";
 import ShareVibeComposer from "@/components/ShareVibeComposer";
 import { isAdminEmail } from "@/lib/adminConfig";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { useDataCache } from "@/context/DataCacheContext";
 import { useOnlineUsers } from "@/context/OnlineUsersContext";
 import ActiveStatusAvatar from "@/components/ActiveStatusAvatar";
+import { getBunnyVideoThumbnailUrl } from "@/hooks/useBunnyVideoStatus";
 
 // ── Lazy-loaded feature sections (breaks circular deps + improves load time) ──
 const FameFeed       = lazy(() => import("@/components/FameFeed"));
@@ -112,6 +112,121 @@ const GlassCard = ({ children, className = "", noPadding = false }: any) => (
     {children}
   </div>
 );
+
+type ReelPreviewPost = {
+  id: string;
+  author?: string | null;
+  type?: string | null;
+  media_type?: string | null;
+  media_url?: string | null;
+  video_url?: string | null;
+  cover_url?: string | null;
+  image_url?: string | null;
+  visibility?: string | null;
+  metadata?: Record<string, unknown> | string | null;
+  [key: string]: unknown;
+};
+
+function isPublicVideoPost(post: ReelPreviewPost) {
+  const metadata =
+    typeof post.metadata === "string"
+      ? (() => {
+          try {
+            return JSON.parse(post.metadata) as Record<string, unknown>;
+          } catch {
+            return {};
+          }
+        })()
+      : post.metadata ?? {};
+  const mediaKind = `${post.type ?? ""} ${post.media_type ?? ""} ${String(
+    metadata.mime_type ?? metadata.mimeType ?? metadata.content_type ?? "",
+  )}`.toLowerCase();
+  const videoUrl = post.video_url || post.media_url || "";
+  const isVideo =
+    mediaKind.includes("video") ||
+    mediaKind.includes("reel") ||
+    /\.(mp4|webm|ogg|mov|m4v|m3u8)(?:$|[?#])/i.test(videoUrl) ||
+    /youtube\.com|youtu\.be|rapidcdn\.app/i.test(videoUrl);
+  return isVideo && (!post.visibility || post.visibility === "public");
+}
+
+function isReelPreviewPost(post: unknown): post is ReelPreviewPost {
+  return (
+    typeof post === "object" &&
+    post !== null &&
+    "id" in post &&
+    typeof post.id === "string"
+  );
+}
+
+function getReelPreviewPosters(post: ReelPreviewPost): string[] {
+  const metadata =
+    typeof post.metadata === "string"
+      ? (() => {
+          try {
+            return JSON.parse(post.metadata) as Record<string, unknown>;
+          } catch {
+            return {};
+          }
+        })()
+      : post.metadata ?? {};
+  const videoUrl = post.video_url || post.media_url || "";
+  const explicitPoster = [
+    post.cover_url,
+    metadata.poster_url,
+    metadata.posterUrl,
+    metadata.thumbnail_url,
+    metadata.thumb_url,
+    metadata.video_thumbnail_url,
+    post.image_url,
+  ].find((candidate): candidate is string => typeof candidate === "string" && candidate.length > 0);
+  const bunnyPoster = getBunnyVideoThumbnailUrl(videoUrl);
+  return [...new Set([explicitPoster, bunnyPoster].filter((url): url is string => Boolean(url)))];
+}
+
+function readPersistedReelPreview(): ReelPreviewPost[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const stored = window.localStorage.getItem("fame-flicks-preview:v1");
+    const parsed: unknown = stored ? JSON.parse(stored) : [];
+    return Array.isArray(parsed)
+      ? parsed
+          .filter(isReelPreviewPost)
+          .filter(isPublicVideoPost)
+          .slice(0, 30)
+      : [];
+  } catch (error) {
+    console.warn("[Index] Could not restore cached Flicks preview:", error);
+    return [];
+  }
+}
+
+function ReelPreviewThumbnail({ post, index }: { post: ReelPreviewPost; index: number }) {
+  const [posterIndex, setPosterIndex] = useState(0);
+  const posters = getReelPreviewPosters(post);
+  const posterKey = posters.join("|");
+  useEffect(() => setPosterIndex(0), [post.id, posterKey]);
+  const poster = posters[posterIndex];
+
+  return (
+    <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-slate-900 via-indigo-950 to-black">
+      {poster && (
+        <img
+          src={poster}
+          alt=""
+          loading={index < 3 ? "eager" : "lazy"}
+          decoding="async"
+          className="absolute inset-0 h-full w-full object-cover"
+          onError={() => setPosterIndex((current) => current + 1)}
+        />
+      )}
+      {!poster && <Video size={28} className="text-white/45" aria-hidden="true" />}
+      <span className="absolute right-2 top-2 rounded-full bg-black/65 p-1.5 text-white">
+        <Video size={12} aria-hidden="true" />
+      </span>
+    </div>
+  );
+}
 
 // ── Suspense fallback for lazy sections ──────────────────────────────────────
 const SectionLoader = () => (
@@ -2498,7 +2613,39 @@ const Index = ({ session, initialAdminOpen, isGuest = false }: { session: Sessio
   const [sidebarCircles, setSidebarCircles] = useState<any[]>([]);
 
   // ── Reel posts (real videos/posts for Flicks strip) ──────────────────────
-  const [reelPosts, setReelPosts] = useState<any[]>(() => cachedReels?.data ?? []);
+  const [reelPosts, setReelPosts] = useState<any[]>(() =>
+    cachedReels
+      ? cachedReels.data.filter((post) => isPublicVideoPost(post))
+      : readPersistedReelPreview(),
+  );
+  useEffect(() => {
+    const previewPosts = reelPosts.filter((post) => isPublicVideoPost(post)).slice(0, 30);
+    const persistedPreview = previewPosts.map((post) => ({
+      id: post.id,
+      author: post.author,
+      type: post.type,
+      media_type: post.media_type,
+      media_url: post.media_url,
+      video_url: post.video_url,
+      cover_url: post.cover_url,
+      image_url: post.image_url,
+      visibility: post.visibility,
+      metadata: post.metadata,
+    }));
+    try {
+      window.localStorage.setItem("fame-flicks-preview:v1", JSON.stringify(persistedPreview));
+    } catch (error) {
+      console.warn("[Index] Could not persist Flicks preview cache:", error);
+    }
+    previewPosts
+      .slice(0, 6)
+      .flatMap((post) => getReelPreviewPosters(post))
+      .forEach((poster) => {
+        const image = new Image();
+        image.decoding = "async";
+        image.src = poster;
+      });
+  }, [reelPosts]);
 
   // ── Current user's own reels ──────────────────────────────────────────────
   const [myReels, setMyReels]           = useState<any[]>([]);
@@ -2562,9 +2709,9 @@ const Index = ({ session, initialAdminOpen, isGuest = false }: { session: Sessio
       .then(({ data }) => { if (data) { setSidebarCircles(data); memSet(cKey, data); } });
   }, [userId]);
 
-  const fetchMyReels = () => {
+  const fetchMyReels = React.useCallback(() => {
     supabase.from("posts")
-      .select("id, media_url, type, content, created_at")
+      .select("id, media_url, type, content, cover_url, metadata, created_at")
       .eq("author_id", userId)
       .eq("type", "video")
       .order("created_at", { ascending: false })
@@ -2575,7 +2722,7 @@ const Index = ({ session, initialAdminOpen, isGuest = false }: { session: Sessio
           dataCache.setCache("myReels", { data, fetchedAt: Date.now() });
         }
       });
-  };
+  }, [dataCache, userId]);
 
   const openFlicks = React.useCallback((postId: string | null = null) => {
     if (activeFeature === "Fame") {
@@ -2641,18 +2788,34 @@ const Index = ({ session, initialAdminOpen, isGuest = false }: { session: Sessio
 
   const handleReelSaved = React.useCallback((savedReel: any) => {
     fetchMyReels();
-    setReelPosts((previous) => {
-      const next = [
-        savedReel,
-        ...previous.filter((item) => item.id !== savedReel?.id),
-      ];
-      dataCache.setCache("reelPosts", { data: next, fetchedAt: Date.now() });
-      return next;
-    });
+    if (savedReel && isPublicVideoPost(savedReel)) {
+      setReelPosts((previous) => {
+        const next = [
+          savedReel,
+          ...previous.filter((item) => item.id !== savedReel.id),
+        ];
+        dataCache.setCache("reelPosts", { data: next, fetchedAt: Date.now() });
+        return next;
+      });
+    }
     setReelStudioOpen(false);
     setReelStudioReel(null);
     setReelStudioVideoFile(null);
   }, [dataCache, fetchMyReels]);
+
+  useEffect(() => {
+    const handlePublicVideoPost = (event: Event) => {
+      const post = (event as CustomEvent<ReelPreviewPost>).detail;
+      if (!post?.id || !isPublicVideoPost(post)) return;
+      setReelPosts((previous) => {
+        const next = [post, ...previous.filter((item) => item.id !== post.id)].slice(0, 30);
+        dataCache.setCache("reelPosts", { data: next, fetchedAt: Date.now() });
+        return next;
+      });
+    };
+    window.addEventListener("flicks:post-created", handlePublicVideoPost);
+    return () => window.removeEventListener("flicks:post-created", handlePublicVideoPost);
+  }, [dataCache]);
 
   // ── Fetch online users + real reel posts in parallel ─────────────────────
   useEffect(() => {
@@ -2673,25 +2836,38 @@ const Index = ({ session, initialAdminOpen, isGuest = false }: { session: Sessio
         });
     }
 
-    // Reel posts — skip if cache is still fresh
-    if (!dataCache.isStale("reelPosts")) {
-      const hit = dataCache.cacheRef.current.reelPosts;
-      if (hit?.data) setReelPosts(hit.data);
-    } else {
-      supabase.from("posts")
-        .select("id, author, author_id, media_url, type, metadata, content")
-        .order("created_at", { ascending: false })
-        .limit(15)
-        .then(({ data }) => {
-          if (data) {
-            setReelPosts(data);
-            dataCache.setCache("reelPosts", { data, fetchedAt: Date.now() });
-          }
-        });
-    }
+    // Keep the cached preview visible while refreshing only public video posts.
+    void (async () => {
+        const projection =
+          "id, author, media_url, video_url, type, media_type, metadata, cover_url, image_url, visibility, created_at";
+        let result = await supabase
+          .from("posts")
+          .select(projection)
+          .or("type.eq.video,type.eq.reel,media_type.eq.video,video_url.not.is.null")
+          .or("visibility.eq.public,visibility.is.null")
+          .order("created_at", { ascending: false })
+          .limit(30);
+        if (result.error) {
+          console.warn("[Index] Extended Flicks preview query failed; retrying legacy video query:", result.error);
+          result = await supabase
+            .from("posts")
+            .select("id, author, media_url, type, metadata, cover_url, visibility, created_at")
+            .in("type", ["video", "reel"])
+            .or("visibility.eq.public,visibility.is.null")
+            .order("created_at", { ascending: false })
+            .limit(30);
+        }
+        if (result.error) {
+          console.error("[Index] Flicks preview query failed:", result.error);
+          return;
+        }
+        const videos = (result.data ?? []).filter((post) => isPublicVideoPost(post));
+        setReelPosts(videos);
+        dataCache.setCache("reelPosts", { data: videos, fetchedAt: Date.now() });
+    })();
 
     fetchMyReels();
-  }, [userId]);
+  }, [dataCache, fetchMyReels, userId]);
 
   // ── My Frame Requests — fetch + realtime ──────────────────────────────────
   useEffect(() => {
@@ -4729,12 +4905,9 @@ const PersonalizationView = React.memo(({
                         background: "linear-gradient(160deg,#6366f1 0%,#1e1b4b 100%)",
                       }}
                     >
-                      {/* Case B: has reels → show latest auto-playing muted video */}
+                      {/* Case B: show a cached poster instead of loading the video stream */}
                       {myReels.length > 0 && myReels[0].media_url && (
-                        <AutoPlayMutedVideo
-                          src={myReels[0].media_url}
-                          className="w-full h-full object-cover"
-                        />
+                        <ReelPreviewThumbnail post={myReels[0]} index={0} />
                       )}
 
                       {/* Case A: no reels → show avatar + upload hint */}
@@ -4791,43 +4964,21 @@ const PersonalizationView = React.memo(({
                     </motion.div>
 
                     {/* Real posts from DB */}
-                    {reelPosts.slice(0, 9).map((post, i) => {
-                      const isVid = post.type === "video" || (post.media_url && (/\.(mp4|webm|ogg|mov|m4v)/i.test(post.media_url.split("?")[0]) || post.media_url.includes("rapidcdn.app")));
-                      const thumb = post.media_url;
+                    {reelPosts.filter((post) => isPublicVideoPost(post)).slice(0, 9).map((post, i) => {
                       const GRAD = ["#ec4899","#f59e0b","#10b981","#3b82f6","#8b5cf6","#ef4444","#06b6d4","#84cc16","#f97316"];
                       return (
                         <div key={post.id}
                           className="flex-shrink-0 relative rounded-2xl overflow-hidden border border-gray-200 shadow-md"
                           style={{ width: "calc((100vw - 48px) / 2.4)", height: "calc((100vw - 48px) / 2.4 * 1.78)", maxWidth: "224px", maxHeight: "392px", background: `linear-gradient(160deg,${GRAD[i % GRAD.length]} 0%,#1e1b4b 100%)` }}
-                          onClick={() => openFlicks()}
+                          onClick={() => openFlicks(post.id)}
                         >
-                          {/* FB-style: video posts auto-play muted; tap → opens with sound */}
-                          {isVid && thumb ? (
-                            <AutoPlayMutedVideo src={thumb} className="w-full h-full object-cover" />
-                          ) : thumb ? (
-                            <img src={thumb} loading="lazy" className="w-full h-full object-cover"  decoding="async"/>
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center text-white/40">
-                              <Video size={32} />
-                            </div>
-                          )}
-                          {isVid && (
-                            <div className="absolute top-2 right-2 bg-black/55 backdrop-blur-sm rounded-full p-1.5 border border-white/30">
-                              <VolumeX size={11} className="text-white" />
-                            </div>
-                          )}
+                          <ReelPreviewThumbnail post={post} index={i} />
                           <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/85 to-transparent pt-7 pb-2 px-2.5">
                             <p className="text-white text-[11px] font-black truncate">{post.author || "User"}</p>
                           </div>
                         </div>
                       );
                     })}
-
-                    {/* Placeholder if no posts yet */}
-                    {reelPosts.length === 0 && [0,1].map(i => (
-                      <div key={i} className="flex-shrink-0 rounded-2xl bg-gray-200 border border-gray-200"
-                        style={{ width: "calc((100vw - 48px) / 2.4)", height: "calc((100vw - 48px) / 2.4 * 1.78)", maxWidth: "224px", maxHeight: "392px" }} />
-                    ))}
                   </div>
                 </div>
                 </div>{/* end lg:hidden flicks strip */}
@@ -4983,7 +5134,7 @@ const PersonalizationView = React.memo(({
                   </div>
 
                   {/* Flicks preview — 3-column thumbnail grid */}
-                  {reelPosts.length > 0 && (
+                  {reelPosts.some((post) => isPublicVideoPost(post)) && (
                     <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
                       <div className="flex items-center justify-between px-4 pt-3 pb-2">
                         <p className="text-[11px] font-black text-gray-700 uppercase tracking-widest">🎬 Flicks</p>
@@ -4991,15 +5142,15 @@ const PersonalizationView = React.memo(({
                           className="text-[10px] font-black text-blue-500 hover:underline">Open all</button>
                       </div>
                       <div className="grid grid-cols-3 gap-0.5 px-3 pb-3">
-                        {reelPosts.slice(0, 6).map((post, i) => {
+                        {reelPosts.filter((post) => isPublicVideoPost(post)).slice(0, 6).map((post, i) => {
                           const GRAD = ["#ec4899","#f59e0b","#10b981","#3b82f6","#8b5cf6","#ef4444"];
                           return (
                             <div key={post.id}
                               className="relative rounded-lg overflow-hidden cursor-pointer"
                               style={{ aspectRatio: "9/16", background: `linear-gradient(160deg,${GRAD[i%GRAD.length]},#1e1b4b)` }}
-                              onClick={() => openFlicks()}
+                              onClick={() => openFlicks(post.id)}
                             >
-                              {post.media_url && <img src={post.media_url} className="w-full h-full object-cover" loading="lazy"  decoding="async"/>}
+                              <ReelPreviewThumbnail post={post} index={i} />
                             </div>
                           );
                         })}
