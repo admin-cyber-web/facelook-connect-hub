@@ -13,7 +13,7 @@ import { openFilePicker } from "@/lib/nativeFilePicker";
 import { canViewPrivateProfile } from "@/lib/profileSearch";
 import { toast } from "sonner";
 import { sharePost } from "@/lib/sharePost";
-import { buildPostShareUrl } from "@/lib/universalShare";
+import { buildPostShareUrl, buildShareText } from "@/lib/universalShare";
 import { fetchBunnyVideoReadiness, getPostBunnyVideoId } from "@/lib/bunnyVideoReadiness";
 import { getBunnyVideoThumbnailUrl } from "@/hooks/useBunnyVideoStatus";
 import FriendWall from "@/components/FriendWall";
@@ -677,13 +677,10 @@ export default function ProfileTimelinePage({
       const summary = rawSummary.length > 180
         ? `${rawSummary.slice(0, 177).trimEnd()}…`
         : rawSummary;
-      const shareText = [
-        title,
-        summary && summary !== title ? summary : "",
-        `— ${authorName} on Flicks India`,
-      ]
-        .filter(Boolean)
-        .join("\n\n");
+      const shareText = buildShareText(
+        summary && summary !== title ? `${title}\n\n${summary}` : title,
+        url,
+      );
       try {
         if (
           typeof window.AndroidShare?.shareMedia === "function" ||
@@ -712,7 +709,7 @@ export default function ProfileTimelinePage({
             url,
           });
         } else if (navigator.clipboard?.writeText) {
-          await navigator.clipboard.writeText(`${shareText}\n\n${url}`);
+          await navigator.clipboard.writeText(shareText);
           toast.success("Post link copied.");
         } else if (window.prompt("Copy this post link", url) === null) {
           return;

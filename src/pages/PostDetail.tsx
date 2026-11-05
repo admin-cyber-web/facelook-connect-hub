@@ -4,7 +4,7 @@ import { Helmet } from "react-helmet-async";
 import { supabase } from "@/lib/supabaseClient";
 import { Loader2, ArrowLeft } from "lucide-react";
 import { requestShareModal } from "@/lib/shareModal";
-import { resolveSharePreviewUrl } from "@/lib/universalShare";
+import { resolveSharePreviewFromPost } from "@/lib/universalShare";
 
 const BASE_URL     = "https://flicksindia.online";
 const DEFAULT_IMAGE = "https://i.ibb.co/HT7RvFxs/flicksindia.png";
@@ -59,17 +59,7 @@ const PostDetail = () => {
     : "No Fake News | New India Social App | Full Protected Security | 24 Hours Help Desk";
 
   const ogKeywords = post?.seo_keywords?.trim() || "flicks india, social post, trending";
-  const postPreviewUrl =
-    post?.cover_url ||
-    post?.image_urls?.[0] ||
-    post?.image_url ||
-    post?.metadata?.preview_url ||
-    post?.metadata?.previewUrl ||
-    post?.media_url ||
-    post?.video_url;
-  const ogImage = post
-    ? resolveSharePreviewUrl(postPreviewUrl) || DEFAULT_IMAGE
-    : DEFAULT_IMAGE;
+  const postPreviewUrl = post ? resolveSharePreviewFromPost(post) : "";
   const ogUrl      = `${BASE_URL}/post/${id}`;
 
   if (loading) {
@@ -110,18 +100,18 @@ const PostDetail = () => {
         {/* Open Graph — values sourced from AI-generated SEO columns, static after load */}
         <meta property="og:title"       content={ogTitle} />
         <meta property="og:description" content={ogDescription} />
-        <meta property="og:image"       content={ogImage} />
-        <meta property="og:image:alt"   content={ogTitle} />
+        {postPreviewUrl && <meta property="og:image" content={postPreviewUrl} />}
+        {postPreviewUrl && <meta property="og:image:alt" content={ogTitle} />}
         <meta property="og:url"         content={ogUrl} />
         <meta property="og:type"        content="article" />
         <meta property="og:site_name"   content="Flicks India" />
 
         {/* Twitter Card */}
-        <meta name="twitter:card"        content="summary_large_image" />
+        <meta name="twitter:card"        content={postPreviewUrl ? "summary_large_image" : "summary"} />
         <meta name="twitter:title"       content={ogTitle} />
         <meta name="twitter:description" content={ogDescription} />
-        <meta name="twitter:image"       content={ogImage} />
-        <meta name="twitter:image:alt"   content={ogTitle} />
+        {postPreviewUrl && <meta name="twitter:image" content={postPreviewUrl} />}
+        {postPreviewUrl && <meta name="twitter:image:alt" content={ogTitle} />}
 
         {/* Crawl directives — tell Google to index this post and follow its links */}
         <meta name="robots"   content="index, follow" />
@@ -133,7 +123,7 @@ const PostDetail = () => {
           "@type":     "NewsArticle",
           "headline":    ogTitle,
           "description": ogDescription,
-          "image":       ogImage !== DEFAULT_IMAGE ? [ogImage] : [DEFAULT_IMAGE],
+          ...(postPreviewUrl ? { "image": [postPreviewUrl] } : {}),
           "url":         ogUrl,
           "datePublished": post?.created_at ?? new Date().toISOString(),
           "dateModified":  post?.created_at ?? new Date().toISOString(),
@@ -179,9 +169,9 @@ const PostDetail = () => {
           className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden"
           style={{ touchAction: "pan-y" }}
         >
-          {ogImage !== DEFAULT_IMAGE && (
+          {postPreviewUrl && (
             <img
-              src={ogImage}
+              src={postPreviewUrl}
               alt="Post media"
               className="w-full object-cover max-h-72"
              decoding="async"/>

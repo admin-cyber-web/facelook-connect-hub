@@ -30,6 +30,20 @@ function absoluteHttpUrl(value?: string): string | undefined {
   }
 }
 
+function firstSocialImage(...values: unknown[]): string | undefined {
+  for (const value of values) {
+    const candidate = absoluteHttpUrl(firstMediaUrl(value));
+    if (
+      candidate &&
+      !/\.(?:m3u8|mp4|m4v|mov|webm|ogg)(?:$|[?#])/i.test(candidate) &&
+      !/\/video\/upload\//i.test(candidate)
+    ) {
+      return candidate;
+    }
+  }
+  return undefined;
+}
+
 function isStaticAppImage(value: string): boolean {
   try {
     const image = new URL(value);
@@ -110,8 +124,12 @@ function resolveSocialImage(post: Record<string, any>): string | undefined {
   );
   const isVideo =
     ["reel", "video"].includes(String(post.type || "").toLowerCase()) ||
+    String(post.media_type || "").toLowerCase().includes("video") ||
     metadata.is_video === true ||
     metadata.isVideo === true ||
+    String(metadata.mime_type || metadata.mimeType || metadata.content_type || "")
+      .toLowerCase()
+      .startsWith("video/") ||
     !!videoSource && /\/video\/upload\/|\.(?:mp4|m4v|mov|webm|ogg|m3u8)(?:[?#]|$)/i.test(videoSource);
   const previewCandidates = [
     post.preview_url,
@@ -132,8 +150,6 @@ function resolveSocialImage(post: Record<string, any>): string | undefined {
     metadata.posterUrl,
     metadata.cover_url,
     metadata.coverUrl,
-  ];
-  const imageCandidates = [
     post.image_url,
     post.image_urls,
     metadata.image_url,
@@ -141,26 +157,37 @@ function resolveSocialImage(post: Record<string, any>): string | undefined {
     metadata.image_urls,
     metadata.imageUrls,
   ];
-  const videoCandidates = [
-    post.video_url,
-    metadata.video_url,
-    metadata.videoUrl,
-  ];
   const mediaCandidates = [
     post.media_url,
     metadata.media_url,
     metadata.mediaUrl,
   ];
-  const previewUrl = absoluteHttpUrl(
-    firstMediaUrl(
-      ...(isVideo
-        ? [...previewCandidates, ...imageCandidates, ...videoCandidates, ...mediaCandidates]
-        : [...imageCandidates, ...mediaCandidates, ...previewCandidates, ...videoCandidates]),
-    ),
-  );
-  if (!previewUrl) return undefined;
+  const explicitPreview = firstSocialImage(...previewCandidates);
+  if (explicitPreview) return explicitPreview;
 
-  return previewUrl;
+  if (!isVideo) {
+    return firstSocialImage(
+      post.image_url,
+      post.image_urls,
+      post.media_url,
+      metadata.image_url,
+      metadata.imageUrl,
+    );
+  }
+
+  const bunnySource = absoluteHttpUrl(videoSource);
+  if (bunnySource) {
+    try {
+      const parsed = new URL(bunnySource);
+      const bunnyVideo = parsed.pathname.match(/^\/([\w-]{8,64})\/playlist\.m3u8$/i);
+      if (bunnyVideo && parsed.hostname.toLowerCase().endsWith(".b-cdn.net")) {
+        return `${parsed.origin}/${bunnyVideo[1]}/thumbnail.jpg`;
+      }
+    } catch {
+      return undefined;
+    }
+  }
+  return undefined;
 }
 
 async function fetchPublicRow(
@@ -231,13 +258,22 @@ export async function createDynamicShareResponse(
 
     if (postId) {
       const decodedId = decodeURIComponent(postId);
-      const post = await fetchPublicRow(
+      let post = await fetchPublicRow(
         supabaseUrl,
         anonKey,
         "posts",
         { id: `eq.${decodedId}` },
-        "id,content,media_url,image_urls,cover_url,type,metadata,author",
+        "id,content,media_url,video_url,image_url,image_urls,cover_url,thumb_url,thumbnail_url,poster_url,preview_url,video_thumbnail_url,media_type,type,metadata,author",
       );
+      if (!post) {
+        post = await fetchPublicRow(
+          supabaseUrl,
+          anonKey,
+          "posts",
+          { id: `eq.${decodedId}` },
+          "id,content,media_url,video_url,image_url,image_urls,cover_url,media_type,type,metadata,author",
+        );
+      }
       if (!post) return null;
 
       title =
@@ -275,8 +311,8 @@ export async function createDynamicShareResponse(
 
     const safeTitle = escapeHtml(title);
     const safeDescription = escapeHtml(description);
-    // Use the app banner only when this shared item has no usable media URL.
-    const safeImage = escapeHtml(imageUrl || DEFAULT_IMAGE);
+    // Omit image metadata when this shared item has no real image or poster.
+    const safeImage = imageUrl ? escapeHtml(imageUrl) : "";
     const safeCanonicalUrl = escapeHtml(canonicalUrl);
     const html = `<!DOCTYPE html>
 <html lang="en">
@@ -289,15 +325,15 @@ export async function createDynamicShareResponse(
   <meta property="og:site_name" content="Flicks India" />
   <meta property="og:title" content="${safeTitle}" />
   <meta property="og:description" content="${safeDescription}" />
-  <meta property="og:image" content="${safeImage}" />
+  ${safeImage ? `<meta property="og:image" content="${safeImage}" />
   <meta property="og:image:secure_url" content="${safeImage}" />
-  <meta property="og:image:alt" content="${safeTitle}" />
+  <meta property="og:image:alt" content="${safeTitle}" />` : ""}
   <meta property="og:url" content="${safeCanonicalUrl}" />
-  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:card" content="${safeImage ? "summary_large_image" : "summary"}" />
   <meta name="twitter:title" content="${safeTitle}" />
   <meta name="twitter:description" content="${safeDescription}" />
-  <meta name="twitter:image" content="${safeImage}" />
-  <meta property="twitter:image" content="${safeImage}" />
+  ${safeImage ? `<meta name="twitter:image" content="${safeImage}" />
+  <meta property="twitter:image" content="${safeImage}" />` : ""}
   <link rel="canonical" href="${safeCanonicalUrl}" />
 </head>
 <body>

@@ -54,17 +54,16 @@ export function canonicalShareUrl(value: string): string {
 export function buildShareText(
   body?: string | null,
   url?: string | null,
-  _mediaUrl?: string | null,
 ): string {
-  const trimmed = (body || "").trim();
-  const urlStr = (url || "").trim();
-  const parts = [trimmed];
-
-  if (urlStr && !trimmed.includes(urlStr)) {
-    parts.push(`🔗 Open on Flicks India: ${urlStr}`);
-  }
-
-  return parts.filter(Boolean).join("\n\n");
+  const caption = (body || "").trim().replace(/^🎬\s*/, "");
+  const headline = caption || "Watch this post on Flicks India";
+  const lines = [
+    `🎬 ${headline}`,
+    "👉 Watch on Flicks India - Join the community!",
+  ];
+  const shareUrl = (url || "").trim();
+  if (shareUrl) lines.push(`🔗 ${shareUrl}`);
+  return lines.join("\n");
 }
 
 export interface UniversalShareInput {
@@ -126,11 +125,10 @@ export function launchShareTarget(
 ): Promise<ShareTargetOutcome> {
   const shareUrl = canonicalShareUrl(input.url);
   const shareText = buildShareText(input.text, shareUrl);
-  const bodyText = input.text.trim();
   const encodedUrl = encodeURIComponent(shareUrl);
-  const whatsappText = `${bodyText}\n${shareUrl}`;
+  const whatsappText = shareText;
   const encodedWhatsAppText = encodeURIComponent(whatsappText);
-  const encodedBody = encodeURIComponent(bodyText);
+  const encodedBody = encodeURIComponent(shareText);
   const whatsappWebUrl = `https://api.whatsapp.com/send?text=${encodedWhatsAppText}`;
   const isAndroid =
     typeof navigator !== "undefined" && /android/i.test(navigator.userAgent);
@@ -211,11 +209,24 @@ export async function shareUrlWithNative(
   const url = canonicalShareUrl(input.url);
   const text = buildShareText(input.text, url);
 
+  if (input.mediaUrl && typeof window !== "undefined" && window.AndroidShare?.shareMedia) {
+    try {
+      const result = await window.AndroidShare.shareMedia(
+        text,
+        input.mediaUrl,
+        input.type === "reel" ? "video" : input.type,
+      );
+      if (result !== false) return "shared-with-file";
+    } catch (error) {
+      console.error("[share] Android media share failed:", error);
+    }
+  }
+
   // Call Web Share before awaiting anything so transient user activation is
   // still available in mobile browsers.
   if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
     try {
-      await navigator.share({ title: input.title, text: input.text, url });
+      await navigator.share({ title: input.title, text, url });
       return "shared-url-only";
     } catch (error) {
       if ((error as DOMException)?.name === "AbortError") return "cancelled";
@@ -235,7 +246,7 @@ export async function shareUrlWithNative(
     }
   }
 
-  return (await copyShareText(`${input.text}\n${url}`)) ? "copied" : "error";
+  return (await copyShareText(text)) ? "copied" : "error";
 }
 
 declare global {
@@ -334,27 +345,189 @@ export async function canvasToFile(
  * Posts/Stories → media_url. Falls back through available fields.
  */
 export function resolveShareMediaUrl(post: {
-  type?: string;
-  media_url?: string;
-  video_url?: string;
-  cover_url?: string;
-  meta_image?: string;
+  type?: string | null;
+  media_type?: string | null;
+  media_url?: string | null;
+  video_url?: string | null;
+  cover_url?: string | null;
+  meta_image?: string | null;
 }): string | undefined {
-  const t = post.type?.toLowerCase() ?? "";
+  const t = `${post.type || ""} ${post.media_type || ""}`.toLowerCase();
 
-  if (t === "reel" || t === "video") {
-    return post.media_url || post.video_url || post.cover_url;
+  if (t.includes("reel") || t.includes("video") || post.video_url) {
+    return post.video_url || post.media_url || post.cover_url || undefined;
   }
-  if (t === "circle" || t === "hook") {
-    return post.cover_url || post.media_url;
+  if (t.includes("circle") || t.includes("hook")) {
+    return post.cover_url || post.media_url || undefined;
   }
-  return post.media_url || post.cover_url || post.meta_image;
+  return post.media_url || post.cover_url || post.meta_image || undefined;
 }
 
 export const resolveSharePreviewUrl = (url?: string): string => {
   if (!url) return "";
-  return url;
+  const candidate = url.trim();
+  if (!candidate) return "";
+  try {
+    const parsed = new URL(candidate);
+    if (!/^https?:$/.test(parsed.protocol)) return "";
+    const isVideo =
+      /\.m3u8(?:$|[?#])|\.mp4(?:$|[?#])|\.m4v(?:$|[?#])|\.mov(?:$|[?#])|\.webm(?:$|[?#])|\.ogg(?:$|[?#])/i.test(
+        parsed.href,
+      );
+    if (!isVideo) return parsed.href;
+
+    const playlist = parsed.pathname.match(/^\/([\w-]{8,64})\/playlist\.m3u8$/i);
+    if (playlist && parsed.hostname.toLowerCase().endsWith(".b-cdn.net")) {
+      return `${parsed.origin}/${playlist[1]}/thumbnail.jpg`;
+    }
+    return "";
+  } catch {
+    return "";
+  }
 };
+
+type SharePreviewPost = {
+  type?: string | null;
+  media_type?: string | null;
+  media_url?: string | null;
+  mediaUrl?: string | null;
+  video_url?: string | null;
+  videoUrl?: string | null;
+  image_url?: string | null;
+  imageUrl?: string | null;
+  image_urls?: unknown;
+  imageUrls?: unknown;
+  cover_url?: string | null;
+  coverUrl?: string | null;
+  thumbnail_url?: string | null;
+  thumbnailUrl?: string | null;
+  thumb_url?: string | null;
+  thumbUrl?: string | null;
+  poster_url?: string | null;
+  posterUrl?: string | null;
+  preview_url?: string | null;
+  previewUrl?: string | null;
+  video_thumbnail_url?: string | null;
+  videoThumbnailUrl?: string | null;
+  meta_image?: string | null;
+  metadata?: Record<string, unknown> | string | null;
+};
+
+function shareMetadata(post: SharePreviewPost): Record<string, unknown> {
+  if (typeof post.metadata === "string") {
+    try {
+      const parsed: unknown = JSON.parse(post.metadata);
+      return parsed && typeof parsed === "object" ? parsed as Record<string, unknown> : {};
+    } catch {
+      return {};
+    }
+  }
+  return post.metadata ?? {};
+}
+
+function firstPreviewUrl(...values: unknown[]): string {
+  for (const value of values) {
+    if (typeof value === "string") {
+      const resolved = resolveSharePreviewUrl(value);
+      if (resolved) return resolved;
+    } else if (Array.isArray(value)) {
+      const resolved = firstPreviewUrl(...value);
+      if (resolved) return resolved;
+    } else if (value && typeof value === "object") {
+      const item = value as Record<string, unknown>;
+      const resolved = firstPreviewUrl(
+        item.url,
+        item.secure_url,
+        item.publicUrl,
+        item.image_url,
+        item.media_url,
+      );
+      if (resolved) return resolved;
+    }
+  }
+  return "";
+}
+
+function firstImagePreviewUrl(...values: unknown[]): string {
+  for (const value of values) {
+    const candidate = firstPreviewUrl(value);
+    if (!candidate) continue;
+    const parsed = new URL(candidate);
+    const isAppPlaceholder =
+      (parsed.hostname.toLowerCase() === "i.ibb.co" &&
+        parsed.pathname === "/HT7RvFxs/flicksindia.png") ||
+      (parsed.hostname.toLowerCase() === "flicksindia.online" &&
+        ["/logo.png", "/app-icon.png"].includes(parsed.pathname.toLowerCase()));
+    if (
+      !isAppPlaceholder &&
+      !/\.(?:m3u8|mp4|m4v|mov|webm|ogg)(?:$|[?#])/i.test(candidate) &&
+      !/\/video\/upload\//i.test(candidate)
+    ) {
+      return candidate;
+    }
+  }
+  return "";
+}
+
+/** Resolve a real image or poster for the shared preview; never return a video stream or app placeholder. */
+export function resolveSharePreviewFromPost(post: SharePreviewPost): string {
+  const metadata = shareMetadata(post);
+  const videoSource = post.video_url || post.videoUrl || post.media_url || post.mediaUrl || "";
+  const kind = `${post.type || ""} ${post.media_type || ""} ${metadata.mime_type || ""} ${
+    metadata.mimeType || ""
+  } ${metadata.content_type || ""} ${metadata.contentType || ""
+  }`.toLowerCase();
+  const isVideo =
+    kind.includes("video") ||
+    kind.includes("reel") ||
+    metadata.is_video === true ||
+    metadata.isVideo === true ||
+    Boolean(post.video_url) ||
+    Boolean(post.videoUrl) ||
+    /\.m3u8(?:$|[?#])|\.mp4(?:$|[?#])|\.m4v(?:$|[?#])|\.mov(?:$|[?#])|\.webm(?:$|[?#])|\.ogg(?:$|[?#])/i.test(
+      videoSource,
+    );
+  const posterCandidates = [
+    post.preview_url,
+    post.previewUrl,
+    post.video_thumbnail_url,
+    post.videoThumbnailUrl,
+    post.thumbnail_url,
+    post.thumbnailUrl,
+    post.thumb_url,
+    post.thumbUrl,
+    post.poster_url,
+    post.posterUrl,
+    post.cover_url,
+    post.coverUrl,
+    metadata.preview_url,
+    metadata.previewUrl,
+    metadata.video_thumbnail_url,
+    metadata.videoThumbnailUrl,
+    metadata.thumbnail_url,
+    metadata.thumbnailUrl,
+    metadata.thumb_url,
+    metadata.thumbUrl,
+    metadata.poster_url,
+    metadata.posterUrl,
+    metadata.cover_url,
+    metadata.coverUrl,
+    post.image_url,
+    post.imageUrl,
+    post.image_urls,
+    post.imageUrls,
+    post.meta_image,
+    metadata.image_url,
+    metadata.imageUrl,
+    metadata.image_urls,
+    metadata.imageUrls,
+  ];
+  const realPoster = firstImagePreviewUrl(...posterCandidates);
+  if (realPoster) return realPoster;
+  return isVideo
+    ? resolveSharePreviewUrl(videoSource)
+    : firstImagePreviewUrl(post.media_url, post.mediaUrl);
+}
 
 /**
  * Use the Android WebView bridge when the native app provides it.
@@ -436,7 +609,7 @@ export async function universalShare(
   // download; this keeps the native sheet within the original tap gesture.
   if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
     try {
-      await navigator.share({ title, text: input.text, url });
+      await navigator.share({ title, text, url });
       return "shared-url-only";
     } catch (error) {
       if ((error as DOMException)?.name === "AbortError") return "cancelled";
@@ -497,7 +670,7 @@ export async function universalShare(
 
   // ── Step 4: Copy link to clipboard ────────────────────────────────────────
   try {
-    await navigator.clipboard.writeText(`${text}\n${url}`);
+    await navigator.clipboard.writeText(text);
     return "copied";
   } catch {
     return "error";

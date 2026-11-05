@@ -21,7 +21,6 @@ export interface SharePostOptions {
 
 const BASE_URL = "https://flicksindia.online";
 const MAX_CAPTION_CHARS = 240; // ~4-5 lines on the share card
-const PROMO_FOOTER = "🎬 Join Flicks and update every time, everywhere.\n— Flicks India · flicksindia.online";
 
 // ── helpers ────────────────────────────────────────────────────────────────
 async function urlToFile(url: string, filename: string): Promise<File | null> {
@@ -226,29 +225,16 @@ async function buildShareCard(opts: {
 
 /** Share a post with the original image or video when available. */
 export async function sharePost(opts: SharePostOptions): Promise<"shared" | "copied" | "cancelled"> {
-  const { postId, caption, mediaUrl, mediaType, authorName, metaTitle, metaDescription } = opts;
-  const postUrl = `${BASE_URL}/post/${postId}`;
+  const { postId, caption, mediaUrl, mediaType, metaTitle, metaDescription } = opts;
+  const postUrl = `${BASE_URL}/post/${encodeURIComponent(postId)}`;
   const cleanCaption = (caption || "").trim();
-  const credit = authorName ? `— ${authorName} on Flicks India` : "Flicks India";
-
-  // Build a rich text payload for the Web Share API's `text:` field.
-  // This text appears in WhatsApp / Telegram / iMessage previews when no image
-  // file is attached (video posts, no-media posts, clipboard fallback).
-  // Priority: AI-generated SEO fields → raw caption → plain credit+link.
   const headlineRaw = (metaTitle || "").trim();
-  const bodyRaw = (metaDescription || "").trim();
   const headline = headlineRaw || truncateCaption(cleanCaption, 80);
-  const body = bodyRaw
-    || (cleanCaption && cleanCaption !== headline ? truncateCaption(cleanCaption, 200) : "");
-
-  const parts: string[] = [];
-  if (headline) parts.push(headline);
-  if (body && body !== headline) parts.push(body);
-  parts.push(`${credit}`);
+  const shareCaption = headline || truncateCaption(metaDescription || "", 200);
 
   const outcome = await universalShare({
     title: headline || "Flicks India post",
-    text: parts.join("\n\n"),
+    text: shareCaption,
     url: postUrl,
     mediaUrl: mediaUrl || undefined,
     type: /^(video|reel)/i.test(mediaType || "") ? "reel" : "post",

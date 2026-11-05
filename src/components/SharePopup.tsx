@@ -16,7 +16,8 @@ import {
   shareUrlWithNative,
   universalShare,
   resolveShareMediaUrl,
-  resolveSharePreviewUrl,
+  resolveSharePreviewFromPost,
+  buildShareText,
   buildPostShareUrl,
   canonicalShareUrl,
   type PostType,
@@ -51,7 +52,7 @@ export interface SharePostData {
   videoThumbnailUrl?: string;
   video_thumbnail_url?: string;
   meta_image?: string;
-  metadata?: Record<string, unknown> | null;
+  metadata?: Record<string, unknown> | string | null;
   mediaType?: string;
   media_type?: string;
   type?: string;
@@ -215,30 +216,7 @@ const SharePopup: React.FC<SharePopupProps> = ({
 
   const { top, left, above } = calcPosition(anchor);
 
-  const previewSource =
-    post.previewUrl ||
-    post.preview_url ||
-    post.videoThumbnailUrl ||
-    post.video_thumbnail_url ||
-    post.posterUrl ||
-    post.poster_url ||
-    post.thumbnailUrl ||
-    post.thumbnail_url ||
-    post.thumbUrl ||
-    post.thumb_url ||
-    post.coverUrl ||
-    post.cover_url ||
-    post.imageUrl ||
-    post.image_url ||
-    post.imageUrls?.[0] ||
-    post.image_urls?.[0] ||
-    post.meta_image ||
-    post.mediaUrl ||
-    post.media_url ||
-    post.videoUrl ||
-    post.video_url ||
-    resolveShareMediaUrl(post);
-  const resolvedPreviewUrl = resolveSharePreviewUrl(previewSource);
+  const resolvedPreviewUrl = resolveSharePreviewFromPost(post);
   const thumbnail = canvas ? null : resolvedPreviewUrl || null;
   const caption =
     post.meta_title ||
@@ -247,13 +225,28 @@ const SharePopup: React.FC<SharePopupProps> = ({
     "Check this out on Flicks!";
   const shareTitle = post.meta_title || post.title || caption;
   const shareUrl = canonicalShareUrl(post.share_url || buildPostShareUrl(post.id));
-  const shareCaption = (post.meta_description || post.content || caption)
+  const shareCaption = (post.content || caption)
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, 1000);
+  const formattedShareText = buildShareText(shareCaption, shareUrl);
   // Resolve the best media URL for this post type
-  const mediaUrl = canvas ? undefined : resolveShareMediaUrl(post);
+  const mediaUrl = canvas
+    ? undefined
+    : resolveShareMediaUrl({
+        type: post.type,
+        media_type: post.media_type,
+        media_url: post.media_url || post.mediaUrl,
+        video_url: post.video_url || post.videoUrl,
+        cover_url: post.cover_url || post.coverUrl,
+        meta_image: post.meta_image,
+      });
   const previewUrl = canvas ? undefined : resolvedPreviewUrl;
+  const shareType: PostType =
+    /video|reel/i.test(`${post.type || ""} ${post.media_type || ""}`) ||
+    Boolean(post.video_url || post.videoUrl)
+      ? "reel"
+      : (post.type as PostType) || "post";
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
@@ -276,11 +269,11 @@ const SharePopup: React.FC<SharePopupProps> = ({
     setMediaOutcome(null);
     try {
       if (mode === "copy") {
-        if (!(await copyShareText(shareUrl))) {
+        if (!(await copyShareText(formattedShareText))) {
           throw new Error("Clipboard is unavailable");
         }
         setCopied(true);
-        toast.success("Link copied!");
+        toast.success("Share message copied!");
         onShare(mode, post);
         window.setTimeout(() => setCopied(false), 1600);
         return;
@@ -291,16 +284,18 @@ const SharePopup: React.FC<SharePopupProps> = ({
           title: shareTitle,
           text: shareCaption,
           url: shareUrl,
+          mediaUrl,
+          type: shareType,
           authorName: post.author,
         });
         setMediaOutcome(outcome);
-        if (outcome === "shared-url-only") {
+        if (outcome === "shared-with-file" || outcome === "shared-url-only") {
           onShare(mode, post);
           window.setTimeout(onClose, 300);
         } else if (outcome === "copied") {
           toast.success(
             mode === "instagram"
-              ? "Share text copied. Paste it into Instagram."
+              ? "Share message copied. Paste it into Instagram."
               : "Share text copied to clipboard.",
           );
         } else if (outcome === "error") {
@@ -318,7 +313,7 @@ const SharePopup: React.FC<SharePopupProps> = ({
           previewUrl,
           authorName: post.author,
           canvas: canvas ?? undefined,
-          type: (post.type as PostType) || "post",
+          type: shareType,
         });
         setMediaOutcome(outcome);
         if (outcome === "shared-with-file" || outcome === "shared-url-only") {
@@ -339,7 +334,7 @@ const SharePopup: React.FC<SharePopupProps> = ({
         mediaUrl,
         previewUrl,
         authorName: post.author,
-        type: (post.type as PostType) || "post",
+        type: shareType,
       });
       if (outcome === "opened") {
         onShare(mode, post);
@@ -383,7 +378,7 @@ const SharePopup: React.FC<SharePopupProps> = ({
     if (activeAction === "media") return "Preparing media…";
     if (mediaOutcome === "shared-with-file") return "Shared with image ✓";
     if (mediaOutcome === "shared-url-only") return "Shared ✓";
-    if (mediaOutcome === "copied") return "Link copied ✓";
+    if (mediaOutcome === "copied") return "Share message copied ✓";
     const hasMedia = !!(canvas || mediaUrl || previewUrl);
     return hasMedia ? "Share media & caption" : "Share caption & link";
   };
