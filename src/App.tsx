@@ -83,7 +83,6 @@ const queryClient = new QueryClient({
   },
 });
 
-const SPLASH_MIN_DURATION_MS = 2600;
 const SPLASH_LETTERS = ["F", "L", "I", "C", "K", "S"];
 
 const PageLoader = () => (
@@ -299,7 +298,6 @@ void ADMIN_EMAILS;
 
 const App = () => {
   const [session, setSession]       = useState<Session | null | undefined>(undefined);
-  const [splashReady, setSplashReady] = useState(false);
   const [isAdminOpen, setIsAdminOpen] = useState(false);
   const [connectionState, setConnectionState] = useState<"online" | "offline" | "reconnecting">(
     () => (typeof navigator === "undefined" || navigator.onLine ? "online" : "offline"),
@@ -420,8 +418,6 @@ const App = () => {
   }, [connectionState]);
 
   useEffect(() => {
-    const splashTimer = window.setTimeout(() => setSplashReady(true), SPLASH_MIN_DURATION_MS);
-
     supabase.auth.getSession().then(({ data, error }) => {
       console.log(
         "[Auth] getSession →",
@@ -465,7 +461,6 @@ const App = () => {
     });
 
     return () => {
-      window.clearTimeout(splashTimer);
       listener.subscription.unsubscribe();
     };
   }, []);
@@ -478,7 +473,7 @@ const App = () => {
     />
   ) : null;
 
-  if (session === undefined || !splashReady) {
+  if (session === undefined) {
     return (
       <>
         <PageLoader />

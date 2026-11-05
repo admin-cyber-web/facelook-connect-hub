@@ -335,8 +335,8 @@ const FeedVideo = memo(({ src, poster, isCreator, feedIndex }: { src: string; po
     feedIndex !== undefined &&
     preloadContext?.activeIndex !== null &&
     preloadContext?.activeIndex !== undefined &&
-    feedIndex >= preloadContext.activeIndex - 3 &&
-    feedIndex <= preloadContext.activeIndex + 5;
+    feedIndex >= preloadContext.activeIndex &&
+    feedIndex <= preloadContext.activeIndex + 2;
   const bunnyVideoStatus = useBunnyVideoStatus(
     bunnyVideoId,
     isCreator && (isVisible || inPreloadWindow),
@@ -418,7 +418,7 @@ const FeedVideo = memo(({ src, poster, isCreator, feedIndex }: { src: string; po
         autoPlay={isVisible}
         className="w-full h-full rounded-2xl object-cover"
         style={{ touchAction: "pan-y" }}
-        preload="auto"
+        preload={isVisible || inPreloadWindow ? "auto" : "metadata"}
         {...{
           "webkit-playsinline": "true",
           "x5-playsinline": "true",
@@ -3022,10 +3022,9 @@ const SingleReelBlock = ({
       document.removeEventListener("keydown", closeOnEscape);
     };
   }, [showReelMenu]);
-  // Warm the shared media cache so the full-screen Reels overlay (and later
-  // scroll position on this reel) starts instantly with the attached track.
+  // Warm attached audio without duplicating video downloads; the video element
+  // and HLS hook manage their own small, viewport-based preload window.
   useEffect(() => {
-    if (reelVideoUrl) prefetchReelMedia(reelVideoUrl);
     if (reelSettings.audioUrl) prefetchReelMedia(reelSettings.audioUrl);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reelVideoUrl, reelSettings.audioUrl]);
@@ -5614,14 +5613,6 @@ const FameFeed = ({
         .filter((post) => isBunnyVideoVisibleToViewer(post, viewerId));
 
       setTrendingFlicks(enriched);
-      // Warm the shared reel media cache for the trending row videos — the
-      // full-screen Reels overlay reads from the same cache for instant start.
-      enriched.slice(0, 10).forEach((f: any) => {
-        const url = String(f.media_url || "");
-        if (url && /\.(mp4|webm|ogg|mov|m4v)/i.test(url.split("?")[0])) {
-          prefetchReelMedia(url);
-        }
-      });
       dataCache.setCache("fameFlicks", {
         data: enriched,
         fetchedAt: Date.now(),

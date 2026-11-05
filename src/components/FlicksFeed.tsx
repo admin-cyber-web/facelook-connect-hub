@@ -27,7 +27,7 @@ import {
   attachReelAudioSync,
   getReelAudioTargetTime,
 } from "@/lib/reelAudioSync";
-import { getMediaSrc, onMediaPrefetched, prefetchReelMedia } from "@/lib/reelPrefetch";
+import { prefetchReelMedia } from "@/lib/reelPrefetch";
 import VibeAudioToggle from "./VibeAudioToggle";
 import ActiveStatusAvatar from "./ActiveStatusAvatar";
 import SavePostButton from "./SavePostButton";
@@ -67,10 +67,69 @@ type FlickPostRow = {
   media_url?: string | null;
   metadata?: FlickPostMetadata | null;
   created_at?: string | null;
+  visibility?: string | null;
+  author_profile?: { is_private_mode?: boolean | null } | null;
 };
 const FLICKS_POST_PROJECTION =
-  "id, author, author_id, content, media_url, image_url, image_urls, type, metadata, cover_url, views_count, likes_count, comments_count, shares_count, meta_title, meta_description, created_at, author_profile:profiles!posts_author_id_fkey(avatar_url, full_name)";
+  "id, author, author_id, content, media_url, image_url, image_urls, type, metadata, cover_url, views_count, likes_count, comments_count, shares_count, meta_title, meta_description, created_at, visibility, author_profile:profiles!posts_author_id_fkey(avatar_url, full_name, is_private_mode)";
 const FLICKS_POST_PROJECTION_WITH_AUDIO = `${FLICKS_POST_PROJECTION}, audio_url`;
+const FLICKS_CACHE_KEY = "flicks-feed:v1";
+const FLICKS_CACHE_LIMIT = 30;
+
+type PersistedFlick = Record<string, unknown> & {
+  id: string;
+  visibility: "public";
+  author_profile?: { is_private_mode?: boolean | null } | null;
+  bunny_ready?: boolean;
+  liked_by_me?: boolean;
+};
+
+function isPublicPersistedFlick(value: unknown): value is PersistedFlick {
+  if (!value || typeof value !== "object") return false;
+  const post = value as Record<string, unknown>;
+  const profile = post.author_profile;
+  const isPrivate =
+    Boolean(profile) &&
+    typeof profile === "object" &&
+    "is_private_mode" in profile &&
+    profile.is_private_mode === true;
+  return (
+    typeof post.id === "string" &&
+    post.visibility === "public" &&
+    !isPrivate &&
+    post.bunny_ready !== false
+  );
+}
+
+function readPersistedFlicks(): PersistedFlick[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const parsed: unknown = JSON.parse(
+      window.localStorage.getItem(FLICKS_CACHE_KEY) || "null",
+    );
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter(isPublicPersistedFlick)
+      .slice(0, FLICKS_CACHE_LIMIT)
+      .map((post) => ({ ...post, liked_by_me: false }));
+  } catch (error) {
+    console.warn("[Flicks] Could not read persisted feed cache:", error);
+    return [];
+  }
+}
+
+function persistFlicks(posts: unknown[]) {
+  if (typeof window === "undefined") return;
+  const publicPosts = posts
+    .filter(isPublicPersistedFlick)
+    .slice(0, FLICKS_CACHE_LIMIT)
+    .map((post) => ({ ...post, liked_by_me: false }));
+  try {
+    window.localStorage.setItem(FLICKS_CACHE_KEY, JSON.stringify(publicPosts));
+  } catch (error) {
+    console.warn("[Flicks] Could not persist feed cache:", error);
+  }
+}
 
 const requestPlayback = (media: HTMLMediaElement, muted = false) => {
   media.muted = muted;
@@ -289,7 +348,7 @@ const CommentDrawer = ({ post, currentUserId, onClose, onCommentAdded }: any) =>
 };
 
 // ── FlickCard ─────────────────────────────────────────────────────────────────
-const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, onBridgeChat, onEditReel, isAdmin, onPostDeleted, onPostDeleteOptimistic, onPostDeleteRollback, onUserBanned, onVideoInvalid, prefetchTick }: any) => {
+const FlickCard = memo(({ post, isActive, isPreloaded, isNext, isWarmNext, currentUserId, onBridgeChat, onEditReel, isAdmin, onPostDeleted, onPostDeleteOptimistic, onPostDeleteRollback, onUserBanned, onVideoInvalid }: any) => {
   const videoRef   = useRef<HTMLVideoElement>(null);
   const audioRef   = useRef<HTMLAudioElement>(null);
   const tapTimer   = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -344,31 +403,9 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, on
     ? null
     : videoError || hlsPlayback.error;
   const hasBackgroundAudio = Boolean(reelSettings.audioUrl);
-  // Shared media cache — blobs warmed by the feed are used for instant,
-  // zero-buffer playback of both the video and its attached music track.
-  const [mediaSrc, setMediaSrc] = useState(() =>
-    isHlsUrl(videoUrl) ? videoUrl : getMediaSrc(videoUrl) || videoUrl,
-  );
-  const [attachedAudioSrc, setAttachedAudioSrc] = useState<string | undefined>(
-    () => getMediaSrc(reelSettings.audioUrl) || reelSettings.audioUrl || undefined,
-  );
   useEffect(() => {
     setHasPlayableVideo(false);
   }, [videoUrl]);
-  useEffect(() => {
-    setMediaSrc((prev) => {
-      const next = isHlsUrl(videoUrl) ? videoUrl : getMediaSrc(videoUrl) || videoUrl;
-      if (prev === next) return prev;
-      const playingVideo = videoRef.current;
-      // Never swap the source beneath a card that is already mid-playback.
-      if (playingVideo && !playingVideo.paused && playingVideo.currentTime > 0.25) return prev;
-      return next;
-    });
-    setAttachedAudioSrc((prev) => {
-      const next = getMediaSrc(reelSettings.audioUrl) || reelSettings.audioUrl || undefined;
-      return prev === next ? prev : next;
-    });
-  }, [videoUrl, reelSettings.audioUrl, prefetchTick]);
   const vibe = useMemo(() => resolvePostVibe(post), [post]);
   const secondaryVibe = vibe.matches.find(
     (profile) => profile.tag !== vibe.primary?.tag,
@@ -971,12 +1008,13 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, on
       <video
         ref={videoRef}
         key={videoUrl}
-        src={hlsPlayback.isHls ? undefined : mediaSrc}
+        src={hlsPlayback.isHls ? undefined : videoUrl}
+        poster={post.cover_url || post.thumb_url || post.image_url || undefined}
         loop
         muted
         playsInline
         autoPlay={false}
-        preload={isActive || hlsPlayback.isHls ? "auto" : "metadata"}
+        preload={isActive || isNext || isWarmNext ? "auto" : "metadata"}
         className="absolute inset-0 w-full h-full object-cover"
         style={{
           backgroundColor: "#000",
@@ -1023,7 +1061,7 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, currentUserId, on
       {hasBackgroundAudio && (
         <audio
           ref={audioRef}
-          src={attachedAudioSrc}
+          src={reelSettings.audioUrl || undefined}
           muted={false}
           preload={isActive ? "auto" : "none"}
           loop
@@ -1434,8 +1472,13 @@ export default function FlicksApp({
 }: any) {
   const dataCache    = useDataCache();
   const cachedFlicks = dataCache.cacheRef.current.flicksFeed;
-  const cachedVisibleFlicks = (cachedFlicks?.data ?? []).filter((post: any) =>
-    isBunnyVideoVisibleToViewer(post, currentUserIdProp ?? null),
+  const [persistedFlicks] = useState(() => readPersistedFlicks());
+  const initialFlicks = cachedFlicks?.data ?? persistedFlicks;
+  const cachedVisibleFlicks = initialFlicks.filter(
+    (post: any) =>
+      (post.visibility || "public") === "public" &&
+      post.author_profile?.is_private_mode !== true &&
+      isBunnyVideoVisibleToViewer(post, currentUserIdProp ?? null),
   );
   const [flicks,       setFlicks]       = useState<any[]>(() =>
     cachedVisibleFlicks.map((post: any) => ({
@@ -1444,7 +1487,7 @@ export default function FlicksApp({
     })),
   );
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [loading,      setLoading]      = useState(() => !cachedFlicks?.data);
+  const [loading,      setLoading]      = useState(() => cachedVisibleFlicks.length === 0);
   const [currentUserId, setCurrentUserId] = useState<string | null>(currentUserIdProp ?? null);
   const [fetchedEmail,  setFetchedEmail]  = useState<string | null>(currentUserEmailProp ?? null);
   const [profileAdminUserId, setProfileAdminUserId] = useState<string | null>(null);
@@ -1461,12 +1504,8 @@ export default function FlicksApp({
   const scrollRafRef = useRef<number>(0);
   const pullDistanceRef = useRef(0);
   const reelsRefreshingRef = useRef(false);
-  // Bumped when the shared media cache gains a new blob so mounted cards can
-  // swap their pending <video>/<audio> src to the cached copy.
-  const [prefetchTick, setPrefetchTick] = useState(0);
   const [pullDistance, setPullDistance] = useState(0);
   const [reelsRefreshing, setReelsRefreshing] = useState(false);
-  useEffect(() => onMediaPrefetched(() => setPrefetchTick((tick) => tick + 1)), []);
 
   // Compact header search — client-side filter over author + caption
   const [searchQuery, setSearchQuery] = useState("");
@@ -1559,6 +1598,12 @@ export default function FlicksApp({
           new Map<string, FlickPostRow>(
             rows
               .filter((row) => isSupportedVideoUrl(row.media_url, row.metadata))
+              .filter(
+                (row) =>
+                  row.id === initialPostId ||
+                  ((row.visibility || "public") === "public" &&
+                    row.author_profile?.is_private_mode !== true),
+              )
               .map((row): [string, FlickPostRow] => [String(row.id), row]),
           ).values(),
         ).sort((left, right) =>
@@ -1604,6 +1649,8 @@ export default function FlicksApp({
             filters: settings.filter,
             playback_rate: settings.playbackRate,
             metadata: p.metadata,
+            visibility: p.visibility || "public",
+            author_profile: p.author_profile ?? null,
             bunny_ready: p.bunny_ready,
             image_url: p.image_url || null,
             image_urls: p.image_urls,
@@ -1622,6 +1669,7 @@ export default function FlicksApp({
         if (cancelled) return;
         setFlicks(normalized);
         dataCache.setCache("flicksFeed", { data: normalized, fetchedAt: Date.now() });
+        persistFlicks(normalized);
         setLoading(false);
 
         void (async () => {
@@ -1842,15 +1890,12 @@ export default function FlicksApp({
     setCurrentIndex(nextIndex);
   }, [currentIndex, visibleFlicks.length]);
 
-  // Aggressive pre-fetch: warm the next few reels (video + attached track)
-  // into the shared media cache so each swipe starts instantly with zero
-  // buffering, stuttering, or delay.
+  // Keep the next two attached tracks warm; the mounted video cards preload
+  // their own media directly, avoiding full-file blob downloads.
   useEffect(() => {
-    visibleFlicks.slice(currentIndex, currentIndex + 4).forEach((f: any, offset: number) => {
-      const settings = getReelSettings(f);
-      const video = settings.videoUrl || f.media_url;
-      if (video) prefetchReelMedia(video, offset === 0 ? "high" : "normal");
-      if (settings.audioUrl) prefetchReelMedia(settings.audioUrl, offset === 0 ? "high" : "normal");
+    visibleFlicks.slice(currentIndex, currentIndex + 3).forEach((f: any) => {
+      const audio = getReelSettings(f).audioUrl;
+      if (audio) prefetchReelMedia(audio);
     });
   }, [visibleFlicks, currentIndex]);
 
@@ -2083,7 +2128,7 @@ export default function FlicksApp({
         ) : (
           visibleFlicks.map((f, i) => {
             // Keep the requested preload window mounted without rendering the full feed.
-            const isNear = i >= currentIndex - 3 && i <= currentIndex + 5;
+            const isNear = i >= currentIndex - 1 && i <= currentIndex + 2;
             if (!isNear) {
               return <div key={f.id} className="w-full h-full bg-black snap-start snap-always shrink-0" />;
             }
@@ -2094,10 +2139,10 @@ export default function FlicksApp({
                   isActive={i === currentIndex}
                   isPreloaded={isNear}
                   isNext={i === currentIndex + 1}
+                  isWarmNext={i === currentIndex + 2}
                   currentUserId={currentUserId}
                   onBridgeChat={onBridgeChat}
                   onEditReel={onEditReel}
-                  prefetchTick={prefetchTick}
                   isAdmin={isAdmin}
                   onPostDeleted={handlePostDeleted}
                   onPostDeleteOptimistic={handlePostDeleteOptimistic}

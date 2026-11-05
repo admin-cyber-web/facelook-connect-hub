@@ -46,7 +46,7 @@ export default function AutoPlayMutedVideo({
   poster,
   ariaLabel,
   controls = false,
-  preload = "auto",
+  preload = "metadata",
   autoplayWithSound = false,
   onError,
   style,
@@ -64,6 +64,7 @@ export default function AutoPlayMutedVideo({
   const [isMuted, setIsMuted] = useState(true);
   const [showUnmuteOverlay, setShowUnmuteOverlay] = useState(false);
   const [isInViewport, setIsInViewport] = useState(false);
+  const [isNearViewport, setIsNearViewport] = useState(false);
   const isHls = isHlsUrl(src);
   const hls = useHlsVideo(
     ref,
@@ -125,12 +126,18 @@ export default function AutoPlayMutedVideo({
       },
       { threshold: [0, visibilityThreshold] },
     );
+    const preloadObserver = new IntersectionObserver(
+      ([entry]) => setIsNearViewport(Boolean(entry?.isIntersecting)),
+      { rootMargin: "75% 0px" },
+    );
     const handleVisibilityChange = () => syncPlayback();
     io.observe(el);
+    preloadObserver.observe(el);
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       io.disconnect();
+      preloadObserver.disconnect();
       onVisibilityChange?.(false);
       if (unregister) {
         unregister();
@@ -217,7 +224,7 @@ export default function AutoPlayMutedVideo({
         playsInline
         webkitPlaysInline
         crossOrigin="anonymous"
-        preload={preload}
+        preload={preload === "none" ? "none" : isNearViewport ? "auto" : preload}
         autoPlay={isInViewport && playbackEnabled}
         {...{
           "webkit-playsinline": "true",

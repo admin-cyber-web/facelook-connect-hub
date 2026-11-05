@@ -1,47 +1,24 @@
-/**
- * Shared reel media prefetch cache (Flicks Reels + FameFeed).
- *
- * Warm-fetches video/audio blobs into memory (LRU) so reels start instantly
- * with zero buffering when their card mounts or the full-screen player opens
- * at that post. If a fetch fails (CORS/offline) consumers simply fall back to
- * the original remote URL — playback is never blocked by the cache.
- */
+const MAX_ENTRIES = 6;
 
-const MAX_ENTRIES = 14;
+const preloaders = new Map<string, HTMLMediaElement>();
 
-const objectUrls = new Map<string, string>();
-const inflight = new Map<string, Promise<string | null>>();
-const stamped = new Map<string, number>();
-const listeners = new Set<() => void>();
+const isAudioUrl = (url: string) => /\.(mp3|m4a|aac|ogg|wav)(?:$|[?#])/i.test(url);
 
-let insertOrder = 0;
-
-const evictIfNeeded = () => {
-  while (objectUrls.size > MAX_ENTRIES) {
-    let oldestKey: string | null = null;
-    let oldestStamp = Number.POSITIVE_INFINITY;
-    stamped.forEach((stamp, key) => {
-      if (stamp < oldestStamp) {
-        oldestStamp = stamp;
-        oldestKey = key;
-      }
-    });
-    if (!oldestKey) return;
-    const victim = oldestKey as unknown as string;
-    const victimUrl = objectUrls.get(victim);
-    if (victimUrl) {
-      try {
-        URL.revokeObjectURL(victimUrl);
-      } catch {
-        /* already revoked */
-      }
+function evictIfNeeded() {
+  while (preloaders.size > MAX_ENTRIES) {
+    const oldestUrl = preloaders.keys().next().value;
+    if (!oldestUrl) return;
+    const element = preloaders.get(oldestUrl);
+    if (element) {
+      element.pause();
+      element.removeAttribute("src");
+      element.load();
     }
-    objectUrls.delete(victim);
-    stamped.delete(victim);
+    preloaders.delete(oldestUrl);
   }
-};
+}
 
-/** Warm the cache for one media URL. Duplicate / in-flight URLs are ignored. */
+/** Warm browser media buffering without downloading full files into JavaScript memory. */
 export function prefetchReelMedia(
   url: string | null | undefined,
   _priority: "high" | "normal" = "normal",
@@ -52,46 +29,19 @@ export function prefetchReelMedia(
     !/^https?:\/\//i.test(url) ||
     /\.m3u8(?:$|[?#])/i.test(url)
   ) return;
-  if (objectUrls.has(url) || inflight.has(url)) return;
+  if (preloaders.has(url) || typeof document === "undefined") return;
 
-  const run = async (): Promise<string | null> => {
-    try {
-      const res = await fetch(url, { credentials: "omit" });
-      if (!res.ok) return null;
-      const blob = await res.blob();
-      if (!blob || blob.size <= 0) return null;
-      const objectUrl = URL.createObjectURL(blob);
-      objectUrls.set(url, objectUrl);
-      stamped.set(url, ++insertOrder);
-      evictIfNeeded();
-      listeners.forEach((notify) => {
-        try {
-          notify();
-        } catch {
-          /* listener errors must not break the cache */
-        }
-      });
-      return objectUrl;
-    } catch {
-      return null;
-    } finally {
-      inflight.delete(url);
-    }
-  };
-
-  inflight.set(url, run());
-}
-
-/** Returns the cached blob URL for a remote URL, or null when not cached yet. */
-export function getMediaSrc(url: string | null | undefined): string | null {
-  if (!url) return null;
-  return objectUrls.get(url) ?? null;
-}
-
-/** Subscribe to cache additions (e.g. to swap a pending <video src>). */
-export function onMediaPrefetched(cb: () => void): () => void {
-  listeners.add(cb);
-  return () => {
-    listeners.delete(cb);
-  };
+  const element: HTMLMediaElement = isAudioUrl(url)
+    ? new Audio()
+    : document.createElement("video");
+  element.preload = "auto";
+  element.crossOrigin = "anonymous";
+  if (element instanceof HTMLVideoElement) {
+    element.muted = true;
+    element.playsInline = true;
+  }
+  element.src = url;
+  preloaders.set(url, element);
+  evictIfNeeded();
+  element.load();
 }
