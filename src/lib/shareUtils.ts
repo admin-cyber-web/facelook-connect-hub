@@ -1,7 +1,7 @@
 /**
  * shareUtils.ts
  * ─────────────────────────────────────────────────────────────────────────────
- * Clean, high-reliability Native Share & Social Web Intent Engine.
+ * Clean, high-reliability Native Share & Direct Social Intent Engine.
  */
 
 import { toast } from "sonner";
@@ -11,12 +11,15 @@ export interface ShareOptions {
   text?: string;
   url: string;
   mediaUrl?: string;
+  mediaType?: string;
+  authorName?: string;
 }
 
 export type SocialPlatform =
   | "whatsapp"
   | "facebook"
   | "messenger"
+  | "instagram"
   | "twitter"
   | "telegram"
   | "copy"
@@ -32,13 +35,17 @@ export function formatShareUrl(rawUrl?: string): string {
   return `${BASE_URL}${rawUrl.startsWith("/") ? "" : "/"}${rawUrl}`;
 }
 
-export function formatShareMessage(caption?: string, url?: string): string {
+export function formatShareMessage(caption?: string, url?: string, authorName?: string): string {
   const cleanCaption = (caption || "").trim().slice(0, 300);
   const shareUrl = formatShareUrl(url);
-  if (cleanCaption) {
-    return `🎬 ${cleanCaption}\n\n👉 Watch on Flicks India: ${shareUrl}`;
-  }
-  return `👉 Check this out on Flicks India: ${shareUrl}`;
+  const authorStr = authorName ? `👤 Post by ${authorName}` : "";
+
+  const parts = [];
+  if (cleanCaption) parts.push(`🎬 ${cleanCaption}`);
+  if (authorStr) parts.push(authorStr);
+  parts.push(`👉 Watch & Connect on Flicks India: ${shareUrl}`);
+
+  return parts.join("\n\n");
 }
 
 /**
@@ -72,61 +79,77 @@ export async function copyToClipboard(text: string): Promise<boolean> {
   return false;
 }
 
+declare global {
+  interface Window {
+    AndroidShare?: {
+      shareMedia?: (
+        caption: string,
+        mediaUrl: string,
+        mediaType?: string,
+      ) => boolean | Promise<boolean>;
+      shareText?: (
+        title: string,
+        caption: string,
+        url: string,
+      ) => boolean | Promise<boolean>;
+      shareToPlatform?: (
+        platform: string,
+        caption: string,
+        mediaUrl?: string,
+        mediaType?: string,
+      ) => boolean | Promise<boolean>;
+    };
+  }
+}
+
 /**
- * Direct Web Intent execution for specific social platforms.
- * Always executes instantly in response to a user click gesture.
+ * Direct Social & Native Intent execution.
  */
 export async function shareToSocial(
   platform: SocialPlatform,
   opts: ShareOptions,
 ): Promise<boolean> {
   const shareUrl = formatShareUrl(opts.url);
-  const message = formatShareMessage(opts.text, shareUrl);
+  const message = formatShareMessage(opts.text, shareUrl, opts.authorName);
 
   const encodedMessage = encodeURIComponent(message);
   const encodedUrl = encodeURIComponent(shareUrl);
-  const encodedText = encodeURIComponent((opts.text || "").trim().slice(0, 200) || "Check this out on Flicks India");
 
-  // Check native Android Bridge if available in mobile webview
-  if (platform === "native" || platform === "whatsapp") {
-    if (
-      typeof window !== "undefined" &&
-      window.AndroidShare?.shareText
-    ) {
+  // 1. Check native Android Bridge if running inside Android App
+  if (typeof window !== "undefined" && window.AndroidShare) {
+    if (platform === "native") {
+      if (opts.mediaUrl && window.AndroidShare.shareMedia) {
+        try {
+          window.AndroidShare.shareMedia(message, opts.mediaUrl, opts.mediaType || "image");
+          return true;
+        } catch (e) {
+          console.warn("[shareUtils] Android native shareMedia failed:", e);
+        }
+      }
+      if (window.AndroidShare.shareText) {
+        try {
+          window.AndroidShare.shareText(opts.title || "Flicks India", message, shareUrl);
+          return true;
+        } catch (e) {
+          console.warn("[shareUtils] Android native shareText failed:", e);
+        }
+      }
+    } else if (window.AndroidShare.shareToPlatform) {
       try {
-        window.AndroidShare.shareText(opts.title || "Flicks India", message, shareUrl);
-        return true;
-      } catch {
-        // Fall back to web intent
+        const handled = window.AndroidShare.shareToPlatform(
+          platform,
+          message,
+          opts.mediaUrl || "",
+          opts.mediaType || "image",
+        );
+        if (handled !== false) return true;
+      } catch (e) {
+        console.warn(`[shareUtils] Android native shareToPlatform (${platform}) failed:`, e);
       }
     }
   }
 
-  // Handle native OS Share Sheet
-  if (platform === "native") {
-    if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
-      try {
-        await navigator.share({
-          title: opts.title || "Flicks India",
-          text: message,
-          url: shareUrl,
-        });
-        return true;
-      } catch (err) {
-        if ((err as DOMException)?.name === "AbortError") return false;
-        // Fallback to copying link
-        const copied = await copyToClipboard(shareUrl);
-        if (copied) toast.success("Link copied to clipboard!");
-        return copied;
-      }
-    } else {
-      const copied = await copyToClipboard(shareUrl);
-      if (copied) toast.success("Link copied to clipboard!");
-      return copied;
-    }
-  }
-
-  // Handle Copy Link
+  // 2. Handle Copy Link
   if (platform === "copy") {
     const copied = await copyToClipboard(shareUrl);
     if (copied) {
@@ -138,27 +161,63 @@ export async function shareToSocial(
     }
   }
 
-  // Direct Social Web Intents
+  // 3. Handle Native Web Share API
+  if (platform === "native") {
+    if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+      try {
+        await navigator.share({
+          title: opts.title || "Flicks India",
+          text: message,
+          url: shareUrl,
+        });
+        return true;
+      } catch (err) {
+        if ((err as DOMException)?.name === "AbortError") return false;
+        const copied = await copyToClipboard(shareUrl);
+        if (copied) toast.success("Link copied to clipboard!");
+        return copied;
+      }
+    } else {
+      const copied = await copyToClipboard(shareUrl);
+      if (copied) toast.success("Link copied to clipboard!");
+      return copied;
+    }
+  }
+
+  // 4. Direct Web Intents for browsers
   let targetUrl = "";
   switch (platform) {
     case "whatsapp":
       targetUrl = `https://api.whatsapp.com/send?text=${encodedMessage}`;
       break;
     case "facebook":
-    case "messenger":
       targetUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`;
       break;
+    case "messenger":
+      targetUrl = `https://www.facebook.com/dialog/send?link=${encodedUrl}&app_id=296245230562520&redirect_uri=${encodedUrl}`;
+      break;
+    case "instagram":
+      // Instagram web sharing falls back to copying link + opening Instagram
+      await copyToClipboard(message);
+      toast.success("Share caption copied! Opening Instagram...");
+      targetUrl = "https://www.instagram.com/";
+      break;
     case "twitter":
-      targetUrl = `https://twitter.com/intent/tweet?text=${encodedText}&url=${encodedUrl}`;
+      targetUrl = `https://twitter.com/intent/tweet?text=${encodedMessage}`;
       break;
     case "telegram":
-      targetUrl = `https://t.me/share/url?url=${encodedUrl}&text=${encodedText}`;
+      targetUrl = `https://t.me/share/url?url=${encodedUrl}&text=${encodeURIComponent(`🎬 ${opts.text || "Flicks India Post"}`)}`;
       break;
   }
 
   if (targetUrl && typeof window !== "undefined") {
-    window.open(targetUrl, "_blank", "noopener,noreferrer");
-    return true;
+    try {
+      window.open(targetUrl, "_blank", "noopener,noreferrer");
+      return true;
+    } catch {
+      window.location.href = targetUrl;
+      return true;
+    }
   }
 
   return false;

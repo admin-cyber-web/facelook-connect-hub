@@ -1,5 +1,6 @@
 package com.flicks.hub;
 
+import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.net.Uri;
@@ -12,9 +13,6 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 import com.getcapacitor.BridgeActivity;
 import com.getcapacitor.BridgeWebViewClient;
-import com.getcapacitor.Plugin;
-import com.getcapacitor.PluginHandle;
-import ee.forgr.capacitor.social.login.GoogleProvider;
 import ee.forgr.capacitor.social.login.ModifiedMainActivityForSocialLoginPlugin;
 import ee.forgr.capacitor.social.login.SocialLoginPlugin;
 
@@ -70,8 +68,35 @@ public class MainActivity extends BridgeActivity implements ModifiedMainActivity
                         if (request != null && request.getUrl() != null) {
                             Uri url = request.getUrl();
                             String scheme = url.getScheme();
+
+                            // Intercept deep link intents (e.g. whatsapp://, intent://, tg://, fb-messenger://)
+                            if (scheme != null && ("whatsapp".equalsIgnoreCase(scheme) || "intent".equalsIgnoreCase(scheme)
+                                    || "tg".equalsIgnoreCase(scheme) || "fb-messenger".equalsIgnoreCase(scheme))) {
+                                try {
+                                    Intent intent = Intent.parseUri(url.toString(), Intent.URI_INTENT_SCHEME);
+                                    if (intent != null) {
+                                        view.getContext().startActivity(intent);
+                                        return true;
+                                    }
+                                } catch (Exception e) {
+                                    Log.w(TAG, "Deep link intent error: " + e.getMessage());
+                                }
+                            }
+
+                            // Intercept social share web URLs so Android opens them in the external app/browser
                             if ("http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme)) {
-                                return false;
+                                String host = url.getHost() != null ? url.getHost().toLowerCase() : "";
+                                if (host.contains("whatsapp.com") || host.contains("facebook.com") || host.contains("twitter.com")
+                                        || host.contains("t.me") || host.contains("telegram.me")) {
+                                    try {
+                                        Intent intent = new Intent(Intent.ACTION_VIEW, url);
+                                        view.getContext().startActivity(intent);
+                                        return true;
+                                    } catch (ActivityNotFoundException e) {
+                                        Log.w(TAG, "External share app not found for URL: " + url);
+                                    }
+                                }
+                                return false; // Stay inside webview for regular app pages
                             }
                         }
                         return super.shouldOverrideUrlLoading(view, request);
