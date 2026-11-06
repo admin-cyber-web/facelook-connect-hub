@@ -39,18 +39,18 @@ export function formatShareMessage(
   caption?: string,
   url?: string,
   authorName?: string,
-  mediaUrl?: string,
 ): string {
-  const cleanCaption = (caption || "").trim().slice(0, 300) || "Check out this amazing post on Flicks India!";
+  const cleanCaption = (caption || "").trim().slice(0, 300);
   const shareUrl = formatShareUrl(url);
-  const authorStr = authorName ? `👤 Post by ${authorName}` : "";
-  const mediaStr = mediaUrl ? `📷 Media: ${mediaUrl}` : "";
-  const brandingFooter = `✨ Shared via Flicks India\n👉 Join the community & explore more: ${shareUrl}`;
 
-  const parts = [cleanCaption];
-  if (mediaStr) parts.push(mediaStr);
-  if (authorStr) parts.push(authorStr);
-  parts.push(brandingFooter);
+  const parts = [];
+  if (cleanCaption) {
+    parts.push(`🎬 ${cleanCaption}`);
+  }
+  if (authorName && authorName.trim()) {
+    parts.push(`👤 Post by ${authorName.trim()}`);
+  }
+  parts.push(`✨ Shared via Flicks India\n👉 Join the community: ${shareUrl}`);
 
   return parts.join("\n\n");
 }
@@ -110,6 +110,27 @@ declare global {
 }
 
 /**
+ * Convert Bunny.net .m3u8 playlist URLs to high-res video poster thumbnail images.
+ */
+export function resolveShareImageThumbnail(mediaUrl?: string): string | undefined {
+  if (!mediaUrl) return undefined;
+  const url = mediaUrl.trim();
+  if (!url) return undefined;
+
+  // Convert Bunny.net playlist.m3u8 to thumbnail.jpg
+  try {
+    const parsed = new URL(url);
+    const bunnyMatch = parsed.pathname.match(/^\/([\w-]{8,64})\/playlist\.m3u8$/i);
+    if (bunnyMatch && parsed.hostname.toLowerCase().endsWith(".b-cdn.net")) {
+      return `${parsed.origin}/${bunnyMatch[1]}/thumbnail.jpg`;
+    }
+  } catch {
+    // Return original url if parsing fails
+  }
+  return url;
+}
+
+/**
  * Direct Social & Native Intent execution.
  */
 export async function shareToSocial(
@@ -117,12 +138,13 @@ export async function shareToSocial(
   opts: ShareOptions,
 ): Promise<boolean> {
   const shareUrl = formatShareUrl(opts.url);
-  const message = formatShareMessage(opts.text, shareUrl, opts.authorName, opts.mediaUrl);
+  const message = formatShareMessage(opts.text, shareUrl, opts.authorName);
+  const mediaImageUrl = resolveShareImageThumbnail(opts.mediaUrl);
 
   const encodedMessage = encodeURIComponent(message);
   const encodedUrl = encodeURIComponent(shareUrl);
 
-  console.log(`[Share Debug] Execution starting for ${platform}:`, { shareUrl, mediaUrl: opts.mediaUrl });
+  console.log(`[Share Debug] Execution starting for ${platform}:`, { shareUrl, mediaUrl: opts.mediaUrl, mediaImageUrl });
 
   // 1. Check native Android Bridge if running inside Android App
   if (typeof window !== "undefined" && window.AndroidShare) {
@@ -165,7 +187,7 @@ export async function shareToSocial(
   if (platform === "copy") {
     const copied = await copyToClipboard(message);
     if (copied) {
-      toast.success("Share message & link copied to clipboard!");
+      toast.success("Share text & link copied to clipboard!");
       return true;
     } else {
       toast.error("Unable to copy link.");
@@ -177,9 +199,9 @@ export async function shareToSocial(
   if (platform === "native") {
     if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
       try {
-        if (opts.mediaUrl) {
+        if (mediaImageUrl && !mediaImageUrl.endsWith(".m3u8")) {
           try {
-            const res = await fetch(opts.mediaUrl, { mode: "cors", cache: "force-cache" });
+            const res = await fetch(mediaImageUrl, { mode: "cors", cache: "force-cache" });
             if (res.ok) {
               const blob = await res.blob();
               const ext = blob.type.startsWith("video/") ? "mp4" : "jpg";

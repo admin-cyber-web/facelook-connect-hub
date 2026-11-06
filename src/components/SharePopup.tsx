@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Link2, Share2, Check, X, ImageIcon } from "lucide-react";
 import { toast } from "sonner";
-import { shareToSocial, type SocialPlatform, formatShareUrl } from "@/lib/shareUtils";
+import { shareToSocial, type SocialPlatform, formatShareUrl, resolveShareImageThumbnail } from "@/lib/shareUtils";
 
 console.log("SHARE MODAL MOUNTED & CLICKABLE");
 
@@ -144,7 +144,7 @@ const SharePopup: React.FC<SharePopupProps> = ({ post, onClose, onShare }) => {
     post.meta_title ||
     "Check out this amazing post on Flicks India!";
 
-  const imagePreview =
+  const rawMediaUrl =
     post.media_url ||
     post.thumbnail_url ||
     post.video_url ||
@@ -156,6 +156,8 @@ const SharePopup: React.FC<SharePopupProps> = ({ post, onClose, onShare }) => {
     post.cover_url ||
     post.meta_image ||
     "";
+
+  const imagePreview = resolveShareImageThumbnail(rawMediaUrl);
 
   const mediaType =
     post.mediaType ||
@@ -173,7 +175,7 @@ const SharePopup: React.FC<SharePopupProps> = ({ post, onClose, onShare }) => {
         title: post.title || post.meta_title || "Flicks India",
         text: captionText,
         url: targetUrl,
-        mediaUrl: imagePreview,
+        mediaUrl: rawMediaUrl,
         mediaType,
         authorName: post.author,
       });
