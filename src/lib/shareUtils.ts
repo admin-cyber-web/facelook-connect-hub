@@ -35,15 +35,22 @@ export function formatShareUrl(rawUrl?: string): string {
   return `${BASE_URL}${rawUrl.startsWith("/") ? "" : "/"}${rawUrl}`;
 }
 
-export function formatShareMessage(caption?: string, url?: string, authorName?: string): string {
-  const cleanCaption = (caption || "").trim().slice(0, 300);
+export function formatShareMessage(
+  caption?: string,
+  url?: string,
+  authorName?: string,
+  mediaUrl?: string,
+): string {
+  const cleanCaption = (caption || "").trim().slice(0, 300) || "Check out this amazing post on Flicks India!";
   const shareUrl = formatShareUrl(url);
   const authorStr = authorName ? `👤 Post by ${authorName}` : "";
+  const mediaStr = mediaUrl ? `📷 Media: ${mediaUrl}` : "";
+  const brandingFooter = `✨ Shared via Flicks India\n👉 Join the community & explore more: ${shareUrl}`;
 
-  const parts = [];
-  if (cleanCaption) parts.push(`🎬 ${cleanCaption}`);
+  const parts = [cleanCaption];
+  if (mediaStr) parts.push(mediaStr);
   if (authorStr) parts.push(authorStr);
-  parts.push(`👉 Watch & Connect on Flicks India: ${shareUrl}`);
+  parts.push(brandingFooter);
 
   return parts.join("\n\n");
 }
@@ -110,7 +117,7 @@ export async function shareToSocial(
   opts: ShareOptions,
 ): Promise<boolean> {
   const shareUrl = formatShareUrl(opts.url);
-  const message = formatShareMessage(opts.text, shareUrl, opts.authorName);
+  const message = formatShareMessage(opts.text, shareUrl, opts.authorName, opts.mediaUrl);
 
   const encodedMessage = encodeURIComponent(message);
   const encodedUrl = encodeURIComponent(shareUrl);
@@ -156,9 +163,9 @@ export async function shareToSocial(
 
   // 2. Handle Copy Link
   if (platform === "copy") {
-    const copied = await copyToClipboard(shareUrl);
+    const copied = await copyToClipboard(message);
     if (copied) {
-      toast.success("Link copied to clipboard!");
+      toast.success("Share message & link copied to clipboard!");
       return true;
     } else {
       toast.error("Unable to copy link.");
@@ -166,11 +173,34 @@ export async function shareToSocial(
     }
   }
 
-  // 3. Handle Native Web Share API
+  // 3. Handle Native Web Share API with File Attachment Fallback
   if (platform === "native") {
     if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
       try {
-        console.log("[Share Debug] Triggering Web Share API");
+        if (opts.mediaUrl) {
+          try {
+            const res = await fetch(opts.mediaUrl, { mode: "cors", cache: "force-cache" });
+            if (res.ok) {
+              const blob = await res.blob();
+              const ext = blob.type.startsWith("video/") ? "mp4" : "jpg";
+              const file = new File([blob], `flicks-media.${ext}`, { type: blob.type || "image/jpeg" });
+              if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                console.log("[Share Debug] Triggering Web Share API with media file attachment");
+                await navigator.share({
+                  title: opts.title || "Flicks India",
+                  text: message,
+                  url: shareUrl,
+                  files: [file],
+                });
+                return true;
+              }
+            }
+          } catch (fileErr) {
+            console.warn("[shareUtils] Web Share file attachment failed, falling back to text:", fileErr);
+          }
+        }
+
+        console.log("[Share Debug] Triggering Web Share API text payload");
         await navigator.share({
           title: opts.title || "Flicks India",
           text: message,
@@ -179,13 +209,13 @@ export async function shareToSocial(
         return true;
       } catch (err) {
         if ((err as DOMException)?.name === "AbortError") return false;
-        const copied = await copyToClipboard(shareUrl);
-        if (copied) toast.success("Link copied to clipboard!");
+        const copied = await copyToClipboard(message);
+        if (copied) toast.success("Share text & link copied to clipboard!");
         return copied;
       }
     } else {
-      const copied = await copyToClipboard(shareUrl);
-      if (copied) toast.success("Link copied to clipboard!");
+      const copied = await copyToClipboard(message);
+      if (copied) toast.success("Share text & link copied to clipboard!");
       return copied;
     }
   }
@@ -204,14 +234,14 @@ export async function shareToSocial(
       break;
     case "instagram":
       await copyToClipboard(message);
-      toast.success("Share caption copied! Opening Instagram...");
+      toast.success("Share caption & link copied! Opening Instagram...");
       targetUrl = "https://www.instagram.com/";
       break;
     case "twitter":
       targetUrl = `https://twitter.com/intent/tweet?text=${encodedMessage}`;
       break;
     case "telegram":
-      targetUrl = `https://t.me/share/url?url=${encodedUrl}&text=${encodeURIComponent(`🎬 ${opts.text || "Flicks India Post"}`)}`;
+      targetUrl = `https://t.me/share/url?url=${encodedUrl}&text=${encodedMessage}`;
       break;
   }
 

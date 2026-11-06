@@ -10,8 +10,10 @@ export interface SharePostData {
   id: string;
   title?: string;
   content?: string;
+  caption?: string;
   mediaUrl?: string;
   media_url?: string;
+  thumbnail_url?: string;
   imageUrl?: string;
   image_url?: string;
   videoUrl?: string;
@@ -137,18 +139,23 @@ const SharePopup: React.FC<SharePopupProps> = ({ post, onClose, onShare }) => {
   );
   const captionText =
     post.content?.trim() ||
+    post.caption?.trim() ||
     post.title ||
     post.meta_title ||
-    "Check this out on Flicks India!";
+    "Check out this amazing post on Flicks India!";
 
   const imagePreview =
-    post.mediaUrl ||
     post.media_url ||
-    post.imageUrl ||
+    post.thumbnail_url ||
+    post.video_url ||
     post.image_url ||
+    post.mediaUrl ||
+    post.imageUrl ||
+    post.videoUrl ||
     post.coverUrl ||
     post.cover_url ||
-    post.meta_image;
+    post.meta_image ||
+    "";
 
   const mediaType =
     post.mediaType ||
