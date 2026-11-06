@@ -18,3 +18,4 @@ local.properties
 .env
 .env.*
 !.env.example
+public/app.apk
