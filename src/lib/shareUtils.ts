@@ -115,11 +115,14 @@ export async function shareToSocial(
   const encodedMessage = encodeURIComponent(message);
   const encodedUrl = encodeURIComponent(shareUrl);
 
+  console.log(`[Share Debug] Execution starting for ${platform}:`, { shareUrl, mediaUrl: opts.mediaUrl });
+
   // 1. Check native Android Bridge if running inside Android App
   if (typeof window !== "undefined" && window.AndroidShare) {
     if (platform === "native") {
       if (opts.mediaUrl && window.AndroidShare.shareMedia) {
         try {
+          console.log("[Share Debug] Calling AndroidShare.shareMedia");
           window.AndroidShare.shareMedia(message, opts.mediaUrl, opts.mediaType || "image");
           return true;
         } catch (e) {
@@ -128,6 +131,7 @@ export async function shareToSocial(
       }
       if (window.AndroidShare.shareText) {
         try {
+          console.log("[Share Debug] Calling AndroidShare.shareText");
           window.AndroidShare.shareText(opts.title || "Flicks India", message, shareUrl);
           return true;
         } catch (e) {
@@ -136,6 +140,7 @@ export async function shareToSocial(
       }
     } else if (window.AndroidShare.shareToPlatform) {
       try {
+        console.log(`[Share Debug] Calling AndroidShare.shareToPlatform for ${platform}`);
         const handled = window.AndroidShare.shareToPlatform(
           platform,
           message,
@@ -165,6 +170,7 @@ export async function shareToSocial(
   if (platform === "native") {
     if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
       try {
+        console.log("[Share Debug] Triggering Web Share API");
         await navigator.share({
           title: opts.title || "Flicks India",
           text: message,
@@ -197,7 +203,6 @@ export async function shareToSocial(
       targetUrl = `https://www.facebook.com/dialog/send?link=${encodedUrl}&app_id=296245230562520&redirect_uri=${encodedUrl}`;
       break;
     case "instagram":
-      // Instagram web sharing falls back to copying link + opening Instagram
       await copyToClipboard(message);
       toast.success("Share caption copied! Opening Instagram...");
       targetUrl = "https://www.instagram.com/";
@@ -211,10 +216,17 @@ export async function shareToSocial(
   }
 
   if (targetUrl && typeof window !== "undefined") {
+    console.log(`[Share Debug] Direct Web Intent to ${platform}:`, targetUrl);
     try {
-      window.open(targetUrl, "_blank", "noopener,noreferrer");
+      const opened = window.open(targetUrl, "_blank", "noopener,noreferrer");
+      if (!opened) {
+        console.warn(`[Share Debug] Popup blocked for ${platform}, opening via location.href`);
+        toast.info(`Opening ${platform}...`);
+        window.location.href = targetUrl;
+      }
       return true;
-    } catch {
+    } catch (err: any) {
+      console.error(`[Share Debug] Error opening ${platform} intent:`, err);
       window.location.href = targetUrl;
       return true;
     }

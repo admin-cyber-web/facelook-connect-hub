@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Link2, Share2, Check, X, ImageIcon } from "lucide-react";
+import { toast } from "sonner";
 import { shareToSocial, type SocialPlatform, formatShareUrl } from "@/lib/shareUtils";
 
 export interface SharePostData {
@@ -152,26 +153,38 @@ const SharePopup: React.FC<SharePopupProps> = ({ post, onClose, onShare }) => {
     (/video|reel/i.test(`${post.type || ""}`) ? "video" : "image");
 
   const handleShare = async (platform: SocialPlatform) => {
-    const success = await shareToSocial(platform, {
-      title: post.title || post.meta_title || "Flicks India",
-      text: captionText,
-      url: targetUrl,
-      mediaUrl: imagePreview,
-      mediaType,
-      authorName: post.author,
-    });
-
-    if (platform === "copy" && success) {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+    console.log(`[Share Debug] Clicking ${platform} with URL: ${targetUrl}`);
+    if (typeof toast !== "undefined") {
+      toast.info(`Sharing via ${platform.toUpperCase()}...`);
     }
 
-    if (onShare) {
-      onShare(platform, post);
-    }
+    try {
+      const success = await shareToSocial(platform, {
+        title: post.title || post.meta_title || "Flicks India",
+        text: captionText,
+        url: targetUrl,
+        mediaUrl: imagePreview,
+        mediaType,
+        authorName: post.author,
+      });
 
-    if (platform !== "copy") {
-      onClose();
+      if (platform === "copy" && success) {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      }
+
+      if (onShare) {
+        onShare(platform, post);
+      }
+
+      if (platform !== "copy") {
+        onClose();
+      }
+    } catch (err: any) {
+      console.error(`[Share Debug] Error sharing to ${platform}:`, err);
+      if (typeof toast !== "undefined") {
+        toast.error(`Share error: ${err?.message || "Failed to open share option"}`);
+      }
     }
   };
 
