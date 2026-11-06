@@ -139,14 +139,14 @@ export async function shareToSocial(
 ): Promise<boolean> {
   const shareUrl = formatShareUrl(opts.url);
   const message = formatShareMessage(opts.text, shareUrl, opts.authorName);
-  const mediaImageUrl = resolveShareImageThumbnail(opts.mediaUrl);
+  const mediaImageUrl = resolveShareImageThumbnail(opts.mediaUrl) || opts.mediaUrl;
 
   const encodedMessage = encodeURIComponent(message);
   const encodedUrl = encodeURIComponent(shareUrl);
 
   console.log(`[Share Debug] Execution starting for ${platform}:`, { shareUrl, mediaUrl: opts.mediaUrl, mediaImageUrl });
 
-  // 1. Check native Android Bridge if running inside Android App
+  // 1. Native Android App Bridge Priority (downloads photo/video & sends ACTION_SEND intent directly to app)
   if (typeof window !== "undefined" && window.AndroidShare) {
     if (platform === "native") {
       if (opts.mediaUrl && window.AndroidShare.shareMedia) {
@@ -195,54 +195,46 @@ export async function shareToSocial(
     }
   }
 
-  // 3. Handle Native Web Share API with File Attachment Fallback
-  if (platform === "native") {
-    if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+  // 3. Unified Native Web Share API with File Blob Attachment (Mobile browsers & WebViews)
+  if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+    if (mediaImageUrl && !mediaImageUrl.endsWith(".m3u8")) {
       try {
-        if (mediaImageUrl && !mediaImageUrl.endsWith(".m3u8")) {
-          try {
-            const res = await fetch(mediaImageUrl, { mode: "cors", cache: "force-cache" });
-            if (res.ok) {
-              const blob = await res.blob();
-              const ext = blob.type.startsWith("video/") ? "mp4" : "jpg";
-              const file = new File([blob], `flicks-media.${ext}`, { type: blob.type || "image/jpeg" });
-              if (navigator.canShare && navigator.canShare({ files: [file] })) {
-                console.log("[Share Debug] Triggering Web Share API with media file attachment");
-                await navigator.share({
-                  title: opts.title || "Flicks India",
-                  text: message,
-                  url: shareUrl,
-                  files: [file],
-                });
-                return true;
-              }
-            }
-          } catch (fileErr) {
-            console.warn("[shareUtils] Web Share file attachment failed, falling back to text:", fileErr);
+        const res = await fetch(mediaImageUrl, { mode: "cors", cache: "force-cache" });
+        if (res.ok) {
+          const blob = await res.blob();
+          const ext = blob.type.startsWith("video/") ? "mp4" : "jpg";
+          const file = new File([blob], `flicks-media.${ext}`, { type: blob.type || "image/jpeg" });
+          if (navigator.canShare && navigator.canShare({ files: [file] })) {
+            console.log(`[Share Debug] Triggering Native Web Share API with File Blob for ${platform}`);
+            await navigator.share({
+              title: opts.title || "Flicks India",
+              text: message,
+              url: shareUrl,
+              files: [file],
+            });
+            return true;
           }
         }
-
-        console.log("[Share Debug] Triggering Web Share API text payload");
-        await navigator.share({
-          title: opts.title || "Flicks India",
-          text: message,
-          url: shareUrl,
-        });
-        return true;
-      } catch (err) {
-        if ((err as DOMException)?.name === "AbortError") return false;
-        const copied = await copyToClipboard(message);
-        if (copied) toast.success("Share text & link copied to clipboard!");
-        return copied;
+      } catch (fileErr) {
+        console.warn("[shareUtils] Web Share file blob fetch/attach failed, attempting text share:", fileErr);
       }
-    } else {
-      const copied = await copyToClipboard(message);
-      if (copied) toast.success("Share text & link copied to clipboard!");
-      return copied;
+    }
+
+    try {
+      console.log(`[Share Debug] Triggering Native Web Share API text payload for ${platform}`);
+      await navigator.share({
+        title: opts.title || "Flicks India",
+        text: message,
+        url: shareUrl,
+      });
+      return true;
+    } catch (err) {
+      if ((err as DOMException)?.name === "AbortError") return false;
+      // Fallback below
     }
   }
 
-  // 4. Direct Web Intents for browsers
+  // 4. Direct Web Intents for desktop browsers (falling back to Open Graph meta tags)
   let targetUrl = "";
   switch (platform) {
     case "whatsapp":
