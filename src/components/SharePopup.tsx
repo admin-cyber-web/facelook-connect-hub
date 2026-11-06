@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Link2, Share2, Check, X, ImageIcon } from "lucide-react";
 import { shareToSocial, type SocialPlatform, formatShareUrl } from "@/lib/shareUtils";
@@ -119,7 +119,6 @@ const PLATFORMS: {
 
 const SharePopup: React.FC<SharePopupProps> = ({ post, onClose, onShare }) => {
   const [copied, setCopied] = useState(false);
-  const touchHandledRef = useRef(false);
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
@@ -178,13 +177,13 @@ const SharePopup: React.FC<SharePopupProps> = ({ post, onClose, onShare }) => {
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-[10000] flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <div className="fixed inset-0 z-[10000] flex items-end sm:items-center justify-center p-0 sm:p-4 pointer-events-auto">
         {/* Backdrop */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 bg-black/60 backdrop-blur-md"
+          className="fixed inset-0 bg-black/60 backdrop-blur-md pointer-events-auto cursor-pointer"
           onClick={onClose}
         />
 
@@ -194,7 +193,7 @@ const SharePopup: React.FC<SharePopupProps> = ({ post, onClose, onShare }) => {
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: "100%", opacity: 0 }}
           transition={{ type: "spring", damping: 25, stiffness: 350 }}
-          className="relative w-full max-w-md bg-[#0F172A] border border-white/10 rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl z-[10001] overflow-hidden"
+          className="relative w-full max-w-md bg-[#0F172A] border border-white/10 rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl z-[10001] overflow-hidden pointer-events-auto select-none"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header Bar */}
@@ -221,32 +220,30 @@ const SharePopup: React.FC<SharePopupProps> = ({ post, onClose, onShare }) => {
               </div>
             </div>
             <button
+              type="button"
               onClick={onClose}
-              className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white/60 hover:text-white transition-colors"
+              className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white/60 hover:text-white transition-colors cursor-pointer pointer-events-auto relative z-10"
             >
               <X size={18} />
             </button>
           </div>
 
           {/* Platform Share Options Grid */}
-          <div className="grid grid-cols-4 gap-3 py-5">
+          <div className="grid grid-cols-4 gap-3 py-5 relative z-10">
             {PLATFORMS.map(({ id, label, bg, icon }) => (
               <button
                 key={id}
-                onClick={() => handleShare(id)}
-                onTouchEnd={(e) => {
+                type="button"
+                onClick={(e) => {
                   e.preventDefault();
-                  if (touchHandledRef.current) return;
-                  touchHandledRef.current = true;
-                  handleShare(id);
-                  setTimeout(() => {
-                    touchHandledRef.current = false;
-                  }, 500);
+                  e.stopPropagation();
+                  void handleShare(id);
                 }}
-                className="flex flex-col items-center gap-2 p-2.5 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 active:scale-95 transition-all text-center group cursor-pointer"
+                className="flex flex-col items-center gap-2 p-2.5 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 active:scale-95 transition-all text-center group cursor-pointer pointer-events-auto relative z-10 select-none"
+                style={{ cursor: "pointer" }}
               >
                 <div
-                  className="w-11 h-11 rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform"
+                  className="w-11 h-11 rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform pointer-events-none"
                   style={{ background: id === "copy" && copied ? "#22c55e" : bg }}
                 >
                   {id === "copy" && copied ? (
@@ -255,7 +252,7 @@ const SharePopup: React.FC<SharePopupProps> = ({ post, onClose, onShare }) => {
                     icon
                   )}
                 </div>
-                <span className="text-[11px] font-semibold text-white/80 group-hover:text-white truncate max-w-full">
+                <span className="text-[11px] font-semibold text-white/80 group-hover:text-white truncate max-w-full pointer-events-none">
                   {id === "copy" && copied ? "Copied!" : label}
                 </span>
               </button>
@@ -263,10 +260,16 @@ const SharePopup: React.FC<SharePopupProps> = ({ post, onClose, onShare }) => {
           </div>
 
           {/* Native Share Button */}
-          <div className="pt-2 border-t border-white/10">
+          <div className="pt-2 border-t border-white/10 relative z-10">
             <button
-              onClick={() => handleShare("native")}
-              className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-blue-600 to-purple-600 text-white font-bold text-sm flex items-center justify-center gap-2 active:scale-98 transition-transform shadow-lg"
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                void handleShare("native");
+              }}
+              className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-blue-600 to-purple-600 text-white font-bold text-sm flex items-center justify-center gap-2 active:scale-98 transition-transform shadow-lg cursor-pointer pointer-events-auto relative z-10"
+              style={{ cursor: "pointer" }}
             >
               <Share2 size={18} />
               <span>Share via OS Share Sheet</span>
