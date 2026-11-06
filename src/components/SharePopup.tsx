@@ -4,6 +4,8 @@ import { Link2, Share2, Check, X, ImageIcon } from "lucide-react";
 import { toast } from "sonner";
 import { shareToSocial, type SocialPlatform, formatShareUrl } from "@/lib/shareUtils";
 
+console.log("SHARE MODAL MOUNTED & CLICKABLE");
+
 export interface SharePostData {
   id: string;
   title?: string;
@@ -122,12 +124,13 @@ const SharePopup: React.FC<SharePopupProps> = ({ post, onClose, onShare }) => {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
+    console.log("SHARE MODAL COMPONENT MOUNTED & CLICKABLE for post:", post.id);
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
     document.addEventListener("keydown", handleKey);
     return () => document.removeEventListener("keydown", handleKey);
-  }, [onClose]);
+  }, [onClose, post.id]);
 
   const targetUrl = formatShareUrl(
     post.share_url || `/post/${encodeURIComponent(post.id)}`,
@@ -153,7 +156,7 @@ const SharePopup: React.FC<SharePopupProps> = ({ post, onClose, onShare }) => {
     (/video|reel/i.test(`${post.type || ""}`) ? "video" : "image");
 
   const handleShare = async (platform: SocialPlatform) => {
-    console.log(`[Share Debug] Clicking ${platform} with URL: ${targetUrl}`);
+    console.log(`[Share Debug] SHARE BUTTON CLICKED for ${platform} with URL: ${targetUrl}`);
     if (typeof toast !== "undefined") {
       toast.info(`Sharing via ${platform.toUpperCase()}...`);
     }
@@ -190,105 +193,108 @@ const SharePopup: React.FC<SharePopupProps> = ({ post, onClose, onShare }) => {
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-[10000] flex items-end sm:items-center justify-center p-0 sm:p-4 pointer-events-auto">
-        {/* Backdrop */}
+      <div className="fixed inset-0 z-[99998] pointer-events-auto">
+        {/* Backdrop (separate layer at z-[99998]) */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 bg-black/60 backdrop-blur-md pointer-events-auto cursor-pointer"
+          className="fixed inset-0 bg-black/60 backdrop-blur-md pointer-events-auto cursor-pointer z-[99998]"
           onClick={onClose}
         />
 
-        {/* Modal Card */}
-        <motion.div
-          initial={{ y: "100%", opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          exit={{ y: "100%", opacity: 0 }}
-          transition={{ type: "spring", damping: 25, stiffness: 350 }}
-          className="relative w-full max-w-md bg-[#0F172A] border border-white/10 rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl z-[10001] overflow-hidden pointer-events-auto select-none"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {/* Header Bar */}
-          <div className="flex items-center justify-between pb-4 border-b border-white/10">
-            <div className="flex items-center gap-3 min-w-0">
-              {imagePreview ? (
-                <img
-                  src={imagePreview}
-                  alt=""
-                  className="w-12 h-12 rounded-xl object-cover border border-white/10 shrink-0"
-                />
-              ) : (
-                <div className="w-12 h-12 rounded-xl bg-white/10 border border-white/10 flex items-center justify-center shrink-0 text-pink-400">
-                  <ImageIcon size={22} />
+        {/* Modal Container Layer at z-[99999] */}
+        <div className="fixed inset-0 z-[99999] flex items-end sm:items-center justify-center p-0 sm:p-4 pointer-events-none">
+          {/* Modal Card at z-[100000] with pointer-events-auto */}
+          <motion.div
+            initial={{ y: "100%", opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: "100%", opacity: 0 }}
+            transition={{ type: "spring", damping: 25, stiffness: 350 }}
+            className="relative w-full max-w-md bg-[#0F172A] border border-white/10 rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl z-[100000] overflow-hidden pointer-events-auto select-none"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header Bar */}
+            <div className="flex items-center justify-between pb-4 border-b border-white/10 pointer-events-auto">
+              <div className="flex items-center gap-3 min-w-0">
+                {imagePreview ? (
+                  <img
+                    src={imagePreview}
+                    alt=""
+                    className="w-12 h-12 rounded-xl object-cover border border-white/10 shrink-0"
+                  />
+                ) : (
+                  <div className="w-12 h-12 rounded-xl bg-white/10 border border-white/10 flex items-center justify-center shrink-0 text-pink-400">
+                    <ImageIcon size={22} />
+                  </div>
+                )}
+                <div className="min-w-0">
+                  <p className="text-white font-bold text-sm truncate">
+                    {post.author ? `Shared by ${post.author}` : "Share Post"}
+                  </p>
+                  <p className="text-white/50 text-xs truncate max-w-[220px]">
+                    {captionText}
+                  </p>
                 </div>
-              )}
-              <div className="min-w-0">
-                <p className="text-white font-bold text-sm truncate">
-                  {post.author ? `Shared by ${post.author}` : "Share Post"}
-                </p>
-                <p className="text-white/50 text-xs truncate max-w-[220px]">
-                  {captionText}
-                </p>
               </div>
-            </div>
-            <button
-              type="button"
-              onClick={onClose}
-              className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white/60 hover:text-white transition-colors cursor-pointer pointer-events-auto relative z-10"
-            >
-              <X size={18} />
-            </button>
-          </div>
-
-          {/* Platform Share Options Grid */}
-          <div className="grid grid-cols-4 gap-3 py-5 relative z-10">
-            {PLATFORMS.map(({ id, label, bg, icon }) => (
               <button
-                key={id}
+                type="button"
+                onClick={onClose}
+                className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white/60 hover:text-white transition-colors cursor-pointer pointer-events-auto relative z-10"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Platform Share Options Grid */}
+            <div className="grid grid-cols-4 gap-3 py-5 relative z-10 pointer-events-auto">
+              {PLATFORMS.map(({ id, label, bg, icon }) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    void handleShare(id);
+                  }}
+                  className="flex flex-col items-center gap-2 p-2.5 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 active:scale-95 transition-all text-center group cursor-pointer pointer-events-auto relative z-20 select-none"
+                  style={{ cursor: "pointer" }}
+                >
+                  <div
+                    className="w-11 h-11 rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform pointer-events-none"
+                    style={{ background: id === "copy" && copied ? "#22c55e" : bg }}
+                  >
+                    {id === "copy" && copied ? (
+                      <Check size={20} className="text-white" />
+                    ) : (
+                      icon
+                    )}
+                  </div>
+                  <span className="text-[11px] font-semibold text-white/80 group-hover:text-white truncate max-w-full pointer-events-none">
+                    {id === "copy" && copied ? "Copied!" : label}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            {/* Native Share Button */}
+            <div className="pt-2 border-t border-white/10 relative z-10 pointer-events-auto">
+              <button
                 type="button"
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
-                  void handleShare(id);
+                  void handleShare("native");
                 }}
-                className="flex flex-col items-center gap-2 p-2.5 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 active:scale-95 transition-all text-center group cursor-pointer pointer-events-auto relative z-10 select-none"
+                className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-blue-600 to-purple-600 text-white font-bold text-sm flex items-center justify-center gap-2 active:scale-98 transition-transform shadow-lg cursor-pointer pointer-events-auto relative z-20"
                 style={{ cursor: "pointer" }}
               >
-                <div
-                  className="w-11 h-11 rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform pointer-events-none"
-                  style={{ background: id === "copy" && copied ? "#22c55e" : bg }}
-                >
-                  {id === "copy" && copied ? (
-                    <Check size={20} className="text-white" />
-                  ) : (
-                    icon
-                  )}
-                </div>
-                <span className="text-[11px] font-semibold text-white/80 group-hover:text-white truncate max-w-full pointer-events-none">
-                  {id === "copy" && copied ? "Copied!" : label}
-                </span>
+                <Share2 size={18} />
+                <span>Share via OS Share Sheet</span>
               </button>
-            ))}
-          </div>
-
-          {/* Native Share Button */}
-          <div className="pt-2 border-t border-white/10 relative z-10">
-            <button
-              type="button"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                void handleShare("native");
-              }}
-              className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-blue-600 to-purple-600 text-white font-bold text-sm flex items-center justify-center gap-2 active:scale-98 transition-transform shadow-lg cursor-pointer pointer-events-auto relative z-10"
-              style={{ cursor: "pointer" }}
-            >
-              <Share2 size={18} />
-              <span>Share via OS Share Sheet</span>
-            </button>
-          </div>
-        </motion.div>
+            </div>
+          </motion.div>
+        </div>
       </div>
     </AnimatePresence>
   );
