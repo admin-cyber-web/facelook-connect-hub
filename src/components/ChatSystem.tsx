@@ -1997,9 +1997,24 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
             if (p.user_id) ids.add(p.user_id);
           });
         setOnlineUsers(ids);
-      }).subscribe(async (status) => {
-        if (status === "SUBSCRIBED" && activeStatus && !isActiveHidden) {
-          await ch.track({ user_id: userId });
+      }).subscribe((status) => {
+        if (status === "SUBSCRIBED") {
+          if (activeStatus && !isActiveHidden) {
+            void ch.track({ user_id: userId });
+          }
+          return;
+        }
+        // Gracefully handle realtime channel errors inside the Android WebView
+        // so CHANNEL_ERROR / TIMED_OUT / CLOSED don't spam the console or break
+        // feed/video state. Supabase's Phoenix client retries automatically;
+        // we only log once and keep the channel alive.
+        if (
+          status === "CHANNEL_ERROR" ||
+          status === "TIMED_OUT" ||
+          status === "CLOSED"
+        ) {
+          console.warn("[Presence] Realtime channel status:", status);
+          return;
         }
       });
       presenceChannelRef.current = ch;

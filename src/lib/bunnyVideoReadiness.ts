@@ -77,6 +77,19 @@ export async function fetchBunnyVideoReadiness(
         readiness.set(videoId, result.statuses?.[videoId]?.ready === true);
       });
     } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      // Network / fetch failures (e.g. "Failed to fetch" inside the Android
+      // WebView when the backend is temporarily unreachable) must not blank
+      // out the feed. Default the affected videos as ready so reels still
+      // render and play instead of being filtered out.
+      if (/failed to fetch|network|fetch/i.test(message)) {
+        console.warn(
+          "[Bunny] Feed readiness network error — defaulting batch videos ready:",
+          message,
+        );
+        batch.forEach((videoId) => readiness.set(videoId, true));
+        continue;
+      }
       console.warn("[Bunny] Feed readiness check failed:", error);
     }
   }
