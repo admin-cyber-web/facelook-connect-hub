@@ -3,6 +3,11 @@ import App from "./App.tsx";
 import "./index.css";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { installGlobalInteractionIsolation } from "./lib/globalInteractionIsolation";
+import eruda from "eruda";
+
+if (typeof window !== "undefined") {
+  eruda.init();
+}
 
 const cleanupInteractionIsolation = installGlobalInteractionIsolation();
 if (import.meta.hot) {

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+        </trust-anchors>
+    </base-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">localhost</domain>
+        <domain includeSubdomains="true">b-cdn.net</domain>
+        <domain includeSubdomains="true">bunnycdn.com</domain>
+        <domain includeSubdomains="true">bunny.net</domain>
+        <domain includeSubdomains="true">supabase.co</domain>
+        <domain includeSubdomains="true">supabase.in</domain>
+        <domain includeSubdomains="true">flicksindia.online</domain>
+    </domain-config>
+</network-security-config>

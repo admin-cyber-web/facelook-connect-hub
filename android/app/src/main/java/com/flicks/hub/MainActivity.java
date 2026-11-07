@@ -48,6 +48,7 @@ public class MainActivity extends BridgeActivity implements ModifiedMainActivity
                 settings.setAllowFileAccessFromFileURLs(true);
                 settings.setAllowUniversalAccessFromFileURLs(true);
                 settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
+                settings.setMediaPlaybackRequiresUserGesture(false);
 
                 boolean isDebuggable = (getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0;
                 if (isDebuggable) {

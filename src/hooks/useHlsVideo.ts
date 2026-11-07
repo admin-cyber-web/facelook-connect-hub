@@ -64,13 +64,16 @@ export function useHlsVideo(
           maxMaxBufferLength: preloadOnlyRef.current ? 5 : 60,
           capLevelToPlayerSize: true,
           fetchSetup: (context, initParams) => {
-            const isMediaSegment = /\.(?:ts|m4s|mp4)(?:$|[?#])/i.test(
-              new URL(context.url).pathname,
-            );
-            return new Request(context.url, {
-              ...initParams,
-              ...(isMediaSegment ? { cache: "force-cache" } : {}),
-            });
+            try {
+              const pathname = new URL(context.url, window.location.href).pathname;
+              const isMediaSegment = /\.(?:ts|m4s|mp4)(?:$|[?#])/i.test(pathname);
+              return new Request(context.url, {
+                ...initParams,
+                ...(isMediaSegment ? { cache: "force-cache" } : {}),
+              });
+            } catch {
+              return new Request(context.url, initParams);
+            }
           },
         });
         hlsRef.current = hls;

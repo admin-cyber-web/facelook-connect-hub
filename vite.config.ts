@@ -5,25 +5,17 @@ import fs from "fs";
 import { createDynamicShareResponse } from "./src/lib/serverShareMetadata";
 
 // ── Sitemap middleware plugin ──────────────────────────────────────────────────
-// Serves /sitemap.xml in dev + preview with a 1-hour in-memory cache so
-// Googlebot never triggers a live Supabase hit on repeat crawls.
-// In production the static public/sitemap.xml (written by prebuild) is served
-// as a plain file — this plugin adds the Cache-Control header to that too.
 function sitemapPlugin(): Plugin {
-  const SUPABASE_URL = process.env.VITE_SUPABASE_URL || "";
-  const SUPABASE_KEY = process.env.VITE_SUPABASE_ANON_KEY || "";
+  const SUPABASE_URL = process.env.VITE_SUPABASE_URL || "https://rxwvvhvretostbiknuek.supabase.co";
+  const SUPABASE_KEY = process.env.VITE_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ4d3Z2aHZyZXRvc3RiaWtudWVrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg4MzEyMjMsImV4cCI6MjA5NDQwNzIyM30.8l_wmT13HKJc8TCK5UIw9KVK-iencj0YXD4aIjvy5rw";
   const BASE_URL = "https://flicksindia.online";
   const PAGE_SIZE = 1000;
-  // Sitemap protocol limit is 50,000 URLs; this live fallback emits one static
-  // homepage URL, leaving room for at most 49,999 public post URLs.
   const MAX_DYNAMIC_URLS = 49_999;
   const TTL_MS = 60 * 60 * 1000; // 1 hour
 
-  // Module-level cache — survives the entire Vite dev-server session
   let cache: { xml: string; builtAt: number } | null = null;
 
   async function buildSitemapXml(): Promise<string> {
-    // Lazy-import supabase-js so the plugin only pulls it in when needed
     const { createClient } = await import("@supabase/supabase-js");
     const sb = createClient(SUPABASE_URL, SUPABASE_KEY, {
       auth: { persistSession: false },
@@ -78,12 +70,10 @@ function sitemapPlugin(): Plugin {
     );
   }
 
-  // Shared handler — used by both configureServer and configurePreviewServer
   function attachSitemapHandler(middlewares: any) {
     middlewares.use("/sitemap.xml", async (req: any, res: any, next: any) => {
       const now = Date.now();
 
-      // 1. Return in-memory cache if still fresh
       if (cache && now - cache.builtAt < TTL_MS) {
         res.setHeader("Content-Type", "application/xml; charset=utf-8");
         res.setHeader("Cache-Control", "public, max-age=3600");
@@ -93,7 +83,6 @@ function sitemapPlugin(): Plugin {
         return;
       }
 
-      // 2. Try to serve the pre-built static file (written by `prebuild`)
       const staticPath = path.resolve(__dirname, "public", "sitemap.xml");
       if (fs.existsSync(staticPath)) {
         const xml = fs.readFileSync(staticPath, "utf8");
@@ -106,7 +95,6 @@ function sitemapPlugin(): Plugin {
         return;
       }
 
-      // 3. Fallback — generate live from Supabase (first-ever dev cold start)
       try {
         const xml = await buildSitemapXml();
         cache = { xml, builtAt: now };
@@ -133,8 +121,6 @@ function sitemapPlugin(): Plugin {
   };
 }
 
-// Vite's dev and preview servers are also the Replit deployment runtime.
-// Serve raw per-item metadata to social crawlers before the SPA fallback runs.
 function socialShareMetadataPlugin(): Plugin {
   function attachShareMetadataHandler(middlewares: any) {
     middlewares.use(async (req: any, res: any, next: any) => {
@@ -179,10 +165,6 @@ function socialShareMetadataPlugin(): Plugin {
   };
 }
 
-// ── APK download middleware plugin ────────────────────────────────────────────
-// Serves /download/apk → app-release-signed.apk (or public/app.apk fallback)
-// with correct Content-Type and Content-Disposition so browsers trigger a save.
-// The binary is gitignored so this only runs in the Replit dev environment.
 function apkDownloadPlugin(): Plugin {
   const candidates = [
     path.resolve(__dirname, "app-release-signed.apk"),
@@ -223,6 +205,21 @@ function apkDownloadPlugin(): Plugin {
 
 export default defineConfig({
   base: "/",
+
+  define: {
+    "import.meta.env.VITE_GOOGLE_WEB_CLIENT_ID": JSON.stringify(
+      process.env.VITE_GOOGLE_WEB_CLIENT_ID ||
+        "82961323095-8haq8nrdre1l518p4k8pdlhl6boo21ed.apps.googleusercontent.com"
+    ),
+    "import.meta.env.VITE_SUPABASE_URL": JSON.stringify(
+      process.env.VITE_SUPABASE_URL ||
+        "https://rxwvvhvretostbiknuek.supabase.co"
+    ),
+    "import.meta.env.VITE_SUPABASE_ANON_KEY": JSON.stringify(
+      process.env.VITE_SUPABASE_ANON_KEY ||
+        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ4d3Z2aHZyZXRvc3RiaWtudWVrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg4MzEyMjMsImV4cCI6MjA5NDQwNzIyM30.8l_wmT13HKJc8TCK5UIw9KVK-iencj0YXD4aIjvy5rw"
+    ),
+  },
 
   server: {
     host: "0.0.0.0",
@@ -268,14 +265,10 @@ export default defineConfig({
     reportCompressedSize: false,
     chunkSizeWarningLimit: 600,
     rollupOptions: {
-      // External removed here so the social login module is bundled correctly for Android WebView
       onwarn(warning, warn) {
         if (warning.code === "CIRCULAR_DEPENDENCY") {
           return;
         }
-        // A missing native plugin must never ship as a bare package import in
-        // the Android WebView. Rollup otherwise externalizes unresolved imports,
-        // which fails at runtime with "Failed to resolve module specifier".
         if (
           warning.code === "UNRESOLVED_IMPORT" &&
           (warning.message.includes("@capgo/capacitor-social-login") ||

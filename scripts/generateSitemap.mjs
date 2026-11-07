@@ -3,8 +3,8 @@ import fs from 'fs';
 import path from 'path';
 import ws from 'ws';
 
-const supabaseUrl = process.env.VITE_SUPABASE_URL || "";
-const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY;
+const supabaseUrl = process.env.VITE_SUPABASE_URL || "https://rxwvvhvretostbiknuek.supabase.co";
+const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ4d3Z2aHZyZXRvc3RiaWtudWVrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg4MzEyMjMsImV4cCI6MjA5NDQwNzIyM30.8l_wmT13HKJc8TCK5UIw9KVK-iencj0YXD4aIjvy5rw";
 
 if (!supabaseAnonKey) {
   console.error("[Sitemap] ❌ Missing Supabase Anon Key!");
@@ -20,7 +20,6 @@ const SITE_URL = "https://www.flicksindia.online";
 const PAGE_SIZE = 1000;
 const MAX_SITEMAP_URLS = 50000;
 const STATIC_URL_COUNT = 3;
-// Keep a small amount of headroom for the static URLs in the sitemap.
 const MAX_DYNAMIC_URLS = MAX_SITEMAP_URLS - STATIC_URL_COUNT;
 const CACHE_TTL_MS = 5 * 60 * 1000;
 const CACHE_FILE = path.join(process.cwd(), '.cache', 'sitemap-data.json');
@@ -49,8 +48,6 @@ async function fetchPaginated(label, buildQuery, maxRows = MAX_DYNAMIC_URLS) {
       throw new Error(`${label} query failed: ${error?.message || error}`);
     }
 
-    // Supabase normally fulfills the promise even when the response contains
-    // an error, so checking only Promise rejection is not sufficient.
     if (response?.error) {
       throw new Error(`${label} query failed: ${response.error.message || response.error}`);
     }
@@ -81,7 +78,6 @@ async function generateSitemap() {
   console.log("[Sitemap] Generating sitemap.xml via Supabase...");
 
   try {
-    // Fetch public posts + active stories (last 24 h) in parallel
     const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
     let cached;
@@ -91,8 +87,7 @@ async function generateSitemap() {
         cached = JSON.parse(fs.readFileSync(CACHE_FILE, 'utf8'));
       }
     } catch {
-      // A missing, stale, or malformed local artifact is not a data source.
-      // Fetching below preserves the existing error behavior.
+      // Ignore cache load error
     }
 
     const [posts, stories] = Array.isArray(cached?.posts) && Array.isArray(cached?.stories)
@@ -137,7 +132,7 @@ async function generateSitemap() {
       xmlItems.push(`  <url>\n    <loc>${escapeXml(`${SITE_URL}/post/${post.id}`)}</loc>\n    <priority>0.8</priority>\n    <changefreq>weekly</changefreq>${lastmod ? `\n    <lastmod>${escapeXml(lastmod)}</lastmod>` : ''}\n  </url>`);
     });
 
-    // 4. Active Story Pages (ephemeral — high crawl priority while live)
+    // 4. Active Story Pages
     boundedStories.forEach(story => {
       const lastmod = story.created_at ? String(story.created_at).slice(0, 10) : '';
       xmlItems.push(`  <url>\n    <loc>${escapeXml(`${SITE_URL}/story/${story.id}`)}</loc>\n    <priority>0.6</priority>\n    <changefreq>daily</changefreq>${lastmod ? `\n    <lastmod>${escapeXml(lastmod)}</lastmod>` : ''}\n  </url>`);

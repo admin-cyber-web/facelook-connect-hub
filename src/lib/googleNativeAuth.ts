@@ -1,15 +1,15 @@
 import { SocialLogin } from "@capgo/capacitor-social-login";
 import { supabase } from "@/lib/supabaseClient";
 
+const DEFAULT_GOOGLE_WEB_CLIENT_ID =
+  "82961323095-8haq8nrdre1l518p4k8pdlhl6boo21ed.apps.googleusercontent.com";
+
 let initializePromise: Promise<void> | null = null;
 
 function initializeGoogleLogin() {
-  const webClientId = import.meta.env.VITE_GOOGLE_WEB_CLIENT_ID?.trim();
-  if (!webClientId) {
-    throw new Error(
-      "Native Google sign-in needs the VITE_GOOGLE_WEB_CLIENT_ID value configured for this Android build.",
-    );
-  }
+  const webClientId =
+    import.meta.env.VITE_GOOGLE_WEB_CLIENT_ID?.trim() ||
+    DEFAULT_GOOGLE_WEB_CLIENT_ID;
 
   if (!initializePromise) {
     initializePromise = SocialLogin.initialize({

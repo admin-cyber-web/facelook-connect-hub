@@ -8,6 +8,7 @@ const config: CapacitorConfig = {
     // Ensures local bundled assets are served from dist via https://localhost
     androidScheme: 'https',
     hostname: 'localhost',
+    cleartext: true,
     // Allow all in-app navigation routes & external API hosts directly inside native WebView
     allowNavigation: ['*'],
   },
@@ -19,7 +20,10 @@ const config: CapacitorConfig = {
   plugins: {
     SocialLogin: {
       providers: {
-        google: true,
+        google: {
+          webClientId: '82961323095-8haq8nrdre1l518p4k8pdlhl6boo21ed.apps.googleusercontent.com',
+          mode: 'online',
+        },
         apple: false,
         facebook: false,
         twitter: false,
