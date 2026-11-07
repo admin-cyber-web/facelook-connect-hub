@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { apiUrl } from "@/lib/apiUrl";
 
 export type BunnyVideoStatusState = {
   phase: "idle" | "checking" | "processing" | "ready" | "failed";
@@ -83,7 +84,7 @@ export function useBunnyVideoStatus(videoId: string | null, enabled: boolean) {
       }));
 
       try {
-        const response = await fetch("/api/videos/status", {
+        const response = await fetch(apiUrl("/api/videos/status"), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ videoId }),

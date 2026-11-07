@@ -1,3 +1,4 @@
+import { apiUrl } from "@/lib/apiUrl";
 import { getBunnyVideoId } from "@/hooks/useBunnyVideoStatus";
 
 type VideoRow = {
@@ -41,7 +42,7 @@ export async function fetchBunnyVideoReadiness(
   for (let offset = 0; offset < uniqueIds.length; offset += 30) {
     const batch = uniqueIds.slice(offset, offset + 30);
     try {
-      const response = await fetch("/api/videos/status", {
+      const response = await fetch(apiUrl("/api/videos/status"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ videoIds: batch }),

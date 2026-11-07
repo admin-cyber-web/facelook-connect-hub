@@ -211,6 +211,9 @@ export default defineConfig({
       process.env.VITE_GOOGLE_WEB_CLIENT_ID ||
         "82961323095-8haq8nrdre1l518p4k8pdlhl6boo21ed.apps.googleusercontent.com"
     ),
+    "import.meta.env.VITE_API_BASE_URL": JSON.stringify(
+      process.env.VITE_API_BASE_URL || "https://flicksindia.online"
+    ),
     "import.meta.env.VITE_SUPABASE_URL": JSON.stringify(
       process.env.VITE_SUPABASE_URL ||
         "https://rxwvvhvretostbiknuek.supabase.co"

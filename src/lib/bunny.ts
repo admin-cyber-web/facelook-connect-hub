@@ -8,6 +8,8 @@
  *   4. All media URLs are stored in DB and rendered from Bunny CDN
  */
 
+import { apiUrl } from "@/lib/apiUrl";
+
 export type BunnyVideoResult = {
   videoId: string;
   libraryId: string;
@@ -28,7 +30,7 @@ export type BunnyUploadResult = {
  * Returns video metadata including playback URLs.
  */
 export async function createBunnyVideo(title?: string): Promise<BunnyVideoResult> {
-  const response = await fetch("/api/videos/create", {
+  const response = await fetch(apiUrl("/api/videos/create"), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -142,7 +144,7 @@ function encodeBase64(value: string): string {
  * Returns the permanent CDN URL.
  */
 export async function uploadBunnyImage(file: File): Promise<BunnyUploadResult> {
-  const response = await fetch("/api/upload/image", {
+  const response = await fetch(apiUrl("/api/upload/image"), {
     method: "POST",
     body: formDataFromFile(file),
   });
