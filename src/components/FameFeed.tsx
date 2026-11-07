@@ -3613,28 +3613,6 @@ const SingleReelBlock = ({
       <div className="flex min-w-0 items-center gap-2">
         <div className="flex -space-x-2" aria-hidden="true">
           {viewerPreviews.length ? (
-      {/* ── Chat 19 Section ───────────────────────────────────────────── */}
-      <div className="relative mx-3 mt-4 mb-4 rounded-2xl overflow-hidden" style={{ aspectRatio: "16/9" }}>
-        <div className="absolute inset-0"
-          style={{backgroundImage: `url("https://flicksindiacdn.b-cdn.net/2cc5c863-cea6-441e-9efc-e2a94b959950.jpeg")`, backgroundSize: "cover", backgroundPosition: "center"}}
-        />
-        <div className="absolute inset-0 bg-black/60" />
-        <div className="relative z-10 flex flex-col items-center justify-center h-full text-center text-white p-6 sm:p-8">
-          <h2 className="text-xl sm:text-2xl font-black mb-3 sm:mb-4 leading-tight" style={{textShadow: "0 2px 14px rgba(0,0,0,.85)", color: "#FFFFFF"}}>
-            CHAT 19
-          </h2>
-          <p className="text-[12px] sm:text-[14px] mb-6 sm:mb-8 max-w-sm mx-auto leading-relaxed" style={{textShadow: "0 1px 8px rgba(0,0,0,.8)", color: "rgba(255,255,255,.95)"}}>
-            क्या दोस्तों या अनजाने लोगों के साथ मस्ती करना चाहते हैं? चैट 19 जॉइन करें।
-          </p>
-          <button type="button" className="relative inline-flex items-center justify-center px-8 sm:px-10 py-3 sm:py-3.5 rounded-full font-black text-black uppercase tracking-wider text-[11px] sm:text-[12px] overflow-hidden group animate-pulse bg-white border-2 border-red-500 shadow-lg" onClick={() => { window.location.href = "/chat-19"; }}>
-            <span className="absolute inset-0 rounded-full pointer-events-none -z-10" animate={{boxShadow: ["0 0 0px rgba(255,0,0,0)", "0 0 24px rgba(255,0,0,0.55)", "0 0 0px rgba(255,0,0,0)"], scale: [1, 1.15, 1]}} transition={{repeat: Infinity, duration: 2.2, ease: "easeInOut"}}>
-            </span>
-            Open Now
-          </button>
-        </div>
-      </div>
-
-      <section className="reel-engagement-footer" aria-label="Reel engagement">
             viewerPreviews.map((viewer) => <span key={viewer.id} title={viewer.full_name} className="grid h-6 w-6 place-items-center overflow-hidden rounded-full border-2 border-[#120b0f] bg-[#45313a] text-[8px] font-bold text-white/75">{viewer.avatar_url ? <img src={viewer.avatar_url} alt="" className="h-full w-full object-cover" /> : viewer.full_name?.[0]?.toUpperCase() || "?"}</span>)
           ) : (
             Array.from({ length: Math.min(3, Math.max(1, Number(post.views_count || 0) ? 3 : 1)) }, (_, index) => <span key={index} className="grid h-6 w-6 place-items-center rounded-full border-2 border-[#120b0f] bg-[#45313a] text-[8px] font-bold text-white/60"><Users size={11} /></span>)
