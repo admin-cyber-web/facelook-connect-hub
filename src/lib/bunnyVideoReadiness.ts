@@ -50,7 +50,28 @@ export async function fetchBunnyVideoReadiness(
         console.warn("[Bunny] Feed readiness check failed:", response.status);
         continue;
       }
-      const result = await response.json() as { statuses?: Record<string, StatusResult> };
+
+      // Read raw text first so empty/HTML/malformed bodies cannot throw an
+      // unhandled SyntaxError from response.json(). Handle gracefully instead.
+      const responseText = await response.text();
+      if (!responseText || !responseText.trim()) {
+        console.warn("[Bunny] Feed readiness check failed: empty response body");
+        continue;
+      }
+      if (/^\s*</i.test(responseText)) {
+        console.warn("[Bunny] Feed readiness check failed: received HTML instead of JSON");
+        continue;
+      }
+      let result: { statuses?: Record<string, StatusResult> };
+      try {
+        result = JSON.parse(responseText);
+      } catch {
+        console.warn(
+          "[Bunny] Feed readiness check failed: malformed JSON response",
+          responseText.slice(0, 200),
+        );
+        continue;
+      }
       batch.forEach((videoId) => {
         readiness.set(videoId, result.statuses?.[videoId]?.ready === true);
       });
