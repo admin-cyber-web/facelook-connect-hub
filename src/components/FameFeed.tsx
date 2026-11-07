@@ -1,4 +1,4 @@
-import {
+﻿import {
   createContext,
   useState,
   useEffect,
@@ -108,19 +108,19 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import SharePopup, { type SharePostData, type ShareAnchor, type ShareMode } from "./SharePopup";
 
-// ── Reaction config ─────────────────────────────────────────────────────────
+// â”€â”€ Reaction config â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const REACTIONS = [
-  { type: "like", emoji: "👍", label: "Like" },
-  { type: "fire", emoji: "🔥", label: "Fire" },
-  { type: "haha", emoji: "😂", label: "Haha" },
-  { type: "wow", emoji: "😮", label: "Wow" },
-  { type: "sad", emoji: "😢", label: "Sad" },
-  { type: "angry", emoji: "😡", label: "Angry" },
+  { type: "like", emoji: "ðŸ‘", label: "Like" },
+  { type: "fire", emoji: "ðŸ”¥", label: "Fire" },
+  { type: "haha", emoji: "ðŸ˜‚", label: "Haha" },
+  { type: "wow", emoji: "ðŸ˜®", label: "Wow" },
+  { type: "sad", emoji: "ðŸ˜¢", label: "Sad" },
+  { type: "angry", emoji: "ðŸ˜¡", label: "Angry" },
 ];
-// keep legacy "love" reactions (❤️) rendering correctly
+// keep legacy "love" reactions (â¤ï¸) rendering correctly
 const reactionEmoji = (type?: string) => {
-  if (type === "love") return "❤️";
-  return REACTIONS.find((r) => r.type === type)?.emoji ?? "👍";
+  if (type === "love") return "â¤ï¸";
+  return REACTIONS.find((r) => r.type === type)?.emoji ?? "ðŸ‘";
 };
 
 // Engagement RPCs/views have existed with several names over time. Keep the
@@ -223,13 +223,13 @@ const SurpriseReactionModal = ({
           </button>
 
           <div className="relative mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-3xl border border-fuchsia-200/30 bg-gradient-to-br from-fuchsia-400 to-violet-500 text-3xl shadow-lg shadow-fuchsia-500/30">
-            🎁
+            ðŸŽ
           </div>
           <p className="relative text-[11px] font-black uppercase tracking-[0.24em] text-fuchsia-200/80">
             A surprise from a friend
           </p>
           <h2 className="relative mt-2 text-2xl font-black text-white">
-            Hey {message.targetUserName}! ✨
+            Hey {message.targetUserName}! âœ¨
           </h2>
 
           {message.gifUrl && (
@@ -261,7 +261,7 @@ const SurpriseReactionModal = ({
   );
 };
 
-// ── PostViewTracker — fires onView once when post scrolls into view ─────────
+// â”€â”€ PostViewTracker â€” fires onView once when post scrolls into view â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const VibeVisibilityContext = createContext(false);
 const FeedVideoPreloadContext = createContext<{
   activeIndex: number | null;
@@ -322,7 +322,7 @@ const PostViewTracker = memo(({
   );
 });
 
-// ── Inline video ───────────────────────────────────────────────────────────────
+// â”€â”€ Inline video â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const FeedVideo = memo(({ src, poster, isCreator, feedIndex }: { src: string; poster?: string | null; isCreator: boolean; feedIndex?: number }) => {
   const ref = useRef<HTMLVideoElement>(null);
   const isVisibleRef = useRef(false);
@@ -507,7 +507,7 @@ const FeedPreviewVideo = memo(({ src }: { src: string }) => {
   );
 });
 
-// ── YouTube embed ──────────────────────────────────────────────────────────────
+// â”€â”€ YouTube embed â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const YouTubeEmbed = memo(({ url }: { url: string }) => {
   const m = url.match(
     /^.*(youtu.be\/|v\/|embed\/|watch\?v=|\/shorts\/)([^#&?]*).*/,
@@ -606,7 +606,7 @@ const PostImageCollage = memo(({ urls, onOpen }: { urls: string[]; onOpen: (inde
   );
 });
 
-// ── Smart media renderer ───────────────────────────────────────────────────────
+// â”€â”€ Smart media renderer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const VibeMediaFrame = memo(
   ({
     postId,
@@ -689,7 +689,7 @@ const PostMedia = memo(({
             </div>
             <div className="scene-vault-post-grain" aria-hidden="true" />
             <div className="scene-vault-post-caption" aria-hidden="true">{mood === "angry" ? "FIGHT MODE" : mood.toUpperCase()}</div>
-            {mood === "love" && <span className="scene-vault-post-heart" aria-hidden="true">♥</span>}
+            {mood === "love" && <span className="scene-vault-post-heart" aria-hidden="true">â™¥</span>}
             {mood === "travel" && <span className="scene-vault-post-motion" aria-hidden="true" />}
             {(mood === "sad" || mood === "missing") && <span className="scene-vault-post-rain" aria-hidden="true" />}
             {mood === "angry" && <span className="scene-vault-post-flash" aria-hidden="true" />}
@@ -780,11 +780,11 @@ const PostMedia = memo(({
   );
 });
 
-// ── Mobile detection — used for Lite mode throughout FameFeed ────────────────
+// â”€â”€ Mobile detection â€” used for Lite mode throughout FameFeed â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const IS_MOBILE = typeof navigator !== "undefined" &&
   /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
 
-// ── Post caption — 2-line clamp + "...more" toggle ────────────────────────────
+// â”€â”€ Post caption â€” 2-line clamp + "...more" toggle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const CLAMP_THRESHOLD = 90;
 
 const PostCaption = memo(({ content }: { content: string }) => {
@@ -809,7 +809,7 @@ const PostCaption = memo(({ content }: { content: string }) => {
   );
 });
 
-// ── Static Demo Hindi Circles (forceful inject — always show) ─────────────────
+// â”€â”€ Static Demo Hindi Circles (forceful inject â€” always show) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const DEMO_HINDI_CIRCLES = [
   {
     id: "demo-yaaden",
@@ -876,14 +876,14 @@ const DEMO_HINDI_CIRCLES = [
   },
 ];
 
-// ── Demo Circles Row (cinematic, same card size as Trending Flicks) ────────────
+// â”€â”€ Demo Circles Row (cinematic, same card size as Trending Flicks) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const DemoCirclesRow = memo(({ onCircleClick }: { onCircleClick: () => void }) => (
   <div
     className="border-b border-white/5 pt-2 pb-1"
     style={{ background: "#0F172A" }}
   >
     <p className="text-[13px] font-black text-white/70 px-4 mb-2 tracking-wide">
-      👥 Trending Circles
+      ðŸ‘¥ Trending Circles
     </p>
     <div className="flex gap-3 overflow-x-auto px-4 pb-2 no-scrollbar">
       {DEMO_HINDI_CIRCLES.map((circle) => (
@@ -938,7 +938,7 @@ const DemoCirclesRow = memo(({ onCircleClick }: { onCircleClick: () => void }) =
                 letterSpacing: "0.03em",
               }}
             >
-              ✦ by {circle.created_by_name}
+              âœ¦ by {circle.created_by_name}
             </p>
             {/* Join button */}
             <button
@@ -953,7 +953,7 @@ const DemoCirclesRow = memo(({ onCircleClick }: { onCircleClick: () => void }) =
                 boxShadow: "0 0 12px rgba(0,200,83,0.45)",
               }}
             >
-              ⭕ Join Circle
+              â­• Join Circle
             </button>
           </div>
         </motion.div>
@@ -962,7 +962,7 @@ const DemoCirclesRow = memo(({ onCircleClick }: { onCircleClick: () => void }) =
   </div>
 ));
 
-// ── Demo Hook Pages (fallback when DB has no hook_pages yet) ───────────────────
+// â”€â”€ Demo Hook Pages (fallback when DB has no hook_pages yet) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const DEMO_HOOK_PAGES = [
   {
     id: "demo-hp-1",
@@ -1011,7 +1011,7 @@ const DEMO_HOOK_PAGES = [
   },
 ];
 
-// ── Demo Hook Pages Row (shown when no real hook_pages in DB yet) ──────────────
+// â”€â”€ Demo Hook Pages Row (shown when no real hook_pages in DB yet) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const DemoHookPagesRow = ({ onPageClick }: { onPageClick: () => void }) => (
   <div
     className="border-b border-white/5 pt-3 pb-1"
@@ -1019,13 +1019,13 @@ const DemoHookPagesRow = ({ onPageClick }: { onPageClick: () => void }) => (
   >
     <div className="flex items-center justify-between px-4 mb-2">
       <p className="text-[13px] font-black text-white/70 tracking-wide">
-        ⚡ Hook Pages — Discover
+        âš¡ Hook Pages â€” Discover
       </p>
       <button
         onClick={onPageClick}
         className="text-[10px] font-black text-orange-500 uppercase tracking-wider"
       >
-        See All →
+        See All â†’
       </button>
     </div>
     <div className="flex gap-3 overflow-x-auto px-4 pb-2 no-scrollbar">
@@ -1047,7 +1047,7 @@ const DemoHookPagesRow = ({ onPageClick }: { onPageClick: () => void }) => (
           <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
           <div className="absolute top-2.5 left-2.5">
             <span className="bg-black/65 border border-white/30 text-white text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
-              ⚡ Page
+              âš¡ Page
             </span>
           </div>
           <div className="absolute top-2.5 right-2.5 flex items-center gap-0.5 bg-black/70 rounded-full px-2 py-0.5 border border-white/20">
@@ -1076,7 +1076,7 @@ const DemoHookPagesRow = ({ onPageClick }: { onPageClick: () => void }) => (
                 letterSpacing: "0.03em",
               }}
             >
-              ✦ by {page.owner_name}
+              âœ¦ by {page.owner_name}
             </p>
             <button
               onClick={(e) => {
@@ -1090,7 +1090,7 @@ const DemoHookPagesRow = ({ onPageClick }: { onPageClick: () => void }) => (
                 boxShadow: "0 0 12px rgba(255,107,0,0.45)",
               }}
             >
-              ⚡ HOOK
+              âš¡ HOOK
             </button>
           </div>
         </motion.div>
@@ -1099,7 +1099,7 @@ const DemoHookPagesRow = ({ onPageClick }: { onPageClick: () => void }) => (
   </div>
 );
 
-// ── Trending Flicks Row (real data, real-time) ─────────────────────────────────
+// â”€â”€ Trending Flicks Row (real data, real-time) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const FLICK_GRADS = [
   "#ec4899",
   "#f59e0b",
@@ -1112,8 +1112,8 @@ const FLICK_GRADS = [
   "#84cc16",
 ];
 
-// ── Latest Surveys Widget ──────────────────────────────────────────────────────
-// ── Survey image with built-in fallback & URL sanitisation ────────────────────
+// â”€â”€ Latest Surveys Widget â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// â”€â”€ Survey image with built-in fallback & URL sanitisation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const SurveyThumb = ({ rawUrl, question }: { rawUrl: string | null; question: string }) => {
   const [errored, setErrored] = useState(false);
   // Trim the URL and resolve via the shared helper (handles Supabase paths + absolute URLs)
@@ -1122,7 +1122,7 @@ const SurveyThumb = ({ rawUrl, question }: { rawUrl: string | null; question: st
   const showImg  = resolved && !errored && resolved !== "/placeholder-avatar.png";
 
   return (
-    /* Fixed-height container — layout NEVER shifts while loading */
+    /* Fixed-height container â€” layout NEVER shifts while loading */
     <div className="w-full aspect-video rounded-lg overflow-hidden bg-gradient-to-br from-indigo-950 via-purple-950 to-slate-900 relative">
       {showImg ? (
         <img
@@ -1134,9 +1134,9 @@ const SurveyThumb = ({ rawUrl, question }: { rawUrl: string | null; question: st
           onError={() => setErrored(true)}
         />
       ) : (
-        /* Fallback — pretty gradient tile with emoji */
+        /* Fallback â€” pretty gradient tile with emoji */
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 select-none">
-          <span className="text-4xl">🗳️</span>
+          <span className="text-4xl">ðŸ—³ï¸</span>
           <span className="text-white/30 text-[10px] font-bold uppercase tracking-widest">Survey</span>
         </div>
       )}
@@ -1190,17 +1190,17 @@ const LatestSurveysWidget = ({
     <div className="pt-3 pb-2 border-b border-white/5" style={{ background: "#0F172A" }}>
       {/* Section header */}
       <div className="flex items-center justify-between px-4 mb-3">
-        <p className="text-[13px] font-black text-white/70 tracking-wide">🗳️ Latest Surveys</p>
+        <p className="text-[13px] font-black text-white/70 tracking-wide">ðŸ—³ï¸ Latest Surveys</p>
         {onNavigateToSurveys && (
           <button
             onClick={onNavigateToSurveys}
             className="text-[11px] font-bold text-indigo-400/70 hover:text-indigo-400 transition-colors">
-            See all →
+            See all â†’
           </button>
         )}
       </div>
 
-      {/* Cards — horizontal scroll on mobile, single column on md+ */}
+      {/* Cards â€” horizontal scroll on mobile, single column on md+ */}
       <div className="flex gap-3 overflow-x-auto px-4 pb-2 no-scrollbar sm:flex-col sm:overflow-x-visible sm:gap-2">
         {surveys.map((survey, idx) => (
           <motion.div
@@ -1212,16 +1212,16 @@ const LatestSurveysWidget = ({
             className="flex-shrink-0 w-56 sm:w-full rounded-2xl overflow-hidden cursor-pointer active:scale-[0.98] transition-transform"
             style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
 
-            {/* ── Image banner (full-width, fixed aspect-ratio, object-cover) ── */}
+            {/* â”€â”€ Image banner (full-width, fixed aspect-ratio, object-cover) â”€â”€ */}
             <SurveyThumb rawUrl={survey.image_url || survey.media_url} question={survey.question} />
 
-            {/* ── Card body ── */}
+            {/* â”€â”€ Card body â”€â”€ */}
             <div className="px-3 py-2.5">
               <p className="text-white text-[12px] font-bold leading-snug line-clamp-2 mb-2">
                 {survey.question}
               </p>
 
-              {/* ── Vote progress bars (only if votes exist) ── */}
+              {/* â”€â”€ Vote progress bars (only if votes exist) â”€â”€ */}
               {(() => {
                 const opts: any[] = (survey.survey_options || []).slice(0, 2);
                 const counts = voteCounts[survey.id] || {};
@@ -1274,7 +1274,7 @@ const LatestSurveysWidget = ({
                     animate={{ boxShadow: ["0 0 0px rgba(236,72,153,0)", "0 0 10px rgba(236,72,153,0.6)", "0 0 0px rgba(236,72,153,0)"] }}
                     transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
                   />
-                  ⚔️ Debate
+                  âš”ï¸ Debate
                 </motion.button>
               </div>
             </div>
@@ -1290,7 +1290,7 @@ const openFullReelsAt = (postId: string) => {
   window.dispatchEvent(new CustomEvent("flicks:open-reels", { detail: { postId } }));
 };
 
-// Pure display component — data is fetched once at FameFeed level, no per-instance channels
+// Pure display component â€” data is fetched once at FameFeed level, no per-instance channels
 const TrendingFlicksRow = ({
   flicks,
   loaded,
@@ -1308,13 +1308,13 @@ const TrendingFlicksRow = ({
         style={{ background: "#0F172A" }}
       >
         <p className="text-[13px] font-black text-white/70 mb-2 tracking-wide">
-          🔥 Trending Flicks
+          ðŸ”¥ Trending Flicks
         </p>
         <div
           className="flex flex-col items-center justify-center py-6 gap-2 rounded-2xl border border-white/10"
           style={{ background: "rgba(255,255,255,0.04)" }}
         >
-          <span className="text-3xl">🎬</span>
+          <span className="text-3xl">ðŸŽ¬</span>
           <p className="text-sm font-bold text-white/40">
             No Trending Flicks yet
           </p>
@@ -1330,7 +1330,7 @@ const TrendingFlicksRow = ({
       style={{ background: "#0F172A" }}
     >
       <p className="text-[13px] font-black text-white/70 px-4 mb-2 tracking-wide">
-        🔥 Trending Flicks
+        ðŸ”¥ Trending Flicks
       </p>
       <div className="flex gap-3 overflow-x-auto px-4 pb-2 no-scrollbar">
         {flicks.map((flick, i) => {
@@ -1380,7 +1380,7 @@ const TrendingFlicksRow = ({
                   className="absolute inset-0 w-full h-full object-cover"
                 />
               )}
-              {/* Subtle play indicator — small badge in corner so the auto-playing video isn't covered */}
+              {/* Subtle play indicator â€” small badge in corner so the auto-playing video isn't covered */}
               {isVid && !isHls && (
                 <div className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/70 flex items-center justify-center border border-white/40">
                   <VolumeX size={13} className="text-white" />
@@ -1412,7 +1412,7 @@ const TrendingFlicksRow = ({
   );
 };
 
-// ── Suggested Pages Row (horizontal scroll, 3-4 visible) ───────────────────────
+// â”€â”€ Suggested Pages Row (horizontal scroll, 3-4 visible) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const SuggestedPagesRow = ({
   pages,
   hookedIds,
@@ -1435,7 +1435,7 @@ const SuggestedPagesRow = ({
       style={{ background: "#0F172A" }}
     >
       <p className="text-[13px] font-black text-white/70 px-4 mb-2 tracking-wide">
-        📄 Trending Pages
+        ðŸ“„ Trending Pages
       </p>
       <div className="flex gap-3.5 overflow-x-auto px-4 pb-2 no-scrollbar">
         {pages.map((page) => {
@@ -1513,7 +1513,7 @@ const SuggestedPagesRow = ({
                         letterSpacing: "0.04em",
                       }}
                     >
-                      ✦ by @{ownerName}
+                      âœ¦ by @{ownerName}
                     </p>
                   )}
                 </div>
@@ -1541,7 +1541,7 @@ const SuggestedPagesRow = ({
                         }
                   }
                 >
-                  {hooked ? "✓ Hooked" : "⚡ HOOK"}
+                  {hooked ? "âœ“ Hooked" : "âš¡ HOOK"}
                 </button>
               </div>
             </motion.div>
@@ -1552,7 +1552,7 @@ const SuggestedPagesRow = ({
   );
 };
 
-// ── Suggested Circles Row (horizontal scroll, 3-4 visible) ─────────────────────
+// â”€â”€ Suggested Circles Row (horizontal scroll, 3-4 visible) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const SuggestedCirclesRow = ({
   circles,
   joinedIds,
@@ -1575,7 +1575,7 @@ const SuggestedCirclesRow = ({
       style={{ background: "#0F172A" }}
     >
       <p className="text-[13px] font-black text-white/70 px-4 mb-2 tracking-wide">
-        👥 Circles
+        ðŸ‘¥ Circles
       </p>
       <div className="flex gap-3.5 overflow-x-auto px-4 pb-2 no-scrollbar">
         {circles.map((circle) => {
@@ -1629,7 +1629,7 @@ const SuggestedCirclesRow = ({
                       fontWeight: 700,
                     }}
                   >
-                    ✦ by @{ownerName}
+                    âœ¦ by @{ownerName}
                   </p>
                 )}
                 <button
@@ -1653,7 +1653,7 @@ const SuggestedCirclesRow = ({
                         }
                   }
                 >
-                  {joined ? "LEAVE" : "⭕ Join Circle"}
+                  {joined ? "LEAVE" : "â­• Join Circle"}
                 </button>
               </div>
             </div>
@@ -1664,7 +1664,7 @@ const SuggestedCirclesRow = ({
   );
 };
 
-// ── In-Feed Suggestion Card (native post style) ────────────────────────────────
+// â”€â”€ In-Feed Suggestion Card (native post style) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const SUGG_GRADS = [
   "#6366f1",
   "#ec4899",
@@ -1680,7 +1680,7 @@ function gradForSugg(id: string) {
   return SUGG_GRADS[Math.abs(h) % SUGG_GRADS.length];
 }
 
-// Seeded Fisher-Yates shuffle — deterministic per seed, stable within a render
+// Seeded Fisher-Yates shuffle â€” deterministic per seed, stable within a render
 function seededShuffle<T>(arr: T[], seed: number): T[] {
   if (arr.length === 0) return [];
   const a = [...arr];
@@ -1710,7 +1710,7 @@ const InFeedSuggestionCard = ({
       className="border-b border-white/5"
       style={{ background: "linear-gradient(175deg,#1a0822,#0d0814,#0F172A)" }}
     >
-      {/* Header — like a post author row */}
+      {/* Header â€” like a post author row */}
       <div className="flex items-center gap-3 px-4 py-3">
         <div
           className="w-10 h-10 rounded-full overflow-hidden border border-white/10 shrink-0"
@@ -1734,7 +1734,7 @@ const InFeedSuggestionCard = ({
             {item.name || "Community"}
           </p>
           <p className="text-[10px] text-blue-400 font-semibold uppercase tracking-wide mt-0.5">
-            {isGroup ? "👥 Suggested Circle" : "📄 Suggested Page"}
+            {isGroup ? "ðŸ‘¥ Suggested Circle" : "ðŸ“„ Suggested Page"}
           </p>
         </div>
       </div>
@@ -1762,7 +1762,7 @@ const InFeedSuggestionCard = ({
         <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent px-4 py-3">
           <p className="text-white/80 text-[11px] font-semibold">
             {item.member_count ?? 0} members
-            {item.privacy ? ` · ${item.privacy}` : ""}
+            {item.privacy ? ` Â· ${item.privacy}` : ""}
           </p>
         </div>
       </div>
@@ -1790,8 +1790,8 @@ const InFeedSuggestionCard = ({
         >
           {actionDone
             ? isGroup
-              ? "Joined ✓"
-              : "Following ✓"
+              ? "Joined âœ“"
+              : "Following âœ“"
             : isGroup
               ? "Join Circle"
               : "Follow"}
@@ -1801,7 +1801,7 @@ const InFeedSuggestionCard = ({
   );
 };
 
-// ── In-Feed Hooks Strip — mirrors DemoCirclesRow exactly, uses <img decoding="async"> not backgroundImage ──
+// â”€â”€ In-Feed Hooks Strip â€” mirrors DemoCirclesRow exactly, uses <img decoding="async"> not backgroundImage â”€â”€
 const InFeedHooksStrip = ({
   pages,
   hookedIds,
@@ -1828,13 +1828,13 @@ const InFeedHooksStrip = ({
     >
       <div className="flex items-center justify-between px-4 mb-2">
         <p className="text-[13px] font-black text-white/70 tracking-wide">
-          ⚡ Hook Pages — Discover
+          âš¡ Hook Pages â€” Discover
         </p>
         <button
           onClick={() => onPageClick(null)}
           className="text-[10px] font-black text-orange-500 uppercase tracking-wider"
         >
-          See All →
+          See All â†’
         </button>
       </div>
       <div className="flex gap-3 overflow-x-auto px-4 pb-2 no-scrollbar">
@@ -1855,7 +1855,7 @@ const InFeedHooksStrip = ({
               className="flex-shrink-0 relative rounded-2xl overflow-hidden cursor-pointer select-none shadow-md"
               style={{ width: 168, height: 312, background: "#1f2937" }}
             >
-              {/* Cover image — same <img decoding="async"> approach as DemoCirclesRow */}
+              {/* Cover image â€” same <img decoding="async"> approach as DemoCirclesRow */}
               {page.cover_url ? (
                 <img
                   src={page.cover_url}
@@ -1865,7 +1865,7 @@ const InFeedHooksStrip = ({
                  decoding="async"/>
               ) : (
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-4xl opacity-30">⚡</span>
+                  <span className="text-4xl opacity-30">âš¡</span>
                 </div>
               )}
               {/* Gradient overlay */}
@@ -1873,7 +1873,7 @@ const InFeedHooksStrip = ({
               {/* Top-left badge */}
               <div className="absolute top-2.5 left-2.5">
                 <span className="bg-black/65 border border-white/30 text-white text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
-                  ⚡ Page
+                  âš¡ Page
                 </span>
               </div>
               {/* Top-right follower count */}
@@ -1905,7 +1905,7 @@ const InFeedHooksStrip = ({
                       letterSpacing: "0.03em",
                     }}
                   >
-                    ✦ by @{ownerName}
+                    âœ¦ by @{ownerName}
                   </p>
                 )}
                 <button
@@ -1929,7 +1929,7 @@ const InFeedHooksStrip = ({
                         }
                   }
                 >
-                  {hooked ? "✓ Hooked" : "⚡ HOOK"}
+                  {hooked ? "âœ“ Hooked" : "âš¡ HOOK"}
                 </button>
               </div>
             </motion.div>
@@ -1940,7 +1940,7 @@ const InFeedHooksStrip = ({
   );
 };
 
-// ── Facebook-Style In-Feed Hook Page Card ──────────────────────────────────────
+// â”€â”€ Facebook-Style In-Feed Hook Page Card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const InFeedHookPageCard = ({
   page,
   hooked,
@@ -1999,12 +1999,12 @@ const InFeedHookPageCard = ({
                 marginTop: 2,
               }}
             >
-              ✦ by @{ownerName}
+              âœ¦ by @{ownerName}
             </p>
           )}
         </div>
         <span className="text-[10px] text-blue-400 font-black uppercase tracking-wide bg-blue-900/30 px-2 py-1 rounded-full shrink-0">
-          📄 Page
+          ðŸ“„ Page
         </span>
       </div>
 
@@ -2031,12 +2031,12 @@ const InFeedHookPageCard = ({
         <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent px-4 py-3">
           <p className="text-white/80 text-[11px] font-semibold">
             {followerCount} Followers
-            {page.category ? ` · ${page.category}` : ""}
+            {page.category ? ` Â· ${page.category}` : ""}
           </p>
         </div>
       </div>
 
-      {/* Bio / Description — 2-3 lines */}
+      {/* Bio / Description â€” 2-3 lines */}
       {(page.description || page.category) && (
         <div className="px-4 pt-3 pb-1">
           {page.description ? (
@@ -2068,14 +2068,14 @@ const InFeedHookPageCard = ({
                 }
           }
         >
-          {hooked ? "✓ Hooked" : "⚡ Hook (Follow)"}
+          {hooked ? "âœ“ Hooked" : "âš¡ Hook (Follow)"}
         </button>
       </div>
     </motion.article>
   );
 };
 
-// ── Suggestion Placeholder (zero-demo) ─────────────────────────────────────────
+// â”€â”€ Suggestion Placeholder (zero-demo) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const SuggestionPlaceholder = ({
   forType,
   onAction,
@@ -2110,7 +2110,7 @@ const SuggestionPlaceholder = ({
   </div>
 );
 
-// ── Single Full-Width Vertical Reel ───────────────────────────────────────────
+// â”€â”€ Single Full-Width Vertical Reel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 let activeFameFeedVideo: HTMLVideoElement | null = null;
 let activeFameFeedAudio: HTMLAudioElement | null = null;
 
@@ -2449,7 +2449,7 @@ const PostDetailView = ({
           aria-label="Back to feed"
           className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-2xl font-medium text-white hover:bg-white/10 active:scale-95"
         >
-          ←
+          â†
         </button>
         <div className="min-w-0 flex-1">
           <h1 className="truncate text-base font-black">Post</h1>
@@ -2886,8 +2886,8 @@ const PostDetailView = ({
             onChange={(event) => onChange(event.target.value)}
             placeholder={
               replyingTo?.postId === post.id
-                ? `Reply to ${replyingTo.author}…`
-                : "Write a comment…"
+                ? `Reply to ${replyingTo.author}â€¦`
+                : "Write a commentâ€¦"
             }
             aria-label={`Comment on ${post.author || "post"}`}
             className="min-w-0 flex-1 rounded-full border border-white/10 bg-white/[0.07] px-4 py-3 text-sm text-white outline-none placeholder:text-white/40 focus:border-pink-400/50"
@@ -3371,7 +3371,7 @@ const SingleReelBlock = ({
         }}
         className="absolute left-4 top-4 z-20 rounded-full border border-white/15 bg-black/70 px-3 py-2 text-xs font-bold text-white backdrop-blur-sm"
       >
-        ↗ Reels
+        â†— Reels
       </button>
       <button
         type="button"
@@ -3613,6 +3613,28 @@ const SingleReelBlock = ({
       <div className="flex min-w-0 items-center gap-2">
         <div className="flex -space-x-2" aria-hidden="true">
           {viewerPreviews.length ? (
+      {/* ── Chat 19 Section ───────────────────────────────────────────── */}
+      <div className="relative mx-3 mt-4 mb-4 rounded-2xl overflow-hidden" style={{ aspectRatio: "16/9" }}>
+        <div className="absolute inset-0"
+          style={{backgroundImage: `url("https://flicksindiacdn.b-cdn.net/2cc5c863-cea6-441e-9efc-e2a94b959950.jpeg")`, backgroundSize: "cover", backgroundPosition: "center"}}
+        />
+        <div className="absolute inset-0 bg-black/60" />
+        <div className="relative z-10 flex flex-col items-center justify-center h-full text-center text-white p-6 sm:p-8">
+          <h2 className="text-xl sm:text-2xl font-black mb-3 sm:mb-4 leading-tight" style={{textShadow: "0 2px 14px rgba(0,0,0,.85)", color: "#FFFFFF"}}>
+            CHAT 19
+          </h2>
+          <p className="text-[12px] sm:text-[14px] mb-6 sm:mb-8 max-w-sm mx-auto leading-relaxed" style={{textShadow: "0 1px 8px rgba(0,0,0,.8)", color: "rgba(255,255,255,.95)"}}>
+            क्या दोस्तों या अनजाने लोगों के साथ मस्ती करना चाहते हैं? चैट 19 जॉइन करें।
+          </p>
+          <button type="button" className="relative inline-flex items-center justify-center px-8 sm:px-10 py-3 sm:py-3.5 rounded-full font-black text-black uppercase tracking-wider text-[11px] sm:text-[12px] overflow-hidden group animate-pulse bg-white border-2 border-red-500 shadow-lg" onClick={() => { window.location.href = "/chat-19"; }}>
+            <span className="absolute inset-0 rounded-full pointer-events-none -z-10" animate={{boxShadow: ["0 0 0px rgba(255,0,0,0)", "0 0 24px rgba(255,0,0,0.55)", "0 0 0px rgba(255,0,0,0)"], scale: [1, 1.15, 1]}} transition={{repeat: Infinity, duration: 2.2, ease: "easeInOut"}}>
+            </span>
+            Open Now
+          </button>
+        </div>
+      </div>
+
+      <section className="reel-engagement-footer" aria-label="Reel engagement">
             viewerPreviews.map((viewer) => <span key={viewer.id} title={viewer.full_name} className="grid h-6 w-6 place-items-center overflow-hidden rounded-full border-2 border-[#120b0f] bg-[#45313a] text-[8px] font-bold text-white/75">{viewer.avatar_url ? <img src={viewer.avatar_url} alt="" className="h-full w-full object-cover" /> : viewer.full_name?.[0]?.toUpperCase() || "?"}</span>)
           ) : (
             Array.from({ length: Math.min(3, Math.max(1, Number(post.views_count || 0) ? 3 : 1)) }, (_, index) => <span key={index} className="grid h-6 w-6 place-items-center rounded-full border-2 border-[#120b0f] bg-[#45313a] text-[8px] font-bold text-white/60"><Users size={11} /></span>)
@@ -3625,7 +3647,7 @@ const SingleReelBlock = ({
   );
 };
 
-// ── Cinematic Post Divider ─────────────────────────────────────────────────────
+// â”€â”€ Cinematic Post Divider â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const FeedDivider = () => (
   <div
     style={{
@@ -3635,7 +3657,7 @@ const FeedDivider = () => (
       overflow: "visible",
     }}
   >
-    {/* Main gradient line — orange 30% + dark green, fades at both ends */}
+    {/* Main gradient line â€” orange 30% + dark green, fades at both ends */}
     <div
       style={{
         position: "absolute",
@@ -3665,7 +3687,7 @@ const FeedDivider = () => (
   </div>
 );
 
-// ── Fullscreen Flick Player Modal ─────────────────────────────────────────────
+// â”€â”€ Fullscreen Flick Player Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const FlickPlayerModal = ({
   flick,
   onClose,
@@ -3797,7 +3819,7 @@ const FlickPlayerModal = ({
   );
 };
 
-// ── Main Feed ─────────────────────────────────────────────────────────────────
+// â”€â”€ Main Feed â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 interface FameFeedProps {
   userProfile?: any;
   suggestions?: { id: string; full_name: string; avatar_url?: string }[];
@@ -3811,7 +3833,7 @@ interface FameFeedProps {
   currentUserEmail?: string;
 }
 
-// ── Hidden Posts Archive Drawer ───────────────────────────────────────────────
+// â”€â”€ Hidden Posts Archive Drawer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const HiddenPostsDrawer = ({
   hiddenIds,
   currentUserId,
@@ -3958,7 +3980,7 @@ const HiddenPostsDrawer = ({
                       </p>
                     ) : post.media_url ? (
                       <p className="text-[12px] text-white/30 mt-0.5 italic">
-                        {isVideo ? "🎬 Video post" : "📷 Image post"}
+                        {isVideo ? "ðŸŽ¬ Video post" : "ðŸ“· Image post"}
                       </p>
                     ) : null}
                   </div>
@@ -4163,7 +4185,7 @@ const FameFeed = ({
     >
   >({});
   const [tickerIdx, setTickerIdx] = useState(0);
-  // Visibility-aware ticker — stops when screen is off / app is backgrounded
+  // Visibility-aware ticker â€” stops when screen is off / app is backgrounded
   useEffect(() => {
     let t: ReturnType<typeof setInterval> | null = null;
     const start = () => {
@@ -4366,7 +4388,7 @@ const FameFeed = ({
   } | null>(null);
   const [reportSubmitting, setReportSubmitting] = useState(false);
   const [showHiddenArchive, setShowHiddenArchive] = useState(false);
-  // ── Admin Marketplace ──────────────────────────────────────────────────────
+  // â”€â”€ Admin Marketplace â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const [marketplaceItems, setMarketplaceItems] = useState<MarketplaceItem[]>([]);
   const [showMarketplacePanel, setShowMarketplacePanel] = useState(false);
   const [pageSuggestions, setPageSuggestions] = useState<any[]>([]);
@@ -4412,7 +4434,7 @@ const FameFeed = ({
   const [commentReactions, setCommentReactions] = useState<
     Record<string, Record<string, string[]>>
   >({});
-  // author cache: author_id → avatar_url / full_name / is_verified / is_official_creator
+  // author cache: author_id â†’ avatar_url / full_name / is_verified / is_official_creator
   const [authorAvatars, setAuthorAvatars] = useState<Record<string, string>>(
     {},
   );
@@ -4423,7 +4445,7 @@ const FameFeed = ({
   const [authorCreator, setAuthorCreator] = useState<Record<string, boolean>>(
     {},
   );
-  // follow state for creator inline buttons: author_id → is following
+  // follow state for creator inline buttons: author_id â†’ is following
   const [followingMap, setFollowingMap] = useState<Record<string, boolean>>({});
   const [followingInProgress, setFollowingInProgress] = useState<
     Record<string, boolean>
@@ -4458,7 +4480,7 @@ const FameFeed = ({
         for (const p of data as any[]) {
           if (p.avatar_url) {
             avatars[p.id] = p.avatar_url;
-            // Only cache HITS — misses stay un-cached so a later DP upload
+            // Only cache HITS â€” misses stay un-cached so a later DP upload
             // gets picked up by the self-healing render-time effect.
             fetchedAvatarIds.current.add(p.id);
           }
@@ -4479,10 +4501,10 @@ const FameFeed = ({
     [],
   );
 
-  // Live re-sync when ANY user updates their profile name (Settings → Save Changes)
+  // Live re-sync when ANY user updates their profile name (Settings â†’ Save Changes)
   // Refs hold latest maps so the event handler always reads fresh data without
   // being listed as a useEffect dep (which would cause the effect to re-register
-  // the window listener on every batchFetchAvatars call → infinite loop).
+  // the window listener on every batchFetchAvatars call â†’ infinite loop).
   const authorNamesRef = useRef<Record<string, string>>({});
   const authorAvatarsRef = useRef<Record<string, string>>({});
   useEffect(() => { authorNamesRef.current = authorNames; }, [authorNames]);
@@ -4539,7 +4561,7 @@ const FameFeed = ({
     return () => window.removeEventListener("flicks:reel-updated", handleReelUpdated);
   }, [dataCache]);
 
-  // ── Admin Marketplace: fetch active items + live updates ──────────────────
+  // â”€â”€ Admin Marketplace: fetch active items + live updates â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useEffect(() => {
     const fetchMarketplace = async () => {
       const baseSelect = "id, title, description, price, image_url, link_url, badge, is_active, created_at, sizes, colors, source_city";
@@ -4590,19 +4612,19 @@ const FameFeed = ({
       window.removeEventListener("flicks-profile-updated", handler);
       window.removeEventListener("flicks-avatar-updated", handler);
     };
-    // batchFetchAvatars is useCallback([]) — stable reference, safe single dep
+    // batchFetchAvatars is useCallback([]) â€” stable reference, safe single dep
   }, [batchFetchAvatars]);
-  // ── Pagination ───────────────────────────────────────────────────────────
+  // â”€â”€ Pagination â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const PAGE_SIZE = 10;
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const pageRef = useRef(0);
 
-  // ── On-demand comment cache ──────────────────────────────────────────────
+  // â”€â”€ On-demand comment cache â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const [commentsMap, setCommentsMap] = useState<Record<string, any[]>>({});
   const loadedCommentsRef = useRef<Set<string>>(new Set());
 
-  // ── Load engagement only for the visible/paged post window ───────────────
+  // â”€â”€ Load engagement only for the visible/paged post window â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const fetchPostEngagement = async (postIds: string[], uid: string | null) => {
     if (postIds.length === 0) return;
     const requestedIds = postIds.map(postIdKey).filter(Boolean);
@@ -4698,7 +4720,7 @@ const FameFeed = ({
     }
   };
 
-  // ── Profile suggestions fetch — always show, never filter sent-request users
+  // â”€â”€ Profile suggestions fetch â€” always show, never filter sent-request users
   const fetchPeopleSuggestions = async (uid: string) => {
     const cacheKey = `peopleSugg_${uid}`;
     const cached = memGet<any[]>(cacheKey);
@@ -4734,7 +4756,7 @@ const FameFeed = ({
     }
   };
 
-  // ── Send Friend Request handler ───────────────────────────────────────────
+  // â”€â”€ Send Friend Request handler â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const handleSendFriendRequest = async (
     e: React.MouseEvent,
     targetUserId: string,
@@ -4808,7 +4830,7 @@ const FameFeed = ({
           setCurrentUserId(uid);
           setCurrentUserEmail(currentUserEmailProp ?? null);
           if (uid) {
-            // ── Restore hidden posts from localStorage (survives refresh) ──
+            // â”€â”€ Restore hidden posts from localStorage (survives refresh) â”€â”€
             try {
               const saved = localStorage.getItem(`flicks_hidden_${uid}`);
               if (saved) setHiddenIds(new Set(JSON.parse(saved)));
@@ -4931,7 +4953,7 @@ const FameFeed = ({
     };
   }, [currentUserId]);
 
-  // ── Fetch owner profile names once suggestions are loaded ─────────────────
+  // â”€â”€ Fetch owner profile names once suggestions are loaded â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useEffect(() => {
     const ownerIds = [
       ...pageSuggestions.map((p: any) => p.owner_id).filter(Boolean),
@@ -4955,7 +4977,7 @@ const FameFeed = ({
       });
   }, [pageSuggestions, groupSuggestions]);
 
-  // ── Fetch real follower counts once page suggestions are loaded ──────────
+  // â”€â”€ Fetch real follower counts once page suggestions are loaded â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useEffect(() => {
     if (pageSuggestions.length === 0) return;
     const ids = pageSuggestions.map((p: any) => p.id);
@@ -4968,7 +4990,7 @@ const FameFeed = ({
     });
   }, [pageSuggestions]);
 
-  // ── Fetch real member counts from circle_members table ───────────────────
+  // â”€â”€ Fetch real member counts from circle_members table â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useEffect(() => {
     if (groupSuggestions.length === 0) return;
     const ids = groupSuggestions.map((c: any) => c.id).filter(Boolean);
@@ -4982,7 +5004,7 @@ const FameFeed = ({
     });
   }, [groupSuggestions]);
 
-  // ── Hook / Unhook a page (toggle) ────────────────────────────────────────
+  // â”€â”€ Hook / Unhook a page (toggle) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const handleHookPage = async (e: React.MouseEvent, pageId: string) => {
     e.stopPropagation();
     if (!currentUserId) return;
@@ -5044,7 +5066,7 @@ const FameFeed = ({
     }
   };
 
-  // ── Join / Leave a Circle (toggle) ────────────────────────────────────────
+  // â”€â”€ Join / Leave a Circle (toggle) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const handleJoinCircle = async (e: React.MouseEvent, circleId: string) => {
     e.stopPropagation();
     if (!currentUserId) return;
@@ -5074,7 +5096,7 @@ const FameFeed = ({
         toast.error("Could not leave the circle. Please try again.");
         return;
       }
-      toast.success("You have left the Circle. 👋");
+      toast.success("You have left the Circle. ðŸ‘‹");
     } else {
       // Optimistic join
       setJoinedCircleIds((prev) => [...prev, circleId]);
@@ -5102,7 +5124,7 @@ const FameFeed = ({
         }
         return;
       }
-      toast.success("Welcome to the Circle! ⭕");
+      toast.success("Welcome to the Circle! â­•");
     }
   };
 
@@ -5369,7 +5391,7 @@ const FameFeed = ({
     const to = from + PAGE_SIZE - 1;
     let data: any[] | null = null;
     try {
-      // ── Atomic join: pull the author's profile (avatar/name/verified) in the
+      // â”€â”€ Atomic join: pull the author's profile (avatar/name/verified) in the
       //    SAME request so the feed always renders with a real dp on first paint.
       //    Falls back to a no-join query if the FK embed isn't available.
       let res = await supabase
@@ -5423,7 +5445,7 @@ const FameFeed = ({
     const hasMorePosts = (data?.length ?? 0) === PAGE_SIZE;
     let rows = (data ?? []).map(normalizePostLikeCount);
 
-    // ── Local-first reordering ────────────────────────────────────────────────
+    // â”€â”€ Local-first reordering â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     // When rec_local_first is enabled and viewer has location, interleave posts
     // from the viewer's area ahead of global posts on each fresh load.
     if (
@@ -5445,7 +5467,7 @@ const FameFeed = ({
       });
       const otherRows = (rows as any[]).filter(r => !localRows.includes(r));
 
-      // Interleave: 2 local → 4 global → 2 local → 4 global …
+      // Interleave: 2 local â†’ 4 global â†’ 2 local â†’ 4 global â€¦
       const interleaved: any[] = [];
       let li = 0, oi = 0;
       while (li < localRows.length || oi < otherRows.length) {
@@ -5455,7 +5477,7 @@ const FameFeed = ({
       rows = interleaved;
     }
 
-    // ── Pincode-based local priority (highest specificity) ────────────────────
+    // â”€â”€ Pincode-based local priority (highest specificity) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if (reset && localProfile.pincode) {
       const vPin = localProfile.pincode;
       const pinRows   = (rows as any[]).filter(r => r.author_profile?.pincode === vPin);
@@ -5464,7 +5486,7 @@ const FameFeed = ({
       rows = [...pinRows, ...otherRows];
     }
 
-    // ── Viral Reach Propagation ───────────────────────────────────────────────
+    // â”€â”€ Viral Reach Propagation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     // Posts where the current user is in magnet_chains appear in their feed.
     if (reset && currentUserId) {
       try {
@@ -5493,7 +5515,7 @@ const FameFeed = ({
             }
           }
         }
-      } catch (_) { /* magnet_chains unavailable — skip */ }
+      } catch (_) { /* magnet_chains unavailable â€” skip */ }
     }
 
     const viewerId = currentUserId ?? null;
@@ -5569,7 +5591,7 @@ const FameFeed = ({
 
   const fetchFlicks = async () => {
     try {
-      // Query posts table directly — ALL types sorted by most liked
+      // Query posts table directly â€” ALL types sorted by most liked
       // Try with explicit FK hint first, fall back without it
       let data: any[] | null = null;
       const res1 = await supabase
@@ -5595,7 +5617,7 @@ const FameFeed = ({
         data = res2.data;
       }
 
-      // Filter out suspended accounts — only show active/null status
+      // Filter out suspended accounts â€” only show active/null status
       const filtered = (data || []).filter((p: any) => {
         const status = p.author_profile?.account_status;
         return (p.visibility || "public") === "public" &&
@@ -5659,7 +5681,7 @@ const FameFeed = ({
   const pullRefreshActionRef = useRef<() => Promise<void>>(async () => {});
   pullRefreshActionRef.current = refreshFeed;
 
-  // Pull-to-refresh listener — fired by <PullToRefresh> in Index.tsx.
+  // Pull-to-refresh listener â€” fired by <PullToRefresh> in Index.tsx.
   useEffect(() => {
     const handler = (event: Event) => {
       const complete = (event as CustomEvent<{ complete?: () => void }>)
@@ -5689,7 +5711,7 @@ const FameFeed = ({
     return () => window.removeEventListener("flicks-pull-refresh", handler);
   }, []);
 
-  // ── Derived state — must be declared BEFORE any useEffect that references them ──
+  // â”€â”€ Derived state â€” must be declared BEFORE any useEffect that references them â”€â”€
   // Privacy + visibility filter:
   // 1) Blocked users are always hidden
   // 2) Only public posts appear on the global feed
@@ -5712,7 +5734,7 @@ const FameFeed = ({
     return indices;
   }, [visiblePosts]);
 
-  // ── Live Mini-Ticker: Trending hashtags from current posts ─────────────────
+  // â”€â”€ Live Mini-Ticker: Trending hashtags from current posts â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const trendingTickerTags = useMemo(() => {
     const counts: Record<string, number> = {};
     for (const p of visiblePosts) {
@@ -5729,7 +5751,7 @@ const FameFeed = ({
       .map(([tag]) => tag);
   }, [visiblePosts]);
 
-  // ── Live Mini-Ticker: Online community members (with avatars) ─────────────
+  // â”€â”€ Live Mini-Ticker: Online community members (with avatars) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const liveTickerMembers = useMemo(() => {
     return [...onlineUserIds]
       .filter((id) => id !== currentUserId && authorNames[id])
@@ -5742,7 +5764,7 @@ const FameFeed = ({
   }, [onlineUserIds, authorNames, authorAvatars, currentUserId]);
 
   // Memoize the joined post-ID string so this effect only fires when posts are
-  // ADDED or REMOVED — not on every realtime likes_count/views_count mutation.
+  // ADDED or REMOVED â€” not on every realtime likes_count/views_count mutation.
   // (visiblePosts is a new array ref on every setPosts call, but the IDs only
   //  change when posts enter or leave the feed.)
   const visiblePostIdsKey = useMemo(
@@ -5760,7 +5782,7 @@ const FameFeed = ({
     // owns both the initial network load and later manual refreshes.
     if (posts.length === 0) void refetch();
     else if (dataCache.isStale("famePosts")) {
-      // Background refresh — data already visible from cache
+      // Background refresh â€” data already visible from cache
       setLoading(false);
       void refetch();
     }
@@ -5768,12 +5790,12 @@ const FameFeed = ({
     else if (dataCache.isStale("fameFlicks")) fetchFlicks();
   }, []);
 
-  // ── Suggestions fetch — runs immediately on mount, NO auth gate needed ────
+  // â”€â”€ Suggestions fetch â€” runs immediately on mount, NO auth gate needed â”€â”€â”€â”€
   // circles / hook_pages are public data; do NOT gate on currentUserId.
   useEffect(() => {
     async function fetchSuggestions() {
 
-      // ── 1. Circles (direct table, public) ─────────────────────────────────
+      // â”€â”€ 1. Circles (direct table, public) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       const { data: circlesRaw, error: circlesErr } = await supabase
         .from("circles")
         .select(
@@ -5784,13 +5806,13 @@ const FameFeed = ({
 
       if (circlesErr) {
         console.error(
-          "[FameFeed] circles error →",
+          "[FameFeed] circles error â†’",
           circlesErr.code,
           circlesErr.message,
         );
       }
 
-      // ── 2. Hook Pages (direct table, public) ──────────────────────────────
+      // â”€â”€ 2. Hook Pages (direct table, public) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       const { data: pagesRaw, error: pagesErr } = await supabase
         .from("hook_pages")
         .select(
@@ -5801,7 +5823,7 @@ const FameFeed = ({
 
       if (pagesErr) {
         console.error(
-          "[FameFeed] hook_pages error →",
+          "[FameFeed] hook_pages error â†’",
           pagesErr.code,
           pagesErr.message,
         );
@@ -5820,7 +5842,7 @@ const FameFeed = ({
       setGroupSuggestions(circles);
       setPageSuggestions(pages);
 
-      // ── 3. Real circle member counts from circle_members ─────────────────
+      // â”€â”€ 3. Real circle member counts from circle_members â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       if (circles.length > 0) {
         const cIds = circles.map((c: any) => c.id);
         const { data: memberRows, error: memberErr } = await supabase
@@ -5828,7 +5850,7 @@ const FameFeed = ({
           .select("circle_id")
           .in("circle_id", cIds);
         if (memberErr) {
-          console.error("[FameFeed] circle_members error →", memberErr.message);
+          console.error("[FameFeed] circle_members error â†’", memberErr.message);
         } else {
           const counts: { [k: string]: number } = {};
           (memberRows || []).forEach((r: any) => {
@@ -5838,7 +5860,7 @@ const FameFeed = ({
         }
       }
 
-      // ── 4. Owner names via profiles ───────────────────────────────────────
+      // â”€â”€ 4. Owner names via profiles â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       const ownerIds = [
         ...circles.map((c: any) => c.owner_id || c.created_by),
         ...pages.map((p: any) => p.owner_id),
@@ -5861,7 +5883,7 @@ const FameFeed = ({
       setSuggestionsLoaded(true);
     }
     fetchSuggestions();
-  }, []); // ← [] = run once on mount; public data, no auth needed
+  }, []); // â† [] = run once on mount; public data, no auth needed
 
   const handleInFeedAction = async (item: any) => {
     const isGroup = item.type === "group" || item.type === "circle";
@@ -5936,7 +5958,7 @@ const FameFeed = ({
         toast.error("Like nahi hata. Try again.");
         return;
       }
-      // Fetch ground-truth count from likes table — avoids drift from concurrent likes
+      // Fetch ground-truth count from likes table â€” avoids drift from concurrent likes
       const { count: unlikeCount } = await supabase
         .from("likes")
         .select("id", { count: "exact", head: true })
@@ -5956,7 +5978,7 @@ const FameFeed = ({
 
     const wasLiked = likedIds.has(post.id);
 
-    // ── Admin Like Booster: add 15-25 random likes per reaction ──────────
+    // â”€â”€ Admin Like Booster: add 15-25 random likes per reaction â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     const ADMIN_BOOST_EMAILS = [
       "tiwarijhumki@gmail.com",
       "textilevikhyat@gmail.com",
@@ -5989,7 +6011,7 @@ const FameFeed = ({
     );
 
     // Delete any existing like first, then insert fresh.
-    // This avoids onConflict constraint dependency — works with any DB schema.
+    // This avoids onConflict constraint dependency â€” works with any DB schema.
     // NOTE: likes table uses user_id (the liker) NOT author_id (the post author).
     await supabase
       .from("likes")
@@ -6028,7 +6050,7 @@ const FameFeed = ({
     }
 
     if (isAdminBoost) {
-      // Admin path: write the boosted count directly — skip ground-truth fetch
+      // Admin path: write the boosted count directly â€” skip ground-truth fetch
       const boostedCount = (snapCount || 0) + likeBoost;
       setPosts((prev) =>
         prev.map((p) =>
@@ -6040,7 +6062,7 @@ const FameFeed = ({
         .update({ likes_count: boostedCount })
         .eq("id", post.id);
     } else {
-      // Normal path: fetch ground-truth count from likes table — prevents drift when
+      // Normal path: fetch ground-truth count from likes table â€” prevents drift when
       // multiple users like simultaneously.
       const { count: likeCount } = await supabase
         .from("likes")
@@ -6132,7 +6154,7 @@ const FameFeed = ({
       const shareTitle = `Post by ${post.author || sharerName}`;
       const shareDesc =
         (post.content || "").slice(0, 120) +
-        ((post.content?.length || 0) > 120 ? "…" : "");
+        ((post.content?.length || 0) > 120 ? "â€¦" : "");
       await supabase.from("notifications").insert({
         notifier_id: post.author_id,
         actor_id: currentUserId,
@@ -6233,14 +6255,14 @@ const FameFeed = ({
     async (postId: string) => {
       if (!postId) return;
 
-      // ── Deduplication: skip if already counted this session ──────────────
+      // â”€â”€ Deduplication: skip if already counted this session â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       // Use a ref-based check so we never double-count even if the component
       // re-renders between the IntersectionObserver firing and the state update.
       if (viewedPostIdsRef.current.has(postId)) return;
       viewedPostIdsRef.current.add(postId);
       setViewedPostIds((p) => new Set([...p, postId]));
 
-      // ── Optimistic UI: read count synchronously from postsRef ────────────
+      // â”€â”€ Optimistic UI: read count synchronously from postsRef â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       // postsRef stays in sync via useEffect, so this is always current.
       // This avoids the closure bug where nextCount was captured before
       // setPosts() callback executed (it's scheduled async by React).
@@ -6250,7 +6272,7 @@ const FameFeed = ({
         prev.map((p) => (p.id === postId ? { ...p, views_count: nextCount } : p)),
       );
 
-      // ── DB: atomic increment via security-definer RPC (bypasses RLS) ─────
+      // â”€â”€ DB: atomic increment via security-definer RPC (bypasses RLS) â”€â”€â”€â”€â”€
       // Direct posts.update() fails for non-authors due to RLS policy.
       // increment_post_views() runs as DB owner and does: views_count += 1.
       try {
@@ -6263,12 +6285,12 @@ const FameFeed = ({
               { onConflict: "post_id,user_id" },
             );
         }
-        // Atomic server-side increment — no race condition, no RLS block
+        // Atomic server-side increment â€” no race condition, no RLS block
         const { error: rpcErr } = await supabase.rpc("increment_post_views", {
           p_post_id: postId,
         });
         if (rpcErr) {
-          // RPC not deployed yet — fall back to direct update (works if user
+          // RPC not deployed yet â€” fall back to direct update (works if user
           // is the post author or service-role; silently skips for others)
           await supabase
             .from("posts")
@@ -6347,7 +6369,7 @@ const FameFeed = ({
       return;
     }
 
-    // ── Profanity filter on comment text ────────────────────────────
+    // â”€â”€ Profanity filter on comment text â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     const { cleaned: cleanText, hadProfanity } = sanitizeText(text);
     if (hadProfanity) {
       toast.warning("Offensive words detected and masked automatically.");
@@ -6380,7 +6402,7 @@ const FameFeed = ({
       setReplyingTo(null);
     } else setCommentText("");
 
-    // Update commentsMap locally — no need to refetch all posts
+    // Update commentsMap locally â€” no need to refetch all posts
     if (newComment) {
       setCommentsMap((prev) => ({
         ...prev,
@@ -6414,7 +6436,7 @@ const FameFeed = ({
       }
     }
 
-    // Notifications — top-level comment notifies post owner; reply notifies comment author
+    // Notifications â€” top-level comment notifies post owner; reply notifies comment author
     const post = posts.find((p) => p.id === postId);
     if (!isReply) {
       if (post?.author_id && post.author_id !== currentUserId) {
@@ -6483,7 +6505,7 @@ const FameFeed = ({
       // Clean up ref after a delay to guard any late-arriving Realtime events
       setTimeout(() => deletingPostIdsRef.current.delete(postId), 10_000);
     } catch (error) {
-      // Rollback — allow Realtime tracking again
+      // Rollback â€” allow Realtime tracking again
       deletingPostIdsRef.current.delete(postId);
       setPosts(snapshot);
       dataCache.setCache("famePosts", { data: snapshot, fetchedAt: Date.now() });
@@ -6496,7 +6518,7 @@ const FameFeed = ({
 
   // Admin: delete ANY post.
   // Frontend only checks isAdmin flag (email-based, set via isAdminEmail(userEmail)).
-  // RLS enforces auth.email() IN (...admin emails...) on the DB side — no user_id check.
+  // RLS enforces auth.email() IN (...admin emails...) on the DB side â€” no user_id check.
   const handleAdminDelete = async (postId: string) => {
     setOpenMenuId(null);
     if (!isAdmin) {
@@ -6527,7 +6549,7 @@ const FameFeed = ({
         dataCache.setCache("famePosts", { data: next, fetchedAt: Date.now() });
         return next;
       });
-      toast.success("🗑️ Post deleted by admin");
+      toast.success("ðŸ—‘ï¸ Post deleted by admin");
       setTimeout(() => deletingPostIdsRef.current.delete(postId), 10_000);
     } catch (error: unknown) {
       deletingPostIdsRef.current.delete(postId);
@@ -6556,7 +6578,7 @@ const FameFeed = ({
       .update({ account_status: "suspended", suspension_reason: reason.trim() })
       .eq("id", authorId);
     if (!error) {
-      toast.success(`🚫 ${authorName || "User"} has been banned`);
+      toast.success(`ðŸš« ${authorName || "User"} has been banned`);
       setPosts((p) => p.filter((x) => x.author_id !== authorId));
     } else {
       toast.error("Could not ban user");
@@ -6567,7 +6589,7 @@ const FameFeed = ({
     setOpenMenuId(null);
     setHiddenIds((prev) => {
       const next = new Set([...prev, postId]);
-      // Persist across refreshes — keyed by user so other accounts aren't affected
+      // Persist across refreshes â€” keyed by user so other accounts aren't affected
       if (currentUserId) {
         try {
           localStorage.setItem(
@@ -6598,7 +6620,7 @@ const FameFeed = ({
       }
       return next;
     });
-    toast.success("Post unhide ho gaya ✅");
+    toast.success("Post unhide ho gaya âœ…");
   };
 
   const handleClearAll = () => {
@@ -6609,7 +6631,7 @@ const FameFeed = ({
       } catch {}
     }
     setShowHiddenArchive(false);
-    toast.success("Sare hidden posts restore ho gaye ✅");
+    toast.success("Sare hidden posts restore ho gaye âœ…");
   };
 
   const handleReportSubmit = async (selectedReason?: string) => {
@@ -6778,7 +6800,7 @@ const FameFeed = ({
               >
                 {(() => {
                   // Priority order:
-                  // 1. Live join result from posts → profiles (same query, atomic)
+                  // 1. Live join result from posts â†’ profiles (same query, atomic)
                   // 2. Fresh avatar from profiles cache (reflects live changes)
                   // 3. Snapshot saved on the post itself (legacy / Google users)
                   const avatarSrc =
@@ -6811,11 +6833,11 @@ const FameFeed = ({
                       "Vibe User"}
                     {post.author_id && authorVerified[post.author_id] && (
                       <span className="ml-1 text-blue-400" title="Verified">
-                        ✓
+                        âœ“
                       </span>
                     )}
                   </button>
-                  {/* Creator badge — Royal Blue ↔ Metallic Gold CSS pulse */}
+                  {/* Creator badge â€” Royal Blue â†” Metallic Gold CSS pulse */}
                   {post.author_id && authorCreator[post.author_id] && (
                     <span
                       className="creator-badge-pulse inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wide leading-none"
@@ -6825,10 +6847,10 @@ const FameFeed = ({
                           "color 0.6s, background 0.6s, border-color 0.6s, box-shadow 0.6s",
                       }}
                     >
-                      Creator ⚡
+                      Creator âš¡
                     </span>
                   )}
-                  {/* Inline follow button — only for official creators who aren't the current user */}
+                  {/* Inline follow button â€” only for official creators who aren't the current user */}
                   {post.author_id &&
                     authorCreator[post.author_id] &&
                     post.author_id !== currentUserId && (
@@ -6899,15 +6921,15 @@ const FameFeed = ({
                         {followingInProgress[post.author_id]
                           ? "..."
                           : followingMap[post.author_id]
-                            ? "✓ Following"
+                            ? "âœ“ Following"
                             : "+ Follow"}
                       </button>
                     )}
                 </div>
                 <p className="text-[10px] text-pink-400 font-semibold uppercase tracking-wide mt-0.5">
-                  {isVideo ? "🎬 Reel" : "📷 Post"}
+                  {isVideo ? "ðŸŽ¬ Reel" : "ðŸ“· Post"}
                   {post.author_id && authorVerified[post.author_id]
-                    ? " · Verified Creator"
+                    ? " Â· Verified Creator"
                     : ""}
                 </p>
                 {post.created_at && (
@@ -7021,7 +7043,7 @@ const FameFeed = ({
                           }
                           className="pointer-events-auto w-full flex items-center gap-3 px-4 py-3.5 text-blue-400 hover:bg-white/10 text-sm font-semibold border-b border-white/10 cursor-pointer"
                         >
-                          <span className="text-base leading-none">✏️</span>{" "}
+                          <span className="text-base leading-none">âœï¸</span>{" "}
                           Edit Post
                         </button>
                         <button
@@ -7293,7 +7315,7 @@ const FameFeed = ({
                       className="text-[12px] font-bold"
                       style={{ color: "#FF0000" }}
                     >
-                      📌 {post.author || "Someone"} pinned{" "}
+                      ðŸ“Œ {post.author || "Someone"} pinned{" "}
                       <span className="font-black">{firstNamed}</span>
                       {others > 0 ? (
                         <>
@@ -7341,7 +7363,7 @@ const FameFeed = ({
                           disabled={savingPostEdit || !editingPost.text.trim()}
                           className="flex-1 py-2 rounded-xl bg-blue-600 text-white text-[12px] font-bold disabled:opacity-40"
                         >
-                          {savingPostEdit ? "Saving…" : "Save"}
+                          {savingPostEdit ? "Savingâ€¦" : "Save"}
                         </button>
                       </div>
                     </div>
@@ -7358,7 +7380,7 @@ const FameFeed = ({
             feedIndex={feedVideoIndex}
           />
 
-          {/* ── Magnet Voice Display (warning overlay / normal pill) ───── */}
+          {/* â”€â”€ Magnet Voice Display (warning overlay / normal pill) â”€â”€â”€â”€â”€ */}
           <PostVoiceStrip
             postId={post.id}
             postType="post"
@@ -7366,7 +7388,7 @@ const FameFeed = ({
             currentUserId={currentUserId}
           />
 
-          {/* ── Liked by line ──────────────────────────────────────────── */}
+          {/* â”€â”€ Liked by line â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
           {(() => {
             const count = post.likes_count || 0;
             if (count === 0) return null;
@@ -7401,14 +7423,14 @@ const FameFeed = ({
             );
           })()}
 
-          {/* ── Live Intel Card ─────────────────────────────────────────── */}
+          {/* â”€â”€ Live Intel Card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
           {(() => {
-            // ── LEFT: trending tag cycles with tickerIdx ─────────────────
+            // â”€â”€ LEFT: trending tag cycles with tickerIdx â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             const topTag = trendingTickerTags.length > 0
               ? trendingTickerTags[tickerIdx % trendingTickerTags.length]
               : null;
 
-            // ── CENTER: rich ecosystem pool (circles → pages → flicks) ───
+            // â”€â”€ CENTER: rich ecosystem pool (circles â†’ pages â†’ flicks) â”€â”€â”€
             type EcoItem =
               | { kind: "circle"; id: string; name: string; cover: string | null; members?: number }
               | { kind: "page";   id: string; name: string; cover: string | null; category: string }
@@ -7443,7 +7465,7 @@ const FameFeed = ({
             );
             const ecoItem = ecoPool[(postSeed + tickerIdx) % ecoPool.length];
 
-            // ── RIGHT: live members + feed-author fallback ───────────────
+            // â”€â”€ RIGHT: live members + feed-author fallback â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             const feedAuthors = visiblePosts.slice(0, 10)
               .map((p: any) => ({ id: p.author_id, name: authorNames[p.author_id] || p.author || "", avatar: authorAvatars[p.author_id] ?? null }))
               .filter((m: any) => m.id && m.name && m.id !== currentUserId);
@@ -7462,7 +7484,7 @@ const FameFeed = ({
                   className="flex items-stretch rounded-[13px] overflow-hidden"
                   style={{ background: "rgba(0,0,0,0.52)", backdropFilter: "blur(14px)" }}
                 >
-                  {/* LEFT — Trending tag | flex:1 */}
+                  {/* LEFT â€” Trending tag | flex:1 */}
                   <button
                     className="flex flex-col items-center justify-center py-2 px-2 border-r border-white/[0.06] active:opacity-60 transition-opacity"
                     style={{ flex: 1, minWidth: 0 }}
@@ -7494,7 +7516,7 @@ const FameFeed = ({
                     )}
                   </button>
 
-                  {/* CENTER — Real ecosystem content | flex:2 (2× each side) */}
+                  {/* CENTER â€” Real ecosystem content | flex:2 (2Ã— each side) */}
                   <button
                     className="flex items-center gap-2 py-2 px-2.5 border-r border-white/[0.06] min-w-0 overflow-hidden active:opacity-60 transition-opacity text-left"
                     style={{ flex: 2 }}
@@ -7510,7 +7532,7 @@ const FameFeed = ({
                           style={{ color: "rgba(255,255,255,0.26)" }}>COMMUNITY</span>
                         <span className="text-[9px] font-black text-center leading-snug px-1"
                           style={{ color: "#c8ff00" }}>
-                          ✨ Join Flicks!
+                          âœ¨ Join Flicks!
                         </span>
                       </div>
                     ) : ecoItem.kind === "circle" ? (
@@ -7519,7 +7541,7 @@ const FameFeed = ({
                           style={{ background: ecoItem.cover ? "transparent" : "rgba(0,200,255,0.12)", border: "1px solid rgba(0,200,255,0.2)", minWidth: 32 }}>
                           {ecoItem.cover
                             ? <img src={ecoItem.cover} className="w-full h-full object-cover" alt="" decoding="async" loading="lazy" />
-                            : "🔵"}
+                            : "ðŸ”µ"}
                         </div>
                         <div className="flex flex-col min-w-0 flex-1 overflow-hidden">
                           <span className="text-[7px] font-black uppercase tracking-widest"
@@ -7528,7 +7550,7 @@ const FameFeed = ({
                             style={{ color: "#e0f4ff" }}>{ecoItem.name}</span>
                           <span className="text-[8px] font-semibold"
                             style={{ color: "#00c8ff66" }}>
-                            {ecoItem.members != null ? `${ecoItem.members} members` : "Join →"}
+                            {ecoItem.members != null ? `${ecoItem.members} members` : "Join â†’"}
                           </span>
                         </div>
                       </>
@@ -7538,7 +7560,7 @@ const FameFeed = ({
                           style={{ background: ecoItem.cover ? "transparent" : "rgba(200,255,0,0.08)", border: "1px solid rgba(200,255,0,0.2)", minWidth: 32 }}>
                           {ecoItem.cover
                             ? <img src={ecoItem.cover} className="w-full h-full object-cover" alt="" decoding="async" loading="lazy" />
-                            : "⚡"}
+                            : "âš¡"}
                         </div>
                         <div className="flex flex-col min-w-0 flex-1 overflow-hidden">
                           <span className="text-[7px] font-black uppercase tracking-widest"
@@ -7548,7 +7570,7 @@ const FameFeed = ({
                           <span className="text-[10px] font-black truncate leading-tight"
                             style={{ color: "#e0f4ff" }}>{ecoItem.name}</span>
                           <span className="text-[8px] font-semibold"
-                            style={{ color: "#c8ff0066" }}>Explore →</span>
+                            style={{ color: "#c8ff0066" }}>Explore â†’</span>
                         </div>
                       </>
                     ) : /* flick */ (
@@ -7566,12 +7588,12 @@ const FameFeed = ({
                           ) : ecoItem.author_avatar ? (
                             <img src={ecoItem.author_avatar} className="w-full h-full object-cover" alt="" decoding="async" loading="lazy" />
                           ) : (
-                            <span className="text-[15px]">🎬</span>
+                            <span className="text-[15px]">ðŸŽ¬</span>
                           )}
                         </div>
                         <div className="flex flex-col min-w-0 flex-1 overflow-hidden">
                           <span className="text-[7px] font-black uppercase tracking-widest"
-                            style={{ color: "rgba(255,255,255,0.26)" }}>🔥 FLICK</span>
+                            style={{ color: "rgba(255,255,255,0.26)" }}>ðŸ”¥ FLICK</span>
                           <span className="text-[10px] font-black truncate leading-tight"
                             style={{ color: "#e0f4ff" }}>{ecoItem.author}</span>
                           <span className="text-[8px] truncate"
@@ -7581,7 +7603,7 @@ const FameFeed = ({
                     )}
                   </button>
 
-                  {/* RIGHT — Live member | flex:1 */}
+                  {/* RIGHT â€” Live member | flex:1 */}
                   <button
                     className="flex flex-col items-center justify-center py-2 px-1.5 active:opacity-60 transition-opacity"
                     style={{ flex: 1, minWidth: 0 }}
@@ -7623,16 +7645,16 @@ const FameFeed = ({
             );
           })()}
 
-          {/* ── Action bar ─────────────────────────────────────────────── */}
+          {/* â”€â”€ Action bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
           <div className="flex items-center gap-3 px-4 py-2.5 border-t border-lime-400/10">
-            {/* Reaction button — hover shows bar on desktop, long-press on mobile */}
+            {/* Reaction button â€” hover shows bar on desktop, long-press on mobile */}
             <div
               className="relative"
               data-reaction-surface="fame-post"
               onMouseEnter={() => setReactionBarPostId(post.id)}
               onMouseLeave={() => setReactionBarPostId(null)}
             >
-              {/* Floating reaction bar — glassmorphic capsule */}
+              {/* Floating reaction bar â€” glassmorphic capsule */}
               <AnimatePresence>
                 {reactionBarPostId === post.id && (
                   <motion.div
@@ -7700,7 +7722,7 @@ const FameFeed = ({
                 >
                   {likedIds.has(post.id)
                     ? reactionEmoji(userReactions[post.id])
-                    : "👍"}
+                    : "ðŸ‘"}
                 </span>
                 <span className="text-xs font-black text-lime-400">
                   {post.likes_count || 0}
@@ -7750,7 +7772,7 @@ const FameFeed = ({
               </button>
             )}
 
-            {/* Signal pipeline — static on mobile, animated on desktop */}
+            {/* Signal pipeline â€” static on mobile, animated on desktop */}
             {!IS_MOBILE && (
               <div
                 className="relative flex items-center shrink-0"
@@ -7801,7 +7823,7 @@ const FameFeed = ({
               </div>
             )}
 
-            {/* 🔗 Link — viral chain button */}
+            {/* ðŸ”— Link â€” viral chain button */}
             <MagnetButton
               postId={post.id}
               postType="post"
@@ -7834,14 +7856,14 @@ const FameFeed = ({
             </button>
           </div>
 
-          {/* ── Chain trace row — who joined the link chain ──────────────── */}
+          {/* â”€â”€ Chain trace row â€” who joined the link chain â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
           {(() => {
             const d = postMagnetData[post.id];
             if (!d || d.linkers.length === 0) return null;
             return (
               <div className="px-4 pb-2 pt-0 flex items-center gap-1.5 flex-wrap">
                 <span className="text-[9px] font-black text-lime-400/50 uppercase tracking-widest">
-                  🔗 Chain:
+                  ðŸ”— Chain:
                 </span>
                 {d.linkers.map((linker, i) => {
                   const isLast = i === 0;
@@ -7871,7 +7893,7 @@ const FameFeed = ({
                       {linker.full_name?.split(" ")[0]}
                       {isLast && (
                         <span className="text-[8px] ml-0.5 opacity-70 font-bold">
-                          ✓ latest
+                          âœ“ latest
                         </span>
                       )}
                     </span>
@@ -7881,7 +7903,7 @@ const FameFeed = ({
             );
           })()}
 
-          {/* ── Voice section — post owner / first linker broadcasts ──────── */}
+          {/* â”€â”€ Voice section â€” post owner / first linker broadcasts â”€â”€â”€â”€â”€â”€â”€â”€ */}
           {(() => {
             const d = postMagnetData[post.id];
             if (!d || d.voices.length === 0) return null;
@@ -7898,12 +7920,12 @@ const FameFeed = ({
                     key={v.id}
                     className="animate-pulse text-red-400 bg-red-950/30 px-3 py-1.5 rounded-lg border border-red-500/20 font-medium flex items-center gap-2"
                   >
-                    <span className="text-base leading-none">🐦</span>
+                    <span className="text-base leading-none">ðŸ¦</span>
                     <span className="text-[12px] font-black flex-1">
                       {v.status_text}
                     </span>
                     <span className="text-[9px] text-red-500/70 font-black uppercase shrink-0">
-                      ⚡ Owner
+                      âš¡ Owner
                     </span>
                   </div>
                 ))}
@@ -7912,7 +7934,7 @@ const FameFeed = ({
                     key={v.id}
                     className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-purple-900/20 border border-purple-500/20"
                   >
-                    <span className="text-base leading-none">🐦</span>
+                    <span className="text-base leading-none">ðŸ¦</span>
                     <span className="text-[11px] text-purple-300 font-semibold flex-1">
                       {v.status_text}
                     </span>
@@ -7922,7 +7944,7 @@ const FameFeed = ({
             );
           })()}
 
-          {/* ── Comment preview / news-ticker ────────────────────────────── */}
+          {/* â”€â”€ Comment preview / news-ticker â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
           {false && (() => {
             const preview = latestCommentPreviews[post.id];
             const tickerItems = commentTickerMap[post.id]?.length
@@ -7959,7 +7981,7 @@ const FameFeed = ({
               >
                 {totalCount > 1 && (
                   <p className="text-[11px] text-white/30 font-medium mb-1.5">
-                    View all {totalCount} comment{totalCount > 1 ? "s" : ""}…
+                    View all {totalCount} comment{totalCount > 1 ? "s" : ""}â€¦
                   </p>
                 )}
                 {activeItem && (
@@ -8001,7 +8023,7 @@ const FameFeed = ({
                           {(() => {
                             const safe = maskProfanity(activeItem.content);
                             return safe.length > 100
-                              ? safe.slice(0, 100) + "…"
+                              ? safe.slice(0, 100) + "â€¦"
                               : safe;
                           })()}
                         </span>
@@ -8023,7 +8045,7 @@ const FameFeed = ({
             );
           })()}
 
-          {/* ── Inline Comment Section ────────────────────────────────── */}
+          {/* â”€â”€ Inline Comment Section â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
           <AnimatePresence>
             {commentSheetId === post.id &&
               (() => {
@@ -8069,7 +8091,7 @@ const FameFeed = ({
                       {replyingTo?.postId === post.id && (
                         <div className="flex items-center justify-between px-4 py-1.5 bg-blue-900/30 border-b border-blue-500/20">
                           <span className="text-[11px] text-blue-400 font-semibold">
-                            ↩ Replying to {replyingTo.author}
+                            â†© Replying to {replyingTo.author}
                           </span>
                           <button
                             onClick={() => {
@@ -8225,7 +8247,7 @@ const FameFeed = ({
                                       </div>
                                     ) : c.is_hidden && !isPostOwner ? (
                                       <p className="text-[13px] text-white/30 italic mt-0.5">
-                                        💬 Comment hidden by{" "}
+                                        ðŸ’¬ Comment hidden by{" "}
                                         {c.hidden_by_name || "admin"}
                                       </p>
                                     ) : c.is_hidden && isPostOwner ? (
@@ -8234,7 +8256,7 @@ const FameFeed = ({
                                           {c.content}
                                         </p>
                                         <p className="text-[10px] text-white/30 mt-0.5">
-                                          🙈 Hidden by {c.hidden_by_name}
+                                          ðŸ™ˆ Hidden by {c.hidden_by_name}
                                         </p>
                                       </>
                                     ) : (
@@ -8268,7 +8290,7 @@ const FameFeed = ({
                                           data-reaction-surface="fame-comment"
                                           className="text-[11px] text-white/40 font-bold"
                                         >
-                                          😊 React
+                                          ðŸ˜Š React
                                         </button>
                                         <AnimatePresence>
                                           {commentReactionBarId === c.id && (
@@ -8469,8 +8491,8 @@ const FameFeed = ({
                           type="text"
                           placeholder={
                             replyingTo?.postId === post.id
-                              ? `Reply to ${replyingTo.author}…`
-                              : "Write a comment…"
+                              ? `Reply to ${replyingTo.author}â€¦`
+                              : "Write a commentâ€¦"
                           }
                           className="flex-1 border border-white/10 rounded-2xl px-4 py-2.5 text-sm text-white outline-none focus:ring-2 focus:ring-pink-500/30 placeholder-white/30"
                           style={{ background: "rgba(255,255,255,0.08)" }}
@@ -8512,20 +8534,20 @@ const FameFeed = ({
     );
   };
 
-  // ── Infinite Discovery Engine ──────────────────────────────────────────────
+  // â”€â”€ Infinite Discovery Engine â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // Strict sequence anchored to each Circles widget:
-  //   Post  2 → Circles row          (intro)
-  //   Post  6 → Hook Pages Discover  (+4 after circles)
-  //   Post 10 → Trending Flicks      (+4 after hooks)
-  //   Post 14 → Circles row          (+4 after flicks → repeats)
-  //   Post 18 → Hook Pages Discover
-  //   Post 22 → Trending Flicks
-  //   … and so on every 12 posts
+  //   Post  2 â†’ Circles row          (intro)
+  //   Post  6 â†’ Hook Pages Discover  (+4 after circles)
+  //   Post 10 â†’ Trending Flicks      (+4 after hooks)
+  //   Post 14 â†’ Circles row          (+4 after flicks â†’ repeats)
+  //   Post 18 â†’ Hook Pages Discover
+  //   Post 22 â†’ Trending Flicks
+  //   â€¦ and so on every 12 posts
   const feedBlocks = useMemo(() => {
     const blocks: FeedBlock[] = [];
     if (visiblePosts.length === 0) return blocks;
 
-    // Strict loop: circles → +4 → hook-card → +4 → reels-row → +4 → (circles again)
+    // Strict loop: circles â†’ +4 â†’ hook-card â†’ +4 â†’ reels-row â†’ +4 â†’ (circles again)
     const LOOP_WIDGETS = [
       { gap: 4, type: "hook-card" },    // Hook Pages Discover
       { gap: 4, type: "survey-row" },   // Latest Surveys
@@ -8554,10 +8576,10 @@ const FameFeed = ({
     visiblePosts.forEach((post, idx) => {
       const postNum = idx + 1; // 1-based
 
-      // ── Individual post ──────────────────────────────────────────────────
+      // â”€â”€ Individual post â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       blocks.push({ type: "post", post, key: `p-${post.id}` });
 
-      // ── Widget injection ─────────────────────────────────────────────────
+      // â”€â”€ Widget injection â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       const wType = widgetAtPost.get(postNum);
       if (wType) {
         if (wType === "circles-row") {
@@ -8602,7 +8624,7 @@ const FameFeed = ({
           stay in their existing positions without opening duplicate modals. */}
       <MarketplaceFeedCard items={marketplaceItems} deepLinkOnly />
 
-      {/* ── Hidden Posts Archive Banner (shows only when posts are hidden) ── */}
+      {/* â”€â”€ Hidden Posts Archive Banner (shows only when posts are hidden) â”€â”€ */}
       {hiddenIds.size > 0 && (
         <motion.button
           initial={{ opacity: 0, y: -6 }}
@@ -8619,7 +8641,7 @@ const FameFeed = ({
             </span>
           </div>
           <span className="text-yellow-400 text-[11px] font-black bg-yellow-400/10 border border-yellow-400/20 px-3 py-1 rounded-full shrink-0">
-            View Archive →
+            View Archive â†’
           </span>
         </motion.button>
       )}
@@ -8644,7 +8666,7 @@ const FameFeed = ({
         </div>
       )}
 
-      {/* ── People Discovery — New in Your Area ────────────────────────── */}
+      {/* â”€â”€ People Discovery â€” New in Your Area â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       {currentUserId && localProfile.rec_new_users !== false && (
         localProfile.district || localProfile.city || localProfile.state
       ) && (
@@ -8657,7 +8679,7 @@ const FameFeed = ({
         </div>
       )}
 
-      {/* ── People You May Know ───────────────────────────────────────────── */}
+      {/* â”€â”€ People You May Know â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       {currentUserId && (
         <div className="py-2">
           <PeopleYouMayKnow
@@ -8668,14 +8690,14 @@ const FameFeed = ({
         </div>
       )}
 
-      {/* ── Dynamic Feed — Infinite Discovery Engine ──────────────────── */}
+      {/* â”€â”€ Dynamic Feed â€” Infinite Discovery Engine â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       {(() => {
         let postCount = 0;
         return feedBlocks.map((block, blockIdx) => {
-        // ── Individual post ────────────────────────────────────────
+        // â”€â”€ Individual post â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         if (block.type === "post") {
           const bPost = block.post!;
-          // ── Hidden post: inline placeholder at the exact same position ──
+          // â”€â”€ Hidden post: inline placeholder at the exact same position â”€â”€
           if (hiddenIds.has(bPost.id)) {
             return (
               <motion.div
@@ -8725,7 +8747,7 @@ const FameFeed = ({
           );
         }
 
-        // ── Trending Flicks (shuffled) ─────────────────────────────
+        // â”€â”€ Trending Flicks (shuffled) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         if (block.type === "reels-row") {
           const shuffled = seededShuffle(trendingFlicks, block.seed ?? 0);
           return (
@@ -8753,7 +8775,7 @@ const FameFeed = ({
           );
         }
 
-        // ── Trending Circles (real DB first, DemoCircles as fallback) ───
+        // â”€â”€ Trending Circles (real DB first, DemoCircles as fallback) â”€â”€â”€
         if (block.type === "circles-row") {
           const shuffled = seededShuffle(groupSuggestions, block.seed ?? 0);
           const hasReal = shuffled.length > 0;
@@ -8776,7 +8798,7 @@ const FameFeed = ({
           );
         }
 
-        // ── Hooks Discovery Strip — real DB data, DemoHookPagesRow fallback ──
+        // â”€â”€ Hooks Discovery Strip â€” real DB data, DemoHookPagesRow fallback â”€â”€
         if (block.type === "hook-card") {
           const hasReal = pageSuggestions.length > 0;
           return (
@@ -8799,7 +8821,7 @@ const FameFeed = ({
           );
         }
 
-        // ── People You May Know (shuffled) ─────────────────────────
+        // â”€â”€ People You May Know (shuffled) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         if (block.type === "people-row") {
           const visible = peopleSuggestions.filter(
             (u) => !blockedUserIds.has(u.id),
@@ -8823,7 +8845,7 @@ const FameFeed = ({
               style={{ background: "#0F172A" }}
             >
               <p className="text-[13px] font-black text-white/70 px-4 mb-2 tracking-tight">
-                👥 People You May Know
+                ðŸ‘¥ People You May Know
               </p>
               <div className="flex gap-3 overflow-x-auto px-4 pb-2 no-scrollbar scroll-smooth">
                 {shuffled.map((u, i) => {
@@ -8865,7 +8887,7 @@ const FameFeed = ({
                         </p>
                         {u.fame_points > 0 && (
                           <p className="text-white/70 text-[11px] font-black leading-none">
-                            ⭐ {u.fame_points} Fame
+                            â­ {u.fame_points} Fame
                           </p>
                         )}
                         <motion.button
@@ -8894,7 +8916,7 @@ const FameFeed = ({
           );
         }
 
-        // ── Latest Surveys ──────────────────────────────────────────
+        // â”€â”€ Latest Surveys â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         if (block.type === "survey-row") {
           return (
             <div key={block.key}>
@@ -8921,7 +8943,7 @@ const FameFeed = ({
         </div>
       )}
 
-      {/* ── Load More ─────────────────────────────────────────────────── */}
+      {/* â”€â”€ Load More â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       {!loading && hasMore && visiblePosts.length > 0 && (
         <div
           className="flex justify-center py-6"
@@ -8938,12 +8960,12 @@ const FameFeed = ({
             {loadingMore ? (
               <Loader2 size={16} className="animate-spin" />
             ) : null}
-            {loadingMore ? "Loading…" : "Load More Posts"}
+            {loadingMore ? "Loadingâ€¦" : "Load More Posts"}
           </button>
         </div>
       )}
 
-      {/* ── Report modal ──────────────────────────────────────────────── */}
+      {/* â”€â”€ Report modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       {createPortal(
         <AnimatePresence>
           {reportModal && (
@@ -9021,7 +9043,7 @@ const FameFeed = ({
                 ))}
               </div>
               <p className="text-center text-xs text-gray-400">
-                {reportSubmitting ? "Submitting report…" : "Select a reason to submit your report."}
+                {reportSubmitting ? "Submitting reportâ€¦" : "Select a reason to submit your report."}
               </p>
             </motion.div>
           </>
@@ -9030,7 +9052,7 @@ const FameFeed = ({
         document.body
       )}
 
-      {/* ── Confirm owner post deletion ─────────────────────────────────── */}
+      {/* â”€â”€ Confirm owner post deletion â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       {createPortal(
         <AnimatePresence>
           {pendingDeletePost && (
@@ -9093,7 +9115,7 @@ const FameFeed = ({
                     }}
                     className="flex-1 rounded-xl bg-red-600 px-4 py-3 text-sm font-bold text-white hover:bg-red-500 disabled:cursor-wait disabled:opacity-60"
                   >
-                    {deleteSubmitting ? "Deleting…" : "Delete"}
+                    {deleteSubmitting ? "Deletingâ€¦" : "Delete"}
                   </button>
                 </div>
               </motion.div>
@@ -9103,7 +9125,7 @@ const FameFeed = ({
         document.body,
       )}
 
-      {/* ── Block Confirmation Dialog ─────────────────────────────────── */}
+      {/* â”€â”€ Block Confirmation Dialog â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <AnimatePresence>
         {blockConfirm && (
           <motion.div
@@ -9153,7 +9175,7 @@ const FameFeed = ({
         )}
       </AnimatePresence>
 
-      {/* ── Reaction Insights Modal ───────────────────────────────────── */}
+      {/* â”€â”€ Reaction Insights Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       {createPortal(
         <AnimatePresence>
           {insightsPostId && (
@@ -9263,7 +9285,7 @@ const FameFeed = ({
                             const emoji =
                               REACTIONS.find(
                                 (r) => r.type === item.reaction_type,
-                              )?.emoji ?? "👍";
+                              )?.emoji ?? "ðŸ‘";
                             const initials = (profile?.full_name ||
                               "?")[0].toUpperCase();
                             return (
@@ -9318,7 +9340,7 @@ const FameFeed = ({
         document.body,
       )}
 
-      {/* ── Feed Comment Actions Menu ───────────────────────────────── */}
+      {/* â”€â”€ Feed Comment Actions Menu â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <AnimatePresence>
         {feedCommentAction &&
           (() => {
@@ -9333,7 +9355,7 @@ const FameFeed = ({
 
             const items: FeedCommentMenuItem[] = [
               {
-                icon: "✏️",
+                icon: "âœï¸",
                 label: "Edit Comment",
                 action: () => {
                   setEditingFeedComment({
@@ -9345,7 +9367,7 @@ const FameFeed = ({
                 },
               },
               {
-                icon: "🗑️",
+                icon: "ðŸ—‘ï¸",
                 label: "Delete Comment",
                 action: () => handleFeedCommentDelete(ac.id, postId),
                 danger: true,
@@ -9353,7 +9375,7 @@ const FameFeed = ({
             ];
             if (!ac.is_hidden) {
               items.push({
-                icon: "🙈",
+                icon: "ðŸ™ˆ",
                 label: "Hide from Others",
                 action: () => handleFeedCommentHide(ac.id, postId),
               });
@@ -9434,7 +9456,7 @@ const FameFeed = ({
           })()}
       </AnimatePresence>
 
-      {/* ── Share Popup (context-aware, anchored to button) ────────── */}
+      {/* â”€â”€ Share Popup (context-aware, anchored to button) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       {sharePopupData &&
         createPortal(
           <SharePopup
@@ -9523,7 +9545,7 @@ const FameFeed = ({
           );
         })()}
 
-      {/* ── Fullscreen Flick Player Modal ────────────────────────────── */}
+      {/* â”€â”€ Fullscreen Flick Player Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       {flickModal && (
         <FlickPlayerModal
           flick={flickModal}
@@ -9540,7 +9562,7 @@ const FameFeed = ({
         )}
       </AnimatePresence>
 
-      {/* ── Hidden Posts Archive Drawer ───────────────────────────────── */}
+      {/* â”€â”€ Hidden Posts Archive Drawer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <AnimatePresence>
         {showHiddenArchive && (
           <HiddenPostsDrawer
@@ -9553,7 +9575,7 @@ const FameFeed = ({
         )}
       </AnimatePresence>
 
-      {/* ── Admin Marketplace Manager — visible to admins only ──────────── */}
+      {/* â”€â”€ Admin Marketplace Manager â€” visible to admins only â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       {isAdmin && (
         <>
           <button

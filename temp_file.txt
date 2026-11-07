@@ -1,0 +1,3615 @@
+﻿import {
+  createContext,
+  useState,
+  useEffect,
+  useRef,
+  useMemo,
+  useCallback,
+  memo,
+  useContext,
+} from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { createPortal } from "react-dom";
+import { supabase } from "../lib/supabaseClient";
+import { smartTime } from "../lib/timeAgo";
+import { useOnlineUsers } from "../context/OnlineUsersContext";
+import ActiveStatusAvatar from "./ActiveStatusAvatar";
+import { memGet, memSet } from "../lib/memCache";
+import { toast } from "sonner";
+import {
+  ReactionBar,
+  ReactionBubbles,
+  useDismissableReactionPicker,
+} from "./ReactionBar";
+import { ErrorBoundary } from "./ErrorBoundary";
+import { MagnetButton, PostVoiceStrip, MagnetVoice } from "./MagnetSystem";
+import { useSoundEffects } from "../hooks/useSoundEffects";
+import { useProfileViewer } from "../context/ProfileViewerContext";
+import { useDataCache } from "../context/DataCacheContext";
+import { isAdminEmail } from "../lib/adminConfig";
+import { fetchProfileAdminFlag } from "../lib/adminProfile";
+import { MarketplaceFeedCard, AdminMarketplacePanel, type MarketplaceItem } from "./AdminMarketplace";
+import PeopleYouMayKnow from "./PeopleYouMayKnow";
+import NewInYourArea from "./NewInYourArea";
+import type { LocalProfile } from "../lib/recommendationEngine";
+import { requestShareModal } from "../lib/shareModal";
+import { sharePost } from "../lib/sharePost";
+import { buildPostShareUrl } from "../lib/universalShare";
+import { RichCaption } from "./RichCaption";
+import { getPostCaption } from "../lib/postCaption";
+import AutoPlayMutedVideo from "./AutoPlayMutedVideo";
+import ReelsViewerModal from "./ReelsViewerModal";
+import SavePostButton from "./SavePostButton";
+import { maskProfanity, sanitizeText } from "../lib/profanityFilter";
+import { resolveMediaUrl } from "../lib/mediaUrl";
+import { getReelSettings } from "../lib/reelSettings";
+import { prefetchReelMedia } from "../lib/reelPrefetch";
+import {
+  getBunnyVideoId,
+  getBunnyVideoThumbnailUrl,
+  useBunnyVideoStatus,
+} from "../hooks/useBunnyVideoStatus";
+import BunnyVideoStatusOverlay from "./BunnyVideoStatusOverlay";
+import { isHlsUrl, useHlsVideo } from "../hooks/useHlsVideo";
+import { getVideoMimeType } from "../lib/videoMimeType";
+import {
+  playVideoWithMutedFallback,
+  requestVideoPlay,
+} from "../lib/videoPlayback";
+import BunnyCreatorProcessingOverlay from "./BunnyCreatorProcessingOverlay";
+import {
+  fetchBunnyVideoReadiness,
+  getPostBunnyVideoId,
+  isBunnyVideoVisibleToViewer,
+} from "../lib/bunnyVideoReadiness";
+import PostActionMenuPortal from "./PostActionMenuPortal";
+import {
+  getPostVibeAudioUrl,
+  resolvePostVibe,
+  type VibeTag,
+} from "../lib/vibeMatcher";
+import {
+  getVibeAudioSnapshot,
+  setVisibleVibeAudio,
+  subscribeVibeAudio,
+} from "../lib/vibeAudio";
+import VibeAudioToggle from "./VibeAudioToggle";
+import VibeEffectCanvas from "./VibeEffectCanvas";
+import PostImageViewer from "./PostImageViewer";
+import type { SceneMood } from "./SceneVaultAttachment";
+import {
+  Send,
+  Heart,
+  MessageCircle,
+  Share2,
+  MoreVertical,
+  Loader2,
+  Trash2,
+  EyeOff,
+  Flag,
+  X,
+  Volume2,
+  VolumeX,
+  Sparkles,
+  Play,
+  Users,
+  Film,
+  Plus,
+  Eye,
+  SmilePlus,
+  Ban,
+  ShieldOff,
+  Check,
+  Link2,
+  TrendingUp,
+  Store,
+  SlidersHorizontal,
+} from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import SharePopup, { type SharePostData, type ShareAnchor, type ShareMode } from "./SharePopup";
+
+// â”€â”€ Reaction config â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+const REACTIONS = [
+  { type: "like", emoji: "ðŸ‘", label: "Like" },
+  { type: "fire", emoji: "ðŸ”¥", label: "Fire" },
+  { type: "haha", emoji: "ðŸ˜‚", label: "Haha" },
+  { type: "wow", emoji: "ðŸ˜®", label: "Wow" },
+  { type: "sad", emoji: "ðŸ˜¢", label: "Sad" },
+  { type: "angry", emoji: "ðŸ˜¡", label: "Angry" },
+];
+// keep legacy "love" reactions (â¤ï¸) rendering correctly
+const reactionEmoji = (type?: string) => {
+  if (type === "love") return "â¤ï¸";
+  return REACTIONS.find((r) => r.type === type)?.emoji ?? "ðŸ‘";
+};
+
+// Engagement RPCs/views have existed with several names over time. Keep the
+// component's internal contract stable: every post/reel uses likes_count.
+// IDs from Supabase are UUID strings, but String() also keeps aggregate rows
+// and cached rows aligned if a caller supplies a UUID-like value object.
+const postIdKey = (id: unknown) => (id == null ? "" : String(id));
+
+const totalLikesFrom = (row: any, fallback = 0) => {
+  const raw = row?.total_likes ?? row?.likes_count ?? row?.like_count ?? fallback;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
+};
+
+function normalizePostLikeCount<T extends Record<string, any>>(
+  post: T,
+): T & { likes_count: number; content: string } {
+  let metadata = post.metadata;
+  if (typeof metadata === "string") {
+    try {
+      metadata = JSON.parse(metadata);
+    } catch {
+      metadata = null;
+    }
+  }
+  return {
+    ...post,
+    content: getPostCaption({ ...post, metadata }),
+    likes_count: totalLikesFrom(post),
+    surpriseMsg: post.surpriseMsg ?? metadata?.surpriseMsg ?? null,
+  };
+}
+
+type SurpriseMessage = {
+  targetUserId: string;
+  targetUserName: string;
+  customMessage: string;
+  gifUrl: string;
+  isSeen: boolean;
+};
+
+function getSurpriseMessage(post: any): SurpriseMessage | null {
+  let raw = post?.surpriseMsg ?? post?.metadata?.surpriseMsg;
+  if (typeof raw === "string") {
+    try {
+      raw = JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  }
+  if (!raw || typeof raw !== "object" || !raw.targetUserId) return null;
+  return {
+    targetUserId: String(raw.targetUserId),
+    targetUserName: String(raw.targetUserName || "friend"),
+    customMessage: String(raw.customMessage || ""),
+    gifUrl: String(raw.gifUrl || ""),
+    isSeen: raw.isSeen === true,
+  };
+}
+
+const SurpriseReactionModal = ({
+  message,
+  onClose,
+}: {
+  message: SurpriseMessage;
+  onClose: () => void;
+}) => {
+  useEffect(() => {
+    const timer = window.setTimeout(onClose, 4000);
+    return () => window.clearTimeout(timer);
+  }, [onClose]);
+
+  return createPortal(
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[100000] flex items-center justify-center overflow-hidden bg-[#12051c]/90 px-5 py-8 backdrop-blur-xl"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.84, y: 24 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.9, y: 16 }}
+        transition={{ type: "spring", stiffness: 280, damping: 24 }}
+        className="relative w-full max-w-md overflow-hidden rounded-[2rem] border border-fuchsia-300/30 bg-gradient-to-br from-[#43105f] via-[#241040] to-[#110b28] p-1 shadow-[0_0_80px_rgba(217,70,239,0.35)]"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="relative overflow-hidden rounded-[1.8rem] bg-black/20 px-6 pb-7 pt-8 text-center">
+          <div className="pointer-events-none absolute -left-16 -top-20 h-48 w-48 rounded-full bg-fuchsia-400/20 blur-3xl" />
+          <div className="pointer-events-none absolute -bottom-24 -right-14 h-56 w-56 rounded-full bg-violet-400/20 blur-3xl" />
+
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close surprise message"
+            className="absolute right-4 top-4 z-10 flex h-9 w-9 items-center justify-center rounded-full border border-white/15 bg-white/10 text-white/70 transition hover:bg-white/20 hover:text-white"
+          >
+            <X size={17} />
+          </button>
+
+          <div className="relative mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-3xl border border-fuchsia-200/30 bg-gradient-to-br from-fuchsia-400 to-violet-500 text-3xl shadow-lg shadow-fuchsia-500/30">
+            ðŸŽ
+          </div>
+          <p className="relative text-[11px] font-black uppercase tracking-[0.24em] text-fuchsia-200/80">
+            A surprise from a friend
+          </p>
+          <h2 className="relative mt-2 text-2xl font-black text-white">
+            Hey {message.targetUserName}! âœ¨
+          </h2>
+
+          {message.gifUrl && (
+            <div className="relative mx-auto mt-5 max-h-56 overflow-hidden rounded-2xl border border-white/15 bg-black/20">
+              <img
+                src={message.gifUrl}
+                alt="Surprise GIF"
+                className="mx-auto max-h-56 w-full object-contain"
+                loading="eager"
+              />
+            </div>
+          )}
+          <p className="relative mt-5 whitespace-pre-wrap text-lg font-bold leading-relaxed text-white/90">
+            {message.customMessage}
+          </p>
+          <p className="relative mt-5 text-[11px] font-semibold text-white/40">
+            This surprise closes automatically in 4 seconds
+          </p>
+          <motion.div
+            initial={{ scaleX: 1 }}
+            animate={{ scaleX: 0 }}
+            transition={{ duration: 4, ease: "linear" }}
+            className="relative mt-4 h-1 origin-left rounded-full bg-gradient-to-r from-fuchsia-400 to-violet-400"
+          />
+        </div>
+      </motion.div>
+    </motion.div>,
+    document.body,
+  );
+};
+
+// â”€â”€ PostViewTracker â€” fires onView once when post scrolls into view â”€â”€â”€â”€â”€â”€â”€â”€â”€
+const VibeVisibilityContext = createContext(false);
+const FeedVideoPreloadContext = createContext<{
+  activeIndex: number | null;
+  setActiveIndex: (
+    index: number | null | ((current: number | null) => number | null),
+  ) => void;
+} | null>(null);
+
+const PostViewTracker = memo(({
+  postId,
+  onView,
+  vibeAudioUrl,
+  vibeAudioLoop = true,
+  children,
+}: {
+  postId: string;
+  onView: (id: string) => void;
+  vibeAudioUrl?: string | null;
+  vibeAudioLoop?: boolean;
+  children: React.ReactNode;
+}) => {
+  const ref = useRef<HTMLDivElement>(null);
+  const fired = useRef(false);
+  const [isVisible, setIsVisible] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(
+      ([entry]) => {
+        const visible = entry.isIntersecting && entry.intersectionRatio >= 0.1;
+        setIsVisible(visible);
+        setVisibleVibeAudio(
+          postId,
+          vibeAudioUrl ?? null,
+          visible,
+          vibeAudioLoop,
+          entry.intersectionRatio,
+        );
+        if (entry.isIntersecting && entry.intersectionRatio >= 0.5 && !fired.current) {
+          fired.current = true;
+          onView(postId);
+        }
+      },
+      { threshold: [0.1, 0.5] },
+    );
+    obs.observe(el);
+    return () => {
+      obs.disconnect();
+      setVisibleVibeAudio(postId, vibeAudioUrl ?? null, false, vibeAudioLoop);
+    };
+  }, [postId, onView, vibeAudioUrl, vibeAudioLoop]);
+  return (
+    <VibeVisibilityContext.Provider value={isVisible}>
+      <div ref={ref} className={isVisible ? "post-vibe-in-view" : undefined} style={{ touchAction: "pan-y" }}>
+        {children}
+      </div>
+    </VibeVisibilityContext.Provider>
+  );
+});
+
+// â”€â”€ Inline video â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+const FeedVideo = memo(({ src, poster, isCreator, feedIndex }: { src: string; poster?: string | null; isCreator: boolean; feedIndex?: number }) => {
+  const ref = useRef<HTMLVideoElement>(null);
+  const isVisibleRef = useRef(false);
+  const [isVisible, setIsVisible] = useState(false);
+  const [isMuted, setIsMuted] = useState(true);
+  const [videoError, setVideoError] = useState<string | null>(null);
+  const preloadContext = useContext(FeedVideoPreloadContext);
+  const setActiveFeedVideoIndex = preloadContext?.setActiveIndex;
+  const bunnyVideoId = getBunnyVideoId(src);
+  const inPreloadWindow =
+    feedIndex !== undefined &&
+    preloadContext?.activeIndex !== null &&
+    preloadContext?.activeIndex !== undefined &&
+    feedIndex >= preloadContext.activeIndex &&
+    feedIndex <= preloadContext.activeIndex + 2;
+  const bunnyVideoStatus = useBunnyVideoStatus(
+    bunnyVideoId,
+    isCreator && (isVisible || inPreloadWindow),
+  );
+  const hlsPlayback = useHlsVideo(
+    ref,
+    src,
+    (isVisible || inPreloadWindow) &&
+      (!isCreator || bunnyVideoStatus.phase === "ready"),
+    bunnyVideoStatus.phase === "ready" ? "ready" : "pending",
+    isVisible,
+    !isVisible,
+  );
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(
+      ([entry]) => {
+        const visible = entry.isIntersecting && entry.intersectionRatio >= 0.35;
+        isVisibleRef.current = visible;
+        setIsVisible(visible);
+        if (visible) {
+          if (feedIndex !== undefined) setActiveFeedVideoIndex?.(feedIndex);
+          el.muted = false;
+          el.volume = 1;
+          setIsMuted(false);
+          playVideoWithMutedFallback(el, () => {
+            if (!isVisibleRef.current) return false;
+            setIsMuted(true);
+          });
+        } else {
+          el.pause();
+          el.muted = true;
+          setIsMuted(true);
+          if (feedIndex !== undefined) {
+            setActiveFeedVideoIndex?.((current) =>
+              current === feedIndex ? null : current,
+            );
+          }
+        }
+      },
+      { threshold: [0, 0.35, 0.5] },
+    );
+    obs.observe(el);
+    return () => {
+      obs.disconnect();
+      el.pause();
+    };
+  }, [feedIndex, setActiveFeedVideoIndex, src]);
+
+  useEffect(() => {
+    if (!isVisible || (isCreator && bunnyVideoStatus.phase !== "ready")) return;
+    const video = ref.current;
+    if (!video) return;
+    setVideoError(null);
+    if (!hlsPlayback.isHls) {
+      video.load();
+      playVideoWithMutedFallback(video, () => {
+        if (!isVisibleRef.current) return false;
+        setIsMuted(true);
+      });
+    }
+  }, [bunnyVideoStatus.phase, hlsPlayback.isHls, isCreator, isVisible, src]);
+
+  return (
+    <div
+      className="relative mx-auto my-3 aspect-[9/16] w-[min(100%,42.1875vh)] max-h-[75vh] overflow-hidden rounded-2xl bg-black md:w-[min(100%,45vh)] md:max-h-[80vh]"
+      style={{ touchAction: "pan-y" }}
+    >
+      <video
+        ref={ref}
+        src={hlsPlayback.isHls ? undefined : src}
+        poster={getBunnyVideoThumbnailUrl(src, poster)}
+        loop
+        muted={isMuted}
+        playsInline
+        crossOrigin="anonymous"
+        autoPlay={isVisible}
+        className="w-full h-full rounded-2xl object-cover"
+        style={{ touchAction: "pan-y" }}
+        preload={isVisible || inPreloadWindow ? "auto" : "metadata"}
+        {...{
+          "webkit-playsinline": "true",
+          "x5-playsinline": "true",
+        }}
+        onLoadStart={() => setVideoError(null)}
+        onError={(event) => {
+          if (isCreator && bunnyVideoId && bunnyVideoStatus.phase !== "ready") return;
+          setVideoError("This video couldn't be played. Try again later.");
+          console.warn("[FameFeed] Video playback failed:", event.currentTarget.error, src);
+        }}
+      />
+      {isVisible && isMuted && (
+        <button
+          type="button"
+          className="absolute bottom-3 right-3 z-20 flex cursor-pointer items-center gap-2 rounded-full border border-white/25 bg-black/65 px-3 py-2 text-xs font-bold text-white shadow-lg backdrop-blur transition hover:bg-black/80"
+          aria-label="Enable video sound"
+          onClick={(event) => {
+            event.stopPropagation();
+            const video = ref.current;
+            if (!video) return;
+            video.muted = false;
+            video.volume = 1;
+            void requestVideoPlay(video).then(
+              () => setIsMuted(false),
+              () => {
+                video.muted = true;
+                setIsMuted(true);
+                playVideoWithMutedFallback(video, () => setIsMuted(true));
+              },
+            );
+          }}
+        >
+          <VolumeX size={14} aria-hidden="true" />
+          Tap for sound
+        </button>
+      )}
+      {isCreator && bunnyVideoId && (
+        <>
+          <BunnyCreatorProcessingOverlay state={bunnyVideoStatus} />
+          {bunnyVideoStatus.phase === "failed" && (
+            <BunnyVideoStatusOverlay state={bunnyVideoStatus} onRetry={bunnyVideoStatus.retry} />
+          )}
+        </>
+      )}
+      {(videoError || (!isCreator || bunnyVideoStatus.phase === "ready"
+        ? hlsPlayback.error
+        : null)) && (
+        <div className="absolute inset-0 z-[25] flex flex-col items-center justify-center gap-2 bg-[#090b14]/95 p-4 text-center">
+          <p className="text-sm font-bold text-white">
+            {videoError || hlsPlayback.error}
+          </p>
+          <button
+            type="button"
+            className="rounded-full border border-white/20 bg-white/10 px-4 py-2 text-xs font-bold text-white"
+            onClick={() => {
+              const video = ref.current;
+              if (!video) return;
+              setVideoError(null);
+              if (hlsPlayback.isHls) {
+                hlsPlayback.retry();
+              } else {
+                video.load();
+                void video.play().catch(() => {});
+              }
+            }}
+          >
+            Retry
+          </button>
+        </div>
+      )}
+    </div>
+  );
+});
+
+const FeedPreviewVideo = memo(({ src }: { src: string }) => {
+  return (
+    <AutoPlayMutedVideo
+      src={src}
+      className="absolute inset-0 h-full w-full object-cover"
+      preload="auto"
+      passThroughClicks={false}
+      visibilityThreshold={0.1}
+      style={{ opacity: 0.85 }}
+    />
+  );
+});
+
+// â”€â”€ YouTube embed â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+const YouTubeEmbed = memo(({ url }: { url: string }) => {
+  const m = url.match(
+    /^.*(youtu.be\/|v\/|embed\/|watch\?v=|\/shorts\/)([^#&?]*).*/,
+  );
+  const id = m?.[2]?.length === 11 ? m[2] : null;
+  if (!id) return null;
+  return (
+    <div
+      className="aspect-[4/5] w-full overflow-hidden bg-[#09090b]"
+      style={{ touchAction: "pan-y" }}
+    >
+      <iframe
+        src={`https://www.youtube.com/embed/${id}?controls=1&modestbranding=1`}
+        className="w-full h-full"
+        style={{ touchAction: "pan-y" }}
+        allow="accelerometer; autoplay; encrypted-media"
+        title="Video"
+      />
+    </div>
+  );
+});
+
+const getPostImageUrls = (post: any): string[] => {
+  let rawUrls = post?.image_urls ?? post?.metadata?.image_urls;
+  if (typeof rawUrls === "string") {
+    try {
+      rawUrls = JSON.parse(rawUrls);
+    } catch {
+      rawUrls = rawUrls.includes(",") ? rawUrls.split(",") : [rawUrls];
+    }
+  }
+  if (Array.isArray(rawUrls)) {
+    const urls = rawUrls.filter((url): url is string => typeof url === "string" && url.trim().length > 0);
+    if (urls.length) return urls.slice(0, 5);
+  }
+
+  const legacyUrl = post?.media_url || post?.image_url || post?.cover_url || null;
+  if (!legacyUrl || post?.type === "video") return [];
+  const isVideo =
+    post?.metadata?.is_youtube ||
+    legacyUrl.includes("youtube.com") ||
+    legacyUrl.includes("youtu.be") ||
+    /\.(mp4|webm|ogg|mov|m4v)/i.test(legacyUrl.split("?")[0]) ||
+    legacyUrl.includes("rapidcdn.app");
+  return isVideo ? [] : [legacyUrl];
+};
+
+const isFeedVideoPost = (post: any) =>
+  post?.type === "video" ||
+  post?.metadata?.is_youtube ||
+  (post?.media_url &&
+    (/\.(mp4|webm|ogg|mov|m4v)/i.test(post.media_url.split("?")[0]) ||
+      post.media_url.includes("youtube.com") ||
+      post.media_url.includes("youtu.be") ||
+      post.media_url.includes("rapidcdn.app")));
+
+const PostImageCollage = memo(({ urls, onOpen }: { urls: string[]; onOpen: (index: number) => void }) => {
+  const visibleUrls = urls.length === 5 ? urls.slice(0, 4) : urls;
+  const count = visibleUrls.length;
+  const layout =
+    count === 1
+      ? "grid-cols-1"
+      : count === 2
+        ? "grid-cols-2"
+        : count === 3
+          ? "grid-cols-2 grid-rows-[1.35fr_1fr]"
+          : "grid-cols-2 grid-rows-2";
+
+  return (
+    <div className={`grid aspect-[4/5] w-full gap-1 overflow-hidden bg-[#09090b] ${layout}`} style={{ touchAction: "pan-y" }}>
+      {visibleUrls.map((url, index) => (
+        <button
+          key={`${url}-${index}`}
+          type="button"
+          onClick={() => onOpen(index)}
+          className={`group relative min-h-0 overflow-hidden bg-[#09090b] ${
+            count === 3 && index === 0 ? "col-span-2" : ""
+          }`}
+          aria-label={`Open image ${index + 1} of ${urls.length}`}
+        >
+          <img
+            src={url}
+            loading={index === 0 ? "eager" : "lazy"}
+            className="h-full w-full object-cover transition duration-500 ease-out group-hover:scale-[1.045]"
+            alt=""
+            decoding="async"
+          />
+          {urls.length === 5 && index === 3 && (
+            <span className="absolute inset-0 flex items-center justify-center bg-black/45 text-2xl font-black text-white">
+              +1
+            </span>
+          )}
+        </button>
+      ))}
+    </div>
+  );
+});
+
+// â”€â”€ Smart media renderer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+const VibeMediaFrame = memo(
+  ({
+    postId,
+    vibeTag,
+    children,
+  }: {
+    postId: string;
+    vibeTag?: VibeTag;
+    children: React.ReactNode;
+  }) => {
+    const active = useContext(VibeVisibilityContext);
+    return (
+      <div
+        className="vibe-media-frame relative"
+        data-vibe={vibeTag}
+        data-testid={`media-frame-${postId}`}
+      >
+        <div className="relative z-[1]">{children}</div>
+        {vibeTag && (
+          <div
+            className="vibe-media-overlay absolute inset-0 z-30 pointer-events-none"
+            data-vibe={vibeTag}
+            data-testid={`vibe-overlay-${postId}`}
+            aria-hidden="true"
+          >
+            <span className="vibe-media-particles" aria-hidden="true" />
+            {vibeTag === "good_morning" && (
+              <span className="vibe-media-flare" aria-hidden="true" />
+            )}
+            <VibeEffectCanvas active={active} vibeTag={vibeTag} />
+          </div>
+        )}
+      </div>
+    );
+  },
+);
+
+const PostMedia = memo(({
+  post,
+  vibeTag,
+  isCreator = false,
+  feedIndex,
+}: {
+  post: any;
+  vibeTag?: VibeTag;
+  isCreator?: boolean;
+  feedIndex?: number;
+}) => {
+  const [viewerIndex, setViewerIndex] = useState<number | null>(null);
+  const [reelsViewerOpen, setReelsViewerOpen] = useState(false);
+  const [reelsVideoSrc, setReelsVideoSrc] = useState<string>("");
+  const [reelsPost, setReelsPost] = useState<any>(null);
+  const [reelsIndex, setReelsIndex] = useState<number>(0);
+  const sceneVault = post?.metadata?.scene_vault;
+  const scenePhotos = Array.isArray(sceneVault?.photos)
+    ? sceneVault.photos.filter((url: unknown): url is string => typeof url === "string" && /^https?:\/\//i.test(url)).slice(0, 2)
+    : [];
+  const imageUrls = getPostImageUrls(post);
+  const url = post.media_url || post.image_url || post.cover_url || null;
+  if (scenePhotos.length === 2) {
+    const supportedMoods: SceneMood[] = ["love", "angry", "travel", "sad", "missing"];
+    const mood: SceneMood = supportedMoods.includes(sceneVault.mood) ? sceneVault.mood : "love";
+    return (
+      <>
+        <VibeMediaFrame postId={String(post.id)} vibeTag={vibeTag}>
+          <div className={`scene-vault-post scene-vault-post--${mood}`} data-scene-mood={mood}>
+            <div className="scene-vault-post-atmosphere" aria-hidden="true" />
+            <div className="scene-vault-post-frames">
+              {scenePhotos.map((photo, index) => (
+                <button
+                  key={`${photo}-${index}`}
+                  type="button"
+                  onClick={() => setViewerIndex(index)}
+                  aria-label={`Open ${mood} scene photo ${index + 1}`}
+                  className={`scene-vault-post-frame scene-vault-post-frame--${index === 0 ? "left" : "right"}`}
+                >
+                  <img src={photo} alt="" loading={index === 0 ? "eager" : "lazy"} decoding="async" />
+                </button>
+              ))}
+            </div>
+            <div className="scene-vault-post-grain" aria-hidden="true" />
+            <div className="scene-vault-post-caption" aria-hidden="true">{mood === "angry" ? "FIGHT MODE" : mood.toUpperCase()}</div>
+            {mood === "love" && <span className="scene-vault-post-heart" aria-hidden="true">â™¥</span>}
+            {mood === "travel" && <span className="scene-vault-post-motion" aria-hidden="true" />}
+            {(mood === "sad" || mood === "missing") && <span className="scene-vault-post-rain" aria-hidden="true" />}
+            {mood === "angry" && <span className="scene-vault-post-flash" aria-hidden="true" />}
+          </div>
+        </VibeMediaFrame>
+        {viewerIndex !== null && (
+          <PostImageViewer
+            urls={scenePhotos}
+            index={viewerIndex}
+            onIndexChange={setViewerIndex}
+            onClose={() => setViewerIndex(null)}
+          />
+        )}
+      </>
+    );
+  }
+  if (!url && !imageUrls.length) return null;
+  if (imageUrls.length) {
+    return (
+      <>
+        <VibeMediaFrame postId={String(post.id)} vibeTag={vibeTag}>
+          <PostImageCollage urls={imageUrls} onOpen={setViewerIndex} />
+        </VibeMediaFrame>
+        {viewerIndex !== null && (
+          <PostImageViewer
+            urls={imageUrls}
+            index={viewerIndex}
+            onIndexChange={setViewerIndex}
+            onClose={() => setViewerIndex(null)}
+          />
+        )}
+      </>
+    );
+  }
+  const isYT =
+    post.metadata?.is_youtube ||
+    url.includes("youtube.com") ||
+    url.includes("youtu.be");
+  const isVid =
+    post.type === "video" ||
+    /\.(mp4|webm|ogg|mov|m4v)/i.test(url.split("?")[0]) ||
+    url.includes("rapidcdn.app");
+  const media = isYT ? (
+    <YouTubeEmbed url={url} />
+  ) : isVid ? (
+    <div
+      className="relative rounded-lg overflow-hidden cursor-pointer select-none"
+      onClick={() => {
+        setReelsVideoSrc(url);
+        setReelsPost(post);
+        setReelsIndex(0);
+        setReelsViewerOpen(true);
+      }}
+    >
+      <FeedVideo
+        src={url}
+        poster={post.cover_url || post.thumb_url || post.thumbnail_url || post.video_thumbnail_url}
+        isCreator={isCreator}
+        feedIndex={feedIndex}
+        className="w-full h-full object-contain"
+      />
+    </div>
+  ) : (
+    <div className="relative aspect-[4/5] w-full overflow-hidden bg-[#09090b]" style={{ touchAction: "pan-y" }}>
+      <img
+        src={url}
+        loading="lazy"
+        className="absolute inset-0 h-full w-full object-cover"
+        style={{ touchAction: "pan-y" }}
+        alt=""
+        decoding="async"
+      />
+    </div>
+  );
+  return (
+    <VibeMediaFrame postId={String(post.id)} vibeTag={vibeTag}>
+      {media}
+      {reelsViewerOpen && (
+        <ReelsViewerModal
+          src={reelsVideoSrc}
+          post={reelsPost}
+          onClose={() => setReelsViewerOpen(false)}
+          index={reelsIndex}
+          count={0}
+        />
+      )}
+    </VibeMediaFrame>
+  );
+});
+
+// â”€â”€ Mobile detection â€” used for Lite mode throughout FameFeed â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+const IS_MOBILE = typeof navigator !== "undefined" &&
+  /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+
+// â”€â”€ Post caption â€” 2-line clamp + "...more" toggle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+const CLAMP_THRESHOLD = 90;
+
+const PostCaption = memo(({ content }: { content: string }) => {
+  const [expanded, setExpanded] = useState(false);
+  const isLong = content.length > CLAMP_THRESHOLD;
+  return (
+    <div className="px-4 pb-2">
+      <p
+        className={`text-[15px] font-semibold text-white leading-relaxed whitespace-pre-wrap break-words ${!expanded && isLong ? "line-clamp-2" : ""}`}
+      >
+        {content}
+      </p>
+      {isLong && (
+        <button
+          onClick={() => setExpanded((v) => !v)}
+          className="text-blue-600 text-[12px] font-semibold mt-0.5"
+        >
+          {expanded ? "...less" : "...more"}
+        </button>
+      )}
+    </div>
+  );
+});
+
+// â”€â”€ Static Demo Hindi Circles (forceful inject â€” always show) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+const DEMO_HINDI_CIRCLES = [
+  {
+    id: "demo-yaaden",
+    name: "Yaaden",
+    created_by_name: "Rahul Sharma",
+    cover_url:
+      "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?w=400&q=80",
+    member_count: 1284,
+    description: "Purani yaadein, naye andaaz mein",
+  },
+  {
+    id: "demo-tum-bin",
+    name: "Tum Bin",
+    created_by_name: "Anjali Singh",
+    cover_url:
+      "https://images.unsplash.com/photo-1534447677768-be436bb09401?w=400&q=80",
+    member_count: 2341,
+    description: "Ishq ki barishon mein bheeg jao",
+  },
+  {
+    id: "demo-apna-circle",
+    name: "Apna Circle",
+    created_by_name: "Amit Patel",
+    cover_url:
+      "https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=400&q=80",
+    member_count: 3102,
+    description: "A space for friendship, laughter, and shared moments.",
+  },
+  {
+    id: "demo-barsaate",
+    name: "Barsaate",
+    created_by_name: "Priya Verma",
+    cover_url:
+      "https://images.unsplash.com/photo-1501691223387-dd0500403074?w=400&q=80",
+    member_count: 876,
+    description: "Baarish ke mausam ki baatein",
+  },
+  {
+    id: "demo-aawaz",
+    name: "Aawaz",
+    created_by_name: "Vikram Malhotra",
+    cover_url:
+      "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&q=80",
+    member_count: 4567,
+    description: "Sangeet ki duniya, apni aawaz",
+  },
+  {
+    id: "demo-hasi",
+    name: "Hasi ka Khajana",
+    created_by_name: "Sneha Kapoor",
+    cover_url:
+      "https://images.unsplash.com/photo-1527224857830-43a7acc85260?w=400&q=80",
+    member_count: 5890,
+    description: "Roz ek naya thumka, roz naya joke",
+  },
+  {
+    id: "demo-timepass",
+    name: "Time Pass",
+    created_by_name: "Sandeep Joshi",
+    cover_url:
+      "https://images.unsplash.com/photo-1614294149010-950b698f72c0?w=400&q=80",
+    member_count: 2198,
+    description: "Chill karo, hangout karo",
+  },
+];
+
+// â”€â”€ Demo Circles Row (cinematic, same card size as Trending Flicks) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+const DemoCirclesRow = memo(({ onCircleClick }: { onCircleClick: () => void }) => (
+  <div
+    className="border-b border-white/5 pt-2 pb-1"
+    style={{ background: "#0F172A" }}
+  >
+    <p className="text-[13px] font-black text-white/70 px-4 mb-2 tracking-wide">
+      ðŸ‘¥ Trending Circles
+    </p>
+    <div className="flex gap-3 overflow-x-auto px-4 pb-2 no-scrollbar">
+      {DEMO_HINDI_CIRCLES.map((circle) => (
+        <motion.div
+          key={circle.id}
+          whileHover={{ scale: 1.04 }}
+          whileTap={{ scale: 0.96 }}
+          onClick={onCircleClick}
+          className="flex-shrink-0 relative rounded-2xl overflow-hidden cursor-pointer select-none shadow-md"
+          style={{ width: 168, height: 312 }}
+        >
+          {/* Cinematic cover image */}
+          <img
+            src={circle.cover_url}
+            className="absolute inset-0 w-full h-full object-cover"
+            loading="lazy"
+            alt={circle.name}
+           decoding="async"/>
+          {/* Cinematic gradient overlay */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
+          {/* Top badge */}
+          <div className="absolute top-2.5 left-2.5">
+            <span className="bg-black/65 border border-white/30 text-white text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
+              Circle
+            </span>
+          </div>
+          {/* Member count badge top-right */}
+          <div className="absolute top-2.5 right-2.5 flex items-center gap-0.5 bg-black/70 rounded-full px-2 py-0.5 border border-white/20">
+            <Users size={9} className="text-white/80" />
+            <span className="text-white text-[9px] font-bold">
+              {circle.member_count >= 1000
+                ? `${(circle.member_count / 1000).toFixed(1)}K`
+                : circle.member_count}
+            </span>
+          </div>
+          {/* Bottom info */}
+          <div className="absolute bottom-0 left-0 right-0 px-3 py-3">
+            <p className="text-white text-[13px] font-black leading-tight truncate drop-shadow-lg">
+              {circle.name}
+            </p>
+            <p className="text-white/70 text-[10px] font-medium leading-tight mt-0.5 truncate">
+              {circle.description}
+            </p>
+            <p
+              style={{
+                fontSize: 10,
+                color: "#34d399",
+                fontStyle: "italic",
+                fontFamily: "Georgia, serif",
+                fontWeight: 700,
+                marginTop: 4,
+                letterSpacing: "0.03em",
+              }}
+            >
+              âœ¦ by {circle.created_by_name}
+            </p>
+            {/* Join button */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onCircleClick();
+              }}
+              className="mt-2 w-full py-2 rounded-xl text-[11px] font-black text-white active:scale-95 transition-all"
+              style={{
+                background: "linear-gradient(135deg, #00c853, #00e676)",
+                color: "#003300",
+                boxShadow: "0 0 12px rgba(0,200,83,0.45)",
+              }}
+            >
+              â­• Join Circle
+            </button>
+          </div>
+        </motion.div>
+      ))}
+    </div>
+  </div>
+));
+
+// â”€â”€ Demo Hook Pages (fallback when DB has no hook_pages yet) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+const DEMO_HOOK_PAGES = [
+  {
+    id: "demo-hp-1",
+    name: "Bollywood Beats",
+    category: "Music",
+    cover_url:
+      "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&q=80",
+    follower_count: 4200,
+    owner_name: "DJ Rahul",
+  },
+  {
+    id: "demo-hp-2",
+    name: "Fitness Zone",
+    category: "Health",
+    cover_url:
+      "https://images.unsplash.com/photo-1517836357463-d25dfeac3438?w=400&q=80",
+    follower_count: 8100,
+    owner_name: "Coach Priya",
+  },
+  {
+    id: "demo-hp-3",
+    name: "Tech Talks India",
+    category: "Technology",
+    cover_url:
+      "https://images.unsplash.com/photo-1518770660439-4636190af475?w=400&q=80",
+    follower_count: 3500,
+    owner_name: "Amit Dev",
+  },
+  {
+    id: "demo-hp-4",
+    name: "Art Studio",
+    category: "Art",
+    cover_url:
+      "https://images.unsplash.com/photo-1547826039-bfc35e0f1ea8?w=400&q=80",
+    follower_count: 6700,
+    owner_name: "Sneha Arts",
+  },
+  {
+    id: "demo-hp-5",
+    name: "Cricket Fever",
+    category: "Sports",
+    cover_url:
+      "https://images.unsplash.com/photo-1540747913346-19e32dc3e97e?w=400&q=80",
+    follower_count: 12000,
+    owner_name: "Cricket Fan",
+  },
+];
+
+// â”€â”€ Demo Hook Pages Row (shown when no real hook_pages in DB yet) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+const DemoHookPagesRow = ({ onPageClick }: { onPageClick: () => void }) => (
+  <div
+    className="border-b border-white/5 pt-3 pb-1"
+    style={{ background: "#0F172A" }}
+  >
+    <div className="flex items-center justify-between px-4 mb-2">
+      <p className="text-[13px] font-black text-white/70 tracking-wide">
+        âš¡ Hook Pages â€” Discover
+      </p>
+      <button
+        onClick={onPageClick}
+        className="text-[10px] font-black text-orange-500 uppercase tracking-wider"
+      >
+        See All â†’
+      </button>
+    </div>
+    <div className="flex gap-3 overflow-x-auto px-4 pb-2 no-scrollbar">
+      {DEMO_HOOK_PAGES.map((page) => (
+        <motion.div
+          key={page.id}
+          whileHover={{ scale: 1.04 }}
+          whileTap={{ scale: 0.96 }}
+          onClick={onPageClick}
+          className="flex-shrink-0 relative rounded-2xl overflow-hidden cursor-pointer select-none shadow-md"
+          style={{ width: 168, height: 312 }}
+        >
+          <img
+            src={page.cover_url}
+            className="absolute inset-0 w-full h-full object-cover"
+            loading="lazy"
+            alt={page.name}
+           decoding="async"/>
+          <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
+          <div className="absolute top-2.5 left-2.5">
+            <span className="bg-black/65 border border-white/30 text-white text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
+              âš¡ Page
+            </span>
+          </div>
+          <div className="absolute top-2.5 right-2.5 flex items-center gap-0.5 bg-black/70 rounded-full px-2 py-0.5 border border-white/20">
+            <Users size={9} className="text-white/80" />
+            <span className="text-white text-[9px] font-bold">
+              {page.follower_count >= 1000
+                ? `${(page.follower_count / 1000).toFixed(1)}K`
+                : page.follower_count}
+            </span>
+          </div>
+          <div className="absolute bottom-0 left-0 right-0 px-3 py-3">
+            <p className="text-white text-[13px] font-black leading-tight truncate drop-shadow-lg">
+              {page.name}
+            </p>
+            <p className="text-white/70 text-[10px] font-medium leading-tight mt-0.5 truncate">
+              {page.category}
+            </p>
+            <p
+              style={{
+                fontSize: 10,
+                color: "#34d399",
+                fontStyle: "italic",
+                fontFamily: "Georgia, serif",
+                fontWeight: 700,
+                marginTop: 4,
+                letterSpacing: "0.03em",
+              }}
+            >
+              âœ¦ by {page.owner_name}
+            </p>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onPageClick();
+              }}
+              className="mt-2 w-full py-2 rounded-xl text-[11px] font-black active:scale-95 transition-all"
+              style={{
+                background: "linear-gradient(135deg, #ff6b00, #ff9500)",
+                color: "#fff",
+                boxShadow: "0 0 12px rgba(255,107,0,0.45)",
+              }}
+            >
+              âš¡ HOOK
+            </button>
+          </div>
+        </motion.div>
+      ))}
+    </div>
+  </div>
+);
+
+// â”€â”€ Trending Flicks Row (real data, real-time) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+const FLICK_GRADS = [
+  "#ec4899",
+  "#f59e0b",
+  "#10b981",
+  "#3b82f6",
+  "#8b5cf6",
+  "#ef4444",
+  "#06b6d4",
+  "#f97316",
+  "#84cc16",
+];
+
+// â”€â”€ Latest Surveys Widget â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// â”€â”€ Survey image with built-in fallback & URL sanitisation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+const SurveyThumb = ({ rawUrl, question }: { rawUrl: string | null; question: string }) => {
+  const [errored, setErrored] = useState(false);
+  // Trim the URL and resolve via the shared helper (handles Supabase paths + absolute URLs)
+  // surveys bucket: https://rxwvvhvretostbiknuek.supabase.co/storage/v1/object/public/surveys/<filename>
+  const resolved = rawUrl?.trim() ? resolveMediaUrl(rawUrl.trim(), "surveys") : null;
+  const showImg  = resolved && !errored && resolved !== "/placeholder-avatar.png";
+
+  return (
+    /* Fixed-height container â€” layout NEVER shifts while loading */
+    <div className="w-full aspect-video rounded-lg overflow-hidden bg-gradient-to-br from-indigo-950 via-purple-950 to-slate-900 relative">
+      {showImg ? (
+        <img
+          src={resolved}
+          alt={question}
+          loading="lazy"
+          decoding="async"
+          className="w-full h-full object-cover rounded-lg"
+          onError={() => setErrored(true)}
+        />
+      ) : (
+        /* Fallback â€” pretty gradient tile with emoji */
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 select-none">
+          <span className="text-4xl">ðŸ—³ï¸</span>
+          <span className="text-white/30 text-[10px] font-bold uppercase tracking-widest">Survey</span>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const LatestSurveysWidget = ({
+  currentUserId,
+  onNavigateToSurveys,
+}: {
+  currentUserId: string;
+  onNavigateToSurveys?: () => void;
+}) => {
+  const [surveys, setSurveys]         = useState<any[]>([]);
+  const [loaded, setLoaded]           = useState(false);
+  const [voteCounts, setVoteCounts]   = useState<Record<string, Record<string, number>>>({});
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("surveys")
+        .select("id, question, image_url, media_url, user_id, created_at, survey_options(id, text)")
+        .order("created_at", { ascending: false })
+        .limit(3);
+      if (cancelled) return;
+      setSurveys(data || []);
+      setLoaded(true);
+      if (data && data.length > 0) {
+        const ids = data.map((s: any) => s.id);
+        const { data: voteCounts } = await supabase.rpc("get_survey_vote_counts", {
+          p_survey_ids: ids,
+        });
+        if (!cancelled && voteCounts) {
+          const map: Record<string, Record<string, number>> = {};
+          voteCounts.forEach((v: any) => {
+            if (!map[v.survey_id]) map[v.survey_id] = {};
+            map[v.survey_id][v.option_id] = Number(v.vote_count) || 0;
+          });
+          setVoteCounts(map);
+        }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  if (!loaded || surveys.length === 0) return null;
+
+  return (
+    <div className="pt-3 pb-2 border-b border-white/5" style={{ background: "#0F172A" }}>
+      {/* Section header */}
+      <div className="flex items-center justify-between px-4 mb-3">
+        <p className="text-[13px] font-black text-white/70 tracking-wide">ðŸ—³ï¸ Latest Surveys</p>
+        {onNavigateToSurveys && (
+          <button
+            onClick={onNavigateToSurveys}
+            className="text-[11px] font-bold text-indigo-400/70 hover:text-indigo-400 transition-colors">
+            See all â†’
+          </button>
+        )}
+      </div>
+
+      {/* Cards â€” horizontal scroll on mobile, single column on md+ */}
+      <div className="flex gap-3 overflow-x-auto px-4 pb-2 no-scrollbar sm:flex-col sm:overflow-x-visible sm:gap-2">
+        {surveys.map((survey, idx) => (
+          <motion.div
+            key={survey.id}
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: idx * 0.07 }}
+            onClick={onNavigateToSurveys}
+            className="flex-shrink-0 w-56 sm:w-full rounded-2xl overflow-hidden cursor-pointer active:scale-[0.98] transition-transform"
+            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+
+            {/* â”€â”€ Image banner (full-width, fixed aspect-ratio, object-cover) â”€â”€ */}
+            <SurveyThumb rawUrl={survey.image_url || survey.media_url} question={survey.question} />
+
+            {/* â”€â”€ Card body â”€â”€ */}
+            <div className="px-3 py-2.5">
+              <p className="text-white text-[12px] font-bold leading-snug line-clamp-2 mb-2">
+                {survey.question}
+              </p>
+
+              {/* â”€â”€ Vote progress bars (only if votes exist) â”€â”€ */}
+              {(() => {
+                const opts: any[] = (survey.survey_options || []).slice(0, 2);
+                const counts = voteCounts[survey.id] || {};
+                const total  = Object.values(counts).reduce((a: number, b: number) => a + b, 0);
+                if (!opts.length || total === 0) return null;
+                return (
+                  <div className="mb-2.5 flex flex-col gap-1">
+                    {opts.map((opt: any) => {
+                      const pct = Math.round(((counts[opt.id] || 0) / total) * 100);
+                      return (
+                        <div key={opt.id} className="flex items-center gap-1.5">
+                          <p className="text-white/55 text-[10px] truncate flex-shrink-0" style={{ width: 52 }}>
+                            {opt.text}
+                          </p>
+                          <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.08)" }}>
+                            <div
+                              className="h-full rounded-full transition-all duration-700"
+                              style={{ width: `${pct}%`, background: "linear-gradient(90deg,#6366f1,#8b5cf6)" }}
+                            />
+                          </div>
+                          <span className="text-white/40 text-[10px] flex-shrink-0" style={{ width: 26, textAlign: "right" }}>
+                            {pct}%
+                          </span>
+                        </div>
+                      );
+                    })}
+                    <p className="text-white/25 text-[9px] mt-0.5">{total.toLocaleString()} votes</p>
+                  </div>
+                );
+              })()}
+
+              <div className="flex items-center gap-2">
+                {/* Vote button */}
+                <motion.button
+                  whileTap={{ scale: 0.9 }}
+                  onClick={e => { e.stopPropagation(); onNavigateToSurveys?.(); }}
+                  className="flex-1 py-1.5 rounded-lg text-[11px] font-black text-white"
+                  style={{ background: "linear-gradient(135deg,#6366f1,#8b5cf6)" }}>
+                  Vote
+                </motion.button>
+
+                {/* Debate button with glow pulse */}
+                <motion.button
+                  whileTap={{ scale: 0.9 }}
+                  onClick={e => { e.stopPropagation(); onNavigateToSurveys?.(); }}
+                  className="relative flex-1 py-1.5 rounded-lg text-[11px] font-black overflow-hidden"
+                  style={{ background: "rgba(236,72,153,0.15)", border: "1px solid rgba(236,72,153,0.4)", color: "#ec4899" }}>
+                  <motion.span
+                    className="absolute inset-0 rounded-lg pointer-events-none"
+                    animate={{ boxShadow: ["0 0 0px rgba(236,72,153,0)", "0 0 10px rgba(236,72,153,0.6)", "0 0 0px rgba(236,72,153,0)"] }}
+                    transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
+                  />
+                  âš”ï¸ Debate
+                </motion.button>
+              </div>
+            </div>
+          </motion.div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+/** Facebook-style handoff: open the full-screen Flicks Reels overlay at a post. */
+const openFullReelsAt = (postId: string) => {
+  window.dispatchEvent(new CustomEvent("flicks:open-reels", { detail: { postId } }));
+};
+
+// Pure display component â€” data is fetched once at FameFeed level, no per-instance channels
+const TrendingFlicksRow = ({
+  flicks,
+  loaded,
+  onFlickClick,
+}: {
+  flicks: any[];
+  loaded: boolean;
+  onFlickClick: (flick: any) => void;
+}) => {
+  if (!loaded) return null;
+  if (flicks.length === 0)
+    return (
+      <div
+        className="pt-2 pb-3 px-4 border-b border-white/5"
+        style={{ background: "#0F172A" }}
+      >
+        <p className="text-[13px] font-black text-white/70 mb-2 tracking-wide">
+          ðŸ”¥ Trending Flicks
+        </p>
+        <div
+          className="flex flex-col items-center justify-center py-6 gap-2 rounded-2xl border border-white/10"
+          style={{ background: "rgba(255,255,255,0.04)" }}
+        >
+          <span className="text-3xl">ðŸŽ¬</span>
+          <p className="text-sm font-bold text-white/40">
+            No Trending Flicks yet
+          </p>
+          <p className="text-xs text-white/20">
+            Post something to be the first!
+          </p>
+        </div>
+      </div>
+    );
+  return (
+    <div
+      className="border-b border-white/5 pt-2 pb-1"
+      style={{ background: "#0F172A" }}
+    >
+      <p className="text-[13px] font-black text-white/70 px-4 mb-2 tracking-wide">
+        ðŸ”¥ Trending Flicks
+      </p>
+      <div className="flex gap-3 overflow-x-auto px-4 pb-2 no-scrollbar">
+        {flicks.map((flick, i) => {
+          const isHls = isHlsUrl(flick.media_url);
+          const isYT =
+            flick.media_url?.includes("youtube.com") ||
+            flick.media_url?.includes("youtu.be");
+          const isVid =
+            !isYT &&
+            flick.media_url &&
+            (isHls || /\.(mp4|webm|ogg|mov|m4v)/i.test(flick.media_url.split("?")[0]));
+          const isImg = flick.media_url && !isVid && !isYT;
+          return (
+            <motion.div
+              key={flick.id}
+              whileHover={{ scale: 1.04 }}
+              whileTap={{ scale: 0.96 }}
+              onClick={() => onFlickClick(flick)}
+              className="flex-shrink-0 relative rounded-2xl overflow-hidden cursor-pointer select-none shadow-md"
+              style={{
+                width: 168,
+                height: 297,
+                background: `linear-gradient(160deg, ${FLICK_GRADS[i % FLICK_GRADS.length]} 0%, #1e1b4b 100%)`,
+              }}
+            >
+              {/* Real thumbnail */}
+              {isImg && (
+                <img
+                  src={flick.media_url}
+                  className="absolute inset-0 w-full h-full object-cover"
+                  loading="lazy"
+                  alt=""
+                 decoding="async"/>
+              )}
+              {isHls && (flick.cover_url || flick.thumb_url) && (
+                <img
+                  src={flick.cover_url || flick.thumb_url}
+                  className="absolute inset-0 w-full h-full object-cover"
+                  loading="lazy"
+                  alt=""
+                  decoding="async"
+                />
+              )}
+              {isVid && !isHls && (
+                <AutoPlayMutedVideo
+                  src={flick.media_url}
+                  className="absolute inset-0 w-full h-full object-cover"
+                />
+              )}
+              {/* Subtle play indicator â€” small badge in corner so the auto-playing video isn't covered */}
+              {isVid && !isHls && (
+                <div className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/70 flex items-center justify-center border border-white/40">
+                  <VolumeX size={13} className="text-white" />
+                </div>
+              )}
+              {(isHls || !isVid) && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/15">
+                  <div className="w-12 h-12 rounded-full bg-black/70 flex items-center justify-center border-2 border-white/40">
+                    <Play size={20} fill="white" className="text-white ml-1" />
+                  </div>
+                </div>
+              )}
+              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/85 to-transparent px-2.5 py-2.5">
+                <div className="flex items-center gap-1 mb-0.5">
+                  <Heart size={11} className="text-red-400" fill="#f87171" />
+                  <span className="text-white text-[11px] font-bold">
+                    {flick.likes_count || 0}
+                  </span>
+                </div>
+                <p className="text-white text-[11px] font-semibold truncate">
+                  @{flick.author || "user"}
+                </p>
+              </div>
+            </motion.div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+// â”€â”€ Suggested Pages Row (horizontal scroll, 3-4 visible) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+const SuggestedPagesRow = ({
+  pages,
+  hookedIds,
+  followerCounts,
+  ownerNames,
+  onHook,
+  onPageClick,
+}: {
+  pages: any[];
+  hookedIds: string[];
+  followerCounts: { [key: string]: number };
+  ownerNames: Record<string, string>;
+  onHook: (e: React.MouseEvent, pageId: string) => void;
+  onPageClick: (page: any) => void;
+}) => {
+  if (pages.length === 0) return null;
+  return (
+    <div
+      className="border-b border-white/5 pt-3 pb-1"
+      style={{ background: "#0F172A" }}
+    >
+      <p className="text-[13px] font-black text-white/70 px-4 mb-2 tracking-wide">
+        ðŸ“„ Trending Pages
+      </p>
+      <div className="flex gap-3.5 overflow-x-auto px-4 pb-2 no-scrollbar">
+        {pages.map((page) => {
+          const grad = gradForSugg(page.id || page.name || "p");
+          const hooked = hookedIds.includes(page.id);
+          const count = followerCounts[page.id] ?? page.member_count ?? 0;
+          const ownerId = page.owner_id;
+          const ownerName = ownerId ? ownerNames[ownerId] : null;
+          // Creator avatar: from attached profiles or page.avatar_url
+          const creatorAvatar =
+            page.profiles?.avatar_url || page.avatar_url || null;
+          const creatorInitial = (page.profiles?.full_name ||
+            ownerName ||
+            "P")[0]?.toUpperCase();
+          return (
+            <motion.div
+              key={page.id}
+              whileHover={{ scale: 1.04 }}
+              whileTap={{ scale: 0.96 }}
+              onClick={() => onPageClick(page)}
+              className="flex-shrink-0 relative rounded-2xl overflow-hidden cursor-pointer select-none shadow-md"
+              style={{
+                width: 168,
+                height: 312,
+                backgroundImage: page.cover_url
+                  ? `url('${page.cover_url}')`
+                  : "none",
+                backgroundColor: page.cover_url ? "transparent" : "#1f2937",
+                backgroundSize: "cover",
+                backgroundPosition: "center",
+              }}
+            >
+              {/* Cinematic gradient overlay */}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/25 to-transparent" />
+              {/* Top: Page badge */}
+              <div className="absolute top-2.5 left-2.5">
+                <span className="bg-black/65 border border-white/30 text-white text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
+                  Page
+                </span>
+              </div>
+              {/* Top-right: follower count */}
+              <div className="absolute top-2.5 right-2.5 flex items-center gap-0.5 bg-black/70 rounded-full px-2 py-0.5 border border-white/20">
+                <Users size={9} className="text-white/80" />
+                <span className="text-white text-[9px] font-bold">
+                  {count >= 1000 ? `${(count / 1000).toFixed(1)}K` : count}
+                </span>
+              </div>
+              {/* Bottom info */}
+              <div className="absolute bottom-0 left-0 right-0 px-3 py-3">
+                {/* Creator row */}
+                <div className="flex items-center gap-1.5 mb-1.5">
+                  <div
+                    className="w-5 h-5 rounded-full overflow-hidden border border-white/40 shrink-0 bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-black"
+                    style={{ fontSize: 8 }}
+                  >
+                    {creatorAvatar ? (
+                      <img
+                        src={creatorAvatar}
+                        className="w-full h-full object-cover"
+                        loading="lazy"
+                        alt=""
+                       decoding="async"/>
+                    ) : (
+                      creatorInitial
+                    )}
+                  </div>
+                  {ownerName && (
+                    <p
+                      style={{
+                        fontSize: 9,
+                        color: "#34d399",
+                        fontStyle: "italic",
+                        fontFamily: "Georgia, serif",
+                        fontWeight: 700,
+                        letterSpacing: "0.04em",
+                      }}
+                    >
+                      âœ¦ by @{ownerName}
+                    </p>
+                  )}
+                </div>
+                <p className="text-white text-[13px] font-black leading-tight truncate drop-shadow-lg">
+                  {page.name}
+                </p>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onHook(e, page.id);
+                  }}
+                  className="mt-2 w-full py-2 rounded-xl text-[11px] font-black active:scale-95 transition-all"
+                  style={
+                    hooked
+                      ? {
+                          background: "rgba(255,255,255,0.15)",
+                          border: "2px solid #f87171",
+                          color: "#f87171",
+                        }
+                      : {
+                          background:
+                            "linear-gradient(135deg, #ff6b00, #ff9500)",
+                          color: "#fff",
+                          boxShadow: "0 0 12px rgba(255,107,0,0.5)",
+                        }
+                  }
+                >
+                  {hooked ? "âœ“ Hooked" : "âš¡ HOOK"}
+                </button>
+              </div>
+            </motion.div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+// â”€â”€ Suggested Circles Row (horizontal scroll, 3-4 visible) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+const SuggestedCirclesRow = ({
+  circles,
+  joinedIds,
+  memberCounts,
+  ownerNames,
+  onJoin,
+  onCircleClick,
+}: {
+  circles: any[];
+  joinedIds: string[];
+  memberCounts: { [key: string]: number };
+  ownerNames: Record<string, string>;
+  onJoin: (e: React.MouseEvent, circleId: string) => void;
+  onCircleClick: (circle: any) => void;
+}) => {
+  if (circles.length === 0) return null;
+  return (
+    <div
+      className="border-b border-white/5 pt-3 pb-1"
+      style={{ background: "#0F172A" }}
+    >
+      <p className="text-[13px] font-black text-white/70 px-4 mb-2 tracking-wide">
+        ðŸ‘¥ Circles
+      </p>
+      <div className="flex gap-3.5 overflow-x-auto px-4 pb-2 no-scrollbar">
+        {circles.map((circle) => {
+          const grad = gradForSugg(circle.id || circle.name || "c");
+          const joined = joinedIds.includes(circle.id);
+          const count = memberCounts[circle.id] ?? circle.member_count ?? 0;
+          const ownerId = circle.owner_id || circle.created_by;
+          const ownerName = ownerId ? ownerNames[ownerId] : null;
+          return (
+            <div
+              key={circle.id}
+              className="flex-shrink-0 rounded-2xl overflow-hidden flex flex-col cursor-pointer border border-white/10"
+              style={{
+                width: 168,
+                height: 312,
+                background: "rgba(30,10,45,0.95)",
+                boxShadow: "0 2px 18px rgba(0,0,0,0.4)",
+              }}
+              onClick={() => onCircleClick(circle)}
+            >
+              <div
+                className="w-full relative overflow-hidden"
+                style={{ height: 168, background: grad }}
+              >
+                {circle.cover_url ? (
+                  <img
+                    src={circle.cover_url}
+                    className="w-full h-full object-cover"
+                    loading="lazy"
+                    alt={circle.name}
+                   decoding="async"/>
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <Users size={36} className="text-white/50" />
+                  </div>
+                )}
+              </div>
+              <div className="p-3 flex flex-col gap-1 flex-1">
+                <p className="text-[13px] font-black text-white/90 truncate leading-tight">
+                  {circle.name}
+                </p>
+                <p className="text-[11px] text-white/40">{count} Members</p>
+                {ownerName && (
+                  <p
+                    style={{
+                      fontSize: 10,
+                      fontStyle: "italic",
+                      color: "#34d399",
+                      fontFamily: "Georgia, serif",
+                      letterSpacing: "0.04em",
+                      fontWeight: 700,
+                    }}
+                  >
+                    âœ¦ by @{ownerName}
+                  </p>
+                )}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onJoin(e, circle.id);
+                  }}
+                  className={`w-full py-2.5 rounded-xl text-[12px] font-black mt-auto transition-all active:scale-95 ${
+                    joined
+                      ? "bg-transparent border-2 border-red-400 text-red-400"
+                      : ""
+                  }`}
+                  style={
+                    joined
+                      ? {}
+                      : {
+                          background:
+                            "linear-gradient(135deg, #00c853, #00e676)",
+                          color: "#003300",
+                          boxShadow: "0 0 14px rgba(0,200,83,0.55)",
+                        }
+                  }
+                >
+                  {joined ? "LEAVE" : "â­• Join Circle"}
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+// â”€â”€ In-Feed Suggestion Card (native post style) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+const SUGG_GRADS = [
+  "#6366f1",
+  "#ec4899",
+  "#f59e0b",
+  "#10b981",
+  "#3b82f6",
+  "#8b5cf6",
+];
+
+function gradForSugg(id: string) {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = ((h << 5) + h) ^ id.charCodeAt(i);
+  return SUGG_GRADS[Math.abs(h) % SUGG_GRADS.length];
+}
+
+// Seeded Fisher-Yates shuffle â€” deterministic per seed, stable within a render
+function seededShuffle<T>(arr: T[], seed: number): T[] {
+  if (arr.length === 0) return [];
+  const a = [...arr];
+  let s = (seed * 1664525 + 1013904223) & 0x7fffffff;
+  for (let i = a.length - 1; i > 0; i--) {
+    s = (s * 1664525 + 1013904223) & 0x7fffffff;
+    const j = s % (i + 1);
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+const InFeedSuggestionCard = ({
+  item,
+  actionDone,
+  onAction,
+}: {
+  item: any;
+  actionDone: boolean;
+  onAction: (id: string) => void;
+}) => {
+  const isGroup = item.type === "group" || item.type === "circle";
+  const grad = gradForSugg(item.id || item.name || "x");
+  return (
+    <motion.article
+      layout
+      className="border-b border-white/5"
+      style={{ background: "linear-gradient(175deg,#1a0822,#0d0814,#0F172A)" }}
+    >
+      {/* Header â€” like a post author row */}
+      <div className="flex items-center gap-3 px-4 py-3">
+        <div
+          className="w-10 h-10 rounded-full overflow-hidden border border-white/10 shrink-0"
+          style={{ background: `linear-gradient(135deg, ${grad}, #1e1b4b)` }}
+        >
+          {item.cover_url ? (
+            <img
+              src={item.cover_url}
+              className="w-full h-full object-cover"
+              loading="lazy"
+              alt={item.name}
+             decoding="async"/>
+          ) : (
+            <div className="w-full h-full flex items-center justify-center">
+              <Users size={16} className="text-white/80" />
+            </div>
+          )}
+        </div>
+        <div>
+          <p className="text-white/90 font-bold text-sm leading-none">
+            {item.name || "Community"}
+          </p>
+          <p className="text-[10px] text-blue-400 font-semibold uppercase tracking-wide mt-0.5">
+            {isGroup ? "ðŸ‘¥ Suggested Circle" : "ðŸ“„ Suggested Page"}
+          </p>
+        </div>
+      </div>
+
+      {/* Big cover photo */}
+      <div
+        className="w-full relative bg-black/20"
+        style={{ aspectRatio: "16/9" }}
+      >
+        {item.cover_url ? (
+          <img
+            src={item.cover_url}
+            className="w-full h-full object-cover"
+            loading="lazy"
+            alt={item.name}
+           decoding="async"/>
+        ) : (
+          <div
+            className="w-full h-full flex items-center justify-center"
+            style={{ background: `linear-gradient(135deg, ${grad}, #1e1b4b)` }}
+          >
+            <Users size={52} className="text-white/40" />
+          </div>
+        )}
+        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent px-4 py-3">
+          <p className="text-white/80 text-[11px] font-semibold">
+            {item.member_count ?? 0} members
+            {item.privacy ? ` Â· ${item.privacy}` : ""}
+          </p>
+        </div>
+      </div>
+
+      {/* Optional description */}
+      {item.description && (
+        <div className="px-4 pt-2 pb-0">
+          <p className="text-[13px] text-gray-600 line-clamp-2 leading-snug">
+            {item.description}
+          </p>
+        </div>
+      )}
+
+      {/* Big action button */}
+      <div className="px-4 py-3">
+        <button
+          onClick={() => {
+            if (!actionDone) onAction(item.id);
+          }}
+          className={`w-full py-3.5 rounded-2xl font-black text-sm transition-all active:scale-[0.98] ${
+            actionDone
+              ? "bg-gray-100 text-gray-400 cursor-default"
+              : "bg-blue-600 text-white"
+          }`}
+        >
+          {actionDone
+            ? isGroup
+              ? "Joined âœ“"
+              : "Following âœ“"
+            : isGroup
+              ? "Join Circle"
+              : "Follow"}
+        </button>
+      </div>
+    </motion.article>
+  );
+};
+
+// â”€â”€ In-Feed Hooks Strip â€” mirrors DemoCirclesRow exactly, uses <img decoding="async"> not backgroundImage â”€â”€
+const InFeedHooksStrip = ({
+  pages,
+  hookedIds,
+  ownerNames,
+  followerCounts,
+  onHook,
+  onPageClick,
+  seed,
+}: {
+  pages: any[];
+  hookedIds: string[];
+  ownerNames: Record<string, string>;
+  followerCounts: Record<string, number>;
+  onHook: (e: React.MouseEvent, pageId: string) => void;
+  onPageClick: (page: any) => void;
+  seed?: number;
+}) => {
+  if (pages.length === 0) return null;
+  const displayed = seededShuffle(pages, seed ?? 0).slice(0, 5);
+  return (
+    <div
+      className="border-b border-white/5 pt-3 pb-1"
+      style={{ background: "#0F172A" }}
+    >
+      <div className="flex items-center justify-between px-4 mb-2">
+        <p className="text-[13px] font-black text-white/70 tracking-wide">
+          âš¡ Hook Pages â€” Discover
+        </p>
+        <button
+          onClick={() => onPageClick(null)}
+          className="text-[10px] font-black text-orange-500 uppercase tracking-wider"
+        >
+          See All â†’
+        </button>
+      </div>
+      <div className="flex gap-3 overflow-x-auto px-4 pb-2 no-scrollbar">
+        {displayed.map((page) => {
+          const hooked = hookedIds.includes(page.id);
+          const count =
+            followerCounts[page.id] ??
+            page.followers_count ??
+            page.follower_count ??
+            0;
+          const ownerName = page.owner_id ? ownerNames[page.owner_id] : null;
+          return (
+            <motion.div
+              key={page.id}
+              whileHover={{ scale: 1.04 }}
+              whileTap={{ scale: 0.96 }}
+              onClick={() => onPageClick(page)}
+              className="flex-shrink-0 relative rounded-2xl overflow-hidden cursor-pointer select-none shadow-md"
+              style={{ width: 168, height: 312, background: "#1f2937" }}
+            >
+              {/* Cover image â€” same <img decoding="async"> approach as DemoCirclesRow */}
+              {page.cover_url ? (
+                <img
+                  src={page.cover_url}
+                  className="absolute inset-0 w-full h-full object-cover"
+                  loading="lazy"
+                  alt={page.name}
+                 decoding="async"/>
+              ) : (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="text-4xl opacity-30">âš¡</span>
+                </div>
+              )}
+              {/* Gradient overlay */}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
+              {/* Top-left badge */}
+              <div className="absolute top-2.5 left-2.5">
+                <span className="bg-black/65 border border-white/30 text-white text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
+                  âš¡ Page
+                </span>
+              </div>
+              {/* Top-right follower count */}
+              <div className="absolute top-2.5 right-2.5 flex items-center gap-0.5 bg-black/70 rounded-full px-2 py-0.5 border border-white/20">
+                <Users size={9} className="text-white/80" />
+                <span className="text-white text-[9px] font-bold">
+                  {count >= 1000 ? `${(count / 1000).toFixed(1)}K` : count}
+                </span>
+              </div>
+              {/* Bottom info */}
+              <div className="absolute bottom-0 left-0 right-0 px-3 py-3">
+                <p className="text-white text-[13px] font-black leading-tight truncate drop-shadow-lg">
+                  {page.name}
+                </p>
+                {page.category && (
+                  <p className="text-white/70 text-[10px] font-medium leading-tight mt-0.5 truncate">
+                    {page.category}
+                  </p>
+                )}
+                {ownerName && (
+                  <p
+                    style={{
+                      fontSize: 10,
+                      color: "#34d399",
+                      fontStyle: "italic",
+                      fontFamily: "Georgia, serif",
+                      fontWeight: 700,
+                      marginTop: 4,
+                      letterSpacing: "0.03em",
+                    }}
+                  >
+                    âœ¦ by @{ownerName}
+                  </p>
+                )}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onHook(e, page.id);
+                  }}
+                  className="mt-2 w-full py-2 rounded-xl text-[11px] font-black active:scale-95 transition-all"
+                  style={
+                    hooked
+                      ? {
+                          background: "rgba(255,255,255,0.15)",
+                          border: "2px solid #f87171",
+                          color: "#f87171",
+                        }
+                      : {
+                          background:
+                            "linear-gradient(135deg, #ff6b00, #ff9500)",
+                          color: "#fff",
+                          boxShadow: "0 0 12px rgba(255,107,0,0.45)",
+                        }
+                  }
+                >
+                  {hooked ? "âœ“ Hooked" : "âš¡ HOOK"}
+                </button>
+              </div>
+            </motion.div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+// â”€â”€ Facebook-Style In-Feed Hook Page Card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+const InFeedHookPageCard = ({
+  page,
+  hooked,
+  ownerName,
+  followerCount,
+  onHook,
+  onPageClick,
+}: {
+  page: any;
+  hooked: boolean;
+  ownerName?: string;
+  followerCount: number;
+  onHook: (e: React.MouseEvent, pageId: string) => void;
+  onPageClick: (page: any) => void;
+}) => {
+  const grad = gradForSugg(page.id || page.name || "x");
+  return (
+    <motion.article
+      layout
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="border-b border-white/5 cursor-pointer"
+      style={{ background: "linear-gradient(175deg,#1a0822,#0d0814,#0F172A)" }}
+      onClick={() => onPageClick(page)}
+    >
+      {/* Header row */}
+      <div className="flex items-center gap-3 px-4 py-3">
+        <div
+          className="w-10 h-10 rounded-full overflow-hidden border border-white/10 shrink-0"
+          style={{ background: `linear-gradient(135deg, ${grad}, #1e1b4b)` }}
+        >
+          {page.avatar_url || page.cover_url ? (
+            <img
+              src={page.avatar_url || page.cover_url}
+              className="w-full h-full object-cover"
+              loading="lazy"
+              alt={page.name}
+             decoding="async"/>
+          ) : (
+            <div className="w-full h-full flex items-center justify-center">
+              <Film size={16} className="text-white/80" />
+            </div>
+          )}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-white/90 font-black text-sm leading-none truncate">
+            {page.name || "Page"}
+          </p>
+          {ownerName && (
+            <p
+              style={{
+                fontSize: 10,
+                fontStyle: "italic",
+                color: "#34d399",
+                fontWeight: 700,
+                marginTop: 2,
+              }}
+            >
+              âœ¦ by @{ownerName}
+            </p>
+          )}
+        </div>
+        <span className="text-[10px] text-blue-400 font-black uppercase tracking-wide bg-blue-900/30 px-2 py-1 rounded-full shrink-0">
+          ðŸ“„ Page
+        </span>
+      </div>
+
+      {/* Banner */}
+      <div
+        className="w-full relative bg-black/20"
+        style={{ aspectRatio: "16/9" }}
+      >
+        {page.cover_url ? (
+          <img
+            src={page.cover_url}
+            className="w-full h-full object-cover"
+            loading="lazy"
+            alt={page.name}
+           decoding="async"/>
+        ) : (
+          <div
+            className="w-full h-full flex items-center justify-center"
+            style={{ background: `linear-gradient(135deg, ${grad}, #1e1b4b)` }}
+          >
+            <Film size={52} className="text-white/40" />
+          </div>
+        )}
+        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent px-4 py-3">
+          <p className="text-white/80 text-[11px] font-semibold">
+            {followerCount} Followers
+            {page.category ? ` Â· ${page.category}` : ""}
+          </p>
+        </div>
+      </div>
+
+      {/* Bio / Description â€” 2-3 lines */}
+      {(page.description || page.category) && (
+        <div className="px-4 pt-3 pb-1">
+          {page.description ? (
+            <p className="text-white/50 text-[13px] leading-relaxed line-clamp-3">
+              {page.description}
+            </p>
+          ) : (
+            <p className="text-white/30 text-[12px] italic">
+              {page.category} page on Flicks
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Hook button */}
+      <div className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+        <button
+          onClick={(e) => onHook(e, page.id)}
+          className={`w-full py-3.5 rounded-2xl font-black text-sm transition-all active:scale-[0.98] flex items-center justify-center gap-2 ${
+            hooked ? "bg-gray-100 text-gray-500 border-2 border-gray-200" : ""
+          }`}
+          style={
+            hooked
+              ? {}
+              : {
+                  background: "linear-gradient(135deg, #ff6b00, #ff9500)",
+                  color: "#fff",
+                  boxShadow: "0 4px 18px rgba(255,107,0,0.45)",
+                }
+          }
+        >
+          {hooked ? "âœ“ Hooked" : "âš¡ Hook (Follow)"}
+        </button>
+      </div>
+    </motion.article>
+  );
+};
+
+// â”€â”€ Suggestion Placeholder (zero-demo) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+const SuggestionPlaceholder = ({
+  forType,
+  onAction,
+}: {
+  forType: "page" | "circle";
+  onAction?: () => void;
+}) => (
+  <div
+    className="border-b border-white/5 px-4 py-8 flex flex-col items-center gap-4"
+    style={{ background: "#0F172A" }}
+  >
+    <div className="w-16 h-16 rounded-full bg-blue-900/30 flex items-center justify-center">
+      <Users size={30} className="text-blue-400" />
+    </div>
+    <div className="text-center">
+      <p className="text-white/80 font-black text-base">
+        {forType === "page" ? "No Pages yet" : "No Circles yet"}
+      </p>
+      <p className="text-white/30 text-[12px] mt-1">
+        Be the first to create one!
+      </p>
+    </div>
+    {onAction && (
+      <button
+        onClick={onAction}
+        className="flex items-center justify-center gap-2 px-8 py-3 rounded-2xl bg-blue-600 text-white font-black text-sm active:scale-[0.98] transition-transform"
+      >
+        <Plus size={16} />{" "}
+        {forType === "page" ? "Create Page" : "Create Circle"}
+      </button>
+    )}
+  </div>
+);
+
+// â”€â”€ Single Full-Width Vertical Reel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+let activeFameFeedVideo: HTMLVideoElement | null = null;
+let activeFameFeedAudio: HTMLAudioElement | null = null;
+
+type FameFeedReelSettingsRef = {
+  current: {
+    muted: boolean;
+    hasBackgroundAudio: boolean;
+    setAudioNeedsGesture: (blocked: boolean) => void;
+    onActivate: () => void;
+  };
+};
+
+type FameFeedReelCandidate = {
+  ratio: number;
+  centerDistance: number;
+  audio: HTMLAudioElement | null;
+  settings: FameFeedReelSettingsRef;
+};
+
+const visibleFameFeedReels = new Map<HTMLVideoElement, FameFeedReelCandidate>();
+let lastCenteredFameFeedVideo: HTMLVideoElement | null = null;
+
+const isConnectedMediaElement = (element: HTMLMediaElement | null): element is HTMLMediaElement =>
+  Boolean(element && element.isConnected && typeof element.pause === "function");
+
+const pauseAndMuteFameFeedReel = (video: HTMLVideoElement | null, audio: HTMLAudioElement | null) => {
+  if (isConnectedMediaElement(video)) {
+    try {
+      video.pause();
+      video.muted = true;
+    } catch {}
+  }
+  if (isConnectedMediaElement(audio)) {
+    try {
+      audio.pause();
+      audio.muted = true;
+    } catch {}
+  }
+};
+
+const syncCenteredFameFeedReel = () => {
+  [...visibleFameFeedReels.entries()].forEach(([video, reel]) => {
+    if (!isConnectedMediaElement(video)) {
+      visibleFameFeedReels.delete(video);
+      if (isConnectedMediaElement(reel.audio)) {
+        try {
+          reel.audio.pause();
+          reel.audio.muted = true;
+        } catch {}
+      }
+      return;
+    }
+    const rect = video.getBoundingClientRect();
+    const visibleHeight = Math.max(0, Math.min(rect.bottom, window.innerHeight) - Math.max(rect.top, 0));
+    const ratio = rect.height > 0 ? visibleHeight / rect.height : 0;
+    const centerDistance = Math.abs(rect.top + rect.height / 2 - window.innerHeight / 2);
+    if (ratio <= 0) {
+      visibleFameFeedReels.delete(video);
+    } else {
+      visibleFameFeedReels.set(video, { ...reel, ratio, centerDistance });
+    }
+  });
+  const candidate = [...visibleFameFeedReels.entries()]
+    .filter(([video, reel]) => isConnectedMediaElement(video) && reel.ratio > 0)
+    .sort(([, first], [, second]) => first.centerDistance - second.centerDistance || second.ratio - first.ratio)[0];
+  const activeVideo = candidate?.[0] ?? null;
+  const activeReel = candidate?.[1] ?? null;
+
+  visibleFameFeedReels.forEach((reel, video) => {
+    if (video === activeVideo) return;
+    if (isConnectedMediaElement(video)) {
+      try {
+        video.pause();
+        video.muted = true;
+      } catch {}
+    }
+    if (isConnectedMediaElement(reel.audio)) {
+      try {
+        reel.audio.pause();
+        reel.audio.muted = true;
+      } catch {}
+    }
+  });
+
+  activeFameFeedVideo = activeVideo;
+  activeFameFeedAudio = activeReel?.audio ?? null;
+  if (lastCenteredFameFeedVideo !== activeVideo) {
+    lastCenteredFameFeedVideo = activeVideo;
+    activeReel?.settings.current.onActivate();
+  }
+  if (!isConnectedMediaElement(activeVideo) || !activeReel) return;
+
+  const settings = activeReel.settings.current;
+  try {
+    activeVideo.muted = settings.hasBackgroundAudio || settings.muted;
+    activeVideo.volume = 1;
+    if (activeVideo.paused) void activeVideo.play().catch(() => {});
+  } catch {}
+
+  if (!isConnectedMediaElement(activeReel.audio) || !settings.hasBackgroundAudio) return;
+  try {
+    activeReel.audio.muted = settings.muted;
+    activeReel.audio.volume = 1;
+  } catch {
+    return;
+  }
+  if (settings.muted) {
+    try { activeReel.audio.pause(); } catch {}
+    return;
+  }
+  try {
+    if (Math.abs(activeReel.audio.currentTime - activeVideo.currentTime) > 0.18) {
+      activeReel.audio.currentTime = activeVideo.currentTime;
+    }
+    if (activeReel.audio.paused) {
+      void activeReel.audio.play()
+        .then(() => settings.setAudioNeedsGesture(false))
+        .catch(() => settings.setAudioNeedsGesture(true));
+    }
+  } catch {
+    settings.setAudioNeedsGesture(true);
+  }
+};
+
+let fameReelSyncFrame = 0;
+const scheduleCenteredFameFeedReelSync = () => {
+  if (document.hidden || visibleFameFeedReels.size === 0 || fameReelSyncFrame) return;
+  fameReelSyncFrame = window.requestAnimationFrame(() => {
+    fameReelSyncFrame = 0;
+    if (document.hidden) return;
+    syncCenteredFameFeedReel();
+  });
+};
+const cancelCenteredFameFeedReelSync = () => {
+  if (!fameReelSyncFrame) return;
+  window.cancelAnimationFrame(fameReelSyncFrame);
+  fameReelSyncFrame = 0;
+};
+const handleFameFeedVisibilityChange = () => {
+  if (document.hidden) {
+    cancelCenteredFameFeedReelSync();
+    return;
+  }
+  scheduleCenteredFameFeedReelSync();
+};
+const FeedReelComments = ({
+  post,
+  comments,
+  value,
+  setValue,
+  replyingTo,
+  onClose,
+  onSubmit,
+  onReply,
+}: {
+  post: any;
+  comments: any[] | undefined;
+  value: string;
+  setValue: (value: string) => void;
+  replyingTo: { author: string } | null;
+  onClose: () => void;
+  onSubmit: () => void;
+  onReply: (comment: any) => void;
+}) => {
+  const topLevel = (comments ?? []).filter((comment) => !comment.parent_id);
+  return (
+    <div className="absolute inset-x-0 bottom-0 z-20 max-h-[72%] overflow-hidden rounded-t-xl border-t border-white/15 bg-black/95 text-white">
+      <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+        <span className="flex items-center gap-2 text-sm font-bold">
+          <MessageCircle size={16} className="text-pink-400" />
+          Comments <span className="text-white/45">({topLevel.length})</span>
+        </span>
+        <button type="button" onClick={onClose} aria-label="Close comments" className="p-1 text-white/70">
+          <X size={18} />
+        </button>
+      </div>
+      <div className="max-h-[calc(72vh-112px)] overflow-y-auto px-4 py-3">
+        {comments === undefined ? (
+          <Loader2 size={22} className="mx-auto my-8 animate-spin text-pink-400" />
+        ) : topLevel.length === 0 ? (
+          <p className="py-8 text-center text-sm text-white/50">Be the first to comment.</p>
+        ) : topLevel.map((comment) => (
+          <div key={comment.id} className="py-2">
+            <p className="text-xs font-bold text-pink-200">{comment.author || "User"}</p>
+            <p className="mt-1 whitespace-pre-wrap break-words text-sm text-white/85">{comment.content}</p>
+            <button type="button" onClick={() => onReply(comment)} className="mt-1 text-xs font-semibold text-sky-300">Reply</button>
+            {comments.filter((reply) => reply.parent_id === comment.id).map((reply) => (
+              <div key={reply.id} className="ml-4 mt-2 border-l border-white/15 pl-3">
+                <p className="text-xs font-bold text-pink-200">{reply.author || "User"}</p>
+                <p className="mt-1 whitespace-pre-wrap break-words text-sm text-white/75">{reply.content}</p>
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+      <form
+        className="flex items-center gap-2 border-t border-white/10 bg-black/95 px-3 py-3"
+        onSubmit={(event) => { event.preventDefault(); onSubmit(); }}
+      >
+        <input
+          value={value}
+          onChange={(event) => setValue(event.target.value)}
+          placeholder={replyingTo ? `Reply to ${replyingTo.author}...` : "Write a comment..."}
+          aria-label={`Comment on ${post.author || "post"}`}
+          className="min-w-0 flex-1 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-sm text-white outline-none placeholder:text-white/40"
+        />
+        <button type="submit" disabled={!value.trim()} aria-label="Send comment" className="rounded-full bg-pink-600 p-2.5 text-white disabled:opacity-40">
+          <Send size={16} />
+        </button>
+      </form>
+    </div>
+  );
+};
+
+const ReelCommentsTicker = ({ items, onOpen }: {
+  items: Array<{ author: string; content: string }>;
+  onOpen: () => void;
+}) => (
+  <button type="button" onClick={onOpen} aria-label="Open live Reel comments" className="reel-comments-ticker">
+    {items.length ? (
+      <div className="reel-comments-track" aria-live="polite">
+        {[...items, ...items].map((comment, index) => (
+          <span key={`${comment.author}-${index}`} className="reel-comment-item">
+            <MessageCircle size={12} className="shrink-0 text-[#b6ec57]" />
+            <strong>{comment.author || "Someone"}</strong>
+            <span>{comment.content}</span>
+          </span>
+        ))}
+      </div>
+    ) : (
+      <span className="reel-comments-empty"><MessageCircle size={12} />No comments yet. Be the first to spark the vibe! <Sparkles size={12} /></span>
+    )}
+  </button>
+);
+
+type PostDetailViewProps = {
+  post: any;
+  comments?: any[];
+  commentsLoading: boolean;
+  commentCount: number;
+  currentUserId: string | null;
+  authorAvatars: Record<string, string>;
+  editingFeedComment: { id: string; text: string; postId: string } | null;
+  commentReactions: Record<string, Record<string, string[]>>;
+  commentReactionBarId: string | null;
+  value: string;
+  replyingTo: { postId: string; commentId: string; author: string } | null;
+  onBack: () => void;
+  onChange: (value: string) => void;
+  onSubmit: () => void;
+  onReply: (comment: any) => void;
+  onCancelReply: () => void;
+  onProfileClick: (userId: string) => void;
+  onStartCommentEdit: (comment: FeedCommentActionTarget) => void;
+  onDeleteComment: (commentId: string) => void;
+  onEditCommentTextChange: (text: string) => void;
+  onSaveCommentEdit: () => void;
+  onCancelCommentEdit: () => void;
+  onReact: (commentId: string, emoji: string) => void;
+  onToggleReactionBar: (commentId: string) => void;
+  onCloseReactionBar: (commentId: string) => void;
+};
+
+const PostDetailView = ({
+  post,
+  comments,
+  commentsLoading,
+  commentCount,
+  currentUserId,
+  authorAvatars,
+  editingFeedComment,
+  commentReactions,
+  commentReactionBarId,
+  value,
+  replyingTo,
+  onBack,
+  onChange,
+  onSubmit,
+  onReply,
+  onCancelReply,
+  onProfileClick,
+  onStartCommentEdit,
+  onDeleteComment,
+  onEditCommentTextChange,
+  onSaveCommentEdit,
+  onCancelCommentEdit,
+  onReact,
+  onToggleReactionBar,
+  onCloseReactionBar,
+}: PostDetailViewProps) => {
+  const [activeCommentMenuId, setActiveCommentMenuId] = useState<string | null>(
+    null,
+  );
+  const topLevel = (comments ?? []).filter((comment) => !comment.parent_id);
+  const isPostOwner =
+    post.author_id === currentUserId || post.user_id === currentUserId;
+  useEffect(() => {
+    if (activeCommentMenuId === null) return;
+    const handleOutsidePointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (
+        !(target instanceof Element) ||
+        !target.closest("[data-post-detail-comment-menu]")
+      ) {
+        setActiveCommentMenuId(null);
+      }
+    };
+    document.addEventListener("pointerdown", handleOutsidePointerDown);
+    return () =>
+      document.removeEventListener("pointerdown", handleOutsidePointerDown);
+  }, [activeCommentMenuId]);
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onBack();
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [onBack]);
+
+  return createPortal(
+    <div
+      className="post-vibe-in-view fixed inset-0 z-[90000] flex h-[100dvh] flex-col overflow-hidden bg-[#10090d] text-white"
+      style={{
+        paddingTop: "env(safe-area-inset-top, 0px)",
+        paddingBottom: "env(safe-area-inset-bottom, 0px)",
+        overscrollBehavior: "none",
+      }}
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Post by ${post.author || "user"} and comments`}
+    >
+      <header className="flex shrink-0 items-center gap-3 border-b border-white/10 bg-[#10090d] px-4 py-3">
+        <button
+          type="button"
+          onClick={onBack}
+          aria-label="Back to feed"
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-2xl font-medium text-white hover:bg-white/10 active:scale-95"
+        >
+          â†
+        </button>
+        <div className="min-w-0 flex-1">
+          <h1 className="truncate text-base font-black">Post</h1>
+          <p className="text-xs text-white/45">
+            {commentCount} {commentCount === 1 ? "comment" : "comments"}
+          </p>
+        </div>
+      </header>
+
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+        <article className="border-b border-white/10 px-4 py-4">
+          <div className="mb-3 flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => post.author_id && onProfileClick(post.author_id)}
+              className="h-10 w-10 shrink-0 overflow-hidden rounded-full bg-purple-900"
+              aria-label={`Open ${post.author || "user"} profile`}
+            >
+              <ActiveStatusAvatar
+                src={
+                  post.author_profile?.avatar_url ||
+                  authorAvatars[post.author_id] ||
+                  post.metadata?.author_avatar ||
+                  post.author_avatar
+                }
+                name={post.author}
+                size={40}
+              />
+            </button>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-bold text-white">
+                {post.author || "Vibe User"}
+              </p>
+              <p className="text-[11px] text-white/40">
+                {post.created_at ? smartTime(post.created_at) : ""}
+              </p>
+            </div>
+          </div>
+          {post.content && (
+            <div className="mb-3 text-sm leading-relaxed text-white/90">
+              <RichCaption content={post.content} />
+            </div>
+          )}
+          <PostMedia
+            post={post}
+            isCreator={Boolean(currentUserId && (post.author_id === currentUserId || post.user_id === currentUserId))}
+          />
+        </article>
+
+        <section aria-label="Comments" className="px-4 pb-5">
+          <h2 className="sticky top-0 z-10 -mx-4 border-b border-white/10 bg-[#10090d]/95 px-4 py-3 text-sm font-black backdrop-blur">
+            Comments <span className="text-white/45">({commentCount})</span>
+          </h2>
+          {commentsLoading && comments === undefined ? (
+            <div className="flex justify-center py-10">
+              <Loader2 size={22} className="animate-spin text-pink-400" />
+            </div>
+          ) : topLevel.length === 0 ? (
+            <p className="py-10 text-center text-sm text-white/45">
+              Be the first to comment.
+            </p>
+          ) : (
+            <div className="divide-y divide-white/5">
+              {topLevel.map((comment) => {
+                const replies = (comments ?? []).filter(
+                  (reply) => reply.parent_id === comment.id,
+                );
+                const authorId = feedCommentAuthorId(comment);
+                const isEditing =
+                  editingFeedComment?.id === comment.id &&
+                  editingFeedComment?.postId === post.id;
+                return (
+                  <div
+                    key={comment.id}
+                    className="py-3"
+                  >
+                    <div className="flex items-start gap-2.5">
+                      <button
+                        type="button"
+                        className="h-8 w-8 shrink-0 overflow-hidden rounded-full bg-pink-900/50"
+                        onClick={() => authorId && onProfileClick(authorId)}
+                      >
+                        <ActiveStatusAvatar
+                          src={authorAvatars[authorId || ""]}
+                          name={comment.author}
+                          size={32}
+                        />
+                      </button>
+                      <div className="min-w-0 flex-1 rounded-2xl bg-white/[0.07] px-3 py-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex min-w-0 flex-wrap items-center gap-x-2">
+                            <span className="text-xs font-black text-pink-200">
+                              {comment.author || "User"}
+                            </span>
+                            {comment.created_at && (
+                              <span className="text-[10px] text-white/35">
+                                {smartTime(comment.created_at)}
+                              </span>
+                            )}
+                          </div>
+                          {currentUserId && postIdKey(authorId) === postIdKey(currentUserId) && (
+                            <div
+                              className="relative shrink-0"
+                              data-post-detail-comment-menu
+                            >
+                              <button
+                                type="button"
+                                aria-label="Comment options"
+                                title="Comment options"
+                                aria-haspopup="menu"
+                                aria-expanded={
+                                  activeCommentMenuId === String(comment.id)
+                                }
+                                onPointerDown={(event) => {
+                                  event.stopPropagation();
+                                  console.log("RAW CLICK DETECTED ON 3-DOTS TRIGGER");
+                                }}
+                                onClick={(event) => {
+                                  event.preventDefault();
+                                  event.stopPropagation();
+                                  console.log("RAW CLICK DETECTED ON 3-DOTS TRIGGER");
+                                  const menuId = String(comment.id);
+                                  setActiveCommentMenuId((current) =>
+                                    current === menuId ? null : menuId,
+                                  );
+                                }}
+                                className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-full bg-white/5 text-white/75 transition hover:bg-white/15 hover:text-white"
+                              >
+                                <MoreVertical size={16} />
+                              </button>
+                              {activeCommentMenuId === String(comment.id) && (
+                                <div
+                                  role="menu"
+                                  className="pointer-events-auto absolute right-0 top-full z-50 mt-1 min-w-[140px] rounded-xl border border-white/10 bg-[#1e1424] p-1 shadow-xl"
+                                  style={{ pointerEvents: "auto" }}
+                                  onPointerDown={(event) => event.stopPropagation()}
+                                  onClick={(event) => event.stopPropagation()}
+                                >
+                                  <button
+                                    type="button"
+                                    role="menuitem"
+                                    onPointerDown={(event) => event.stopPropagation()}
+                                    onClick={(event) => {
+                                      event.preventDefault();
+                                      event.stopPropagation();
+                                      console.log("3-dot action clicked:", "Edit", post.id);
+                                      setActiveCommentMenuId(null);
+                                      onStartCommentEdit(comment);
+                                    }}
+                                    className="pointer-events-auto w-full cursor-pointer rounded-lg px-3 py-2 text-left text-sm text-white/85 hover:bg-white/10"
+                                    style={{ pointerEvents: "auto" }}
+                                  >
+                                    Edit
+                                  </button>
+                                  <button
+                                    type="button"
+                                    role="menuitem"
+                                    onPointerDown={(event) => event.stopPropagation()}
+                                    onClick={(event) => {
+                                      event.preventDefault();
+                                      event.stopPropagation();
+                                      console.log("3-dot action clicked:", "Delete", post.id);
+                                      setActiveCommentMenuId(null);
+                                      onDeleteComment(String(comment.id));
+                                    }}
+                                    className="pointer-events-auto w-full cursor-pointer rounded-lg px-3 py-2 text-left text-sm text-red-400 hover:bg-white/10"
+                                    style={{ pointerEvents: "auto" }}
+                                  >
+                                    Delete
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        {isEditing ? (
+                          <div className="mt-2">
+                            <textarea
+                              value={editingFeedComment?.text ?? ""}
+                              onChange={(event) =>
+                                onEditCommentTextChange(event.target.value)
+                              }
+                              rows={3}
+                              autoFocus
+                              aria-label="Edit your comment"
+                              className="w-full resize-y rounded-xl border border-white/15 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-pink-400/60"
+                            />
+                            <div className="mt-2 flex justify-end gap-2">
+                              <button
+                                type="button"
+                                onClick={onCancelCommentEdit}
+                                className="rounded-lg px-3 py-1.5 text-xs font-bold text-white/60"
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                type="button"
+                                onClick={onSaveCommentEdit}
+                                disabled={!editingFeedComment?.text.trim()}
+                                className="rounded-lg bg-pink-700 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-50"
+                              >
+                                Save
+                              </button>
+                            </div>
+                          </div>
+                        ) : comment.is_hidden && !isPostOwner ? (
+                          <p className="mt-1 text-sm italic text-white/40">
+                            Comment hidden by {comment.hidden_by_name || "admin"}
+                          </p>
+                        ) : (
+                          <p className={`mt-1 whitespace-pre-wrap break-words text-sm ${comment.is_hidden ? "text-white/35 line-through" : "text-white/85"}`}>
+                            {comment.content}
+                          </p>
+                        )}
+                        {!comment.is_hidden && !isEditing && (
+                          <div className="relative mt-2 flex items-center gap-4">
+                            <button
+                              type="button"
+                              onClick={() => onReply(comment)}
+                              className="text-xs font-bold text-sky-300"
+                            >
+                              Reply
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => onToggleReactionBar(comment.id)}
+                              data-reaction-surface="fame-comment"
+                              className="text-xs font-bold text-white/45"
+                            >
+                              React
+                            </button>
+                            <AnimatePresence>
+                              {commentReactionBarId === comment.id && (
+                                <div
+                                  className="absolute bottom-full left-0 z-20 mb-2"
+                                  data-reaction-surface="fame-comment"
+                                >
+                                  <ReactionBar
+                                    onReact={(emoji) => onReact(comment.id, emoji)}
+                                    onClose={() => onCloseReactionBar(comment.id)}
+                                  />
+                                </div>
+                              )}
+                            </AnimatePresence>
+                          </div>
+                        )}
+                        {!isEditing && commentReactions[comment.id] && (
+                          <ReactionBubbles
+                            reactions={commentReactions[comment.id]}
+                            currentUserId={currentUserId}
+                          />
+                        )}
+                      </div>
+                    </div>
+                    {replies.length > 0 && (
+                      <div className="ml-10 mt-2 space-y-2 border-l border-white/10 pl-3">
+                        {replies.map((reply) => {
+                          const replyAuthorId =
+                            feedCommentAuthorId(reply);
+                          const isReplyEditing =
+                            editingFeedComment?.id === reply.id &&
+                            editingFeedComment?.postId === post.id;
+                          return (
+                            <div
+                              key={reply.id}
+                              className="flex items-start gap-2"
+                            >
+                              <button
+                                type="button"
+                                className="h-6 w-6 shrink-0 overflow-hidden rounded-full bg-pink-900/40"
+                                onClick={() => {
+                                  if (replyAuthorId) onProfileClick(replyAuthorId);
+                                }}
+                              >
+                                <ActiveStatusAvatar
+                                  src={authorAvatars[replyAuthorId || ""]}
+                                  name={reply.author}
+                                  size={24}
+                                />
+                              </button>
+                              <div className="min-w-0 flex-1 rounded-xl bg-white/[0.05] px-3 py-2">
+                                <div className="flex items-start justify-between gap-2">
+                                  <p className="min-w-0 text-xs font-bold text-pink-200">
+                                    {reply.author || "User"}
+                                    <span className="ml-2 font-normal text-white/35">
+                                      replied to {comment.author || "User"}
+                                    </span>
+                                  </p>
+                                  {currentUserId && postIdKey(replyAuthorId) === postIdKey(currentUserId) && (
+                                    <div
+                                      className="relative shrink-0"
+                                      data-post-detail-comment-menu
+                                    >
+                                      <button
+                                        type="button"
+                                        aria-label="Reply options"
+                                        title="Reply options"
+                                        aria-haspopup="menu"
+                                        aria-expanded={
+                                          activeCommentMenuId ===
+                                          String(reply.id)
+                                        }
+                                        onPointerDown={(event) => {
+                                          event.stopPropagation();
+                                          console.log("RAW CLICK DETECTED ON 3-DOTS TRIGGER");
+                                        }}
+                                        onClick={(event) => {
+                                          event.preventDefault();
+                                          event.stopPropagation();
+                                          console.log("RAW CLICK DETECTED ON 3-DOTS TRIGGER");
+                                          const menuId = String(reply.id);
+                                          setActiveCommentMenuId((current) =>
+                                            current === menuId ? null : menuId,
+                                          );
+                                        }}
+                                        className="flex h-6 w-6 cursor-pointer items-center justify-center rounded-full bg-white/5 text-white/70 transition hover:bg-white/15 hover:text-white"
+                                      >
+                                        <MoreVertical size={15} />
+                                      </button>
+                                      {activeCommentMenuId ===
+                                        String(reply.id) && (
+                                        <div
+                                          role="menu"
+                                          className="pointer-events-auto absolute right-0 top-full z-50 mt-1 min-w-[140px] rounded-xl border border-white/10 bg-[#1e1424] p-1 shadow-xl"
+                                          style={{ pointerEvents: "auto" }}
+                                          onPointerDown={(event) => event.stopPropagation()}
+                                          onClick={(event) => event.stopPropagation()}
+                                        >
+                                          <button
+                                            type="button"
+                                            role="menuitem"
+                                            onPointerDown={(event) => event.stopPropagation()}
+                                            onClick={(event) => {
+                                              event.preventDefault();
+                                              event.stopPropagation();
+                                              console.log("3-dot action clicked:", "Edit", post.id);
+                                              setActiveCommentMenuId(null);
+                                              onStartCommentEdit(reply);
+                                            }}
+                                            className="pointer-events-auto w-full cursor-pointer rounded-lg px-3 py-2 text-left text-sm text-white/85 hover:bg-white/10"
+                                            style={{ pointerEvents: "auto" }}
+                                          >
+                                            Edit
+                                          </button>
+                                          <button
+                                            type="button"
+                                            role="menuitem"
+                                            onPointerDown={(event) => event.stopPropagation()}
+                                            onClick={(event) => {
+                                              event.preventDefault();
+                                              event.stopPropagation();
+                                              console.log("3-dot action clicked:", "Delete", post.id);
+                                              setActiveCommentMenuId(null);
+                                              onDeleteComment(String(reply.id));
+                                            }}
+                                            className="pointer-events-auto w-full cursor-pointer rounded-lg px-3 py-2 text-left text-sm text-red-400 hover:bg-white/10"
+                                            style={{ pointerEvents: "auto" }}
+                                          >
+                                            Delete
+                                          </button>
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                                {isReplyEditing ? (
+                                  <div className="mt-2">
+                                    <textarea
+                                      value={editingFeedComment?.text ?? ""}
+                                      onChange={(event) =>
+                                        onEditCommentTextChange(event.target.value)
+                                      }
+                                      rows={2}
+                                      autoFocus
+                                      aria-label="Edit your reply"
+                                      className="w-full resize-y rounded-lg border border-white/15 bg-black/30 px-2 py-1.5 text-sm text-white outline-none focus:border-pink-400/60"
+                                    />
+                                    <div className="mt-2 flex justify-end gap-2">
+                                      <button
+                                        type="button"
+                                        onClick={onCancelCommentEdit}
+                                        className="rounded-lg px-3 py-1 text-xs font-bold text-white/60"
+                                      >
+                                        Cancel
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={onSaveCommentEdit}
+                                        disabled={!editingFeedComment?.text.trim()}
+                                        className="rounded-lg bg-pink-700 px-3 py-1 text-xs font-bold text-white disabled:opacity-50"
+                                      >
+                                        Save
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <p className="mt-1 whitespace-pre-wrap break-words text-sm text-white/75">
+                                    {reply.content}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
+      </div>
+
+      <form
+        className="shrink-0 border-t border-white/10 bg-[#10090d] px-3 pt-3"
+        style={{ paddingBottom: "max(env(safe-area-inset-bottom, 0px), 12px)" }}
+        onSubmit={(event) => {
+          event.preventDefault();
+          onSubmit();
+        }}
+      >
+        {replyingTo?.postId === post.id && (
+          <div className="mb-2 flex items-center justify-between rounded-xl bg-blue-500/10 px-3 py-2 text-xs text-blue-200">
+            <span>Replying to {replyingTo.author}</span>
+            <button type="button" onClick={onCancelReply} aria-label="Cancel reply">
+              <X size={14} />
+            </button>
+          </div>
+        )}
+        <div className="flex items-center gap-2">
+          <input
+            value={value}
+            onChange={(event) => onChange(event.target.value)}
+            placeholder={
+              replyingTo?.postId === post.id
+                ? `Reply to ${replyingTo.author}â€¦`
+                : "Write a commentâ€¦"
+            }
+            aria-label={`Comment on ${post.author || "post"}`}
+            className="min-w-0 flex-1 rounded-full border border-white/10 bg-white/[0.07] px-4 py-3 text-sm text-white outline-none placeholder:text-white/40 focus:border-pink-400/50"
+          />
+          <button
+            type="submit"
+            disabled={!value.trim()}
+            aria-label="Send comment"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-pink-600 text-white disabled:opacity-40"
+          >
+            <Send size={16} />
+          </button>
+        </div>
+      </form>
+    </div>,
+    document.body,
+  );
+};
+
+const SingleReelBlock = ({
+  post,
+  currentUserId,
+  feedIndex,
+  commentCount,
+  onOpenComments,
+  onEdit,
+  onDelete,
+  onReport,
+}: {
+  post: any;
+  currentUserId: string | null;
+  feedIndex?: number;
+  commentCount: number;
+  onOpenComments: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+  onReport: () => void;
+}) => {
+  const onlineUserIds = useOnlineUsers();
+  const ref = useRef<HTMLVideoElement>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const [muted, setMuted] = useState(false);
+  const [audioNeedsGesture, setAudioNeedsGesture] = useState(false);
+  const [showReelMenu, setShowReelMenu] = useState(false);
+  const [reelMenuPosition, setReelMenuPosition] = useState({
+    top: 12,
+    right: 12,
+  });
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [viewerPreviews, setViewerPreviews] = useState<Array<{ id: string; full_name: string; avatar_url: string | null }>>([]);
+  const viewerPreviewLoadedRef = useRef(false);
+  const [likedByMe, setLikedByMe] = useState(false);
+  const [likeCount, setLikeCount] = useState(() => totalLikesFrom(post));
+  const [likePending, setLikePending] = useState(false);
+  const likeMutationRef = useRef<Promise<void> | null>(null);
+  const reelSettings = getReelSettings(post);
+  const reelVideoUrl = reelSettings.videoUrl || post.media_url;
+  const preloadContext = useContext(FeedVideoPreloadContext);
+  const setActiveFeedVideoIndex = preloadContext?.setActiveIndex;
+  const inPreloadWindow =
+    feedIndex !== undefined &&
+    preloadContext?.activeIndex !== null &&
+    preloadContext?.activeIndex !== undefined &&
+    feedIndex >= preloadContext.activeIndex - 3 &&
+    feedIndex <= preloadContext.activeIndex + 5;
+  const [isHlsActive, setIsHlsActive] = useState(false);
+  const isOwner = Boolean(currentUserId && post.author_id === currentUserId);
+  const bunnyVideoId = getBunnyVideoId(reelVideoUrl, post?.metadata?.bunny_video_id);
+  const bunnyVideoStatus = useBunnyVideoStatus(bunnyVideoId, isOwner && isHlsActive);
+  const hlsPlayback = useHlsVideo(
+    ref,
+    reelVideoUrl,
+    (isHlsActive || inPreloadWindow) &&
+      (!isOwner || bunnyVideoStatus.phase === "ready"),
+    bunnyVideoStatus.phase === "ready" ? "ready" : "pending",
+    false,
+    !isHlsActive,
+  );
+  const hasBackgroundAudio = Boolean(reelSettings.audioUrl);
+  const toggleReelMenu = (event: React.SyntheticEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
+    if (event.cancelable) event.preventDefault();
+    if (showReelMenu) {
+      setShowReelMenu(false);
+      return;
+    }
+
+    const rect = event.currentTarget.getBoundingClientRect();
+    const menuWidth = Math.min(176, Math.max(160, window.innerWidth - 24));
+    const maxRight = Math.max(12, window.innerWidth - menuWidth - 12);
+    const right = Math.max(
+      12,
+      Math.min(maxRight, window.innerWidth - rect.right),
+    );
+    const estimatedMenuHeight = isOwner ? 120 : 64;
+    const top =
+      rect.bottom + estimatedMenuHeight + 8 <= window.innerHeight
+        ? rect.bottom + 8
+        : Math.max(12, rect.top - estimatedMenuHeight - 8);
+
+    setReelMenuPosition({ top, right });
+    setShowReelMenu(true);
+  };
+  const toggleReelMenuFromKeyboard = (
+    event: React.KeyboardEvent<HTMLButtonElement>,
+  ) => {
+    if (event.repeat || (event.key !== "Enter" && event.key !== " ")) return;
+    toggleReelMenu(event);
+  };
+  const runReelMenuAction = (
+    event: React.SyntheticEvent<HTMLButtonElement>,
+    actionType: string,
+    action: () => void,
+  ) => {
+    event.stopPropagation();
+    if (event.cancelable) event.preventDefault();
+    console.log("ACTION TRIGGERED:", actionType, String(post.id));
+    try {
+      action();
+    } finally {
+      setShowReelMenu(false);
+    }
+  };
+  const runReelMenuActionFromKeyboard = (
+    event: React.KeyboardEvent<HTMLButtonElement>,
+    actionType: string,
+    action: () => void,
+  ) => {
+    if (event.repeat || (event.key !== "Enter" && event.key !== " ")) return;
+    runReelMenuAction(event, actionType, action);
+  };
+  useEffect(() => {
+    if (!showReelMenu) return;
+    const closeOnOutsidePointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      if (
+        target.closest("[data-fame-reel-menu]") ||
+        target.closest("[data-fame-reel-menu-trigger]")
+      ) {
+        return;
+      }
+      setShowReelMenu(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setShowReelMenu(false);
+    };
+
+    document.addEventListener("pointerdown", closeOnOutsidePointerDown, true);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener(
+        "pointerdown",
+        closeOnOutsidePointerDown,
+        true,
+      );
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [showReelMenu]);
+  // Warm attached audio without duplicating video downloads; the video element
+  // and HLS hook manage their own small, viewport-based preload window.
+  useEffect(() => {
+    if (reelSettings.audioUrl) prefetchReelMedia(reelSettings.audioUrl);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reelVideoUrl, reelSettings.audioUrl]);
+  const loadViewerPreviews = useCallback(async () => {
+    if (viewerPreviewLoadedRef.current) return;
+    viewerPreviewLoadedRef.current = true;
+    try {
+      const { data: viewRows, error: viewError } = await supabase
+        .from("post_views")
+        .select("user_id")
+        .eq("post_id", post.id)
+        .not("user_id", "is", null)
+        .order("viewed_at", { ascending: false })
+        .limit(6);
+      if (viewError || !viewRows?.length) return;
+      const viewerIds = [...new Set(viewRows.map((row: any) => row.user_id).filter((id: string) => id && id !== currentUserId))].slice(0, 3);
+      if (!viewerIds.length) return;
+      const { data: profiles, error: profilesError } = await supabase
+        .from("profiles")
+        .select("id, full_name, avatar_url")
+        .in("id", viewerIds);
+      if (profilesError || !profiles) return;
+      const profilesById = new Map(profiles.map((profile: any) => [profile.id, profile]));
+      setViewerPreviews(viewerIds.map((id) => profilesById.get(id)).filter(Boolean) as Array<{ id: string; full_name: string; avatar_url: string | null }>);
+    } catch (error) {
+      console.warn("[FameFeed] reel audience preview failed:", error);
+    }
+  }, [currentUserId, post.id]);
+  const playbackSettingsRef = useRef({ muted, hasBackgroundAudio, setAudioNeedsGesture, onActivate: loadViewerPreviews });
+  playbackSettingsRef.current = { muted, hasBackgroundAudio, setAudioNeedsGesture, onActivate: loadViewerPreviews };
+
+  const refreshLikeState = useCallback(async () => {
+    const countRequest = supabase
+      .from("likes")
+      .select("id", { count: "exact", head: true })
+      .eq("post_id", post.id);
+    const mineRequest = currentUserId
+      ? supabase
+          .from("likes")
+          .select("id")
+          .eq("post_id", post.id)
+          .eq("user_id", currentUserId)
+          .limit(1)
+      : Promise.resolve({ data: [], error: null });
+
+    const [countResult, mineResult] = await Promise.all([
+      countRequest,
+      mineRequest,
+    ]);
+
+    if (countResult.error || mineResult.error) {
+      console.warn(
+        "[FameFeed][reel-like] state refresh failed:",
+        countResult.error?.message || mineResult.error?.message,
+      );
+      return;
+    }
+
+    setLikeCount(countResult.count ?? 0);
+    setLikedByMe(Boolean(mineResult.data?.length));
+  }, [currentUserId, post.id]);
+
+  // Rehydrate from the source rows when this Reel or authenticated user changes.
+  // The queries are bounded and run only while this Reel is mounted.
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const countRequest = supabase
+        .from("likes")
+        .select("id", { count: "exact", head: true })
+        .eq("post_id", post.id);
+      const mineRequest = currentUserId
+        ? supabase
+            .from("likes")
+            .select("id")
+            .eq("post_id", post.id)
+            .eq("user_id", currentUserId)
+            .limit(1)
+        : Promise.resolve({ data: [], error: null });
+      const [countResult, mineResult] = await Promise.all([
+        countRequest,
+        mineRequest,
+      ]);
+      if (cancelled) return;
+      if (countResult.error || mineResult.error) {
+        console.warn(
+          "[FameFeed][reel-like] initial state load failed:",
+          countResult.error?.message || mineResult.error?.message,
+        );
+        return;
+      }
+      setLikeCount(countResult.count ?? 0);
+      setLikedByMe(Boolean(mineResult.data?.length));
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUserId, post.id]);
+
+  // Keep a mounted reel in sync if its parent feed receives a refreshed
+  // aggregate row while the reel is on screen.
+  useEffect(() => {
+    setLikeCount(totalLikesFrom(post));
+  }, [post.id, post.likes_count, post.total_likes]);
+
+  const toggleReelLike = useCallback(async () => {
+    if (!currentUserId) {
+      toast.error("Please login to like");
+      return;
+    }
+    if (likeMutationRef.current) return;
+
+    const nextLiked = !likedByMe;
+    setLikePending(true);
+    setLikedByMe(nextLiked);
+    setLikeCount((count) => Math.max(count + (nextLiked ? 1 : -1), 0));
+
+    const mutation = (async () => {
+      const result = nextLiked
+        ? await supabase
+            .from("likes")
+            .upsert(
+              { post_id: post.id, user_id: currentUserId },
+              { onConflict: "post_id,user_id", ignoreDuplicates: true },
+            )
+        : await supabase
+            .from("likes")
+            .delete()
+            .eq("post_id", post.id)
+            .eq("user_id", currentUserId);
+
+      if (result.error) {
+        toast.error(nextLiked ? "Like nahi ho saka." : "Like nahi hata.");
+      }
+
+      // Always reconcile from likes rows. This handles duplicate taps,
+      // concurrent sessions, and an idempotent upsert/delete response.
+      await refreshLikeState();
+    })();
+
+    likeMutationRef.current = mutation;
+    try {
+      await mutation;
+    } finally {
+      if (likeMutationRef.current === mutation) {
+        likeMutationRef.current = null;
+        setLikePending(false);
+      }
+    }
+  }, [currentUserId, likedByMe, post.id, refreshLikeState]);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.playbackRate = reelSettings.playbackRate;
+    el.style.filter = reelSettings.cssFilter;
+    const retryPlayback = () => {
+      const settings = playbackSettingsRef.current;
+      if (!isConnectedMediaElement(ref.current) || activeFameFeedVideo !== ref.current || document.visibilityState === "hidden") return;
+      const activeVideo = ref.current;
+      try {
+        activeVideo.muted = settings.hasBackgroundAudio || settings.muted;
+        activeVideo.volume = 1;
+        if (activeVideo.paused) void activeVideo.play().catch(() => {});
+      } catch {}
+      const audio = audioRef.current;
+      if (isConnectedMediaElement(audio) && settings.hasBackgroundAudio) {
+        try {
+          audio.muted = settings.muted;
+          audio.volume = 1;
+          if (!settings.muted && audio.paused) {
+            void audio.play().then(() => settings.setAudioNeedsGesture(false)).catch(() => settings.setAudioNeedsGesture(true));
+          }
+        } catch {
+          settings.setAudioNeedsGesture(true);
+        }
+      }
+    };
+    const gestureEvents = ["pointerdown", "touchstart", "click", "scroll", "wheel"] as const;
+    gestureEvents.forEach((eventName) => document.addEventListener(eventName, retryPlayback, { capture: true, passive: true }));
+    const obs = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+        const video = ref.current;
+        if (!entry || !isConnectedMediaElement(video)) {
+          setIsHlsActive(false);
+          if (video) {
+            visibleFameFeedReels.delete(video);
+            pauseAndMuteFameFeedReel(video, audioRef.current);
+          }
+          syncCenteredFameFeedReel();
+          return;
+        }
+        const centerDistance = Math.abs(
+          entry.boundingClientRect.top + entry.boundingClientRect.height / 2 - window.innerHeight / 2,
+        );
+        if (entry.isIntersecting && entry.intersectionRatio > 0) {
+          setIsHlsActive(entry.intersectionRatio >= 0.35);
+          if (entry.intersectionRatio >= 0.35 && feedIndex !== undefined) {
+            setActiveFeedVideoIndex?.(feedIndex);
+          }
+          visibleFameFeedReels.set(video, {
+            ratio: entry.intersectionRatio,
+            centerDistance,
+            audio: audioRef.current,
+            settings: playbackSettingsRef,
+          });
+        } else {
+          setIsHlsActive(false);
+          if (feedIndex !== undefined) {
+            setActiveFeedVideoIndex?.((current) =>
+              current === feedIndex ? null : current,
+            );
+          }
+          visibleFameFeedReels.delete(video);
+          pauseAndMuteFameFeedReel(video, audioRef.current);
+        }
+        syncCenteredFameFeedReel();
+      },
+      { threshold: [0, 0.35, 0.5, 0.75, 1] },
+    );
+    try {
+      if (el.isConnected) obs.observe(el);
+    } catch {
+      visibleFameFeedReels.delete(el);
+    }
+    return () => {
+      obs.disconnect();
+      gestureEvents.forEach((eventName) => document.removeEventListener(eventName, retryPlayback, true));
+      visibleFameFeedReels.delete(el);
+      pauseAndMuteFameFeedReel(el, audioRef.current);
+      syncCenteredFameFeedReel();
+    };
+  }, [feedIndex, setActiveFeedVideoIndex, reelSettings.cssFilter, reelSettings.playbackRate, reelVideoUrl]);
+
+  useEffect(() => {
+    const video = ref.current;
+    const audio = audioRef.current;
+    if (!isConnectedMediaElement(video) || !isConnectedMediaElement(audio) || !hasBackgroundAudio) return;
+    audio.playbackRate = reelSettings.playbackRate;
+    audio.loop = true;
+    const syncAudio = () => {
+      if (!isConnectedMediaElement(audio) || !isConnectedMediaElement(video)) return;
+      try {
+        if (Math.abs(audio.currentTime - video.currentTime) > 0.18) audio.currentTime = video.currentTime;
+      } catch {}
+    };
+    video.addEventListener("timeupdate", syncAudio);
+    return () => video.removeEventListener("timeupdate", syncAudio);
+  }, [hasBackgroundAudio, reelSettings.audioUrl, reelSettings.playbackRate]);
+
+  const isYT =
+    reelVideoUrl?.includes("youtube.com") ||
+    reelVideoUrl?.includes("youtu.be");
+
+  return (
+    <>
+    <div
+      className="bg-black relative w-full feed-reel"
+      style={{ aspectRatio: "9/16", height: "100svh", minHeight: "100svh", maxHeight: "100svh", touchAction: "pan-y" }}
+    >
+      {isYT ? (
+        <div className="w-full h-full flex items-center justify-center bg-zinc-900">
+          <Play size={40} className="text-white/40" />
+        </div>
+      ) : (
+        <>
+          <video
+            ref={ref}
+            className="w-full h-full object-cover"
+            style={{ touchAction: "pan-y", filter: reelSettings.cssFilter }}
+            loop
+            muted
+            playsInline
+            crossOrigin="anonymous"
+            preload="auto"
+          >
+            {!hlsPlayback.isHls && reelVideoUrl && (
+              <source
+                src={reelVideoUrl}
+                type={getVideoMimeType(reelVideoUrl)}
+              />
+            )}
+          </video>
+          {isOwner && bunnyVideoId && (
+            <>
+              <BunnyCreatorProcessingOverlay state={bunnyVideoStatus} />
+              {bunnyVideoStatus.phase === "failed" && (
+                <BunnyVideoStatusOverlay
+                  state={bunnyVideoStatus}
+                  onRetry={bunnyVideoStatus.retry}
+                />
+              )}
+            </>
+          )}
+          {hasBackgroundAudio && (
+            <audio ref={audioRef} src={reelSettings.audioUrl || undefined} preload="metadata" loop muted />
+          )}
+        </>
+      )}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none" />
+      {/* The media surface opens the immersive viewer; overlay controls remain
+          independently clickable above it. */}
+      <button
+        type="button"
+        aria-label="Open video in full-screen Reels"
+        onClick={(event) => {
+          event.stopPropagation();
+          openFullReelsAt(String(post.id));
+        }}
+        className="absolute inset-0 z-10"
+      />
+      <button
+        type="button"
+        aria-label="Open in full-screen Reels"
+        onClick={(event) => {
+          event.stopPropagation();
+          openFullReelsAt(String(post.id));
+        }}
+        className="absolute left-4 top-4 z-20 rounded-full border border-white/15 bg-black/70 px-3 py-2 text-xs font-bold text-white backdrop-blur-sm"
+      >
+        â†— Reels
+      </button>
+      <button
+        type="button"
+        aria-label="Reel actions"
+        aria-expanded={showReelMenu}
+        data-fame-reel-menu-trigger
+        onPointerDown={toggleReelMenu}
+        onKeyDown={toggleReelMenuFromKeyboard}
+        className="absolute right-16 top-4 z-40 pointer-events-auto touch-manipulation grid h-9 w-9 place-items-center rounded-full border border-white/15 bg-black/70 text-white backdrop-blur-sm transition hover:bg-black/90 cursor-pointer"
+        style={{ pointerEvents: "auto", touchAction: "manipulation" }}
+      >
+        <MoreVertical size={18} />
+      </button>
+      {showReelMenu &&
+        createPortal(
+          <div
+            role="menu"
+            data-fame-reel-menu
+            onClick={(event) => event.stopPropagation()}
+            onPointerDown={(event) => event.stopPropagation()}
+            className="fixed z-[9999] min-w-44 max-w-[calc(100vw-24px)] max-h-[calc(100dvh-24px)] overflow-y-auto overscroll-contain rounded-xl border border-white/10 bg-[#160d12]/95 py-1 shadow-2xl backdrop-blur-xl pointer-events-auto"
+            style={{
+              top: reelMenuPosition.top,
+              right: reelMenuPosition.right,
+              pointerEvents: "auto",
+            }}
+          >
+            {isOwner ? (
+              <>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onPointerDown={(event) =>
+                    runReelMenuAction(event, "Edit Reel", onEdit)
+                  }
+                  onKeyDown={(event) =>
+                    runReelMenuActionFromKeyboard(event, "Edit Reel", onEdit)
+                  }
+                  className="pointer-events-auto flex w-full items-center gap-2.5 px-3.5 py-3 text-left text-xs font-bold text-white/80 transition hover:bg-white/10 cursor-pointer"
+                >
+                  <SlidersHorizontal size={15} className="text-cyan-200" /> Edit Reel
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onPointerDown={(event) =>
+                    runReelMenuAction(event, "Delete Reel", () =>
+                      setShowDeleteConfirm(true),
+                    )
+                  }
+                  onKeyDown={(event) =>
+                    runReelMenuActionFromKeyboard(event, "Delete Reel", () =>
+                      setShowDeleteConfirm(true),
+                    )
+                  }
+                  className="pointer-events-auto flex w-full items-center gap-2.5 border-t border-white/[0.07] px-3.5 py-3 text-left text-xs font-bold text-rose-300 transition hover:bg-rose-500/10 cursor-pointer"
+                >
+                  <Trash2 size={15} /> Delete Reel
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                role="menuitem"
+                onPointerDown={(event) =>
+                  runReelMenuAction(event, "Report Reel", onReport)
+                }
+                onKeyDown={(event) =>
+                  runReelMenuActionFromKeyboard(event, "Report Reel", onReport)
+                }
+                className="pointer-events-auto flex w-full items-center gap-2.5 px-3.5 py-3 text-left text-xs font-bold text-orange-200 transition hover:bg-orange-500/10 cursor-pointer"
+              >
+                <Flag size={15} /> Report Reel
+              </button>
+            )}
+          </div>,
+          document.body,
+        )}
+      {showDeleteConfirm && (
+        <div
+          className="absolute inset-0 z-[100] flex items-center justify-center bg-black/75 p-5 backdrop-blur-sm"
+          onClick={(event) => { event.preventDefault(); event.stopPropagation(); }}
+        >
+          <div
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby={`delete-reel-title-${post.id}`}
+            className="w-full max-w-sm rounded-2xl border border-white/10 bg-zinc-950 p-5 shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h2 id={`delete-reel-title-${post.id}`} className="text-base font-black text-white">
+              Delete this Reel?
+            </h2>
+            <p className="mt-2 text-sm leading-relaxed text-white/60">
+              This permanently removes the Reel from your feed.
+            </p>
+            <div className="mt-5 flex gap-2">
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  setShowDeleteConfirm(false);
+                }}
+                className="flex-1 rounded-xl border border-white/10 px-4 py-3 text-sm font-bold text-white/75 hover:bg-white/5"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  setShowDeleteConfirm(false);
+                  onDelete();
+                }}
+                className="flex-1 rounded-xl bg-rose-600 px-4 py-3 text-sm font-black text-white hover:bg-rose-500"
+              >
+                Delete Reel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {!isYT && (
+        <button
+          type="button"
+          aria-label={audioNeedsGesture ? "Play selected background audio" : muted ? "Unmute video" : "Mute video"}
+          title={audioNeedsGesture ? "Tap to play selected background audio" : undefined}
+          onClick={() => {
+            if (hasBackgroundAudio && audioNeedsGesture && !muted && audioRef.current) {
+              const audio = audioRef.current;
+              audio.muted = false;
+              audio.volume = 1;
+              void audio.play().then(() => setAudioNeedsGesture(false)).catch(() => setAudioNeedsGesture(true));
+              return;
+            }
+            const nextMuted = !muted;
+            setMuted(nextMuted);
+            if (ref.current) ref.current.muted = hasBackgroundAudio || nextMuted;
+            if (audioRef.current) audioRef.current.muted = nextMuted;
+            if (hasBackgroundAudio && !nextMuted && audioRef.current) {
+              const audio = audioRef.current;
+              audio.volume = 1;
+              void audio.play().then(() => setAudioNeedsGesture(false)).catch(() => setAudioNeedsGesture(true));
+            }
+          }}
+          className="absolute top-4 right-4 z-20 p-2 bg-black/75 rounded-full border border-white/10"
+        >
+          {muted || audioNeedsGesture ? (
+            <VolumeX size={16} className="text-white" />
+          ) : (
+            <Volume2 size={16} className="text-white" />
+          )}
+        </button>
+      )}
+      <div className="absolute bottom-5 left-4 right-16 z-20 max-h-[35%] overflow-y-auto overscroll-contain rounded-lg bg-black/75 p-3 text-white">
+        <div className="mb-1.5 flex items-center gap-2">
+          <ActiveStatusAvatar
+            src={post.author_profile?.avatar_url || post.author_avatar}
+            name={post.author_profile?.full_name || post.author}
+            size={28}
+            online={onlineUserIds.has(post.author_id || "")}
+          />
+          <p className="font-bold text-sm drop-shadow-lg">
+          @{post.author_profile?.full_name || post.author || "user"}
+          </p>
+        </div>
+        {post.content && (
+          <p className="mt-1 whitespace-pre-wrap break-words text-xs leading-relaxed text-white/90">
+            {maskProfanity(post.content)}
+          </p>
+        )}
+      </div>
+      <div className="reel-side-actions absolute right-3 bottom-16 z-20 flex flex-col items-center gap-4">
+        <button
+          onClick={toggleReelLike}
+          disabled={likePending}
+          aria-pressed={likedByMe}
+          aria-label={likedByMe ? "Unlike Reel" : "Like Reel"}
+          className="flex flex-col items-center disabled:opacity-70"
+        >
+          <Heart
+            size={26}
+            fill={likedByMe ? "#ff2d55" : "none"}
+            className={likedByMe ? "text-[#ff2d55]" : "text-white"}
+          />
+          <span className="text-white text-[10px] font-bold mt-1">
+            {likeCount}
+          </span>
+        </button>
+        <button
+          type="button"
+          onClick={onOpenComments}
+          aria-label={`Open ${commentCount} comments`}
+          className="flex flex-col items-center"
+        >
+          <MessageCircle size={24} className="text-white" />
+          <span className="mt-1 text-[10px] font-bold text-white">{commentCount}</span>
+        </button>
+        <button
+          type="button"
+          aria-label="Share Reel"
+          onClick={(event) => {
+            event.stopPropagation();
+            const reelId = String(post.id);
+            const authorName = post.author || post.author_name || "Flicks India";
+            const caption = post.content || post.meta_description || "";
+            // Always open the share popup modal (WhatsApp / Facebook / Instagram / native).
+            // The modal's handleShare routes through shareToSocial which handles
+            // Android bridge, navigator.share, and direct web-intent fallbacks.
+            requestShareModal(
+              {
+                id: reelId,
+                title: post.meta_title || post.content?.slice(0, 72) || "Flicks Reel",
+                content: caption,
+                media_url: post.media_url,
+                video_url: post.video_url,
+                cover_url: post.cover_url,
+                type: post.type || "reel",
+                author: authorName,
+                share_url: buildPostShareUrl(reelId),
+              },
+              event.currentTarget,
+            );
+          }}
+          className="flex flex-col items-center text-white"
+        >
+          <Share2 size={23} />
+          <span className="mt-1 text-[10px] font-bold">Share</span>
+        </button>
+        <SavePostButton postId={String(post.id)} />
+        <div className="reel-side-magnet">
+          <MagnetButton postId={post.id} postType="post" postOwnerId={post.author_id || ""} currentUserId={currentUserId} dark label="Magnet" />
+        </div>
+      </div>
+    </div>
+    <section className="reel-engagement-footer" aria-label="Reel engagement">
+      <div className="flex min-w-0 items-center gap-2">
+        <div className="flex -space-x-2" aria-hidden="true">
+          {viewerPreviews.length ? (
