@@ -3580,24 +3580,9 @@ const SingleReelBlock = ({
             const reelId = String(post.id);
             const authorName = post.author || post.author_name || "Flicks India";
             const caption = post.content || post.meta_description || "";
-            if (
-              typeof window.AndroidShare?.shareMedia === "function" ||
-              typeof window.AndroidShare?.shareText === "function"
-            ) {
-              void sharePost({
-                postId: reelId,
-                caption,
-                mediaUrl: post.media_url || post.video_url || post.cover_url,
-                mediaType: "video",
-                authorName,
-                metaTitle: post.meta_title,
-                metaDescription: post.meta_description,
-              }).catch((error) => {
-                console.error("[FameFeed] Reel share failed:", error);
-                toast.error("Could not open the Android share sheet.");
-              });
-              return;
-            }
+            // Always open the share popup modal (WhatsApp / Facebook / Instagram / native).
+            // The modal's handleShare routes through shareToSocial which handles
+            // Android bridge, navigator.share, and direct web-intent fallbacks.
             requestShareModal(
               {
                 id: reelId,

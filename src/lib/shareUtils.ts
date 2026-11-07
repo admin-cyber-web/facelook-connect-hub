@@ -43,14 +43,13 @@ export function formatShareMessage(
   const cleanCaption = (caption || "").trim().slice(0, 300);
   const shareUrl = formatShareUrl(url);
 
-  const parts = [];
+  const parts: string[] = [];
   if (cleanCaption) {
-    parts.push(`🎬 ${cleanCaption}`);
+    parts.push(cleanCaption);
   }
-  if (authorName && authorName.trim()) {
-    parts.push(`👤 Post by ${authorName.trim()}`);
-  }
-  parts.push(`✨ Shared via Flicks India\n👉 Join the community: ${shareUrl}`);
+  // Clean "Open Now" link instead of pasting the raw URL into the message body.
+  // WhatsApp / Instagram / etc. auto-link URLs, so this is tappable on the receiver side.
+  parts.push(`👉 Open Now: ${shareUrl}`);
 
   return parts.join("\n\n");
 }

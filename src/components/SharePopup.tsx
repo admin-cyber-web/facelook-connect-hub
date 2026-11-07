@@ -180,6 +180,31 @@ const SharePopup: React.FC<SharePopupProps> = ({ post, onClose, onShare }) => {
         authorName: post.author,
       });
 
+      if (!success && platform !== "copy") {
+        // navigator.share fallback for Android WebView when platform intents fail
+        if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+          try {
+            await navigator.share({
+              title: post.title || post.meta_title || "Flicks India",
+              text: captionText,
+              url: targetUrl,
+            });
+            if (onClose) onClose();
+            return;
+          } catch (navErr) {
+            if ((navErr as DOMException)?.name === "AbortError") {
+              if (typeof toast !== "undefined") toast.info("Share cancelled.");
+              return;
+            }
+            console.warn("[Share Debug] navigator.share fallback failed:", navErr);
+          }
+        }
+        if (typeof toast !== "undefined") {
+          toast.error(`Could not open share option for ${platform.toUpperCase()}`);
+        }
+        return;
+      }
+
       if (platform === "copy" && success) {
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
