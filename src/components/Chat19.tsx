@@ -1183,26 +1183,77 @@ const Chat19 = ({ onClose }: Chat19Props) => {
               transition={{ duration: 0.26 }}
               className="px-4 pt-5 pb-10 max-w-lg mx-auto"
             >
-              {/* Hero */}
-              <div className="text-center mb-5">
+              {/* Hero — Chat 19 promotional banner */}
+              <div className="relative mx-auto mb-5 max-w-md" style={{ aspectRatio: "16/9" }}>
+                {/* Background image */}
                 <div
-                  className="mx-auto w-16 h-16 rounded-2xl flex items-center justify-center mb-3"
+                  className="absolute inset-0 rounded-2xl overflow-hidden"
                   style={{
-                    background: "linear-gradient(135deg,#A01030,#4E0516)",
-                    boxShadow: "0 0 28px rgba(225,29,72,.55)",
+                    backgroundImage: `url(https://flicksindiacdn.b-cdn.net/2cc5c863-cea6-441e-9efc-e2a94b959950.jpeg)`,
+                    backgroundSize: "cover",
+                    backgroundPosition: "center",
+                    backgroundRepeat: "no-repeat",
                   }}
-                >
-                  <RadarIcon size={30} className="text-white" />
+                />
+                {/* Contrast overlay so text pops on any image */}
+                <div
+                  className="absolute inset-0 rounded-2xl"
+                  style={{
+                    background:
+                      "linear-gradient(135deg, rgba(13,12,15,.50) 0%, rgba(225,29,72,.30) 60%, rgba(225,29,72,.55) 100%)",
+                  }}
+                />
+                {/* Text + button overlay — on top of image */}
+                <div className="relative z-10 flex flex-col items-center justify-center h-full text-center p-4 sm:p-6 text-white">
+                  <h1
+                    className="text-xl sm:text-2xl font-black tracking-[.2em] mb-2 sm:mb-3 leading-tight"
+                    style={{
+                      textShadow: "0 2px 12px rgba(0,0,0,.85)",
+                      color: "#FFFFFF",
+                    }}
+                  >
+                    CHAT 19
+                  </h1>
+                  <p className="text-[11px] sm:text-[12px] mb-6 sm:mb-8 leading-relaxed max-w-sm mx-auto"
+                    style={{
+                      textShadow: "0 1px 6px rgba(0,0,0,.8)",
+                      color: "rgba(255,255,255,.95)",
+                    }}
+                  >
+                    Anonymous city radar · Velvet-Red &amp; Deep Charcoal
+                  </p>
+                  {/* Animated "Open Now" button — white bg, red border, pulsing glow */}
+                  <button
+                    type="button"
+                    className="relative inline-flex items-center justify-center px-8 sm:px-10 py-3 sm:py-3.5 rounded-full font-black text-black uppercase tracking-wider text-[11px] sm:text-[12px] overflow-hidden group"
+                    style={{
+                      background: "#ffffff",
+                      border: "2px solid #ff0000",
+                    }}
+                    onClick={() => {
+                      window.location.href = "/chat-19";
+                    }}
+                  >
+                    {/* Pulsing red glow ring behind the button text */}
+                    <motion.span
+                      className="absolute inset-0 rounded-full pointer-events-none -z-10"
+                      animate={{
+                        boxShadow: [
+                          "0 0 0px rgba(255,0,0,0)",
+                          "0 0 24px rgba(255,0,0,0.55)",
+                          "0 0 0px rgba(255,0,0,0)",
+                        ],
+                        scale: [1, 1.15, 1],
+                      }}
+                      transition={{
+                        repeat: Infinity,
+                        duration: 2.2,
+                        ease: "easeInOut",
+                      }}
+                    />
+                    Open Now
+                  </button>
                 </div>
-                <h1
-                  className="text-xl font-black tracking-[.2em]"
-                  style={{ color: "#FFE9ED", textShadow: "0 0 18px rgba(225,29,72,.6)" }}
-                >
-                  CHAT 19
-                </h1>
-                <p className="text-[11px] mt-1" style={{ color: "rgba(255,120,145,.85)" }}>
-                  Anonymous city radar · Velvet-Red &amp; Deep Charcoal
-                </p>
               </div>
 
               {/* 1 · Flicks account linking */}
