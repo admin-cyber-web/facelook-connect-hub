@@ -8657,64 +8657,6 @@ const FameFeed = ({
         </div>
       )}
 
-      {/* ── Chat 19 Promo Banner ───────────────────────────────────────────── */}
-      <div className="relative mx-3 mt-4 mb-4 rounded-2xl overflow-hidden" style={{ aspectRatio: "16/9" }}>
-        {/* Background image */}
-        <div
-          className="absolute inset-0"
-          style={{
-            backgroundImage: `url(https://flicksindiacdn.b-cdn.net/2cc5c863-cea6-441e-9efc-e2a94b959950.jpeg)`,
-            backgroundSize: "cover",
-            backgroundPosition: "center",
-            backgroundRepeat: "no-repeat",
-          }}
-        />
-        {/* Semi-transparent dark overlay for text contrast */}
-        <div className="absolute inset-0 bg-black/50" />
-        {/* Text + button overlay — on top of the image */}
-        <div className="relative z-10 flex flex-col items-center justify-center h-full p-6 sm:p-8 text-center text-white">
-          <h2
-            className="text-xl sm:text-2xl font-black mb-3 sm:mb-4 leading-tight"
-            style={{ textShadow: "0 2px 14px rgba(0,0,0,.85)", color: "#FFFFFF" }}
-          >
-            Want to have fun with friends or new people?
-          </h2>
-          <p
-            className="text-[12px] sm:text-[14px] mb-6 sm:mb-8 max-w-sm mx-auto leading-relaxed"
-            style={{ textShadow: "0 1px 8px rgba(0,0,0,.8)", color: "rgba(255,255,255,.95)" }}
-          >
-            क्या दोस्तों या अनजाने लोगों के साथ मस्ती करना चाहते हैं? चैट 19 जॉइन करें।
-          </p>
-          {/* Animated "Open Now" button — white bg, red border, pulse glow */}
-          <button
-            type="button"
-            className="relative inline-flex items-center justify-center px-8 sm:px-10 py-3 sm:py-3.5 rounded-full font-black text-black uppercase tracking-wider text-[11px] sm:text-[12px] overflow-hidden group animate-pulse bg-white border-2 border-red-500 shadow-lg"
-            onClick={() => {
-              window.location.href = "/chat-19";
-            }}
-          >
-            {/* Pulsing red glow ring behind button text */}
-            <motion.span
-              className="absolute inset-0 rounded-full pointer-events-none -z-10"
-              animate={{
-                boxShadow: [
-                  "0 0 0px rgba(255,0,0,0)",
-                  "0 0 24px rgba(255,0,0,0.55)",
-                  "0 0 0px rgba(255,0,0,0)",
-                ],
-                scale: [1, 1.15, 1],
-              }}
-              transition={{
-                repeat: Infinity,
-                duration: 2.2,
-                ease: "easeInOut",
-              }}
-            />
-            Open Now
-          </button>
-        </div>
-      </div>
-
       {/* ── People You May Know ───────────────────────────────────────────── */}
       {currentUserId && (
         <div className="py-2">
