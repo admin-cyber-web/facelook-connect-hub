@@ -22,7 +22,7 @@ import {
   useDismissableReactionPicker,
 } from "./ReactionBar";
 import { ErrorBoundary } from "./ErrorBoundary";
-import { MagnetButton, PostVoiceStrip, MagnetVoice } from "./MagnetSystem";
+import { Magneto, MagnetButton, PostVoiceStrip, MagnetVoice } from "./MagnetSystem";
 import { useSoundEffects } from "../hooks/useSoundEffects";
 import { useProfileViewer } from "../context/ProfileViewerContext";
 import { useDataCache } from "../context/DataCacheContext";

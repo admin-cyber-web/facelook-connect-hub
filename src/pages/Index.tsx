@@ -2342,6 +2342,7 @@ const Index = ({ session, initialAdminOpen, isGuest = false }: { session: Sessio
 
   // Core UI
   const [activeFeature, setActiveFeature] = useState("Fame");
+  const [showChat19, setShowChat19] = useState(false);
   const [highlightedSurveyId, setHighlightedSurveyId] = useState<string | null>(null);
   const [trendingSurveys, setTrendingSurveys] = useState<any[]>([]);
   const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(!!initialAdminOpen && isAppAdmin);
@@ -5136,6 +5137,38 @@ const PersonalizationView = React.memo(({
                       onNavigateToSurveys={() => setActiveFeature("Task")}
                       isAdmin={isAppAdmin}
                       localProfile={{
+<div className="flex items-center gap-2 px-3 py-1.5 border-t border-gray-100">
+                  <button
+                    onClick={() => setActiveFeature("Fame")}
+                    className="flex-1 rounded-xl px-3 py-2 hover:bg-gray-50 transition-colors text-left font-bold text-white border-b-2 border-indigo-600"
+                  >
+                    <Heart size={16} className="mr-2" /> Flicks
+                  </button>
+                  <button
+                    onClick={() => setActiveFeature("Circle")}
+                    className="flex-1 rounded-xl px-3 py-2 hover:bg-gray-50 transition-colors text-left font-bold text-white border-b-2 border-indigo-600"
+                  >
+                    <Users size={16} className="mr-2" /> Circles
+                  </button>
+                  <button
+                    onClick={() => setActiveFeature("Task")}
+                    className="flex-1 rounded-xl px-3 py-2 hover:bg-gray-50 transition-colors text-left font-bold text-white border-b-2 border-indigo-600"
+                  >
+                    <Loader2 size={16} className="mr-2" /> Task
+                  </button>
+                  <button
+                    onClick={() => setActiveFeature("Settings")}
+                    className="flex-1 rounded-xl px-3 py-2 hover:bg-gray-50 transition-colors text-left font-bold text-white border-b-2 border-indigo-600"
+                  >
+                    <Settings size={16} className="mr-2" /> Settings
+                  </button>
+                  <button
+                    onClick={() => setShowChat19(true)}
+                    className="flex-1 rounded-xl px-3 py-2 hover:bg-gray-50 transition-colors text-left font-bold text-white border-b-2 border-indigo-600"
+                  >
+                    <MessageSquare size={16} className="mr-2" /> Chat 19
+                  </button>
+                </div>
                         state: personalForm.state || undefined,
                         district: personalForm.district || undefined,
                         city: personalForm.city || undefined,
@@ -5704,9 +5737,8 @@ const PersonalizationView = React.memo(({
             return;
           }
           if (f === "Circle") { setActiveFeature("Circle"); return; }
-          // Chat 19 lives as a dedicated overlay module (onboarding/radar) —
-          // bottom-nav tap opens it directly, never a blank feature screen.
-          if (f === "Chat19") { setShowChat19(true); return; }
+          // Chat 19 bottom navigation tab handler
+if (f === "Chat19") { setShowChat19(true); return; }
           if (f === "Flicks") openFlicks();
           else setActiveFeature(f);
           setSettingsView("main");
