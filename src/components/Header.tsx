@@ -884,7 +884,7 @@ const SearchModal = ({
                     People
                   </p>
                 </div>
-                {people.map((person) => {
+                {(people || []).map((person) => {
                   const latestPost = personPosts[person.id];
                   const isImg =
                     latestPost?.media_url &&
@@ -1003,7 +1003,7 @@ const SearchModal = ({
                     Circles
                   </p>
                 </div>
-                {circles.map((circle) => (
+                {(circles || []).map((circle) => (
                   <div
                     key={circle.id}
                     className="flex items-center gap-3 px-4 py-3 border-b border-white/5 hover:bg-white/5 transition-colors"
@@ -1045,7 +1045,7 @@ const SearchModal = ({
                     Hooks
                   </p>
                 </div>
-                {hooks.map((hook) => (
+                {(hooks || []).map((hook) => (
                   <div
                     key={hook.id}
                     className="flex items-center gap-3 px-4 py-3 border-b border-white/5 hover:bg-white/5 transition-colors"
@@ -1090,7 +1090,7 @@ const SearchModal = ({
                     Posts
                   </p>
                 </div>
-                {posts.map((post) => (
+                {(posts || []).map((post) => (
                   <div
                     key={post.id}
                     className="px-4 py-3 border-b border-white/5 hover:bg-white/5 transition-colors"
@@ -1134,7 +1134,7 @@ const SearchModal = ({
                     Suggested People
                   </p>
                 </div>
-                {sugPeople.map((person) => (
+                {(sugPeople || []).map((person) => (
                   <div
                     key={person.id}
                     className="flex items-center gap-3 px-4 py-3 border-b border-white/5 hover:bg-white/5 transition-colors"
@@ -1181,7 +1181,14 @@ const SearchModal = ({
                         onAddFriend(person.id);
                       }}
                       disabled={sentRequests.has(person.id)}
-                      style={sentRequests.has(person.id) ? "background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.4);" : "box-shadow: 0 0 0 3px rgba(255,255,255,0.15);"}
+                      style={
+                        sentRequests.has(person.id)
+                          ? {
+                              background: "rgba(255,255,255,0.1)",
+                              color: "rgba(255,255,255,0.4)",
+                            }
+                          : { boxShadow: "0 0 0 3px rgba(255,255,255,0.15)" }
+                      }
                     >
                       {sentRequests.has(person.id) ? "Requested" : "Follow"}
                     </button>
@@ -1197,7 +1204,7 @@ const SearchModal = ({
                     Popular Circles
                   </p>
                 </div>
-                {sugCircles.map((circle) => (
+                {(sugCircles || []).map((circle) => (
                   <div
                     key={circle.id}
                     className="flex items-center gap-3 px-4 py-3 border-b border-white/5 hover:bg-white/5 transition-colors"
@@ -1238,7 +1245,7 @@ const SearchModal = ({
                     Trending Hooks
                   </p>
                 </div>
-                {sugHooks.map((hook) => (
+                {(sugHooks || []).map((hook) => (
                   <div
                     key={hook.id}
                     className="flex items-center gap-3 px-4 py-3 border-b border-white/5 hover:bg-white/5 transition-colors"
