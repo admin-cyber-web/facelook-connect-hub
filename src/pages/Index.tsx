@@ -25,6 +25,7 @@ import {
   Globe,
   Languages,
   Save,
+  Settings,
   Shield,
   CheckCircle,
   Video,
