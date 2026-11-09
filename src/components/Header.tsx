@@ -795,6 +795,7 @@ const SearchModal = ({
   useEffect(() => {
     const t = setTimeout(() => doSearch(query), 500);
     return () => clearTimeout(t);
+  const [isSearching, setIsSearching] = useState(false);
   const [viewingPerson, setViewingPerson] = useState<string | null>(null);
   }, [query, doSearch]);
 
