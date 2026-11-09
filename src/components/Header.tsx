@@ -576,6 +576,7 @@ const SearchModal = ({
   const { openProfile } = useProfileViewer();
   const onlineUserIds = useOnlineUsers();
   const [query, setQuery] = useState("");
+  const [isSearching, setIsSearching] = useState(false);
   const [loading, setLoading] = useState(false);
   const [people, setPeople] = useState<any[]>([]);
   const [circles, setCircles] = useState<any[]>([]);
@@ -588,6 +589,7 @@ const SearchModal = ({
   const [personPosts, setPersonPosts] = useState<Record<string, any>>({});
   const [likedPosts, setLikedPosts] = useState<Set<string>>(new Set());
   const [viewingPost, setViewingPost] = useState<any | null>(null);
+  const [viewingPerson, setViewingPerson] = useState<any | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -667,6 +669,7 @@ const SearchModal = ({
   const doSearch = useCallback(
     async (q: string) => {
       if (!q.trim()) {
+        setIsSearching(false);
         setPeople([]);
         setCircles([]);
         setHooks([]);
@@ -674,6 +677,7 @@ const SearchModal = ({
         setPersonPosts({});
         return;
       }
+      setIsSearching(true);
       setLoading(true);
       try {
         const like = `%${q.trim()}%`;
@@ -795,8 +799,6 @@ const SearchModal = ({
   useEffect(() => {
     const t = setTimeout(() => doSearch(query), 500);
     return () => clearTimeout(t);
-  const [isSearching, setIsSearching] = useState(false);
-  const [viewingPerson, setViewingPerson] = useState<string | null>(null);
   }, [query, doSearch]);
 
   const noResults =
