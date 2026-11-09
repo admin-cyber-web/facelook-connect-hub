@@ -792,11 +792,12 @@ const SearchModal = ({
     }
   };
 
+  const [isSearching, setIsSearching] = useState(false);
+  const [viewingPerson, setViewingPerson] = useState<string | null>(null);
+
   useEffect(() => {
     const t = setTimeout(() => doSearch(query), 500);
     return () => clearTimeout(t);
-  const [isSearching, setIsSearching] = useState(false);
-  const [viewingPerson, setViewingPerson] = useState<string | null>(null);
   }, [query, doSearch]);
 
   const noResults =
@@ -805,71 +806,12 @@ const SearchModal = ({
     people.length + circles.length + hooks.length + posts.length === 0;
 
   useEffect(() => {
-    const h = (e: KeyboardEvent) => {
+    const h = (e: KeyboardError | KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
   }, [onClose]);
-
-  const AddBtn = ({ id }: { id: string }) => (
-    <button
-      onClick={(e) => handleAddFriend(e, id)}
-      disabled={sentRequests.has(id)}
-      className={`px-4 py-2.5 rounded-xl text-sm font-extrabold active:scale-95 transition-all shrink-0 ${sentRequests.has(id) ? "bg-white/10 text-white/40" : "text-white shadow-lg"}`}
-      style={
-        sentRequests.has(id)
-          ? {}
-          : {
-              background: "linear-gradient(135deg, #2563eb 0%, #4f46e5 100%)",
-              boxShadow: "0 4px 14px rgba(79,70,229,0.5)",
-            }
-      }
-    >
-      {sentRequests.has(id) ? "Requested" : "+ Add Friend"}
-    </button>
-  );
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: -16 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -16 }}
-      transition={{ duration: 0.18, ease: "easeOut" }}
-      className="fixed inset-0 z-[200] flex flex-col"
-      style={{
-        background: "rgba(10,14,28,0.97)",
-        backdropFilter: "blur(24px)",
-      }}
-    >
-      <div className="flex items-center gap-3 px-4 py-3 border-b border-white/10 bg-white/5">
-        <Search size={18} className="text-blue-400 shrink-0" />
-        <input
-          ref={inputRef}
-          type="text"
-          placeholder="Search people, circles, posts…"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          className="flex-1 bg-transparent text-white text-[15px] font-semibold outline-none placeholder:text-white/25"
-        />
-        {loading && (
-          <Loader2 size={16} className="text-blue-400 animate-spin shrink-0" />
-        )}
-        <button
-          onClick={onClose}
-          className="p-1.5 hover:bg-white/10 rounded-xl text-white/50 hover:text-white transition-all shrink-0"
-        >
-          <X size={20} />
-        </button>
-      </div>
-      <div className="flex-1 overflow-y-auto pb-10">
-        {noResults && (
-          <div className="flex flex-col items-center justify-center py-24 gap-3 text-white/20">
-            <Search size={40} strokeWidth={1.5} />
-            <p className="text-[11px] font-black uppercase tracking-widest">
-              No results for "{query}"
-            </p>
-          </div>
         )}
         {isSearching && !noResults && (
           <>
