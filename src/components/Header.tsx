@@ -907,14 +907,14 @@ const SearchModal = ({
                         }}
                       >
                         <ActiveStatusAvatar
-                          src={person.avatar_url}
-                          name={person.full_name}
+                          src={person.avatar_url ?? undefined}
+                          name={person.full_name || "?"}
                           size={44}
                           online={onlineUserIds.has(person.id)}
                         />
                         <div className="flex-1 min-w-0">
                           <p className="text-white font-bold text-[13px] truncate">
-                            {person.full_name}
+                            {person.full_name || "?"}
                           </p>
                           {(person.fame_points || 0) > 0 && (
                             <p className="text-yellow-400/60 text-[10px]">
