@@ -42,6 +42,7 @@ import { useNavigate } from "react-router-dom";
 import { useProfileViewer } from "@/context/ProfileViewerContext";
 import { useOnlineUsers } from "@/context/OnlineUsersContext";
 import ActiveStatusAvatar from "./ActiveStatusAvatar";
+import AddBtn from "./AddBtn";
 import SavePostButton from "./SavePostButton";
 import {
   canViewPrivateProfile,
