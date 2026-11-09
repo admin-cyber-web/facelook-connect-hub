@@ -93,7 +93,7 @@ export const RichCaption = ({ content, clampThreshold = CLAMP_DEFAULT, knownUser
     <RichCaptionErrorBoundary fallback={content}>
       <div className="px-4 pb-2">
         <p
-          className={`text-[15px] font-semibold text-white leading-relaxed whitespace-pre-wrap break-words ${
+          className={`text-[15px] font-semibold text-white first-line:font-extrabold leading-relaxed whitespace-pre-wrap break-words ${
             !expanded && isLong ? "line-clamp-2" : ""
           }`}
         >
@@ -146,9 +146,9 @@ export const RichCaption = ({ content, clampThreshold = CLAMP_DEFAULT, knownUser
         {isLong && (
           <button
             onClick={() => setExpanded(v => !v)}
-            className="text-blue-400 text-[12px] font-semibold mt-0.5"
+            className="mt-0.5 text-[12px] font-semibold text-blue-300"
           >
-            {expanded ? "...less" : "...more"}
+            {expanded ? "See less" : "See more"}
           </button>
         )}
       </div>

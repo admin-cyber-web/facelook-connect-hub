@@ -329,6 +329,7 @@ const FeedVideo = memo(({ src, poster, isCreator, feedIndex }: { src: string; po
   const [isVisible, setIsVisible] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
   const [videoError, setVideoError] = useState<string | null>(null);
+  const [videoAspectRatio, setVideoAspectRatio] = useState(9 / 16);
   const preloadContext = useContext(FeedVideoPreloadContext);
   const setActiveFeedVideoIndex = preloadContext?.setActiveIndex;
   const bunnyVideoId = getBunnyVideoId(src);
@@ -350,6 +351,15 @@ const FeedVideo = memo(({ src, poster, isCreator, feedIndex }: { src: string; po
     bunnyVideoStatus.phase === "ready" ? "ready" : "pending",
     isVisible,
     !isVisible,
+  );
+  const updateVideoAspectRatio = useCallback(
+    (event: React.SyntheticEvent<HTMLVideoElement>) => {
+      const { videoWidth, videoHeight } = event.currentTarget;
+      if (videoWidth > 0 && videoHeight > 0) {
+        setVideoAspectRatio(videoWidth / videoHeight);
+      }
+    },
+    [],
   );
 
   useEffect(() => {
@@ -405,8 +415,12 @@ const FeedVideo = memo(({ src, poster, isCreator, feedIndex }: { src: string; po
 
   return (
     <div
-      className="relative mx-auto my-3 aspect-[9/16] w-[min(100%,42.1875vh)] max-h-[75vh] overflow-hidden rounded-2xl bg-black md:w-[min(100%,45vh)] md:max-h-[80vh]"
-      style={{ touchAction: "pan-y" }}
+      className="relative mx-auto my-3 overflow-hidden"
+      style={{
+        aspectRatio: videoAspectRatio,
+        width: `min(100%, calc(85svh * ${videoAspectRatio}))`,
+        touchAction: "pan-y",
+      }}
     >
       <video
         ref={ref}
@@ -417,9 +431,10 @@ const FeedVideo = memo(({ src, poster, isCreator, feedIndex }: { src: string; po
         playsInline
         crossOrigin="anonymous"
         autoPlay={isVisible}
-        className="w-full h-full rounded-2xl object-cover"
-        style={{ touchAction: "pan-y" }}
+        className="block h-full w-full object-cover"
+        style={{ touchAction: "pan-y", background: "transparent" }}
         preload={isVisible || inPreloadWindow ? "auto" : "metadata"}
+        onLoadedMetadata={updateVideoAspectRatio}
         {...{
           "webkit-playsinline": "true",
           "x5-playsinline": "true",
@@ -499,6 +514,7 @@ const FeedPreviewVideo = memo(({ src }: { src: string }) => {
     <AutoPlayMutedVideo
       src={src}
       className="absolute inset-0 h-full w-full object-cover"
+      shimmer={false}
       preload="auto"
       passThroughClicks={false}
       visibilityThreshold={0.1}
@@ -514,10 +530,16 @@ const YouTubeEmbed = memo(({ url }: { url: string }) => {
   );
   const id = m?.[2]?.length === 11 ? m[2] : null;
   if (!id) return null;
+  const isShort = /\/shorts\//i.test(url);
+  const aspectRatio = isShort ? 9 / 16 : 16 / 9;
   return (
     <div
-      className="aspect-[4/5] w-full overflow-hidden bg-[#09090b]"
-      style={{ touchAction: "pan-y" }}
+      className="mx-auto overflow-hidden"
+      style={{
+        aspectRatio,
+        width: `min(100%, calc(85svh * ${aspectRatio}))`,
+        touchAction: "pan-y",
+      }}
     >
       <iframe
         src={`https://www.youtube.com/embed/${id}?controls=1&modestbranding=1`}
@@ -749,7 +771,6 @@ const PostMedia = memo(({
         poster={post.cover_url || post.thumb_url || post.thumbnail_url || post.video_thumbnail_url}
         isCreator={isCreator}
         feedIndex={feedIndex}
-        className="w-full h-full object-contain"
       />
     </div>
   ) : (
@@ -793,16 +814,16 @@ const PostCaption = memo(({ content }: { content: string }) => {
   return (
     <div className="px-4 pb-2">
       <p
-        className={`text-[15px] font-semibold text-white leading-relaxed whitespace-pre-wrap break-words ${!expanded && isLong ? "line-clamp-2" : ""}`}
+        className={`text-[15px] font-semibold text-white first-line:font-extrabold leading-relaxed whitespace-pre-wrap break-words ${!expanded && isLong ? "line-clamp-2" : ""}`}
       >
         {content}
       </p>
       {isLong && (
         <button
           onClick={() => setExpanded((v) => !v)}
-          className="text-blue-600 text-[12px] font-semibold mt-0.5"
+          className="mt-0.5 text-[12px] font-semibold text-blue-300"
         >
-          {expanded ? "...less" : "...more"}
+          {expanded ? "See less" : "See more"}
         </button>
       )}
     </div>
@@ -2929,6 +2950,7 @@ const SingleReelBlock = ({
   const onlineUserIds = useOnlineUsers();
   const ref = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
+  const [reelAspectRatio, setReelAspectRatio] = useState(9 / 16);
   const [muted, setMuted] = useState(false);
   const [audioNeedsGesture, setAudioNeedsGesture] = useState(false);
   const [showReelMenu, setShowReelMenu] = useState(false);
@@ -3308,8 +3330,12 @@ const SingleReelBlock = ({
   return (
     <>
     <div
-      className="bg-black relative w-full feed-reel"
-      style={{ aspectRatio: "9/16", height: "100svh", minHeight: "100svh", maxHeight: "100svh", touchAction: "pan-y" }}
+      className="relative mx-auto w-full overflow-hidden feed-reel"
+      style={{
+        aspectRatio: reelAspectRatio,
+        width: `min(100%, calc(100svh * ${reelAspectRatio}))`,
+        touchAction: "pan-y",
+      }}
     >
       {isYT ? (
         <div className="w-full h-full flex items-center justify-center bg-zinc-900">
@@ -3319,8 +3345,14 @@ const SingleReelBlock = ({
         <>
           <video
             ref={ref}
-            className="w-full h-full object-cover"
+            className="block h-full w-full object-cover"
             style={{ touchAction: "pan-y", filter: reelSettings.cssFilter }}
+            onLoadedMetadata={(event) => {
+              const { videoWidth, videoHeight } = event.currentTarget;
+              if (videoWidth > 0 && videoHeight > 0) {
+                setReelAspectRatio(videoWidth / videoHeight);
+              }
+            }}
             loop
             muted
             playsInline
@@ -6701,7 +6733,7 @@ const FameFeed = ({
           vibeAudioUrl={null}
           vibeAudioLoop={primaryVibe?.audioLoop ?? true}
         >
-          <div id={`feed-reel-${post.id}`} data-feed-reel-card data-post-id={post.id} className="relative mb-5 overflow-hidden border-y border-white/10 bg-[#10090d] sm:mb-7 sm:rounded-lg sm:border">
+          <div id={`feed-reel-${post.id}`} data-feed-reel-card data-post-id={post.id} className="relative mb-5 overflow-hidden border-y border-white/10 bg-transparent sm:mb-7 sm:rounded-lg sm:border">
             <SingleReelBlock
               post={post}
               currentUserId={currentUserId}

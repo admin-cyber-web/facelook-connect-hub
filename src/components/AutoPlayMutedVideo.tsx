@@ -179,7 +179,7 @@ export default function AutoPlayMutedVideo({
         ...(passThroughClicks ? { pointerEvents: "none" } : {}),
         background: shimmer
           ? "linear-gradient(135deg, #1e1e2e 0%, #2d2d3a 50%, #1e1e2e 100%)"
-          : "#000",
+          : "transparent",
         ...(shimmer ? { backgroundSize: "200% 200%", animation: "shimmer 3s ease-in-out infinite" } : {}),
       }}
     >
