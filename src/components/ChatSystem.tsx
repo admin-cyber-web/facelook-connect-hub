@@ -58,6 +58,9 @@ import {
   VideoIcon,
   Shield,
   Phone,
+  Disc3,
+  Play,
+  Pause,
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { subscribeWhileVisible } from "@/lib/realtimeVisibility";
@@ -79,6 +82,12 @@ import {
 const CHAT_BUCKET = "chat-images";
 const revokeObjectUrl = (url: string | null | undefined) => {
   if (url?.startsWith("blob:")) URL.revokeObjectURL(url);
+};
+const formatMusicTime = (seconds: number) => {
+  if (!Number.isFinite(seconds) || seconds < 0) return "0:00";
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = Math.floor(seconds % 60);
+  return `${minutes}:${String(remainingSeconds).padStart(2, "0")}`;
 };
 
 // ── Story media URL resolver ────────────────────────────────────────────────────
@@ -166,6 +175,20 @@ interface MessageReactionRow {
   message_id: string;
   user_id: string;
   emoji: string;
+}
+interface ChatMusicTrack {
+  id: string;
+  title: string;
+  artist: string;
+  audio_url: string;
+}
+interface ChatMusicSyncPayload {
+  audio_url: string | null;
+  title: string | null;
+  artist: string | null;
+  isPlaying: boolean;
+  currentTime: number;
+  timestamp: number;
 }
 type MessageRealtimePayload = {
   eventType: "INSERT" | "UPDATE" | "DELETE";
@@ -1004,6 +1027,340 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   const [showChatSearch, setShowChatSearch] = useState(false);
   const [msgMenuId, setMsgMenuId] = useState<string | null>(null);
   const [replyTo, setReplyTo] = useState<Message | null>(null);
+  const [showSongLibrary, setShowSongLibrary] = useState(false);
+  const [songLibrary, setSongLibrary] = useState<ChatMusicTrack[]>([]);
+  const [loadingSongLibrary, setLoadingSongLibrary] = useState(false);
+  const [songLibraryError, setSongLibraryError] = useState("");
+  const [selectedChatTrack, setSelectedChatTrack] = useState<ChatMusicTrack | null>(null);
+  const [chatMusicPlaying, setChatMusicPlaying] = useState(false);
+  const [chatMusicTime, setChatMusicTime] = useState(0);
+  const [chatMusicDuration, setChatMusicDuration] = useState(0);
+  const chatMusicAudioRef = useRef<HTMLAudioElement>(null);
+  const chatMusicChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const pendingChatMusicSyncRef = useRef<ChatMusicSyncPayload | null>(null);
+  const lastMusicSeekBroadcastAtRef = useRef(0);
+  const chatMusicStateRef = useRef({
+    track: selectedChatTrack,
+    isPlaying: chatMusicPlaying,
+  });
+  chatMusicStateRef.current = {
+    track: selectedChatTrack,
+    isPlaying: chatMusicPlaying,
+  };
+  const chatMusicRoomId = selectedUser
+    ? [userId, selectedUser.id].sort().join(":")
+    : null;
+
+  const broadcastChatMusic = useCallback((payload: ChatMusicSyncPayload) => {
+    const channel = chatMusicChannelRef.current;
+    if (!channel) return;
+    void channel
+      .send({ type: "broadcast", event: "chat_music_sync", payload })
+      .then((status) => {
+        if (status !== "ok") {
+          console.warn("[Chat] music sync broadcast failed:", status);
+        }
+      });
+  }, []);
+
+  const publishChatMusicState = useCallback(
+    (isPlaying: boolean, currentTime?: number, track = selectedChatTrack) => {
+      broadcastChatMusic({
+        audio_url: track?.audio_url ?? null,
+        title: track?.title ?? null,
+        artist: track?.artist ?? null,
+        isPlaying,
+        currentTime: currentTime ?? chatMusicAudioRef.current?.currentTime ?? 0,
+        timestamp: Date.now(),
+      });
+    },
+    [broadcastChatMusic, selectedChatTrack],
+  );
+
+  const syncPendingChatMusic = useCallback(() => {
+    const pending = pendingChatMusicSyncRef.current;
+    const audio = chatMusicAudioRef.current;
+    if (!pending || !audio || audio.readyState < HTMLMediaElement.HAVE_METADATA) return;
+    pendingChatMusicSyncRef.current = null;
+    const targetTime =
+      pending.currentTime +
+      (pending.isPlaying ? Math.max(0, Date.now() - pending.timestamp) / 1000 : 0);
+    audio.currentTime = Math.max(
+      0,
+      Math.min(targetTime, Number.isFinite(audio.duration) ? audio.duration : targetTime),
+    );
+    if (pending.isPlaying) {
+      void audio.play().catch((error: unknown) => {
+        console.warn("[Chat] browser could not start synchronized music:", error);
+        toast.info("Tap Play to start the synchronized song.");
+      });
+    } else {
+      audio.pause();
+    }
+  }, []);
+
+  const selectChatMusicTrack = useCallback(
+    (track: ChatMusicTrack) => {
+      const audio = chatMusicAudioRef.current;
+      if (!audio) return;
+      const sync: ChatMusicSyncPayload = {
+        audio_url: track.audio_url,
+        title: track.title,
+        artist: track.artist,
+        isPlaying: true,
+        currentTime: 0,
+        timestamp: Date.now(),
+      };
+      setSelectedChatTrack(track);
+      setChatMusicTime(0);
+      setChatMusicDuration(0);
+      setChatMusicPlaying(true);
+      pendingChatMusicSyncRef.current = sync;
+      if (audio.src !== track.audio_url) {
+        audio.src = track.audio_url;
+        audio.load();
+      } else if (audio.readyState >= HTMLMediaElement.HAVE_METADATA) {
+        audio.currentTime = 0;
+        pendingChatMusicSyncRef.current = null;
+      }
+      void audio.play().then(
+        () => {
+          publishChatMusicState(true, 0, track);
+          pendingChatMusicSyncRef.current = null;
+        },
+        (error: unknown) => {
+          console.error("[Chat] selected song could not be played:", error);
+          setChatMusicPlaying(false);
+          publishChatMusicState(false, 0, track);
+          toast.error("This song couldn't be played. Try another track.");
+        },
+      );
+    },
+    [publishChatMusicState],
+  );
+
+  const toggleChatMusicPlayback = useCallback(() => {
+    const audio = chatMusicAudioRef.current;
+    if (!selectedChatTrack || !audio) {
+      setShowSongLibrary(true);
+      return;
+    }
+    if (chatMusicPlaying) {
+      audio.pause();
+      setChatMusicPlaying(false);
+      publishChatMusicState(false);
+      return;
+    }
+    void audio.play().then(
+      () => {
+        setChatMusicPlaying(true);
+        publishChatMusicState(true);
+      },
+      (error: unknown) => {
+        console.error("[Chat] song playback could not resume:", error);
+        toast.error("This song couldn't be resumed. Please try again.");
+      },
+    );
+  }, [chatMusicPlaying, publishChatMusicState, selectedChatTrack]);
+
+  const seekChatMusic = useCallback(
+    (currentTime: number) => {
+      const audio = chatMusicAudioRef.current;
+      if (!audio || !selectedChatTrack || !Number.isFinite(currentTime)) return;
+      const nextTime = Math.max(
+        0,
+        Math.min(currentTime, Number.isFinite(audio.duration) ? audio.duration : currentTime),
+      );
+      audio.currentTime = nextTime;
+      setChatMusicTime(nextTime);
+      const now = Date.now();
+      if (now - lastMusicSeekBroadcastAtRef.current >= 100) {
+        lastMusicSeekBroadcastAtRef.current = now;
+        publishChatMusicState(chatMusicPlaying, nextTime);
+      }
+    },
+    [chatMusicPlaying, publishChatMusicState, selectedChatTrack],
+  );
+  const finishChatMusicSeek = useCallback(() => {
+    const audio = chatMusicAudioRef.current;
+    if (!audio || !selectedChatTrack) return;
+    lastMusicSeekBroadcastAtRef.current = Date.now();
+    publishChatMusicState(chatMusicPlaying, audio.currentTime);
+  }, [chatMusicPlaying, publishChatMusicState, selectedChatTrack]);
+
+  useEffect(() => {
+    setShowSongLibrary(false);
+    setSelectedChatTrack(null);
+    setChatMusicPlaying(false);
+    setChatMusicTime(0);
+    setChatMusicDuration(0);
+    pendingChatMusicSyncRef.current = null;
+    const audio = chatMusicAudioRef.current;
+    audio?.pause();
+    if (audio) {
+      audio.removeAttribute("src");
+      audio.load();
+    }
+  }, [chatMusicRoomId]);
+
+  useEffect(() => {
+    if (!showSongLibrary || !selectedUser?.id) return;
+    let cancelled = false;
+    setLoadingSongLibrary(true);
+    setSongLibraryError("");
+    void supabase
+      .from("songs")
+      .select("id, title, artist, audio_url")
+      .order("title", { ascending: true })
+      .limit(100)
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        if (error) {
+          console.error("[Chat] song library fetch failed:", error);
+          setSongLibrary([]);
+          setSongLibraryError("Couldn't load songs. Please try again.");
+          return;
+        }
+        setSongLibrary(
+          (data || []).flatMap((track) => {
+            if (
+              typeof track.title !== "string" ||
+              typeof track.audio_url !== "string" ||
+              !track.audio_url.startsWith("https://")
+            ) {
+              return [];
+            }
+            return [{
+              id: String(track.id ?? track.audio_url),
+              title: track.title,
+              artist:
+                typeof track.artist === "string" && track.artist.trim()
+                  ? track.artist
+                  : "Unknown artist",
+              audio_url: track.audio_url,
+            }];
+          }),
+        );
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingSongLibrary(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedUser?.id, showSongLibrary]);
+
+  useEffect(() => {
+    if (!isOpen || bottomTab !== "chat" || !chatMusicRoomId) return;
+    const audio = chatMusicAudioRef.current;
+    const channel = supabase.channel(`chat_music_sync:${chatMusicRoomId}`, {
+      config: { broadcast: { self: false }, private: true },
+    });
+    chatMusicChannelRef.current = channel;
+    channel
+      .on("broadcast", { event: "chat_music_sync" }, ({ payload }) => {
+        const sync = payload as Partial<ChatMusicSyncPayload> | null;
+        if (
+          !sync ||
+          typeof sync.isPlaying !== "boolean" ||
+          typeof sync.currentTime !== "number" ||
+          !Number.isFinite(sync.currentTime) ||
+          typeof sync.timestamp !== "number" ||
+          !Number.isFinite(sync.timestamp)
+        ) {
+          console.warn("[Chat] ignored invalid music sync payload");
+          return;
+        }
+        const audioUrl =
+          typeof sync.audio_url === "string" && sync.audio_url.startsWith("https://")
+            ? sync.audio_url
+            : null;
+        if (audioUrl) {
+          const track: ChatMusicTrack = {
+            id: audioUrl,
+            title: typeof sync.title === "string" ? sync.title : "Unknown track",
+            artist: typeof sync.artist === "string" ? sync.artist : "Unknown artist",
+            audio_url: audioUrl,
+          };
+          setSelectedChatTrack(track);
+        } else {
+          setSelectedChatTrack(null);
+        }
+
+        const elapsed = sync.isPlaying
+          ? Math.max(0, Date.now() - sync.timestamp) / 1000
+          : 0;
+        const currentTime = Math.max(0, sync.currentTime + elapsed);
+        const nextSync: ChatMusicSyncPayload = {
+          audio_url: audioUrl,
+          title: typeof sync.title === "string" ? sync.title : null,
+          artist: typeof sync.artist === "string" ? sync.artist : null,
+          isPlaying: sync.isPlaying,
+          currentTime: sync.currentTime,
+          timestamp: sync.timestamp,
+        };
+        setChatMusicPlaying(sync.isPlaying);
+        setChatMusicTime(currentTime);
+
+        const audio = chatMusicAudioRef.current;
+        if (!audio || !audioUrl) {
+          audio?.pause();
+          return;
+        }
+        pendingChatMusicSyncRef.current = nextSync;
+        if (audio.src !== audioUrl) {
+          audio.src = audioUrl;
+          audio.load();
+          setChatMusicDuration(0);
+        }
+        syncPendingChatMusic();
+      })
+      .subscribe((status) => {
+        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+          console.error("[Chat] music sync channel failed:", status, chatMusicRoomId);
+          toast.error("Shared music sync is unavailable in this chat.");
+        }
+      });
+
+    return () => {
+      if (chatMusicChannelRef.current === channel) {
+        chatMusicChannelRef.current = null;
+      }
+      pendingChatMusicSyncRef.current = null;
+      audio?.pause();
+      setChatMusicPlaying(false);
+      setSelectedChatTrack(null);
+      setChatMusicTime(0);
+      setChatMusicDuration(0);
+      setShowSongLibrary(false);
+      const { track } = chatMusicStateRef.current;
+      const removeChannel = () => {
+        void supabase.removeChannel(channel);
+      };
+      if (track && audio) {
+        void channel
+          .send({
+            type: "broadcast",
+            event: "chat_music_sync",
+            payload: {
+              audio_url: track.audio_url,
+              title: track.title,
+              artist: track.artist,
+              isPlaying: false,
+              currentTime: audio.currentTime,
+              timestamp: Date.now(),
+            } satisfies ChatMusicSyncPayload,
+          })
+          .then(removeChannel)
+          .catch((error: unknown) => {
+            console.warn("[Chat] couldn't broadcast music stop on room exit:", error);
+            removeChannel();
+          });
+      } else {
+        removeChannel();
+      }
+    };
+  }, [bottomTab, chatMusicRoomId, isOpen, syncPendingChatMusic]);
 
   // ── Fun ───────────────────────────────────────────────────────────────────
   const [smokeParticles, setSmokeParticles] = useState<
@@ -4737,6 +5094,20 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
             {/* ════ FULL-SCREEN CHAT ════════════════════════════════════════ */}
             {bottomTab === "chat" && selectedUser && (
               <div className={`relative flex min-h-0 flex-1 flex-col overflow-hidden`}>
+                <audio
+                  ref={chatMusicAudioRef}
+                  hidden
+                  preload="auto"
+                  onLoadedMetadata={syncPendingChatMusic}
+                  onDurationChange={(event) =>
+                    setChatMusicDuration(Number.isFinite(event.currentTarget.duration) ? event.currentTarget.duration : 0)
+                  }
+                  onTimeUpdate={(event) => setChatMusicTime(event.currentTarget.currentTime)}
+                  onEnded={() => {
+                    setChatMusicPlaying(false);
+                    publishChatMusicState(false);
+                  }}
+                />
                 {/* ── Theme Background Layers ──────────────────────────────── */}
                 {theme === "maroon" && (
                   <div className="absolute inset-0 pointer-events-none overflow-hidden" aria-hidden="true">
@@ -4918,6 +5289,23 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                       )}
                     </AnimatePresence>
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowChatSearch(false);
+                      setShowCallMenu(false);
+                      setShowChatMenu(false);
+                      setShowSongLibrary(true);
+                    }}
+                    aria-label="Open shared song library"
+                    aria-haspopup="dialog"
+                    className={`h-7 w-7 shrink-0 rounded-lg bg-white/10 border ${T.divider} flex items-center justify-center ${T.text1} hover:bg-white/20 active:scale-90 transition-all sm:h-8 sm:w-8`}
+                  >
+                    <Disc3
+                      size={15}
+                      className={chatMusicPlaying ? "animate-spin" : ""}
+                    />
+                  </button>
                   {/* Panic toggle */}
                   <button
                     onClick={() => setPanicMode((p) => !p)}
@@ -5024,6 +5412,122 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                   </div>
                   </div>
                 </div>
+
+                <AnimatePresence>
+                  {showSongLibrary && (
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+                      role="presentation"
+                      onClick={() => setShowSongLibrary(false)}
+                    >
+                      <motion.section
+                        initial={{ opacity: 0, y: 16, scale: 0.97 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 12, scale: 0.98 }}
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="chat-song-library-title"
+                        className="flex max-h-[min(80dvh,680px)] w-full max-w-md flex-col overflow-hidden rounded-2xl border border-white/15 bg-[#17131d] text-white shadow-2xl"
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+                          <div>
+                            <h2 id="chat-song-library-title" className="text-sm font-black">
+                              Shared song library
+                            </h2>
+                            <p className="mt-0.5 text-[11px] text-white/50">
+                              Listen together in this chat
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setShowSongLibrary(false)}
+                            aria-label="Close song library"
+                            className="grid h-8 w-8 place-items-center rounded-lg text-white/65 hover:bg-white/10 hover:text-white"
+                          >
+                            <X size={17} />
+                          </button>
+                        </div>
+
+                        {selectedChatTrack && (
+                          <div className="border-b border-white/10 px-4 py-3">
+                            <div className="flex items-center gap-3">
+                              <Disc3 className={`shrink-0 text-fuchsia-300 ${chatMusicPlaying ? "animate-spin" : ""}`} size={24} />
+                              <div className="min-w-0 flex-1">
+                                <p className="truncate text-sm font-bold">{selectedChatTrack.title}</p>
+                                <p className="truncate text-xs text-white/50">{selectedChatTrack.artist}</p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={toggleChatMusicPlayback}
+                                aria-label={chatMusicPlaying ? "Pause shared music" : "Play shared music"}
+                                className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-fuchsia-500 text-white hover:bg-fuchsia-400"
+                              >
+                                {chatMusicPlaying ? <Pause size={16} /> : <Play size={16} fill="currentColor" />}
+                              </button>
+                            </div>
+                            <input
+                              type="range"
+                              min={0}
+                              max={chatMusicDuration || 0}
+                              step={0.01}
+                              value={Math.min(chatMusicTime, chatMusicDuration || chatMusicTime)}
+                              disabled={!chatMusicDuration}
+                              aria-label="Seek shared music"
+                              onChange={(event) => seekChatMusic(Number(event.target.value))}
+                              onPointerUp={finishChatMusicSeek}
+                              onKeyUp={finishChatMusicSeek}
+                              className="mt-3 w-full accent-fuchsia-400 disabled:opacity-40"
+                            />
+                            <div className="flex justify-between text-[10px] tabular-nums text-white/40">
+                              <span>{formatMusicTime(chatMusicTime)}</span>
+                              <span>{formatMusicTime(chatMusicDuration)}</span>
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="min-h-0 flex-1 overflow-y-auto p-2">
+                          {loadingSongLibrary ? (
+                            <div className="flex items-center justify-center gap-2 py-10 text-sm text-white/55">
+                              <Loader2 size={16} className="animate-spin" /> Loading songs…
+                            </div>
+                          ) : songLibraryError ? (
+                            <div className="px-4 py-8 text-center text-sm text-rose-200">
+                              {songLibraryError}
+                            </div>
+                          ) : songLibrary.length === 0 ? (
+                            <p className="px-4 py-8 text-center text-sm text-white/50">
+                              No songs are available yet.
+                            </p>
+                          ) : (
+                            songLibrary.map((track) => (
+                              <div
+                                key={track.id}
+                                className="flex items-center gap-3 rounded-xl px-3 py-2.5 hover:bg-white/[0.06]"
+                              >
+                                <Music size={17} className="shrink-0 text-fuchsia-300" />
+                                <div className="min-w-0 flex-1">
+                                  <p className="truncate text-sm font-bold">{track.title}</p>
+                                  <p className="truncate text-xs text-white/50">{track.artist}</p>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => selectChatMusicTrack(track)}
+                                  className="shrink-0 rounded-full bg-white/10 px-3 py-1.5 text-xs font-bold text-white hover:bg-fuchsia-500"
+                                >
+                                  {selectedChatTrack?.id === track.id && chatMusicPlaying ? "Playing" : "Select & Play"}
+                                </button>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </motion.section>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
 
                 {/* ── Voice Mode Banner ─────────────────────────────────── */}
                 <AnimatePresence>
