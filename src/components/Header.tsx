@@ -795,9 +795,9 @@ const SearchModal = ({
   useEffect(() => {
     const t = setTimeout(() => doSearch(query), 500);
     return () => clearTimeout(t);
+  const [viewingPerson, setViewingPerson] = useState<string | null>(null);
   }, [query, doSearch]);
 
-  const isSearching = query.trim().length > 0;
   const noResults =
     isSearching &&
     !loading &&
@@ -1120,7 +1120,7 @@ const SearchModal = ({
             )}
           </>
         )}
-        {!isSearching && (
+        {!isSearching && query.trim().length > 0 && (
           <>
             {sugPeople.length > 0 && (
               <div className="pt-5">
@@ -1134,15 +1134,34 @@ const SearchModal = ({
                   <div
                     key={person.id}
                     className="flex items-center gap-3 px-4 py-3 border-b border-white/5 hover:bg-white/5 transition-colors"
+                    onClick={() => setViewingPerson(person.id)}
                   >
-                    <ActiveStatusAvatar
-                      src={person.avatar_url}
-                      name={person.full_name}
-                      size={44}
-                      online={onlineUserIds.has(person.id)}
-                    />
+                    <div
+                      className="w-11 h-11 rounded-xl overflow-hidden shrink-0 border border-white/10 cursor-pointer"
+                      style={{ background: "rgba(255,255,255,0.08)", borderColor: "rgba(255,255,255,0.1)" }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setViewingPerson(person.id);
+                      }}
+                    >
+                      {person.avatar_url ? (
+                        <img
+                          src={person.avatar_url}
+                          className="w-full h-full object-cover"
+                          alt=""
+                          decoding="async"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-white font-black text-sm">
+                          {person.full_name?.[0] || "?"}
+                        </div>
+                      )}
+                    </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-white font-bold text-[13px] truncate">
+                      <p
+                        className="text-white font-bold text-[13px] truncate cursor-pointer"
+                        onClick={() => setViewingPerson(person.id)}
+                      >
                         {person.full_name}
                       </p>
                       {(person.fame_points || 0) > 0 && (
@@ -1151,7 +1170,17 @@ const SearchModal = ({
                         </p>
                       )}
                     </div>
-                    <AddBtn id={person.id} />
+                    <button
+                      className="px-4 py-2.5 rounded-xl text-sm font-extrabold active:scale-95 transition-all shrink-0"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onAddFriend(person.id);
+                      }}
+                      disabled={sentRequests.has(person.id)}
+                      style={sentRequests.has(person.id) ? "background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.4);" : "box-shadow: 0 0 0 3px rgba(255,255,255,0.15);"}
+                    >
+                      {sentRequests.has(person.id) ? "Requested" : "Follow"}
+                    </button>
                   </div>
                 ))}
               </div>
@@ -1236,6 +1265,109 @@ const SearchModal = ({
                       </p>
                     </div>
                     <span className="text-[10px] font-black text-amber-400/70 bg-amber-500/10 border border-amber-500/20 px-2 py-1 rounded-lg shrink-0">
+      {/* ── Profile Preview Modal ─────────────────────────────────────────────── */}
+      <AnimatePresence>
+        {viewingPerson && (
+          <>
+            <motion.div
+              className="absolute inset-0 z-10 bg-black/80"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setViewingPerson(null)}
+            />
+            <motion.div
+              className="absolute inset-x-4 top-1/2 z-20 rounded-3xl overflow-hidden shadow-2xl"
+              style={{ transform: "translateY(-50%)", background: "rgba(15,18,32,0.98)", border: "1px solid rgba(255,255,255,0.1)" }}
+              initial={{ opacity: 0, scale: 0.92 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.92 }}
+              transition={{ type: "spring", stiffness: 300, damping: 28 }}
+            >
+              <div className="flex items-center gap-4 px-4 py-4 border-b border-white/8">
+                <div className="w-12 h-12 rounded-full overflow-hidden bg-blue-600 border border-white/10 shrink-0">
+                  {viewingPerson?.avatar_url ? (
+                    <img src={viewingPerson.avatar_url} className="w-full h-full object-cover" alt="" decoding="async" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-white font-black text-sm">
+                      {viewingPerson?.[0] || "?"}
+                    </div>
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-white font-black text-[14px] truncate">
+                    {viewingPerson?.full_name}
+                  </p>
+                  <p className="text-white/30 text-[11px]">
+                    {viewingPerson?.bio || "No bio available"}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setViewingPerson(null)}
+                  className="p-1.5 rounded-xl hover:bg-white/10 text-white/40 hover:text-white transition-all"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+              {/* Profile info */}
+              <div className="px-4 py-3">
+                <div className="flex flex-wrap gap-2">
+                  <span className="px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 text-[10px] font-black uppercase">
+                    {viewingPerson?.location || "Unknown Location"}
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-[10px] font-black uppercase">
+                    {viewingPerson?.gender || "Not Specified"}
+                  </span>
+                  {viewingPerson?.is_online && (
+                    <span className="px-2 py-0.5 rounded-full bg-green-500/20 text-green-400 text-[10px] font-black uppercase">
+                      Online
+                    </span>
+                  )}
+                </div>
+                {viewingPerson?.bio && (
+                  <p className="text-white/70 text-[12px] mt-2 leading-relaxed">
+                    {viewingPerson.bio}
+                  </p>
+                )}
+                {viewingPerson?.contact && (
+                  <p className="text-white/40 text-[12px] mt-2">
+                    📱 {viewingPerson.contact}
+                  </p>
+                )}
+                {viewingPerson?.school && (
+                  <p className="text-white/40 text-[12px] mt-2">
+                    🎓 {viewingPerson.school}
+                  </p>
+                )}
+                {viewingPerson?.interests && (
+                  <p className="text-white/40 text-[12px] mt-2">
+                    💕 {viewingPerson.interests}
+                  </p>
+                )}
+              </div>
+              {/* Actions */}
+              <div className="px-4 py-3 border-t border-white/8 flex gap-3">
+                <button
+                  className="flex-1 py-2.5 rounded-xl text-white font-black text-[13px] active:scale-[0.98] transition-all"
+                  onClick={() => {
+                    // Trigger profile navigation
+                    onNavigateToFeature?.("Profile");
+                    setViewingPerson(null);
+                  }}
+                >
+                  View Profile
+                </button>
+                <button
+                  className="px-4 py-2.5 rounded-xl text-white font-black text-[12px] active:scale-[0.98] transition-all border border-white/10 hover:bg-white/5"
+                  onClick={() => setViewingPerson(null)}
+                >
+                  Close
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
                       Trending
                     </span>
                   </div>
