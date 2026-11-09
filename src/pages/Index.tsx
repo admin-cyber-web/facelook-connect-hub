@@ -2486,7 +2486,6 @@ const Index = ({ session, initialAdminOpen, isGuest = false }: { session: Sessio
   const [showMagnetDashboard, setShowMagnetDashboard] = useState(false);
 
   // Chat 19 — anonymous city radar chat (Velvet-Red & Deep Charcoal)
-  const [showChat19, setShowChat19] = useState(false);
   // Chat 19 — cinematic heart popup (promo banner → bottom-nav hint)
   const [showChat19Promo, setShowChat19Promo] = useState(false);
   // Flicks Reels — post id to start at when FameFeed video posts open the overlay
