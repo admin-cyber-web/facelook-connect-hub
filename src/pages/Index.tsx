@@ -2488,8 +2488,6 @@ const Index = ({ session, initialAdminOpen, isGuest = false }: { session: Sessio
   const [showMagnetDashboard, setShowMagnetDashboard] = useState(false);
 
   // Chat 19 — anonymous city radar chat (Velvet-Red & Deep Charcoal)
-  // Chat 19 — cinematic heart popup (promo banner → bottom-nav hint)
-  const [showChat19Promo, setShowChat19Promo] = useState(false);
   // Flicks Reels — post id to start at when FameFeed video posts open the overlay
   const [flicksStartPostId, setFlicksStartPostId] = useState<string | null>(null);
 
@@ -2518,8 +2516,7 @@ const Index = ({ session, initialAdminOpen, isGuest = false }: { session: Sessio
       isAdminPanelOpen ||
       isVideoCallOpen ||
       showMagnetDashboard ||
-      showChat19 ||
-      showChat19Promo;
+      showChat19;
     if (!anyOverlay) return;
     const scrollY = window.scrollY;
     document.body.classList.add("body-locked");
@@ -2529,7 +2526,7 @@ const Index = ({ session, initialAdminOpen, isGuest = false }: { session: Sessio
       document.body.style.top = "";
       window.scrollTo(0, scrollY);
     };
-  }, [isChatOpen, isPostOpen, isAdminPanelOpen, isVideoCallOpen, showMagnetDashboard, showChat19, showChat19Promo]);
+  }, [isChatOpen, isPostOpen, isAdminPanelOpen, isVideoCallOpen, showMagnetDashboard, showChat19]);
 
   // Profile
   const [profile, setProfile] = useState(() => {
@@ -2731,7 +2728,6 @@ const Index = ({ session, initialAdminOpen, isGuest = false }: { session: Sessio
     !isVideoCallOpen &&
     !showMagnetDashboard &&
     !showChat19 &&
-    !showChat19Promo &&
     !showOnboarding &&
     !showDeleteDialog &&
     !isFrameMode &&
@@ -4330,80 +4326,6 @@ const PersonalizationView = React.memo(({
         )}
       </AnimatePresence>
 
-      {/* ── Chat 19 cinematic heart popup — banner teaser → bottom-nav hint ───
-          (Romantic crimson-glow modal; core Chat19.tsx logic untouched) */}
-      <AnimatePresence>
-        {showChat19Promo && (
-          <motion.div
-            key="chat19promo"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.28 }}
-            className="fixed inset-0 z-[9999] flex items-center justify-center px-5"
-            style={{ background: "rgba(8,2,5,.78)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)" }}
-            onClick={() => setShowChat19Promo(false)}
-          >
-            <style>{`@keyframes c19-heart-beat { 0%,100% { transform: scale(1); filter: drop-shadow(0 0 10px rgba(255,45,85,.9)); } 30% { transform: scale(1.12); filter: drop-shadow(0 0 22px rgba(255,45,85,1)); } 45% { transform: scale(1.04); } 60% { transform: scale(1.14); filter: drop-shadow(0 0 26px rgba(255,45,85,1)); } } @keyframes c19-heart-float { 0% { transform: translateY(110%) scale(.7); opacity: 0; } 12% { opacity: .9; } 100% { transform: translateY(-130px) scale(1.15); opacity: 0; } } @keyframes c19-heart-spin { to { transform: rotate(360deg); } }`}</style>
-            <motion.div
-              initial={{ opacity: 0, scale: 0.82, y: 26 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 12 }}
-              transition={{ type: "spring", stiffness: 260, damping: 24 }}
-              onClick={(e) => e.stopPropagation()}
-              className="relative w-full max-w-sm overflow-hidden text-center px-6 pt-8 pb-6"
-              style={{
-                background: "linear-gradient(160deg,#2A0713 0%,#12060B 55%,#3A0518 100%)",
-                border: "1.5px solid rgba(255,77,110,.65)",
-                borderRadius: 28,
-                boxShadow: "0 0 34px rgba(225,29,72,.55), 0 0 90px rgba(225,29,72,.28), inset 0 1px 0 rgba(255,255,255,.10)",
-              }}
-            >
-              {/* rotating romantic glow ring */}
-              <div className="pointer-events-none absolute -top-24 left-1/2 -translate-x-1/2 w-72 h-72 rounded-full" style={{ background: "conic-gradient(from 0deg, transparent 0deg, rgba(255,45,85,.35) 60deg, transparent 120deg, rgba(255,120,150,.25) 200deg, transparent 260deg, rgba(255,45,85,.35) 340deg, transparent 360deg)", filter: "blur(6px)", animation: "c19-heart-spin 9s linear infinite" }} />
-              {/* floating mini hearts */}
-              <div className="pointer-events-none absolute inset-0 overflow-hidden">
-                {["8%","30%","52%","72%","88%"].map((left, i) => (
-                  <span key={i} style={{ position: "absolute", left, bottom: -10, fontSize: 13 + (i % 3) * 4, color: "rgba(255,110,140,.85)", textShadow: "0 0 10px rgba(255,45,85,.9)", animation: `c19-heart-float ${3.4 + i * 0.5}s ease-in infinite`, animationDelay: `${i * 0.55}s` }}>♥</span>
-                ))}
-              </div>
-              {/* big beating heart */}
-              <div className="relative mx-auto mb-3 flex items-center justify-center" style={{ width: 92, height: 92 }}>
-                <div className="absolute inset-0 rounded-full" style={{ background: "radial-gradient(circle, rgba(255,45,85,.45) 0%, transparent 70%)" }} />
-                <span style={{ fontSize: 62, lineHeight: 1, animation: "c19-heart-beat 1.6s ease-in-out infinite" }}>💖</span>
-                <span className="absolute -top-1 -right-1 flex items-center justify-center" style={{ minWidth: 22, height: 22, padding: "0 5px", borderRadius: 99, background: "linear-gradient(135deg,#FF2D55,#A01030)", border: "1.5px solid rgba(255,255,255,.9)", boxShadow: "0 0 12px rgba(255,45,85,.95)", fontSize: 10, fontWeight: 900, color: "#fff" }}>19</span>
-              </div>
-              <p className="text-[15px] font-black leading-tight" style={{ color: "#FFE9ED", textShadow: "0 0 16px rgba(255,45,85,.75)" }}>
-                Chat 19: Unveil Your Secret Vibe 💋
-              </p>
-              <p className="text-[12px] leading-relaxed mt-2.5" style={{ color: "rgba(255,190,205,.92)" }}>
-                Your private anonymous module now lives permanently in the bottom navigation menu under{" "}
-                <span className="font-black" style={{ color: "#FF8FA5" }}>“Chat 19” ♥</span>
-                <br />Tap it anytime for the city radar, 10 free daily scans & secret velvet-red chat.
-              </p>
-              <div className="flex gap-2.5 mt-5">
-                <button
-                  type="button"
-                  onClick={() => setShowChat19Promo(false)}
-                  className="flex-1 rounded-2xl py-3 text-[11px] font-black uppercase tracking-[0.12em] active:scale-95 transition-transform"
-                  style={{ background: "rgba(225,29,72,.10)", border: "1.5px solid rgba(255,77,110,.5)", color: "#FF8FA5" }}
-                >
-                  Later
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setShowChat19Promo(false); setShowChat19(true); }}
-                  className="flex-[1.4] rounded-2xl py-3 text-[11px] font-black uppercase tracking-[0.12em] text-white active:scale-95 transition-transform"
-                  style={{ background: "linear-gradient(90deg,#A01030,#E11D48)", border: "1px solid rgba(255,255,255,.35)", boxShadow: "0 0 20px rgba(255,45,85,.7)" }}
-                >
-                  Open Chat 19 ♥
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
       {/* ── Frame Mode overlay (slides in from right, covers everything) ──── */}
       <AnimatePresence>
         {isFrameMode && (
@@ -4806,65 +4728,6 @@ const PersonalizationView = React.memo(({
                         </span>
                       </div>
                     </div>
-                  </motion.button>
-                </div>
-
-                {/* ── Chat 19 promo banner — full-card click opens the existing promo flow */}
-                <div className="px-3 pb-1">
-                  <motion.button
-                    type="button"
-                    whileTap={{ scale: 0.985 }}
-                    onClick={() => setShowChat19Promo(true)}
-                    aria-label="Open Chat 19. Private and secure, free chat with your ID hidden."
-                    className="relative block h-[67px] w-full overflow-hidden rounded-2xl text-left"
-                    style={{
-                      border: "1.5px solid rgba(255,77,110,.55)",
-                      boxShadow: "0 0 22px rgba(225,29,72,.35), 0 8px 28px rgba(38,8,33,.16)",
-                    }}
-                  >
-                    <img
-                      src="https://i.ibb.co/HT7RvFxs/flicksindia.png"
-                      alt=""
-                      aria-hidden="true"
-                      className="absolute inset-0 h-full w-full select-none object-contain object-right"
-                      loading="lazy"
-                      decoding="async"
-                      draggable={false}
-                    />
-                    <div
-                      aria-hidden="true"
-                      className="absolute inset-y-[2px] left-2 z-10 flex w-[54%] max-w-[190px] flex-col justify-between gap-0 sm:w-[47%] sm:max-w-[240px]"
-                    >
-                      <div className="grid grid-cols-3 gap-1">
-                        <span className="chat19-badge-glow flex min-h-[16px] items-center justify-center gap-0.5 rounded-md border border-emerald-700/20 bg-emerald-200/70 px-0.5 text-center text-[6px] font-black leading-[1.05] text-slate-950 sm:text-[7px]">
-                          <span>🔒</span><span>Private &amp; Secure</span>
-                        </span>
-                        <span className="chat19-badge-glow flex min-h-[16px] items-center justify-center gap-0.5 rounded-md border border-amber-700/20 bg-amber-200/80 px-0.5 text-center text-[6px] font-black leading-[1.05] text-slate-950 sm:text-[7px]">
-                          <span>⚡</span><span>100% Free</span>
-                        </span>
-                        <span className="chat19-badge-glow flex min-h-[16px] items-center justify-center gap-0.5 rounded-md border border-sky-700/20 bg-sky-200/80 px-0.5 text-center text-[6px] font-black leading-[1.05] text-slate-950 sm:text-[7px]">
-                          <span>🆔</span><span>ID Hidden</span>
-                        </span>
-                      </div>
-
-                      <div className="relative min-h-0 flex-1 overflow-hidden py-px">
-                        <p className="chat19-language-en absolute inset-0 flex items-center text-[7px] font-black leading-[1.05] tracking-tight text-slate-950 drop-shadow-[0_1px_1px_rgba(255,255,255,.75)] sm:text-[8px]">
-                          ✨ Want to have fun with friends or new people? Your chat is 100% PRIVATE &amp; SECURE. ID is HIDDEN!
-                        </p>
-                        <p className="chat19-language-hi absolute inset-0 flex items-center text-[7px] font-black leading-[1.05] tracking-tight text-slate-950 drop-shadow-[0_1px_1px_rgba(255,255,255,.75)] sm:text-[8px]">
-                          🔥 क्या दोस्तों या अनजाने लोगों के साथ मज़े करना चाहते हैं? आपकी चैट पूरी तरह प्राइवेट और सुरक्षित है, आपकी आईडी कोई नहीं देख सकता!
-                        </p>
-                      </div>
-
-                      <span className="chat19-cta-glow inline-flex min-h-[16px] self-start items-center justify-center rounded-md bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 px-2 text-[8px] font-black tracking-wide text-white shadow sm:min-h-[18px] sm:text-[9px]">
-                        Open Now ↗
-                      </span>
-                    </div>
-                    <span className="sr-only">
-                      Want to have fun with friends or new people? Your chat is 100% private and secure. ID is hidden.
-                      क्या दोस्तों या अनजाने लोगों के साथ मज़े करना चाहते हैं? आपकी चैट पूरी तरह प्राइवेट और सुरक्षित है, आपकी आईडी कोई नहीं देख सकता!
-                      Open Now.
-                    </span>
                   </motion.button>
                 </div>
 
