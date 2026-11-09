@@ -634,7 +634,7 @@ export default function FriendWallPresentation({
               type="button"
               onClick={onOpenComposer}
               data-testid="button-write-first-wall-post"
-              className="mt-4 inline-flex min-h-10 items-center gap-2 rounded-full bg-fuchsia-300/15 px-4 text-xs font-bold text-fuchsia-100 transition-colors hover:bg-fuchsia-300/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-200/40"
+              className="mt-4 inline-flex min-h-10 items-center gap-2 rounded-full bg-fuchsia-300/15 px-4 text-xs font-bold text-white transition-colors hover:bg-fuchsia-300/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-200/40"
             >
               <PenLine size={14} aria-hidden="true" />
               Write the first note
