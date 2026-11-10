@@ -191,3 +191,29 @@ export function bunnyEmbedUrl(videoId: string, libraryId?: string): string {
 export function bunnyStorageUrl(fileName: string): string {
   return `https://flicksindiacdn.b-cdn.net/${fileName}`;
 }
+
+/**
+ * BunnyCDN pull zone base URL for sticker packs.
+ */
+export const BUNNY_STICKER_CDN = "https://flicksindiacdn.b-cdn.net";
+
+/**
+ * Sticker pack category folders available on the pull zone.
+ */
+export type StickerPackCategory = "Love" | "Sad" | "emotional" | "Angry";
+
+/**
+ * Build a full sticker pack image URL from a category folder and file name.
+ *
+ * Example:
+ *   bunnyStickerUrl("Love", "heart.png")
+ *   → "https://flicksindiacdn.b-cdn.net/Love/heart.png"
+ *
+ * @param category - One of "Love" | "Sad" | "emotional" | "Angry"
+ * @param fileName - Image file name inside the category folder
+ */
+export function bunnyStickerUrl(category: StickerPackCategory, fileName: string): string {
+  const cat = String(category).replace(/^\/+|\/+$/g, "");
+  const file = String(fileName).replace(/^\/+/, "");
+  return `${BUNNY_STICKER_CDN}/${cat}/${file}`;
+}

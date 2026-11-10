@@ -1,6 +1,7 @@
 import React from "react";
 import { motion } from "framer-motion";
 import type { StickerType } from "../lib/messageParser";
+import { bunnyStickerUrl, type StickerPackCategory } from "../lib/bunny";
 
 interface ChatStickerProps {
   type: NonNullable<StickerType>;
@@ -14,6 +15,8 @@ interface StickerConfig {
   gradient: string;
   labelColor: string;
   borderColor: string;
+  /** Optional BunnyCDN sticker pack image (category folder + file name) */
+  stickerPack?: { category: StickerPackCategory; file: string };
 }
 
 const STICKER_CONFIG: Record<NonNullable<StickerType>, StickerConfig> = {
@@ -23,6 +26,7 @@ const STICKER_CONFIG: Record<NonNullable<StickerType>, StickerConfig> = {
     gradient: "linear-gradient(135deg, rgba(244,63,94,0.35) 0%, rgba(236,72,153,0.2) 100%)",
     labelColor: "#fda4af",
     borderColor: "rgba(244,63,94,0.3)",
+    stickerPack: { category: "Love", file: "love.png" },
   },
   morning: {
     emojis: ["☀️", "🌸", "😊"],
@@ -157,6 +161,7 @@ const popIn = {
 
 export const ChatSticker: React.FC<ChatStickerProps> = ({ type, originalText, isEdited }) => {
   const cfg = STICKER_CONFIG[type];
+  const [stickerImageFailed, setStickerImageFailed] = React.useState(false);
 
   // ── Warning state — no animation, just a badge ──────────────────────────
   if (type === "warning") {
@@ -204,33 +209,48 @@ export const ChatSticker: React.FC<ChatStickerProps> = ({ type, originalText, is
         gap: 6,
       }}
     >
-      {/* Floating emoji row */}
-      <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 4 }}>
-        {cfg.emojis.map((emoji, i) => (
-          <motion.span
-            key={i}
-            style={{
-              display: "inline-block",
-              fontSize: 20,
-              lineHeight: 1,
-              filter: "drop-shadow(0 0 6px rgba(0,0,0,0.45))",
-            }}
-            animate={{
-              y: [0, -(4 + i * 2), 0],
-              scale: [1, 1.15, 1],
-              rotate: [0, i % 2 === 0 ? 6 : -6, 0],
-            }}
-            transition={{
-              duration: 1.7 + i * 0.2,
-              repeat: Infinity,
-              ease: "easeInOut",
-              delay: i * 0.12,
-            }}
-          >
-            {emoji}
-          </motion.span>
-        ))}
-      </div>
+      {/* Sticker pack image from BunnyCDN (falls back to emojis on load error) */}
+      {cfg.stickerPack && !stickerImageFailed ? (
+        <img
+          src={bunnyStickerUrl(cfg.stickerPack.category, cfg.stickerPack.file)}
+          alt={cfg.label}
+          style={{
+            width: 64,
+            height: 64,
+            objectFit: "contain",
+            filter: "drop-shadow(0 0 8px rgba(0,0,0,0.45))",
+          }}
+          onError={() => setStickerImageFailed(true)}
+          decoding="async"
+        />
+      ) : (
+        <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 4 }}>
+          {cfg.emojis.map((emoji, i) => (
+            <motion.span
+              key={i}
+              style={{
+                display: "inline-block",
+                fontSize: 20,
+                lineHeight: 1,
+                filter: "drop-shadow(0 0 6px rgba(0,0,0,0.45))",
+              }}
+              animate={{
+                y: [0, -(4 + i * 2), 0],
+                scale: [1, 1.15, 1],
+                rotate: [0, i % 2 === 0 ? 6 : -6, 0],
+              }}
+              transition={{
+                duration: 1.7 + i * 0.2,
+                repeat: Infinity,
+                ease: "easeInOut",
+                delay: i * 0.12,
+              }}
+            >
+              {emoji}
+            </motion.span>
+          ))}
+        </div>
+      )}
 
       {/* Label */}
       <p style={{
