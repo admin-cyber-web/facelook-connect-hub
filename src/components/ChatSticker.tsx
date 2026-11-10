@@ -146,11 +146,12 @@ const STICKER_CONFIG: Record<NonNullable<StickerType>, StickerConfig> = {
 };
 
 const popIn = {
-  initial: { scale: 0.7, opacity: 0 },
+  initial: { scale: 0.8, opacity: 0, y: 8 },
   animate: {
     scale: 1,
     opacity: 1,
-    transition: { type: "spring" as const, stiffness: 320, damping: 22 },
+    y: 0,
+    transition: { type: "spring" as const, stiffness: 340, damping: 24 },
   },
 };
 
@@ -188,38 +189,42 @@ export const ChatSticker: React.FC<ChatStickerProps> = ({ type, originalText, is
     );
   }
 
-  // ── Animated sticker ─────────────────────────────────────────────────────
+  // ── Transparent floating sticker ─────────────────────────────────────────
+  // No background box, no border, no rigid padding — emojis and text float
+  // directly over the chat background with a minimal vertical footprint.
   return (
     <motion.div
       variants={popIn}
       initial="initial"
       animate="animate"
       style={{
-        background: cfg.gradient,
-        border: `1px solid ${cfg.borderColor}`,
-        borderRadius: 14,
-        padding: "8px 12px",
-        minWidth: 110,
-        maxWidth: 180,
-        textAlign: "center",
+        display: "inline-flex",
+        flexDirection: "column",
+        alignItems: "center",
+        gap: 6,
       }}
     >
       {/* Floating emoji row */}
-      <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 4, marginBottom: 5 }}>
+      <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 4 }}>
         {cfg.emojis.map((emoji, i) => (
           <motion.span
             key={i}
-            style={{ display: "inline-block", fontSize: 17 }}
+            style={{
+              display: "inline-block",
+              fontSize: 20,
+              lineHeight: 1,
+              filter: "drop-shadow(0 0 6px rgba(0,0,0,0.45))",
+            }}
             animate={{
-              y: [0, -(3 + i * 1.5), 0],
-              scale: [1, 1.1, 1],
-              rotate: [0, i % 2 === 0 ? 5 : -5, 0],
+              y: [0, -(4 + i * 2), 0],
+              scale: [1, 1.15, 1],
+              rotate: [0, i % 2 === 0 ? 6 : -6, 0],
             }}
             transition={{
-              duration: 1.8 + i * 0.2,
+              duration: 1.7 + i * 0.2,
               repeat: Infinity,
               ease: "easeInOut",
-              delay: i * 0.15,
+              delay: i * 0.12,
             }}
           >
             {emoji}
@@ -233,25 +238,29 @@ export const ChatSticker: React.FC<ChatStickerProps> = ({ type, originalText, is
         fontSize: 10,
         fontWeight: 900,
         textTransform: "uppercase",
-        letterSpacing: "0.06em",
-        marginBottom: 4,
+        letterSpacing: "0.08em",
+        margin: 0,
+        textShadow: "0 0 10px rgba(0,0,0,0.55)",
       }}>
         {cfg.label}
       </p>
 
-      {/* Original text */}
+      {/* Original trigger text */}
       <p style={{
-        color: "rgba(255,255,255,0.75)",
+        color: "rgba(255,255,255,0.9)",
         fontSize: 11,
         fontStyle: "italic",
-        lineHeight: 1.35,
+        lineHeight: 1.25,
+        margin: 0,
+        textAlign: "center",
         wordBreak: "break-word",
+        textShadow: "0 0 10px rgba(0,0,0,0.55)",
       }}>
         {originalText}
       </p>
 
       {isEdited && (
-        <p style={{ color: "rgba(255,255,255,0.3)", fontSize: 9, marginTop: 4, fontStyle: "italic" }}>
+        <p style={{ color: "rgba(255,255,255,0.45)", fontSize: 9, marginTop: 5, fontStyle: "italic", textShadow: "0 0 6px rgba(0,0,0,0.5)" }}>
           (edited)
         </p>
       )}
