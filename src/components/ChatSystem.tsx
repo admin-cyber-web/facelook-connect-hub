@@ -51,6 +51,7 @@ import {
   Camera,
   Plus,
   Smile,
+  Image,
   Mic,
   Pencil,
   Download,
@@ -68,6 +69,7 @@ import { usePageVisibility } from "../hooks/usePageVisibility";
 import { toast } from "sonner";
 import { parseMessage } from "../lib/messageParser";
 import { ChatSticker } from "./ChatSticker";
+import { StickerDrawer } from "./StickerDrawer";
 import {
   hasRiskKeyword,
   hasLoveKeyword,
@@ -1372,6 +1374,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   } | null>(null);
   const [showEmojiGrid, setShowEmojiGrid] = useState(false);
   const [showInputEmoji, setShowInputEmoji] = useState(false);
+  const [showStickerDrawer, setShowStickerDrawer] = useState(false);
   const [inputFocused, setInputFocused] = useState(false);
   const smokeIdRef = useRef(0);
   const blastIdRef = useRef(0);
@@ -3275,6 +3278,57 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   };
 
   // ── Media upload ──────────────────────────────────────────────────────────
+  const sendSticker = async (stickerUrl: string) => {
+    if (!selectedUser || !stickerUrl) return;
+    setIsSending(true);
+    const tempId = `temp-sticker-${Date.now()}`;
+    const tempMsg: Message = {
+      id: tempId,
+      sender_id: userId,
+      receiver_id: selectedUser.id,
+      content: "",
+      media_url: stickerUrl,
+      media_type: "image/png",
+      created_at: new Date().toISOString(),
+    };
+    setMessages((prev) => {
+      const next = [...prev, tempMsg];
+      return next.length > 200 ? next.slice(-200) : next;
+    });
+    try {
+      const { data, error } = await supabase
+        .from("messages")
+        .insert({
+          sender_id: userId,
+          receiver_id: selectedUser.id,
+          content: "",
+          media_url: stickerUrl,
+          media_type: "image/png",
+        })
+        .select(
+          "id,sender_id,receiver_id,content,media_url,media_type,created_at,seen_at,reply_to_id,reply_preview,reactions,is_edited"
+        )
+        .single();
+
+      if (data) {
+        setMessages((prev) =>
+          prev.map((m) => (m.id === tempId ? (data as Message) : m))
+        );
+        scheduleContactsRefresh();
+        if (soundEnabled) playSound("send");
+      } else if (error) {
+        setMessages((prev) => prev.filter((m) => m.id !== tempId));
+        toast.error(`Sticker failed: ${error.message}`);
+      }
+    } catch (ex: any) {
+      setMessages((prev) => prev.filter((m) => m.id !== tempId));
+      console.error("[ChatSystem] sendSticker uncaught exception:", ex);
+      toast.error(`Unexpected error: ${ex?.message || "Unknown"}`);
+    } finally {
+      setIsSending(false);
+    }
+  };
+
   const handleMediaUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -6038,10 +6092,20 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                           style={{ willChange: "opacity, width" }}
                         >
                           <button
-                            onClick={() => setShowInputEmoji((p) => !p)}
+                            onClick={() => {
+                              setShowInputEmoji((p) => !p);
+                              setShowStickerDrawer(false);
+                            }}
                             className={`w-9 h-9 rounded-2xl border ${T.divider} flex items-center justify-center text-lg hover:bg-white/20 shrink-0 transition-all ${showInputEmoji ? "bg-white/20" : "bg-white/10"}`}
                           >
                             😊
+                          </button>
+                          {/* Sticker drawer toggle */}
+                          <button
+                            onClick={() => setShowStickerDrawer((p) => !p)}
+                            className={`w-9 h-9 rounded-2xl border ${T.divider} flex items-center justify-center text-lg hover:bg-white/20 shrink-0 transition-all ${showStickerDrawer ? "bg-white/20" : "bg-white/10"}`}
+                          >
+                            <Image size={16} strokeWidth={1.5} />
                           </button>
                           <button
                             onClick={() => fileInputRef.current?.click()}
@@ -7247,6 +7311,13 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
               />
             )}
           </AnimatePresence>
+
+          {/* Sticker drawer (bottom sheet) */}
+          <StickerDrawer
+            isOpen={showStickerDrawer}
+            onClose={() => setShowStickerDrawer(false)}
+            onStickerSelect={sendSticker}
+          />
         </motion.div>
       )}
     </AnimatePresence>
