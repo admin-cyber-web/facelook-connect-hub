@@ -195,7 +195,17 @@ export function bunnyStorageUrl(fileName: string): string {
 /**
  * BunnyCDN pull zone base URL for sticker packs.
  */
-export const BUNNY_STICKER_CDN = "https://flicksindiacdn.b-cdn.net";
+export const BUNNY_CDN_BASE = "https://flicksindiacdn.b-cdn.net";
+
+/**
+ * Explicit sticker pack category folder URLs on the pull zone.
+ */
+export const BUNNY_STICKER_CATEGORY_URLS: Record<StickerPackCategory, string> = {
+  Love: `${BUNNY_CDN_BASE}/Love/`,
+  Sad: `${BUNNY_CDN_BASE}/Sad/`,
+  emotional: `${BUNNY_CDN_BASE}/emotional/`,
+  Angry: `${BUNNY_CDN_BASE}/Angry/`,
+};
 
 /**
  * Sticker pack category folders available on the pull zone.
@@ -215,5 +225,5 @@ export type StickerPackCategory = "Love" | "Sad" | "emotional" | "Angry";
 export function bunnyStickerUrl(category: StickerPackCategory, fileName: string): string {
   const cat = String(category).replace(/^\/+|\/+$/g, "");
   const file = String(fileName).replace(/^\/+/, "");
-  return `${BUNNY_STICKER_CDN}/${cat}/${file}`;
+  return `${BUNNY_CDN_BASE}/${cat}/${file}`;
 }

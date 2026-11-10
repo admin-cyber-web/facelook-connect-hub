@@ -1,7 +1,8 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X } from "lucide-react";
+import { X, Loader2 } from "lucide-react";
 import { bunnyStickerUrl, type StickerPackCategory } from "../lib/bunny";
+import { fetchStickerImage, preloadCategory } from "../lib/stickerCache";
 
 type StickerDrawerProps = {
   isOpen: boolean;
@@ -9,14 +10,8 @@ type StickerDrawerProps = {
   onStickerSelect: (stickerUrl: string) => void;
 };
 
-/** Category folders exposed on the BunnyCDN pull zone. */
 const STICKER_CATEGORIES: StickerPackCategory[] = ["Love", "Sad", "emotional", "Angry"];
 
-/**
- * Sticker file names per category.
- * Replace these placeholder filenames with the actual files you have uploaded
- * to each category folder on https://flicksindiacdn.b-cdn.net
- */
 const STICKER_FILES: Record<StickerPackCategory, string[]> = {
   Love: ["love-1.png", "love-2.png", "love-3.png", "heart.png", "kiss.png", "cute.png"],
   Sad: ["sad-1.png", "sad-2.png", "tears.png", "broken-heart.png", "lonely.png"],
@@ -29,63 +24,86 @@ export const StickerDrawer: React.FC<StickerDrawerProps> = ({
   onClose,
   onStickerSelect,
 }) => {
-  const [activeCategory, setActiveCategory] = useState<StickerPackCategory>(
-    "Love"
-  );
+  const [activeCategory, setActiveCategory] = useState<StickerPackCategory>("Love");
+  const [loadingStickers, setLoadingStickers] = useState<Set<string>>(new Set());
+  const [resolvedUrls, setResolvedUrls] = useState<Record<string, string>>({});
+
   const files = STICKER_FILES[activeCategory];
+
+  useEffect(() => {
+    if (!isOpen) return;
+    void preloadCategory(activeCategory, files);
+  }, [isOpen, activeCategory, files]);
+
+  useEffect(() => {
+    const resolveAll = async () => {
+      const next: Record<string, string> = {};
+      await Promise.all(
+        files.map(async (file) => {
+          const url = bunnyStickerUrl(activeCategory, file);
+          next[file] = await fetchStickerImage(url);
+        })
+      );
+      setResolvedUrls(next);
+    };
+    resolveAll();
+  }, [activeCategory, files]);
+
+  const isLoading = (file: string) => loadingStickers.has(file);
+
+  const handleStickerPress = (file: string) => {
+    setLoadingStickers((prev) => new Set([...prev, file]));
+    const url = resolvedUrls[file] || bunnyStickerUrl(activeCategory, file);
+    setLoadingStickers((prev) => {
+      const next = new Set(prev);
+      next.delete(file);
+      return next;
+    });
+    onStickerSelect(url);
+    onClose();
+  };
 
   return (
     <AnimatePresence>
       {isOpen && (
         <>
-          {/* Backdrop — tap to close */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40"
+            className="fixed inset-0 bg-white/80 backdrop-blur-sm z-50"
             onClick={onClose}
           />
 
-          {/* Bottom sheet */}
           <motion.div
             initial={{ y: "100%", opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: "100%", opacity: 0 }}
             transition={{ type: "spring" as const, stiffness: 320, damping: 26 }}
-            className="fixed bottom-0 left-0 right-0 z-50 w-full bg-[#121212]/95 backdrop-blur-xl border-t border-white/10 rounded-t-[30px] shadow-2xl max-h-[82vh] flex flex-col"
+            className="fixed bottom-0 left-0 right-0 z-50 w-full bg-white border-t border-gray-200 rounded-t-[30px] shadow-2xl max-h-[85vh] flex flex-col"
           >
-            {/* Drawer handle */}
-            <div className="w-12 h-1.5 bg-white/20 rounded-full mx-auto mt-3 mb-2" />
+            <div className="w-12 h-1.5 bg-gray-300 rounded-full mx-auto mt-3 mb-2" />
 
-            {/* Header */}
-            <div className="px-4 pb-3">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-white font-black text-lg">
-                  Stickers
-                </h3>
+            <div className="px-5 pb-4">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-black font-black text-lg">Stickers</h3>
                 <button
                   onClick={onClose}
-                  className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 transition-colors"
+                  className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors"
                 >
-                  <X size={18} strokeWidth={2} />
+                  <X size={18} strokeWidth={2} stroke="currentColor" />
                 </button>
               </div>
-              <p className="text-white/50 text-xs font-medium uppercase tracking-wider mb-3">
+              <p className="text-gray-500 text-xs font-medium uppercase tracking-wider mb-4">
                 Tap a sticker to send
               </p>
 
-              {/* Category tabs */}
-              <div className="flex gap-1 overflow-x-auto no-scrollbar pb-2 mb-1">
+              <div className="flex gap-1 overflow-x-auto no-scrollbar pb-2 mb-2">
                 {STICKER_CATEGORIES.map((cat) => (
                   <button
                     key={cat}
                     onClick={() => setActiveCategory(cat)}
-                    className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-bold transition-all ${
-                      activeCategory === cat
-                        ? "bg-white/20 text-white border border-white/30"
-                        : "bg-white/5 text-white/40 border border-white/10 hover:bg-white/10 hover:text-white"
-                    }`}
+                    className={`flex-shrink-0 px-3.5 py-1.5 rounded-full text-xs font-bold transition-all ${activeCategory === cat ? "bg-black text-white border border-black" : "bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200 hover:text-gray-900"}`}
                   >
                     {cat}
                   </button>
@@ -93,36 +111,41 @@ export const StickerDrawer: React.FC<StickerDrawerProps> = ({
               </div>
             </div>
 
-            {/* Sticker grid */}
             <div className="flex-1 overflow-y-auto p-3">
               <div className="grid grid-cols-4 gap-2">
                 {files.map((file) => {
-                  const url = bunnyStickerUrl(activeCategory, file);
+                  const isLoadingImg = isLoading(file);
+                  const imageSrc = resolvedUrls[file] || bunnyStickerUrl(activeCategory, file);
                   return (
-                    <button
+                    <motion.button
                       key={file}
-                      onClick={() => {
-                        onStickerSelect(url);
-                        onClose();
-                      }}
-                      className="aspect-square rounded-2xl overflow-hidden border border-white/10 bg-white/5 hover:bg-white/10 hover:scale-105 transition-all duration-200"
+                      whileTap={{ scale: 0.95 }}
+                      whileHover={{ scale: 1.05 }}
+                      onClick={() => handleStickerPress(file)}
+                      className="aspect-square rounded-2xl overflow-hidden border border-gray-200 bg-gray-50 flex items-center justify-center transition-all duration-200"
                     >
-                      <img
-                        src={url}
-                        alt={file}
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                          const target = e.target as HTMLImageElement;
-                          target.style.display = "none";
-                          // Fallback emoji label when image is missing
-                          target.parentElement?.classList.add("flex", "items-center", "justify-center");
-                          target.parentElement?.classList.remove("overflow-hidden");
-                          (target.parentElement as HTMLElement).innerHTML = "🎨";
-                        }}
-                        decoding="async"
-                        loading="lazy"
-                      />
-                    </button>
+                      {isLoadingImg ? (
+                        <Loader2 size={16} className="text-gray-400 animate-spin" />
+                      ) : (
+                        <img
+                          src={imageSrc}
+                          alt={file}
+                          className="w-full h-full object-cover"
+                          onError={(e: any) => {
+                            const target = e.target as HTMLImageElement;
+                            target.style.display = "none";
+                            const parent = target.parentElement as HTMLElement;
+                            parent.style.display = "flex";
+                            parent.style.alignItems = "center";
+                            parent.style.justifyContent = "center";
+                            parent.style.overflow = "visible";
+                            parent.innerHTML = "🎨";
+                          }}
+                          decoding="async"
+                          loading="lazy"
+                        />
+                      )}
+                    </motion.button>
                   );
                 })}
               </div>

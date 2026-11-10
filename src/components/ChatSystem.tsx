@@ -6093,20 +6093,17 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                         >
                           <button
                             onClick={() => {
-                              setShowInputEmoji((p) => !p);
-                              setShowStickerDrawer(false);
-                            }}
-                            className={`w-9 h-9 rounded-2xl border ${T.divider} flex items-center justify-center text-lg hover:bg-white/20 shrink-0 transition-all ${showInputEmoji ? "bg-white/20" : "bg-white/10"}`}
-                          >
-                            😊
-                          </button>
                           {/* Sticker drawer toggle */}
-                          <button
+                          {/* Animated sticker button */}
+                          <motion.button
+                            whileTap={{ scale: 0.9 }}
+                            animate={{ scale: [1, 1.05, 1] }}
+                            transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
                             onClick={() => setShowStickerDrawer((p) => !p)}
                             className={`w-9 h-9 rounded-2xl border ${T.divider} flex items-center justify-center text-lg hover:bg-white/20 shrink-0 transition-all ${showStickerDrawer ? "bg-white/20" : "bg-white/10"}`}
                           >
                             <Image size={16} strokeWidth={1.5} />
-                          </button>
+                          </motion.button>
                           <button
                             onClick={() => fileInputRef.current?.click()}
                             disabled={isUploadingMedia}
