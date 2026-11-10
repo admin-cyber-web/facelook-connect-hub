@@ -6,6 +6,7 @@ type VideoStatusRequest = {
 type VideoStatusResponse = {
   status: (statusCode: number) => VideoStatusResponse;
   send: (body: unknown) => void;
+  setHeader: (name: string, value: string) => void;
 };
 
 type BunnyVideoStatus = {
@@ -17,7 +18,23 @@ type BunnyVideoStatus = {
   errorMessage?: string;
 };
 
+const corsHeaders: Record<string, string> = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS, PUT, DELETE",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+};
+
 export default async function handler(req: VideoStatusRequest, res: VideoStatusResponse) {
+  // Handle CORS preflight (OPTIONS) immediately with 204 No Content
+  if (req.method === "OPTIONS") {
+    Object.entries(corsHeaders).forEach(([key, value]) => res.setHeader(key, value));
+    res.status(204).send();
+    return;
+  }
+
+  // Apply CORS headers to all responses
+  Object.entries(corsHeaders).forEach(([key, value]) => res.setHeader(key, value));
+
   if (req.method !== "POST") {
     res.status(405).send({ message: "Method not allowed" });
     return;

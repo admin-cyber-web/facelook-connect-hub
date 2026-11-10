@@ -6091,9 +6091,6 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                           className="flex items-center gap-2 overflow-hidden shrink-0"
                           style={{ willChange: "opacity, width" }}
                         >
-                          <button
-                            onClick={() => {
-                          {/* Sticker drawer toggle */}
                           {/* Animated sticker button */}
                           <motion.button
                             whileTap={{ scale: 0.9 }}
@@ -6107,8 +6104,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                           <button
                             onClick={() => fileInputRef.current?.click()}
                             disabled={isUploadingMedia}
-                            className={`w-9 h-9 rounded-2xl border flex items-center justify-center shrink-0 disabled:opacity-40 transition-colors
-                              ${pendingFile ? "bg-blue-500 border-blue-400 text-white" : `bg-white/10 ${T.divider} ${T.text3} hover:bg-white/20`}`}
+                            className={`w-9 h-9 rounded-2xl border flex items-center justify-center shrink-0 disabled:opacity-40 transition-colors ${pendingFile ? "bg-blue-500 border-blue-400 text-white" : "bg-white/10 ${T.divider} ${T.text3} hover:bg-white/20"}`}
                           >
                             {isUploadingMedia ? (
                               <Loader2 size={15} className="animate-spin" />

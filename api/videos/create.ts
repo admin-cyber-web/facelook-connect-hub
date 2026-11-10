@@ -8,9 +8,26 @@ type VideoCreateRequest = {
 type VideoCreateResponse = {
   status: (statusCode: number) => VideoCreateResponse;
   send: (body: unknown) => void;
+  setHeader: (name: string, value: string) => void;
+};
+
+const corsHeaders: Record<string, string> = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS, PUT, DELETE",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization",
 };
 
 export default async function handler(req: VideoCreateRequest, res: VideoCreateResponse) {
+  // Handle CORS preflight (OPTIONS) immediately with 204 No Content
+  if (req.method === "OPTIONS") {
+    Object.entries(corsHeaders).forEach(([key, value]) => res.setHeader(key, value));
+    res.status(204).send();
+    return;
+  }
+
+  // Apply CORS headers to all responses
+  Object.entries(corsHeaders).forEach(([key, value]) => res.setHeader(key, value));
+
   if (req.method !== "POST") {
     res.status(405).send({ message: "Method not allowed" });
     return;
