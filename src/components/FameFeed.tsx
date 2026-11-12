@@ -1216,7 +1216,7 @@ const LatestSurveysWidget = ({
           <button
             onClick={onNavigateToSurveys}
             className="text-[11px] font-bold text-indigo-400/70 hover:text-indigo-400 transition-colors">
-            See all â†’
+            See all ’
           </button>
         )}
       </div>
@@ -7561,7 +7561,7 @@ const FameFeed = ({
                             style={{ color: "#e0f4ff" }}>{ecoItem.name}</span>
                           <span className="text-[8px] font-semibold"
                             style={{ color: "#00c8ff66" }}>
-                            {ecoItem.members != null ? `${ecoItem.members} members` : "Join â†’"}
+                            {ecoItem.members != null ? `${ecoItem.members} members` : "Join "}
                           </span>
                         </div>
                       </>
