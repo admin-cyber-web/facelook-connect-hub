@@ -218,7 +218,7 @@ const CirclePostCard = memo(({
             <p className="text-white font-bold text-sm leading-none">{post.author_name}</p>
             {post.author_id === groupOwnerId && (
               <span className="text-[8px] font-black px-1.5 py-0.5 rounded-full"
-                style={{ background: "linear-gradient(135deg,#f59e0b,#d97706)", color: "#000" }}>ðŸ‘‘</span>
+                style={{ background: "linear-gradient(135deg,#f59e0b,#d97706)", color: "#000" }}>👑</span>
             )}
             {post.status === "pending" && (
               <span className="text-[8px] font-black text-amber-300 px-1.5 py-0.5 rounded-full border border-amber-500/30"
@@ -959,7 +959,7 @@ export default function CirclePage({
       setSelectedGroup(null);
       fetchGroups();
     }
-    toast.success("You have left the Circle. ðŸ‘‹");
+toast.success("You have left the Circle. 👋");
   };
 
   // â”€â”€ Circle Events â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -1856,7 +1856,7 @@ export default function CirclePage({
     if (error) { toast.error("Failed to update role."); return; }
     await refreshMembers();
     toast.success(
-      role === "admin" ? "ðŸ‘‘ Promoted to Admin!" :
+      role === "admin" ? "👑 Promoted to Admin!" :
       role === "moderator" ? "â­ Promoted to Moderator." :
       "Role updated."
     );
@@ -2159,7 +2159,7 @@ export default function CirclePage({
             {currentRole === "admin" && (
               <span className="text-[10px] font-black px-2.5 py-1 rounded-full flex items-center gap-1"
                 style={{ background: "linear-gradient(135deg,#f59e0b,#d97706)", color: "#000" }}>
-                ðŸ‘‘ Admin
+               👑 Admin
               </span>
             )}
             {currentRole === "moderator" && (
@@ -2588,9 +2588,9 @@ export default function CirclePage({
                               ) : (
                                 <div className="flex gap-1">
                                   {([
-                                    { key: "going",     label: "âœ… Going",   count: counts.going,     active: "bg-green-500 text-white border-green-500" },
-                                    { key: "maybe",     label: "ðŸ¤” Maybe",   count: counts.maybe,     active: "bg-amber-400 text-white border-amber-400" },
-                                    { key: "not_going", label: "âŒ Nope",    count: counts.not_going, active: "bg-red-400 text-white border-red-400" },
+                                    { key: "going",     label: "✅ Going",   count: counts.going,     active: "bg-green-500 text-white border-green-500" },
+                                    { key: "maybe",     label: "🤔 Maybe",   count: counts.maybe,     active: "bg-amber-400 text-white border-amber-400" },
+                                    { key: "not_going", label: "❌ Nope",    count: counts.not_going, active: "bg-red-400 text-white border-red-400" },
                                   ] as const).map(opt => (
                                     <button
                                       key={opt.key}
@@ -2842,7 +2842,7 @@ export default function CirclePage({
                     <div className="flex flex-col items-center py-12 text-gray-300">
                       <MessageCircle size={32} className="mb-2 opacity-40" />
                       <p className="text-xs font-black uppercase tracking-widest">No messages yet</p>
-                      <p className="text-[11px] text-gray-400 mt-1">Say hello! ðŸ‘‹</p>
+                      <p className="text-[11px] text-gray-400 mt-1">Say hello! 👋</p>
                     </div>
                   ) : chatMessages.map((msg, i) => {
                     const isMe = msg.sender_id === currentUserId;
@@ -2878,7 +2878,7 @@ export default function CirclePage({
                                 style={{ background: "rgba(20,22,35,0.95)", backdropFilter: "blur(20px)", boxShadow: "0 8px 32px rgba(0,0,0,0.6)" }}
                                 onClick={e => e.stopPropagation()}
                               >
-                                {["â¤ï¸","ðŸ‘","ðŸ˜‚","ðŸ”¥","ðŸ˜®"].map(em => (
+                                {["❤️", "👍", "😂", "🔥", "😮"].map(em =>(
                                   <button key={em} onClick={() => toggleChatReaction(msg.id, em)}
                                     className={`text-[20px] active:scale-75 transition-transform px-0.5 rounded-xl ${reactions.find(r => r.emoji === em && r.mine) ? "bg-[#00F0FF]/15" : ""}`}>
                                     {em}
@@ -2912,7 +2912,7 @@ export default function CirclePage({
                             {repliedMsg && (
                               <div className={`text-[11px] rounded-xl px-2 py-1.5 mb-1.5 border-l-2 ${isMe ? "bg-white/20 border-white/60 text-white/80" : "bg-gray-50 border-blue-300 text-gray-500"}`}>
                                 <p className="font-black text-[10px] mb-0.5">{repliedMsg.sender_name}</p>
-                                <p className="truncate">{repliedMsg.content || "ðŸ“Ž Media"}</p>
+                                <p className="truncate">{repliedMsg.content || "📎 Media"}</p>
                               </div>
                             )}
                             {/* Media */}
@@ -2978,7 +2978,7 @@ export default function CirclePage({
                         <div className="w-0.5 h-8 rounded-full shrink-0" style={{ background: "#00F0FF" }} />
                         <div className="flex-1 min-w-0">
                           <p className="text-[10px] font-black text-[#00F0FF]">Replying to {replyTo.sender_name}</p>
-                          <p className="text-[11px] text-white/50 truncate">{replyTo.content || "ðŸ“Ž Media"}</p>
+                          <p className="text-[11px] text-white/50 truncate">{replyTo.content || "📎 Media"}</p>
                         </div>
                         <button onClick={() => setReplyTo(null)}
                           className="p-1 rounded-full shrink-0 text-white/50"
@@ -3150,7 +3150,7 @@ export default function CirclePage({
                           ? "rgba(59,130,246,0.12)"
                           : "rgba(255,255,255,0.04)"
                     }}>
-                    {m.role === "admin" ? "ðŸ‘‘ Admin" : m.role === "moderator" ? "â­ Mod" : "Member"}
+                    {m.role === "admin" ? 👑 Admin : m.role === "moderator" ? "â­ Mod" : "Member"}
                   </span>
                   {/* Action button */}
                   {m.user_id !== currentUserId && (
@@ -4151,7 +4151,7 @@ export default function CirclePage({
                       onKeyDown={e => e.key === "Enter" && !e.shiftKey && (e.preventDefault(), sendComment())}
                       onFocus={() => setCommentInputFocused(true)}
                       onBlur={() => setCommentInputFocused(false)}
-                      placeholder="Write a commentâ€¦"
+                      placeholder="Write a comment"
                       className="flex-1 bg-gray-100 border rounded-2xl px-4 py-2.5 text-sm outline-none transition-all duration-200"
                       style={{
                         boxShadow: commentInputFocused ? "0 0 0 2px rgba(37,99,235,0.22)" : "none",

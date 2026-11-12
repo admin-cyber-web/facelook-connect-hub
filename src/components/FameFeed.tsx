@@ -2908,7 +2908,7 @@ const PostDetailView = ({
             placeholder={
               replyingTo?.postId === post.id
                 ? `Reply to ${replyingTo.author}â€¦`
-                : "Write a commentâ€¦"
+                : "Write a comment"
             }
             aria-label={`Comment on ${post.author || "post"}`}
             className="min-w-0 flex-1 rounded-full border border-white/10 bg-white/[0.07] px-4 py-3 text-sm text-white outline-none placeholder:text-white/40 focus:border-pink-400/50"
@@ -5895,8 +5895,7 @@ const FameFeed = ({
       setSuggestionsLoaded(true);
     }
     fetchSuggestions();
-  }, []); // â† [] = run once on mount; public data, no auth needed
-
+ }, []); // <- [] = run once on mount; public data, no auth needed
   const handleInFeedAction = async (item: any) => {
     const isGroup = item.type === "group" || item.type === "circle";
     setInFeedDoneIds((prev) => new Set([...prev, item.id]));
@@ -6939,7 +6938,7 @@ const FameFeed = ({
                     )}
                 </div>
                 <p className="text-[10px] text-pink-400 font-semibold uppercase tracking-wide mt-0.5">
-                  {isVideo ? "📼 Reel" : "ðŸ“· Post"}
+                  {isVideo ? "📼 Reel" : "Post"}
                   {post.author_id && authorVerified[post.author_id]
                     ? " Â· Verified Creator"
                     : ""}
@@ -8504,7 +8503,7 @@ const FameFeed = ({
                           placeholder={
                             replyingTo?.postId === post.id
                               ? `Reply to ${replyingTo.author}â€¦`
-                              : "Write a commentâ€¦"
+                              : "Write a comment"
                           }
                           className="flex-1 border border-white/10 rounded-2xl px-4 py-2.5 text-sm text-white outline-none focus:ring-2 focus:ring-pink-500/30 placeholder-white/30"
                           style={{ background: "rgba(255,255,255,0.08)" }}
