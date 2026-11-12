@@ -1,4 +1,4 @@
-﻿import {
+import {
   createContext,
   useState,
   useEffect,
@@ -1068,7 +1068,7 @@ const DemoHookPagesRow = ({ onPageClick }: { onPageClick: () => void }) => (
           <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
           <div className="absolute top-2.5 left-2.5">
             <span className="bg-black/65 border border-white/30 text-white text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
-              âš¡ Page
+              🎬 Page
             </span>
           </div>
           <div className="absolute top-2.5 right-2.5 flex items-center gap-0.5 bg-black/70 rounded-full px-2 py-0.5 border border-white/20">
@@ -1097,7 +1097,7 @@ const DemoHookPagesRow = ({ onPageClick }: { onPageClick: () => void }) => (
                 letterSpacing: "0.03em",
               }}
             >
-              âœ¦ by {page.owner_name}
+              ✦ by {page.owner_name}
             </p>
             <button
               onClick={(e) => {
@@ -1111,7 +1111,7 @@ const DemoHookPagesRow = ({ onPageClick }: { onPageClick: () => void }) => (
                 boxShadow: "0 0 12px rgba(255,107,0,0.45)",
               }}
             >
-              âš¡ HOOK
+              🎬 HOOK
             </button>
           </div>
         </motion.div>
@@ -1894,7 +1894,7 @@ const InFeedHooksStrip = ({
               {/* Top-left badge */}
               <div className="absolute top-2.5 left-2.5">
                 <span className="bg-black/65 border border-white/30 text-white text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
-                  âš¡ Page
+                  🎬 Page
                 </span>
               </div>
               {/* Top-right follower count */}
