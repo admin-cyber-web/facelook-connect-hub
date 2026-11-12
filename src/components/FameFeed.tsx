@@ -1,4 +1,4 @@
-import {
+﻿import {
   createContext,
   useState,
   useEffect,
@@ -110,17 +110,17 @@ import SharePopup, { type SharePostData, type ShareAnchor, type ShareMode } from
 
 // â”€â”€ Reaction config â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const REACTIONS = [
-  { type: "like", emoji: "ðŸ‘", label: "Like" },
-  { type: "fire", emoji: "ðŸ”¥", label: "Fire" },
-  { type: "haha", emoji: "ðŸ˜‚", label: "Haha" },
-  { type: "wow", emoji: "ðŸ˜®", label: "Wow" },
-  { type: "sad", emoji: "ðŸ˜¢", label: "Sad" },
-  { type: "angry", emoji: "ðŸ˜¡", label: "Angry" },
+  { type: "like", emoji: "👍", label: "Like" },
+  { type: "fire", emoji: "🔥", label: "Fire" },
+  { type: "haha", emoji: "😂", label: "Haha" },
+  { type: "wow", emoji: "😮", label: "Wow" },
+  { type: "sad", emoji: "😢", label: "Sad" },
+  { type: "angry", emoji: "😠", label: "Angry" },
 ];
-// keep legacy "love" reactions (â¤ï¸) rendering correctly
+// keep legacy "love" reactions (❤️) rendering correctly
 const reactionEmoji = (type?: string) => {
-  if (type === "love") return "â¤ï¸";
-  return REACTIONS.find((r) => r.type === type)?.emoji ?? "ðŸ‘";
+  if (type === "love") return "❤️";
+  return REACTIONS.find((r) => r.type === type)?.emoji ?? "👍";
 };
 
 // Engagement RPCs/views have existed with several names over time. Keep the
@@ -261,7 +261,7 @@ const SurpriseReactionModal = ({
   );
 };
 
-// â”€â”€ PostViewTracker â€” fires onView once when post scrolls into view â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// â”€â”€ PostViewTracker — fires onView once when post scrolls into view â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const VibeVisibilityContext = createContext(false);
 const FeedVideoPreloadContext = createContext<{
   activeIndex: number | null;
@@ -801,11 +801,11 @@ const PostMedia = memo(({
   );
 });
 
-// â”€â”€ Mobile detection â€” used for Lite mode throughout FameFeed â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// â”€â”€ Mobile detection — used for Lite mode throughout FameFeed â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const IS_MOBILE = typeof navigator !== "undefined" &&
   /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
 
-// â”€â”€ Post caption â€” 2-line clamp + "...more" toggle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// â”€â”€ Post caption — 2-line clamp + "...more" toggle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const CLAMP_THRESHOLD = 90;
 
 const PostCaption = memo(({ content }: { content: string }) => {
@@ -830,7 +830,7 @@ const PostCaption = memo(({ content }: { content: string }) => {
   );
 });
 
-// â”€â”€ Static Demo Hindi Circles (forceful inject â€” always show) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// â”€â”€ Static Demo Hindi Circles (forceful inject — always show) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const DEMO_HINDI_CIRCLES = [
   {
     id: "demo-yaaden",
@@ -959,7 +959,7 @@ const DemoCirclesRow = memo(({ onCircleClick }: { onCircleClick: () => void }) =
                 letterSpacing: "0.03em",
               }}
             >
-              âœ¦ by {circle.created_by_name}
+              ✦ by {circle.created_by_name}
             </p>
             {/* Join button */}
             <button
@@ -1040,13 +1040,13 @@ const DemoHookPagesRow = ({ onPageClick }: { onPageClick: () => void }) => (
   >
     <div className="flex items-center justify-between px-4 mb-2">
       <p className="text-[13px] font-black text-white/70 tracking-wide">
-        âš¡ Hook Pages â€” Discover
+        ⚡ Hook Pages — Discover
       </p>
       <button
         onClick={onPageClick}
         className="text-[10px] font-black text-orange-500 uppercase tracking-wider"
       >
-        See All â†’
+        See All ↗
       </button>
     </div>
     <div className="flex gap-3 overflow-x-auto px-4 pb-2 no-scrollbar">
@@ -1143,7 +1143,7 @@ const SurveyThumb = ({ rawUrl, question }: { rawUrl: string | null; question: st
   const showImg  = resolved && !errored && resolved !== "/placeholder-avatar.png";
 
   return (
-    /* Fixed-height container â€” layout NEVER shifts while loading */
+    /* Fixed-height container — layout NEVER shifts while loading */
     <div className="w-full aspect-video rounded-lg overflow-hidden bg-gradient-to-br from-indigo-950 via-purple-950 to-slate-900 relative">
       {showImg ? (
         <img
@@ -1155,7 +1155,7 @@ const SurveyThumb = ({ rawUrl, question }: { rawUrl: string | null; question: st
           onError={() => setErrored(true)}
         />
       ) : (
-        /* Fallback â€” pretty gradient tile with emoji */
+        /* Fallback — pretty gradient tile with emoji */
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 select-none">
           <span className="text-4xl">ðŸ—³ï¸</span>
           <span className="text-white/30 text-[10px] font-bold uppercase tracking-widest">Survey</span>
@@ -1221,7 +1221,7 @@ const LatestSurveysWidget = ({
         )}
       </div>
 
-      {/* Cards â€” horizontal scroll on mobile, single column on md+ */}
+      {/* Cards — horizontal scroll on mobile, single column on md+ */}
       <div className="flex gap-3 overflow-x-auto px-4 pb-2 no-scrollbar sm:flex-col sm:overflow-x-visible sm:gap-2">
         {surveys.map((survey, idx) => (
           <motion.div
@@ -1311,7 +1311,7 @@ const openFullReelsAt = (postId: string) => {
   window.dispatchEvent(new CustomEvent("flicks:open-reels", { detail: { postId } }));
 };
 
-// Pure display component â€” data is fetched once at FameFeed level, no per-instance channels
+// Pure display component — data is fetched once at FameFeed level, no per-instance channels
 const TrendingFlicksRow = ({
   flicks,
   loaded,
@@ -1329,13 +1329,13 @@ const TrendingFlicksRow = ({
         style={{ background: "#0F172A" }}
       >
         <p className="text-[13px] font-black text-white/70 mb-2 tracking-wide">
-          ðŸ”¥ Trending Flicks
+          🔥 Trending Flicks
         </p>
         <div
           className="flex flex-col items-center justify-center py-6 gap-2 rounded-2xl border border-white/10"
           style={{ background: "rgba(255,255,255,0.04)" }}
         >
-          <span className="text-3xl">ðŸŽ¬</span>
+          <span className="text-3xl">📼</span>
           <p className="text-sm font-bold text-white/40">
             No Trending Flicks yet
           </p>
@@ -1351,7 +1351,7 @@ const TrendingFlicksRow = ({
       style={{ background: "#0F172A" }}
     >
       <p className="text-[13px] font-black text-white/70 px-4 mb-2 tracking-wide">
-        ðŸ”¥ Trending Flicks
+        🔥 Trending Flicks
       </p>
       <div className="flex gap-3 overflow-x-auto px-4 pb-2 no-scrollbar">
         {flicks.map((flick, i) => {
@@ -1401,7 +1401,7 @@ const TrendingFlicksRow = ({
                   className="absolute inset-0 w-full h-full object-cover"
                 />
               )}
-              {/* Subtle play indicator â€” small badge in corner so the auto-playing video isn't covered */}
+              {/* Subtle play indicator — small badge in corner so the auto-playing video isn't covered */}
               {isVid && !isHls && (
                 <div className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/70 flex items-center justify-center border border-white/40">
                   <VolumeX size={13} className="text-white" />
@@ -1456,7 +1456,7 @@ const SuggestedPagesRow = ({
       style={{ background: "#0F172A" }}
     >
       <p className="text-[13px] font-black text-white/70 px-4 mb-2 tracking-wide">
-        ðŸ“„ Trending Pages
+        📄 Trending Pages
       </p>
       <div className="flex gap-3.5 overflow-x-auto px-4 pb-2 no-scrollbar">
         {pages.map((page) => {
@@ -1534,7 +1534,7 @@ const SuggestedPagesRow = ({
                         letterSpacing: "0.04em",
                       }}
                     >
-                      âœ¦ by @{ownerName}
+                      ? by @{ownerName}
                     </p>
                   )}
                 </div>
@@ -1562,7 +1562,7 @@ const SuggestedPagesRow = ({
                         }
                   }
                 >
-                  {hooked ? "âœ“ Hooked" : "âš¡ HOOK"}
+                  {hooked ? "✅ Hooked" : "⚡ HOOK"}
                 </button>
               </div>
             </motion.div>
@@ -1650,7 +1650,7 @@ const SuggestedCirclesRow = ({
                       fontWeight: 700,
                     }}
                   >
-                    âœ¦ by @{ownerName}
+                    ? by @{ownerName}
                   </p>
                 )}
                 <button
@@ -1701,7 +1701,7 @@ function gradForSugg(id: string) {
   return SUGG_GRADS[Math.abs(h) % SUGG_GRADS.length];
 }
 
-// Seeded Fisher-Yates shuffle â€” deterministic per seed, stable within a render
+// Seeded Fisher-Yates shuffle — deterministic per seed, stable within a render
 function seededShuffle<T>(arr: T[], seed: number): T[] {
   if (arr.length === 0) return [];
   const a = [...arr];
@@ -1731,7 +1731,7 @@ const InFeedSuggestionCard = ({
       className="border-b border-white/5"
       style={{ background: "linear-gradient(175deg,#1a0822,#0d0814,#0F172A)" }}
     >
-      {/* Header â€” like a post author row */}
+      {/* Header — like a post author row */}
       <div className="flex items-center gap-3 px-4 py-3">
         <div
           className="w-10 h-10 rounded-full overflow-hidden border border-white/10 shrink-0"
@@ -1755,7 +1755,7 @@ const InFeedSuggestionCard = ({
             {item.name || "Community"}
           </p>
           <p className="text-[10px] text-blue-400 font-semibold uppercase tracking-wide mt-0.5">
-            {isGroup ? "ðŸ‘¥ Suggested Circle" : "ðŸ“„ Suggested Page"}
+            {isGroup ? "ðŸ‘¥ Suggested Circle" : "📄 Suggested Page"}
           </p>
         </div>
       </div>
@@ -1811,8 +1811,8 @@ const InFeedSuggestionCard = ({
         >
           {actionDone
             ? isGroup
-              ? "Joined âœ“"
-              : "Following âœ“"
+              ? "Joined ✅"
+              : "Following ✅"
             : isGroup
               ? "Join Circle"
               : "Follow"}
@@ -1822,7 +1822,7 @@ const InFeedSuggestionCard = ({
   );
 };
 
-// â”€â”€ In-Feed Hooks Strip â€” mirrors DemoCirclesRow exactly, uses <img decoding="async"> not backgroundImage â”€â”€
+// â”€â”€ In-Feed Hooks Strip — mirrors DemoCirclesRow exactly, uses <img decoding="async"> not backgroundImage â”€â”€
 const InFeedHooksStrip = ({
   pages,
   hookedIds,
@@ -1849,13 +1849,13 @@ const InFeedHooksStrip = ({
     >
       <div className="flex items-center justify-between px-4 mb-2">
         <p className="text-[13px] font-black text-white/70 tracking-wide">
-          âš¡ Hook Pages â€” Discover
+          ⚡ Hook Pages — Discover
         </p>
         <button
           onClick={() => onPageClick(null)}
           className="text-[10px] font-black text-orange-500 uppercase tracking-wider"
         >
-          See All â†’
+          See All ↗
         </button>
       </div>
       <div className="flex gap-3 overflow-x-auto px-4 pb-2 no-scrollbar">
@@ -1876,7 +1876,7 @@ const InFeedHooksStrip = ({
               className="flex-shrink-0 relative rounded-2xl overflow-hidden cursor-pointer select-none shadow-md"
               style={{ width: 168, height: 312, background: "#1f2937" }}
             >
-              {/* Cover image â€” same <img decoding="async"> approach as DemoCirclesRow */}
+              {/* Cover image — same <img decoding="async"> approach as DemoCirclesRow */}
               {page.cover_url ? (
                 <img
                   src={page.cover_url}
@@ -1886,7 +1886,7 @@ const InFeedHooksStrip = ({
                  decoding="async"/>
               ) : (
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-4xl opacity-30">âš¡</span>
+                  <span className="text-4xl opacity-30">⚡</span>
                 </div>
               )}
               {/* Gradient overlay */}
@@ -1950,7 +1950,7 @@ const InFeedHooksStrip = ({
                         }
                   }
                 >
-                  {hooked ? "âœ“ Hooked" : "âš¡ HOOK"}
+                  {hooked ? "✅ Hooked" : "⚡ HOOK"}
                 </button>
               </div>
             </motion.div>
@@ -2020,12 +2020,12 @@ const InFeedHookPageCard = ({
                 marginTop: 2,
               }}
             >
-              âœ¦ by @{ownerName}
+              ? by @{ownerName}
             </p>
           )}
         </div>
         <span className="text-[10px] text-blue-400 font-black uppercase tracking-wide bg-blue-900/30 px-2 py-1 rounded-full shrink-0">
-          ðŸ“„ Page
+          📄 Page
         </span>
       </div>
 
@@ -2057,7 +2057,7 @@ const InFeedHookPageCard = ({
         </div>
       </div>
 
-      {/* Bio / Description â€” 2-3 lines */}
+      {/* Bio / Description — 2-3 lines */}
       {(page.description || page.category) && (
         <div className="px-4 pt-3 pb-1">
           {page.description ? (
@@ -2089,7 +2089,7 @@ const InFeedHookPageCard = ({
                 }
           }
         >
-          {hooked ? "âœ“ Hooked" : "âš¡ Hook (Follow)"}
+          {hooked ? "✅ Hooked" : "⚡ Hook (Follow)"}
         </button>
       </div>
     </motion.article>
@@ -3401,9 +3401,11 @@ const SingleReelBlock = ({
           event.stopPropagation();
           openFullReelsAt(String(post.id));
         }}
-        className="absolute left-4 top-4 z-20 rounded-full border border-white/15 bg-black/70 px-3 py-2 text-xs font-bold text-white backdrop-blur-sm"
+        className="absolute left-4 top-4 z-20 rounded-full border border-white/15 bg-black/70 backdrop-blur-sm"
       >
-        <Film className="w-4 h-4 mr-1" /> Reels
+        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-black/60 text-white">
+          <Film className="w-4 h-4" /><span>Reels</span>
+        </div>
       </button>
       <button
         type="button"
@@ -3667,7 +3669,7 @@ const FeedDivider = () => (
       overflow: "visible",
     }}
   >
-    {/* Main gradient line â€” orange 30% + dark green, fades at both ends */}
+    {/* Main gradient line — orange 30% + dark green, fades at both ends */}
     <div
       style={{
         position: "absolute",
@@ -3990,7 +3992,7 @@ const HiddenPostsDrawer = ({
                       </p>
                     ) : post.media_url ? (
                       <p className="text-[12px] text-white/30 mt-0.5 italic">
-                        {isVideo ? "ðŸŽ¬ Video post" : "ðŸ“· Image post"}
+                        {isVideo ? "📼 Video post" : "ðŸ“· Image post"}
                       </p>
                     ) : null}
                   </div>
@@ -4195,7 +4197,7 @@ const FameFeed = ({
     >
   >({});
   const [tickerIdx, setTickerIdx] = useState(0);
-  // Visibility-aware ticker â€” stops when screen is off / app is backgrounded
+  // Visibility-aware ticker — stops when screen is off / app is backgrounded
   useEffect(() => {
     let t: ReturnType<typeof setInterval> | null = null;
     const start = () => {
@@ -4490,7 +4492,7 @@ const FameFeed = ({
         for (const p of data as any[]) {
           if (p.avatar_url) {
             avatars[p.id] = p.avatar_url;
-            // Only cache HITS â€” misses stay un-cached so a later DP upload
+            // Only cache HITS — misses stay un-cached so a later DP upload
             // gets picked up by the self-healing render-time effect.
             fetchedAvatarIds.current.add(p.id);
           }
@@ -4622,7 +4624,7 @@ const FameFeed = ({
       window.removeEventListener("flicks-profile-updated", handler);
       window.removeEventListener("flicks-avatar-updated", handler);
     };
-    // batchFetchAvatars is useCallback([]) â€” stable reference, safe single dep
+    // batchFetchAvatars is useCallback([]) — stable reference, safe single dep
   }, [batchFetchAvatars]);
   // â”€â”€ Pagination â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const PAGE_SIZE = 10;
@@ -4730,7 +4732,7 @@ const FameFeed = ({
     }
   };
 
-  // â”€â”€ Profile suggestions fetch â€” always show, never filter sent-request users
+  // â”€â”€ Profile suggestions fetch — always show, never filter sent-request users
   const fetchPeopleSuggestions = async (uid: string) => {
     const cacheKey = `peopleSugg_${uid}`;
     const cached = memGet<any[]>(cacheKey);
@@ -5525,7 +5527,7 @@ const FameFeed = ({
             }
           }
         }
-      } catch (_) { /* magnet_chains unavailable â€” skip */ }
+      } catch (_) { /* magnet_chains unavailable — skip */ }
     }
 
     const viewerId = currentUserId ?? null;
@@ -5601,7 +5603,7 @@ const FameFeed = ({
 
   const fetchFlicks = async () => {
     try {
-      // Query posts table directly â€” ALL types sorted by most liked
+      // Query posts table directly — ALL types sorted by most liked
       // Try with explicit FK hint first, fall back without it
       let data: any[] | null = null;
       const res1 = await supabase
@@ -5627,7 +5629,7 @@ const FameFeed = ({
         data = res2.data;
       }
 
-      // Filter out suspended accounts â€” only show active/null status
+      // Filter out suspended accounts — only show active/null status
       const filtered = (data || []).filter((p: any) => {
         const status = p.author_profile?.account_status;
         return (p.visibility || "public") === "public" &&
@@ -5691,7 +5693,7 @@ const FameFeed = ({
   const pullRefreshActionRef = useRef<() => Promise<void>>(async () => {});
   pullRefreshActionRef.current = refreshFeed;
 
-  // Pull-to-refresh listener â€” fired by <PullToRefresh> in Index.tsx.
+  // Pull-to-refresh listener — fired by <PullToRefresh> in Index.tsx.
   useEffect(() => {
     const handler = (event: Event) => {
       const complete = (event as CustomEvent<{ complete?: () => void }>)
@@ -5721,7 +5723,7 @@ const FameFeed = ({
     return () => window.removeEventListener("flicks-pull-refresh", handler);
   }, []);
 
-  // â”€â”€ Derived state â€” must be declared BEFORE any useEffect that references them â”€â”€
+  // â”€â”€ Derived state — must be declared BEFORE any useEffect that references them â”€â”€
   // Privacy + visibility filter:
   // 1) Blocked users are always hidden
   // 2) Only public posts appear on the global feed
@@ -5774,7 +5776,7 @@ const FameFeed = ({
   }, [onlineUserIds, authorNames, authorAvatars, currentUserId]);
 
   // Memoize the joined post-ID string so this effect only fires when posts are
-  // ADDED or REMOVED â€” not on every realtime likes_count/views_count mutation.
+  // ADDED or REMOVED — not on every realtime likes_count/views_count mutation.
   // (visiblePosts is a new array ref on every setPosts call, but the IDs only
   //  change when posts enter or leave the feed.)
   const visiblePostIdsKey = useMemo(
@@ -5792,7 +5794,7 @@ const FameFeed = ({
     // owns both the initial network load and later manual refreshes.
     if (posts.length === 0) void refetch();
     else if (dataCache.isStale("famePosts")) {
-      // Background refresh â€” data already visible from cache
+      // Background refresh — data already visible from cache
       setLoading(false);
       void refetch();
     }
@@ -5800,7 +5802,7 @@ const FameFeed = ({
     else if (dataCache.isStale("fameFlicks")) fetchFlicks();
   }, []);
 
-  // â”€â”€ Suggestions fetch â€” runs immediately on mount, NO auth gate needed â”€â”€â”€â”€
+  // â”€â”€ Suggestions fetch — runs immediately on mount, NO auth gate needed â”€â”€â”€â”€
   // circles / hook_pages are public data; do NOT gate on currentUserId.
   useEffect(() => {
     async function fetchSuggestions() {
@@ -5968,7 +5970,7 @@ const FameFeed = ({
         toast.error("Like nahi hata. Try again.");
         return;
       }
-      // Fetch ground-truth count from likes table â€” avoids drift from concurrent likes
+      // Fetch ground-truth count from likes table — avoids drift from concurrent likes
       const { count: unlikeCount } = await supabase
         .from("likes")
         .select("id", { count: "exact", head: true })
@@ -6021,7 +6023,7 @@ const FameFeed = ({
     );
 
     // Delete any existing like first, then insert fresh.
-    // This avoids onConflict constraint dependency â€” works with any DB schema.
+    // This avoids onConflict constraint dependency — works with any DB schema.
     // NOTE: likes table uses user_id (the liker) NOT author_id (the post author).
     await supabase
       .from("likes")
@@ -6060,7 +6062,7 @@ const FameFeed = ({
     }
 
     if (isAdminBoost) {
-      // Admin path: write the boosted count directly â€” skip ground-truth fetch
+      // Admin path: write the boosted count directly — skip ground-truth fetch
       const boostedCount = (snapCount || 0) + likeBoost;
       setPosts((prev) =>
         prev.map((p) =>
@@ -6072,7 +6074,7 @@ const FameFeed = ({
         .update({ likes_count: boostedCount })
         .eq("id", post.id);
     } else {
-      // Normal path: fetch ground-truth count from likes table â€” prevents drift when
+      // Normal path: fetch ground-truth count from likes table — prevents drift when
       // multiple users like simultaneously.
       const { count: likeCount } = await supabase
         .from("likes")
@@ -6295,12 +6297,12 @@ const FameFeed = ({
               { onConflict: "post_id,user_id" },
             );
         }
-        // Atomic server-side increment â€” no race condition, no RLS block
+        // Atomic server-side increment — no race condition, no RLS block
         const { error: rpcErr } = await supabase.rpc("increment_post_views", {
           p_post_id: postId,
         });
         if (rpcErr) {
-          // RPC not deployed yet â€” fall back to direct update (works if user
+          // RPC not deployed yet — fall back to direct update (works if user
           // is the post author or service-role; silently skips for others)
           await supabase
             .from("posts")
@@ -6412,7 +6414,7 @@ const FameFeed = ({
       setReplyingTo(null);
     } else setCommentText("");
 
-    // Update commentsMap locally â€” no need to refetch all posts
+    // Update commentsMap locally — no need to refetch all posts
     if (newComment) {
       setCommentsMap((prev) => ({
         ...prev,
@@ -6446,7 +6448,7 @@ const FameFeed = ({
       }
     }
 
-    // Notifications â€” top-level comment notifies post owner; reply notifies comment author
+    // Notifications — top-level comment notifies post owner; reply notifies comment author
     const post = posts.find((p) => p.id === postId);
     if (!isReply) {
       if (post?.author_id && post.author_id !== currentUserId) {
@@ -6515,7 +6517,7 @@ const FameFeed = ({
       // Clean up ref after a delay to guard any late-arriving Realtime events
       setTimeout(() => deletingPostIdsRef.current.delete(postId), 10_000);
     } catch (error) {
-      // Rollback â€” allow Realtime tracking again
+      // Rollback — allow Realtime tracking again
       deletingPostIdsRef.current.delete(postId);
       setPosts(snapshot);
       dataCache.setCache("famePosts", { data: snapshot, fetchedAt: Date.now() });
@@ -6528,7 +6530,7 @@ const FameFeed = ({
 
   // Admin: delete ANY post.
   // Frontend only checks isAdmin flag (email-based, set via isAdminEmail(userEmail)).
-  // RLS enforces auth.email() IN (...admin emails...) on the DB side â€” no user_id check.
+  // RLS enforces auth.email() IN (...admin emails...) on the DB side — no user_id check.
   const handleAdminDelete = async (postId: string) => {
     setOpenMenuId(null);
     if (!isAdmin) {
@@ -6599,7 +6601,7 @@ const FameFeed = ({
     setOpenMenuId(null);
     setHiddenIds((prev) => {
       const next = new Set([...prev, postId]);
-      // Persist across refreshes â€” keyed by user so other accounts aren't affected
+      // Persist across refreshes — keyed by user so other accounts aren't affected
       if (currentUserId) {
         try {
           localStorage.setItem(
@@ -6847,7 +6849,7 @@ const FameFeed = ({
                       </span>
                     )}
                   </button>
-                  {/* Creator badge â€” Royal Blue â†” Metallic Gold CSS pulse */}
+                  {/* Creator badge — Royal Blue â†” Metallic Gold CSS pulse */}
                   {post.author_id && authorCreator[post.author_id] && (
                     <span
                       className="creator-badge-pulse inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wide leading-none"
@@ -6857,10 +6859,10 @@ const FameFeed = ({
                           "color 0.6s, background 0.6s, border-color 0.6s, box-shadow 0.6s",
                       }}
                     >
-                      Creator âš¡
+                      Creator ⚡
                     </span>
                   )}
-                  {/* Inline follow button â€” only for official creators who aren't the current user */}
+                  {/* Inline follow button — only for official creators who aren't the current user */}
                   {post.author_id &&
                     authorCreator[post.author_id] &&
                     post.author_id !== currentUserId && (
@@ -6937,7 +6939,7 @@ const FameFeed = ({
                     )}
                 </div>
                 <p className="text-[10px] text-pink-400 font-semibold uppercase tracking-wide mt-0.5">
-                  {isVideo ? "ðŸŽ¬ Reel" : "ðŸ“· Post"}
+                  {isVideo ? "📼 Reel" : "ðŸ“· Post"}
                   {post.author_id && authorVerified[post.author_id]
                     ? " Â· Verified Creator"
                     : ""}
@@ -7494,7 +7496,7 @@ const FameFeed = ({
                   className="flex items-stretch rounded-[13px] overflow-hidden"
                   style={{ background: "rgba(0,0,0,0.52)", backdropFilter: "blur(14px)" }}
                 >
-                  {/* LEFT â€” Trending tag | flex:1 */}
+                  {/* LEFT — Trending tag | flex:1 */}
                   <button
                     className="flex flex-col items-center justify-center py-2 px-2 border-r border-white/[0.06] active:opacity-60 transition-opacity"
                     style={{ flex: 1, minWidth: 0 }}
@@ -7526,7 +7528,7 @@ const FameFeed = ({
                     )}
                   </button>
 
-                  {/* CENTER â€” Real ecosystem content | flex:2 (2Ã— each side) */}
+                  {/* CENTER — Real ecosystem content | flex:2 (2Ã— each side) */}
                   <button
                     className="flex items-center gap-2 py-2 px-2.5 border-r border-white/[0.06] min-w-0 overflow-hidden active:opacity-60 transition-opacity text-left"
                     style={{ flex: 2 }}
@@ -7570,7 +7572,7 @@ const FameFeed = ({
                           style={{ background: ecoItem.cover ? "transparent" : "rgba(200,255,0,0.08)", border: "1px solid rgba(200,255,0,0.2)", minWidth: 32 }}>
                           {ecoItem.cover
                             ? <img src={ecoItem.cover} className="w-full h-full object-cover" alt="" decoding="async" loading="lazy" />
-                            : "âš¡"}
+                            : "⚡"}
                         </div>
                         <div className="flex flex-col min-w-0 flex-1 overflow-hidden">
                           <span className="text-[7px] font-black uppercase tracking-widest"
@@ -7598,12 +7600,12 @@ const FameFeed = ({
                           ) : ecoItem.author_avatar ? (
                             <img src={ecoItem.author_avatar} className="w-full h-full object-cover" alt="" decoding="async" loading="lazy" />
                           ) : (
-                            <span className="text-[15px]">ðŸŽ¬</span>
+                            <span className="text-[15px]">📼</span>
                           )}
                         </div>
                         <div className="flex flex-col min-w-0 flex-1 overflow-hidden">
                           <span className="text-[7px] font-black uppercase tracking-widest"
-                            style={{ color: "rgba(255,255,255,0.26)" }}>ðŸ”¥ FLICK</span>
+                            style={{ color: "rgba(255,255,255,0.26)" }}>🔥 FLICK</span>
                           <span className="text-[10px] font-black truncate leading-tight"
                             style={{ color: "#e0f4ff" }}>{ecoItem.author}</span>
                           <span className="text-[8px] truncate"
@@ -7613,7 +7615,7 @@ const FameFeed = ({
                     )}
                   </button>
 
-                  {/* RIGHT â€” Live member | flex:1 */}
+                  {/* RIGHT — Live member | flex:1 */}
                   <button
                     className="flex flex-col items-center justify-center py-2 px-1.5 active:opacity-60 transition-opacity"
                     style={{ flex: 1, minWidth: 0 }}
@@ -7657,14 +7659,14 @@ const FameFeed = ({
 
           {/* â”€â”€ Action bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
           <div className="flex items-center gap-3 px-4 py-2.5 border-t border-lime-400/10">
-            {/* Reaction button â€” hover shows bar on desktop, long-press on mobile */}
+            {/* Reaction button — hover shows bar on desktop, long-press on mobile */}
             <div
               className="relative"
               data-reaction-surface="fame-post"
               onMouseEnter={() => setReactionBarPostId(post.id)}
               onMouseLeave={() => setReactionBarPostId(null)}
             >
-              {/* Floating reaction bar â€” glassmorphic capsule */}
+              {/* Floating reaction bar — glassmorphic capsule */}
               <AnimatePresence>
                 {reactionBarPostId === post.id && (
                   <motion.div
@@ -7782,7 +7784,7 @@ const FameFeed = ({
               </button>
             )}
 
-            {/* Signal pipeline â€” static on mobile, animated on desktop */}
+            {/* Signal pipeline — static on mobile, animated on desktop */}
             {!IS_MOBILE && (
               <div
                 className="relative flex items-center shrink-0"
@@ -7833,7 +7835,7 @@ const FameFeed = ({
               </div>
             )}
 
-            {/* ðŸ”— Link â€” viral chain button */}
+            {/* ðŸ”— Link — viral chain button */}
             <MagnetButton
               postId={post.id}
               postType="post"
@@ -7866,7 +7868,7 @@ const FameFeed = ({
             </button>
           </div>
 
-          {/* â”€â”€ Chain trace row â€” who joined the link chain â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+          {/* â”€â”€ Chain trace row — who joined the link chain â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
           {(() => {
             const d = postMagnetData[post.id];
             if (!d || d.linkers.length === 0) return null;
@@ -7913,7 +7915,7 @@ const FameFeed = ({
             );
           })()}
 
-          {/* â”€â”€ Voice section â€” post owner / first linker broadcasts â”€â”€â”€â”€â”€â”€â”€â”€ */}
+          {/* â”€â”€ Voice section — post owner / first linker broadcasts â”€â”€â”€â”€â”€â”€â”€â”€ */}
           {(() => {
             const d = postMagnetData[post.id];
             if (!d || d.voices.length === 0) return null;
@@ -7935,7 +7937,7 @@ const FameFeed = ({
                       {v.status_text}
                     </span>
                     <span className="text-[9px] text-red-500/70 font-black uppercase shrink-0">
-                      âš¡ Owner
+                      ⚡ Owner
                     </span>
                   </div>
                 ))}
@@ -8676,7 +8678,7 @@ const FameFeed = ({
         </div>
       )}
 
-      {/* â”€â”€ People Discovery â€” New in Your Area â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* â”€â”€ People Discovery — New in Your Area â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       {currentUserId && localProfile.rec_new_users !== false && (
         localProfile.district || localProfile.city || localProfile.state
       ) && (
@@ -8700,7 +8702,7 @@ const FameFeed = ({
         </div>
       )}
 
-      {/* â”€â”€ Dynamic Feed â€” Infinite Discovery Engine â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* â”€â”€ Dynamic Feed — Infinite Discovery Engine â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       {(() => {
         let postCount = 0;
         return feedBlocks.map((block, blockIdx) => {
@@ -8808,7 +8810,7 @@ const FameFeed = ({
           );
         }
 
-        // â”€â”€ Hooks Discovery Strip â€” real DB data, DemoHookPagesRow fallback â”€â”€
+        // â”€â”€ Hooks Discovery Strip — real DB data, DemoHookPagesRow fallback â”€â”€
         if (block.type === "hook-card") {
           const hasReal = pageSuggestions.length > 0;
           return (
@@ -8970,7 +8972,7 @@ const FameFeed = ({
             {loadingMore ? (
               <Loader2 size={16} className="animate-spin" />
             ) : null}
-            {loadingMore ? "Loadingâ€¦" : "Load More Posts"}
+            {loadingMore ? "Loading…" : "Load More Posts"}
           </button>
         </div>
       )}
@@ -9585,7 +9587,7 @@ const FameFeed = ({
         )}
       </AnimatePresence>
 
-      {/* â”€â”€ Admin Marketplace Manager â€” visible to admins only â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* â”€â”€ Admin Marketplace Manager — visible to admins only â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       {isAdmin && (
         <>
           <button
@@ -9609,3 +9611,4 @@ const FameFeed = ({
 };
 
 export default FameFeed;
+

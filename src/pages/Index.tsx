@@ -5014,39 +5014,6 @@ const PersonalizationView = React.memo(({
                     />
                   </PullToRefresh>
 
-                  {/* Bottom Navigation Bar */}
-                  <div className="flex items-center gap-2 px-3 py-1.5 border-t border-gray-100">
-                    <button
-                      onClick={() => setActiveFeature("Fame")}
-                      className="flex-1 rounded-xl px-3 py-2 hover:bg-gray-50 transition-colors text-left font-bold text-white border-b-2 border-indigo-600"
-                    >
-                      <Heart size={16} className="mr-2" /> Flicks
-                    </button>
-                    <button
-                      onClick={() => setActiveFeature("Circle")}
-                      className="flex-1 rounded-xl px-3 py-2 hover:bg-gray-50 transition-colors text-left font-bold text-white border-b-2 border-indigo-600"
-                    >
-                      <Users size={16} className="mr-2" /> Circles
-                    </button>
-                    <button
-                      onClick={() => setActiveFeature("Task")}
-                      className="flex-1 rounded-xl px-3 py-2 hover:bg-gray-50 transition-colors text-left font-bold text-white border-b-2 border-indigo-600"
-                    >
-                      <Loader2 size={16} className="mr-2" /> Task
-                    </button>
-                    <button
-                      onClick={() => setActiveFeature("Settings")}
-                      className="flex-1 rounded-xl px-3 py-2 hover:bg-gray-50 transition-colors text-left font-bold text-white border-b-2 border-indigo-600"
-                    >
-                      <Settings size={16} className="mr-2" /> Settings
-                    </button>
-                    <button
-                      onClick={() => setShowChat19(true)}
-                      className="flex-1 rounded-xl px-3 py-2 hover:bg-gray-50 transition-colors text-left font-bold text-white border-b-2 border-indigo-600"
-                    >
-                      <MessageSquare size={16} className="mr-2" /> Chat 19
-                    </button>
-                  </div>
                 </div>
 
                 </div>{/* ═══ end CENTER COLUMN ═══ */}
