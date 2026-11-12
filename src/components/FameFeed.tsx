@@ -3403,7 +3403,7 @@ const SingleReelBlock = ({
         }}
         className="absolute left-4 top-4 z-20 rounded-full border border-white/15 bg-black/70 px-3 py-2 text-xs font-bold text-white backdrop-blur-sm"
       >
-        â†— Reels
+        <Film className="w-4 h-4 mr-1" /> Reels
       </button>
       <button
         type="button"
