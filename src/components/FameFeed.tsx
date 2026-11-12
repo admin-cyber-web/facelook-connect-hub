@@ -3401,9 +3401,9 @@ const SingleReelBlock = ({
           event.stopPropagation();
           openFullReelsAt(String(post.id));
         }}
-        className="absolute left-4 top-4 z-20 rounded-full border border-white/15 bg-black/70 backdrop-blur-sm"
+        className="absolute left-4 top-4 z-20 rounded-full border border-white/15 backdrop-blur-sm"
       >
-        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-black/60 text-white">
+        <div className="flex items-center gap-1.5 text-white drop-shadow-md">
           <Film className="w-4 h-4" /><span>Reels</span>
         </div>
       </button>
