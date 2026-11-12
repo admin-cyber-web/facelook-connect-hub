@@ -904,7 +904,7 @@ const DemoCirclesRow = memo(({ onCircleClick }: { onCircleClick: () => void }) =
     style={{ background: "#0F172A" }}
   >
     <p className="text-[13px] font-black text-white/70 px-4 mb-2 tracking-wide">
-      ðŸ‘¥ Trending Circles
+      Trending Circles
     </p>
     <div className="flex gap-3 overflow-x-auto px-4 pb-2 no-scrollbar">
       {DEMO_HINDI_CIRCLES.map((circle) => (
@@ -1596,7 +1596,7 @@ const SuggestedCirclesRow = ({
       style={{ background: "#0F172A" }}
     >
       <p className="text-[13px] font-black text-white/70 px-4 mb-2 tracking-wide">
-        ðŸ‘¥ Circles
+       Circles
       </p>
       <div className="flex gap-3.5 overflow-x-auto px-4 pb-2 no-scrollbar">
         {circles.map((circle) => {
@@ -1755,7 +1755,7 @@ const InFeedSuggestionCard = ({
             {item.name || "Community"}
           </p>
           <p className="text-[10px] text-blue-400 font-semibold uppercase tracking-wide mt-0.5">
-            {isGroup ? "ðŸ‘¥ Suggested Circle" : "📄 Suggested Page"}
+            {isGroup ? " Suggested Circle" : "📄 Suggested Page"}
           </p>
         </div>
       </div>
@@ -2470,7 +2470,7 @@ const PostDetailView = ({
           aria-label="Back to feed"
           className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-2xl font-medium text-white hover:bg-white/10 active:scale-95"
         >
-          â†
+          ←
         </button>
         <div className="min-w-0 flex-1">
           <h1 className="truncate text-base font-black">Post</h1>
@@ -8857,7 +8857,7 @@ const FameFeed = ({
               style={{ background: "#0F172A" }}
             >
               <p className="text-[13px] font-black text-white/70 px-4 mb-2 tracking-tight">
-                ðŸ‘¥ People You May Know
+                People You May Know
               </p>
               <div className="flex gap-3 overflow-x-auto px-4 pb-2 no-scrollbar scroll-smooth">
                 {shuffled.map((u, i) => {
