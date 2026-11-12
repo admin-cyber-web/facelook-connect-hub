@@ -126,7 +126,7 @@ const onStoryMediaError = (e: React.SyntheticEvent<HTMLImageElement | HTMLVideoE
 };
 
 // ── Types ──────────────────────────────────────────────────────────────────────
-type Theme = "whatsapp" | "maroon" | "comic";
+type Theme = "dairy-notebook" | "whatsapp" | "maroon" | "comic";
 type BottomTab = "chat" | "story" | "alert" | "menu";
 type MenuPanel = "main" | "settings" | "archive" | "requests";
 
@@ -297,6 +297,29 @@ const THEME_CFG = {
     storyRing: "border-[#E3FF00]",
     sendBtnText: "text-[#050505]",
   },
+  dairy-notebook: {
+    wrap: "#fbf0d9",
+    sidebar: "#fbf0d9",
+    chat: "#fbf0d9",
+    topbar: "#fbf0d9",
+    input: "#fbf0d9 border-stone-300",
+    nav: "#fbf0d9",
+    bubbleSent: "bg-[#fbf0d9] text-[#1a2b4c] shadow-sm rounded-xl",
+    bubbleRecv: "bg-white text-[#1a2b4c] shadow-sm border border-stone-200 rounded-xl",
+    text1: "#1a2b4c",
+    text2: "#1a2b4c/75",
+    text3: "#1a2b4c/55",
+    accent: "#1a2b4c",
+    accentText: "#1a2b4c",
+    icon: "📖",
+    label: "Dairy Notebook",
+    divider: "linear-gradient(rgba(209,217,230,0.5) 1px, transparent 1px)",
+    searchBg: "#fbf0d9 text-[#1a2b4c] placeholder:text-[#1a2b4c]/50",
+    msgMenuBg: "#fbf0d9 border-stone-200 shadow-sm",
+    pill: "#fbf0d9/20 text-[#1a2b4c] border #fbf0d9/30",
+    storyRing: "border-[#1a2b4c]",
+    sendBtnText: "#1a2b4c",
+  },
   comic: {
     wrap: "bg-sky-100",
     sidebar: "bg-white border-blue-200",
@@ -304,10 +327,8 @@ const THEME_CFG = {
     topbar: "bg-white/90 backdrop-blur-xl border-black/10",
     input: "bg-white/95 border-black/8",
     nav: "bg-white/90 border-black/10",
-    bubbleSent:
-      "bg-gradient-to-b from-[#3399FF] to-[#0066FF] text-white border-2 border-black shadow-[3px_4px_0px_rgba(0,0,0,0.22)]",
-    bubbleRecv:
-      "bg-white text-gray-900 border-2 border-black shadow-[3px_4px_0px_rgba(0,0,0,0.12)]",
+    bubbleSent: "bg-gradient-to-b from-[#3399FF] to-[#0066FF] text-white border-2 border-black shadow-[3px_4px_0px_rgba(0,0,0,0.22)]",
+    bubbleRecv: "bg-white text-gray-900 border-2 border-black shadow-[3px_4px_0px_rgba(0,0,0,0.12)]",
     text1: "text-gray-900",
     text2: "text-[#0066FF]",
     text3: "text-gray-500",
@@ -316,8 +337,7 @@ const THEME_CFG = {
     icon: "🎨",
     label: "Comic Pop",
     divider: "border-black/10",
-    searchBg:
-      "bg-white border-gray-200 text-gray-900 placeholder:text-gray-400",
+    searchBg: "bg-white border-gray-200 text-gray-900 placeholder:text-gray-400",
     msgMenuBg: "bg-white border-gray-200 shadow-xl",
     pill: "bg-[#E3FF00]/30 text-[#0066FF] border border-[#0066FF]/30",
     storyRing: "border-[#E3FF00]",
@@ -912,15 +932,16 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
 
   // ── Persisted state ───────────────────────────────────────────────────────
   const [theme, setTheme] = useState<Theme>(() => {
-    // Version migration: v4 = remove water/nature/velvet, only maroon+whatsapp
-    if (localStorage.getItem("cx_theme_v") !== "4") {
-      localStorage.setItem("cx_theme_v", "4");
-      localStorage.setItem("cx_theme", "maroon");
-      return "maroon";
+    // Version migration: v5 = add dairy-notebook as default theme
+    if (localStorage.getItem("cx_theme_v") !== "5") {
+      localStorage.setItem("cx_theme_v", "5");
+      localStorage.setItem("cx_theme", "dairy-notebook");
+      return "dairy-notebook";
     }
     const s = localStorage.getItem("cx_theme") as Theme;
-    return s === "whatsapp" || s === "maroon" ? s : "maroon";
+    return s === "dairy-notebook" || s === "whatsapp" || s === "maroon" ? s : "dairy-notebook";
   });
+  const [lastMsgDate, setLastMsgDate] = useState<string | null>(null);
   const [activeStatus, setActiveStatus] = useState(
     () => localStorage.getItem("cx_active_status") !== "false",
   );
@@ -6898,7 +6919,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                       </p>
                       <div className="flex gap-3">
                         {(
-                          ["maroon", "whatsapp", "comic"] as Theme[]
+                          ["dairy-notebook", "maroon", "whatsapp", "comic"] as Theme[]
                         ).map((t) => (
                           <button
                             key={t}
