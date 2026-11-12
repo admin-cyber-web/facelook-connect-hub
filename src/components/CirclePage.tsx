@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, memo } from "react";
+﻿import { useState, useEffect, useRef, useCallback, memo } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { smartTime } from "../lib/timeAgo";
 import { useOnlineUsers } from "../context/OnlineUsersContext";
@@ -21,7 +21,7 @@ import {
   Reply, ImageIcon as ImagePlus, Video as VideoIcon,
 } from "lucide-react";
 
-// ── Types ──────────────────────────────────────────────────────────────────────
+// â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 interface Group {
   id: string;
   name: string;
@@ -105,7 +105,7 @@ interface ChatReaction {
 }
 
 
-// ── Group Card ─────────────────────────────────────────────────────────────────
+// â”€â”€ Group Card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const GroupCard = ({
   group, isMember, onJoin, onLeave, onClick, justJoined,
 }: {
@@ -147,7 +147,7 @@ const GroupCard = ({
             }}
             className="relative z-50 pointer-events-auto flex-1 py-1.5 rounded-lg text-[10px] font-black transition-all active:scale-95 bg-green-50 text-green-700 border border-green-200"
           >
-            {justJoined ? "✓ Joined!" : "View"}
+            {justJoined ? "âœ“ Joined!" : "View"}
           </button>
           {!justJoined && onLeave && (
             <button
@@ -173,11 +173,11 @@ const GroupCard = ({
   </div>
 );
 
-// ── Module-level helpers (no component state needed) ───────────────────────────
+// â”€â”€ Module-level helpers (no component state needed) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const haptic = (ms = 8) => { try { navigator.vibrate?.(ms); } catch (_) {} };
 const isVideoUrl = (url: string) => /\.(mp4|webm|ogg|mov|m4v)/i.test(url.split("?")[0]);
 
-// ── Memoized Post Card ─────────────────────────────────────────────────────────
+// â”€â”€ Memoized Post Card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 interface PostCardProps {
   post: GroupPost;
   currentUserId: string | null;
@@ -218,7 +218,7 @@ const CirclePostCard = memo(({
             <p className="text-white font-bold text-sm leading-none">{post.author_name}</p>
             {post.author_id === groupOwnerId && (
               <span className="text-[8px] font-black px-1.5 py-0.5 rounded-full"
-                style={{ background: "linear-gradient(135deg,#f59e0b,#d97706)", color: "#000" }}>👑</span>
+                style={{ background: "linear-gradient(135deg,#f59e0b,#d97706)", color: "#000" }}>ðŸ‘‘</span>
             )}
             {post.status === "pending" && (
               <span className="text-[8px] font-black text-amber-300 px-1.5 py-0.5 rounded-full border border-amber-500/30"
@@ -345,7 +345,7 @@ const CirclePostCard = memo(({
                 <div className="flex-1 min-w-0 rounded-2xl px-3 py-1.5" style={{ background: "rgba(255,255,255,0.05)" }}>
                   <span className="text-[#00F0FF] text-[11px] font-black">{latestComment.author_name}</span>
                   <span className="text-[12px] text-gray-400 ml-1.5 leading-snug">
-                    {latestComment.content.length > 90 ? latestComment.content.slice(0, 90) + "…" : latestComment.content}
+                    {latestComment.content.length > 90 ? latestComment.content.slice(0, 90) + "â€¦" : latestComment.content}
                   </span>
                 </div>
               </div>
@@ -363,7 +363,7 @@ const CirclePostCard = memo(({
   prev.canAdmin === next.canAdmin
 );
 
-// ── Main Component ─────────────────────────────────────────────────────────────
+// â”€â”€ Main Component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 interface Props {
   userProfile: any;
   currentUserId: string | null;
@@ -511,7 +511,7 @@ export default function CirclePage({
   const [pinnedText, setPinnedText]       = useState("");
   const [savingPin, setSavingPin]         = useState(false);
 
-  // About tab — inline rules editing
+  // About tab â€” inline rules editing
   const [rulesEditing, setRulesEditing]   = useState(false);
   const [rulesText, setRulesText]         = useState("");
   const [savingRules, setSavingRules]     = useState(false);
@@ -528,7 +528,7 @@ export default function CirclePage({
     setGroups(prev => prev.map(g => g.id === selectedGroup.id ? { ...g, pinned_announcement: text || null } : g));
     setPinnedEditing(false);
     setSavingPin(false);
-    toast.success(text ? "📌 Announcement pinned!" : "Announcement removed.");
+    toast.success(text ? "ðŸ“Œ Announcement pinned!" : "Announcement removed.");
   };
 
   const saveRulesInline = async () => {
@@ -543,7 +543,7 @@ export default function CirclePage({
     setSelectedGroup(prev => prev ? { ...prev, rules: rulesText.trim() || null } : prev);
     setGroups(prev => prev.map(g => g.id === selectedGroup.id ? { ...g, rules: rulesText.trim() || null } : g));
     setRulesEditing(false);
-    toast.success("📋 Group rules updated!");
+    toast.success("ðŸ“‹ Group rules updated!");
   };
 
   // Post options bottom sheet
@@ -570,7 +570,7 @@ export default function CirclePage({
   const canModerate = currentRole === "admin" || currentRole === "moderator";
   const canAdmin = currentRole === "admin";
 
-  // Original circle creator — has supreme authority over all members including other admins
+  // Original circle creator â€” has supreme authority over all members including other admins
   const isCreator = selectedGroup?.created_by === currentUserId;
 
   const canManageMember = (member: any) => {
@@ -633,7 +633,7 @@ export default function CirclePage({
         .eq("user_id", currentUserId)
         .in("post_id", rows.map(post => post.id));
       if (likesErr) {
-        // Fetch failed — leave existing likedPostIds untouched so UI doesn't wipe state
+        // Fetch failed â€” leave existing likedPostIds untouched so UI doesn't wipe state
         console.warn("[CirclePage] circle_post_likes fetch failed:", likesErr.message);
       } else {
         setLikedPostIds(prev => append
@@ -684,7 +684,7 @@ export default function CirclePage({
         });
     }
 
-    // ── Post Reach: record views + fetch counts ───────────────────────────────
+    // â”€â”€ Post Reach: record views + fetch counts â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if (currentUserId && rows.length > 0) {
       const approvedIds = rows.filter(p => p.status === "approved").map(p => p.id);
       const newlyViewed = approvedIds.filter(id => !viewedInSession.current.has(id));
@@ -694,7 +694,7 @@ export default function CirclePage({
         await supabase.from("circle_post_views")
           .upsert(newlyViewed.map(id => ({ post_id: id, viewer_id: currentUserId })), { onConflict: "post_id,viewer_id" });
       }
-      // Now fetch view counts — includes the rows we just upserted
+      // Now fetch view counts â€” includes the rows we just upserted
       const { data: viewRows } = await supabase
         .from("circle_post_views")
         .select("post_id")
@@ -724,14 +724,14 @@ export default function CirclePage({
     setMyInvites((data as unknown as CircleInvite[]) ?? []);
   }, [currentUserId]);
 
-  // ── Fetch all groups ─────────────────────────────────────────────────────────
+  // â”€â”€ Fetch all groups â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const fetchGroups = async () => {
     // Serve from cache instantly if still fresh (5-min TTL)
     const cKey = "circleGroups";
     const hit = memGet<Group[]>(cKey);
     if (hit) { setGroups(hit); setLoading(false); return; }
 
-    // Step 1 — fetch circles without relational join (avoids PostgREST FK dependency)
+    // Step 1 â€” fetch circles without relational join (avoids PostgREST FK dependency)
     const { data, error } = await supabase
       .from("circles")
       .select("id, name, description, cover_url, privacy, member_count, created_by, admin_id, created_at, rules, post_approval, pinned_announcement, pinned_at")
@@ -746,7 +746,7 @@ export default function CirclePage({
       let groupsData = data as Group[];
       const ids = groupsData.map(g => g.id);
       if (ids.length > 0) {
-        // Step 2 — real member counts from circle_members
+        // Step 2 â€” real member counts from circle_members
         const { data: memberCounts, error: memberCountsError } = await supabase.rpc(
           "get_circle_member_counts",
           { p_circle_ids: ids },
@@ -758,7 +758,7 @@ export default function CirclePage({
           }
           groupsData = groupsData.map(g => ({ ...g, member_count: counts[g.id] ?? 0 }));
         }
-        // Step 3 — manually fetch creator profiles and merge (no FK join needed)
+        // Step 3 â€” manually fetch creator profiles and merge (no FK join needed)
         const adminIds = [...new Set(groupsData.map(g => g.admin_id).filter(Boolean))] as string[];
         if (adminIds.length > 0) {
           const { data: profileRows } = await supabase
@@ -801,11 +801,11 @@ export default function CirclePage({
     fetchMyInvites();
   }, [currentUserId]);
 
-  // ── Invite notification chime (Web Audio API, zero deps) ─────────────────────
+  // â”€â”€ Invite notification chime (Web Audio API, zero deps) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const playInviteChime = () => {
     try {
       const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-      // Two-note ascending chime: G5 → B5
+      // Two-note ascending chime: G5 â†’ B5
       const notes = [784, 988];
       notes.forEach((freq, i) => {
         const osc = ctx.createOscillator();
@@ -822,7 +822,7 @@ export default function CirclePage({
     } catch (_) {}
   };
 
-  // ── Realtime subscription for incoming Circle invites ────────────────────────
+  // â”€â”€ Realtime subscription for incoming Circle invites â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useEffect(() => {
     if (!currentUserId) return;
     if (inviteSubRef.current) supabase.removeChannel(inviteSubRef.current);
@@ -841,7 +841,7 @@ export default function CirclePage({
         setNewInviteCount(c => c + 1);
         playInviteChime();
         haptic(18);
-        toast("📨 You have a new Circle invite!", {
+        toast("ðŸ“¨ You have a new Circle invite!", {
           duration: 4000,
           action: { label: "View", onClick: () => setView("dashboard") },
         });
@@ -852,7 +852,7 @@ export default function CirclePage({
     return () => { supabase.removeChannel(ch); };
   }, [currentUserId, fetchMyInvites]);
 
-  // ── Cleanup realtime subscriptions on unmount ────────────────────────────────
+  // â”€â”€ Cleanup realtime subscriptions on unmount â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useEffect(() => {
     return () => {
       if (chatSubRef.current) supabase.removeChannel(chatSubRef.current);
@@ -863,7 +863,7 @@ export default function CirclePage({
     };
   }, []);
 
-  // ── Create Group ─────────────────────────────────────────────────────────────
+  // â”€â”€ Create Group â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const handleCreateGroup = async () => {
     if (!form.name.trim()) return;
     if (!currentUserId) { toast.error("Please log in to create a Circle."); return; }
@@ -922,7 +922,7 @@ export default function CirclePage({
     }
   };
 
-  // ── Join Group ───────────────────────────────────────────────────────────────
+  // â”€â”€ Join Group â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const handleJoin = async (groupId: string) => {
     if (!currentUserId) return;
     setJustJoinedIds(prev => new Set([...prev, groupId]));
@@ -930,10 +930,10 @@ export default function CirclePage({
     await supabase.from("circle_members").insert([{ circle_id: groupId, user_id: currentUserId, role: "member" }]);
     await supabase.from("circles").update({ member_count: (groups.find(g => g.id === groupId)?.member_count ?? 0) + 1 }).eq("id", groupId);
     fetchGroups();
-    toast.success("Joined! Welcome to the Circle 🎉");
+    toast.success("Joined! Welcome to the Circle ðŸŽ‰");
   };
 
-  // ── Leave Group ───────────────────────────────────────────────────────────────
+  // â”€â”€ Leave Group â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const handleLeave = async (groupId: string) => {
     if (!currentUserId) return;
     setMyGroupIds(prev => { const n = new Set(prev); n.delete(groupId); return n; });
@@ -959,10 +959,10 @@ export default function CirclePage({
       setSelectedGroup(null);
       fetchGroups();
     }
-    toast.success("You have left the Circle. 👋");
+    toast.success("You have left the Circle. ðŸ‘‹");
   };
 
-  // ── Circle Events ────────────────────────────────────────────────────────────
+  // â”€â”€ Circle Events â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const fetchCircleEvents = async (circleId: string) => {
     const { data: events } = await supabase
       .from("circle_events")
@@ -1012,7 +1012,7 @@ export default function CirclePage({
     setCircleEvents(prev => [...prev, data].sort((a, b) => a.event_date.localeCompare(b.event_date)));
     setShowCreateEvent(false);
     setEventForm({ title: "", description: "", event_date: "", event_time: "", location: "" });
-    toast.success("🎉 Event created!");
+    toast.success("ðŸŽ‰ Event created!");
   };
 
   const deleteEvent = async (eventId: string) => {
@@ -1064,10 +1064,10 @@ export default function CirclePage({
     if (!timeStr) return date;
     const [h, m] = timeStr.split(":");
     const hr = parseInt(h);
-    return `${date} · ${hr > 12 ? hr - 12 : hr || 12}:${m} ${hr >= 12 ? "PM" : "AM"}`;
+    return `${date} Â· ${hr > 12 ? hr - 12 : hr || 12}:${m} ${hr >= 12 ? "PM" : "AM"}`;
   };
 
-  // ── Share Circle (single unified native share, original media, English) ─────
+  // â”€â”€ Share Circle (single unified native share, original media, English) â”€â”€â”€â”€â”€
   const shareCircle = (group: Group, anchor: HTMLElement) => {
     const link = `${window.location.origin}?circle=${group.id}`;
     const titleLine = group.name;
@@ -1089,7 +1089,7 @@ export default function CirclePage({
     );
   };
 
-  // ── Robust member fetch: tries FK join, falls back to separate profiles query ─
+  // â”€â”€ Robust member fetch: tries FK join, falls back to separate profiles query â”€
   const fetchMembersWithProfiles = async (circleId: string): Promise<any[]> => {
     // Attempt 1: join query via FK
     const { data: joinData, error: joinErr } = await supabase
@@ -1142,7 +1142,7 @@ export default function CirclePage({
     }));
   };
 
-  // ── Open Group Profile ───────────────────────────────────────────────────────
+  // â”€â”€ Open Group Profile â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const openGroup = async (group: Group) => {
     setSelectedGroup(group);
     setView("group");
@@ -1192,7 +1192,7 @@ export default function CirclePage({
         table: "circle_posts",
         filter: `circle_id=eq.${group.id}`,
       }, (payload) => {
-        // Append new post directly — no full DB refetch needed
+        // Append new post directly â€” no full DB refetch needed
         const newPost = payload.new as GroupPost;
         const isReviewer = role === "admin" || role === "moderator";
         const visible =
@@ -1234,7 +1234,7 @@ export default function CirclePage({
 
     // Real-time member subscription (for owner new-member notifications)
     if (memberSubRef.current) supabase.removeChannel(memberSubRef.current);
-    // Debounce member refetch — avoid burst DB reads when multiple members join/leave at once
+    // Debounce member refetch â€” avoid burst DB reads when multiple members join/leave at once
     let memberDebounceTimer: ReturnType<typeof setTimeout> | null = null;
     const memberCh = supabase
       .channel(`members-${group.id}`)
@@ -1248,7 +1248,7 @@ export default function CirclePage({
         if (payload.eventType === "INSERT" && newRow.user_id !== currentUserId) {
           setNewMemberCount(c => c + 1);
         }
-        // Debounce full profile refetch — max one refetch per 4 seconds
+        // Debounce full profile refetch â€” max one refetch per 4 seconds
         if (memberDebounceTimer) clearTimeout(memberDebounceTimer);
         memberDebounceTimer = setTimeout(async () => {
           const refreshed = await fetchMembersWithProfiles(group.id);
@@ -1363,7 +1363,7 @@ export default function CirclePage({
     return () => window.cancelAnimationFrame(frame);
   }, [deepLinkPost, selectedGroup?.id, postsLoading, groupPosts]);
 
-  // ── Build reactions map from raw rows ────────────────────────────────────────
+  // â”€â”€ Build reactions map from raw rows â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const buildReactionMap = useCallback((rows: any[], uid: string | null) => {
     const map: Record<string, ChatReaction[]> = {};
     for (const r of rows) {
@@ -1375,7 +1375,7 @@ export default function CirclePage({
     return map;
   }, []);
 
-  // ── Load chat messages + subscribe ──────────────────────────────────────────
+  // â”€â”€ Load chat messages + subscribe â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const loadChat = useCallback(async (groupId: string) => {
     setChatLoaded(false);
     const { data, error } = await supabase
@@ -1386,7 +1386,7 @@ export default function CirclePage({
       .limit(100);
 
     if (error) {
-      toast.error("Chat unavailable — table may not exist yet.");
+      toast.error("Chat unavailable â€” table may not exist yet.");
       setChatLoaded(true);
       return;
     }
@@ -1440,7 +1440,7 @@ export default function CirclePage({
     }
   }, [chatLoaded, chatMessages.length]);
 
-  // ── Send chat message ────────────────────────────────────────────────────────
+  // â”€â”€ Send chat message â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const sendChatMessage = async () => {
     const hasText = chatText.trim().length > 0;
     const hasMedia = !!chatMedia;
@@ -1485,7 +1485,7 @@ export default function CirclePage({
     setSendingChat(false);
   };
 
-  // ── Toggle chat reaction ──────────────────────────────────────────────────────
+  // â”€â”€ Toggle chat reaction â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const toggleChatReaction = async (messageId: string, emoji: string) => {
     if (!currentUserId) return;
     haptic();
@@ -1521,7 +1521,7 @@ export default function CirclePage({
     setEmojiBarMsgId(null);
   };
 
-  // ── Post in Group ────────────────────────────────────────────────────────────
+  // â”€â”€ Post in Group â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const handleGroupPost = async () => {
     if (!postText.trim() || !currentUserId || !selectedGroup) return;
     setPosting(true);
@@ -1563,7 +1563,7 @@ export default function CirclePage({
     }
   };
 
-  // ── Like Post ─────────────────────────────────────────────────────────────────
+  // â”€â”€ Like Post â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const handleLikePost = async (post: GroupPost) => {
     if (!currentUserId) return;
     const liked = likedPostIds.has(post.id);
@@ -1593,7 +1593,7 @@ export default function CirclePage({
         console.error("[CirclePage] unlike failed:", error.message);
         setLikedPostIds(prev => { const next = new Set(prev); next.add(post.id); return next; });
         setGroupPosts(prev => prev.map(p => p.id === post.id ? { ...p, likes_count: (p.likes_count || 0) + 1 } : p));
-        toast.error("Failed to unlike — please try again.");
+        toast.error("Failed to unlike â€” please try again.");
         return;
       }
       await supabase
@@ -1609,7 +1609,7 @@ export default function CirclePage({
         console.error("[CirclePage] like failed:", error.message);
         setLikedPostIds(prev => { const next = new Set(prev); next.delete(post.id); return next; });
         setGroupPosts(prev => prev.map(p => p.id === post.id ? { ...p, likes_count: Math.max((p.likes_count || 0) - 1, 0) } : p));
-        toast.error("Failed to like — please try again.");
+        toast.error("Failed to like â€” please try again.");
         return;
       }
       await supabase
@@ -1649,7 +1649,7 @@ export default function CirclePage({
     }
 
     await fetchCirclePosts(selectedGroup.id);
-    toast.success(status === "approved" ? "Post approved — author notified." : "Post rejected — author notified.");
+    toast.success(status === "approved" ? "Post approved â€” author notified." : "Post rejected â€” author notified.");
   };
 
   const toggleCommentsMuted = async (post: GroupPost) => {
@@ -1693,7 +1693,7 @@ export default function CirclePage({
     const post = groupPosts.find(p => p.id === commentPostId);
     if (!commentText.trim() || !currentUserId || !commentPostId || !post || post.comments_muted) return;
     setCommenting(true);
-    // ── Profanity filter on circle comment ─────────────────────────────
+    // â”€â”€ Profanity filter on circle comment â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     const { cleaned: cleanContent, hadProfanity } = sanitizeText(commentText.trim());
     if (hadProfanity) {
       toast.warning("Offensive words detected and masked automatically.");
@@ -1778,7 +1778,7 @@ export default function CirclePage({
     const titleLine = circleName;
     const bodyLine  = post.content
       ? post.content.slice(0, 160)
-      : `New post from "${circleName}" — check it out on Flicks.`;
+      : `New post from "${circleName}" â€” check it out on Flicks.`;
     requestShareModal(
       {
         id: `circle-post-${post.id}`,
@@ -1804,7 +1804,7 @@ export default function CirclePage({
       const sharerName = sharerProfile?.data?.full_name || "Someone";
       const thumbnail = (post.media_url || (selectedGroup as any)?.cover_url) ?? null;
       const shareTitle = `Circle post in ${circleName}`;
-      const shareDesc = (post.content || "").slice(0, 120) + ((post.content?.length || 0) > 120 ? "…" : "");
+      const shareDesc = (post.content || "").slice(0, 120) + ((post.content?.length || 0) > 120 ? "â€¦" : "");
       await supabase.from("notifications").insert({
         notifier_id: post.author_id,
         actor_id: currentUserId,
@@ -1856,8 +1856,8 @@ export default function CirclePage({
     if (error) { toast.error("Failed to update role."); return; }
     await refreshMembers();
     toast.success(
-      role === "admin" ? "👑 Promoted to Admin!" :
-      role === "moderator" ? "⭐ Promoted to Moderator." :
+      role === "admin" ? "ðŸ‘‘ Promoted to Admin!" :
+      role === "moderator" ? "â­ Promoted to Moderator." :
       "Role updated."
     );
   };
@@ -1888,7 +1888,7 @@ export default function CirclePage({
     if (!selectedGroup || !currentUserId || !canAdmin) return;
 
     // Try INSERT first; if the invite already exists (23505 unique violation),
-    // reset it to pending via UPDATE — avoids upsert's RLS double-check issue.
+    // reset it to pending via UPDATE â€” avoids upsert's RLS double-check issue.
     const { error: insertErr } = await supabase.from("circle_invites").insert({
       circle_id: selectedGroup.id,
       inviter_id: currentUserId,
@@ -1898,7 +1898,7 @@ export default function CirclePage({
 
     if (insertErr) {
       if (insertErr.code === "23505") {
-        // Invite already exists — reset to pending
+        // Invite already exists â€” reset to pending
         const { error: updateErr } = await supabase
           .from("circle_invites")
           .update({ status: "pending", inviter_id: currentUserId })
@@ -1945,7 +1945,7 @@ export default function CirclePage({
     await fetchMyInvites();
   };
 
-  // ── Save Settings ─────────────────────────────────────────────────────────────
+  // â”€â”€ Save Settings â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const saveSettings = async () => {
     if (!selectedGroup) return;
     setSavingSettings(true);
@@ -1955,7 +1955,7 @@ export default function CirclePage({
     setShowSettings(false);
   };
 
-  // ── Edit Group Post ────────────────────────────────────────────────────────────
+  // â”€â”€ Edit Group Post â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const saveEditPost = async () => {
     if (!editingPost || !editPostText.trim()) return;
     setEditPostSaving(true);
@@ -2007,7 +2007,7 @@ export default function CirclePage({
     }
   };
 
-  // ── Edit Group (Profile) ───────────────────────────────────────────────────────
+  // â”€â”€ Edit Group (Profile) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const openEditGroup = (group: Group) => {
     setEditGroupForm({ name: group.name, description: group.description || "" });
     setEditGroupCoverFile(null);
@@ -2038,7 +2038,7 @@ export default function CirclePage({
     setShowEditGroup(false);
   };
 
-  // ── Delete Group ──────────────────────────────────────────────────────────────
+  // â”€â”€ Delete Group â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const deleteGroup = async () => {
     if (!selectedGroup) return;
     setDeletingGroup(true);
@@ -2059,9 +2059,9 @@ export default function CirclePage({
   const suggestedGroups = groups.filter(g => !myGroupIds.has(g.id));
   const allGroupsForGrid = groups;
 
-  // ═══════════════════════════ RENDER ═══════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• RENDER â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
-  // ── GROUP PROFILE VIEW ────────────────────────────────────────────────────────
+  // â”€â”€ GROUP PROFILE VIEW â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   if (view === "group" && selectedGroup) {
     const isMember = myGroupIds.has(selectedGroup.id);
 
@@ -2070,7 +2070,7 @@ export default function CirclePage({
         background: "#090a0f",
         backgroundImage: "radial-gradient(circle at top,#1e3a8a22,transparent 45%),radial-gradient(circle at bottom,#00e5ff18,transparent 55%)"
       }}>
-        {/* ── CINEMATIC HERO ──────────────────────────────────────────── */}
+        {/* â”€â”€ CINEMATIC HERO â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         <div className="relative w-full flex-shrink-0" style={{ height: 220 }}>
           {/* Cover image */}
           <div className="pointer-events-none absolute inset-0" style={{
@@ -2131,7 +2131,7 @@ export default function CirclePage({
             </div>
           )}
 
-          {/* Floating Avatar — overlaps hero bottom */}
+          {/* Floating Avatar â€” overlaps hero bottom */}
           <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 z-20">
             <div
               className="w-24 h-24 rounded-full overflow-hidden border-2 border-white/10 flex items-center justify-center text-white font-black text-2xl"
@@ -2159,19 +2159,19 @@ export default function CirclePage({
             {currentRole === "admin" && (
               <span className="text-[10px] font-black px-2.5 py-1 rounded-full flex items-center gap-1"
                 style={{ background: "linear-gradient(135deg,#f59e0b,#d97706)", color: "#000" }}>
-                👑 Admin
+                ðŸ‘‘ Admin
               </span>
             )}
             {currentRole === "moderator" && (
               <span className="text-[10px] font-black px-2.5 py-1 rounded-full text-white border border-blue-500/40"
                 style={{ background: "rgba(59,130,246,0.2)" }}>
-                ⭐ Moderator
+                â­ Moderator
               </span>
             )}
           </div>
           {/* Member avatars + count */}
           <div className="flex items-center gap-2 mt-2">
-            {/* Avatar stack — up to 6 DPs */}
+            {/* Avatar stack â€” up to 6 DPs */}
             {groupMembers.length > 0 && (
               <div className="flex items-center">
                 {groupMembers.slice(0, 6).map((m: any, i: number) => (
@@ -2201,7 +2201,7 @@ export default function CirclePage({
             </div>
           </div>
 
-          {/* Description — truncated with "More" expand */}
+          {/* Description â€” truncated with "More" expand */}
           {selectedGroup.description && (
             <div className="mt-2 max-w-xs text-center">
               <p className={`text-[12px] text-gray-500 leading-relaxed ${descExpanded ? "" : "line-clamp-2"}`}>
@@ -2232,11 +2232,11 @@ export default function CirclePage({
           )}
         </div>
 
-        {/* ── COMPACT NAV BAR ─────────────────────────────────────────── */}
+        {/* â”€â”€ COMPACT NAV BAR â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         <div className="px-3 pb-2 sticky top-0 z-20 pt-1" style={{ background: "#090a0f" }}>
           <div className="flex items-center rounded-2xl border border-white/[0.08] px-2 py-1.5 gap-2"
             style={{ background: "rgba(255,255,255,0.04)", backdropFilter: "blur(20px)" }}>
-            {/* Posts — always visible primary tab */}
+            {/* Posts â€” always visible primary tab */}
             <button
               onClick={() => setGroupTab("posts")}
               className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-[12px] font-black transition-all ${
@@ -2329,7 +2329,7 @@ export default function CirclePage({
           </div>
         </div>
 
-        {/* ── POSTS TAB ──────────────────────────────────────────────────────── */}
+        {/* â”€â”€ POSTS TAB â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         {groupTab === "posts" && (
           <div
             ref={postsScrollRef}
@@ -2397,11 +2397,11 @@ export default function CirclePage({
               <div className="flex items-center justify-center gap-2 py-3 border-b border-white/[0.06]"
                 style={{ background: "rgba(0,240,255,0.06)" }}>
                 <Loader2 size={14} className="animate-spin text-[#00F0FF]" />
-                <span className="text-[11px] font-black text-[#00F0FF]">Refreshing…</span>
+                <span className="text-[11px] font-black text-[#00F0FF]">Refreshingâ€¦</span>
               </div>
             )}
 
-            {/* ── Pinned Announcement ──────────────────────────────────── */}
+            {/* â”€â”€ Pinned Announcement â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
             <AnimatePresence>
               {(selectedGroup.pinned_announcement || (canAdmin && pinnedEditing)) && (
                 <motion.div
@@ -2441,7 +2441,7 @@ export default function CirclePage({
                       <textarea
                         value={pinnedText}
                         onChange={e => setPinnedText(e.target.value)}
-                        placeholder="Write your announcement here…"
+                        placeholder="Write your announcement hereâ€¦"
                         rows={3}
                         maxLength={400}
                         autoFocus
@@ -2482,7 +2482,7 @@ export default function CirclePage({
               )}
             </AnimatePresence>
 
-            {/* Admin "Add Announcement" button — shown when no pin exists */}
+            {/* Admin "Add Announcement" button â€” shown when no pin exists */}
             {canAdmin && !selectedGroup.pinned_announcement && !pinnedEditing && (
               <div className="flex justify-end px-3 pt-2">
                 <button
@@ -2495,7 +2495,7 @@ export default function CirclePage({
               </div>
             )}
 
-            {/* ── Events Strip ─────────────────────────────────────────── */}
+            {/* â”€â”€ Events Strip â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
             {(circleEvents.length > 0 || canAdmin) && (
               <div className="mt-3 mb-1">
                 {/* Header */}
@@ -2521,7 +2521,7 @@ export default function CirclePage({
                 {circleEvents.length === 0 && canAdmin ? (
                   <div className="mx-4 p-4 rounded-2xl border border-dashed border-violet-200 bg-violet-50 text-center">
                     <Calendar size={22} className="text-violet-300 mx-auto mb-1" />
-                    <p className="text-[11px] font-black text-violet-400">No events yet — tap "New Event" to create one</p>
+                    <p className="text-[11px] font-black text-violet-400">No events yet â€” tap "New Event" to create one</p>
                   </div>
                 ) : (
                   <div className="flex gap-3 px-4 overflow-x-auto pb-1 [&::-webkit-scrollbar]:hidden" style={{ scrollbarWidth: "none" }}>
@@ -2588,9 +2588,9 @@ export default function CirclePage({
                               ) : (
                                 <div className="flex gap-1">
                                   {([
-                                    { key: "going",     label: "✅ Going",   count: counts.going,     active: "bg-green-500 text-white border-green-500" },
-                                    { key: "maybe",     label: "🤔 Maybe",   count: counts.maybe,     active: "bg-amber-400 text-white border-amber-400" },
-                                    { key: "not_going", label: "❌ Nope",    count: counts.not_going, active: "bg-red-400 text-white border-red-400" },
+                                    { key: "going",     label: "âœ… Going",   count: counts.going,     active: "bg-green-500 text-white border-green-500" },
+                                    { key: "maybe",     label: "ðŸ¤” Maybe",   count: counts.maybe,     active: "bg-amber-400 text-white border-amber-400" },
+                                    { key: "not_going", label: "âŒ Nope",    count: counts.not_going, active: "bg-red-400 text-white border-red-400" },
                                   ] as const).map(opt => (
                                     <button
                                       key={opt.key}
@@ -2607,7 +2607,7 @@ export default function CirclePage({
                           )}
                           {isPast && (
                             <div className="px-3 pb-2.5 text-center">
-                              <span className="text-[10px] text-gray-400">{counts.going} went · {counts.maybe} maybe · {counts.not_going} couldn't</span>
+                              <span className="text-[10px] text-gray-400">{counts.going} went Â· {counts.maybe} maybe Â· {counts.not_going} couldn't</span>
                             </div>
                           )}
                         </motion.div>
@@ -2633,7 +2633,7 @@ export default function CirclePage({
               </div>
             )}
 
-            {/* Post box — only for members */}
+            {/* Post box â€” only for members */}
             {isMember && (
               <div className="mx-3 mb-3 rounded-3xl border border-white/[0.08] px-4 py-3"
                 style={{ background: "rgba(255,255,255,0.03)", backdropFilter: "blur(20px)" }}>
@@ -2650,7 +2650,7 @@ export default function CirclePage({
                     <textarea
                       value={postText}
                       onChange={e => setPostText(e.target.value)}
-                      placeholder="Post something in this Circle…"
+                      placeholder="Post something in this Circleâ€¦"
                       className="w-full rounded-xl px-3 py-2.5 text-sm text-white outline-none resize-none border border-white/10 placeholder:text-white/25 focus:border-[#00F0FF]/40"
                       style={{ background: "rgba(255,255,255,0.06)" }}
                       rows={2}
@@ -2708,7 +2708,7 @@ export default function CirclePage({
               {postsLoading ? (
                 <div className="flex flex-col items-center py-16">
                   <Loader2 size={26} className="animate-spin text-blue-400 mb-3" />
-                  <p className="text-[11px] font-black text-gray-400 uppercase tracking-widest">Loading Posts…</p>
+                  <p className="text-[11px] font-black text-gray-400 uppercase tracking-widest">Loading Postsâ€¦</p>
                 </div>
               ) : groupPosts.length === 0 ? (
                 <div className="flex flex-col items-center py-16 text-gray-300">
@@ -2747,7 +2747,7 @@ export default function CirclePage({
                   style={{ background: "rgba(255,255,255,0.05)" }}
                 >
                   {loadingMorePosts && <Loader2 size={14} className="animate-spin" />}
-                  {loadingMorePosts ? "Loading…" : "Load more posts"}
+                  {loadingMorePosts ? "Loadingâ€¦" : "Load more posts"}
                 </button>
               </div>
             )}
@@ -2765,11 +2765,11 @@ export default function CirclePage({
                 </button>
               </div>
             )}
-            {/* Leave Circle is now in the tab bar — no floating button needed */}
+            {/* Leave Circle is now in the tab bar â€” no floating button needed */}
           </div>
         )}
 
-        {/* ── REVIEW TAB ─────────────────────────────────────────────────────── */}
+        {/* â”€â”€ REVIEW TAB â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         {groupTab === "review" && canModerate && (
           <div className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:hidden" style={{ scrollbarWidth: "none" }}>
             <div className="px-4 py-3 border-b border-white/[0.06]"
@@ -2818,7 +2818,7 @@ export default function CirclePage({
           </div>
         )}
 
-        {/* ── CHAT TAB ──────────────────────────────────────────────────────── */}
+        {/* â”€â”€ CHAT TAB â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         {groupTab === "chat" && (
           <div className="flex flex-col flex-1 overflow-hidden" style={{ height: "calc(100vh - 220px)" }}
             onClick={() => emojiBarMsgId && setEmojiBarMsgId(null)}>
@@ -2834,7 +2834,7 @@ export default function CirclePage({
               </div>
             ) : (
               <>
-                {/* ── Messages scroll area ──────────────────────────── */}
+                {/* â”€â”€ Messages scroll area â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
                 <div className="flex-1 overflow-y-auto px-3 py-3 space-y-1 [&::-webkit-scrollbar]:hidden" style={{ scrollbarWidth: "none" }}>
                   {!chatLoaded ? (
                     <div className="flex justify-center py-12"><Loader2 size={24} className="animate-spin text-blue-400" /></div>
@@ -2842,7 +2842,7 @@ export default function CirclePage({
                     <div className="flex flex-col items-center py-12 text-gray-300">
                       <MessageCircle size={32} className="mb-2 opacity-40" />
                       <p className="text-xs font-black uppercase tracking-widest">No messages yet</p>
-                      <p className="text-[11px] text-gray-400 mt-1">Say hello! 👋</p>
+                      <p className="text-[11px] text-gray-400 mt-1">Say hello! ðŸ‘‹</p>
                     </div>
                   ) : chatMessages.map((msg, i) => {
                     const isMe = msg.sender_id === currentUserId;
@@ -2878,7 +2878,7 @@ export default function CirclePage({
                                 style={{ background: "rgba(20,22,35,0.95)", backdropFilter: "blur(20px)", boxShadow: "0 8px 32px rgba(0,0,0,0.6)" }}
                                 onClick={e => e.stopPropagation()}
                               >
-                                {["❤️","👍","😂","🔥","😮"].map(em => (
+                                {["â¤ï¸","ðŸ‘","ðŸ˜‚","ðŸ”¥","ðŸ˜®"].map(em => (
                                   <button key={em} onClick={() => toggleChatReaction(msg.id, em)}
                                     className={`text-[20px] active:scale-75 transition-transform px-0.5 rounded-xl ${reactions.find(r => r.emoji === em && r.mine) ? "bg-[#00F0FF]/15" : ""}`}>
                                     {em}
@@ -2912,7 +2912,7 @@ export default function CirclePage({
                             {repliedMsg && (
                               <div className={`text-[11px] rounded-xl px-2 py-1.5 mb-1.5 border-l-2 ${isMe ? "bg-white/20 border-white/60 text-white/80" : "bg-gray-50 border-blue-300 text-gray-500"}`}>
                                 <p className="font-black text-[10px] mb-0.5">{repliedMsg.sender_name}</p>
-                                <p className="truncate">{repliedMsg.content || "📎 Media"}</p>
+                                <p className="truncate">{repliedMsg.content || "ðŸ“Ž Media"}</p>
                               </div>
                             )}
                             {/* Media */}
@@ -2966,7 +2966,7 @@ export default function CirclePage({
                   <div ref={chatEndRef} />
                 </div>
 
-                {/* ── Input area ───────────────────────────────────── */}
+                {/* â”€â”€ Input area â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
                 <div className="flex-shrink-0 border-t border-white/[0.06]"
                   style={{ background: "rgba(9,10,15,0.85)", backdropFilter: "blur(20px)" }}>
                   {/* Reply banner */}
@@ -2978,7 +2978,7 @@ export default function CirclePage({
                         <div className="w-0.5 h-8 rounded-full shrink-0" style={{ background: "#00F0FF" }} />
                         <div className="flex-1 min-w-0">
                           <p className="text-[10px] font-black text-[#00F0FF]">Replying to {replyTo.sender_name}</p>
-                          <p className="text-[11px] text-white/50 truncate">{replyTo.content || "📎 Media"}</p>
+                          <p className="text-[11px] text-white/50 truncate">{replyTo.content || "ðŸ“Ž Media"}</p>
                         </div>
                         <button onClick={() => setReplyTo(null)}
                           className="p-1 rounded-full shrink-0 text-white/50"
@@ -3010,7 +3010,7 @@ export default function CirclePage({
                     )}
                   </AnimatePresence>
 
-                  {/* Input row — focus mode: image btn fades out when typing */}
+                  {/* Input row â€” focus mode: image btn fades out when typing */}
                   <div className="px-3 py-2.5 flex items-center gap-2 transition-all duration-200">
                     {/* Media picker */}
                     <input ref={chatMediaRef} type="file" accept="image/*,video/*" className="hidden"
@@ -3022,7 +3022,7 @@ export default function CirclePage({
                         setChatMediaPreview(url);
                         e.target.value = "";
                       }} />
-                    {/* Image button — collapses in focus mode */}
+                    {/* Image button â€” collapses in focus mode */}
                     <AnimatePresence initial={false}>
                       {!chatInputFocused && (
                         <motion.div
@@ -3051,7 +3051,7 @@ export default function CirclePage({
                       onKeyDown={e => e.key === "Enter" && !e.shiftKey && (e.preventDefault(), sendChatMessage())}
                       onFocus={() => setChatInputFocused(true)}
                       onBlur={() => setChatInputFocused(false)}
-                      placeholder="Message the circle…"
+                      placeholder="Message the circleâ€¦"
                       className="flex-1 rounded-2xl px-4 py-2.5 text-sm text-white outline-none transition-all duration-200 border placeholder:text-white/25"
                       style={{
                         background: "rgba(255,255,255,0.07)",
@@ -3080,7 +3080,7 @@ export default function CirclePage({
           </div>
         )}
 
-        {/* ── MEMBERS TAB ──────────────────────────────────────────────────── */}
+        {/* â”€â”€ MEMBERS TAB â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         {groupTab === "members" && (
           <div className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:hidden" style={{ scrollbarWidth: "none" }}>
             {/* Members count header */}
@@ -3090,7 +3090,7 @@ export default function CirclePage({
                 <p className="text-[13px] font-black text-white">
                   {groupMembers.length} Member{groupMembers.length !== 1 ? "s" : ""} Joined
                 </p>
-                <p className="text-[10px] text-white/40 mt-0.5">Real-time · Updates live</p>
+                <p className="text-[10px] text-white/40 mt-0.5">Real-time Â· Updates live</p>
               </div>
               {newMemberCount > 0 && canModerate && (
                 <div className="flex items-center gap-1.5 rounded-xl px-3 py-1.5 border border-[#00F0FF]/30"
@@ -3106,7 +3106,7 @@ export default function CirclePage({
               {membersLoading ? (
                 <div className="col-span-2 flex flex-col items-center py-14">
                   <Loader2 size={24} className="animate-spin text-[#00F0FF] mb-2" />
-                  <p className="text-[11px] font-black text-white/40 uppercase tracking-widest">Loading Members…</p>
+                  <p className="text-[11px] font-black text-white/40 uppercase tracking-widest">Loading Membersâ€¦</p>
                 </div>
               ) : null}
               {!membersLoading && groupMembers.map((m: any) => (
@@ -3150,7 +3150,7 @@ export default function CirclePage({
                           ? "rgba(59,130,246,0.12)"
                           : "rgba(255,255,255,0.04)"
                     }}>
-                    {m.role === "admin" ? "👑 Admin" : m.role === "moderator" ? "⭐ Mod" : "Member"}
+                    {m.role === "admin" ? "ðŸ‘‘ Admin" : m.role === "moderator" ? "â­ Mod" : "Member"}
                   </span>
                   {/* Action button */}
                   {m.user_id !== currentUserId && (
@@ -3198,7 +3198,7 @@ export default function CirclePage({
                       value={inviteSearch}
                       onChange={e => setInviteSearch(e.target.value)}
                       onKeyDown={e => e.key === "Enter" && searchInvitees()}
-                      placeholder="Search profile name…"
+                      placeholder="Search profile nameâ€¦"
                       className="flex-1 rounded-xl px-3 py-2 text-[12px] text-white outline-none border border-white/10 placeholder:text-white/30 focus:border-[#00F0FF]/40"
                       style={{ background: "rgba(255,255,255,0.06)" }}
                     />
@@ -3248,11 +3248,11 @@ export default function CirclePage({
           </div>
         )}
 
-        {/* ── ABOUT TAB ──────────────────────────────────────────────────── */}
+        {/* â”€â”€ ABOUT TAB â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         {groupTab === "about" && (
           <div className="flex-1 overflow-y-auto pb-6 [&::-webkit-scrollbar]:hidden" style={{ scrollbarWidth: "none" }}>
 
-            {/* ── Membership Actions ──────────────────────────────────────── */}
+            {/* â”€â”€ Membership Actions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
             <div className="mx-3 mt-3 rounded-3xl border border-white/[0.08] overflow-hidden"
               style={{ background: "rgba(255,255,255,0.03)", backdropFilter: "blur(20px)" }}>
               <div className="flex items-center gap-2 px-4 py-3 border-b border-white/[0.06]">
@@ -3260,7 +3260,7 @@ export default function CirclePage({
                 <span className="text-[12px] font-black text-white">Settings</span>
               </div>
               <div className="divide-y divide-white/[0.04]">
-                {/* Follow/Unfollow — share the circle */}
+                {/* Follow/Unfollow â€” share the circle */}
                 <button
                   onClick={(event) => shareCircle(selectedGroup, event.currentTarget)}
                   className="w-full flex items-center gap-3 px-4 py-3.5 active:bg-white/[0.06] transition-colors text-left"
@@ -3276,7 +3276,7 @@ export default function CirclePage({
                   <ChevronRight size={14} className="text-white/20" />
                 </button>
 
-                {/* Join — only for non-members */}
+                {/* Join â€” only for non-members */}
                 {!isMember && (
                   <button
                     onClick={() => handleJoin(selectedGroup.id)}
@@ -3294,7 +3294,7 @@ export default function CirclePage({
                   </button>
                 )}
 
-                {/* Leave — only for non-admin members */}
+                {/* Leave â€” only for non-admin members */}
                 {isMember && !isAdmin && (
                   <button
                     onClick={() => handleLeave(selectedGroup.id)}
@@ -3314,7 +3314,7 @@ export default function CirclePage({
               </div>
             </div>
 
-            {/* ── Group Info Card ────────────────────────────────────────── */}
+            {/* â”€â”€ Group Info Card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
             <div className="mx-3 mt-3 rounded-3xl border border-white/[0.08] px-4 py-4"
               style={{ background: "rgba(255,255,255,0.03)", backdropFilter: "blur(20px)", boxShadow: "0 8px 32px rgba(0,0,0,0.35)" }}>
               <div className="flex items-center gap-2 mb-3">
@@ -3340,7 +3340,7 @@ export default function CirclePage({
               </div>
             </div>
 
-            {/* ── Pinned Announcement ─────────────────────────────────────── */}
+            {/* â”€â”€ Pinned Announcement â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
             <div className="mx-3 mt-3 rounded-3xl border border-amber-500/20 overflow-hidden"
               style={{ background: "rgba(245,158,11,0.06)", backdropFilter: "blur(20px)" }}>
               <div className="flex items-center justify-between px-4 py-3 border-b border-amber-500/10">
@@ -3382,7 +3382,7 @@ export default function CirclePage({
               </div>
             </div>
 
-            {/* ── Group Rules ─────────────────────────────────────────────── */}
+            {/* â”€â”€ Group Rules â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
             <div className="mx-3 mt-3 rounded-3xl border border-white/[0.08] overflow-hidden"
               style={{ background: "rgba(255,255,255,0.03)", backdropFilter: "blur(20px)" }}>
               <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.06]">
@@ -3446,7 +3446,7 @@ export default function CirclePage({
               </div>
             </div>
 
-            {/* ── Admins & Moderators ─────────────────────────────────────── */}
+            {/* â”€â”€ Admins & Moderators â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
             <div className="mx-3 mt-3 rounded-3xl border border-white/[0.08] overflow-hidden"
               style={{ background: "rgba(255,255,255,0.03)", backdropFilter: "blur(20px)" }}>
               <div className="flex items-center gap-2 px-4 py-3 border-b border-white/[0.06]">
@@ -3480,7 +3480,7 @@ export default function CirclePage({
                           </p>
                           <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full ${m.role === "admin" ? "text-amber-300 border border-amber-500/30" : "text-blue-300 border border-blue-500/30"}`}
                             style={{ background: m.role === "admin" ? "rgba(245,158,11,0.12)" : "rgba(59,130,246,0.12)" }}>
-                            {m.role === "admin" ? "👑 Admin" : "⭐ Moderator"}
+                            {m.role === "admin" ? "ðŸ‘‘ Admin" : "â­ Moderator"}
                           </span>
                         </div>
                         {m.user_id !== currentUserId && (
@@ -3498,7 +3498,7 @@ export default function CirclePage({
               </div>
             </div>
 
-            {/* ── Upcoming Events ─────────────────────────────────────────── */}
+            {/* â”€â”€ Upcoming Events â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
             <div className="mx-3 mt-3 rounded-3xl border border-white/[0.08] overflow-hidden"
               style={{ background: "rgba(255,255,255,0.03)", backdropFilter: "blur(20px)" }}>
               <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.06]">
@@ -3544,7 +3544,7 @@ export default function CirclePage({
                             <div className="flex flex-wrap items-center gap-2 mt-0.5">
                               {ev.event_time && (
                                 <span className="flex items-center gap-1 text-[10px] text-white/40">
-                                  <Clock size={9} /> {formatEventDate("", ev.event_time).replace(" · ", "")}
+                                  <Clock size={9} /> {formatEventDate("", ev.event_time).replace(" Â· ", "")}
                                 </span>
                               )}
                               {ev.location && (
@@ -3559,7 +3559,7 @@ export default function CirclePage({
                             {/* RSVP counts */}
                             <div className="flex gap-2 mt-2">
                               <span className="text-[10px] text-white/30">{counts.going} Going</span>
-                              <span className="text-[10px] text-white/20">·</span>
+                              <span className="text-[10px] text-white/20">Â·</span>
                               <span className="text-[10px] text-white/30">{counts.maybe} Maybe</span>
                             </div>
                           </div>
@@ -3574,9 +3574,9 @@ export default function CirclePage({
                         {/* RSVP buttons */}
                         <div className="flex gap-2 mt-2.5">
                           {[
-                            { status: "going", label: "✅ Going" },
-                            { status: "maybe", label: "🤔 Maybe" },
-                            { status: "not_going", label: "❌ Can't Go" },
+                            { status: "going", label: "âœ… Going" },
+                            { status: "maybe", label: "ðŸ¤” Maybe" },
+                            { status: "not_going", label: "âŒ Can't Go" },
                           ].map(opt => (
                             <button
                               key={opt.status}
@@ -3600,7 +3600,7 @@ export default function CirclePage({
               )}
             </div>
 
-            {/* ── Invite / Share ──────────────────────────────────────────── */}
+            {/* â”€â”€ Invite / Share â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
             <div className="mx-3 mt-3 rounded-3xl border border-[#00F0FF]/15 p-4"
               style={{ background: "rgba(0,240,255,0.05)", backdropFilter: "blur(12px)" }}>
               <p className="text-[12px] font-black text-white mb-1">Invite friends to this Circle</p>
@@ -3614,7 +3614,7 @@ export default function CirclePage({
               </button>
             </div>
 
-            {/* ── Admin Quick Actions ─────────────────────────────────────── */}
+            {/* â”€â”€ Admin Quick Actions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
             {canAdmin && (
               <div className="mx-3 mt-3 rounded-3xl border border-white/[0.08] overflow-hidden"
               style={{ background: "rgba(255,255,255,0.03)", backdropFilter: "blur(20px)" }}>
@@ -3686,7 +3686,7 @@ export default function CirclePage({
           </div>
         )}
 
-        {/* ── Create Event Bottom Sheet ──────────────────────────────────── */}
+        {/* â”€â”€ Create Event Bottom Sheet â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         <AnimatePresence>
           {showCreateEvent && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -3724,7 +3724,7 @@ export default function CirclePage({
                     <input
                       value={eventForm.title}
                       onChange={e => setEventForm(f => ({ ...f, title: e.target.value }))}
-                      placeholder="e.g. Movie Night, Cricket Match…"
+                      placeholder="e.g. Movie Night, Cricket Matchâ€¦"
                       maxLength={80}
                       className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-[14px] text-gray-900 font-semibold outline-none focus:ring-2 focus:ring-violet-400/30 focus:border-violet-300"
                     />
@@ -3764,7 +3764,7 @@ export default function CirclePage({
                       <input
                         value={eventForm.location}
                         onChange={e => setEventForm(f => ({ ...f, location: e.target.value }))}
-                        placeholder="e.g. Rooftop, DM for details…"
+                        placeholder="e.g. Rooftop, DM for detailsâ€¦"
                         maxLength={100}
                         className="w-full bg-gray-50 border border-gray-200 rounded-xl pl-9 pr-4 py-3 text-[13px] text-gray-800 outline-none focus:ring-2 focus:ring-violet-400/30 focus:border-violet-300"
                       />
@@ -3776,7 +3776,7 @@ export default function CirclePage({
                     <textarea
                       value={eventForm.description}
                       onChange={e => setEventForm(f => ({ ...f, description: e.target.value }))}
-                      placeholder="Tell members what to expect, what to bring…"
+                      placeholder="Tell members what to expect, what to bringâ€¦"
                       rows={3}
                       maxLength={300}
                       className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-[13px] text-gray-800 outline-none focus:ring-2 focus:ring-violet-400/30 focus:border-violet-300 resize-none"
@@ -3790,7 +3790,7 @@ export default function CirclePage({
                     className="w-full py-4 rounded-2xl bg-violet-600 text-white text-[14px] font-black disabled:opacity-40 active:scale-[0.98] transition-transform flex items-center justify-center gap-2 shadow-lg shadow-violet-200"
                   >
                     {savingEvent ? <Loader2 size={18} className="animate-spin" /> : <CalendarPlus size={18} />}
-                    {savingEvent ? "Creating…" : "Create Event 🎉"}
+                    {savingEvent ? "Creatingâ€¦" : "Create Event ðŸŽ‰"}
                   </button>
                 </div>
               </motion.div>
@@ -3798,7 +3798,7 @@ export default function CirclePage({
           )}
         </AnimatePresence>
 
-        {/* ── Post Options Bottom Sheet ──────────────────────────────────── */}
+        {/* â”€â”€ Post Options Bottom Sheet â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         <AnimatePresence>
           {postSheet && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -3885,7 +3885,7 @@ export default function CirclePage({
           )}
         </AnimatePresence>
 
-        {/* ── Member Management Bottom Sheet ─────────────────────────────── */}
+        {/* â”€â”€ Member Management Bottom Sheet â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         <AnimatePresence>
           {memberSheet && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -3916,7 +3916,7 @@ export default function CirclePage({
                           ? "text-blue-700 bg-blue-50 border-blue-200"
                           : "text-gray-500 bg-[#c4e8d4] border-gray-200"
                     }`}>
-                      {memberSheet.role === "admin" ? "👑 Admin" : memberSheet.role === "moderator" ? "⭐ Moderator" : "Member"}
+                      {memberSheet.role === "admin" ? "ðŸ‘‘ Admin" : memberSheet.role === "moderator" ? "â­ Moderator" : "Member"}
                     </span>
                   </div>
                 </div>
@@ -3929,7 +3929,7 @@ export default function CirclePage({
                     <Eye size={18} className="shrink-0" />
                     View Profile
                   </button>
-                  {/* Make Admin / Remove Admin — only original creator can do this */}
+                  {/* Make Admin / Remove Admin â€” only original creator can do this */}
                   {isCreator && memberSheet.user_id !== selectedGroup?.created_by && (
                     memberSheet.role === "admin" ? (
                       <button
@@ -3945,18 +3945,18 @@ export default function CirclePage({
                         className="w-full flex items-center gap-4 px-5 py-4 text-yellow-600 active:bg-yellow-50 text-[14px] font-semibold border-t border-gray-50"
                       >
                         <Shield size={18} className="shrink-0" />
-                        Make Admin 👑
+                        Make Admin ðŸ‘‘
                       </button>
                     )
                   )}
-                  {/* Make Moderator / Remove Moderator — admin can do this for non-admin members */}
+                  {/* Make Moderator / Remove Moderator â€” admin can do this for non-admin members */}
                   {canAdmin && memberSheet.role !== "admin" && (
                     <button
                       onClick={() => { haptic(); updateMemberRole(memberSheet, memberSheet.role === "moderator" ? "member" : "moderator"); setMemberSheet(null); }}
                       className="w-full flex items-center gap-4 px-5 py-4 text-blue-600 active:bg-blue-50 text-[14px] font-semibold border-t border-gray-50"
                     >
                       <Shield size={18} className="shrink-0" />
-                      {memberSheet.role === "moderator" ? "Remove Moderator ⭐" : "Make Moderator ⭐"}
+                      {memberSheet.role === "moderator" ? "Remove Moderator â­" : "Make Moderator â­"}
                     </button>
                   )}
                   {/* Remove from Circle */}
@@ -3981,7 +3981,7 @@ export default function CirclePage({
           )}
         </AnimatePresence>
 
-        {/* ── Post Reach / Viewers Sheet ──────────────────────────────────── */}
+        {/* â”€â”€ Post Reach / Viewers Sheet â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         <AnimatePresence>
           {viewersPostId && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -4006,7 +4006,7 @@ export default function CirclePage({
                     <div>
                       <p className="text-[14px] font-black text-gray-900">Post Reach</p>
                       <p className="text-[10px] text-gray-400">
-                        {viewersLoading ? "Loading…" : `${viewersList.length} unique viewer${viewersList.length !== 1 ? "s" : ""}`}
+                        {viewersLoading ? "Loadingâ€¦" : `${viewersList.length} unique viewer${viewersList.length !== 1 ? "s" : ""}`}
                       </p>
                     </div>
                   </div>
@@ -4060,7 +4060,7 @@ export default function CirclePage({
                 {/* Footer */}
                 <div className="px-5 py-4 border-t border-gray-100 bg-[#c4e8d4]/50 shrink-0">
                   <p className="text-[10px] text-gray-400 text-center">
-                    Visible only to Admins · Updates in real-time as members view this post
+                    Visible only to Admins Â· Updates in real-time as members view this post
                   </p>
                 </div>
               </motion.div>
@@ -4119,11 +4119,11 @@ export default function CirclePage({
                         <div className={`rounded-2xl px-3 py-2 flex-1 ${(comment as any).is_hidden && !isPostOwner && !canModerate ? "bg-gray-50 border border-dashed border-gray-200" : "bg-gray-100"}`}>
                           <p style={{ color: "#800000", fontSize: 12, fontWeight: 900 }}>{comment.author_name}</p>
                           {(comment as any).is_hidden && !isPostOwner && !canModerate ? (
-                            <p className="text-[13px] text-gray-400 italic mt-0.5">💬 Comment hidden by {(comment as any).hidden_by_name || "moderator"}</p>
+                            <p className="text-[13px] text-gray-400 italic mt-0.5">ðŸ’¬ Comment hidden by {(comment as any).hidden_by_name || "moderator"}</p>
                           ) : (comment as any).is_hidden && (isPostOwner || canModerate) ? (
                             <>
                               <p className="text-[13px] text-gray-300 mt-0.5 line-through">{maskProfanity(comment.content)}</p>
-                              <p className="text-[10px] text-gray-400 mt-0.5">🙈 Hidden by {(comment as any).hidden_by_name}</p>
+                              <p className="text-[10px] text-gray-400 mt-0.5">ðŸ™ˆ Hidden by {(comment as any).hidden_by_name}</p>
                             </>
                           ) : (
                             <p className="text-[14px] text-gray-800 mt-0.5 leading-snug">{maskProfanity(comment.content)}</p>
@@ -4151,7 +4151,7 @@ export default function CirclePage({
                       onKeyDown={e => e.key === "Enter" && !e.shiftKey && (e.preventDefault(), sendComment())}
                       onFocus={() => setCommentInputFocused(true)}
                       onBlur={() => setCommentInputFocused(false)}
-                      placeholder="Write a comment…"
+                      placeholder="Write a commentâ€¦"
                       className="flex-1 bg-gray-100 border rounded-2xl px-4 py-2.5 text-sm outline-none transition-all duration-200"
                       style={{
                         boxShadow: commentInputFocused ? "0 0 0 2px rgba(37,99,235,0.22)" : "none",
@@ -4188,16 +4188,16 @@ export default function CirclePage({
             type MenuItem = { icon: string; label: string; action: () => void; danger?: boolean };
             const items: MenuItem[] = [];
             if (isCommenter) {
-              items.push({ icon: "✏️", label: "Edit", action: () => { setEditingCircleComment({ id: ac.id, text: ac.content }); setCircleCommentAction(null); } });
-              items.push({ icon: "🗑️", label: "Delete", action: () => handleCircleCommentDelete(ac.id, postId), danger: true });
-              if (!(ac as any).is_hidden) items.push({ icon: "🙈", label: "Hide from Others", action: () => handleCircleCommentHide(ac.id, postId) });
+              items.push({ icon: "âœï¸", label: "Edit", action: () => { setEditingCircleComment({ id: ac.id, text: ac.content }); setCircleCommentAction(null); } });
+              items.push({ icon: "ðŸ—‘ï¸", label: "Delete", action: () => handleCircleCommentDelete(ac.id, postId), danger: true });
+              if (!(ac as any).is_hidden) items.push({ icon: "ðŸ™ˆ", label: "Hide from Others", action: () => handleCircleCommentHide(ac.id, postId) });
             }
             if ((isPostOwner || canModerate) && !isCommenter) {
-              items.push({ icon: "🗑️", label: "Delete", action: () => handleCircleCommentDelete(ac.id, postId), danger: true });
-              if (!(ac as any).is_hidden) items.push({ icon: "🙈", label: "Hide Comment", action: () => handleCircleCommentHide(ac.id, postId) });
+              items.push({ icon: "ðŸ—‘ï¸", label: "Delete", action: () => handleCircleCommentDelete(ac.id, postId), danger: true });
+              if (!(ac as any).is_hidden) items.push({ icon: "ðŸ™ˆ", label: "Hide Comment", action: () => handleCircleCommentHide(ac.id, postId) });
             }
             if (!isCommenter && !isPostOwner && !canModerate) {
-              items.push({ icon: "🚩", label: "Report", action: () => handleCircleCommentReport(ac, postId), danger: true });
+              items.push({ icon: "ðŸš©", label: "Report", action: () => handleCircleCommentReport(ac, postId), danger: true });
             }
 
             const menuW = 210;
@@ -4259,7 +4259,7 @@ export default function CirclePage({
                 onClick={e => e.stopPropagation()}
               >
                 <div className="flex justify-center mb-4"><div className="w-10 h-1 rounded-full bg-gray-300" /></div>
-                <h3 className="font-black text-gray-900 text-base mb-3 flex items-center gap-2">✏️ Edit Comment</h3>
+                <h3 className="font-black text-gray-900 text-base mb-3 flex items-center gap-2">âœï¸ Edit Comment</h3>
                 <textarea
                   value={editingCircleComment.text}
                   onChange={e => setEditingCircleComment(prev => prev ? { ...prev, text: e.target.value } : null)}
@@ -4303,7 +4303,7 @@ export default function CirclePage({
                   <button onClick={saveEditPost} disabled={editPostSaving || !editPostText.trim()}
                     className="flex-1 py-3 rounded-2xl bg-blue-600 text-white font-black text-sm flex items-center justify-center gap-2 disabled:opacity-40">
                     {editPostSaving ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
-                    {editPostSaving ? "Saving…" : "Save"}
+                    {editPostSaving ? "Savingâ€¦" : "Save"}
                   </button>
                 </div>
               </motion.div>
@@ -4340,7 +4340,7 @@ export default function CirclePage({
                     event.stopPropagation();
                     void deleteGroupPost(confirmDeletePost);
                   }} className="flex-1 py-3 rounded-2xl bg-red-500 text-white font-black text-sm disabled:cursor-wait disabled:opacity-60">
-                    {deleteGroupPostSaving ? "Deleting…" : "Delete"}
+                    {deleteGroupPostSaving ? "Deletingâ€¦" : "Delete"}
                   </button>
                 </div>
               </motion.div>
@@ -4384,12 +4384,12 @@ export default function CirclePage({
 
                 <label className="block text-[11px] font-black text-gray-500 uppercase tracking-wide mb-1.5">Description</label>
                 <textarea value={editGroupForm.description} onChange={e => setEditGroupForm(p => ({ ...p, description: e.target.value }))}
-                  placeholder="Circle ke baare mein batao…" rows={3}
+                  placeholder="Circle ke baare mein bataoâ€¦" rows={3}
                   className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-800 outline-none resize-none mb-5 focus:ring-2 focus:ring-blue-400/30" />
 
                 <button onClick={saveEditGroup} disabled={editGroupSaving || !editGroupForm.name.trim()}
                   className="w-full py-4 rounded-2xl bg-blue-600 text-white font-black text-sm disabled:opacity-40 active:scale-[0.98] transition-transform flex items-center justify-center gap-2">
-                  {editGroupSaving ? <><Loader2 size={16} className="animate-spin" /> Saving…</> : <><Check size={16} /> Save Changes</>}
+                  {editGroupSaving ? <><Loader2 size={16} className="animate-spin" /> Savingâ€¦</> : <><Check size={16} /> Save Changes</>}
                 </button>
               </motion.div>
             </motion.div>
@@ -4415,7 +4415,7 @@ export default function CirclePage({
                   <button onClick={deleteGroup} disabled={deletingGroup}
                     className="flex-1 py-3 rounded-2xl bg-red-500 text-white font-black text-sm flex items-center justify-center gap-2 disabled:opacity-40">
                     {deletingGroup ? <Loader2 size={16} className="animate-spin" /> : null}
-                    {deletingGroup ? "Deleting…" : "Delete"}
+                    {deletingGroup ? "Deletingâ€¦" : "Delete"}
                   </button>
                 </div>
               </motion.div>
@@ -4446,7 +4446,7 @@ export default function CirclePage({
                 <textarea
                   value={settingsForm.rules}
                   onChange={e => setSettingsForm(p => ({ ...p, rules: e.target.value }))}
-                  placeholder="Write group rules here…"
+                  placeholder="Write group rules hereâ€¦"
                   className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-800 outline-none resize-none mb-4 focus:ring-2 focus:ring-blue-400/30"
                   rows={4}
                 />
@@ -4465,7 +4465,7 @@ export default function CirclePage({
                   onClick={saveSettings}
                   disabled={savingSettings}
                   className="w-full py-4 rounded-2xl bg-blue-600 text-white font-black text-sm disabled:opacity-40 active:scale-[0.98] transition-transform">
-                  {savingSettings ? "Saving…" : "Save Settings"}
+                  {savingSettings ? "Savingâ€¦" : "Save Settings"}
                 </button>
               </motion.div>
             </motion.div>
@@ -4475,13 +4475,13 @@ export default function CirclePage({
     );
   }
 
-  // ── DASHBOARD VIEW ────────────────────────────────────────────────────────────
+  // â”€â”€ DASHBOARD VIEW â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   return (
     <div className="min-h-screen bg-[#d4f0e2] pb-28 touch-scroll-y">
       {/* Header */}
       <div className="bg-[#d4f0e2] border-b border-gray-100 px-4 pt-12 pb-4 flex items-center justify-between sticky top-0 z-50">
         <div>
-          <h1 className="text-xl font-black text-gray-900">Your Circles</h1>
+          <h1 className="text-xl font-black text-gray-900">👥 Circles</h1>
           <p className="text-[11px] text-gray-400 font-medium">Groups & communities you love</p>
         </div>
         <div className="flex items-center gap-2">
@@ -4624,7 +4624,7 @@ export default function CirclePage({
         </>
       )}
 
-      {/* ── Create Group Sheet ──────────────────────────────────────────────── */}
+      {/* â”€â”€ Create Group Sheet â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <AnimatePresence>
         {showCreate && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -4672,7 +4672,7 @@ export default function CirclePage({
                 type="text"
                 value={form.name}
                 onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
-                placeholder="e.g. Tech Lovers, Study Group…"
+                placeholder="e.g. Tech Lovers, Study Groupâ€¦"
                 className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-900 outline-none mb-4 focus:ring-2 focus:ring-blue-400/30"
               />
 
@@ -4713,7 +4713,7 @@ export default function CirclePage({
               >
                 {creating ? (
                   <span className="flex items-center justify-center gap-2">
-                    <Loader2 size={16} className="animate-spin" /> Creating…
+                    <Loader2 size={16} className="animate-spin" /> Creatingâ€¦
                   </span>
                 ) : "Create Circle"}
               </button>
@@ -4724,3 +4724,4 @@ export default function CirclePage({
     </div>
   );
 }
+
