@@ -3150,7 +3150,8 @@ toast.success("You have left the Circle. 👋");
                           ? "rgba(59,130,246,0.12)"
                           : "rgba(255,255,255,0.04)"
                     }}>
-                    {m.role === "admin" ? 👑 Admin : m.role === "moderator" ? "â­ Mod" : "Member"}
+                     {m.role === "admin" ? "👑 Admin" : m.role === "moderator" ? "M" : "Member"}
+                     {m.role === "admin" ? "👑 Admin" : m.role === "moderator" ? "M" : "Member"}
                   </span>
                   {/* Action button */}
                   {m.user_id !== currentUserId && (
@@ -4724,4 +4725,5 @@ toast.success("You have left the Circle. 👋");
     </div>
   );
 }
+
 
