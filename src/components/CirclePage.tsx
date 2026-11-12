@@ -528,7 +528,7 @@ export default function CirclePage({
     setGroups(prev => prev.map(g => g.id === selectedGroup.id ? { ...g, pinned_announcement: text || null } : g));
     setPinnedEditing(false);
     setSavingPin(false);
-    toast.success(text ? "ðŸ“Œ Announcement pinned!" : "Announcement removed.");
+    toast.success(text ? "📍 Announcement pinned!" : "Announcement removed.");
   };
 
   const saveRulesInline = async () => {
@@ -543,7 +543,7 @@ export default function CirclePage({
     setSelectedGroup(prev => prev ? { ...prev, rules: rulesText.trim() || null } : prev);
     setGroups(prev => prev.map(g => g.id === selectedGroup.id ? { ...g, rules: rulesText.trim() || null } : g));
     setRulesEditing(false);
-    toast.success("ðŸ“‹ Group rules updated!");
+    toast.success("📝 Group rules updated!");
   };
 
   // Post options bottom sheet
@@ -841,7 +841,7 @@ export default function CirclePage({
         setNewInviteCount(c => c + 1);
         playInviteChime();
         haptic(18);
-        toast("ðŸ“¨ You have a new Circle invite!", {
+        toast("📩 You have a new Circle invite!", {
           duration: 4000,
           action: { label: "View", onClick: () => setView("dashboard") },
         });
@@ -930,7 +930,7 @@ export default function CirclePage({
     await supabase.from("circle_members").insert([{ circle_id: groupId, user_id: currentUserId, role: "member" }]);
     await supabase.from("circles").update({ member_count: (groups.find(g => g.id === groupId)?.member_count ?? 0) + 1 }).eq("id", groupId);
     fetchGroups();
-    toast.success("Joined! Welcome to the Circle ðŸŽ‰");
+    toast.success("Joined! Welcome to the Circle 🎉");
   };
 
   // â”€â”€ Leave Group â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -1012,7 +1012,7 @@ export default function CirclePage({
     setCircleEvents(prev => [...prev, data].sort((a, b) => a.event_date.localeCompare(b.event_date)));
     setShowCreateEvent(false);
     setEventForm({ title: "", description: "", event_date: "", event_time: "", location: "" });
-    toast.success("ðŸŽ‰ Event created!");
+    toast.success("🎉 Event created!");
   };
 
   const deleteEvent = async (eventId: string) => {
@@ -3790,7 +3790,7 @@ export default function CirclePage({
                     className="w-full py-4 rounded-2xl bg-violet-600 text-white text-[14px] font-black disabled:opacity-40 active:scale-[0.98] transition-transform flex items-center justify-center gap-2 shadow-lg shadow-violet-200"
                   >
                     {savingEvent ? <Loader2 size={18} className="animate-spin" /> : <CalendarPlus size={18} />}
-                    {savingEvent ? "Creatingâ€¦" : "Create Event ðŸŽ‰"}
+                    {savingEvent ? "Creatingâ€¦" : "Create Event 🎉"}
                   </button>
                 </div>
               </motion.div>
@@ -4197,7 +4197,7 @@ export default function CirclePage({
               if (!(ac as any).is_hidden) items.push({ icon: "ðŸ™ˆ", label: "Hide Comment", action: () => handleCircleCommentHide(ac.id, postId) });
             }
             if (!isCommenter && !isPostOwner && !canModerate) {
-              items.push({ icon: "ðŸš©", label: "Report", action: () => handleCircleCommentReport(ac, postId), danger: true });
+              items.push({ icon: "🚨", label: "Report", action: () => handleCircleCommentReport(ac, postId), danger: true });
             }
 
             const menuW = 210;
