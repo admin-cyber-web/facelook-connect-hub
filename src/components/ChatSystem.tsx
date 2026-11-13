@@ -262,7 +262,7 @@ const THEME_CFG = {
     text3: "text-white/55",
     accent: "bg-[#25D366]",
     accentText: "text-[#25D366]",
-    icon: "ðŸ’¬",
+    icon: "💬",
     label: "WhatsApp",
     divider: "border-[#054C44]",
     searchBg:
@@ -288,7 +288,7 @@ const THEME_CFG = {
     text3: "text-white/40",
     accent: "bg-[#E3FF00]",
     accentText: "text-[#E3FF00]",
-    icon: "âš¡",
+    icon: "⚡",
     label: "Midnight",
     divider: "border-white/8",
     searchBg: "bg-[#050505] border-white/10 text-white placeholder:text-white/25",
@@ -302,23 +302,23 @@ const THEME_CFG = {
     sidebar: "bg-[#fbf0d9]",
     chat: "bg-[#fbf0d9]",
     topbar: "bg-[#fbf0d9]",
-    input: "bg-[#fbf0d9] border-stone-300",
+    input: "bg-[#fbf0d9]/95 border border-[#c9b98f]",
     nav: "bg-[#fbf0d9]",
-    bubbleSent: "bg-[#fbf0d9] text-[#1a2b4c] shadow-sm rounded-xl",
-    bubbleRecv: "bg-white text-[#1a2b4c] shadow-sm border border-stone-200 rounded-xl",
-    text1: "#1a2b4c",
-    text2: "#1a2b4c/75",
-    text3: "#1a2b4c/55",
-    accent: "#1a2b4c",
-    accentText: "#1a2b4c",
-    icon: "ðŸ“–",
+    bubbleSent: "bg-[#fbf0d9] text-[#4a3a2b]",
+    bubbleRecv: "bg-[#fbf0d9] text-[#4a3a2b]",
+    text1: "text-[#3e2e1e]",
+    text2: "text-[#5d4c3a]",
+    text3: "text-[#8a7a6a]",
+    accent: "bg-[#8b6b4a]",
+    accentText: "text-[#8b6b4a]",
+    icon: "📖",
     label: "Dairy Notebook",
-    divider: "linear-gradient(rgba(209,217,230,0.5) 1px, transparent 1px)",
-    searchBg: "bg-[#fbf0d9] text-[#1a2b4c] placeholder:text-[#1a2b4c]/50",
-    msgMenuBg: "#fbf0d9 border-stone-200 shadow-sm",
-    pill: "#fbf0d9/20 text-[#1a2b4c] border #fbf0d9/30",
-    storyRing: "border-[#1a2b4c]",
-    sendBtnText: "#1a2b4c",
+    divider: "border-[#c9b98f]",
+    searchBg: "bg-[#fbf0d9]/90 border border-[#c9b98f] text-[#3e2e1e] placeholder:text-[#8a7a6a]",
+    msgMenuBg: "bg-[#fbf0d9] border-[#c9b98f] shadow-sm",
+    pill: "bg-[#e8dcc5]/40 text-[#3e2e1e] border-[#c9b98f]",
+    storyRing: "border-[#8b6b4a]",
+    sendBtnText: "text-[#3e2e1e]",
   },
   comic: {
     wrap: "bg-sky-100",
@@ -334,7 +334,7 @@ const THEME_CFG = {
     text3: "text-gray-500",
     accent: "bg-[#E3FF00]",
     accentText: "text-[#0066FF]",
-    icon: "ðŸŽ¨",
+    icon: "🎨",
     label: "Comic Pop",
     divider: "border-black/10",
     searchBg: "bg-white border-gray-200 text-gray-900 placeholder:text-gray-400",
@@ -723,7 +723,7 @@ const StoryHelpSticker = () => (
     style={{ background: "linear-gradient(135deg,#f97316,#ef4444)", "--perf-duration": "1.1s", "--perf-scale": "1.08" } as React.CSSProperties}
   >
     <span className="text-white font-black text-base tracking-widest drop-shadow">
-      ðŸ†˜ MADAD
+      🆘 MADAD
     </span>
   </div>
 );
@@ -3781,7 +3781,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     "ðŸ¥º",
     "ðŸ˜¤",
     "ðŸ’¯",
-    "ðŸ–•",
+    "🖕",
     "ðŸŒ¹",
     "ðŸ’•",
     "ðŸ¤¯",
@@ -3868,11 +3868,11 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     <AnimatePresence>
       {isOpen && (
         <motion.div
-          initial={{ y: "100%" }}
-          animate={{ y: 0 }}
-          exit={{ y: "100%" }}
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.95 }}
           transition={{ type: "spring", stiffness: 300, damping: 30 }}
-          className={`chat-shell fixed inset-0 z-[150] isolate flex h-[100dvh] min-h-0 flex-col ${T.wrap} overflow-hidden`}
+          className={`chat-shell fixed inset-0 z-[150] isolate flex h-[100dvh] min-h-0 flex-col overflow-hidden`}
           style={{
             top: "env(safe-area-inset-top, 0px)",
             height: "calc(100dvh - env(safe-area-inset-top, 0px))",
@@ -3888,6 +3888,81 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
           onClick={(e) => e.stopPropagation()}
           onPointerDown={(e) => e.stopPropagation()}
         >
+          {/* ═══ DAIRY NOTEBOOK BOOK PAGE LAYOUT ═══ */}
+          {theme === "dairy-notebook" && (
+            <motion.div
+              initial={{ rotateY: -55, opacity: 0 }}
+              animate={{ rotateY: 0, opacity: 1 }}
+              exit={{ rotateY: 55, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 400, damping: 30 }}
+              className="relative w-full h-full flex items-center justify-center p-4"
+            >
+              {/* Left Page */}
+              <motion.div
+                initial={{ x: 40, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                exit={{ x: -40, opacity: 0 }}
+                transition={{ type: "spring", stiffness: 400, damping: 25 }}
+                className="relative w-[46%] h-full max-w-[380px] flex flex-col items-start pt-12 pb-8 pl-4 pr-2"
+                style={{
+                  backgroundImage:
+                    "linear-gradient(#c9b98f 1px, transparent 1px), linear-gradient(to right, #e8dcc5 2px, transparent 2px)",
+                  backgroundSize: "100% 28px, 4px 100%",
+                  backgroundPosition: "left top, left top",
+                }}
+              >
+                {/* Left page margin line */}
+                <div className="absolute left-[38px] top-0 bottom-0 w-[1px] bg-[#8b6b4a]/30 pointer-events-none" />
+                {/* Partner messages render here (injected below) */}
+                <div className="flex-1 w-full overflow-y-auto pr-2" ref={messagesPaneRef} />
+              </motion.div>
+
+              {/* Center Spiral Binding */}
+              <motion.div
+                initial={{ scaleY: 0.8, opacity: 0 }}
+                animate={{ scaleY: 1, opacity: 1 }}
+                exit={{ scaleY: 0.8, opacity: 0 }}
+                transition={{ type: "spring", stiffness: 500, damping: 25 }}
+                className="relative w-2 h-full flex flex-col items-center justify-center z-20 mx-1"
+              >
+                <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-[2px] bg-[#5d4c3a] rounded-full" />
+                {/* Spring coils */}
+                {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((i) => (
+                  <div
+                    key={i}
+                    className="absolute w-2 h-2 rounded-full bg-[#5d4c3a] border-2 border-[#fbf0d9]"
+                    style={{
+                      top: `${8 + i * 22}px`,
+                      left: "50%",
+                      transform: "translateX(-50%)",
+                      boxShadow: "0 1px 2px rgba(0,0,0,0.15)",
+                    }}
+                  />
+                ))}
+              </motion.div>
+
+              {/* Right Page */}
+              <motion.div
+                initial={{ x: -40, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                exit={{ x: 40, opacity: 0 }}
+                transition={{ type: "spring", stiffness: 400, damping: 25 }}
+                className="relative w-[46%] h-full max-w-[380px] flex flex-col items-start pt-12 pb-8 pl-2 pr-4"
+                style={{
+                  backgroundImage:
+                    "linear-gradient(#c9b98f 1px, transparent 1px), linear-gradient(to right, #e8dcc5 2px, transparent 2px)",
+                  backgroundSize: "100% 28px, 4px 100%",
+                  backgroundPosition: "left top, left top",
+                }}
+              >
+                {/* Right page margin line */}
+                <div className="absolute right-[38px] top-0 bottom-0 w-[1px] bg-[#8b6b4a]/30 pointer-events-none" />
+                {/* User messages render here (injected below) */}
+                <div className="flex-1 w-full overflow-y-auto pl-2" />
+              </motion.div>
+            </motion.div>
+          )}
+          {/* ═══ END DAIRY NOTEBOOK BOOK PAGE LAYOUT ═══ */}
           {/* â”€â”€ PANIC MODE OVERLAY â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
           <AnimatePresence>
             {panicMode && (
@@ -3906,7 +3981,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                   }}
                   className="text-[120px] leading-none mb-8"
                 >
-                  ðŸ–•
+                  🖕
                 </motion.div>
                 <button
                   onClick={handlePanicUnlock}
@@ -3922,7 +3997,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                     />
                   ) : (
                     <div className="w-full h-full bg-gray-100 flex items-center justify-center text-2xl">
-                      ðŸ‘¤
+                      👤
                     </div>
                   )}
                 </button>
@@ -3986,13 +4061,13 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                       "linear-gradient(135deg,rgba(220,38,38,0.95) 0%,rgba(153,27,27,0.97) 100%)",
                   }}
                 >
-                  <span className="text-2xl shrink-0 mt-0.5">âš ï¸</span>
+                  <span className="text-2xl shrink-0 mt-0.5">⚠️</span>
                   <div>
                     <p className="text-white font-black text-sm tracking-wide leading-tight">
                       Warning: Suspicious Activity Detected
                     </p>
                     <p className="text-red-200 font-black text-sm tracking-wide leading-tight mt-0.5">
-                      à¤šà¥‡à¤¤à¤¾à¤µà¤¨à¥€: à¤¸à¤‚à¤¦à¤¿à¤—à¥à¤§ à¤—à¤¤à¤¿à¤µà¤¿à¤§à¤¿
+                      चेतावनी: संदिग्ध गतिविधि
                     </p>
                     <p className="text-red-200/80 text-[11px] mt-1">
                       Message from{" "}
@@ -4869,7 +4944,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                         onClick={() => setStoryIsHelp((v) => !v)}
                         className={`w-full py-2.5 rounded-2xl text-sm font-black border-2 mb-4 transition-all ${storyIsHelp ? "bg-orange-500/20 text-orange-300 border-orange-500/50" : "bg-white/5 text-white/40 border-white/10"}`}
                       >
-                        ðŸ†˜{" "}
+                        🆘{" "}
                         {storyIsHelp
                           ? "Madad Request ON"
                           : "Mark as Madad Request"}
@@ -4917,7 +4992,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                             ...
                           </>
                         ) : (
-                          `Post ${storyFiles.length > 1 ? storyFiles.length + " Stories" : "Story"} ðŸŒ¹`
+                          `Post ${storyFiles.length > 1 ? storyFiles.length + " Stories" : "Story"} 📱`
                         )}
                       </button>
                     </div>
@@ -5497,7 +5572,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                             }}
                             className="flex items-center gap-2 w-full px-4 py-3 text-sm font-bold text-red-400 hover:bg-red-500/10"
                           >
-                            ðŸ–• Panic Mode
+                            🖕 Panic Mode
                           </button>
                         </motion.div>
                       )}
@@ -5636,7 +5711,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                         <div className="relative shrink-0">
                           <div className="absolute inset-0 rounded-full bg-red-500/40 animate-ping" />
                           <div className="w-8 h-8 rounded-full bg-red-500 flex items-center justify-center text-white text-base relative z-10">
-                            ðŸŽ™ï¸
+                            🎤️
                           </div>
                         </div>
                         {/* Status + timer */}
@@ -5700,15 +5775,20 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                 </AnimatePresence>
 
                 {/* Messages */}
-                <div
-                  ref={messagesPaneRef}
-                  className="chat-scroll-pane flex min-h-0 flex-1 flex-col items-stretch overflow-y-auto px-4 pt-20 pb-4 space-y-2"
-                  onClick={() => {
-                    setMsgMenuId(null);
-                    setShowEmojiGrid(false);
-                    setShowInputEmoji(false);
-                  }}
-                >
+                {theme === "dairy-notebook" ? (
+                  <>
+                    <div className="w-full flex justify-center mb-6">
+                      <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#e8dcc5]/50 border border-[#c9b98f]/40 shadow-sm">
+                        <span className="text-[10px] font-black text-[#5d4c3a] tracking-wide uppercase">
+                          {new Date().toLocaleDateString(undefined, { weekday: "long" })}
+                        </span>
+                        <span className="text-[10px] font-black text-[#3e2e1e]">
+                          {new Date().toLocaleDateString(undefined, { month: "long", day: "numeric" })}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex h-full w-full">
+                      <div className="flex-1 w-full overflow-y-auto pr-2 scroll-smooth" ref={messagesPaneRef}>
                   {hasOlderMessages && (
                     <div className="absolute left-0 right-0 top-2 z-10 flex justify-center pointer-events-none">
                       <button
@@ -5720,7 +5800,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                         disabled={loadingOlderMessages}
                         className={`pointer-events-auto rounded-full px-3 py-1 text-[11px] font-bold border ${T.divider} ${T.text1} bg-black/30 backdrop-blur-sm disabled:opacity-50`}
                       >
-                        {loadingOlderMessages ? "Loading olderâ€¦" : "Load older messages"}
+                        {loadingOlderMessages ? "Loading older…" : "Load older messages"}
                       </button>
                     </div>
                   )}
@@ -5733,7 +5813,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                     </div>
                   ) : filteredMessages.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
-                      <p className="text-5xl">ðŸ‘‹</p>
+                      <p className="text-5xl">🫶</p>
                       <p className={`text-base font-black ${T.text1}`}>
                         {chatSearch
                           ? "No messages found"
@@ -5829,7 +5909,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                 <p
                                   className={`text-[11px] font-semibold truncate ${T.text3}`}
                                 >
-                                  {quotedMsg.content || "ðŸ“Ž Media"}
+                                  {quotedMsg.content || "📎 Media"}
                                 </p>
                               </div>
                             )}
@@ -6007,7 +6087,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                               : selectedUser?.full_name?.split(" ")[0]}
                           </p>
                           <p className={`text-[11px] truncate ${T.text3}`}>
-                            {replyTo.content || "ðŸ“Ž Media"}
+                            {replyTo.content || "📎 Media"}
                           </p>
                         </div>
                         <button
@@ -6217,7 +6297,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                             className={`w-9 h-9 rounded-2xl border flex items-center justify-center text-base shrink-0 active:scale-90 transition-all
                               ${voiceMode ? "bg-red-500 border-red-400 animate-pulse text-white" : `bg-white/10 ${T.divider} hover:bg-white/20`}`}
                           >
-                            ðŸŽ™ï¸
+                            🎤️
                           </button>
                         </motion.div>
                       )}
@@ -6386,7 +6466,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                             {story.is_help_request && (
                               <div className="absolute top-2 left-2 bg-orange-500 rounded-full px-1.5 py-0.5">
                                 <span className="text-white text-[10px] font-black">
-                                  ðŸ†˜
+                                  🆘
                                 </span>
                               </div>
                             )}
