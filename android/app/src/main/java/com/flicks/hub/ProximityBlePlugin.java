@@ -1,5 +1,6 @@
 package com.flicks.hub;
 
+import android.annotation.SuppressLint;
 import android.Manifest;
 import android.bluetooth.BluetoothAdapter;
 import android.content.BroadcastReceiver;
@@ -58,6 +59,7 @@ public class ProximityBlePlugin extends Plugin {
     };
 
     @Override
+    @SuppressLint("UnspecifiedRegisterReceiverFlag")
     public void load() {
         super.load();
         if (receiverRegistered || getContext() == null) return;

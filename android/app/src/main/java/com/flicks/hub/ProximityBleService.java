@@ -405,16 +405,22 @@ public class ProximityBleService extends Service {
             }
         };
 
-        ScanSettings settings = new ScanSettings.Builder()
-                .setScanMode(SCAN_MODE)
-                .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
-                .build();
+        ScanSettings.Builder settingsBuilder = new ScanSettings.Builder()
+                .setScanMode(SCAN_MODE);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            settingsBuilder.setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES);
+        }
+        ScanSettings settings = settingsBuilder.build();
         ScanFilter filter = new ScanFilter.Builder()
                 .setServiceData(SERVICE_PARCEL_UUID, new byte[] { 0 }, new byte[] { 0 })
                 .build();
         try {
             scanner.startScan(Arrays.asList(filter), settings, scanCallback);
-        } catch (RuntimeException error) {
+        } catch (SecurityException error) {
+            scanCallback = null;
+            emitStatus("BLE scanning is unavailable");
+            Log.w("FlicksProximity", "startScan failed", error);
+        } catch (Exception error) {
             scanCallback = null;
             emitStatus("BLE scanning is unavailable");
             Log.w("FlicksProximity", "startScan failed", error);
@@ -489,7 +495,9 @@ public class ProximityBleService extends Service {
             activeDevice = activeCandidate.device;
             if (activeClientGatt == null) finishClientTransfer();
             else mainHandler.postDelayed(clientTimeout, 16_000);
-        } catch (RuntimeException error) {
+        } catch (SecurityException error) {
+            finishClientTransfer();
+        } catch (Exception error) {
             finishClientTransfer();
         }
     }
@@ -509,9 +517,9 @@ public class ProximityBleService extends Service {
                 boolean requested = false;
                 try {
                     requested = gatt.requestMtu(185);
-                } catch (RuntimeException ignored) {}
+                } catch (SecurityException ignored) {}
                 if (!requested) {
-                    try { gatt.discoverServices(); } catch (RuntimeException ignored) {}
+                    try { gatt.discoverServices(); } catch (SecurityException ignored) {}
                 }
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                 finishClientTransfer();
@@ -521,7 +529,7 @@ public class ProximityBleService extends Service {
         @Override
         public void onMtuChanged(BluetoothGatt gatt, int mtu, int status) {
             if (gatt != activeClientGatt) return;
-            try { gatt.discoverServices(); } catch (RuntimeException ignored) {}
+            try { gatt.discoverServices(); } catch (SecurityException ignored) {}
         }
 
         @Override
@@ -543,15 +551,24 @@ public class ProximityBleService extends Service {
                 return;
             }
             try {
-                gatt.setCharacteristicNotification(characteristic, true);
+                try {
+                    gatt.setCharacteristicNotification(characteristic, true);
+                } catch (SecurityException ignored) {}
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    int result = gatt.writeDescriptor(
-                            descriptor, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
-                    );
+                    int result = BluetoothGatt.GATT_FAILURE;
+                    try {
+                        result = gatt.writeDescriptor(
+                                descriptor, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
+                        );
+                    } catch (SecurityException ignored) {}
                     if (result != BluetoothGatt.GATT_SUCCESS) finishClientTransfer();
                 } else {
                     descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
-                    if (!gatt.writeDescriptor(descriptor)) finishClientTransfer();
+                    boolean success = false;
+                    try {
+                        success = gatt.writeDescriptor(descriptor);
+                    } catch (SecurityException ignored) {}
+                    if (!success) finishClientTransfer();
                 }
             } catch (RuntimeException error) {
                 finishClientTransfer();
@@ -653,8 +670,8 @@ public class ProximityBleService extends Service {
         receivedChunks = null;
         receivedChunkCount = 0;
         if (gatt != null) {
-            try { gatt.disconnect(); } catch (RuntimeException ignored) {}
-            try { gatt.close(); } catch (RuntimeException ignored) {}
+            try { gatt.disconnect(); } catch (SecurityException ignored) {}
+            try { gatt.close(); } catch (SecurityException ignored) {}
         }
         if (activeCandidate != null) queuedTokens.remove(activeCandidate.token);
         activeCandidate = null;
@@ -667,7 +684,9 @@ public class ProximityBleService extends Service {
         if (!running || !advertisingEnabled || profilePayload.length == 0 || advertiser == null) return;
         try {
             if (bluetoothManager == null) return;
-            gattServer = bluetoothManager.openGattServer(this, serverCallback);
+            try {
+                gattServer = bluetoothManager.openGattServer(this, serverCallback);
+            } catch (SecurityException ignored) {}
             if (gattServer == null) {
                 emitStatus("BLE profile sharing is unavailable");
                 return;
@@ -686,7 +705,9 @@ public class ProximityBleService extends Service {
             ));
             service.addCharacteristic(profileCharacteristic);
             profileServiceReady = false;
-            gattServer.addService(service);
+            try {
+                gattServer.addService(service);
+            } catch (SecurityException ignored) {}
         } catch (RuntimeException error) {
             emitStatus("BLE profile sharing could not start");
             Log.w("FlicksProximity", "GATT server setup failed", error);
@@ -741,12 +762,14 @@ public class ProximityBleService extends Service {
                             enabled ? BluetoothGatt.GATT_SUCCESS : BluetoothGatt.GATT_FAILURE,
                             offset, null
                     );
-                } catch (RuntimeException ignored) {}
+                } catch (SecurityException ignored) {}
             }
             if (enabled && profilePayload.length > 0) {
+                Integer cachedMtu = mtuByAddress.get(device.getAddress());
+                int effectiveMtu = cachedMtu != null ? cachedMtu : 23;
                 notificationTransfers.put(
                         device.getAddress(),
-                        new NotificationTransfer(device, profilePayload.clone(), mtuByAddress.getOrDefault(device.getAddress(), 23))
+                        new NotificationTransfer(device, profilePayload.clone(), effectiveMtu)
                 );
                 processNextNotificationTransfer();
             }
@@ -780,7 +803,10 @@ public class ProximityBleService extends Service {
         };
         try {
             advertiser.startAdvertising(settings, data, advertiseCallback);
-        } catch (RuntimeException error) {
+        } catch (SecurityException error) {
+            advertiseCallback = null;
+            emitStatus("BLE broadcasting is unavailable");
+        } catch (Exception error) {
             advertiseCallback = null;
             emitStatus("BLE broadcasting is unavailable");
         }
@@ -790,14 +816,14 @@ public class ProximityBleService extends Service {
         if (advertiser != null && advertiseCallback != null) {
             try {
                 advertiser.stopAdvertising(advertiseCallback);
-            } catch (RuntimeException ignored) {}
+            } catch (SecurityException ignored) {}
         }
         advertiseCallback = null;
     }
 
     private void closeGattServer() {
         if (gattServer != null) {
-            try { gattServer.close(); } catch (RuntimeException ignored) {}
+            try { gattServer.close(); } catch (SecurityException ignored) {}
             gattServer = null;
         }
         profileServiceReady = false;
@@ -808,14 +834,14 @@ public class ProximityBleService extends Service {
         running = false;
         mainHandler.removeCallbacks(stalePeerSweep);
         if (scanner != null && scanCallback != null) {
-            try { scanner.stopScan(scanCallback); } catch (RuntimeException ignored) {}
+            try { scanner.stopScan(scanCallback); } catch (SecurityException ignored) {}
         }
         scanCallback = null;
         stopAdvertising();
         closeGattServer();
         if (activeClientGatt != null) {
-            try { activeClientGatt.disconnect(); } catch (RuntimeException ignored) {}
-            try { activeClientGatt.close(); } catch (RuntimeException ignored) {}
+            try { activeClientGatt.disconnect(); } catch (SecurityException ignored) {}
+            try { activeClientGatt.close(); } catch (SecurityException ignored) {}
             activeClientGatt = null;
         }
         activeDevice = null;
