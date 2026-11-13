@@ -297,7 +297,7 @@ const THEME_CFG = {
     storyRing: "border-[#E3FF00]",
     sendBtnText: "text-[#050505]",
   },
-  dairy-notebook: {
+  "dairy-notebook": {
     wrap: "#fbf0d9",
     sidebar: "#fbf0d9",
     chat: "#fbf0d9",
