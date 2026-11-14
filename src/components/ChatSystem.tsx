@@ -5052,7 +5052,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
           <div className="relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden">
             {/* ════ CHAT LIST ══════════════════════════════════════════════ */}
             {bottomTab === "chat" && !selectedUser && (
-              <div className={`flex min-h-0 flex-1 flex-col overflow-hidden`}>
+              <div className="flex h-full w-full overflow-hidden flex-col">
                 {/* Header */}
                 <div
                   className={`flex items-center gap-2 px-4 py-3 border-b ${T.divider} shrink-0`}
@@ -5308,7 +5308,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
 
             {/* ════ FULL-SCREEN CHAT ════════════════════════════════════════ */}
             {bottomTab === "chat" && selectedUser && (
-              <div className={`relative flex min-h-0 flex-1 flex-col overflow-hidden`}>
+              <div className="relative flex h-full w-full overflow-hidden flex-col">
                 <audio
                   ref={chatMusicAudioRef}
                   hidden
