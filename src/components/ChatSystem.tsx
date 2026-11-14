@@ -1,4 +1,5 @@
 ﻿import React, { useState, useEffect, useRef, useCallback } from "react";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { ReactionBar, ReactionBubbles } from "./ReactionBar";
 import { useSoundEffects } from "../hooks/useSoundEffects";
 import { useProfileViewer } from "../context/ProfileViewerContext";
@@ -304,8 +305,8 @@ const THEME_CFG = {
     topbar: "bg-[#fbf0d9]",
     input: "bg-[#fbf0d9]/95 border border-[#c9b98f]",
     nav: "bg-[#fbf0d9]",
-    bubbleSent: "bg-[#fbf0d9] text-[#4a3a2b]",
-    bubbleRecv: "bg-[#fbf0d9] text-[#4a3a2b]",
+    bubbleSent: "bg-transparent border-none shadow-none text-[#2c1810]",
+    bubbleRecv: "bg-transparent border-none shadow-none text-[#1a2b4c]",
     text1: "text-[#3e2e1e]",
     text2: "text-[#5d4c3a]",
     text3: "text-[#8a7a6a]",
@@ -319,6 +320,8 @@ const THEME_CFG = {
     pill: "bg-[#e8dcc5]/40 text-[#3e2e1e] border-[#c9b98f]",
     storyRing: "border-[#8b6b4a]",
     sendBtnText: "text-[#3e2e1e]",
+    fontBody: "font-kalam",
+    fontHeading: "font-caveat",
   },
   comic: {
     wrap: "bg-sky-100",
@@ -806,6 +809,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   onReady,
 }) => {
   const isAdmin = isAdminEmail(userEmail);
+  const isMobile = useIsMobile();
   const { openProfile } = useProfileViewer();
 
   // ── Message Reactions ─────────────────────────────────────────────────────
@@ -3897,13 +3901,22 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
               transition={{ type: "spring", stiffness: 400, damping: 30 }}
               className="relative w-full h-full flex items-center justify-center p-4"
             >
+              {/* Mobile spine (top) for small screens */}
+              <div
+                className={`dn-mobile-spine ${
+                  isMobile ? "block" : "hidden"
+                }`}
+              />
+
               {/* Left Page */}
               <motion.div
                 initial={{ x: 40, opacity: 0 }}
                 animate={{ x: 0, opacity: 1 }}
                 exit={{ x: -40, opacity: 0 }}
                 transition={{ type: "spring", stiffness: 400, damping: 25 }}
-                className="relative w-[46%] h-full max-w-[380px] flex flex-col items-start pt-12 pb-8 pl-4 pr-2"
+                className={`relative w-[46%] h-full max-w-[380px] flex flex-col items-start pt-12 pb-8 pl-4 pr-2 dn-parchment dn-ruled-lines ${
+                  isMobile ? "hidden" : ""
+                }`}
                 style={{
                   backgroundImage:
                     "linear-gradient(#c9b98f 1px, transparent 1px), linear-gradient(to right, #e8dcc5 2px, transparent 2px)",
@@ -3912,9 +3925,25 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                 }}
               >
                 {/* Left page margin line */}
-                <div className="absolute left-[38px] top-0 bottom-0 w-[1px] bg-[#8b6b4a]/30 pointer-events-none" />
+                <div
+                  className="absolute left-[38px] top-0 bottom-0 w-[1px] bg-[#8b6b4a]/30 pointer-events-none"
+                />
+                {/* Punched holes on left page inner margin */}
+                {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((i) => (
+                  <div
+                    key={`lh-${i}`}
+                    className="dn-punched-hole"
+                    style={{
+                      top: `${8 + i * 22}px`,
+                      left: "4px",
+                    }}
+                  />
+                ))}
                 {/* Partner messages render here (injected below) */}
-                <div className="flex-1 w-full overflow-y-auto pr-2" ref={messagesPaneRef} />
+                <div
+                  className="flex-1 w-full overflow-y-auto pr-2"
+                  ref={messagesPaneRef}
+                />
               </motion.div>
 
               {/* Center Spiral Binding */}
@@ -3923,19 +3952,22 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                 animate={{ scaleY: 1, opacity: 1 }}
                 exit={{ scaleY: 0.8, opacity: 0 }}
                 transition={{ type: "spring", stiffness: 500, damping: 25 }}
-                className="relative w-2 h-full flex flex-col items-center justify-center z-20 mx-1"
+                className={`relative w-2 h-full flex flex-col items-center justify-center z-20 mx-1 ${
+                  isMobile ? "hidden" : ""
+                }`}
               >
-                <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-[2px] bg-[#5d4c3a] rounded-full" />
+                <div
+                  className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-[2px] bg-[#5d4c3a] rounded-full"
+                />
                 {/* Spring coils */}
                 {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((i) => (
                   <div
-                    key={i}
-                    className="absolute w-2 h-2 rounded-full bg-[#5d4c3a] border-2 border-[#fbf0d9]"
+                    key={`coil-${i}`}
+                    className="dn-spiral-coil"
                     style={{
                       top: `${8 + i * 22}px`,
                       left: "50%",
                       transform: "translateX(-50%)",
-                      boxShadow: "0 1px 2px rgba(0,0,0,0.15)",
                     }}
                   />
                 ))}
@@ -3947,7 +3979,9 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                 animate={{ x: 0, opacity: 1 }}
                 exit={{ x: 40, opacity: 0 }}
                 transition={{ type: "spring", stiffness: 400, damping: 25 }}
-                className="relative w-[46%] h-full max-w-[380px] flex flex-col items-start pt-12 pb-8 pl-2 pr-4"
+                className={`relative w-[46%] h-full max-w-[380px] flex flex-col items-start pt-12 pb-8 pl-2 pr-4 dn-parchment dn-ruled-lines ${
+                  isMobile ? "hidden" : ""
+                }`}
                 style={{
                   backgroundImage:
                     "linear-gradient(#c9b98f 1px, transparent 1px), linear-gradient(to right, #e8dcc5 2px, transparent 2px)",
@@ -3956,7 +3990,20 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                 }}
               >
                 {/* Right page margin line */}
-                <div className="absolute right-[38px] top-0 bottom-0 w-[1px] bg-[#8b6b4a]/30 pointer-events-none" />
+                <div
+                  className="absolute right-[38px] top-0 bottom-0 w-[1px] bg-[#8b6b4a]/30 pointer-events-none"
+                />
+                {/* Punched holes on right page inner margin */}
+                {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((i) => (
+                  <div
+                    key={`rh-${i}`}
+                    className="dn-punched-hole"
+                    style={{
+                      top: `${8 + i * 22}px`,
+                      right: "4px",
+                    }}
+                  />
+                ))}
                 {/* User messages render here (injected below) */}
                 <div className="flex-1 w-full overflow-y-auto pl-2" />
               </motion.div>
@@ -5777,16 +5824,6 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                 {/* Messages */}
                 {theme === "dairy-notebook" ? (
                   <>
-                    <div className="w-full flex justify-center mb-6">
-                      <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#e8dcc5]/50 border border-[#c9b98f]/40 shadow-sm">
-                        <span className="text-[10px] font-black text-[#5d4c3a] tracking-wide uppercase">
-                          {new Date().toLocaleDateString(undefined, { weekday: "long" })}
-                        </span>
-                        <span className="text-[10px] font-black text-[#3e2e1e]">
-                          {new Date().toLocaleDateString(undefined, { month: "long", day: "numeric" })}
-                        </span>
-                      </div>
-                    </div>
                     <div className="flex h-full w-full">
                       <div className="flex-1 w-full overflow-y-auto pr-2 scroll-smooth" ref={messagesPaneRef}>
                   {hasOlderMessages && (
@@ -5837,6 +5874,38 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                         ? messages.find((m) => m.id === msg.reply_to_id)
                         : null;
                       return (
+                        {/* Dynamic date divider when date changes */}
+                        {(() => {
+                          const msgDate = new Date(
+                            msg.created_at || msg.sent_at || Date.now()
+                          ).toDateString();
+                          const prevMsg = filteredMessages[idx - 1];
+                          const prevDate = prevMsg
+                            ? new Date(
+                                prevMsg.created_at ||
+                                  prevMsg.sent_at ||
+                                  Date.now()
+                              ).toDateString()
+                            : null;
+                          const showDateDivider = msgDate !== prevDate;
+                          if (!showDateDivider) return null;
+                          return (
+                            <div key={`date-${msg.id}`} className="mb-2 mt-4 flex justify-center">
+                              <div className="dn-date-divider">
+                                {new Date(
+                                  msg.created_at ||
+                                    msg.sent_at ||
+                                    Date.now()
+                                ).toLocaleDateString(undefined, {
+                                  weekday: "long",
+                                  month: "long",
+                                  day: "numeric",
+                                  year: "numeric",
+                                })}
+                              </div>
+                            </div>
+                          );
+                        })()}
                         <motion.div
                           key={msg.id}
                           initial={{ opacity: 0, y: 8 }}
@@ -5919,7 +5988,13 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                               <div className="absolute inset-0 rounded-[20px] pointer-events-none overflow-hidden" style={{ backgroundImage:"radial-gradient(circle,rgba(0,0,0,0.06) 1px,transparent 1px)", backgroundSize:"7px 7px", zIndex:1 }} />
                             )}
                             <div
-                              className={`px-4 py-2.5 ${theme === "comic" ? "rounded-[20px]" : "rounded-2xl"} ${isMine ? `${T.bubbleSent}${theme !== "comic" ? " rounded-tr-sm" : ""}` : `${T.bubbleRecv}${theme !== "comic" ? " rounded-tl-sm" : ""}`}`}
+                              className={`px-4 py-2.5 ${
+                                theme === "dairy-notebook"
+                                  ? `dn-message-scrap dn-animate-pin ${isMine ? "ml-auto" : ""}`
+                                  : theme === "comic"
+                                    ? "rounded-[20px]"
+                                    : "rounded-2xl"
+                              } ${isMine ? (theme !== "comic" && theme !== "dairy-notebook" ? " rounded-tr-sm" : "") : (theme !== "comic" && theme !== "dairy-notebook" ? " rounded-tl-sm" : "")}`}
                             >
                               {msg.media_url && msg.media_type ? (
                                 <MediaBubble
@@ -5988,7 +6063,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                 </>
                               )}
                               <p
-                                className={`text-[10px] mt-0.5 font-medium ${isMine ? (theme === "comic" ? "text-white/60" : "text-white/50") : T.text3} text-right flex items-center justify-end gap-1`}
+                                className={`dn-message-scrap dn-timestamp font-caveat text-xs mt-0.5 flex items-center justify-end gap-1`}
                               >
                                 {formatTime(msg.created_at)}
                                 <MessageStatus msg={msg} userId={userId} />
@@ -6058,8 +6133,76 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                     })()
                   )}
                   <div ref={messagesEndRef} />
-                </div>
 
+                  </>
+                ) : (
+                  <div className="flex h-full w-full">
+                    <div className="flex-1 w-full overflow-y-auto pr-2 scroll-smooth" ref={messagesPaneRef}>
+                      {hasOlderMessages && (
+                        <div className="absolute left-0 right-0 top-2 z-10 flex justify-center pointer-events-none">
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              void loadOlderMessages();
+                            }}
+                            disabled={loadingOlderMessages}
+                            className={`pointer-events-auto rounded-full px-3 py-1 text-[11px] font-bold border ${T.divider} ${T.text1} bg-black/30 backdrop-blur-sm disabled:opacity-50`}
+                          >
+                            {loadingOlderMessages ? "Loading older…" : "Load older messages"}
+                          </button>
+                        </div>
+                      )}
+                      {loadingMessages ? (
+                        <div className="flex items-center justify-center py-10">
+                          <Loader2 size={20} className={`animate-spin ${T.text3}`} />
+                        </div>
+                      ) : filteredMessages.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
+                          <p className="text-5xl">🫶</p>
+                          <p className={`text-base font-black ${T.text1}`}>
+                            {chatSearch ? "No messages found" : `Hello ${selectedUser?.full_name?.split(" ")[0] || "there"}. It is good to connect with you.`}
+                          </p>
+                          <p className={`text-xs ${T.text3}`}>{chatSearch ? "" : "Pehla message bhejo!"}</p>
+                        </div>
+                      ) : (
+                  <div className="flex h-full w-full">
+                    <div className="flex-1 w-full overflow-y-auto pr-2 scroll-smooth" ref={messagesPaneRef}>
+                      {hasOlderMessages && (
+                        <div className="absolute left-0 right-0 top-2 z-10 flex justify-center pointer-events-none">
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              void loadOlderMessages();
+                            }}
+                            disabled={loadingOlderMessages}
+                            className={`pointer-events-auto rounded-full px-3 py-1 text-[11px] font-bold border ${T.divider} ${T.text1} bg-black/30 backdrop-blur-sm disabled:opacity-50`}
+                          >
+                            {loadingOlderMessages ? "Loading older…" : "Load older messages"}
+                          </button>
+                        </div>
+                      )}
+                      {loadingMessages ? (
+                        <div className="flex items-center justify-center py-10">
+                          <Loader2 size={20} className={`animate-spin ${T.text3}`} />
+                        </div>
+                      ) : filteredMessages.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
+                          <p className="text-5xl">🫶</p>
+                          <p className={`text-base font-black ${T.text1}`}>
+                            {chatSearch ? "No messages found" : `Hello ${selectedUser?.full_name?.split(" ")[0] || "there"}. It is good to connect with you.`}
+                          </p>
+                          <p className={`text-xs ${T.text3}`}>{chatSearch ? "" : "Pehla message bhejo!"}</p>
+                        </div>
+                      ) : (
+                        <>
+                          {/non-dairy-notebook messages}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
                 {/* Input */}
                 <div className="shrink-0 px-3"
                   style={{
@@ -6113,6 +6256,12 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                           {INPUT_EMOJIS.map((em) => (
                             <button
                               key={em}
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
+                {/* Input */}
                               onClick={() => setNewMessage((prev) => prev + em)}
                               className="w-9 h-9 rounded-xl text-xl flex items-center justify-center hover:bg-white/10 active:scale-90 transition-all"
                             >
