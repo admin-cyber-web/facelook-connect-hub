@@ -5823,9 +5823,8 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
 
                 {/* Messages */}
                 {theme === "dairy-notebook" ? (
-                  <>
-                    <div className="flex h-full w-full">
-                      <div className="flex-1 w-full overflow-y-auto pr-2 scroll-smooth" ref={messagesPaneRef}>
+                  <div className="flex h-full w-full">
+                    <div className="flex-1 w-full overflow-y-auto pr-2 scroll-smooth" ref={messagesPaneRef}>
                   {hasOlderMessages && (
                     <div className="absolute left-0 right-0 top-2 z-10 flex justify-center pointer-events-none">
                       <button
@@ -5866,31 +5865,30 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                     const lastSeenMsgId = filteredMessages
                       .filter(m => String(m.sender_id || "").trim() === String(userId || "").trim() && m.seen_at)
                       .slice(-1)[0]?.id ?? null;
-                    return filteredMessages.map((msg) => {
+                    return filteredMessages.map((msg, idx) => {
                       const isMine =
                         String(msg.sender_id || "").trim() ===
                         String(userId || "").trim();
                       const quotedMsg = msg.reply_to_id
                         ? messages.find((m) => m.id === msg.reply_to_id)
                         : null;
+                      const msgDate = new Date(
+                        msg.created_at || msg.sent_at || Date.now()
+                      ).toDateString();
+                      const prevMsg = filteredMessages[idx - 1];
+                      const prevDate = prevMsg
+                        ? new Date(
+                            prevMsg.created_at ||
+                              prevMsg.sent_at ||
+                              Date.now()
+                          ).toDateString()
+                        : null;
+                      const showDateDivider = msgDate !== prevDate;
+
                       return (
-                        {/* Dynamic date divider when date changes */}
-                        {(() => {
-                          const msgDate = new Date(
-                            msg.created_at || msg.sent_at || Date.now()
-                          ).toDateString();
-                          const prevMsg = filteredMessages[idx - 1];
-                          const prevDate = prevMsg
-                            ? new Date(
-                                prevMsg.created_at ||
-                                  prevMsg.sent_at ||
-                                  Date.now()
-                              ).toDateString()
-                            : null;
-                          const showDateDivider = msgDate !== prevDate;
-                          if (!showDateDivider) return null;
-                          return (
-                            <div key={`date-${msg.id}`} className="mb-2 mt-4 flex justify-center">
+                        <React.Fragment key={msg.id}>
+                          {showDateDivider && (
+                            <div className="mb-2 mt-4 flex justify-center">
                               <div className="dn-date-divider">
                                 {new Date(
                                   msg.created_at ||
@@ -5904,30 +5902,29 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                 })}
                               </div>
                             </div>
-                          );
-                        })()}
-                        <motion.div
-                          key={msg.id}
-                          initial={{ opacity: 0, y: 8 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          drag="x"
-                          dragConstraints={{ left: 0, right: 64 }}
-                          dragElastic={{ left: 0, right: 0.25 }}
-                          dragDirectionLock
-                          onDragEnd={(_e, info) => {
-                            if (info.offset.x > 48) {
-                              setReplyTo(msg);
-                              setMsgMenuId(null);
-                            }
-                          }}
-                          onPointerDown={(e) => {
-                            longPressMsgPos.current = {
-                              x: e.clientX,
-                              y: e.clientY,
-                            };
-                            longPressTimerRef.current = setTimeout(() => {
-                              try {
-                                navigator.vibrate?.(10);
+                          )}
+                          <motion.div
+                            key={msg.id}
+                            initial={{ opacity: 0, y: 8 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            drag="x"
+                            dragConstraints={{ left: 0, right: 64 }}
+                            dragElastic={{ left: 0, right: 0.25 }}
+                            dragDirectionLock
+                            onDragEnd={(_e, info) => {
+                              if (info.offset.x > 48) {
+                                setReplyTo(msg);
+                                setMsgMenuId(null);
+                              }
+                            }}
+                            onPointerDown={(e) => {
+                              longPressMsgPos.current = {
+                                x: e.clientX,
+                                y: e.clientY,
+                              };
+                              longPressTimerRef.current = setTimeout(() => {
+                                try {
+                                  navigator.vibrate?.(10);
                               } catch (_) {}
                               setChatMsgAction({
                                 msg,
@@ -6128,13 +6125,14 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                               )}
                           </div>
                         </motion.div>
+                        </React.Fragment>
                       );
                     });
                     })()
                   )}
                   <div ref={messagesEndRef} />
-
-                  </>
+                    </div>
+                  </div>
                 ) : (
                   <div className="flex h-full w-full">
                     <div className="flex-1 w-full overflow-y-auto pr-2 scroll-smooth" ref={messagesPaneRef}>
@@ -6166,40 +6164,174 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                           <p className={`text-xs ${T.text3}`}>{chatSearch ? "" : "Pehla message bhejo!"}</p>
                         </div>
                       ) : (
-                  <div className="flex h-full w-full">
-                    <div className="flex-1 w-full overflow-y-auto pr-2 scroll-smooth" ref={messagesPaneRef}>
-                      {hasOlderMessages && (
-                        <div className="absolute left-0 right-0 top-2 z-10 flex justify-center pointer-events-none">
-                          <button
-                            type="button"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              void loadOlderMessages();
-                            }}
-                            disabled={loadingOlderMessages}
-                            className={`pointer-events-auto rounded-full px-3 py-1 text-[11px] font-bold border ${T.divider} ${T.text1} bg-black/30 backdrop-blur-sm disabled:opacity-50`}
-                          >
-                            {loadingOlderMessages ? "Loading older…" : "Load older messages"}
-                          </button>
-                        </div>
+                        filteredMessages.map((msg, idx) => {
+                          const isMine =
+                            String(msg.sender_id || "").trim() ===
+                            String(userId || "").trim();
+                          const quotedMsg = msg.reply_to_id
+                            ? messages.find((m) => m.id === msg.reply_to_id)
+                            : null;
+                          const msgDate = new Date(
+                            msg.created_at || msg.sent_at || Date.now()
+                          ).toDateString();
+                          const prevMsg = filteredMessages[idx - 1];
+                          const prevDate = prevMsg
+                            ? new Date(
+                                prevMsg.created_at ||
+                                  prevMsg.sent_at ||
+                                  Date.now()
+                              ).toDateString()
+                            : null;
+                          const showDateDivider = msgDate !== prevDate;
+
+                          return (
+                            <React.Fragment key={msg.id}>
+                              {showDateDivider && (
+                                <div className="mb-2 mt-4 flex justify-center">
+                                  <div className="dn-date-divider">
+                                    {new Date(
+                                      msg.created_at ||
+                                        msg.sent_at ||
+                                        Date.now()
+                                    ).toLocaleDateString(undefined, {
+                                      weekday: "long",
+                                      month: "long",
+                                      day: "numeric",
+                                      year: "numeric",
+                                    })}
+                                  </div>
+                                </div>
+                              )}
+                              <motion.div
+                                key={msg.id}
+                                initial={{ opacity: 0, y: 8 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                drag="x"
+                                dragConstraints={{ left: 0, right: 64 }}
+                                dragElastic={{ left: 0, right: 0.25 }}
+                                dragDirectionLock
+                                onDragEnd={(_e, info) => {
+                                  if (info.offset.x > 48) {
+                                    setReplyTo(msg);
+                                    setMsgMenuId(null);
+                                  }
+                                }}
+                                onPointerDown={(e) => {
+                                  longPressMsgPos.current = {
+                                    x: e.clientX,
+                                    y: e.clientY,
+                                  };
+                                  longPressTimerRef.current = setTimeout(() => {
+                                    try {
+                                      navigator.vibrate?.(10);
+                                    } catch (_) {}
+                                    setChatMsgAction({
+                                      msg,
+                                      x: longPressMsgPos.current.x,
+                                      y: longPressMsgPos.current.y,
+                                    });
+                                    setMsgMenuId(null);
+                                  }, 550);
+                                }}
+                                onPointerUp={() => {
+                                  if (longPressTimerRef.current)
+                                    clearTimeout(longPressTimerRef.current);
+                                }}
+                                onPointerLeave={() => {
+                                  if (longPressTimerRef.current)
+                                    clearTimeout(longPressTimerRef.current);
+                                }}
+                                className={`flex w-full ${isMine ? "justify-end" : "justify-start"} group relative select-none`}
+                                style={{ cursor: "default" }}
+                              >
+                                <div className="relative max-w-[78%]">
+                                  {quotedMsg && (
+                                    <div className="mb-1 px-3 py-1.5 rounded-xl border-l-4 border-blue-400 bg-white/8 backdrop-blur-sm max-w-full">
+                                      <p className="text-[10px] font-black text-blue-400 mb-0.5">
+                                        {quotedMsg.sender_id === userId ? "You" : selectedUser?.full_name?.split(" ")[0]}
+                                      </p>
+                                      <p className={`text-[11px] font-semibold truncate ${T.text3}`}>
+                                        {quotedMsg.content || "📎 Media"}
+                                      </p>
+                                    </div>
+                                  )}
+                                  <div className={theme === "comic" ? "relative overflow-visible" : ""}>
+                                    {theme === "comic" && isMine && (
+                                      <div className="absolute inset-0 rounded-[20px] pointer-events-none overflow-hidden" style={{ backgroundImage:"radial-gradient(circle,rgba(0,0,0,0.06) 1px,transparent 1px)", backgroundSize:"7px 7px", zIndex:1 }} />
+                                    )}
+                                    <div className={`px-4 py-2.5 ${theme === "comic" ? "rounded-[20px]" : "rounded-2xl"} ${isMine ? `${T.bubbleSent}${theme !== "comic" ? " rounded-tr-sm" : ""}` : `${T.bubbleRecv}${theme !== "comic" ? " rounded-tl-sm" : ""}`}`}>
+                                      {msg.media_url && msg.media_type ? (
+                                        <MediaBubble url={msg.media_url} type={msg.media_type} />
+                                      ) : editingMsg?.id === msg.id ? (
+                                        <div className="min-w-[180px]" onClick={(e) => e.stopPropagation()}>
+                                          <textarea
+                                            className="w-full rounded-xl px-2 py-1.5 text-base font-bold outline-none resize-none bg-white/20 border border-white/30 text-inherit"
+                                            rows={2}
+                                            value={editingMsg.text}
+                                            onChange={(e) => setEditingMsg((prev) => prev ? { ...prev, text: e.target.value } : null)}
+                                            autoFocus
+                                          />
+                                          <div className="flex gap-1.5 mt-1.5">
+                                            <button onClick={() => setEditingMsg(null)} className="flex-1 py-1 rounded-lg bg-white/15 text-[11px] font-bold opacity-70">Cancel</button>
+                                            <button onClick={saveEditMsg} className="flex-1 py-1 rounded-lg bg-blue-500 text-white text-[11px] font-bold">Save</button>
+                                          </div>
+                                        </div>
+                                      ) : (
+                                        <>
+                                          {(() => {
+                                            const parsed = parseMessage(msg.content || "");
+                                            if (parsed.sticker) {
+                                              return <ChatSticker type={parsed.sticker} originalText={parsed.originalText} isEdited={msg.is_edited} />;
+                                            }
+                                            return (
+                                              <>
+                                                <p className="text-sm font-medium leading-snug break-words">{msg.content}</p>
+                                                {msg.is_edited && <p className="text-[10px] opacity-40 italic mt-0.5">(edited)</p>}
+                                              </>
+                                            );
+                                          })()}
+                                        </>
+                                      )}
+                                      <p className={`text-[10px] mt-0.5 font-medium ${isMine ? (theme === "comic" ? "text-white/60" : "text-white/50") : T.text3} text-right flex items-center justify-end gap-1`}>
+                                        {formatTime(msg.created_at)}
+                                        <MessageStatus msg={msg} userId={userId} />
+                                      </p>
+                                    </div>
+                                  </div>
+                                  {isMine && msg.id === (() => {
+                                    const lastSeenMsgId = filteredMessages
+                                      .filter(m => String(m.sender_id || "").trim() === String(userId || "").trim() && m.seen_at)
+                                      .slice(-1)[0]?.id ?? null;
+                                    return lastSeenMsgId;
+                                  })() && (
+                                    <motion.div
+                                      initial={{ opacity: 0, y: 6, scale: 0.85 }}
+                                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                                      transition={{ type: "spring", stiffness: 340, damping: 26 }}
+                                      className={`flex flex-col items-end gap-0.5 ${theme === "comic" ? "mt-4" : "mt-1.5"} mr-1`}
+                                    >
+                                      <span className={`text-[11px] font-semibold tracking-wide ${theme === "comic" ? "text-gray-500" : "text-white/45"}`}>Seen by</span>
+                                      <div className="relative">
+                                        {selectedUser?.avatar_url ? (
+                                          <img src={selectedUser.avatar_url} alt="" className="w-8 h-8 rounded-full object-cover border-[1.5px] border-[#E3FF00]" />
+                                        ) : (
+                                          <div className="w-8 h-8 rounded-full bg-[#E3FF00]/15 border-[1.5px] border-[#E3FF00] flex items-center justify-center text-[11px] font-black text-[#E3FF00]">
+                                            {(selectedUser?.full_name || "?").split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase()}
+                                          </div>
+                                        )}
+                                      </div>
+                                    </motion.div>
+                                  )}
+                                  {msgReactions[msg.id] && Object.keys(msgReactions[msg.id]).length > 0 && (
+                                    <ReactionBubbles reactions={msgReactions[msg.id]} currentUserId={userId} align={isMine ? "right" : "left"} />
+                                  )}
+                                </div>
+                              </motion.div>
+                            </React.Fragment>
+                          );
+                        })
                       )}
-                      {loadingMessages ? (
-                        <div className="flex items-center justify-center py-10">
-                          <Loader2 size={20} className={`animate-spin ${T.text3}`} />
-                        </div>
-                      ) : filteredMessages.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
-                          <p className="text-5xl">🫶</p>
-                          <p className={`text-base font-black ${T.text1}`}>
-                            {chatSearch ? "No messages found" : `Hello ${selectedUser?.full_name?.split(" ")[0] || "there"}. It is good to connect with you.`}
-                          </p>
-                          <p className={`text-xs ${T.text3}`}>{chatSearch ? "" : "Pehla message bhejo!"}</p>
-                        </div>
-                      ) : (
-                        <>
-                          {/non-dairy-notebook messages}
-                        </>
-                      )}
+                      <div ref={messagesEndRef} />
                     </div>
                   </div>
                 )}
@@ -6256,12 +6388,6 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                           {INPUT_EMOJIS.map((em) => (
                             <button
                               key={em}
-                        )}
-                      </div>
-                    </div>
-                  </>
-                )}
-                {/* Input */}
                               onClick={() => setNewMessage((prev) => prev + em)}
                               className="w-9 h-9 rounded-xl text-xl flex items-center justify-center hover:bg-white/10 active:scale-90 transition-all"
                             >
