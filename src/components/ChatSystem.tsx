@@ -80,7 +80,7 @@ import {
   RISK_THRESHOLD,
 } from "../lib/safetyEngine";
 
-// â”€â”€ Storage bucket (must match the bucket created in Supabase dashboard) â”€â”€â”€â”€â”€â”€â”€
+// ── Storage bucket (must match the bucket created in Supabase dashboard) ───────
 const CHAT_BUCKET = "chat-images";
 const revokeObjectUrl = (url: string | null | undefined) => {
   if (url?.startsWith("blob:")) URL.revokeObjectURL(url);
@@ -92,7 +92,7 @@ const formatMusicTime = (seconds: number) => {
   return `${minutes}:${String(remainingSeconds).padStart(2, "0")}`;
 };
 
-// â”€â”€ Story media URL resolver â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Story media URL resolver ────────────────────────────────────────────────────
 // Stories are uploaded to path "stories/<filename>" WITHIN the "stories" bucket.
 // resolveMediaUrl() strips the "stories/" prefix (thinking it's the bucket name),
 // which breaks the URL. This helper preserves the full path instead.
@@ -119,13 +119,13 @@ const onStoryMediaError = (e: React.SyntheticEvent<HTMLImageElement | HTMLVideoE
     fb.style.cssText =
       "position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;pointer-events:none";
     fb.innerHTML =
-      '<span style="font-size:2rem">ðŸ“–</span>' +
+      '<span style="font-size:2rem">📖</span>' +
       '<span style="color:rgba(255,255,255,0.35);font-size:10px;font-weight:800;letter-spacing:2px">STORY</span>';
     parent.appendChild(fb);
   }
 };
 
-// â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Types ──────────────────────────────────────────────────────────────────────
 type Theme = "dairy-notebook" | "whatsapp" | "maroon" | "comic";
 type BottomTab = "chat" | "story" | "alert" | "menu";
 type MenuPanel = "main" | "settings" | "archive" | "requests";
@@ -225,7 +225,7 @@ interface ChatSystemProps {
   onReady?: () => void;
 }
 
-// â”€â”€ Inject global keyframes once â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Inject global keyframes once ───────────────────────────────────────────────
 const STYLE_ID = "cx-keyframes";
 function injectStyles() {
   if (document.getElementById(STYLE_ID)) return;
@@ -246,7 +246,7 @@ function injectStyles() {
   document.head.appendChild(s);
 }
 
-// â”€â”€ Theme config â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Theme config ───────────────────────────────────────────────────────────────
 const THEME_CFG = {
   whatsapp: {
     wrap: "bg-[#075E54]",
@@ -345,7 +345,7 @@ const THEME_CFG = {
   },
 };
 
-// â”€â”€ Message Status â€” stable top-level component (only Sending / Delivered ticks)
+// ── Message Status — stable top-level component (only Sending / Delivered ticks)
 // Seen indicator is rendered separately BELOW the bubble as per spec.
 const MessageStatus = ({
   msg,
@@ -356,7 +356,7 @@ const MessageStatus = ({
 }) => {
   if (msg.sender_id !== userId || msg.seen_at) return null;
   if (msg.id.startsWith("temp-"))
-    return <span className="text-[10px] text-white/30 ml-1 italic">Sendingâ€¦</span>;
+    return <span className="text-[10px] text-white/30 ml-1 italic">Sending…</span>;
   return (
     <span className="inline-flex items-center gap-0.5 ml-1">
       <svg width="16" height="10" viewBox="0 0 16 10" fill="none">
@@ -367,7 +367,7 @@ const MessageStatus = ({
   );
 };
 
-// â”€â”€ Rose Petals (velvet theme only) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Rose Petals (velvet theme only) ───────────────────────────────────────────
 const PETAL_DATA = Array.from({ length: 14 }, (_, i) => ({
   id: i,
   left: `${4 + ((i * 7) % 92)}%`,
@@ -399,7 +399,7 @@ const RosePetals = () => (
   </div>
 );
 
-// â”€â”€ Sound â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Sound ─────────────────────────────────────────────────────────────────────
 const playSound = (type: "send" | "receive" | "delete") => {
   try {
     const ctx = new (window.AudioContext ||
@@ -436,7 +436,7 @@ const playSound = (type: "send" | "receive" | "delete") => {
   } catch (_) {}
 };
 
-// â”€â”€ Avatar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Avatar ────────────────────────────────────────────────────────────────────
 const Avatar = ({
   url,
   name,
@@ -452,7 +452,7 @@ const Avatar = ({
   return <ActiveStatusAvatar src={url} name={name} size={dim} online={online === true} />;
 };
 
-// â”€â”€ MediaBubble (memoized to prevent re-renders during scroll) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── MediaBubble (memoized to prevent re-renders during scroll) ───────────────
 const MediaBubble = React.memo(
   ({ url, type }: { url: string; type: string }) => {
     if (type.startsWith("image/")) {
@@ -518,7 +518,7 @@ const MediaBubble = React.memo(
 );
 
 MediaBubble.displayName = "MediaBubble";
-// â”€â”€ Smoke Particle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Smoke Particle ────────────────────────────────────────────────────────────
 const SmokeParticle = ({
   x,
   y,
@@ -568,7 +568,7 @@ const SmokeParticle = ({
   );
 };
 
-// â”€â”€ Emoji Blast â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Emoji Blast ───────────────────────────────────────────────────────────────
 const EmojiBlast = ({
   emoji,
   onDone,
@@ -617,41 +617,41 @@ const EmojiBlast = ({
   );
 };
 
-// â”€â”€ Magic Keyword-to-Emoji trigger map â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Magic Keyword-to-Emoji trigger map ───────────────────────────────────────
 // Edit this array to add/remove triggers. Matching is case-insensitive & substring.
 const KEYWORD_EMOJI_MAP: { keywords: string[]; emoji: string }[] = [
   // Excitement
-  { keywords: ["wow", "amazing", "awesome", "zabardast", "waah", "wah"], emoji: "ðŸ¤©" },
+  { keywords: ["wow", "amazing", "awesome", "zabardast", "waah", "wah"], emoji: "🤩" },
   // Support
-  { keywords: ["i am with you", "i'm with you", "dont worry", "don't worry", "fikar mat", "tension mat"], emoji: "ðŸ¤—" },
+  { keywords: ["i am with you", "i'm with you", "dont worry", "don't worry", "fikar mat", "tension mat"], emoji: "🤗" },
   // Food
-  { keywords: ["khana", "khaana", "bhookh", "bhukh", "dinner", "lunch", "breakfast", "khana khao", "kha lo"], emoji: "ðŸ•" },
+  { keywords: ["khana", "khaana", "bhookh", "bhukh", "dinner", "lunch", "breakfast", "khana khao", "kha lo"], emoji: "🍕" },
   // Sleepy
-  { keywords: ["good night", "goodnight", "gn ", "sone ja raha", "sone ja rhi", "sone wala", "so jao", "so ja"], emoji: "ðŸ˜´" },
+  { keywords: ["good night", "goodnight", "gn ", "sone ja raha", "sone ja rhi", "sone wala", "so jao", "so ja"], emoji: "😴" },
   // Agreement
-  { keywords: ["sahi hai", "bilkul", "bilkul sahi", "done", "haan ji", "haan bilkul", "theek hai"], emoji: "âœ…" },
+  { keywords: ["sahi hai", "bilkul", "bilkul sahi", "done", "haan ji", "haan bilkul", "theek hai"], emoji: "✅" },
   // Wishes
-  { keywords: ["happy mothers day", "mothers day", "happy fathers day", "fathers day", "anniversary", "happy anniversary", "happy birthday", "birthday", "congratulations", "congrats", "badhaai", "mubarak"], emoji: "ðŸŽ‰" },
-  // Emotions â€” dil â¤ï¸
-  { keywords: ["tum mere dil me ho", "tum mere dil mein ho", "aap mere dil me ho", "aap mere dil mein ho"], emoji: "â¤ï¸" },
-  // Emotions â€” Love you ðŸ˜
-  { keywords: ["love you", "love u", "i love u", "luv you", "luv u", "i love you", "pyaar karta", "pyaar karti", "pyaar hai"], emoji: "ðŸ˜" },
-  // Emotions â€” Miss you ðŸ¥º (expanded)
-  { keywords: ["miss you", "miss u", "i miss u", "i miss you", "missing you", "yaad aa raha", "yaad aa rhi", "bahut yaad", "yaad kiya"], emoji: "ðŸ¥º" },
-  // Emotions â€” Hug ðŸ¤—
-  { keywords: ["hug u", "hug you", "i hug u", "i hug you"], emoji: "ðŸ¤—" },
-  // Emotions â€” Kiss ðŸ˜˜
-  { keywords: ["kiss u", "kiss you", "i kiss u", "i kiss you"], emoji: "ðŸ˜˜" },
-  // Emotions â€” Waiting â³ (NEW)
-  { keywords: ["waiting u", "waiting you", "i am waiting", "wait kar raha", "wait kar rhi"], emoji: "â³" },
-  // Sleep / Wake ðŸŒ™ (NEW)
-  { keywords: ["uth jao", "so rhe ho kya", "so rahe ho kya", "kab so kar uthe", "chalo ab so jao", "so gaye kya", "neend aa rhi"], emoji: "ðŸŒ™" },
-  // Emotions â€” Best friends ðŸ‘¯
-  { keywords: ["best friends", "bestfriends", "best friend", "bff", "dost forever", "yaar forever"], emoji: "ðŸ‘¯" },
+  { keywords: ["happy mothers day", "mothers day", "happy fathers day", "fathers day", "anniversary", "happy anniversary", "happy birthday", "birthday", "congratulations", "congrats", "badhaai", "mubarak"], emoji: "🎉" },
+  // Emotions — dil ❤️
+  { keywords: ["tum mere dil me ho", "tum mere dil mein ho", "aap mere dil me ho", "aap mere dil mein ho"], emoji: "❤️" },
+  // Emotions — Love you 😍
+  { keywords: ["love you", "love u", "i love u", "luv you", "luv u", "i love you", "pyaar karta", "pyaar karti", "pyaar hai"], emoji: "😍" },
+  // Emotions — Miss you 🥺 (expanded)
+  { keywords: ["miss you", "miss u", "i miss u", "i miss you", "missing you", "yaad aa raha", "yaad aa rhi", "bahut yaad", "yaad kiya"], emoji: "🥺" },
+  // Emotions — Hug 🤗
+  { keywords: ["hug u", "hug you", "i hug u", "i hug you"], emoji: "🤗" },
+  // Emotions — Kiss 😘
+  { keywords: ["kiss u", "kiss you", "i kiss u", "i kiss you"], emoji: "😘" },
+  // Emotions — Waiting ⏳ (NEW)
+  { keywords: ["waiting u", "waiting you", "i am waiting", "wait kar raha", "wait kar rhi"], emoji: "⏳" },
+  // Sleep / Wake 🌙 (NEW)
+  { keywords: ["uth jao", "so rhe ho kya", "so rahe ho kya", "kab so kar uthe", "chalo ab so jao", "so gaye kya", "neend aa rhi"], emoji: "🌙" },
+  // Emotions — Best friends 👯
+  { keywords: ["best friends", "bestfriends", "best friend", "bff", "dost forever", "yaar forever"], emoji: "👯" },
   // Gender-Adaptive: asking a female (aaogi = female conjugation)
-  { keywords: ["kab aaogi", "kab aogi", "kab ayogi"], emoji: "ðŸ¥°" },
+  { keywords: ["kab aaogi", "kab aogi", "kab ayogi"], emoji: "🥰" },
   // Gender-Adaptive: asking a male (aaoge = male conjugation)
-  { keywords: ["kab aaoge", "kab aoge", "kab ayoge"], emoji: "ðŸ˜Š" },
+  { keywords: ["kab aaoge", "kab aoge", "kab ayoge"], emoji: "😊" },
 ];
 
 /** Returns the first matching emoji for a message text, or null. Case-insensitive. */
@@ -665,7 +665,7 @@ const getKeywordEmoji = (text: string): string | null => {
   return null;
 };
 
-// â”€â”€ Story mood filter map â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Story mood filter map ─────────────────────────────────────────────────────
 const STORY_MOOD_FILTER: Record<string, string> = {
   sad: "grayscale(80%) brightness(0.75)",
   happy: "saturate(1.4) brightness(1.05)",
@@ -679,7 +679,7 @@ const STORY_MOOD_FILTER: Record<string, string> = {
   grid: "",
 };
 
-// â”€â”€ Rain overlay â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Rain overlay ──────────────────────────────────────────────────────────────
 const StoryRainOverlay = () => (
   <div className="absolute inset-0 pointer-events-none overflow-hidden z-10">
     {Array.from({ length: 20 }).map((_, i) => (
@@ -698,12 +698,12 @@ const StoryRainOverlay = () => (
   </div>
 );
 
-// â”€â”€ Neon overlay â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Neon overlay ──────────────────────────────────────────────────────────────
 const StoryNeonOverlay = () => (
   <div className="perf-neon absolute inset-0 pointer-events-none z-10" />
 );
 
-// â”€â”€ Audio wave â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Audio wave ────────────────────────────────────────────────────────────────
 const StoryAudioWave = () => (
   <div className="flex items-center gap-1 justify-center">
     {Array.from({ length: 7 }).map((_, i) => (
@@ -716,7 +716,7 @@ const StoryAudioWave = () => (
   </div>
 );
 
-// â”€â”€ Help sticker â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Help sticker ──────────────────────────────────────────────────────────────
 const StoryHelpSticker = () => (
   <div
     className="perf-pulse absolute top-16 left-1/2 -translate-x-1/2 z-30 px-5 py-2 rounded-full select-none"
@@ -728,7 +728,7 @@ const StoryHelpSticker = () => (
   </div>
 );
 
-// â”€â”€ Progress segments â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Progress segments ─────────────────────────────────────────────────────────
 const StoryProgressBar = ({
   total,
   current,
@@ -759,7 +759,7 @@ const StoryProgressBar = ({
   </div>
 );
 
-// â”€â”€ Gradient helper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Gradient helper ───────────────────────────────────────────────────────────
 const _SGRADS = [
   "#6366f1",
   "#ec4899",
@@ -776,7 +776,7 @@ const _sgradFor = (id: string) => {
   return _SGRADS[Math.abs(h) % _SGRADS.length];
 };
 
-// â”€â”€ Story view count (shown to story owner only) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Story view count (shown to story owner only) ──────────────────────────────
 const StoryViewCount = ({ storyId }: { storyId: string }) => {
   const [count, setCount] = React.useState<number | null>(null);
   React.useEffect(() => {
@@ -795,7 +795,7 @@ const StoryViewCount = ({ storyId }: { storyId: string }) => {
   );
 };
 
-// â”€â”€ Main Component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Main Component ─────────────────────────────────────────────────────────────
 const ChatSystem: React.FC<ChatSystemProps> = ({
   isOpen,
   onClose,
@@ -808,7 +808,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   const isAdmin = isAdminEmail(userEmail);
   const { openProfile } = useProfileViewer();
 
-  // â”€â”€ Message Reactions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Message Reactions ─────────────────────────────────────────────────────
   const fetchMsgReactions = useCallback(
     async (uid: string, otherId: string) => {
       try {
@@ -858,18 +858,18 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     const reactingUserId = userId;
 
     if (!reactingUserId) {
-      console.error("[Reaction] âŒ No user ID â€” aborting");
+      console.error("[Reaction] ❌ No user ID — aborting");
       return;
     }
     if (!msgId || msgId.startsWith("temp-")) {
-      console.warn("[Reaction] âš ï¸ Skipping temp/invalid message id:", msgId);
+      console.warn("[Reaction] ⚠️ Skipping temp/invalid message id:", msgId);
       return;
     }
 
     playPop();
     setMsgReactionBarId(null);
 
-    // â”€â”€ Step 2: compute optimistic state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Step 2: compute optimistic state ─────────────────────────────────────
     const prev = msgReactions[msgId] ?? {};
     const currentUsers = prev[emoji] ?? [];
     const alreadyReacted = currentUsers.includes(reactingUserId);
@@ -879,7 +879,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       updated[emoji] = currentUsers.filter((u) => u !== reactingUserId);
       if (updated[emoji].length === 0) delete updated[emoji];
     } else {
-      // one reaction per user â€” remove any previous emoji first
+      // one reaction per user — remove any previous emoji first
       Object.keys(updated).forEach((e) => {
         updated[e] = updated[e].filter((u) => u !== reactingUserId);
         if (updated[e].length === 0) delete updated[e];
@@ -887,10 +887,10 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       updated[emoji] = [...(updated[emoji] ?? []), reactingUserId];
     }
 
-    // â”€â”€ Step 3: apply optimistic UI immediately â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Step 3: apply optimistic UI immediately ───────────────────────────────
     setMsgReactions((r) => ({ ...r, [msgId]: updated }));
 
-    // â”€â”€ Step 4: write to DB with full error logging â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Step 4: write to DB with full error logging ───────────────────────────
     try {
       if (alreadyReacted) {
         const { error } = await supabase
@@ -914,7 +914,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       }
     } catch (err: any) {
       console.error(
-        "[Reaction] âŒ DB error â€” rolling back optimistic UI:",
+        "[Reaction] ❌ DB error — rolling back optimistic UI:",
         err,
       );
       // Rollback optimistic update on failure
@@ -922,7 +922,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       return;
     }
 
-    // â”€â”€ Step 5: re-fetch to sync both users (after successful DB write) â”€â”€â”€â”€â”€â”€â”€
+    // ── Step 5: re-fetch to sync both users (after successful DB write) ───────
     if (selectedUser) await fetchMsgReactions(reactingUserId, selectedUser.id);
   };
 
@@ -930,7 +930,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     injectStyles();
   }, []);
 
-  // â”€â”€ Persisted state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Persisted state ───────────────────────────────────────────────────────
   const [theme, setTheme] = useState<Theme>(() => {
     // Version migration: v5 = add dairy-notebook as default theme
     if (localStorage.getItem("cx_theme_v") !== "5") {
@@ -949,7 +949,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     () => localStorage.getItem("cx_sound") !== "false",
   );
 
-  // â”€â”€ Safety & Integrity Engine â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Safety & Integrity Engine ──────────────────────────────────────────────
   const [loveProtectEnabled, setLoveProtectEnabled] = useState(
     () => localStorage.getItem("cx_love_protect") === "true",
   );
@@ -984,17 +984,17 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     }
   });
 
-  // â”€â”€ Online users via Supabase Presence â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Online users via Supabase Presence ────────────────────────────────────
   const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
   const presenceChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(
     null,
   );
 
-  // â”€â”€ Navigation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Navigation ────────────────────────────────────────────────────────────
   const [bottomTab, setBottomTab] = useState<BottomTab>("chat");
   const [menuPanel, setMenuPanel] = useState<MenuPanel>("main");
 
-  // â”€â”€ Friendship â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Friendship ────────────────────────────────────────────────────────────
   const [friendshipMap, setFriendshipMap] = useState<
     Map<string, FriendshipInfo>
   >(new Map());
@@ -1006,9 +1006,9 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   const [messageRequests, setMessageRequests] = useState<ChatContact[]>([]);
   const [loadingContacts, setLoadingContacts] = useState(false);
   const [blockedUserIds, setBlockedUserIds] = useState<Set<string>>(new Set());
-  // Mirror of blockedUserIds â€” read by callbacks without adding the state to
-  // their deps (otherwise fetchContacts â†’ setBlockedUserIds â†’ fetchStories
-  // identity changes â†’ bootstrap effect re-runs â†’ infinite loop & flicker).
+  // Mirror of blockedUserIds — read by callbacks without adding the state to
+  // their deps (otherwise fetchContacts → setBlockedUserIds → fetchStories
+  // identity changes → bootstrap effect re-runs → infinite loop & flicker).
   const blockedUserIdsRef = useRef<Set<string>>(new Set());
   const deletedForMeIdsRef = useRef<Set<string>>(new Set());
   const lastContactsFetchAtRef = useRef(0);
@@ -1026,14 +1026,14 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     }
   };
 
-  // â”€â”€ Search â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Search ────────────────────────────────────────────────────────────────
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<Profile[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const searchRequestSeqRef = useRef(0);
   const searchAbortRef = useRef<AbortController | null>(null);
 
-  // â”€â”€ Active chat â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Active chat ───────────────────────────────────────────────────────────
   const [selectedUser, setSelectedUser] = useState<ChatContact | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
@@ -1385,7 +1385,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     };
   }, [bottomTab, chatMusicRoomId, isOpen, syncPendingChatMusic]);
 
-  // â”€â”€ Fun â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Fun ───────────────────────────────────────────────────────────────────
   const [smokeParticles, setSmokeParticles] = useState<
     { id: number; x: number; y: number }[]
   >([]);
@@ -1400,19 +1400,19 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   const smokeIdRef = useRef(0);
   const blastIdRef = useRef(0);
 
-  // â”€â”€ Profile â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Profile ───────────────────────────────────────────────────────────────
   const [myProfile, setMyProfile] = useState<Profile | null>(null);
   const [editBio, setEditBio] = useState("");
   const [editSchool, setEditSchool] = useState("");
   const [editLocation, setEditLocation] = useState("");
   const [savingProfile, setSavingProfile] = useState(false);
 
-  // â”€â”€ Alerts â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Alerts ────────────────────────────────────────────────────────────────
   const [alerts, setAlerts] = useState<
     { id: string; text: string; time: string; read: boolean }[]
   >([]);
 
-  // â”€â”€ Stories â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Stories ───────────────────────────────────────────────────────────────
   const [stories, setStories] = useState<Story[]>([]);
   const [storyGroups, setStoryGroups] = useState<StoryGroup[]>([]);
   const [loadingStories, setLoadingStories] = useState(false);
@@ -1471,7 +1471,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     setStoryFile(null);
   };
 
-  // â”€â”€ Advanced features state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Advanced features state ────────────────────────────────────────────────
   const [panicMode, setPanicMode] = useState(false);
   const [isOtherTyping, setIsOtherTyping] = useState(false);
   const [showChatMenu, setShowChatMenu] = useState(false);
@@ -1491,14 +1491,14 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     text: string;
   } | null>(null);
 
-  // â”€â”€ Voice Mode state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Voice Mode state ───────────────────────────────────────────────────────
   const [voiceMode, setVoiceMode] = useState(false);
   const [voiceSecondsLeft, setVoiceSecondsLeft] = useState(300);
   const [voiceStatus, setVoiceStatus] = useState<"listening" | "processing">(
     "listening",
   );
 
-  // â”€â”€ Refs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Refs ──────────────────────────────────────────────────────────────────
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesPaneRef = useRef<HTMLDivElement>(null);
   const messageLoadInFlightRef = useRef(false);
@@ -1536,7 +1536,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
 
   const T = THEME_CFG[theme];
   // Opaque panel background for sub-views (Friends/Chat list, Menu, Settings, Archive).
-  // Never transparent â€” always a solid theme color so nothing bleeds through.
+  // Never transparent — always a solid theme color so nothing bleeds through.
   const panelBg =
     theme === "dairy-notebook"
       ? "bg-[#fbf0d9]"
@@ -1548,7 +1548,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   const { playPop, playSwoosh } = useSoundEffects();
   const isActiveHidden = useActiveHide();
 
-  // â”€â”€ Persist â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Persist ───────────────────────────────────────────────────────────────
   useEffect(() => {
     localStorage.setItem("cx_theme", theme);
   }, [theme]);
@@ -1565,7 +1565,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     localStorage.setItem("cx_archived", JSON.stringify([...archivedChats]));
   }, [archivedChats]);
 
-  // â”€â”€ Love Protect: sync partner ref + load from DB on mount â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Love Protect: sync partner ref + load from DB on mount ────────────────
   useEffect(() => {
     loveProtectPartnerRef.current = loveProtectPartnerId;
   }, [loveProtectPartnerId]);
@@ -1600,9 +1600,9 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       });
   }, [userId]);
 
-  // â”€â”€ Auto-scroll â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Auto-scroll ───────────────────────────────────────────────────────────
   // Only trigger when the message COUNT grows (new message), not on seen_at /
-  // reaction / content updates â€” those patch existing rows and must NOT cause
+  // reaction / content updates — those patch existing rows and must NOT cause
   // a forced-reflow scroll on every update.
   const messageCount = messages.length;
   const lastMessageId = messages[messages.length - 1]?.id;
@@ -1623,7 +1623,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     return () => cancelAnimationFrame(autoScrollRafRef.current);
   }, [messageCount, lastMessageId, userId, soundEnabled]);
 
-  // â”€â”€ Fetch my profile â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Fetch my profile ──────────────────────────────────────────────────────
   const fetchMyProfile = useCallback(async () => {
     const { data } = await supabase
       .from("profiles")
@@ -1638,7 +1638,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     }
   }, [userId]);
 
-  // â”€â”€ Fetch friendships â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Fetch friendships ─────────────────────────────────────────────────────
   const fetchFriendships = useCallback(async () => {
     const { data } = await supabase
       .from("friendships")
@@ -1659,7 +1659,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     setFriendshipMap(map);
   }, [userId]);
 
-  // â”€â”€ Fetch pending requests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Fetch pending requests ────────────────────────────────────────────────
   const fetchPendingRequests = useCallback(async () => {
     const { data } = await supabase
       .from("friendships")
@@ -1711,7 +1711,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     }
   }, [userId]);
 
-  // â”€â”€ Fetch contacts â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Fetch contacts ────────────────────────────────────────────────────────
   const fetchContacts = useCallback(async () => {
     const now = Date.now();
     if (now - lastContactsFetchAtRef.current < 1200) return;
@@ -1732,7 +1732,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       );
       const friendIdSet = new Set(friendIds);
 
-      // 2. Block lists (both directions â€” hide blockers and blocked)
+      // 2. Block lists (both directions — hide blockers and blocked)
       const { data: blockRows } = await supabase
         .from("user_blocks")
         .select("blocker_id, blocked_id")
@@ -1856,7 +1856,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
         if (friendIdSet.has(p.id)) {
           friendsResult.push(c);
         } else if (partnerIds.has(p.id)) {
-          // Non-friend you've exchanged messages with â†’ message request
+          // Non-friend you've exchanged messages with → message request
           requestsResult.push(c);
         }
       }
@@ -1884,7 +1884,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     if (contactsRefreshTimerRef.current) clearTimeout(contactsRefreshTimerRef.current);
   }, []);
 
-  // â”€â”€ Fetch stories â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Fetch stories ─────────────────────────────────────────────────────────
   const fetchStories = useCallback(async () => {
     setLoadingStories(true);
     try {
@@ -1928,7 +1928,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     }
   }, []);
 
-  // â”€â”€ Upload stories (batch multi-file) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Upload stories (batch multi-file) ────────────────────────────────────
   const uploadStory = async () => {
     const filesToUpload =
       storyFiles.length > 0 ? storyFiles : storyFile ? [storyFile] : [];
@@ -1936,7 +1936,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     setUploadingStory(true);
     setStoryUploadProgress(0);
 
-    // â”€â”€ Upload background music first (if selected) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Upload background music first (if selected) ──────────────────────────
     let musicPublicUrl: string | null = null;
     if (selectedMusic) {
       try {
@@ -2004,8 +2004,8 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     }
     toast.success(
       filesToUpload.length > 1
-        ? `${filesToUpload.length} stories posted! ðŸŒŸ`
-        : "Story posted! ðŸŒ¹",
+        ? `${filesToUpload.length} stories posted! 🌟`
+        : "Story posted! 🌹",
     );
     setShowStoryEditor(false);
     setStoryFile(null);
@@ -2024,7 +2024,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     setUploadingStory(false);
   };
 
-  // â”€â”€ Delete story â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Delete story ───────────────────────────────────────────────────────────
   const deleteStory = async (story: Story) => {
     setDeletingStory(true);
     try {
@@ -2036,7 +2036,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       if (error) throw error;
       setStories((prev) => prev.filter((s) => s.id !== story.id));
       setViewingStory(null);
-      toast.success("Story deleted âœ“");
+      toast.success("Story deleted ✓");
     } catch (e: any) {
       toast.error("Could not delete story: " + (e?.message || "Unknown error"));
     } finally {
@@ -2044,7 +2044,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     }
   };
 
-  // â”€â”€ Delete story from viewer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Delete story from viewer ───────────────────────────────────────────────
   const deleteViewerStory = async () => {
     const group = storyGroups[viewerGroupIdx];
     const story = group?.stories[viewerStoryIdx];
@@ -2058,7 +2058,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       toast.error("Could not delete story");
       return;
     }
-    toast.success("Story deleted âœ“");
+    toast.success("Story deleted ✓");
     // Rebuild storyGroups without this story
     const newGroups = storyGroups
       .map((g, gi) =>
@@ -2086,7 +2086,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     setStoryElapsed(0);
   };
 
-  // â”€â”€ Save caption/mood edit from viewer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Save caption/mood edit from viewer ────────────────────────────────────
   const saveViewerEdit = async () => {
     const group = storyGroups[viewerGroupIdx];
     const story = group?.stories[viewerStoryIdx];
@@ -2119,10 +2119,10 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     );
     setStoryGroups(newGroups);
     setViewerEditing(false);
-    toast.success("Story updated âœ¨");
+    toast.success("Story updated ✨");
   };
 
-  // â”€â”€ Update story (caption + emoji only) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Update story (caption + emoji only) ───────────────────────────────────
   const updateStory = async () => {
     if (!editingStory) return;
     setUploadingStory(true);
@@ -2140,7 +2140,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
             : s,
         ),
       );
-      toast.success("Story updated âœ¨");
+      toast.success("Story updated ✨");
       setShowStoryEditor(false);
       setEditingStory(null);
       setStoryCaption("");
@@ -2154,7 +2154,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     }
   };
 
-  // â”€â”€ Bootstrap â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Bootstrap ─────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!isOpen) return;
     fetchFriendships();
@@ -2171,8 +2171,8 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     fetchStories,
   ]);
 
-  // â”€â”€ External "Open chat with this user" trigger (from UserProfileModal) â”€â”€
-  // Bind once per session â€” read latest state via refs to avoid re-binding
+  // ── External "Open chat with this user" trigger (from UserProfileModal) ──
+  // Bind once per session — read latest state via refs to avoid re-binding
   // (and re-rendering) on every contacts/blocks change, which was causing
   // the contact list to flicker.
   const contactsRef = useRef<ChatContact[]>([]);
@@ -2236,7 +2236,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, fetchContacts, onReady]);
 
-  // â”€â”€ Story viewer: 15s countdown timer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Story viewer: 15s countdown timer ────────────────────────────────────
   useEffect(() => {
     storyElapsedRef.current = storyElapsed;
   }, [storyElapsed]);
@@ -2304,13 +2304,13 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     storyGroups,
   ]);
 
-  // â”€â”€ Story viewer: reset elapsed on story change â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Story viewer: reset elapsed on story change ───────────────────────────
   useEffect(() => {
     storyElapsedRef.current = 0;
     setStoryElapsed(0);
   }, [viewerGroupIdx, viewerStoryIdx]);
 
-  // â”€â”€ Story viewer: music autoplay (with full cleanup) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Story viewer: music autoplay (with full cleanup) ─────────────────────
   useEffect(() => {
     const stopAudio = () => {
       if (storyAudioRef.current) {
@@ -2359,7 +2359,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     return () => document.removeEventListener("visibilitychange", handleVisibility);
   }, [storyViewerOpen, storyPaused]);
 
-  // â”€â”€ Story viewer: view tracking â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Story viewer: view tracking ───────────────────────────────────────────
   useEffect(() => {
     if (!storyViewerOpen) return;
     const group = storyGroups[viewerGroupIdx];
@@ -2372,7 +2372,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       .then(() => {});
   }, [storyViewerOpen, viewerGroupIdx, viewerStoryIdx, storyGroups, userId]);
 
-  // â”€â”€ Presence: track who's actually online â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Presence: track who's actually online ─────────────────────────────────
   useEffect(() => {
     if (!isOpen || !userId) return;
     const cleanup = subscribeWhileVisible(() => {
@@ -2417,7 +2417,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     };
   }, [isOpen, userId, activeStatus, isActiveHidden]);
 
-  // â”€â”€ When activeStatus toggles, update presence tracking â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── When activeStatus toggles, update presence tracking ───────────────────
   useEffect(() => {
     const ch = presenceChannelRef.current;
     if (!ch) return;
@@ -2428,7 +2428,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     }
   }, [activeStatus, userId, isActiveHidden]);
 
-  // â”€â”€ Realtime: friendships â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Realtime: friendships ─────────────────────────────────────────────────
   useEffect(() => {
     if (!isOpen) return;
     const cleanup = subscribeWhileVisible(() =>
@@ -2470,7 +2470,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     };
   }, [isOpen, userId, fetchFriendships, fetchPendingRequests, fetchContacts]);
 
-  // â”€â”€ Realtime: new messages â†’ alert â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Realtime: new messages → alert ────────────────────────────────────────
   useEffect(() => {
     if (!isOpen) return;
     const cleanup = subscribeWhileVisible(() =>
@@ -2490,7 +2490,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                   [
                     {
                       id: `msg-${msg.id}`,
-                      text: `${sender.full_name}: ${msg.content || "ðŸ“Ž Media"}`,
+                      text: `${sender.full_name}: ${msg.content || "📎 Media"}`,
                       time: new Date().toLocaleTimeString([], {
                         hour: "2-digit",
                         minute: "2-digit",
@@ -2509,10 +2509,10 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     return () => {
       cleanup();
     };
-    // contacts/mutedChats accessed via refs â€” channel no longer tears down on every fetch
+    // contacts/mutedChats accessed via refs — channel no longer tears down on every fetch
   }, [isOpen, userId]);
 
-  // â”€â”€ Unseen message count (always-on, drives FAB badge) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Unseen message count (always-on, drives FAB badge) ────────────────────
   const fetchUnseenCount = useCallback(async () => {
     if (!userId) return;
     const { count } = await supabase
@@ -2555,12 +2555,12 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     );
   }, [userId, fetchUnseenCount]);
 
-  // â”€â”€ Report total unread count to parent (for FAB badge) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Report total unread count to parent (for FAB badge) ──────────────────
   useEffect(() => {
     onUnreadCountChange?.(pendingCount + unseenMsgCount);
   }, [pendingCount, unseenMsgCount, onUnreadCountChange]);
 
-  // â”€â”€ Search debounce â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Search debounce ───────────────────────────────────────────────────────
   useEffect(() => {
     if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
     searchAbortRef.current?.abort();
@@ -2600,7 +2600,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     };
   }, [searchQuery, userId]);
 
-  // â”€â”€ Load older messages without discarding the newest window â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Load older messages without discarding the newest window ───────────────
   const loadOlderMessages = useCallback(async () => {
     if (!selectedUser || !userId || !oldestMessageCursorRef.current ||
         !hasOlderMessages || olderLoadInFlightRef.current) return;
@@ -2649,7 +2649,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     }
   }, [hasOlderMessages, selectedUser, userId]);
 
-  // â”€â”€ Messages for selected chat â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Messages for selected chat ────────────────────────────────────────────
   useEffect(() => {
     if (!isOpen || !selectedUser || !userId) return;
     const myId = String(userId).trim();
@@ -2676,14 +2676,14 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       messageLoadInFlightRef.current = true;
       setLoadingMessages(true);
 
-      // Normalise IDs â€” trim whitespace to guard against subtle format differences
+      // Normalise IDs — trim whitespace to guard against subtle format differences
       // Guard: abort if either ID is missing (can happen on first mount)
       if (!myId || !partnerId) {
         setLoadingMessages(false);
         return;
       }
 
-      // â”€â”€ Primary fetch: select only columns guaranteed to exist â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+      // ── Primary fetch: select only columns guaranteed to exist ───────────
       // Using .in() on both columns is equivalent to
       //   (sender_id IN (me,partner) AND receiver_id IN (me,partner))
       // which matches exactly the messages between these two users.
@@ -2748,7 +2748,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
 
     load().then(() => fetchMsgReactions(myId, partnerId));
 
-    // â”€â”€ Chat Realtime: messages and reactions for this conversation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Chat Realtime: messages and reactions for this conversation ──────────
     const convKey = [myId, partnerId].sort().join("-");
     const isConversationMessage = (row: Partial<Message> | undefined) => {
       if (!row) return false;
@@ -2847,10 +2847,10 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
 
           if (!isConversationMessage(msg)) return;
 
-          // Skip messages the user deleted for themselves â€” don't let realtime bounce them back
+          // Skip messages the user deleted for themselves — don't let realtime bounce them back
           if (deletedForMeIdsRef.current.has(msg.id)) return;
 
-          // Safely append â€” skip if already in list (optimistic duplicate guard)
+          // Safely append — skip if already in list (optimistic duplicate guard)
           setMessages((prev) => {
             if (prev.find((m) => m.id === msg.id)) return prev;
             const next = [...prev, msg];
@@ -2866,7 +2866,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
               .eq("id", msg.id)
               .then(() => {});
 
-            // â”€â”€ Sync effect blast to receiver side â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── Sync effect blast to receiver side ────────────────────────
             if (msg.content) {
               const kwEmoji = getKeywordEmoji(msg.content);
               if (kwEmoji) {
@@ -2874,7 +2874,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
               }
             }
 
-            // â”€â”€ Safety: check sender's risk profile â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── Safety: check sender's risk profile ───────────────────────
             getRiskProfile(sid).then((profile) => {
               if (profile?.is_flagged) {
                 const senderName =
@@ -2890,15 +2890,15 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
               }
             });
 
-            // â”€â”€ Love Protect: check partner activity on every incoming message â”€â”€
-            // Keyword filter removed â€” we check on ANY message from partner so
+            // ── Love Protect: check partner activity on every incoming message ──
+            // Keyword filter removed — we check on ANY message from partner so
             // the mechanism is testable. checkLoveProtectViolation decides severity.
             if (
               loveProtectPartnerRef.current &&
               sid === loveProtectPartnerRef.current
             ) {
               console.log(
-                "[LoveProtect] Incoming message from partner â€” running violation check.",
+                "[LoveProtect] Incoming message from partner — running violation check.",
                 { partnerId: loveProtectPartnerRef.current, msgId: msg.id }
               );
               checkLoveProtectViolation(loveProtectPartnerRef.current).then(
@@ -3006,7 +3006,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     };
   }, [isOpen, selectedUser, userId, scheduleContactsRefresh, fetchMsgReactions]);
 
-  // â”€â”€ Friend actions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Friend actions ────────────────────────────────────────────────────────
   const sendFriendRequest = async (targetId: string) => {
     setActionLoading(targetId);
     try {
@@ -3068,7 +3068,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     }
   };
 
-  // â”€â”€ Open chat â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Open chat ─────────────────────────────────────────────────────────────
   const handleSelectContact = async (user: ChatContact) => {
     if (blockedUserIds.has(user.id)) {
       toast.error("This conversation is unavailable.");
@@ -3108,7 +3108,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     void handleSelectContact({ ...user } as ChatContact);
   };
 
-  // â”€â”€ Send message â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Send message ─────────────────────────────────────────────────────────
   const sendMessage = async (overrideText?: string) => {
     // 1. Grab text and any staged file
     const text = (
@@ -3118,11 +3118,11 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
 
     // 2. Nothing to send
     if (!text && !fileToSend) {
-      console.warn("sendMessage: nothing to send â€” aborting");
+      console.warn("sendMessage: nothing to send — aborting");
       return;
     }
     if (!selectedUser) {
-      console.warn("sendMessage: no selectedUser â€” aborting");
+      console.warn("sendMessage: no selectedUser — aborting");
       return;
     }
     if (
@@ -3135,7 +3135,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       return;
     }
     if (isSending) {
-      console.warn("sendMessage: already sending â€” aborting (isSending=true)");
+      console.warn("sendMessage: already sending — aborting (isSending=true)");
       return;
     }
 
@@ -3151,7 +3151,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       }
     }
 
-    // 4. Text message â€” wrap in try/finally so isSending ALWAYS resets
+    // 4. Text message — wrap in try/finally so isSending ALWAYS resets
     setIsSending(true);
     const replyRef = replyTo;
     setReplyTo(null);
@@ -3174,13 +3174,13 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
            return next.length > 200 ? next.slice(-200) : next;
          });
 
-    // â”€â”€ Magic Keyword Emoji Blast â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Magic Keyword Emoji Blast ─────────────────────────────────────────
     const kwEmoji = getKeywordEmoji(text);
     if (kwEmoji) {
       setEmojiBlast({ id: ++blastIdRef.current, emoji: kwEmoji });
     }
 
-    // â”€â”€ Safety & Integrity â€” risk keyword scan (sender side) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Safety & Integrity — risk keyword scan (sender side) ─────────────
     if (hasRiskKeyword(text)) {
       incrementRiskScore(realSenderId);
     }
@@ -3221,21 +3221,21 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
           (error as unknown as { status?: number }).status === 503 ||
           (error as unknown as { status?: number }).status === 507;
         if (isQuota) {
-          toast.error("Server busy â€” please try again in a few minutes.", {
+          toast.error("Server busy — please try again in a few minutes.", {
             duration: 6000,
           });
         } else {
           const reason =
             error.code === "PGRST301" || error.code?.startsWith("42")
-              ? "Permission denied â€” check Supabase RLS policies"
+              ? "Permission denied — check Supabase RLS policies"
               : errMsg.includes("network")
-                ? "Network error â€” check your connection"
+                ? "Network error — check your connection"
                 : error.message || "Unknown error";
           toast.error(`Message failed: ${reason}`, { duration: 5000 });
         }
       }
     } catch (ex: any) {
-      // Uncaught exception â€” make sure we clean up the optimistic message
+      // Uncaught exception — make sure we clean up the optimistic message
       setMessages((prev) => prev.filter((m) => m.id !== tempId));
       console.error("[ChatSystem] sendMessage uncaught exception:", ex);
       toast.error(`Unexpected error: ${ex?.message || "Unknown"}`);
@@ -3244,7 +3244,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       setIsSending(false);
     }
   };
-  // â”€â”€ Edit message â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Edit message ─────────────────────────────────────────────────────────
   const saveEditMsg = async () => {
     if (!editingMsg) return;
     const { id, text } = editingMsg;
@@ -3261,7 +3261,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     setEditingMsg(null);
   };
 
-  // â”€â”€ Delete message (for everyone) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Delete message (for everyone) ─────────────────────────────────────────
   const deleteMessage = async (msg: Message, e: React.MouseEvent) => {
     if (msg.sender_id !== userId) return;
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
@@ -3286,7 +3286,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
         [...prev, msg].sort((a, b) => a.created_at.localeCompare(b.created_at)),
       );
     } else {
-      toast.success("Message deleted for everyone ðŸ—‘ï¸");
+      toast.success("Message deleted for everyone 🗑️");
     }
   };
 
@@ -3304,11 +3304,11 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
         [...prev, msg].sort((a, b) => a.created_at.localeCompare(b.created_at)),
       );
     } else {
-      toast.success("Message deleted for everyone ðŸ—‘ï¸");
+      toast.success("Message deleted for everyone 🗑️");
     }
   };
 
-  // â”€â”€ Media upload â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Media upload ──────────────────────────────────────────────────────────
   const sendSticker = async (stickerUrl: string) => {
     if (!selectedUser || !stickerUrl) return;
     setIsSending(true);
@@ -3388,11 +3388,11 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     }
 
     const label = file.type.startsWith("video/")
-      ? "ðŸŽ¥ Video"
+      ? "🎥 Video"
       : file.type.startsWith("audio/")
-        ? "ðŸŽµ Audio"
-        : "ðŸ–¼ï¸ Image";
-    toast.success(`${label} attached â€” tap Send or say "Bhej do" to send`);
+        ? "🎵 Audio"
+        : "🖼️ Image";
+    toast.success(`${label} attached — tap Send or say "Bhej do" to send`);
   };
 
   const clearPendingFile = () => {
@@ -3409,7 +3409,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       const ext = file.name.split(".").pop();
       const fileName = `${userId}-${Date.now()}.${ext}`;
 
-      // â”€â”€ Step 1: Upload to storage â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+      // ── Step 1: Upload to storage ────────────────────────────────────────
       const { error: storageError } = await supabase.storage
         .from(CHAT_BUCKET)
         .upload(fileName, file, { contentType: file.type, upsert: false });
@@ -3422,13 +3422,13 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
         return;
       }
 
-      // â”€â”€ Step 2: Get public URL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+      // ── Step 2: Get public URL ───────────────────────────────────────────
       const { data: urlData } = supabase.storage
         .from(CHAT_BUCKET)
         .getPublicUrl(fileName);
       const publicUrl = urlData.publicUrl;
 
-      // â”€â”€ Step 3: Insert message row â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+      // ── Step 3: Insert message row ───────────────────────────────────────
       const insertPayload = {
         sender_id: userId,
         receiver_id: selectedUser.id,
@@ -3468,7 +3468,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     }
   };
 
-  // â”€â”€ Save profile â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Save profile ──────────────────────────────────────────────────────────
   const saveProfileSettings = async () => {
     setSavingProfile(true);
     const { error } = await supabase
@@ -3483,7 +3483,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     }
   };
 
-  // â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Helpers ───────────────────────────────────────────────────────────────
   const formatTime = (iso: string) => {
     if (!iso) return "";
     const d = new Date(iso);
@@ -3494,10 +3494,10 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   };
   const lastMsgPreview = (c: ChatContact) => {
     if (c.last_media_type) {
-      if (c.last_media_type.startsWith("image/")) return "ðŸ“· Photo";
-      if (c.last_media_type.startsWith("video/")) return "ðŸŽ¥ Video";
-      if (c.last_media_type.startsWith("audio/")) return "ðŸŽµ Audio";
-      return "ðŸ“Ž File";
+      if (c.last_media_type.startsWith("image/")) return "📷 Photo";
+      if (c.last_media_type.startsWith("video/")) return "🎥 Video";
+      if (c.last_media_type.startsWith("audio/")) return "🎵 Audio";
+      return "📎 File";
     }
     return c.last_message || "";
   };
@@ -3514,7 +3514,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       return n;
     });
 
-  // â”€â”€ Voice Mode â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Voice Mode ────────────────────────────────────────────────────────────
   const stopVoiceMode = useCallback(() => {
     voiceActiveRef.current = false;
     if (voiceTimerRef.current) {
@@ -3623,11 +3623,11 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
           return;
         }
 
-        // Clean: lowercase + strip trailing punctuation (à¥¤ . ! ?)
+        // Clean: lowercase + strip trailing punctuation (। . ! ?)
         const raw = latest[0].transcript
           .trim()
           .toLowerCase()
-          .replace(/[à¥¤,.!?]+$/, "")
+          .replace(/[।,.!?]+$/, "")
           .trim();
 
         if (!raw) {
@@ -3635,9 +3635,9 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
           return;
         }
 
-        // â”€â”€ SEND â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── SEND ──────────────────────────────────────────────────────────
         if (
-          /^(send|à¤­à¥‡à¤œ à¤¦à¥‹|à¤­à¥‡à¤œà¥‹|à¤­à¥‡à¤œà¤¨à¤¾|send karo|message send|message bhejo|bhej do|bhejo)$/.test(
+          /^(send|भेज दो|भेजो|भेजना|send karo|message send|message bhejo|bhej do|bhejo)$/.test(
             raw,
           )
         ) {
@@ -3649,50 +3649,50 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
           return;
         }
 
-        // â”€â”€ CLEAR CHAT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── CLEAR CHAT ────────────────────────────────────────────────────
         if (
-          /^(clear|clear chat|wipe|wipe chat|sab saaf|sab saaf karo|à¤¸à¤¬ à¤¸à¤¾à¤«|à¤¸à¤¬ à¤¸à¤¾à¤« à¤•à¤°à¥‹|saaf karo|chat saaf|saaf)$/.test(
+          /^(clear|clear chat|wipe|wipe chat|sab saaf|sab saaf karo|सब साफ|सब साफ करो|saaf karo|chat saaf|saaf)$/.test(
             raw,
           )
         ) {
           messages.forEach((m) => rememberDeletedMessage(m.id));
           setMessages([]);
-          toast.success("ðŸ§¹ Chat cleared!");
+          toast.success("🧹 Chat cleared!");
           scheduleVoiceTimeout(() => setVoiceStatus("listening"), 600);
           return;
         }
 
-        // â”€â”€ PANIC MODE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-        if (/^(panic|panic mode|emergency|à¤ªà¥ˆà¤¨à¤¿à¤•|à¤ªà¥ˆà¤¨à¤¿à¤• à¤®à¥‹à¤¡)$/.test(raw)) {
+        // ── PANIC MODE ────────────────────────────────────────────────────
+        if (/^(panic|panic mode|emergency|पैनिक|पैनिक मोड)$/.test(raw)) {
           setPanicMode(true);
           scheduleVoiceTimeout(() => setVoiceStatus("listening"), 600);
           return;
         }
 
-        // â”€â”€ STOP VOICE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── STOP VOICE ────────────────────────────────────────────────────
         if (
-          /^(stop|stop voice|band karo|band kar|à¤¬à¤‚à¤¦ à¤•à¤°à¥‹|à¤°à¥à¤•à¥‹|mic band|voice band)$/.test(
+          /^(stop|stop voice|band karo|band kar|बंद करो|रुको|mic band|voice band)$/.test(
             raw,
           )
         ) {
           stopVoiceMode();
-          toast.success("ðŸ”‡ Voice mode stopped");
+          toast.success("🔇 Voice mode stopped");
           return;
         }
 
-        // â”€â”€ WRITE / LIKH (strip command word, put rest in input) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── WRITE / LIKH (strip command word, put rest in input) ──────────
         const writeMatch = raw.match(
-          /^(?:likh|likho|likhna|write|type|à¤²à¤¿à¤–|à¤²à¤¿à¤–à¥‹|à¤²à¤¿à¤–à¤¨à¤¾)\s+(.+)/,
+          /^(?:likh|likho|likhna|write|type|लिख|लिखो|लिखना)\s+(.+)/,
         );
         if (writeMatch) {
           const msg = writeMatch[1].trim();
           setNewMessage(msg);
-          toast.success(`âœï¸ "${msg}"`);
+          toast.success(`✍️ "${msg}"`);
           scheduleVoiceTimeout(() => setVoiceStatus("listening"), 600);
           return;
         }
 
-        // â”€â”€ FALLBACK: only if no command matched â†’ append to input â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── FALLBACK: only if no command matched → append to input ────────
         setNewMessage((prev) => (prev ? prev + " " + raw : raw));
         scheduleVoiceTimeout(() => setVoiceStatus("listening"), 600);
       };
@@ -3727,7 +3727,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     }
   };
 
-  // â”€â”€ Typing tracker â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Typing tracker ────────────────────────────────────────────────────────
   const handleTyping = () => {
     const ch = typingChannelRef.current;
     if (!ch) return;
@@ -3738,7 +3738,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     }, 2000);
   };
 
-  // â”€â”€ Panic mode triple-click handler â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Panic mode triple-click handler ───────────────────────────────────────
   const handlePanicUnlock = () => {
     if (!panicMode) return;
     panicClickRef.current.count += 1;
@@ -3753,7 +3753,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     }
   };
 
-  // â”€â”€ Delete for Me (local only) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Delete for Me (local only) ────────────────────────────────────────────
   const deleteForMe = (msgId: string) => {
     // Persist the ID so realtime + polling never re-add this message
     rememberDeletedMessage(msgId);
@@ -3765,36 +3765,36 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   // MessageStatus is now a top-level component (see top of file) to keep stable
   // React identity across theme re-renders. No inline definition needed here.
 
-  // â”€â”€ Emoji list for input picker â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Emoji list for input picker ────────────────────────────────────────────
   const INPUT_EMOJIS = [
-    "â¤ï¸",
-    "ðŸ”¥",
-    "ðŸ˜‚",
-    "ðŸ˜",
-    "ðŸ¥°",
-    "ðŸ˜­",
-    "ðŸ¤£",
-    "ðŸ’€",
-    "âœ¨",
-    "ðŸŽ‰",
-    "ðŸ˜Š",
-    "ðŸ¥º",
-    "ðŸ˜¤",
-    "ðŸ’¯",
+    "❤️",
+    "🔥",
+    "😂",
+    "😍",
+    "🥰",
+    "😭",
+    "🤣",
+    "💀",
+    "✨",
+    "🎉",
+    "😊",
+    "🥺",
+    "😤",
+    "💯",
     "🖕",
-    "ðŸŒ¹",
-    "ðŸ’•",
-    "ðŸ¤¯",
-    "ðŸ˜",
-    "ðŸ«¶",
-    "ðŸ’ª",
-    "ðŸ™",
-    "ðŸ˜ˆ",
-    "ðŸ¤©",
-    "ðŸ‘€",
-    "ðŸ« ",
-    "ðŸ’”",
-    "ðŸ¥¹",
+    "🌹",
+    "💕",
+    "🤯",
+    "😏",
+    "🫶",
+    "💪",
+    "🙏",
+    "😈",
+    "🤩",
+    "👀",
+    "🫠",
+    "💔",
+    "🥹",
   ];
 
   const visibleContacts = contacts.filter((c) => !archivedChats.has(c.id));
@@ -3806,7 +3806,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     : messages;
   const unreadAlerts = alerts.filter((a) => !a.read).length;
 
-  // â”€â”€ Friend Action Button â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Friend Action Button ──────────────────────────────────────────────────
   const FriendActionBtn = ({ user }: { user: Profile }) => {
     const fs = friendshipMap.get(user.id);
     const loading = actionLoading === user.id || actionLoading === fs?.id;
@@ -3861,9 +3861,9 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     );
   };
 
-  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  // ═══════════════════════════════════════════════════════════════════════════
   // RENDER
-  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  // ═══════════════════════════════════════════════════════════════════════════
   return (
     <AnimatePresence>
       {isOpen && (
@@ -3963,7 +3963,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
             </motion.div>
           )}
           {/* ═══ END DAIRY NOTEBOOK BOOK PAGE LAYOUT ═══ */}
-          {/* â”€â”€ PANIC MODE OVERLAY â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+          {/* ── PANIC MODE OVERLAY ───────────────────────────────────────── */}
           <AnimatePresence>
             {panicMode && (
               <motion.div
@@ -4019,10 +4019,10 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
             )}
           </AnimatePresence>
 
-          {/* â”€â”€ Rose petals â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+          {/* ── Rose petals ──────────────────────────────────────────────── */}
           {/* no petal overlay for current themes */}
 
-          {/* â”€â”€ Smoke particles â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+          {/* ── Smoke particles ──────────────────────────────────────────── */}
           {smokeParticles.map((p) => (
             <SmokeParticle
               key={p.id}
@@ -4034,7 +4034,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
             />
           ))}
 
-          {/* â”€â”€ Emoji blast â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+          {/* ── Emoji blast ───────────────────────────────────────────────── */}
           {emojiBlast && (
             <EmojiBlast
               key={emojiBlast.id}
@@ -4043,7 +4043,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
             />
           )}
 
-          {/* â”€â”€ Safety: Suspicious Activity Alert â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+          {/* ── Safety: Suspicious Activity Alert ────────────────────────── */}
           <AnimatePresence>
             {suspiciousAlert && (
               <motion.div
@@ -4074,7 +4074,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                       <span className="font-black text-white">
                         {suspiciousAlert.senderName}
                       </span>{" "}
-                      â€” this user has been flagged by our Safety Engine.
+                      — this user has been flagged by our Safety Engine.
                     </p>
                   </div>
                 </div>
@@ -4082,7 +4082,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
             )}
           </AnimatePresence>
 
-          {/* â”€â”€ Love Protect Alert â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+          {/* ── Love Protect Alert ─────────────────────────────────────────── */}
           <AnimatePresence>
             {loveProtectAlert && (
               <motion.div
@@ -4101,10 +4101,10 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                       "linear-gradient(135deg,rgba(190,24,93,0.96) 0%,rgba(131,24,67,0.97) 100%)",
                   }}
                 >
-                  <span className="text-2xl shrink-0 mt-0.5">ðŸ’”</span>
+                  <span className="text-2xl shrink-0 mt-0.5">💔</span>
                   <div className="flex-1">
                     <p className="text-white font-black text-sm tracking-wide">
-                      Love Protect â€” System Alert
+                      Love Protect — System Alert
                     </p>
                     <p className="text-pink-200 text-[11px] mt-1 leading-relaxed">
                       Warning: Your partner's communication pattern shows
@@ -4124,13 +4124,13 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
             )}
           </AnimatePresence>
 
-          {/* â”€â”€ Chat Message Floating Action Menu (long-press) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+          {/* ── Chat Message Floating Action Menu (long-press) ─────────── */}
           <AnimatePresence>
             {chatMsgAction &&
               (() => {
                 const { msg: am, x, y } = chatMsgAction;
                 const isMine = am.sender_id === userId;
-                const QUICK_EMOJIS = ["â¤ï¸", "ðŸ‘", "ðŸ˜‚", "ðŸ”¥", "ðŸ˜®"];
+                const QUICK_EMOJIS = ["❤️", "👍", "😂", "🔥", "😮"];
 
                 const menuW = 220;
                 const reactionH = 54;
@@ -4212,7 +4212,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                         </svg>
                         Reply
                       </button>
-                      {/* Edit â€” own text messages only */}
+                      {/* Edit — own text messages only */}
                       {isMine && !am.media_url && (
                         <button
                           onClick={() => {
@@ -4236,7 +4236,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                         <EyeOff size={15} className="text-gray-400" />
                         Delete for Me
                       </button>
-                      {/* Delete for Everyone â€” only sender */}
+                      {/* Delete for Everyone — only sender */}
                       {isMine && (
                         <button
                           onClick={() => deleteMessageAt(am, x, y)}
@@ -4252,7 +4252,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
               })()}
           </AnimatePresence>
 
-          {/* â”€â”€ Full Instagram-style Story viewer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+          {/* ── Full Instagram-style Story viewer ─────────────────────────── */}
           <AnimatePresence>
             {storyViewerOpen &&
               storyGroups.length > 0 &&
@@ -4307,7 +4307,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                           {pName}
                         </p>
                         <p className="text-white/60 text-[10px] mt-0.5">
-                          {viewerStoryIdx + 1}/{totalInGroup} Â·{" "}
+                          {viewerStoryIdx + 1}/{totalInGroup} ·{" "}
                           {Math.max(0, Math.ceil(15 - storyElapsed))}s
                         </p>
                       </div>
@@ -4353,7 +4353,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                         <X size={20} className="text-white" />
                       </button>
                     </div>
-                    {/* Inline edit panel â€” only shown to owner */}
+                    {/* Inline edit panel — only shown to owner */}
                     {viewerEditing && story.user_id === userId && (
                       <motion.div
                         initial={{ opacity: 0, y: -8 }}
@@ -4374,18 +4374,18 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                             onChange={(e) =>
                               setViewerEditCaption(e.target.value)
                             }
-                            placeholder="Edit captionâ€¦"
+                            placeholder="Edit caption…"
                             className="w-full rounded-xl px-3 py-2 text-sm text-white bg-white/10 border border-white/15 outline-none font-medium"
                           />
                           <div className="flex gap-1.5 flex-wrap">
                             {[
                               { k: "", l: "None" },
-                              { k: "happy", l: "ðŸ˜Š" },
-                              { k: "sad", l: "ðŸ˜¢" },
-                              { k: "love", l: "â¤ï¸" },
-                              { k: "angry", l: "ðŸ˜¡" },
-                              { k: "party", l: "ðŸŽ‰" },
-                              { k: "chill", l: "ðŸ˜Œ" },
+                              { k: "happy", l: "😊" },
+                              { k: "sad", l: "😢" },
+                              { k: "love", l: "❤️" },
+                              { k: "angry", l: "😡" },
+                              { k: "party", l: "🎉" },
+                              { k: "chill", l: "😌" },
                             ].map((m) => (
                               <button
                                 key={m.k}
@@ -4669,7 +4669,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
               })()}
           </AnimatePresence>
 
-          {/* â”€â”€ Story editor modal (multi-file, mood, madad) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+          {/* ── Story editor modal (multi-file, mood, madad) ─────────────── */}
           <AnimatePresence>
             {showStoryEditor &&
               (storyPreviewUrl || storyPreviews.length > 0) && (
@@ -4697,8 +4697,8 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                       <div className="flex items-center justify-between mb-4">
                         <p className="text-white font-black text-base">
                           {storyFiles.length > 1
-                            ? `Post ${storyFiles.length} Stories âœ¨`
-                            : "Create Story âœ¨"}
+                            ? `Post ${storyFiles.length} Stories ✨`
+                            : "Create Story ✨"}
                         </p>
                         <button
                           onClick={() => { clearStoryPreviews(); setShowStoryEditor(false); }}
@@ -4846,7 +4846,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                       />
                       {/* Emoji picker */}
                       <div className="flex gap-2 mb-3 flex-wrap">
-                        {["ðŸŒ¹", "â¤ï¸", "ðŸ”¥", "âœ¨", "ðŸ˜", "ðŸ’«", "ðŸŽ‰", "ðŸ’•"].map(
+                        {["🌹", "❤️", "🔥", "✨", "😍", "💫", "🎉", "💕"].map(
                           (em) => (
                             <button
                               key={em}
@@ -4860,7 +4860,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                           ),
                         )}
                       </div>
-                      {/* Mute video toggle â€” only shown when a video file is selected */}
+                      {/* Mute video toggle — only shown when a video file is selected */}
                       {storyFiles.some((f) => f.type.startsWith("video/")) && (
                         <button
                           type="button"
@@ -4868,8 +4868,8 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                           className={`w-full py-2.5 rounded-2xl text-sm font-black border-2 mb-3 transition-all flex items-center justify-center gap-2 ${muteStoryVideo ? "bg-yellow-500/20 text-yellow-300 border-yellow-500/50" : "bg-white/5 text-white/50 border-white/10"}`}
                         >
                           {muteStoryVideo
-                            ? "ðŸ”‡ Video Muted (Music Plays Over)"
-                            : "ðŸ”Š Mute Video (Play Music Over It)"}
+                            ? "🔇 Video Muted (Music Plays Over)"
+                            : "🔊 Mute Video (Play Music Over It)"}
                         </button>
                       )}
                       {/* Mood / Filter selector */}
@@ -4878,17 +4878,17 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                       </p>
                       <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2 mb-3">
                         {[
-                          { k: "", l: "âœ¨ None" },
-                          { k: "happy", l: "ðŸ˜Š Happy" },
-                          { k: "sad", l: "ðŸ˜¢ Sad" },
-                          { k: "love", l: "â¤ï¸ Love" },
-                          { k: "angry", l: "ðŸ˜¡ Angry" },
-                          { k: "party", l: "ðŸŽ‰ Party" },
-                          { k: "chill", l: "ðŸ˜Œ Chill" },
-                          { k: "vibrant-gold", l: "ðŸŒŸ Gold" },
-                          { k: "cyberpunk", l: "âš¡ Cyber" },
-                          { k: "noir", l: "ðŸŽž Noir" },
-                          { k: "grid", l: "â–¦ Grid" },
+                          { k: "", l: "✨ None" },
+                          { k: "happy", l: "😊 Happy" },
+                          { k: "sad", l: "😢 Sad" },
+                          { k: "love", l: "❤️ Love" },
+                          { k: "angry", l: "😡 Angry" },
+                          { k: "party", l: "🎉 Party" },
+                          { k: "chill", l: "😌 Chill" },
+                          { k: "vibrant-gold", l: "🌟 Gold" },
+                          { k: "cyberpunk", l: "⚡ Cyber" },
+                          { k: "noir", l: "🎞 Noir" },
+                          { k: "grid", l: "▦ Grid" },
                         ].map((m) => (
                           <button
                             key={m.k}
@@ -4924,8 +4924,8 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                       >
                         <Music size={15} />
                         {selectedMusic
-                          ? `ðŸŽµ ${selectedMusicName.slice(0, 28)}${selectedMusicName.length > 28 ? "â€¦" : ""}`
-                          : "ðŸŽµ Add Background Music"}
+                          ? `🎵 ${selectedMusicName.slice(0, 28)}${selectedMusicName.length > 28 ? "…" : ""}`
+                          : "🎵 Add Background Music"}
                       </button>
                       {selectedMusic && (
                         <button
@@ -4936,7 +4936,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                           }}
                           className="w-full py-1.5 rounded-xl text-xs text-red-400/70 mb-3"
                         >
-                          âœ• Remove music
+                          ✕ Remove music
                         </button>
                       )}
                       {/* Madad toggle */}
@@ -4954,7 +4954,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                         <div className="mb-3">
                           <div className="flex justify-between mb-1">
                             <span className="text-xs text-white/60 font-bold">
-                              Uploadingâ€¦
+                              Uploading…
                             </span>
                             <span className="text-xs text-white/40">
                               {storyUploadProgress}%
@@ -5001,9 +5001,9 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
               )}
           </AnimatePresence>
 
-          {/* â•â•â•â•â•â•â• MAIN CONTENT â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+          {/* ═══════ MAIN CONTENT ═══════════════════════════════════════════ */}
           <div className="relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden">
-            {/* â•â•â•â• CHAT LIST â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+            {/* ════ CHAT LIST ══════════════════════════════════════════════ */}
             {bottomTab === "chat" && !selectedUser && (
               <div className={`flex min-h-0 flex-1 flex-col overflow-hidden`}>
                 {/* Header */}
@@ -5259,7 +5259,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
               </div>
             )}
 
-            {/* â•â•â•â• FULL-SCREEN CHAT â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+            {/* ════ FULL-SCREEN CHAT ════════════════════════════════════════ */}
             {bottomTab === "chat" && selectedUser && (
               <div className={`relative flex min-h-0 flex-1 flex-col overflow-hidden`}>
                 <audio
@@ -5276,7 +5276,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                     publishChatMusicState(false);
                   }}
                 />
-                {/* â”€â”€ Theme Background Layers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+                {/* ── Theme Background Layers ──────────────────────────────── */}
                 {theme === "maroon" && (
                   <div className="absolute inset-0 pointer-events-none overflow-hidden" aria-hidden="true">
                     <div className="absolute inset-0" style={{ backgroundImage:"radial-gradient(circle,rgba(255,255,255,0.04) 1px,transparent 1px)", backgroundSize:"18px 18px" }} />
@@ -5293,7 +5293,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                 )}
                 {theme === "comic" && (
                   <div className="absolute inset-0 pointer-events-none overflow-hidden" aria-hidden="true">
-                    {/* Sun glow â€” top left */}
+                    {/* Sun glow — top left */}
                     <div className="absolute" style={{ top:"-15%", left:"-10%", width:320, height:320, borderRadius:"50%", background:"radial-gradient(circle,rgba(255,230,50,0.30) 0%,rgba(255,200,30,0.10) 45%,transparent 70%)" }} />
                     {/* Sun rays */}
                     <div className="absolute" style={{ top:"-22%", left:"-18%", width:430, height:430, borderRadius:"50%", background:"conic-gradient(from 0deg,transparent 0deg,rgba(255,220,30,0.06) 12deg,transparent 24deg,rgba(255,220,30,0.06) 36deg,transparent 48deg,rgba(255,220,30,0.06) 60deg,transparent 72deg,rgba(255,220,30,0.06) 84deg,transparent 96deg,rgba(255,220,30,0.06) 108deg,transparent 120deg,rgba(255,220,30,0.06) 132deg,transparent 144deg,rgba(255,220,30,0.06) 156deg,transparent 168deg,rgba(255,220,30,0.06) 180deg,transparent 192deg,rgba(255,220,30,0.06) 204deg,transparent 216deg,rgba(255,220,30,0.06) 228deg,transparent 240deg,rgba(255,220,30,0.06) 252deg,transparent 264deg,rgba(255,220,30,0.06) 276deg,transparent 288deg,rgba(255,220,30,0.06) 300deg,transparent 312deg,rgba(255,220,30,0.06) 324deg,transparent 336deg,rgba(255,220,30,0.06) 348deg,transparent 360deg)" }} />
@@ -5304,12 +5304,12 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                     <svg className="absolute" style={{ top:"20%", left:"18%", opacity:0.30, width:75 }} viewBox="0 0 75 40" fill="white">
                       <ellipse cx="37" cy="28" rx="30" ry="14" /><ellipse cx="25" cy="22" rx="17" ry="14" /><ellipse cx="50" cy="21" rx="18" ry="12" />
                     </svg>
-                    {/* Halftone dots â€” corners only */}
+                    {/* Halftone dots — corners only */}
                     <div className="absolute top-0 left-0 w-36 h-36" style={{ backgroundImage:"radial-gradient(circle,rgba(0,102,255,0.13) 1.5px,transparent 1.5px)", backgroundSize:"13px 13px" }} />
                     <div className="absolute top-0 right-0 w-36 h-36" style={{ backgroundImage:"radial-gradient(circle,rgba(0,102,255,0.13) 1.5px,transparent 1.5px)", backgroundSize:"13px 13px" }} />
                     <div className="absolute bottom-0 left-0 w-36 h-36" style={{ backgroundImage:"radial-gradient(circle,rgba(0,102,255,0.13) 1.5px,transparent 1.5px)", backgroundSize:"13px 13px" }} />
                     <div className="absolute bottom-0 right-0 w-36 h-36" style={{ backgroundImage:"radial-gradient(circle,rgba(0,102,255,0.13) 1.5px,transparent 1.5px)", backgroundSize:"13px 13px" }} />
-                    {/* City skyline â€” dark, 15% opacity */}
+                    {/* City skyline — dark, 15% opacity */}
                     <svg className="absolute bottom-0 left-0 w-full" viewBox="0 0 390 80" preserveAspectRatio="xMidYMax meet" fill="rgba(25,40,100,0.15)">
                       <path d="M0,80 L0,55 L12,55 L12,44 L22,44 L22,34 L28,34 L28,44 L38,44 L38,55 L50,55 L50,38 L60,38 L60,26 L66,26 L66,18 L72,18 L72,26 L82,26 L82,38 L92,38 L92,50 L104,50 L104,40 L114,40 L114,30 L120,30 L120,40 L130,40 L130,55 L142,55 L142,42 L152,42 L152,28 L158,28 L158,42 L168,42 L168,55 L180,55 L180,44 L192,44 L192,32 L198,32 L198,20 L204,20 L204,32 L210,32 L210,44 L222,44 L222,55 L234,55 L234,46 L244,46 L244,34 L250,34 L250,22 L256,22 L256,34 L262,34 L262,46 L274,46 L274,58 L286,58 L286,48 L296,48 L296,36 L302,36 L302,48 L312,48 L312,58 L324,58 L324,50 L334,50 L334,40 L340,40 L340,28 L346,28 L346,40 L356,40 L356,50 L368,50 L368,58 L380,58 L380,50 L390,50 L390,80 Z" />
                     </svg>
@@ -5317,10 +5317,10 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                     <div className="absolute select-none pointer-events-none" style={{ top:"28%", left:"4%", opacity:0.09, fontSize:72, fontWeight:900, color:"#0066FF", fontStyle:"italic", transform:"rotate(-12deg)", letterSpacing:-2 }}>BOOM!</div>
                     <div className="absolute select-none pointer-events-none" style={{ bottom:"28%", right:"2%", opacity:0.09, fontSize:56, fontWeight:900, color:"#FF3366", fontStyle:"italic", transform:"rotate(9deg)", letterSpacing:-1 }}>YEAH!</div>
                     {/* Stars / sparkles */}
-                    <div className="absolute select-none pointer-events-none" style={{ top:"14%", right:"28%", fontSize:14, opacity:0.55 }}>âœ¦</div>
-                    <div className="absolute select-none pointer-events-none" style={{ top:"40%", left:"8%", fontSize:10, opacity:0.40 }}>âœ¦</div>
-                    <div className="absolute select-none pointer-events-none" style={{ top:"62%", right:"14%", fontSize:12, opacity:0.40 }}>âœ¦</div>
-                    <div className="absolute select-none pointer-events-none" style={{ bottom:"18%", left:"32%", fontSize:9, opacity:0.35 }}>âœ¦</div>
+                    <div className="absolute select-none pointer-events-none" style={{ top:"14%", right:"28%", fontSize:14, opacity:0.55 }}>✦</div>
+                    <div className="absolute select-none pointer-events-none" style={{ top:"40%", left:"8%", fontSize:10, opacity:0.40 }}>✦</div>
+                    <div className="absolute select-none pointer-events-none" style={{ top:"62%", right:"14%", fontSize:12, opacity:0.40 }}>✦</div>
+                    <div className="absolute select-none pointer-events-none" style={{ bottom:"18%", left:"32%", fontSize:9, opacity:0.35 }}>✦</div>
                     {/* Vignette */}
                     <div className="absolute inset-0" style={{ background:"radial-gradient(ellipse at 50% 50%,transparent 50%,rgba(186,230,255,0.25) 100%)" }} />
                   </div>
@@ -5436,7 +5436,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                             role="menuitem"
                             onClick={() => {
                               setShowCallMenu(false);
-                              toast.info("ðŸ”Š Voice call â€” coming soon!");
+                              toast.info("🔊 Voice call — coming soon!");
                             }}
                             className={`flex w-full items-center gap-2 px-4 py-3 text-sm font-bold hover:bg-white/8 ${T.text1}`}
                           >
@@ -5447,7 +5447,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                             role="menuitem"
                             onClick={() => {
                               setShowCallMenu(false);
-                              toast.info("ðŸ“¹ Video call â€” coming soon!");
+                              toast.info("📹 Video call — coming soon!");
                             }}
                             className={`flex w-full items-center gap-2 px-4 py-3 text-sm font-bold hover:bg-white/8 ${T.text1}`}
                           >
@@ -5481,7 +5481,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                     aria-label={panicMode ? "Turn off panic mode" : "Panic mode"}
                     className={`h-7 w-7 shrink-0 rounded-lg border flex items-center justify-center text-xs transition-all hover:bg-white/20 sm:h-8 sm:w-8 sm:text-sm ${panicMode ? "bg-red-500/30 border-red-400/40 animate-pulse" : `bg-white/5 ${T.divider}`}`}
                   >
-                    ðŸ”´
+                    🔴
                   </button>
                   {/* 3-dot chat menu */}
                   <div className="relative z-[60] shrink-0">
@@ -5515,11 +5515,11 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                               messages.forEach((m) => rememberDeletedMessage(m.id));
                               setMessages([]);
                               setShowChatMenu(false);
-                              toast.success("Chat wiped locally ðŸ§½");
+                              toast.success("Chat wiped locally 🧽");
                             }}
                             className={`flex items-center gap-2 w-full px-4 py-3 text-sm font-bold hover:bg-white/8 ${T.text1}`}
                           >
-                            ðŸ§½ Wipe Chat
+                            🧽 Wipe Chat
                           </button>
                           <button
                             onClick={() => {
@@ -5532,7 +5532,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                             }}
                             className={`flex items-center gap-2 w-full px-4 py-3 text-sm font-bold hover:bg-white/8 ${T.text1}`}
                           >
-                            ðŸ™ˆ Hide Chat
+                            🙈 Hide Chat
                           </button>
                           {friendshipMap.get(selectedUser.id)?.status === "accepted" && (
                             <button
@@ -5660,7 +5660,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                         <div className="min-h-0 flex-1 overflow-y-auto p-2">
                           {loadingSongLibrary ? (
                             <div className="flex items-center justify-center gap-2 py-10 text-sm text-white/55">
-                              <Loader2 size={16} className="animate-spin" /> Loading songsâ€¦
+                              <Loader2 size={16} className="animate-spin" /> Loading songs…
                             </div>
                           ) : songLibraryError ? (
                             <div className="px-4 py-8 text-center text-sm text-rose-200">
@@ -5697,7 +5697,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                   )}
                 </AnimatePresence>
 
-                {/* â”€â”€ Voice Mode Banner â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+                {/* ── Voice Mode Banner ─────────────────────────────────── */}
                 <AnimatePresence>
                   {voiceMode && (
                     <motion.div
@@ -5718,11 +5718,11 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                         <div className="flex-1 min-w-0">
                           <p className="text-xs font-black text-red-400 uppercase tracking-wider">
                             {voiceStatus === "listening"
-                              ? "Listeningâ€¦"
-                              : "Processingâ€¦"}
+                              ? "Listening…"
+                              : "Processing…"}
                           </p>
                           <p className="text-[10px] text-white/40 font-semibold">
-                            Say: Likh [msg] Â· Send Â· Sab Saaf Â· Panic Mode Â·
+                            Say: Likh [msg] · Send · Sab Saaf · Panic Mode ·
                             Band Karo
                           </p>
                         </div>
@@ -5913,7 +5913,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                 </p>
                               </div>
                             )}
-                            {/* Comic bubble wrapper â€” adds speech tail */}
+                            {/* Comic bubble wrapper — adds speech tail */}
                             <div className={theme === "comic" ? "relative overflow-visible" : ""}>
                             {theme === "comic" && isMine && (
                               <div className="absolute inset-0 rounded-[20px] pointer-events-none overflow-hidden" style={{ backgroundImage:"radial-gradient(circle,rgba(0,0,0,0.06) 1px,transparent 1px)", backgroundSize:"7px 7px", zIndex:1 }} />
@@ -5994,7 +5994,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                 <MessageStatus msg={msg} userId={userId} />
                               </p>
                             </div>
-                            {/* Comic speech bubble tail â€” sent */}
+                            {/* Comic speech bubble tail — sent */}
                             {theme === "comic" && isMine && (
                               <svg className="absolute right-4 top-full -mt-[2px] z-20" width="20" height="13" viewBox="0 0 20 13" style={{ filter:"drop-shadow(1px 2px 0px rgba(0,0,0,0.35))" }}>
                                 <polygon points="2,0 20,0 13,13" fill="#0066FF" />
@@ -6002,7 +6002,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                 <line x1="20" y1="0" x2="13" y2="13" stroke="black" strokeWidth="1.5" strokeLinejoin="round" />
                               </svg>
                             )}
-                            {/* Comic speech bubble tail â€” received */}
+                            {/* Comic speech bubble tail — received */}
                             {theme === "comic" && !isMine && (
                               <svg className="absolute left-4 top-full -mt-[2px] z-20" width="20" height="13" viewBox="0 0 20 13" style={{ filter:"drop-shadow(-1px 2px 0px rgba(0,0,0,0.25))" }}>
                                 <polygon points="0,0 18,0 7,13" fill="white" />
@@ -6011,7 +6011,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                               </svg>
                             )}
                             </div>{/* end comic bubble wrapper */}
-                            {/* â”€â”€ Seen Indicator â€” below bubble, per spec â”€â”€ */}
+                            {/* ── Seen Indicator — below bubble, per spec ── */}
                             {isMine && msg.id === lastSeenMsgId && (
                               <motion.div
                                 key={lastSeenMsgId ?? undefined}
@@ -6164,11 +6164,11 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                           </p>
                           <p className={`text-[10px] ${T.text3}`}>
                             {pendingFile.type.startsWith("video/")
-                              ? "ðŸŽ¥ Video"
+                              ? "🎥 Video"
                               : pendingFile.type.startsWith("audio/")
-                                ? " ï¿½ï¿½ï¿½ Audio"
-                                : "ðŸ–¼ï¸ Image"}
-                            {" Â· "}
+                                ? " 🎵 Audio"
+                                : "🖼️ Image"}
+                            {" · "}
                             {(pendingFile.size / (1024 * 1024)).toFixed(1)} MB
                           </p>
                         </div>
@@ -6198,7 +6198,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                           : "0 8px 32px rgba(0,0,0,0.5), 0 0 0 1px rgba(227,255,0,0.05)"
                     }}
                   >
-                    {/* â”€â”€ Left buttons â€” emoji + attach â€” collapse in focus mode â”€â”€ */}
+                    {/* ── Left buttons — emoji + attach — collapse in focus mode ── */}
                     <AnimatePresence initial={false}>
                       {!inputFocused && (
                         <motion.div
@@ -6241,7 +6241,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                       onChange={handleMediaUpload}
                       accept="image/*,video/*,audio/*"
                     />
-                    {/* â”€â”€ Textarea â€” expands on focus â”€â”€ */}
+                    {/* ── Textarea — expands on focus ── */}
                     <textarea
                       value={newMessage}
                       onChange={(e) => {
@@ -6261,7 +6261,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                       className={`flex-1 rounded-full px-4 py-2.5 text-base font-medium outline-none border resize-none overflow-y-auto transition-all duration-200 ${T.searchBg}`}
                       style={{ maxHeight: inputFocused ? 96 : 52 }}
                     />
-                    {/* â”€â”€ Send button â€” always visible â”€â”€ */}
+                    {/* ── Send button — always visible ── */}
                     <button
                       onClick={() => { sendMessage(); }}
                       disabled={
@@ -6278,7 +6278,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                         <Send size={16} />
                       )}
                     </button>
-                    {/* â”€â”€ Mic button â€” collapses in focus mode â”€â”€ */}
+                    {/* ── Mic button — collapses in focus mode ── */}
                     <AnimatePresence initial={false}>
                       {!inputFocused && (
                         <motion.div
@@ -6307,7 +6307,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
               </div>
             )}
 
-            {/* â•â•â•â• STORY TAB â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+            {/* ════ STORY TAB ══════════════════════════════════════════════ */}
             {bottomTab === "story" && (
               <div className={`flex flex-col flex-1 overflow-hidden`}>
                 <div
@@ -6392,9 +6392,9 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                     </div>
                   ) : storyGroups.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
-                      <p className="text-5xl">ðŸ”¥</p>
+                      <p className="text-5xl">🔥</p>
                       <p className={`text-base font-black ${T.text3}`}>
-                        No stories available. Start the fire! ðŸ”¥
+                        No stories available. Start the fire! 🔥
                       </p>
                       <p className={`text-xs ${T.text3}`}>
                         Be the first to post a story today
@@ -6508,7 +6508,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
               </div>
             )}
 
-            {/* â•â•â•â• ALERT TAB â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+            {/* ════ ALERT TAB ══════════════════════════════════════════════ */}
             {bottomTab === "alert" && (
               <div className={`flex flex-col flex-1 overflow-hidden`}>
                 <div
@@ -6569,7 +6569,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                   )}
                   {alerts.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-20 gap-3 text-center px-6">
-                      <p className="text-5xl">ðŸ””</p>
+                      <p className="text-5xl">🔔</p>
                       <p className={`text-base font-black ${T.text3}`}>
                         All clear!
                       </p>
@@ -6614,7 +6614,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
               </div>
             )}
 
-            {/* â•â•â•â• MENU TAB â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+            {/* ════ MENU TAB ════════════════════════════════════════════════ */}
             {bottomTab === "menu" && (
               <div className={`flex flex-col flex-1 overflow-hidden`}>
                 <div
@@ -6676,12 +6676,12 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                           )}
                           {myProfile.school && (
                             <p className={`text-xs ${T.text3}`}>
-                              ðŸŽ“ {myProfile.school}
+                              🎓 {myProfile.school}
                             </p>
                           )}
                           {myProfile.location && (
                             <p className={`text-xs ${T.text3}`}>
-                              ðŸ“ {myProfile.location}
+                              📍 {myProfile.location}
                             </p>
                           )}
                         </div>
@@ -6695,11 +6695,11 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                         action: () => setMenuPanel("settings"),
                       },
                       {
-                        icon: <span className="text-base">ðŸ’•</span>,
+                        icon: <span className="text-base">💕</span>,
                         label: "Love Protect",
                         desc: loveProtectEnabled
-                          ? `ðŸ”’ Monitoring â€” ${loveProtectPartnerId ? "Partner linked" : "No partner set"}`
-                          : "ðŸ”“ Guard your relationship",
+                          ? `🔒 Monitoring — ${loveProtectPartnerId ? "Partner linked" : "No partner set"}`
+                          : "🔓 Guard your relationship",
                         action: () => setMenuPanel("settings"),
                       },
                       {
@@ -6786,7 +6786,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                 {menuPanel === "settings" && (
                   <div className="flex-1 overflow-y-auto py-4 px-4 space-y-4">
 
-                    {/* â”€â”€ Love Protect â€” FIRST card so it's always visible â”€â”€â”€â”€ */}
+                    {/* ── Love Protect — FIRST card so it's always visible ──── */}
                     <div
                       className="p-4 rounded-2xl border"
                       style={{
@@ -6801,15 +6801,15 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                       {/* header row */}
                       <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-2">
-                          <span className="text-lg">ðŸ’•</span>
+                          <span className="text-lg">💕</span>
                           <div>
                             <p className={`text-sm font-black ${T.text1}`}>
                               Love Protect
                             </p>
                             <p className={`text-[10px] ${T.text3}`}>
                               {loveProtectEnabled
-                                ? "ðŸ”’ Monitoring active"
-                                : "ðŸ”“ Protection off"}
+                                ? "🔒 Monitoring active"
+                                : "🔓 Protection off"}
                             </p>
                           </div>
                         </div>
@@ -6836,7 +6836,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                         </button>
                       </div>
 
-                      {/* Partner search â€” expands when toggled ON */}
+                      {/* Partner search — expands when toggled ON */}
                       <AnimatePresence>
                         {loveProtectEnabled && (
                           <motion.div
@@ -6872,7 +6872,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                     setLpSearchLoading(false);
                                   }, 350);
                                 }}
-                                placeholder="Type your partner's nameâ€¦"
+                                placeholder="Type your partner's name…"
                                 className={`w-full rounded-xl px-3 py-2.5 text-sm font-semibold outline-none border focus:ring-2 focus:ring-pink-500/30 ${T.searchBg}`}
                               />
                               {lpSearchLoading && (
@@ -6916,7 +6916,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                             {/* Selected partner chip */}
                             {loveProtectPartnerId && lpSelectedName && (
                               <div className="flex items-center gap-2 mb-2 px-3 py-2 rounded-xl bg-pink-500/10 border border-pink-500/30">
-                                <span className="text-pink-400 text-sm">ðŸ’•</span>
+                                <span className="text-pink-400 text-sm">💕</span>
                                 <p className={`text-sm font-black flex-1 text-pink-300`}>{lpSelectedName}</p>
                                 <button
                                   type="button"
@@ -6958,7 +6958,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                   toast.error("Failed to link partner. Please try again.");
                                 } else {
                                   setLoveProtectInput(pid);
-                                  toast.success("ðŸ’• Love Protect linked!");
+                                  toast.success("💕 Love Protect linked!");
                                 }
                               }}
                               disabled={
@@ -6970,14 +6970,14 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                               style={{ background: "linear-gradient(135deg,#f43f5e,#be185d)" }}
                             >
                               {savingLoveProtect ? (
-                                <><Loader2 size={13} className="animate-spin" /> Linkingâ€¦</>
+                                <><Loader2 size={13} className="animate-spin" /> Linking…</>
                               ) : loveProtectInput && loveProtectPartnerId === loveProtectInput ? (
-                                "âœ… Linked"
+                                "✅ Linked"
                               ) : (
-                                "ðŸ”— Link Partner"
+                                "🔗 Link Partner"
                               )}
                             </button>
-                            {/* â”€â”€ Manual test button â”€â”€ */}
+                            {/* ── Manual test button ── */}
                             {loveProtectPartnerId && (
                               <button
                                 type="button"
@@ -6990,17 +6990,17 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                   setLoveProtectAlert(true);
                                   loveProtectTimerRef.current = setTimeout(() => setLoveProtectAlert(false), 15000);
                                   toast.info(violated
-                                    ? "ðŸ’” Violation detected â€” alert is now visible!"
-                                    : "âœ… No violation yet. Alert shown for UI test (check console for DB result)."
+                                    ? "💔 Violation detected — alert is now visible!"
+                                    : "✅ No violation yet. Alert shown for UI test (check console for DB result)."
                                   );
                                 }}
                                 className="w-full mt-2 py-2 rounded-xl border border-pink-500/40 text-pink-400 font-black text-xs flex items-center justify-center gap-1.5 hover:bg-pink-500/10 transition-all"
                               >
-                                ðŸ§ª Test Alert Now
+                                🧪 Test Alert Now
                               </button>
                             )}
                             <p className={`text-[10px] mt-2 leading-relaxed ${T.text3}`}>
-                              If your partner sends romantic messages to multiple people within 1 hour, you'll receive a private system alert â€” no chat content is revealed.
+                              If your partner sends romantic messages to multiple people within 1 hour, you'll receive a private system alert — no chat content is revealed.
                             </p>
                           </motion.div>
                         )}
@@ -7048,8 +7048,8 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                           </p>
                           <p className={`text-xs ${T.text3}`}>
                             {activeStatus && !isActiveHidden
-                              ? "You appear Online ðŸŸ¢"
-                              : "You appear Offline ðŸ”´"}
+                              ? "You appear Online 🟢"
+                              : "You appear Offline 🔴"}
                           </p>
                         </div>
                         <button
@@ -7078,8 +7078,8 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                           </p>
                           <p className={`text-xs ${T.text3}`}>
                             {soundEnabled
-                              ? "ðŸ”Š Sound On â€” ping on message"
-                              : "ðŸ”‡ Muted â€” no sound"}
+                              ? "🔊 Sound On — ping on message"
+                              : "🔇 Muted — no sound"}
                           </p>
                         </div>
                         <button
@@ -7162,7 +7162,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                   <div className="flex-1 overflow-y-auto">
                     {archivedContactsList.length === 0 ? (
                       <div className="flex flex-col items-center justify-center py-20 gap-3 text-center px-6">
-                        <p className="text-5xl">ðŸ“¦</p>
+                        <p className="text-5xl">📦</p>
                         <p className={`text-base font-black ${T.text3}`}>
                           No hidden chats
                         </p>
@@ -7231,7 +7231,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                     {pendingRequests.length === 0 &&
                     messageRequests.length === 0 ? (
                       <div className="flex flex-col items-center justify-center py-20 gap-3 text-center px-6">
-                        <p className="text-5xl">ðŸ“¨</p>
+                        <p className="text-5xl">📨</p>
                         <p className={`text-base font-black ${T.text3}`}>
                           No requests
                         </p>
@@ -7344,7 +7344,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
             )}
           </div>
 
-          {/* â•â•â•â• BOTTOM NAV (z-[60] inside fixed context = always on top) â•â•â• */}
+          {/* ════ BOTTOM NAV (z-[60] inside fixed context = always on top) ═══ */}
           {!selectedUser && (
             <div
               className={`shrink-0 border-t ${T.nav} ${T.divider}`}
@@ -7413,7 +7413,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
               </div>
             </div>
           )}
-          {/* â”€â”€ Admin Dashboard overlay â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+          {/* ── Admin Dashboard overlay ───────────────────────────────────── */}
           <AnimatePresence>
             {showAdminDashboard && isAdmin && (
               <AdminDashboard
@@ -7437,6 +7437,6 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
 };
 
 // React.memo prevents re-renders when parent (Index.tsx) state changes that
-// are unrelated to chat â€” e.g. active tab switches, profile edits, etc.
+// are unrelated to chat — e.g. active tab switches, profile edits, etc.
 export default React.memo(ChatSystem);
 
