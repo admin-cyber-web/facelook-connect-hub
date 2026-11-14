@@ -163,6 +163,10 @@ export const ChatSticker: React.FC<ChatStickerProps> = ({ type, originalText, is
   const cfg = STICKER_CONFIG[type];
   const [stickerImageFailed, setStickerImageFailed] = React.useState(false);
 
+  if (!cfg) {
+    return <span style={{ color: "rgba(255,255,255,0.9)", fontSize: 13 }}>{originalText}</span>;
+  }
+
   // ── Warning state — no animation, just a badge ──────────────────────────
   if (type === "warning") {
     return (
@@ -195,8 +199,6 @@ export const ChatSticker: React.FC<ChatStickerProps> = ({ type, originalText, is
   }
 
   // ── Transparent floating sticker ─────────────────────────────────────────
-  // No background box, no border, no rigid padding — emojis and text float
-  // directly over the chat background with a minimal vertical footprint.
   return (
     <motion.div
       variants={popIn}
@@ -225,7 +227,7 @@ export const ChatSticker: React.FC<ChatStickerProps> = ({ type, originalText, is
         />
       ) : (
         <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 4 }}>
-          {cfg.emojis.map((emoji, i) => (
+          {(cfg.emojis || ["✨"]).map((emoji, i) => (
             <motion.span
               key={i}
               style={{
@@ -254,7 +256,7 @@ export const ChatSticker: React.FC<ChatStickerProps> = ({ type, originalText, is
 
       {/* Label */}
       <p style={{
-        color: cfg.labelColor,
+        color: cfg.labelColor || "#ffffff",
         fontSize: 10,
         fontWeight: 900,
         textTransform: "uppercase",

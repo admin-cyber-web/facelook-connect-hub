@@ -109,20 +109,24 @@ const getStoryMediaUrl = (url: string): string => {
 // Fired when a story <img> or <video> fails to load.
 // Hides the broken element and shows a gradient + emoji on the parent container.
 const onStoryMediaError = (e: React.SyntheticEvent<HTMLImageElement | HTMLVideoElement>) => {
-  const el = e.currentTarget;
-  el.style.display = "none";
-  const parent = el.parentElement;
-  if (!parent) return;
-  parent.style.background = "linear-gradient(135deg,#1e1b4b 0%,#312e81 50%,#1e293b 100%)";
-  if (!parent.querySelector(".story-err-fb")) {
-    const fb = document.createElement("div");
-    fb.className = "story-err-fb";
-    fb.style.cssText =
-      "position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;pointer-events:none";
-    fb.innerHTML =
-      '<span style="font-size:2rem">📖</span>' +
-      '<span style="color:rgba(255,255,255,0.35);font-size:10px;font-weight:800;letter-spacing:2px">STORY</span>';
-    parent.appendChild(fb);
+  try {
+    const el = e.currentTarget;
+    if (el) el.style.display = "none";
+    const parent = el?.parentElement;
+    if (!parent) return;
+    parent.style.background = "linear-gradient(135deg,#1e1b4b 0%,#312e81 50%,#1e293b 100%)";
+    if (!parent.querySelector(".story-err-fb")) {
+      const fb = document.createElement("div");
+      fb.className = "story-err-fb";
+      fb.style.cssText =
+        "position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;pointer-events:none";
+      fb.innerHTML =
+        '<span style="font-size:2rem">📖</span>' +
+        '<span style="color:rgba(255,255,255,0.35);font-size:10px;font-weight:800;letter-spacing:2px">STORY</span>';
+      parent.appendChild(fb);
+    }
+  } catch (err) {
+    console.warn("[ChatSystem] onStoryMediaError caught gracefully:", err);
   }
 };
 
@@ -458,14 +462,32 @@ const Avatar = ({
 // ── MediaBubble (memoized to prevent re-renders during scroll) ───────────────
 const MediaBubble = React.memo(
   ({ url, type }: { url: string; type: string }) => {
+    const [hasError, setHasError] = React.useState(false);
+
+    if (hasError || !url) {
+      return (
+        <div className="flex items-center gap-2 bg-gray-800/60 p-3 rounded-2xl text-xs text-gray-300 border border-gray-700">
+          <span className="text-sm">⚠️</span>
+          <span>Media unavailable</span>
+        </div>
+      );
+    }
+
     if (type.startsWith("image/")) {
       return (
         <img
           src={url}
+          alt="Shared media"
           className="max-w-[220px] rounded-2xl object-cover cursor-pointer shadow-lg"
-          onClick={() => window.open(url, "_blank")}
+          onClick={() => {
+            try {
+              window.open(url, "_blank");
+            } catch (e) {
+              console.warn("Could not open media URL", e);
+            }
+          }}
+          onError={() => setHasError(true)}
           decoding="async"
-          crossOrigin="anonymous"
         />
       );
     }
@@ -478,12 +500,12 @@ const MediaBubble = React.memo(
           muted
           playsInline
           webkitPlaysInline
-          crossOrigin="anonymous"
-          preload="auto"
+          preload="metadata"
+          onError={() => setHasError(true)}
           className="max-w-[240px] rounded-2xl shadow-lg bg-black"
           style={{ maxHeight: 200 }}
         >
-          {url && <source src={url} type="video/mp4" />}
+          {url && <source src={url} type="video/mp4" onError={() => setHasError(true)} />}
         </video>
       );
     }
@@ -499,6 +521,7 @@ const MediaBubble = React.memo(
             <audio
               src={url}
               controls
+              onError={() => setHasError(true)}
               className="w-full h-8"
               style={{ accentColor: "#60a5fa" }}
             />
@@ -4040,7 +4063,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                       alt=""
                       className="w-full h-full object-cover"
                       decoding="async"
-                      crossOrigin="anonymous"
+                      onError={(e) => { (e.currentTarget as HTMLElement).style.display = "none"; }}
                     />
                   ) : (
                     <div className="w-full h-full bg-gray-100 flex items-center justify-center text-2xl">
@@ -4339,7 +4362,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                           src={aUrl}
                           className="w-9 h-9 rounded-full object-cover border-2 border-white/60"
                           decoding="async"
-                          crossOrigin="anonymous"
+                          onError={(e) => { (e.currentTarget as HTMLElement).style.display = "none"; }}
                         />
                       ) : (
                         <div
@@ -4505,7 +4528,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                     src={aUrl}
                                     className="w-full h-full object-cover"
                                     decoding="async"
-                                    crossOrigin="anonymous"
+                                    onError={(e) => { (e.currentTarget as HTMLElement).style.display = "none"; }}
                                   />
                                 ) : (
                                   <div
@@ -4576,7 +4599,6 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                   }}
                                   draggable={false}
                                   decoding="async"
-                                  crossOrigin="anonymous"
                                   onError={onStoryMediaError}
                                 />
                               ))}
@@ -4588,7 +4610,6 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                 className="w-full h-full object-cover"
                                 style={{ filter: moodFilter }}
                                 draggable={false}
-                                crossOrigin="anonymous"
                                 decoding="async"
                                 onError={onStoryMediaError}
                               />
@@ -4780,7 +4801,6 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                     muted
                                     playsInline
                                     webkitPlaysInline
-                                    crossOrigin="anonymous"
                                     preload="auto"
                                   >
                                     {url && <source src={url} type="video/mp4" />}
@@ -4797,7 +4817,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                   src={url}
                                   className="w-full h-full object-cover"
                                   decoding="async"
-                                  crossOrigin="anonymous"
+                                  onError={(e) => { (e.currentTarget as HTMLElement).style.display = "none"; }}
                                 />
                               )}
                               <div className="absolute bottom-1 right-1 bg-black/50 rounded-full px-1.5 py-0.5">
@@ -4821,7 +4841,6 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                       muted
                                       playsInline
                                       webkitPlaysInline
-                                      crossOrigin="anonymous"
                                       preload="auto"
                                       loop
                                       autoPlay
@@ -6726,7 +6745,6 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                     STORY_MOOD_FILTER[story.mood ?? ""] ?? "",
                                 }}
                                 decoding="async"
-                                crossOrigin="anonymous"
                                 onError={onStoryMediaError}
                               />
                             )}
@@ -6751,7 +6769,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                   src={aUrl}
                                   className="w-8 h-8 rounded-full object-cover border border-white/60"
                                   decoding="async"
-                                  crossOrigin="anonymous"
+                                  onError={(e) => { (e.currentTarget as HTMLElement).style.display = "none"; }}
                                 />
                               ) : (
                                 <div
