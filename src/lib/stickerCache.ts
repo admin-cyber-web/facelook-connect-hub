@@ -17,23 +17,45 @@ const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 let dbPromise: Promise<IDBDatabase> | null = null;
 
 function openDb(): Promise<IDBDatabase> {
+  if (typeof indexedDB === "undefined") {
+    return Promise.reject(new Error("IndexedDB is not supported in this environment"));
+  }
   if (dbPromise) return dbPromise;
   dbPromise = new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, DB_VERSION);
-    req.onupgradeneeded = () => {
-      const db = req.result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME, { keyPath: "url" });
-      }
-    };
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
+    try {
+      const req = indexedDB.open(DB_NAME, DB_VERSION);
+      req.onupgradeneeded = () => {
+        const db = req.result;
+        if (!db.objectStoreNames.contains(STORE_NAME)) {
+          db.createObjectStore(STORE_NAME, { keyPath: "url" });
+        }
+      };
+      req.onsuccess = () => {
+        const db = req.result;
+        db.onversionchange = () => {
+          db.close();
+          dbPromise = null;
+        };
+        db.onerror = () => {
+          dbPromise = null;
+        };
+        resolve(db);
+      };
+      req.onerror = () => {
+        dbPromise = null;
+        reject(req.error || new Error("Failed to open IndexedDB"));
+      };
+    } catch (e) {
+      dbPromise = null;
+      reject(e);
+    }
   });
   return dbPromise;
 }
 
 /** Get a cached sticker blob by URL, or null if missing/expired. */
 export async function getCachedSticker(url: string): Promise<string | null> {
+  if (!url) return null;
   try {
     const db = await openDb();
     const tx = db.transaction(STORE_NAME, "readonly");
@@ -44,12 +66,12 @@ export async function getCachedSticker(url: string): Promise<string | null> {
         getReq.onsuccess = () => resolve(getReq.result);
         getReq.onerror = () => reject(getReq.error);
       });
-    db.close();
 
     if (!entry) return null;
     if (Date.now() - entry.cachedAt > CACHE_TTL_MS) return null; // expired
     return entry.blob; // data URL
   } catch (err) {
+    dbPromise = null;
     console.warn("[StickerCache] read error:", err);
     return null;
   }
@@ -57,6 +79,7 @@ export async function getCachedSticker(url: string): Promise<string | null> {
 
 /** Cache a sticker image blob (data URL) by URL. */
 export async function setCachedSticker(url: string, dataUrl: string): Promise<void> {
+  if (!url || !dataUrl) return;
   try {
     const db = await openDb();
     const tx = db.transaction(STORE_NAME, "readwrite");
@@ -66,17 +89,23 @@ export async function setCachedSticker(url: string, dataUrl: string): Promise<vo
       putReq.onsuccess = () => resolve(putReq.result);
       putReq.onerror = () => reject(putReq.error);
     });
-    db.close();
   } catch (err) {
+    dbPromise = null;
     console.warn("[StickerCache] write error:", err);
   }
 }
 
 /** Fetch a sticker image from BunnyCDN, falling back to local cache. Returns a data URL. */
 export async function fetchStickerImage(url: string): Promise<string> {
+  if (!url) return "";
+
   // 1. Try local cache first
-  const cached = await getCachedSticker(url);
-  if (cached) return cached;
+  try {
+    const cached = await getCachedSticker(url);
+    if (cached) return cached;
+  } catch (err) {
+    console.warn("[StickerCache] getCachedSticker caught:", err);
+  }
 
   // 2. Fetch from BunnyCDN
   try {
@@ -85,15 +114,21 @@ export async function fetchStickerImage(url: string): Promise<string> {
     const blob = await response.blob();
     const dataUrl = await new Promise<string>((resolve, reject) => {
       const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result as string);
-      reader.onerror = reject;
+      reader.onloadend = () => {
+        if (typeof reader.result === "string") {
+          resolve(reader.result);
+        } else {
+          reject(new Error("FileReader result is not string"));
+        }
+      };
+      reader.onerror = () => reject(reader.error || new Error("FileReader error"));
       reader.readAsDataURL(blob);
     });
     // 3. Cache for offline use (non-blocking)
-    void setCachedSticker(url, dataUrl);
+    void setCachedSticker(url, dataUrl).catch(() => {});
     return dataUrl;
   } catch (err) {
-    console.warn("[StickerCache] fetch failed:", err);
+    console.warn("[StickerCache] fetch failed gracefully:", err);
     return url; // fallback to direct URL
   }
 }
@@ -101,10 +136,18 @@ export async function fetchStickerImage(url: string): Promise<string> {
 /** Preload a category's stickers into local cache. */
 export async function preloadCategory(category: string, files: string[]): Promise<void> {
   const base = "https://flicksindiacdn.b-cdn.net";
-  await Promise.allSettled(
-    files.map((file) => {
-      const url = `${base}/${category}/${file}`;
-      return fetchStickerImage(url);
-    })
-  );
+  try {
+    if (!Array.isArray(files)) return;
+    await Promise.allSettled(
+      files.map((file) => {
+        const url = `${base}/${category}/${file}`;
+        return fetchStickerImage(url).catch((err) => {
+          console.warn("[StickerCache] single sticker preload error:", err);
+          return url;
+        });
+      })
+    );
+  } catch (err) {
+    console.warn("[StickerCache] preloadCategory caught:", err);
+  }
 }

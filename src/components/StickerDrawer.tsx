@@ -27,40 +27,67 @@ export const StickerDrawer: React.FC<StickerDrawerProps> = ({
   const [activeCategory, setActiveCategory] = useState<StickerPackCategory>("Love");
   const [loadingStickers, setLoadingStickers] = useState<Set<string>>(new Set());
   const [resolvedUrls, setResolvedUrls] = useState<Record<string, string>>({});
+  const [failedImages, setFailedImages] = useState<Set<string>>(new Set());
 
-  const files = STICKER_FILES[activeCategory];
+  const files = STICKER_FILES[activeCategory] || STICKER_FILES.Love;
 
   useEffect(() => {
     if (!isOpen) return;
-    void preloadCategory(activeCategory, files);
+    try {
+      void preloadCategory(activeCategory, files);
+    } catch (err) {
+      console.warn("[StickerDrawer] preloadCategory failed:", err);
+    }
   }, [isOpen, activeCategory, files]);
 
   useEffect(() => {
+    let isMounted = true;
     const resolveAll = async () => {
-      const next: Record<string, string> = {};
-      await Promise.all(
-        files.map(async (file) => {
-          const url = bunnyStickerUrl(activeCategory, file);
-          next[file] = await fetchStickerImage(url);
-        })
-      );
-      setResolvedUrls(next);
+      try {
+        const next: Record<string, string> = {};
+        await Promise.all(
+          files.map(async (file) => {
+            try {
+              const url = bunnyStickerUrl(activeCategory, file);
+              const res = await fetchStickerImage(url);
+              if (isMounted) {
+                next[file] = res || url;
+              }
+            } catch (e) {
+              if (isMounted) {
+                next[file] = bunnyStickerUrl(activeCategory, file);
+              }
+            }
+          })
+        );
+        if (isMounted) setResolvedUrls(next);
+      } catch (err) {
+        console.warn("[StickerDrawer] resolveAll error:", err);
+      }
     };
     resolveAll();
+    return () => {
+      isMounted = false;
+    };
   }, [activeCategory, files]);
 
   const isLoading = (file: string) => loadingStickers.has(file);
 
   const handleStickerPress = (file: string) => {
-    setLoadingStickers((prev) => new Set([...prev, file]));
-    const url = resolvedUrls[file] || bunnyStickerUrl(activeCategory, file);
-    setLoadingStickers((prev) => {
-      const next = new Set(prev);
-      next.delete(file);
-      return next;
-    });
-    onStickerSelect(url);
-    onClose();
+    try {
+      setLoadingStickers((prev) => new Set([...prev, file]));
+      const url = resolvedUrls[file] || bunnyStickerUrl(activeCategory, file);
+      onStickerSelect(url);
+      onClose();
+    } catch (err) {
+      console.error("[StickerDrawer] handleStickerPress error:", err);
+    } finally {
+      setLoadingStickers((prev) => {
+        const next = new Set(prev);
+        next.delete(file);
+        return next;
+      });
+    }
   };
 
   return (
@@ -115,6 +142,7 @@ export const StickerDrawer: React.FC<StickerDrawerProps> = ({
               <div className="grid grid-cols-4 gap-2">
                 {files.map((file) => {
                   const isLoadingImg = isLoading(file);
+                  const hasFailed = failedImages.has(file);
                   const imageSrc = resolvedUrls[file] || bunnyStickerUrl(activeCategory, file);
                   return (
                     <motion.button
@@ -126,20 +154,15 @@ export const StickerDrawer: React.FC<StickerDrawerProps> = ({
                     >
                       {isLoadingImg ? (
                         <Loader2 size={16} className="text-gray-400 animate-spin" />
+                      ) : hasFailed ? (
+                        <span className="text-2xl select-none" role="img" aria-label="sticker fallback">🎨</span>
                       ) : (
                         <img
                           src={imageSrc}
                           alt={file}
                           className="w-full h-full object-cover"
-                          onError={(e: any) => {
-                            const target = e.target as HTMLImageElement;
-                            target.style.display = "none";
-                            const parent = target.parentElement as HTMLElement;
-                            parent.style.display = "flex";
-                            parent.style.alignItems = "center";
-                            parent.style.justifyContent = "center";
-                            parent.style.overflow = "visible";
-                            parent.innerHTML = "🎨";
+                          onError={() => {
+                            setFailedImages((prev) => new Set(prev).add(file));
                           }}
                           decoding="async"
                           loading="lazy"

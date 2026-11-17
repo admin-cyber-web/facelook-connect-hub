@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+﻿import React, { useState, useEffect, useRef, useCallback } from "react";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { ReactionBar, ReactionBubbles } from "./ReactionBar";
 import { useSoundEffects } from "../hooks/useSoundEffects";
 import { useProfileViewer } from "../context/ProfileViewerContext";
@@ -108,25 +109,29 @@ const getStoryMediaUrl = (url: string): string => {
 // Fired when a story <img> or <video> fails to load.
 // Hides the broken element and shows a gradient + emoji on the parent container.
 const onStoryMediaError = (e: React.SyntheticEvent<HTMLImageElement | HTMLVideoElement>) => {
-  const el = e.currentTarget;
-  el.style.display = "none";
-  const parent = el.parentElement;
-  if (!parent) return;
-  parent.style.background = "linear-gradient(135deg,#1e1b4b 0%,#312e81 50%,#1e293b 100%)";
-  if (!parent.querySelector(".story-err-fb")) {
-    const fb = document.createElement("div");
-    fb.className = "story-err-fb";
-    fb.style.cssText =
-      "position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;pointer-events:none";
-    fb.innerHTML =
-      '<span style="font-size:2rem">📖</span>' +
-      '<span style="color:rgba(255,255,255,0.35);font-size:10px;font-weight:800;letter-spacing:2px">STORY</span>';
-    parent.appendChild(fb);
+  try {
+    const el = e.currentTarget;
+    if (el) el.style.display = "none";
+    const parent = el?.parentElement;
+    if (!parent) return;
+    parent.style.background = "linear-gradient(135deg,#1e1b4b 0%,#312e81 50%,#1e293b 100%)";
+    if (!parent.querySelector(".story-err-fb")) {
+      const fb = document.createElement("div");
+      fb.className = "story-err-fb";
+      fb.style.cssText =
+        "position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;pointer-events:none";
+      fb.innerHTML =
+        '<span style="font-size:2rem">📖</span>' +
+        '<span style="color:rgba(255,255,255,0.35);font-size:10px;font-weight:800;letter-spacing:2px">STORY</span>';
+      parent.appendChild(fb);
+    }
+  } catch (err) {
+    console.warn("[ChatSystem] onStoryMediaError caught gracefully:", err);
   }
 };
 
 // ── Types ──────────────────────────────────────────────────────────────────────
-type Theme = "whatsapp" | "maroon" | "comic" | "dairy";
+type Theme = "dairy-notebook" | "whatsapp" | "maroon" | "comic";
 type BottomTab = "chat" | "story" | "alert" | "menu";
 type MenuPanel = "main" | "settings" | "archive" | "requests";
 
@@ -291,39 +296,13 @@ const THEME_CFG = {
     icon: "⚡",
     label: "Midnight",
     divider: "border-white/8",
-    searchBg: "bg-white/5 border-white/10 text-white placeholder:text-white/25",
+    searchBg: "bg-[#050505] border-white/10 text-white placeholder:text-white/25",
     msgMenuBg: "bg-[#1a0418] border-[#E3FF00]/20",
     pill: "bg-[#E3FF00]/15 text-[#E3FF00] border border-[#E3FF00]/30",
     storyRing: "border-[#E3FF00]",
     sendBtnText: "text-[#050505]",
   },
-  comic: {
-    wrap: "bg-sky-100",
-    sidebar: "bg-white border-blue-200",
-    chat: "bg-sky-100",
-    topbar: "bg-white/90 backdrop-blur-xl border-black/10",
-    input: "bg-white/95 border-black/8",
-    nav: "bg-white/90 border-black/10",
-    bubbleSent:
-      "bg-gradient-to-b from-[#3399FF] to-[#0066FF] text-white border-2 border-black shadow-[3px_4px_0px_rgba(0,0,0,0.22)]",
-    bubbleRecv:
-      "bg-white text-gray-900 border-2 border-black shadow-[3px_4px_0px_rgba(0,0,0,0.12)]",
-    text1: "text-gray-900",
-    text2: "text-[#0066FF]",
-    text3: "text-gray-500",
-    accent: "bg-[#E3FF00]",
-    accentText: "text-[#0066FF]",
-    icon: "🎨",
-    label: "Comic Pop",
-    divider: "border-black/10",
-    searchBg:
-      "bg-white border-gray-200 text-gray-900 placeholder:text-gray-400",
-    msgMenuBg: "bg-white border-gray-200 shadow-xl",
-    pill: "bg-[#E3FF00]/30 text-[#0066FF] border border-[#0066FF]/30",
-    storyRing: "border-[#E3FF00]",
-    sendBtnText: "text-[#050505]",
-  },
-  dairy: {
+  "dairy-notebook": {
     wrap: "diary-desk",
     sidebar: "bg-[#f2e2c0] border-[#b99b6d]",
     chat: "bg-[#e8d0a0]",
@@ -346,6 +325,29 @@ const THEME_CFG = {
     pill: "bg-[#8b2f39]/12 text-[#8b2f39] border border-[#8b2f39]/30",
     storyRing: "border-[#8b2f39]",
     sendBtnText: "text-[#fdfbf7]",
+  },
+  comic: {
+    wrap: "bg-sky-100",
+    sidebar: "bg-white border-blue-200",
+    chat: "bg-sky-100",
+    topbar: "bg-white/90 backdrop-blur-xl border-black/10",
+    input: "bg-white/95 border-black/8",
+    nav: "bg-white/90 border-black/10",
+    bubbleSent: "bg-gradient-to-b from-[#3399FF] to-[#0066FF] text-white border-2 border-black shadow-[3px_4px_0px_rgba(0,0,0,0.22)]",
+    bubbleRecv: "bg-white text-gray-900 border-2 border-black shadow-[3px_4px_0px_rgba(0,0,0,0.12)]",
+    text1: "text-gray-900",
+    text2: "text-[#0066FF]",
+    text3: "text-gray-500",
+    accent: "bg-[#E3FF00]",
+    accentText: "text-[#0066FF]",
+    icon: "🎨",
+    label: "Comic Pop",
+    divider: "border-black/10",
+    searchBg: "bg-white border-gray-200 text-gray-900 placeholder:text-gray-400",
+    msgMenuBg: "bg-white border-gray-200 shadow-xl",
+    pill: "bg-[#E3FF00]/30 text-[#0066FF] border border-[#0066FF]/30",
+    storyRing: "border-[#E3FF00]",
+    sendBtnText: "text-[#050505]",
   },
 };
 
@@ -489,14 +491,32 @@ const Avatar = ({
 // ── MediaBubble (memoized to prevent re-renders during scroll) ───────────────
 const MediaBubble = React.memo(
   ({ url, type }: { url: string; type: string }) => {
+    const [hasError, setHasError] = React.useState(false);
+
+    if (hasError || !url) {
+      return (
+        <div className="flex items-center gap-2 bg-gray-800/60 p-3 rounded-2xl text-xs text-gray-300 border border-gray-700">
+          <span className="text-sm">⚠️</span>
+          <span>Media unavailable</span>
+        </div>
+      );
+    }
+
     if (type.startsWith("image/")) {
       return (
         <img
           src={url}
+          alt="Shared media"
           className="max-w-[220px] rounded-2xl object-cover cursor-pointer shadow-lg"
-          onClick={() => window.open(url, "_blank")}
+          onClick={() => {
+            try {
+              window.open(url, "_blank");
+            } catch (e) {
+              console.warn("Could not open media URL", e);
+            }
+          }}
+          onError={() => setHasError(true)}
           decoding="async"
-          crossOrigin="anonymous"
         />
       );
     }
@@ -509,12 +529,12 @@ const MediaBubble = React.memo(
           muted
           playsInline
           webkitPlaysInline
-          crossOrigin="anonymous"
-          preload="auto"
+          preload="metadata"
+          onError={() => setHasError(true)}
           className="max-w-[240px] rounded-2xl shadow-lg bg-black"
           style={{ maxHeight: 200 }}
         >
-          {url && <source src={url} type="video/mp4" />}
+          {url && <source src={url} type="video/mp4" onError={() => setHasError(true)} />}
         </video>
       );
     }
@@ -530,6 +550,7 @@ const MediaBubble = React.memo(
             <audio
               src={url}
               controls
+              onError={() => setHasError(true)}
               className="w-full h-8"
               style={{ accentColor: "#60a5fa" }}
             />
@@ -840,6 +861,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   onReady,
 }) => {
   const isAdmin = isAdminEmail(userEmail);
+  const isMobile = useIsMobile();
   const { openProfile } = useProfileViewer();
 
   // ── Message Reactions ─────────────────────────────────────────────────────
@@ -966,17 +988,18 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
 
   // ── Persisted state ───────────────────────────────────────────────────────
   const [theme, setTheme] = useState<Theme>(() => {
-    // Version migration: v5 = Dairy Notebook is the default chat theme
+    // Version migration: v5 = add dairy-notebook as default theme
     if (localStorage.getItem("cx_theme_v") !== "5") {
       localStorage.setItem("cx_theme_v", "5");
-      localStorage.setItem("cx_theme", "dairy");
-      return "dairy";
+      localStorage.setItem("cx_theme", "dairy-notebook");
+      return "dairy-notebook";
     }
     const s = localStorage.getItem("cx_theme") as Theme;
-    return s === "whatsapp" || s === "maroon" || s === "comic" || s === "dairy"
+    return s === "dairy-notebook" || s === "whatsapp" || s === "maroon" || s === "comic"
       ? s
-      : "dairy";
+      : "dairy-notebook";
   });
+  const [lastMsgDate, setLastMsgDate] = useState<string | null>(null);
   const [activeStatus, setActiveStatus] = useState(
     () => localStorage.getItem("cx_active_status") !== "false",
   );
@@ -1570,6 +1593,16 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   }, [messages]);
 
   const T = THEME_CFG[theme];
+  // Opaque panel background for sub-views (Friends/Chat list, Menu, Settings, Archive).
+  // Never transparent — always a solid theme color so nothing bleeds through.
+  const panelBg =
+    theme === "dairy-notebook"
+      ? "bg-[#fbf0d9]"
+      : theme === "whatsapp"
+      ? "bg-[#075E54]"
+      : theme === "maroon"
+      ? "bg-[#050505]"
+      : "bg-sky-100";
   const { playPop, playSwoosh } = useSoundEffects();
   const isActiveHidden = useActiveHide();
 
@@ -3893,14 +3926,22 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     <AnimatePresence>
       {isOpen && (
         <motion.div
-          initial={{ y: "100%" }}
-          animate={{ y: 0 }}
-          exit={{ y: "100%" }}
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.95 }}
           transition={{ type: "spring", stiffness: 300, damping: 30 }}
-          className={`chat-shell fixed inset-0 z-[150] flex h-[100dvh] min-h-0 flex-col ${T.wrap} overflow-hidden`}
+          className={`chat-shell fixed inset-0 z-[150] isolate flex h-[100dvh] min-h-0 flex-col overflow-hidden`}
           style={{
             top: "env(safe-area-inset-top, 0px)",
             height: "calc(100dvh - env(safe-area-inset-top, 0px))",
+            backgroundColor:
+              theme === "dairy-notebook"
+                ? "#33271a"
+                : theme === "whatsapp"
+                ? "#075E54"
+                : theme === "maroon"
+                ? "#050505"
+                : "#e0e7ff",
           }}
           onClick={(e) => e.stopPropagation()}
           onPointerDown={(e) => e.stopPropagation()}
@@ -3935,7 +3976,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                       alt=""
                       className="w-full h-full object-cover"
                       decoding="async"
-                      crossOrigin="anonymous"
+                      onError={(e) => { (e.currentTarget as HTMLElement).style.display = "none"; }}
                     />
                   ) : (
                     <div className="w-full h-full bg-gray-100 flex items-center justify-center text-2xl">
@@ -4234,7 +4275,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                           src={aUrl}
                           className="w-9 h-9 rounded-full object-cover border-2 border-white/60"
                           decoding="async"
-                          crossOrigin="anonymous"
+                          onError={(e) => { (e.currentTarget as HTMLElement).style.display = "none"; }}
                         />
                       ) : (
                         <div
@@ -4400,7 +4441,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                     src={aUrl}
                                     className="w-full h-full object-cover"
                                     decoding="async"
-                                    crossOrigin="anonymous"
+                                    onError={(e) => { (e.currentTarget as HTMLElement).style.display = "none"; }}
                                   />
                                 ) : (
                                   <div
@@ -4471,7 +4512,6 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                   }}
                                   draggable={false}
                                   decoding="async"
-                                  crossOrigin="anonymous"
                                   onError={onStoryMediaError}
                                 />
                               ))}
@@ -4483,7 +4523,6 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                 className="w-full h-full object-cover"
                                 style={{ filter: moodFilter }}
                                 draggable={false}
-                                crossOrigin="anonymous"
                                 decoding="async"
                                 onError={onStoryMediaError}
                               />
@@ -4675,7 +4714,6 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                     muted
                                     playsInline
                                     webkitPlaysInline
-                                    crossOrigin="anonymous"
                                     preload="auto"
                                   >
                                     {url && <source src={url} type="video/mp4" />}
@@ -4692,7 +4730,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                   src={url}
                                   className="w-full h-full object-cover"
                                   decoding="async"
-                                  crossOrigin="anonymous"
+                                  onError={(e) => { (e.currentTarget as HTMLElement).style.display = "none"; }}
                                 />
                               )}
                               <div className="absolute bottom-1 right-1 bg-black/50 rounded-full px-1.5 py-0.5">
@@ -4716,7 +4754,6 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                       muted
                                       playsInline
                                       webkitPlaysInline
-                                      crossOrigin="anonymous"
                                       preload="auto"
                                       loop
                                       autoPlay
@@ -4934,7 +4971,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                             ...
                           </>
                         ) : (
-                          `Post ${storyFiles.length > 1 ? storyFiles.length + " Stories" : "Story"} 🌹`
+                          `Post ${storyFiles.length > 1 ? storyFiles.length + " Stories" : "Story"} 📱`
                         )}
                       </button>
                     </div>
@@ -4947,7 +4984,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
           <div className="relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden">
             {/* ════ CHAT LIST ══════════════════════════════════════════════ */}
             {bottomTab === "chat" && !selectedUser && (
-              <div className={`flex min-h-0 flex-1 flex-col overflow-hidden`}>
+              <div className="flex h-full w-full overflow-hidden flex-col">
                 {/* Header */}
                 <div
                   className={`flex items-center gap-2 px-4 py-3 border-b ${T.divider} shrink-0`}
@@ -4980,7 +5017,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                         type="button"
                         aria-label="Clear search"
                         onClick={() => setSearchQuery("")}
-                        className={`absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-white/10 flex items-center justify-center ${T.text3}`}
+                        className={`absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full ${panelBg} flex items-center justify-center ${T.text3}`}
                       >
                         <X size={11} />
                       </button>
@@ -4990,7 +5027,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                     type="button"
                     onClick={onClose}
                     aria-label="Close messages"
-                    className={`w-8 h-8 rounded-xl bg-white/10 border ${T.divider} flex items-center justify-center ${T.text3} shrink-0`}
+                    className={`w-8 h-8 rounded-xl ${panelBg} border ${T.divider} flex items-center justify-center ${T.text3} shrink-0`}
                   >
                     <X size={15} />
                   </button>
@@ -5053,7 +5090,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                       ) : visibleContacts.length === 0 ? (
                         <div className="flex flex-col items-center justify-center py-16 gap-3 px-6 text-center">
                           <div
-                            className={`w-16 h-16 rounded-3xl bg-white/5 border ${T.divider} flex items-center justify-center`}
+                            className={`w-16 h-16 rounded-3xl ${panelBg} border ${T.divider} flex items-center justify-center`}
                           >
                             <MessageSquare size={28} className={T.text3} />
                           </div>
@@ -5203,7 +5240,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
 
             {/* ════ FULL-SCREEN CHAT ════════════════════════════════════════ */}
             {bottomTab === "chat" && selectedUser && (
-              <div className={`relative flex min-h-0 flex-1 flex-col overflow-hidden`}>
+              <div className="relative flex h-full w-full overflow-hidden flex-col">
                 <audio
                   ref={chatMusicAudioRef}
                   hidden
@@ -5653,7 +5690,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                         <div className="relative shrink-0">
                           <div className="absolute inset-0 rounded-full bg-red-500/40 animate-ping" />
                           <div className="w-8 h-8 rounded-full bg-red-500 flex items-center justify-center text-white text-base relative z-10">
-                            🎙️
+                            🎤️
                           </div>
                         </div>
                         {/* Status + timer */}
@@ -5717,376 +5754,252 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                 </AnimatePresence>
 
                 {/* Messages */}
-                <div
-                  className={`relative flex min-h-0 flex-1 flex-col overflow-hidden ${theme === "dairy" ? "diary-desk" : ""}`}
-                >
-                  {/* Dairy Notebook — metallic spiral binding down the centre seam */}
-                  {theme === "dairy" && (
-                    <div className="diary-spine hidden md:block" aria-hidden="true">
-                      {DIARY_RINGS.map((i) => (
-                        <div key={i} className="diary-ring-row" style={{ top: i * 30 }}>
-                          <span className="diary-hole diary-hole-l" />
-                          <span className="diary-coil" />
-                          <span className="diary-hole diary-hole-r" />
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  {/* Dairy Notebook — top spiral binding on the single mobile page */}
-                  {theme === "dairy" && (
-                    <div className="diary-spine-top flex md:hidden" aria-hidden="true">
-                      {DIARY_RINGS.slice(0, 16).map((i) => (
-                        <span key={i} className="diary-top-ring" />
-                      ))}
-                    </div>
-                  )}
+                {(
                   <div
-                    ref={messagesPaneRef}
-                    className={`chat-scroll-pane flex min-h-0 flex-1 flex-col items-stretch overflow-y-auto ${
-                      theme === "dairy"
-                        ? "diary-mobile-page px-2 pt-11 pb-4 md:px-0 md:pt-2"
-                        : "px-4 pt-20 pb-4 space-y-2"
-                    }`}
-                    onClick={() => {
-                    setMsgMenuId(null);
-                    setShowEmojiGrid(false);
-                    setShowInputEmoji(false);
-                  }}
-                >
-                  {hasOlderMessages && (
-                    <div className="absolute left-0 right-0 top-2 z-10 flex justify-center pointer-events-none">
-                      <button
-                        type="button"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          void loadOlderMessages();
-                        }}
-                        disabled={loadingOlderMessages}
-                        className={`pointer-events-auto rounded-full px-3 py-1 text-[11px] font-bold border ${T.divider} ${T.text1} bg-black/30 backdrop-blur-sm disabled:opacity-50`}
-                      >
-                        {loadingOlderMessages ? "Loading older…" : "Load older messages"}
-                      </button>
-                    </div>
-                  )}
-                  {loadingMessages ? (
-                    <div className="flex items-center justify-center py-10">
-                      <Loader2
-                        size={20}
-                        className={`animate-spin ${T.text3}`}
-                      />
-                    </div>
-                  ) : filteredMessages.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
-                      <p className="text-5xl">👋</p>
-                      <p className={`text-base font-black ${T.text1}`}>
-                        {chatSearch
-                          ? "No messages found"
-                          : `Hello ${selectedUser?.full_name?.split(" ")[0] || "there"}. It is good to connect with you.`}
-                      </p>
-                      <p className={`text-xs ${T.text3}`}>
-                        {chatSearch ? "" : "Pehla message bhejo!"}
-                      </p>
-                    </div>
-                  ) : (
-                    (() => {
-                    // compute once: the id of the last sent message that has been seen
-                    const lastSeenMsgId = filteredMessages
-                      .filter(m => String(m.sender_id || "").trim() === String(userId || "").trim() && m.seen_at)
-                      .slice(-1)[0]?.id ?? null;
-                    const renderMsg = (msg: Message) => {
-                      const isMine =
-                        String(msg.sender_id || "").trim() ===
-                        String(userId || "").trim();
-                      const quotedMsg = msg.reply_to_id
-                        ? messages.find((m) => m.id === msg.reply_to_id)
-                        : null;
-                      return (
-                        <motion.div
-                          key={msg.id}
-                          initial={{ opacity: 0, y: 8 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          drag="x"
-                          dragConstraints={{ left: 0, right: 64 }}
-                          dragElastic={{ left: 0, right: 0.25 }}
-                          dragDirectionLock
-                          onDragEnd={(_e, info) => {
-                            if (info.offset.x > 48) {
-                              setReplyTo(msg);
-                              setMsgMenuId(null);
-                            }
-                          }}
-                          onPointerDown={(e) => {
-                            longPressMsgPos.current = {
-                              x: e.clientX,
-                              y: e.clientY,
-                            };
-                            longPressTimerRef.current = setTimeout(() => {
-                              try {
-                                navigator.vibrate?.(10);
-                              } catch (_) {}
-                              setChatMsgAction({
-                                msg,
-                                x: longPressMsgPos.current.x,
-                                y: longPressMsgPos.current.y,
-                              });
-                              setMsgMenuId(null);
-                            }, 550);
-                          }}
-                          onPointerUp={() => {
-                            if (longPressTimerRef.current)
-                              clearTimeout(longPressTimerRef.current);
-                          }}
-                          onPointerLeave={() => {
-                            if (longPressTimerRef.current)
-                              clearTimeout(longPressTimerRef.current);
-                          }}
-                          className={`flex w-full ${isMine ? "justify-end" : "justify-start"} group relative select-none`}
-                          style={{ cursor: "default" }}
-                        >
-                          {/* Swipe hint icon */}
-                          <div
-                            className={`absolute ${isMine ? "left-0" : "right-0"} top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-white/10 flex items-center justify-center opacity-0 group-active:opacity-60 pointer-events-none transition-opacity`}
-                          >
-                            <svg
-                              width="12"
-                              height="12"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2.5"
-                              className="text-white/60"
-                            >
-                              <polyline points="9 18 15 12 9 6" />
-                            </svg>
+                    className={`relative flex min-h-0 flex-1 flex-col overflow-hidden ${theme === "dairy-notebook" ? "diary-desk" : ""}`}
+                  >
+                    {theme === "dairy-notebook" && (
+                      <div className="diary-spine hidden md:block" aria-hidden="true">
+                        {DIARY_RINGS.map((i) => (
+                          <div key={i} className="diary-ring-row" style={{ top: i * 30 }}>
+                            <span className="diary-hole diary-hole-l" />
+                            <span className="diary-coil" />
+                            <span className="diary-hole diary-hole-r" />
                           </div>
-                          <div className="relative max-w-[78%]">
-                            {/* Quote block for replied message */}
-                            {quotedMsg && (
-                              <div
-                                className={`mb-1 px-3 py-1.5 rounded-xl border-l-4 max-w-full ${theme === "dairy" ? "border-[#8b2f39] bg-[#f3e7cf]" : "border-blue-400 bg-white/8 backdrop-blur-sm"}`}
+                        ))}
+                      </div>
+                    )}
+                    {theme === "dairy-notebook" && (
+                      <div className="diary-spine-top flex md:hidden" aria-hidden="true">
+                        {DIARY_RINGS.slice(0, 16).map((i) => (
+                          <span key={i} className="diary-top-ring" />
+                        ))}
+                      </div>
+                    )}
+                    <div
+                      ref={messagesPaneRef}
+                      className={`chat-scroll-pane flex min-h-0 flex-1 flex-col items-stretch overflow-y-auto ${
+                        theme === "dairy-notebook"
+                          ? "diary-mobile-page px-2 pt-11 pb-4 md:px-0 md:pt-2"
+                          : "w-full pr-2 scroll-smooth"
+                      }`}
+                    >
+                      {hasOlderMessages && (
+                        <div className="absolute left-0 right-0 top-2 z-10 flex justify-center pointer-events-none">
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              void loadOlderMessages();
+                            }}
+                            disabled={loadingOlderMessages}
+                            className={`pointer-events-auto rounded-full px-3 py-1 text-[11px] font-bold border ${T.divider} ${T.text1} bg-black/30 backdrop-blur-sm disabled:opacity-50`}
+                          >
+                            {loadingOlderMessages ? "Loading older…" : "Load older messages"}
+                          </button>
+                        </div>
+                      )}
+                      {loadingMessages ? (
+                        <div className="flex items-center justify-center py-10">
+                          <Loader2 size={20} className={`animate-spin ${T.text3}`} />
+                        </div>
+                      ) : filteredMessages.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
+                          <p className="text-5xl">🫶</p>
+                          <p className={`text-base font-black ${T.text1}`}>
+                            {chatSearch ? "No messages found" : `Hello ${selectedUser?.full_name?.split(" ")[0] || "there"}. It is good to connect with you.`}
+                          </p>
+                          <p className={`text-xs ${T.text3}`}>{chatSearch ? "" : "Pehla message bhejo!"}</p>
+                        </div>
+                      ) : (() => {
+                        const renderMsg = (msg: Message) => {
+                          const isMine =
+                            String(msg.sender_id || "").trim() ===
+                            String(userId || "").trim();
+                          const quotedMsg = msg.reply_to_id
+                            ? messages.find((m) => m.id === msg.reply_to_id)
+                            : null;
+                          return (
+                            <motion.div
+                              key={msg.id}
+                                initial={{ opacity: 0, y: 8 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                drag="x"
+                                dragConstraints={{ left: 0, right: 64 }}
+                                dragElastic={{ left: 0, right: 0.25 }}
+                                dragDirectionLock
+                                onDragEnd={(_e, info) => {
+                                  if (info.offset.x > 48) {
+                                    setReplyTo(msg);
+                                    setMsgMenuId(null);
+                                  }
+                                }}
+                                onPointerDown={(e) => {
+                                  longPressMsgPos.current = {
+                                    x: e.clientX,
+                                    y: e.clientY,
+                                  };
+                                  longPressTimerRef.current = setTimeout(() => {
+                                    try {
+                                      navigator.vibrate?.(10);
+                                    } catch (_) {}
+                                    setChatMsgAction({
+                                      msg,
+                                      x: longPressMsgPos.current.x,
+                                      y: longPressMsgPos.current.y,
+                                    });
+                                    setMsgMenuId(null);
+                                  }, 550);
+                                }}
+                                onPointerUp={() => {
+                                  if (longPressTimerRef.current)
+                                    clearTimeout(longPressTimerRef.current);
+                                }}
+                                onPointerLeave={() => {
+                                  if (longPressTimerRef.current)
+                                    clearTimeout(longPressTimerRef.current);
+                                }}
+                                className={`flex w-full ${isMine ? "justify-end" : "justify-start"} group relative select-none`}
+                                style={{ cursor: "default" }}
                               >
-                                <p className="text-[10px] font-black text-blue-400 mb-0.5">
-                                  {quotedMsg.sender_id === userId
-                                    ? "You"
-                                    : selectedUser?.full_name?.split(" ")[0]}
-                                </p>
-                                <p
-                                  className={`text-[11px] font-semibold truncate ${T.text3}`}
-                                >
-                                  {quotedMsg.content || "📎 Media"}
-                                </p>
-                              </div>
-                            )}
-                            {/* Comic bubble wrapper — adds speech tail */}
-                            <div className={theme === "comic" ? "relative overflow-visible" : ""}>
-                            {theme === "comic" && isMine && (
-                              <div className="absolute inset-0 rounded-[20px] pointer-events-none overflow-hidden" style={{ backgroundImage:"radial-gradient(circle,rgba(0,0,0,0.06) 1px,transparent 1px)", backgroundSize:"7px 7px", zIndex:1 }} />
-                            )}
-                            <div
-                              className={
-                                theme === "dairy"
-                                  ? `diary-scrap ${isMine ? "diary-ink-out" : "diary-ink-in"}`
-                                  : `px-4 py-2.5 ${theme === "comic" ? "rounded-[20px]" : "rounded-2xl"} ${isMine ? `${T.bubbleSent}${theme !== "comic" ? " rounded-tr-sm" : ""}` : `${T.bubbleRecv}${theme !== "comic" ? " rounded-tl-sm" : ""}`}`
-                              }
-                            >
-                              {msg.media_url && msg.media_type ? (
-                                <MediaBubble
-                                  url={msg.media_url}
-                                  type={msg.media_type}
-                                />
-                              ) : editingMsg?.id === msg.id ? (
-                                <div
-                                  className="min-w-[180px]"
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  <textarea
-                                    className="w-full rounded-xl px-2 py-1.5 text-base font-bold outline-none resize-none bg-white/20 border border-white/30 text-inherit"
-                                    rows={2}
-                                    value={editingMsg.text}
-                                    onChange={(e) =>
-                                      setEditingMsg((prev) =>
-                                        prev
-                                          ? { ...prev, text: e.target.value }
-                                          : null,
-                                      )
-                                    }
-                                    autoFocus
-                                  />
-                                  <div className="flex gap-1.5 mt-1.5">
-                                    <button
-                                      onClick={() => setEditingMsg(null)}
-                                      className="flex-1 py-1 rounded-lg bg-white/15 text-[11px] font-bold opacity-70"
-                                    >
-                                      Cancel
-                                    </button>
-                                    <button
-                                      onClick={saveEditMsg}
-                                      className="flex-1 py-1 rounded-lg bg-blue-500 text-white text-[11px] font-bold"
-                                    >
-                                      Save
-                                    </button>
-                                  </div>
-                                </div>
-                              ) : (
-                                <>
-                                  {(() => {
-                                    const parsed = parseMessage(msg.content || "");
-                                    if (parsed.sticker) {
-                                      return (
-                                        <ChatSticker
-                                          type={parsed.sticker}
-                                          originalText={parsed.originalText}
-                                          isEdited={msg.is_edited}
-                                        />
-                                      );
-                                    }
-                                    return (
-                                      <>
-                                        <p
-                                          className={
-                                            theme === "dairy"
-                                              ? "diary-hand break-words whitespace-pre-wrap"
-                                              : "text-sm font-medium leading-snug break-words"
-                                          }
-                                        >
-                                          {msg.content}
-                                        </p>
-                                        {msg.is_edited && (
-                                          <p className="text-[10px] opacity-40 italic mt-0.5">
-                                            (edited)
-                                          </p>
-                                        )}
-                                      </>
-                                    );
-                                  })()}
-                                </>
-                              )}
-                              <p
-                                className={
-                                  theme === "dairy"
-                                    ? "diary-stamp mt-0.5 flex items-center justify-end gap-1 text-right"
-                                    : `text-[10px] mt-0.5 font-medium ${isMine ? (theme === "comic" ? "text-white/60" : "text-white/50") : T.text3} text-right flex items-center justify-end gap-1`
-                                }
-                              >
-                                {formatTime(msg.created_at)}
-                                <MessageStatus msg={msg} userId={userId} ink={theme === "dairy"} />
-                              </p>
-                            </div>
-                            {/* Comic speech bubble tail — sent */}
-                            {theme === "comic" && isMine && (
-                              <svg className="absolute right-4 top-full -mt-[2px] z-20" width="20" height="13" viewBox="0 0 20 13" style={{ filter:"drop-shadow(1px 2px 0px rgba(0,0,0,0.35))" }}>
-                                <polygon points="2,0 20,0 13,13" fill="#0066FF" />
-                                <polyline points="2,0 13,13" fill="none" stroke="black" strokeWidth="1.5" strokeLinejoin="round" />
-                                <line x1="20" y1="0" x2="13" y2="13" stroke="black" strokeWidth="1.5" strokeLinejoin="round" />
-                              </svg>
-                            )}
-                            {/* Comic speech bubble tail — received */}
-                            {theme === "comic" && !isMine && (
-                              <svg className="absolute left-4 top-full -mt-[2px] z-20" width="20" height="13" viewBox="0 0 20 13" style={{ filter:"drop-shadow(-1px 2px 0px rgba(0,0,0,0.25))" }}>
-                                <polygon points="0,0 18,0 7,13" fill="white" />
-                                <polyline points="18,0 7,13" fill="none" stroke="black" strokeWidth="1.5" strokeLinejoin="round" />
-                                <line x1="0" y1="0" x2="7" y2="13" stroke="black" strokeWidth="1.5" strokeLinejoin="round" />
-                              </svg>
-                            )}
-                            </div>{/* end comic bubble wrapper */}
-                            {/* ── Seen Indicator — below bubble, per spec ── */}
-                            {isMine && msg.id === lastSeenMsgId && (
-                              <motion.div
-                                key={lastSeenMsgId ?? undefined}
-                                initial={{ opacity: 0, y: 6, scale: 0.85 }}
-                                animate={{ opacity: 1, y: 0, scale: 1 }}
-                                transition={{ type: "spring", stiffness: 340, damping: 26 }}
-                                className={`flex flex-col items-end gap-0.5 ${theme === "comic" ? "mt-4" : "mt-1.5"} mr-1`}
-                              >
-                                <span className={`text-[11px] font-semibold tracking-wide ${theme === "dairy" ? "diary-hand-sm text-[#7d5f3a]" : theme === "comic" ? "text-gray-500" : "text-white/45"}`}>Seen by</span>
-                                <div className="relative">
-                                  {selectedUser?.avatar_url ? (
-                                    <img
-                                      src={selectedUser.avatar_url}
-                                      alt={selectedUser.full_name || ""}
-                                      className="w-8 h-8 rounded-full object-cover border-[1.5px] border-[#E3FF00]"
-                                    />
-                                  ) : (
-                                    <div className="w-8 h-8 rounded-full bg-[#E3FF00]/15 border-[1.5px] border-[#E3FF00] flex items-center justify-center text-[11px] font-black text-[#E3FF00]">
-                                      {(selectedUser?.full_name || "?").split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase()}
+                                <div className="relative max-w-[78%]">
+                                  {quotedMsg && (
+                                    <div className={`mb-1 px-3 py-1.5 rounded-xl border-l-4 max-w-full ${theme === "dairy-notebook" ? "border-[#8b2f39] bg-[#f3e7cf]" : "border-blue-400 bg-white/8 backdrop-blur-sm"}`}>
+                                      <p className="text-[10px] font-black text-blue-400 mb-0.5">
+                                        {quotedMsg.sender_id === userId ? "You" : selectedUser?.full_name?.split(" ")[0]}
+                                      </p>
+                                      <p className={`text-[11px] font-semibold truncate ${T.text3}`}>
+                                        {quotedMsg.content || "📎 Media"}
+                                      </p>
                                     </div>
                                   )}
-                                  <span className="absolute -bottom-0.5 -right-0.5 w-[13px] h-[13px] rounded-full bg-emerald-500 border border-[#050505] flex items-center justify-center shadow-sm">
-                                    <svg width="7" height="7" viewBox="0 0 7 7" fill="none">
-                                      <path d="M1.5 3.5L3 5L5.5 2" stroke="white" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
-                                    </svg>
-                                  </span>
+                                  <div className={theme === "comic" ? "relative overflow-visible" : ""}>
+                                    {theme === "comic" && isMine && (
+                                      <div className="absolute inset-0 rounded-[20px] pointer-events-none overflow-hidden" style={{ backgroundImage:"radial-gradient(circle,rgba(0,0,0,0.06) 1px,transparent 1px)", backgroundSize:"7px 7px", zIndex:1 }} />
+                                    )}
+                                    <div className={theme === "dairy-notebook" ? `diary-scrap ${isMine ? "diary-ink-out" : "diary-ink-in"}` : `px-4 py-2.5 ${theme === "comic" ? "rounded-[20px]" : "rounded-2xl"} ${isMine ? `${T.bubbleSent}${theme !== "comic" ? " rounded-tr-sm" : ""}` : `${T.bubbleRecv}${theme !== "comic" ? " rounded-tl-sm" : ""}`}`}>
+                                      {msg.media_url && msg.media_type ? (
+                                        <MediaBubble url={msg.media_url} type={msg.media_type} />
+                                      ) : editingMsg?.id === msg.id ? (
+                                        <div className="min-w-[180px]" onClick={(e) => e.stopPropagation()}>
+                                          <textarea
+                                            className="w-full rounded-xl px-2 py-1.5 text-base font-bold outline-none resize-none bg-white/20 border border-white/30 text-inherit"
+                                            rows={2}
+                                            value={editingMsg.text}
+                                            onChange={(e) => setEditingMsg((prev) => prev ? { ...prev, text: e.target.value } : null)}
+                                            autoFocus
+                                          />
+                                          <div className="flex gap-1.5 mt-1.5">
+                                            <button onClick={() => setEditingMsg(null)} className="flex-1 py-1 rounded-lg bg-white/15 text-[11px] font-bold opacity-70">Cancel</button>
+                                            <button onClick={saveEditMsg} className="flex-1 py-1 rounded-lg bg-blue-500 text-white text-[11px] font-bold">Save</button>
+                                          </div>
+                                        </div>
+                                      ) : (
+                                        <>
+                                          {(() => {
+                                            const parsed = parseMessage(msg.content || "");
+                                            if (parsed.sticker) {
+                                              return <ChatSticker type={parsed.sticker} originalText={parsed.originalText} isEdited={msg.is_edited} />;
+                                            }
+                                            return (
+                                              <>
+                                                <p className={theme === "dairy-notebook" ? "diary-hand break-words whitespace-pre-wrap" : "text-sm font-medium leading-snug break-words"}>{msg.content}</p>
+                                                {msg.is_edited && <p className="text-[10px] opacity-40 italic mt-0.5">(edited)</p>}
+                                              </>
+                                            );
+                                          })()}
+                                        </>
+                                      )}
+                                      <p className={theme === "dairy-notebook" ? "diary-stamp mt-0.5 flex items-center justify-end gap-1 text-right" : `text-[10px] mt-0.5 font-medium ${isMine ? (theme === "comic" ? "text-white/60" : "text-white/50") : T.text3} text-right flex items-center justify-end gap-1`}>
+                                        {formatTime(msg.created_at)}
+                                        <MessageStatus msg={msg} userId={userId} ink={theme === "dairy-notebook"} />
+                                      </p>
+                                    </div>
+                                  </div>
+                                  {isMine && msg.id === (() => {
+                                    const lastSeenMsgId = filteredMessages
+                                      .filter(m => String(m.sender_id || "").trim() === String(userId || "").trim() && m.seen_at)
+                                      .slice(-1)[0]?.id ?? null;
+                                    return lastSeenMsgId;
+                                  })() && (
+                                    <motion.div
+                                      initial={{ opacity: 0, y: 6, scale: 0.85 }}
+                                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                                      transition={{ type: "spring", stiffness: 340, damping: 26 }}
+                                      className={`flex flex-col items-end gap-0.5 ${theme === "comic" ? "mt-4" : "mt-1.5"} mr-1`}
+                                    >
+                                      <span className={`text-[11px] font-semibold tracking-wide ${theme === "comic" ? "text-gray-500" : "text-white/45"}`}>Seen by</span>
+                                      <div className="relative">
+                                        {selectedUser?.avatar_url ? (
+                                          <img src={selectedUser.avatar_url} alt="" className="w-8 h-8 rounded-full object-cover border-[1.5px] border-[#E3FF00]" />
+                                        ) : (
+                                          <div className="w-8 h-8 rounded-full bg-[#E3FF00]/15 border-[1.5px] border-[#E3FF00] flex items-center justify-center text-[11px] font-black text-[#E3FF00]">
+                                            {(selectedUser?.full_name || "?").split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase()}
+                                          </div>
+                                        )}
+                                      </div>
+                                    </motion.div>
+                                  )}
+                                  {msgReactions[msg.id] && Object.keys(msgReactions[msg.id]).length > 0 && (
+                                    <ReactionBubbles reactions={msgReactions[msg.id]} currentUserId={userId} align={isMine ? "right" : "left"} />
+                                  )}
                                 </div>
-                                <span className={`text-[10px] ${theme === "dairy" ? "text-[#7d5f3a]" : theme === "comic" ? "text-gray-400" : "text-white/40"}`}>{formatTime(msg.seen_at)}</span>
                               </motion.div>
-                            )}
-                            {/* Reaction Bubbles */}
-                            {msgReactions[msg.id] &&
-                              Object.keys(msgReactions[msg.id]).length > 0 && (
-                                <ReactionBubbles
-                                  reactions={msgReactions[msg.id]}
-                                  currentUserId={userId}
-                                  align={isMine ? "right" : "left"}
-                                />
+                          );
+                        };
+
+                        const diaryDayKey = (iso?: string) =>
+                          iso ? new Date(iso).toDateString() : "";
+
+                        const renderDiaryColumn = (list: Message[]) =>
+                          list.map((m, i) => (
+                            <React.Fragment key={m.id}>
+                              {(i === 0 ||
+                                diaryDayKey(list[i - 1]?.created_at) !==
+                                  diaryDayKey(m.created_at)) && (
+                                <DiaryDateDivider iso={m.created_at} />
                               )}
-                          </div>
-                        </motion.div>
-                      );
-                    };
+                              {renderMsg(m)}
+                            </React.Fragment>
+                          ));
 
-                    const diaryDayKey = (iso?: string) =>
-                      iso ? new Date(iso).toDateString() : "";
-
-                    const renderDiaryColumn = (list: Message[]) =>
-                      list.map((m, i) => (
-                        <React.Fragment key={m.id}>
-                          {(i === 0 ||
-                            diaryDayKey(list[i - 1]?.created_at) !==
-                              diaryDayKey(m.created_at)) && (
-                            <DiaryDateDivider iso={m.created_at} />
-                          )}
-                          {renderMsg(m)}
-                        </React.Fragment>
-                      ));
-
-                    if (theme === "dairy") {
-                      const myId = String(userId || "").trim();
-                      const outgoing = filteredMessages.filter(
-                        (m) => String(m.sender_id || "").trim() === myId,
-                      );
-                      const incoming = filteredMessages.filter(
-                        (m) => String(m.sender_id || "").trim() !== myId,
-                      );
-                      return (
-                        <div className="flex w-full flex-1 flex-col">
-                          {/* Mobile — single chronological diary page */}
-                          <div className="flex w-full flex-1 flex-col gap-2 pl-1 md:hidden">
-                            {renderDiaryColumn(filteredMessages)}
-                          </div>
-                          {/* Desktop — open two-page diary spread */}
-                          <div className="hidden w-full flex-1 md:flex md:items-stretch">
-                            <div className="diary-page diary-page-left flex flex-1 flex-col gap-2 py-5 pl-11 pr-11">
-                              {renderDiaryColumn(incoming)}
+                        if (theme === "dairy-notebook") {
+                          const myId = String(userId || "").trim();
+                          const outgoing = filteredMessages.filter(
+                            (m) => String(m.sender_id || "").trim() === myId,
+                          );
+                          const incoming = filteredMessages.filter(
+                            (m) => String(m.sender_id || "").trim() !== myId,
+                          );
+                          return (
+                            <div className="flex w-full flex-1 flex-col">
+                              {/* Mobile — single chronological diary page */}
+                              <div className="flex w-full flex-1 flex-col gap-2 pl-1 md:hidden">
+                                {renderDiaryColumn(filteredMessages)}
+                              </div>
+                              {/* Desktop — open two-page diary spread */}
+                              <div className="hidden w-full flex-1 md:flex md:items-stretch">
+                                <div className="diary-page diary-page-left flex flex-1 flex-col gap-2 py-5 pl-11 pr-11">
+                                  {renderDiaryColumn(incoming)}
+                                </div>
+                                <div className="diary-page diary-page-right flex flex-1 flex-col gap-2 py-5 pl-11 pr-11">
+                                  {renderDiaryColumn(outgoing)}
+                                </div>
+                              </div>
                             </div>
-                            <div className="diary-page diary-page-right flex flex-1 flex-col gap-2 py-5 pl-11 pr-11">
-                              {renderDiaryColumn(outgoing)}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    }
+                          );
+                        }
 
-                    return filteredMessages.map(renderMsg);
-                    })()
-                  )}
-                  <div ref={messagesEndRef} />
+                        return filteredMessages.map(renderMsg);
+                      })()}
+                      <div ref={messagesEndRef} />
+                    </div>
                   </div>
-                </div>
-
+                )}
                 {/* Input */}
                 <div className="shrink-0 px-3"
                   style={{
-                    background: theme === "dairy"
+                    background: theme === "dairy-notebook"
                       ? "linear-gradient(to top,rgba(232,208,160,0.98) 0%,rgba(244,228,193,0.86) 100%)"
                       : theme === "comic"
                         ? "linear-gradient(to top,rgba(255,255,255,0.97) 0%,rgba(240,249,255,0.85) 100%)"
@@ -6102,7 +6015,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                         initial={{ height: 0, opacity: 0 }}
                         animate={{ height: "auto", opacity: 1 }}
                         exit={{ height: 0, opacity: 0 }}
-                        className={`flex items-center gap-2 px-4 py-2 border-b ${T.divider} bg-white/5`}
+                        className={`flex items-center gap-2 px-4 py-2 border-b ${T.divider} ${panelBg}`}
                       >
                         <div className="w-0.5 h-8 rounded-full bg-blue-400 shrink-0" />
                         <div className="flex-1 min-w-0">
@@ -6156,7 +6069,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                         initial={{ height: 0, opacity: 0 }}
                         animate={{ height: "auto", opacity: 1 }}
                         exit={{ height: 0, opacity: 0 }}
-                        className={`flex items-center gap-3 px-4 py-2 border-b ${T.divider} bg-white/5`}
+                        className={`flex items-center gap-3 px-4 py-2 border-b ${T.divider} ${panelBg}`}
                       >
                         {pendingFile.type.startsWith("image/") &&
                           pendingFilePreview && (
@@ -6191,7 +6104,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                             {pendingFile.type.startsWith("video/")
                               ? "🎥 Video"
                               : pendingFile.type.startsWith("audio/")
-                                ? " ��� Audio"
+                                ? " 🎵 Audio"
                                 : "🖼️ Image"}
                             {" · "}
                             {(pendingFile.size / (1024 * 1024)).toFixed(1)} MB
@@ -6212,7 +6125,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                     style={{
                       minHeight: 56,
                       background:
-                        theme === "dairy"
+                        theme === "dairy-notebook"
                           ? "rgba(253,251,247,0.97)"
                           : theme === "comic"
                             ? "rgba(255,255,255,0.95)"
@@ -6220,12 +6133,12 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                       backdropFilter:"blur(20px)",
                       WebkitBackdropFilter:"blur(20px)",
                       boxShadow: inputFocused
-                        ? theme === "dairy"
+                        ? theme === "dairy-notebook"
                           ? "0 6px 24px rgba(90,64,32,0.22), 0 0 0 2px rgba(139,47,57,0.35)"
                           : theme === "comic"
                             ? "0 6px 28px rgba(0,0,0,0.14), 0 0 0 2px rgba(37,211,102,0.35)"
                             : "0 8px 32px rgba(0,0,0,0.6), 0 0 0 1.5px rgba(227,255,0,0.22)"
-                        : theme === "dairy"
+                        : theme === "dairy-notebook"
                           ? "0 4px 20px rgba(90,64,32,0.16), 0 0 0 1.5px rgba(139,47,57,0.20)"
                           : theme === "comic"
                             ? "0 4px 20px rgba(0,0,0,0.10), 0 0 0 1.5px rgba(0,0,0,0.09)"
@@ -6306,10 +6219,10 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                       className={`w-11 h-11 rounded-full flex items-center justify-center ${T.sendBtnText} shrink-0 active:scale-90 disabled:opacity-40 transition-all ${T.accent}`}
                       style={{
                         boxShadow: inputFocused
-                          ? theme === "dairy"
+                          ? theme === "dairy-notebook"
                             ? "0 4px 22px rgba(139,47,57,0.42)"
                             : "0 4px 22px rgba(227,255,0,0.45)"
-                          : theme === "dairy"
+                          : theme === "dairy-notebook"
                             ? "0 4px 18px rgba(139,47,57,0.28)"
                             : "0 4px 18px rgba(227,255,0,0.30)",
                       }}
@@ -6339,7 +6252,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                             className={`w-9 h-9 rounded-2xl border flex items-center justify-center text-base shrink-0 active:scale-90 transition-all
                               ${voiceMode ? "bg-red-500 border-red-400 animate-pulse text-white" : `bg-white/10 ${T.divider} hover:bg-white/20`}`}
                           >
-                            🎙️
+                            🎤️
                           </button>
                         </motion.div>
                       )}
@@ -6363,7 +6276,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                   </div>
                   <button
                     onClick={onClose}
-                    className={`w-8 h-8 rounded-xl bg-white/10 border ${T.divider} flex items-center justify-center ${T.text3}`}
+                    className={`w-8 h-8 rounded-xl ${panelBg} border ${T.divider} flex items-center justify-center ${T.text3}`}
                   >
                     <X size={15} />
                   </button>
@@ -6493,7 +6406,6 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                     STORY_MOOD_FILTER[story.mood ?? ""] ?? "",
                                 }}
                                 decoding="async"
-                                crossOrigin="anonymous"
                                 onError={onStoryMediaError}
                               />
                             )}
@@ -6518,7 +6430,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                   src={aUrl}
                                   className="w-8 h-8 rounded-full object-cover border border-white/60"
                                   decoding="async"
-                                  crossOrigin="anonymous"
+                                  onError={(e) => { (e.currentTarget as HTMLElement).style.display = "none"; }}
                                 />
                               ) : (
                                 <div
@@ -6577,7 +6489,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                     )}
                     <button
                       onClick={onClose}
-                      className={`w-8 h-8 rounded-xl bg-white/10 border ${T.divider} flex items-center justify-center ${T.text3}`}
+                      className={`w-8 h-8 rounded-xl ${panelBg} border ${T.divider} flex items-center justify-center ${T.text3}`}
                     >
                       <X size={15} />
                     </button>
@@ -6685,7 +6597,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                   </div>
                   <button
                     onClick={onClose}
-                    className={`w-8 h-8 rounded-xl bg-white/10 border ${T.divider} flex items-center justify-center ${T.text3}`}
+                    className={`w-8 h-8 rounded-xl ${panelBg} border ${T.divider} flex items-center justify-center ${T.text3}`}
                   >
                     <X size={15} />
                   </button>
@@ -6696,7 +6608,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                   <div className="flex-1 overflow-y-auto py-4 px-4 space-y-2">
                     {myProfile && (
                       <div
-                        className={`flex items-center gap-4 p-4 rounded-2xl border ${T.divider} bg-white/5 mb-4`}
+                        className={`flex items-center gap-4 p-4 rounded-2xl border ${T.divider} ${panelBg} mb-4`}
                       >
                         <Avatar
                           url={myProfile.avatar_url}
@@ -6775,7 +6687,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                       <button
                         key={item.label}
                         onClick={item.action}
-                        className={`flex items-center justify-between w-full p-4 rounded-2xl border ${T.divider} bg-white/5 hover:bg-white/10 transition-all text-left`}
+                        className={`flex items-center justify-between w-full p-4 rounded-2xl border ${T.divider} ${panelBg} hover:bg-white/10 transition-all text-left`}
                       >
                         <div className="flex items-center gap-3">
                           <div
@@ -7059,13 +6971,13 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                       </p>
                       <div className="grid grid-cols-2 gap-2">
                         {(
-                          ["dairy", "maroon", "whatsapp", "comic"] as Theme[]
+                          ["dairy-notebook", "maroon", "whatsapp", "comic"] as Theme[]
                         ).map((t) => (
                           <button
                             key={t}
                             type="button"
                             onClick={(e) => { e.stopPropagation(); setTheme(t); }}
-                            className={`py-3 rounded-2xl border-2 transition-all font-black text-xs ${theme === t ? `${theme === "dairy" ? "border-[#8b2f39] bg-[#8b2f39]/10" : "border-[#E3FF00] bg-[#E3FF00]/10"} ${T.text1}` : `border-transparent bg-white/5 ${T.text3}`}`}
+                            className={`py-3 rounded-2xl border-2 transition-all font-black text-xs ${theme === t ? `${theme === "dairy-notebook" ? "border-[#8b2f39] bg-[#8b2f39]/10" : "border-[#E3FF00] bg-[#E3FF00]/10"} ${T.text1}` : `border-transparent ${panelBg} ${T.text3}`}`}
                           >
                             <div className="text-xl mb-1">
                               {THEME_CFG[t].icon}
@@ -7076,7 +6988,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                       </div>
                     </div>
                     <div
-                      className={`p-4 rounded-2xl border ${T.divider} bg-white/5`}
+                      className={`p-4 rounded-2xl border ${T.divider} ${panelBg}`}
                     >
                       <p
                         className={`text-xs font-black uppercase tracking-widest mb-3 ${T.text3}`}
@@ -7106,7 +7018,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                     </div>
 
                     <div
-                      className={`p-4 rounded-2xl border ${T.divider} bg-white/5`}
+                      className={`p-4 rounded-2xl border ${T.divider} ${panelBg}`}
                     >
                       <p
                         className={`text-xs font-black uppercase tracking-widest mb-3 ${T.text3}`}
@@ -7481,3 +7393,4 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
 // React.memo prevents re-renders when parent (Index.tsx) state changes that
 // are unrelated to chat — e.g. active tab switches, profile edits, etc.
 export default React.memo(ChatSystem);
+

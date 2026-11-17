@@ -7,6 +7,7 @@ import android.content.Intent;
 import android.net.Uri;
 import android.text.TextUtils;
 import android.webkit.JavascriptInterface;
+import android.os.Build;
 import android.widget.Toast;
 
 import androidx.core.content.FileProvider;
@@ -154,7 +155,9 @@ public final class AndroidShareBridge {
             if (responseCode < 200 || responseCode >= 300) {
                 throw new IOException("Media download failed: HTTP " + responseCode);
             }
-            long contentLength = connection.getContentLengthLong();
+            long contentLength = Build.VERSION.SDK_INT >= Build.VERSION_CODES.N
+                    ? connection.getContentLengthLong()
+                    : connection.getContentLength();
             if (contentLength > MAX_MEDIA_BYTES) {
                 throw new IOException("Media file is too large to share");
             }
