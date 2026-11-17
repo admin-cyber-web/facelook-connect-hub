@@ -1,4 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Caveat:wght@400..700&family=Kalam:wght@300;400;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -1577,6 +1578,252 @@ body.active-section-locked {
   touch-action: pan-y;
   -webkit-overflow-scrolling: touch;
   scrollbar-gutter: stable;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Dairy Notebook — vintage two-page diary chat theme
+   ══════════════════════════════════════════════════════════════════════════ */
+@keyframes diary-scrap-in {
+  0%   { opacity: 0; transform: translateY(10px) rotate(-1.1deg) scale(0.96); }
+  55%  { opacity: 1; transform: translateY(-2px) rotate(0.35deg) scale(1.01); }
+  100% { opacity: 1; transform: translateY(0) rotate(0deg) scale(1); }
+}
+
+/* Dark leather desk the open diary rests on */
+.diary-desk {
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(124, 96, 58, 0.38) 0%, transparent 62%),
+    repeating-linear-gradient(92deg, rgba(0, 0, 0, 0.07) 0 2px, transparent 2px 26px),
+    linear-gradient(160deg, #4a3a26 0%, #33271a 55%, #241a11 100%);
+}
+
+/* A single aged parchment page with ruled lines and the faded red margin */
+.diary-page {
+  position: relative;
+  background-color: #f4e4c1;
+  background-image:
+    repeating-linear-gradient(transparent, transparent 27px, #b8c4d4 28px),
+    linear-gradient(90deg, transparent 0, transparent 37px, rgba(178, 60, 50, 0.30) 37px, rgba(178, 60, 50, 0.30) 38px, transparent 38px),
+    radial-gradient(ellipse at 18% 12%, rgba(150, 110, 55, 0.16) 0%, transparent 55%),
+    radial-gradient(ellipse at 86% 82%, rgba(140, 100, 45, 0.18) 0%, transparent 60%),
+    linear-gradient(180deg, #f6e8cb 0%, #f4e4c1 45%, #e8d0a0 100%);
+  background-position: 0 6px, 0 0, 0 0, 0 0, 0 0;
+  background-repeat: no-repeat, no-repeat, no-repeat, no-repeat, no-repeat;
+}
+
+.diary-page-left {
+  box-shadow:
+    inset -26px 0 30px -32px rgba(60, 38, 16, 0.75),
+    inset 0 0 40px rgba(120, 84, 40, 0.26),
+    -1px 0 3px rgba(30, 18, 8, 0.35);
+}
+
+.diary-page-right {
+  box-shadow:
+    inset 26px 0 30px -32px rgba(60, 38, 16, 0.75),
+    inset 0 0 40px rgba(120, 84, 40, 0.26),
+    1px 0 3px rgba(30, 18, 8, 0.35);
+}
+
+/* Mobile: the scroll pane itself becomes the single diary page */
+.diary-mobile-page {
+  background-color: #f4e4c1;
+  background-image:
+    repeating-linear-gradient(transparent, transparent 27px, #b8c4d4 28px),
+    linear-gradient(90deg, transparent 0, transparent 25px, rgba(178, 60, 50, 0.30) 25px, rgba(178, 60, 50, 0.30) 26px, transparent 26px),
+    radial-gradient(ellipse at 15% 10%, rgba(150, 110, 55, 0.16) 0%, transparent 55%),
+    radial-gradient(ellipse at 85% 85%, rgba(140, 100, 45, 0.18) 0%, transparent 60%),
+    linear-gradient(180deg, #f6e8cb 0%, #f4e4c1 45%, #e8d0a0 100%);
+  background-position: 0 6px, 0 0, 0 0, 0 0, 0 0;
+  background-repeat: repeat, no-repeat, no-repeat, no-repeat, no-repeat;
+}
+
+@media (min-width: 768px) {
+  .diary-mobile-page {
+    background: none;
+  }
+}
+
+/* Vertical centre seam with the metallic spiral coil (desktop spread) */
+.diary-spine {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 78px;
+  transform: translateX(-50%);
+  z-index: 20;
+  pointer-events: none;
+  overflow: hidden;
+  background: linear-gradient(
+    90deg,
+    rgba(70, 45, 20, 0) 0%,
+    rgba(70, 45, 20, 0.18) 24%,
+    rgba(52, 32, 14, 0.36) 44%,
+    rgba(28, 17, 8, 0.46) 50%,
+    rgba(52, 32, 14, 0.36) 56%,
+    rgba(70, 45, 20, 0.18) 76%,
+    rgba(70, 45, 20, 0) 100%
+  );
+  box-shadow: inset 0 0 18px rgba(40, 24, 10, 0.35);
+}
+
+.diary-ring-row {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 30px;
+}
+
+/* Punched holes on the inner margin of both pages */
+.diary-hole {
+  position: absolute;
+  top: 8px;
+  width: 11px;
+  height: 13px;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at 50% 32%, #2b1c0d 0%, #4a3320 58%, #8a6a46 100%);
+  box-shadow:
+    inset 0 1px 2px rgba(0, 0, 0, 0.85),
+    0 0 0 1.5px rgba(255, 242, 214, 0.45);
+  z-index: 1;
+}
+
+.diary-hole-l { left: 13px; }
+.diary-hole-r { right: 13px; }
+
+/* One metallic coil ring threaded through both holes */
+.diary-coil {
+  position: absolute;
+  top: 4px;
+  left: 50%;
+  width: 42px;
+  height: 20px;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  border: 3px solid;
+  border-color: #eef1f5 #9aa0a8 #5f646b #c8ced5;
+  box-shadow:
+    0 3px 4px rgba(0, 0, 0, 0.38),
+    inset 0 1px 1px rgba(255, 255, 255, 0.75);
+  z-index: 2;
+}
+
+/* Mobile: neat horizontal binding header */
+.diary-spine-top {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 30px;
+  z-index: 20;
+  pointer-events: none;
+  overflow: hidden;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 0 10px;
+  background: linear-gradient(180deg, rgba(70, 45, 20, 0.24), rgba(52, 32, 14, 0.10) 70%, transparent);
+}
+
+.diary-top-ring {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 13px;
+  border-radius: 50%;
+  border: 2.5px solid;
+  border-color: #eef1f5 #9aa0a8 #5f646b #c8ced5;
+  box-shadow: 0 2px 3px rgba(0, 0, 0, 0.32);
+}
+
+/* Each message is a torn, burnt-edged parchment scrap pinned on the page */
+.diary-scrap {
+  position: relative;
+  max-width: 100%;
+  padding: 7px 15px 5px;
+  border-radius: 2px;
+  background-color: #fdfbf7;
+  background-image:
+    radial-gradient(circle at 16% 24%, rgba(150, 105, 45, 0.10), transparent 52%),
+    radial-gradient(circle at 84% 76%, rgba(120, 80, 30, 0.12), transparent 58%);
+  box-shadow:
+    inset 0 0 8px rgba(45, 20, 5, 0.7),
+    1px 1px 2px rgba(0, 0, 0, 0.3);
+  filter: drop-shadow(0 1px 2px rgba(60, 40, 15, 0.3));
+  clip-path: polygon(
+    1.5% 4%, 6% 1%, 12% 3.5%, 20% 0.8%, 29% 3.8%, 37% 1.2%, 46% 4%,
+    55% 0.8%, 64% 3.4%, 73% 0.6%, 82% 3.8%, 91% 1.4%, 98.5% 3%,
+    99.5% 11%, 98% 21%, 99.7% 32%, 98.2% 43%, 99.7% 54%, 98.4% 65%,
+    99.6% 76%, 98% 87%, 99.6% 96%,
+    92.5% 99.4%, 83% 96.8%, 74% 99.6%, 64% 97%, 55% 99.8%, 46% 96.8%,
+    37% 99.6%, 28% 96.6%, 19% 99.8%, 10% 96.8%, 3.5% 99.4%,
+    0.4% 91%, 2.2% 80%, 0.3% 69%, 2% 58%, 0.3% 47%, 2.2% 36%,
+    0.4% 25%, 2% 14%
+  );
+  animation: diary-scrap-in 320ms cubic-bezier(0.22, 0.9, 0.3, 1) both;
+  transform-origin: 20% 50%;
+  font-family: "Caveat", "Kalam", "Segoe Script", cursive;
+}
+
+.diary-hand {
+  font-family: "Caveat", "Kalam", "Segoe Script", cursive;
+  font-size: 19px;
+  line-height: 28px;
+  font-weight: 500;
+  letter-spacing: 0.15px;
+}
+
+.diary-hand-sm {
+  font-family: "Caveat", "Kalam", "Segoe Script", cursive;
+  font-size: 17px;
+  letter-spacing: 0.2px;
+}
+
+/* Fountain-pen navy (incoming) and sepia/burgundy-black (outgoing) ink */
+.diary-ink-in { color: #1a2b4c; }
+.diary-ink-out { color: #2c1810; }
+
+.diary-stamp {
+  font-family: "Caveat", "Kalam", cursive;
+  font-size: 10px;
+  line-height: 12px;
+  color: #7d5f3a;
+  letter-spacing: 0.3px;
+}
+
+/* Handwritten day divider — ink underline, no background box */
+.diary-date-divider {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin: 12px 0 4px;
+  pointer-events: none;
+}
+
+.diary-date-divider::before,
+.diary-date-divider::after {
+  content: "";
+  height: 1px;
+  flex: 1 1 0;
+  background: linear-gradient(90deg, transparent, rgba(60, 40, 20, 0.42));
+}
+
+.diary-date-divider::after {
+  background: linear-gradient(90deg, rgba(60, 40, 20, 0.42), transparent);
+}
+
+.diary-date-label {
+  font-family: "Caveat", "Kalam", cursive;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 20px;
+  color: #6a4a28;
+  letter-spacing: 0.4px;
+  white-space: nowrap;
+  padding-bottom: 1px;
+  border-bottom: 1.5px solid rgba(60, 40, 20, 0.45);
+  transform: rotate(-0.6deg);
 }
 
 /* Every app-owned vertical pane gets the same gesture contract, including

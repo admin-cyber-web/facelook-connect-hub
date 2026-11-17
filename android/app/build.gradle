@@ -82,7 +82,7 @@ apply from: 'capacitor.build.gradle'
 configurations.all {
     resolutionStrategy.eachDependency { details ->
         if (details.requested.group == 'org.jetbrains.kotlin') {
-            details.useVersion "1.8.22"
+            details.useVersion "2.2.20"
         }
         if (details.requested.group == 'androidx.browser' && details.requested.name == 'browser') {
             details.useVersion "1.8.0"

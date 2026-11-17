@@ -7,7 +7,20 @@ import { supabase } from "@/lib/supabaseClient";
 declare global {
   interface Window {
     OneSignalDeferred?: Array<(os: any) => void | Promise<void>>;
+    Capacitor?: { isNativePlatform?: () => boolean };
   }
+}
+
+const PUSH_HOSTS = ["flicksindia.online", "www.flicksindia.online"];
+
+/**
+ * Web push only works on the production domain. The native shell has no push
+ * plugin installed yet, so it is skipped there instead of silently failing.
+ */
+export function isPushEnvironment(): boolean {
+  if (typeof window === "undefined") return false;
+  if (window.Capacitor?.isNativePlatform?.()) return false;
+  return PUSH_HOSTS.includes(window.location.hostname);
 }
 
 /**
@@ -16,8 +29,7 @@ declare global {
  * Safe to call on every login — no-ops if already registered or not subscribed.
  */
 export async function registerPushPlayer(userId: string): Promise<void> {
-  // Only runs on the production domain where OneSignal is initialised
-  if (typeof window === "undefined" || window.location.hostname !== "flicksindia.online") return;
+  if (!isPushEnvironment()) return;
 
   window.OneSignalDeferred = window.OneSignalDeferred || [];
   window.OneSignalDeferred.push(async (OneSignal: any) => {

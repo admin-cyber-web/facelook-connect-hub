@@ -126,7 +126,7 @@ const onStoryMediaError = (e: React.SyntheticEvent<HTMLImageElement | HTMLVideoE
 };
 
 // ── Types ──────────────────────────────────────────────────────────────────────
-type Theme = "whatsapp" | "maroon" | "comic";
+type Theme = "whatsapp" | "maroon" | "comic" | "dairy";
 type BottomTab = "chat" | "story" | "alert" | "menu";
 type MenuPanel = "main" | "settings" | "archive" | "requests";
 
@@ -323,25 +323,79 @@ const THEME_CFG = {
     storyRing: "border-[#E3FF00]",
     sendBtnText: "text-[#050505]",
   },
+  dairy: {
+    wrap: "diary-desk",
+    sidebar: "bg-[#f2e2c0] border-[#b99b6d]",
+    chat: "bg-[#e8d0a0]",
+    topbar: "bg-[#eedcb6] border-[#b99b6d]",
+    input: "bg-[#fdfbf7] border-[#c3a878]",
+    nav: "bg-[#eedcb6] border-[#b99b6d]",
+    bubbleSent: "diary-scrap diary-ink-out",
+    bubbleRecv: "diary-scrap diary-ink-in",
+    text1: "text-[#2c1810]",
+    text2: "text-[#7a4a2a]",
+    text3: "text-[#8a6d4a]",
+    accent: "bg-[#8b2f39]",
+    accentText: "text-[#8b2f39]",
+    icon: "📖",
+    label: "Dairy Notebook",
+    divider: "border-[#b99b6d]",
+    searchBg:
+      "diary-hand-sm bg-[#fdfbf7] border-[#c3a878] text-[#2c1810] placeholder:text-[#9c8464]",
+    msgMenuBg: "bg-[#2c1810] border-[#8a6a44] shadow-2xl",
+    pill: "bg-[#8b2f39]/12 text-[#8b2f39] border border-[#8b2f39]/30",
+    storyRing: "border-[#8b2f39]",
+    sendBtnText: "text-[#fdfbf7]",
+  },
 };
+
+// Spiral binding: one coil ring every 30px down the centre spine.
+const DIARY_RINGS = Array.from({ length: 90 }, (_, i) => i);
+
+/** Handwritten day label, e.g. "Thursday, 12 November 2026". */
+function diaryDayLabel(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleDateString("en-GB", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+}
+
+const DiaryDateDivider = ({ iso }: { iso: string }) => (
+  <div className="diary-date-divider">
+    <span className="diary-date-label">{diaryDayLabel(iso)}</span>
+  </div>
+);
 
 // ── Message Status — stable top-level component (only Sending / Delivered ticks)
 // Seen indicator is rendered separately BELOW the bubble as per spec.
 const MessageStatus = ({
   msg,
   userId,
+  ink = false,
 }: {
   msg: Message;
   userId: string;
+  ink?: boolean;
 }) => {
   if (msg.sender_id !== userId || msg.seen_at) return null;
   if (msg.id.startsWith("temp-"))
-    return <span className="text-[10px] text-white/30 ml-1 italic">Sending…</span>;
+    return (
+      <span
+        className={`text-[10px] ml-1 italic ${ink ? "text-[#8a6d4a]" : "text-white/30"}`}
+      >
+        Sending…
+      </span>
+    );
+  const tick = ink ? "rgba(44,24,16,0.55)" : "rgba(255,255,255,0.45)";
   return (
     <span className="inline-flex items-center gap-0.5 ml-1">
       <svg width="16" height="10" viewBox="0 0 16 10" fill="none">
-        <path d="M1 5L4 8L9 2" stroke="rgba(255,255,255,0.45)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-        <path d="M6 5L9 8L14 2" stroke="rgba(255,255,255,0.45)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        <path d="M1 5L4 8L9 2" stroke={tick} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        <path d="M6 5L9 8L14 2" stroke={tick} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
       </svg>
     </span>
   );
@@ -912,14 +966,16 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
 
   // ── Persisted state ───────────────────────────────────────────────────────
   const [theme, setTheme] = useState<Theme>(() => {
-    // Version migration: v4 = remove water/nature/velvet, only maroon+whatsapp
-    if (localStorage.getItem("cx_theme_v") !== "4") {
-      localStorage.setItem("cx_theme_v", "4");
-      localStorage.setItem("cx_theme", "maroon");
-      return "maroon";
+    // Version migration: v5 = Dairy Notebook is the default chat theme
+    if (localStorage.getItem("cx_theme_v") !== "5") {
+      localStorage.setItem("cx_theme_v", "5");
+      localStorage.setItem("cx_theme", "dairy");
+      return "dairy";
     }
     const s = localStorage.getItem("cx_theme") as Theme;
-    return s === "whatsapp" || s === "maroon" ? s : "maroon";
+    return s === "whatsapp" || s === "maroon" || s === "comic" || s === "dairy"
+      ? s
+      : "dairy";
   });
   const [activeStatus, setActiveStatus] = useState(
     () => localStorage.getItem("cx_active_status") !== "false",
@@ -5662,9 +5718,36 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
 
                 {/* Messages */}
                 <div
-                  ref={messagesPaneRef}
-                  className="chat-scroll-pane flex min-h-0 flex-1 flex-col items-stretch overflow-y-auto px-4 pt-20 pb-4 space-y-2"
-                  onClick={() => {
+                  className={`relative flex min-h-0 flex-1 flex-col overflow-hidden ${theme === "dairy" ? "diary-desk" : ""}`}
+                >
+                  {/* Dairy Notebook — metallic spiral binding down the centre seam */}
+                  {theme === "dairy" && (
+                    <div className="diary-spine hidden md:block" aria-hidden="true">
+                      {DIARY_RINGS.map((i) => (
+                        <div key={i} className="diary-ring-row" style={{ top: i * 30 }}>
+                          <span className="diary-hole diary-hole-l" />
+                          <span className="diary-coil" />
+                          <span className="diary-hole diary-hole-r" />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {/* Dairy Notebook — top spiral binding on the single mobile page */}
+                  {theme === "dairy" && (
+                    <div className="diary-spine-top flex md:hidden" aria-hidden="true">
+                      {DIARY_RINGS.slice(0, 16).map((i) => (
+                        <span key={i} className="diary-top-ring" />
+                      ))}
+                    </div>
+                  )}
+                  <div
+                    ref={messagesPaneRef}
+                    className={`chat-scroll-pane flex min-h-0 flex-1 flex-col items-stretch overflow-y-auto ${
+                      theme === "dairy"
+                        ? "diary-mobile-page px-2 pt-11 pb-4 md:px-0 md:pt-2"
+                        : "px-4 pt-20 pb-4 space-y-2"
+                    }`}
+                    onClick={() => {
                     setMsgMenuId(null);
                     setShowEmojiGrid(false);
                     setShowInputEmoji(false);
@@ -5710,7 +5793,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                     const lastSeenMsgId = filteredMessages
                       .filter(m => String(m.sender_id || "").trim() === String(userId || "").trim() && m.seen_at)
                       .slice(-1)[0]?.id ?? null;
-                    return filteredMessages.map((msg) => {
+                    const renderMsg = (msg: Message) => {
                       const isMine =
                         String(msg.sender_id || "").trim() ===
                         String(userId || "").trim();
@@ -5780,7 +5863,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                             {/* Quote block for replied message */}
                             {quotedMsg && (
                               <div
-                                className={`mb-1 px-3 py-1.5 rounded-xl border-l-4 border-blue-400 bg-white/8 backdrop-blur-sm max-w-full`}
+                                className={`mb-1 px-3 py-1.5 rounded-xl border-l-4 max-w-full ${theme === "dairy" ? "border-[#8b2f39] bg-[#f3e7cf]" : "border-blue-400 bg-white/8 backdrop-blur-sm"}`}
                               >
                                 <p className="text-[10px] font-black text-blue-400 mb-0.5">
                                   {quotedMsg.sender_id === userId
@@ -5800,7 +5883,11 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                               <div className="absolute inset-0 rounded-[20px] pointer-events-none overflow-hidden" style={{ backgroundImage:"radial-gradient(circle,rgba(0,0,0,0.06) 1px,transparent 1px)", backgroundSize:"7px 7px", zIndex:1 }} />
                             )}
                             <div
-                              className={`px-4 py-2.5 ${theme === "comic" ? "rounded-[20px]" : "rounded-2xl"} ${isMine ? `${T.bubbleSent}${theme !== "comic" ? " rounded-tr-sm" : ""}` : `${T.bubbleRecv}${theme !== "comic" ? " rounded-tl-sm" : ""}`}`}
+                              className={
+                                theme === "dairy"
+                                  ? `diary-scrap ${isMine ? "diary-ink-out" : "diary-ink-in"}`
+                                  : `px-4 py-2.5 ${theme === "comic" ? "rounded-[20px]" : "rounded-2xl"} ${isMine ? `${T.bubbleSent}${theme !== "comic" ? " rounded-tr-sm" : ""}` : `${T.bubbleRecv}${theme !== "comic" ? " rounded-tl-sm" : ""}`}`
+                              }
                             >
                               {msg.media_url && msg.media_type ? (
                                 <MediaBubble
@@ -5855,7 +5942,13 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                     }
                                     return (
                                       <>
-                                        <p className="text-sm font-medium leading-snug break-words">
+                                        <p
+                                          className={
+                                            theme === "dairy"
+                                              ? "diary-hand break-words whitespace-pre-wrap"
+                                              : "text-sm font-medium leading-snug break-words"
+                                          }
+                                        >
                                           {msg.content}
                                         </p>
                                         {msg.is_edited && (
@@ -5869,10 +5962,14 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                 </>
                               )}
                               <p
-                                className={`text-[10px] mt-0.5 font-medium ${isMine ? (theme === "comic" ? "text-white/60" : "text-white/50") : T.text3} text-right flex items-center justify-end gap-1`}
+                                className={
+                                  theme === "dairy"
+                                    ? "diary-stamp mt-0.5 flex items-center justify-end gap-1 text-right"
+                                    : `text-[10px] mt-0.5 font-medium ${isMine ? (theme === "comic" ? "text-white/60" : "text-white/50") : T.text3} text-right flex items-center justify-end gap-1`
+                                }
                               >
                                 {formatTime(msg.created_at)}
-                                <MessageStatus msg={msg} userId={userId} />
+                                <MessageStatus msg={msg} userId={userId} ink={theme === "dairy"} />
                               </p>
                             </div>
                             {/* Comic speech bubble tail — sent */}
@@ -5901,7 +5998,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                 transition={{ type: "spring", stiffness: 340, damping: 26 }}
                                 className={`flex flex-col items-end gap-0.5 ${theme === "comic" ? "mt-4" : "mt-1.5"} mr-1`}
                               >
-                                <span className={`text-[11px] font-semibold tracking-wide ${theme === "comic" ? "text-gray-500" : "text-white/45"}`}>Seen by</span>
+                                <span className={`text-[11px] font-semibold tracking-wide ${theme === "dairy" ? "diary-hand-sm text-[#7d5f3a]" : theme === "comic" ? "text-gray-500" : "text-white/45"}`}>Seen by</span>
                                 <div className="relative">
                                   {selectedUser?.avatar_url ? (
                                     <img
@@ -5920,7 +6017,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                     </svg>
                                   </span>
                                 </div>
-                                <span className={`text-[10px] ${theme === "comic" ? "text-gray-400" : "text-white/40"}`}>{formatTime(msg.seen_at)}</span>
+                                <span className={`text-[10px] ${theme === "dairy" ? "text-[#7d5f3a]" : theme === "comic" ? "text-gray-400" : "text-white/40"}`}>{formatTime(msg.seen_at)}</span>
                               </motion.div>
                             )}
                             {/* Reaction Bubbles */}
@@ -5935,18 +6032,65 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                           </div>
                         </motion.div>
                       );
-                    });
+                    };
+
+                    const diaryDayKey = (iso?: string) =>
+                      iso ? new Date(iso).toDateString() : "";
+
+                    const renderDiaryColumn = (list: Message[]) =>
+                      list.map((m, i) => (
+                        <React.Fragment key={m.id}>
+                          {(i === 0 ||
+                            diaryDayKey(list[i - 1]?.created_at) !==
+                              diaryDayKey(m.created_at)) && (
+                            <DiaryDateDivider iso={m.created_at} />
+                          )}
+                          {renderMsg(m)}
+                        </React.Fragment>
+                      ));
+
+                    if (theme === "dairy") {
+                      const myId = String(userId || "").trim();
+                      const outgoing = filteredMessages.filter(
+                        (m) => String(m.sender_id || "").trim() === myId,
+                      );
+                      const incoming = filteredMessages.filter(
+                        (m) => String(m.sender_id || "").trim() !== myId,
+                      );
+                      return (
+                        <div className="flex w-full flex-1 flex-col">
+                          {/* Mobile — single chronological diary page */}
+                          <div className="flex w-full flex-1 flex-col gap-2 pl-1 md:hidden">
+                            {renderDiaryColumn(filteredMessages)}
+                          </div>
+                          {/* Desktop — open two-page diary spread */}
+                          <div className="hidden w-full flex-1 md:flex md:items-stretch">
+                            <div className="diary-page diary-page-left flex flex-1 flex-col gap-2 py-5 pl-11 pr-11">
+                              {renderDiaryColumn(incoming)}
+                            </div>
+                            <div className="diary-page diary-page-right flex flex-1 flex-col gap-2 py-5 pl-11 pr-11">
+                              {renderDiaryColumn(outgoing)}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    return filteredMessages.map(renderMsg);
                     })()
                   )}
                   <div ref={messagesEndRef} />
+                  </div>
                 </div>
 
                 {/* Input */}
                 <div className="shrink-0 px-3"
                   style={{
-                    background: theme === "comic"
-                      ? "linear-gradient(to top,rgba(255,255,255,0.97) 0%,rgba(240,249,255,0.85) 100%)"
-                      : "linear-gradient(to top,rgba(5,5,5,0.92) 0%,rgba(5,5,5,0.70) 100%)",
+                    background: theme === "dairy"
+                      ? "linear-gradient(to top,rgba(232,208,160,0.98) 0%,rgba(244,228,193,0.86) 100%)"
+                      : theme === "comic"
+                        ? "linear-gradient(to top,rgba(255,255,255,0.97) 0%,rgba(240,249,255,0.85) 100%)"
+                        : "linear-gradient(to top,rgba(5,5,5,0.92) 0%,rgba(5,5,5,0.70) 100%)",
                     backdropFilter: "blur(12px)",
                     WebkitBackdropFilter: "blur(12px)"
                   }}
@@ -6067,16 +6211,25 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                     className="flex items-center gap-2 px-3 rounded-[32px] border border-white/[0.08] mt-2 mb-[max(12px,env(safe-area-inset-bottom))] transition-all duration-300"
                     style={{
                       minHeight: 56,
-                      background: theme === "comic" ? "rgba(255,255,255,0.95)" : "rgba(20,20,20,0.88)",
+                      background:
+                        theme === "dairy"
+                          ? "rgba(253,251,247,0.97)"
+                          : theme === "comic"
+                            ? "rgba(255,255,255,0.95)"
+                            : "rgba(20,20,20,0.88)",
                       backdropFilter:"blur(20px)",
                       WebkitBackdropFilter:"blur(20px)",
                       boxShadow: inputFocused
-                        ? theme === "comic"
-                          ? "0 6px 28px rgba(0,0,0,0.14), 0 0 0 2px rgba(37,211,102,0.35)"
-                          : "0 8px 32px rgba(0,0,0,0.6), 0 0 0 1.5px rgba(227,255,0,0.22)"
-                        : theme === "comic"
-                          ? "0 4px 20px rgba(0,0,0,0.10), 0 0 0 1.5px rgba(0,0,0,0.09)"
-                          : "0 8px 32px rgba(0,0,0,0.5), 0 0 0 1px rgba(227,255,0,0.05)"
+                        ? theme === "dairy"
+                          ? "0 6px 24px rgba(90,64,32,0.22), 0 0 0 2px rgba(139,47,57,0.35)"
+                          : theme === "comic"
+                            ? "0 6px 28px rgba(0,0,0,0.14), 0 0 0 2px rgba(37,211,102,0.35)"
+                            : "0 8px 32px rgba(0,0,0,0.6), 0 0 0 1.5px rgba(227,255,0,0.22)"
+                        : theme === "dairy"
+                          ? "0 4px 20px rgba(90,64,32,0.16), 0 0 0 1.5px rgba(139,47,57,0.20)"
+                          : theme === "comic"
+                            ? "0 4px 20px rgba(0,0,0,0.10), 0 0 0 1.5px rgba(0,0,0,0.09)"
+                            : "0 8px 32px rgba(0,0,0,0.5), 0 0 0 1px rgba(227,255,0,0.05)"
                     }}
                   >
                     {/* ── Left buttons — emoji + attach — collapse in focus mode ── */}
@@ -6151,7 +6304,15 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                         isUploadingMedia
                       }
                       className={`w-11 h-11 rounded-full flex items-center justify-center ${T.sendBtnText} shrink-0 active:scale-90 disabled:opacity-40 transition-all ${T.accent}`}
-                      style={{ boxShadow: inputFocused ? "0 4px 22px rgba(227,255,0,0.45)" : "0 4px 18px rgba(227,255,0,0.30)" }}
+                      style={{
+                        boxShadow: inputFocused
+                          ? theme === "dairy"
+                            ? "0 4px 22px rgba(139,47,57,0.42)"
+                            : "0 4px 22px rgba(227,255,0,0.45)"
+                          : theme === "dairy"
+                            ? "0 4px 18px rgba(139,47,57,0.28)"
+                            : "0 4px 18px rgba(227,255,0,0.30)",
+                      }}
                     >
                       {isSending || isUploadingMedia ? (
                         <Loader2 size={16} className="animate-spin" />
@@ -6896,15 +7057,15 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                       >
                         Chat Theme
                       </p>
-                      <div className="flex gap-3">
+                      <div className="grid grid-cols-2 gap-2">
                         {(
-                          ["maroon", "whatsapp", "comic"] as Theme[]
+                          ["dairy", "maroon", "whatsapp", "comic"] as Theme[]
                         ).map((t) => (
                           <button
                             key={t}
                             type="button"
                             onClick={(e) => { e.stopPropagation(); setTheme(t); }}
-                            className={`flex-1 py-3 rounded-2xl border-2 transition-all font-black text-xs ${theme === t ? `border-[#E3FF00] bg-[#E3FF00]/10 ${T.text1}` : `border-transparent bg-white/5 ${T.text3}`}`}
+                            className={`py-3 rounded-2xl border-2 transition-all font-black text-xs ${theme === t ? `${theme === "dairy" ? "border-[#8b2f39] bg-[#8b2f39]/10" : "border-[#E3FF00] bg-[#E3FF00]/10"} ${T.text1}` : `border-transparent bg-white/5 ${T.text3}`}`}
                           >
                             <div className="text-xl mb-1">
                               {THEME_CFG[t].icon}

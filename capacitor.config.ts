@@ -8,12 +8,19 @@ const config: CapacitorConfig = {
     // Ensures local bundled assets are served from dist via https://localhost
     androidScheme: 'https',
     hostname: 'localhost',
-    cleartext: true,
-    // Allow all in-app navigation routes & external API hosts directly inside native WebView
-    allowNavigation: ['*'],
+    cleartext: false,
+    // Only our own hosts (and the Supabase/Google endpoints needed for login)
+    // may load inside the native WebView.
+    allowNavigation: [
+      'flicksindia.online',
+      '*.flicksindia.online',
+      '*.supabase.co',
+      '*.supabase.in',
+      'accounts.google.com',
+    ],
   },
   android: {
-    allowMixedContent: true,
+    allowMixedContent: false,
     captureInput: true,
     backgroundColor: '#0F172A',
   },

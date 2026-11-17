@@ -3,10 +3,9 @@ import App from "./App.tsx";
 import "./index.css";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { installGlobalInteractionIsolation } from "./lib/globalInteractionIsolation";
-import eruda from "eruda";
-
-if (typeof window !== "undefined") {
-  eruda.init();
+// eruda is a dev-only console; it must never ship in a release build.
+if (import.meta.env.DEV && typeof window !== "undefined") {
+  void import("eruda").then(({ default: eruda }) => eruda.init());
 }
 
 const cleanupInteractionIsolation = installGlobalInteractionIsolation();
@@ -15,9 +14,11 @@ if (import.meta.hot) {
 }
 
 // OneSignal is loaded via CDN script in index.html.
-// Only initialise on the production domain — skip silently on Replit dev / localhost.
-const ONESIGNAL_DOMAIN = "flicksindia.online";
-if (window.location.hostname === ONESIGNAL_DOMAIN) {
+// Only initialise on the production web domain — skip on localhost/dev and in
+// the native shell (native push needs the OneSignal plugin, not wired yet).
+const ONESIGNAL_HOSTS = ["flicksindia.online", "www.flicksindia.online"];
+const isNativeShell = Boolean(window.Capacitor?.isNativePlatform?.());
+if (ONESIGNAL_HOSTS.includes(window.location.hostname) && !isNativeShell) {
   window.OneSignalDeferred = window.OneSignalDeferred || [];
   window.OneSignalDeferred.push(async (OneSignal: any) => {
     try {
