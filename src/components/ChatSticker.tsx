@@ -209,6 +209,7 @@ export const ChatSticker: React.FC<ChatStickerProps> = ({ type, originalText, is
         flexDirection: "column",
         alignItems: "center",
         gap: 6,
+        background: "transparent",
       }}
     >
       {/* Sticker pack image from BunnyCDN (falls back to emojis on load error) */}
@@ -256,33 +257,33 @@ export const ChatSticker: React.FC<ChatStickerProps> = ({ type, originalText, is
 
       {/* Label */}
       <p style={{
-        color: cfg.labelColor || "#ffffff",
+        color: "#1f2937",
         fontSize: 10,
         fontWeight: 900,
         textTransform: "uppercase",
         letterSpacing: "0.08em",
         margin: 0,
-        textShadow: "0 0 10px rgba(0,0,0,0.55)",
+        textShadow: "0 0 8px rgba(255,255,255,0.7)",
       }}>
         {cfg.label}
       </p>
 
       {/* Original trigger text */}
       <p style={{
-        color: "rgba(255,255,255,0.9)",
+        color: "#111827",
         fontSize: 11,
         fontStyle: "italic",
         lineHeight: 1.25,
         margin: 0,
         textAlign: "center",
         wordBreak: "break-word",
-        textShadow: "0 0 10px rgba(0,0,0,0.55)",
+        textShadow: "0 0 8px rgba(255,255,255,0.7)",
       }}>
         {originalText}
       </p>
 
       {isEdited && (
-        <p style={{ color: "rgba(255,255,255,0.45)", fontSize: 9, marginTop: 5, fontStyle: "italic", textShadow: "0 0 6px rgba(0,0,0,0.5)" }}>
+        <p style={{ color: "#4b5563", fontSize: 9, marginTop: 5, fontStyle: "italic", textShadow: "0 0 6px rgba(255,255,255,0.6)" }}>
           (edited)
         </p>
       )}
