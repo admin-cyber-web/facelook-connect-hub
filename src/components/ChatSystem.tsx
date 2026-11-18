@@ -3939,7 +3939,8 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                             key={emoji}
                             whileTap={{ scale: 0.8 }}
                             whileHover={{ scale: 1.3 }}
-                            onClick={(e) => {
+                            onPointerDown={(e) => {
+                              e.preventDefault();
                               e.stopPropagation();
                               console.log("[ChatMsgAction] Reaction:", emoji, "msgId:", am.id);
                               toast.success("Reaction added");
@@ -3954,7 +3955,8 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                       </div>
                       {/* Reply */}
                       <button
-                        onClick={(e) => {
+                        onPointerDown={(e) => {
+                          e.preventDefault();
                           e.stopPropagation();
                           console.log("[ChatMsgAction] Reply to msgId:", am.id);
                           toast.info("Reply opened");
@@ -3980,7 +3982,8 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                       {/* Edit — own text messages only */}
                       {isMine && !am.media_url && (
                         <button
-                          onClick={(e) => {
+                          onPointerDown={(e) => {
+                            e.preventDefault();
                             e.stopPropagation();
                             console.log("[ChatMsgAction] Edit msgId:", am.id);
                             toast.info("Edit mode opened");
@@ -3995,7 +3998,8 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                       )}
                       {/* Delete for Me */}
                       <button
-                        onClick={(e) => {
+                        onPointerDown={(e) => {
+                          e.preventDefault();
                           e.stopPropagation();
                           console.log("[ChatMsgAction] Delete for Me msgId:", am.id);
                           toast.error("Deleted for me");
@@ -4010,7 +4014,8 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                       {/* Delete for Everyone — only sender */}
                       {isMine && (
                         <button
-                          onClick={(e) => {
+                          onPointerDown={(e) => {
+                            e.preventDefault();
                             e.stopPropagation();
                             console.log("[ChatMsgAction] Delete for Everyone msgId:", am.id);
                             toast.error("Deleted for everyone");
