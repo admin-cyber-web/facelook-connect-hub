@@ -321,7 +321,7 @@ const THEME_CFG = {
     divider: "border-[#b99b6d]",
     searchBg:
       "diary-hand-sm bg-[#fdfbf7] border-[#c3a878] text-[#2c1810] placeholder:text-[#9c8464]",
-    msgMenuBg: "bg-[#2c1810] border-[#8a6a44] shadow-2xl",
+    msgMenuBg: "bg-[#fdfbf7] border-[#b99b6d] shadow-2xl",
     pill: "bg-[#8b2f39]/12 text-[#8b2f39] border border-[#8b2f39]/30",
     storyRing: "border-[#8b2f39]",
     sendBtnText: "text-[#fdfbf7]",
@@ -1549,13 +1549,6 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     text: string;
   } | null>(null);
 
-  // ── Voice Mode state ───────────────────────────────────────────────────────
-  const [voiceMode, setVoiceMode] = useState(false);
-  const [voiceSecondsLeft, setVoiceSecondsLeft] = useState(300);
-  const [voiceStatus, setVoiceStatus] = useState<"listening" | "processing">(
-    "listening",
-  );
-
   // ── Refs ──────────────────────────────────────────────────────────────────
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesPaneRef = useRef<HTMLDivElement>(null);
@@ -1580,10 +1573,6 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     count: number;
     timer: ReturnType<typeof setTimeout> | null;
   }>({ count: 0, timer: null });
-  const recognitionRef = useRef<any>(null);
-  const voiceTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const voiceTimeoutsRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
-  const voiceActiveRef = useRef(false);
   const pendingFileRef = useRef<File | null>(null);
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressMsgPos = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
@@ -3572,219 +3561,6 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       return n;
     });
 
-  // ── Voice Mode ────────────────────────────────────────────────────────────
-  const stopVoiceMode = useCallback(() => {
-    voiceActiveRef.current = false;
-    if (voiceTimerRef.current) {
-      clearInterval(voiceTimerRef.current);
-      voiceTimerRef.current = null;
-    }
-    voiceTimeoutsRef.current.forEach((timer) => clearTimeout(timer));
-    voiceTimeoutsRef.current.clear();
-    if (recognitionRef.current) {
-      try {
-        recognitionRef.current.stop();
-      } catch {}
-      recognitionRef.current = null;
-    }
-    setVoiceMode(false);
-    setVoiceSecondsLeft(300);
-    setVoiceStatus("listening");
-  }, []);
-
-  useEffect(() => {
-    if (!voiceMode) return;
-
-    const tick = () => {
-      if (document.hidden) return;
-      setVoiceSecondsLeft((prev) => {
-        if (prev <= 1) {
-          stopVoiceMode();
-          return 0;
-        }
-        return prev - 1;
-      });
-    };
-    const stopTimer = () => {
-      if (!voiceTimerRef.current) return;
-      clearInterval(voiceTimerRef.current);
-      voiceTimerRef.current = null;
-    };
-    const startTimer = () => {
-      if (document.hidden || voiceTimerRef.current || !voiceActiveRef.current) return;
-      voiceTimerRef.current = window.setInterval(tick, 1000);
-    };
-    const handleVisibilityChange = () => {
-      if (document.hidden) stopTimer();
-      else startTimer();
-    };
-
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    startTimer();
-    return () => {
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-      stopTimer();
-    };
-  }, [voiceMode, stopVoiceMode]);
-
-  const scheduleVoiceTimeout = (callback: () => void, delay: number) => {
-    const timer = setTimeout(() => {
-      voiceTimeoutsRef.current.delete(timer);
-      if (voiceActiveRef.current) callback();
-    }, delay);
-    voiceTimeoutsRef.current.add(timer);
-  };
-
-  useEffect(() => {
-    if (!isOpen) stopVoiceMode();
-    return () => {
-      stopVoiceMode();
-      if (typingTimeoutRef.current) {
-        clearTimeout(typingTimeoutRef.current);
-        typingTimeoutRef.current = null;
-      }
-      if (panicClickRef.current.timer) {
-        clearTimeout(panicClickRef.current.timer);
-        panicClickRef.current.timer = null;
-      }
-    };
-  }, [isOpen]);
-
-  const startVoiceMode = () => {
-    const SpeechRecognition =
-      (window as any).webkitSpeechRecognition ||
-      (window as any).SpeechRecognition;
-    if (!SpeechRecognition) {
-      toast.error("Voice not supported in this browser. Try Chrome.");
-      return;
-    }
-
-    voiceActiveRef.current = true;
-    setVoiceMode(true);
-    setVoiceSecondsLeft(300);
-    setVoiceStatus("listening");
-
-    const createRecognition = () => {
-      const rec = new SpeechRecognition();
-      rec.continuous = true;
-      rec.interimResults = false;
-      rec.lang = "hi-IN";
-
-      rec.onresult = (e: any) => {
-        if (!voiceActiveRef.current) return;
-        setVoiceStatus("processing");
-
-        // Grab only the latest spoken segment (not the full accumulated list)
-        const latest = e.results[e.resultIndex];
-        if (!latest || !latest[0]) {
-          setVoiceStatus("listening");
-          return;
-        }
-
-        // Clean: lowercase + strip trailing punctuation (। . ! ?)
-        const raw = latest[0].transcript
-          .trim()
-          .toLowerCase()
-          .replace(/[।,.!?]+$/, "")
-          .trim();
-
-        if (!raw) {
-          setVoiceStatus("listening");
-          return;
-        }
-
-        // ── SEND ──────────────────────────────────────────────────────────
-        if (
-          /^(send|भेज दो|भेजो|भेजना|send karo|message send|message bhejo|bhej do|bhejo)$/.test(
-            raw,
-          )
-        ) {
-          setNewMessage((prev) => {
-            sendMessage(prev);
-            return prev;
-          });
-          scheduleVoiceTimeout(() => setVoiceStatus("listening"), 600);
-          return;
-        }
-
-        // ── CLEAR CHAT ────────────────────────────────────────────────────
-        if (
-          /^(clear|clear chat|wipe|wipe chat|sab saaf|sab saaf karo|सब साफ|सब साफ करो|saaf karo|chat saaf|saaf)$/.test(
-            raw,
-          )
-        ) {
-          messages.forEach((m) => rememberDeletedMessage(m.id));
-          setMessages([]);
-          toast.success("🧹 Chat cleared!");
-          scheduleVoiceTimeout(() => setVoiceStatus("listening"), 600);
-          return;
-        }
-
-        // ── PANIC MODE ────────────────────────────────────────────────────
-        if (/^(panic|panic mode|emergency|पैनिक|पैनिक मोड)$/.test(raw)) {
-          setPanicMode(true);
-          scheduleVoiceTimeout(() => setVoiceStatus("listening"), 600);
-          return;
-        }
-
-        // ── STOP VOICE ────────────────────────────────────────────────────
-        if (
-          /^(stop|stop voice|band karo|band kar|बंद करो|रुको|mic band|voice band)$/.test(
-            raw,
-          )
-        ) {
-          stopVoiceMode();
-          toast.success("🔇 Voice mode stopped");
-          return;
-        }
-
-        // ── WRITE / LIKH (strip command word, put rest in input) ──────────
-        const writeMatch = raw.match(
-          /^(?:likh|likho|likhna|write|type|लिख|लिखो|लिखना)\s+(.+)/,
-        );
-        if (writeMatch) {
-          const msg = writeMatch[1].trim();
-          setNewMessage(msg);
-          toast.success(`✍️ "${msg}"`);
-          scheduleVoiceTimeout(() => setVoiceStatus("listening"), 600);
-          return;
-        }
-
-        // ── FALLBACK: only if no command matched → append to input ────────
-        setNewMessage((prev) => (prev ? prev + " " + raw : raw));
-        scheduleVoiceTimeout(() => setVoiceStatus("listening"), 600);
-      };
-
-      rec.onerror = () => {
-        scheduleVoiceTimeout(() => setVoiceStatus("listening"), 500);
-      };
-
-      rec.onend = () => {
-        // Auto-restart if still in voice mode
-        if (voiceActiveRef.current) {
-          scheduleVoiceTimeout(() => {
-            if (voiceActiveRef.current) {
-              try {
-                rec.start();
-              } catch {}
-            }
-          }, 300);
-        }
-      };
-
-      return rec;
-    };
-
-    const rec = createRecognition();
-    recognitionRef.current = rec;
-    try {
-      rec.start();
-    } catch {
-      toast.error("Could not access microphone.");
-      stopVoiceMode();
-    }
-  };
-
   // ── Typing tracker ────────────────────────────────────────────────────────
   const handleTyping = () => {
     const ch = typingChannelRef.current;
@@ -5124,7 +4900,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center justify-between">
                                   <p
-                                    className={`text-sm font-black truncate ${T.text1}`}
+                                    className={`text-sm font-black truncate text-white`}
                                   >
                                     {c.full_name}
                                   </p>
@@ -5142,7 +4918,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                       <VolumeX size={10} className={T.text3} />
                                     )}
                                     <p
-                                      className={`text-xs truncate ${(c.unread_count ?? 0) > 0 ? `font-semibold ${T.text1}` : T.text3}`}
+                                      className={`text-xs truncate ${(c.unread_count ?? 0) > 0 ? `font-semibold text-white` : `text-[#4a1515]`}`}
                                     >
                                       {lastMsgPreview(c) ||
                                         "Start a conversation"}
@@ -5484,7 +5260,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                           animate={{ opacity: 1, scale: 1, y: 0 }}
                           exit={{ opacity: 0, scale: 0.9, y: 4 }}
                           role="menu"
-                          className={`absolute right-0 top-full z-[9999] mt-2 rounded-2xl border shadow-2xl overflow-hidden min-w-[170px] ${T.msgMenuBg} text-white`}
+                          className={`absolute right-0 top-full z-[9999] mt-2 rounded-2xl border shadow-2xl overflow-hidden min-w-[170px] ${T.msgMenuBg} text-[#2c1810]`}
                           onClick={(e) => e.stopPropagation()}
                         >
                           <button
@@ -5676,57 +5452,8 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                   )}
                 </AnimatePresence>
 
-                {/* ── Voice Mode Banner ─────────────────────────────────── */}
-                <AnimatePresence>
-                  {voiceMode && (
-                    <motion.div
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: "auto", opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      className="overflow-hidden shrink-0"
-                    >
-                      <div className="flex items-center gap-3 px-4 py-2.5 bg-red-500/15 border-b border-red-500/20">
-                        {/* Glowing pulsing mic */}
-                        <div className="relative shrink-0">
-                          <div className="absolute inset-0 rounded-full bg-red-500/40 animate-ping" />
-                          <div className="w-8 h-8 rounded-full bg-red-500 flex items-center justify-center text-white text-base relative z-10">
-                            🎤️
-                          </div>
-                        </div>
-                        {/* Status + timer */}
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-black text-red-400 uppercase tracking-wider">
-                            {voiceStatus === "listening"
-                              ? "Listening…"
-                              : "Processing…"}
-                          </p>
-                          <p className="text-[10px] text-white/40 font-semibold">
-                            Say: Likh [msg] · Send · Sab Saaf · Panic Mode ·
-                            Band Karo
-                          </p>
-                        </div>
-                        {/* Countdown MM:SS */}
-                        <div className="text-right shrink-0">
-                          <p className="text-base font-black text-red-400 tabular-nums">
-                            {String(Math.floor(voiceSecondsLeft / 60)).padStart(
-                              2,
-                              "0",
-                            )}
-                            :{String(voiceSecondsLeft % 60).padStart(2, "0")}
-                          </p>
-                          <button
-                            onClick={stopVoiceMode}
-                            className="text-[10px] font-black text-white/50 hover:text-red-400 uppercase tracking-wider transition-colors"
-                          >
-                            Stop
-                          </button>
-                        </div>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-
                 {/* In-chat search */}
+
                 <AnimatePresence>
                   {showChatSearch && (
                     <motion.div
@@ -6233,30 +5960,6 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                         <Send size={16} />
                       )}
                     </button>
-                    {/* ── Mic button — collapses in focus mode ── */}
-                    <AnimatePresence initial={false}>
-                      {!inputFocused && (
-                        <motion.div
-                          key="mic-btn"
-                          initial={{ opacity: 0, width: 0 }}
-                          animate={{ opacity: 1, width: "auto" }}
-                          exit={{ opacity: 0, width: 0 }}
-                          transition={{ duration: 0.18, ease: "easeInOut" }}
-                          className="overflow-hidden shrink-0"
-                          style={{ willChange: "opacity, width" }}
-                        >
-                          <button
-                            onClick={() =>
-                              voiceMode ? stopVoiceMode() : startVoiceMode()
-                            }
-                            className={`w-9 h-9 rounded-2xl border flex items-center justify-center text-base shrink-0 active:scale-90 transition-all
-                              ${voiceMode ? "bg-red-500 border-red-400 animate-pulse text-white" : `bg-white/10 ${T.divider} hover:bg-white/20`}`}
-                          >
-                            🎤️
-                          </button>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
                   </div>
                 </div>
               </div>
