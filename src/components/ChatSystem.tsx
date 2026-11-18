@@ -3943,7 +3943,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                               handleMsgReact(am.id, emoji);
                               setChatMsgAction(null);
                             }}
-                            className="text-[24px] leading-none"
+                            className="text-[24px] leading-none cursor-pointer hover:scale-125 transition-transform"
                           >
                             {emoji}
                           </motion.button>
@@ -3955,7 +3955,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                           setReplyTo(am);
                           setChatMsgAction(null);
                         }}
-                        className="w-full flex items-center gap-3 px-4 py-[13px] text-left text-[14px] font-semibold text-gray-800 active:bg-gray-100 transition-colors"
+                        className="w-full flex items-center gap-3 px-4 py-[13px] text-left text-[14px] font-semibold text-gray-800 cursor-pointer hover:bg-gray-100 active:bg-gray-100 transition-colors"
                       >
                         <svg
                           width="15"
@@ -3978,7 +3978,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                             setEditingMsg({ id: am.id, text: am.content });
                             setChatMsgAction(null);
                           }}
-                          className="w-full flex items-center gap-3 px-4 py-[13px] text-left text-[14px] font-semibold text-blue-600 active:bg-blue-50 transition-colors border-t border-gray-50"
+                          className="w-full flex items-center gap-3 px-4 py-[13px] text-left text-[14px] font-semibold text-blue-600 cursor-pointer hover:bg-blue-50 active:bg-blue-50 transition-colors border-t border-gray-50"
                         >
                           <Pencil size={15} className="text-blue-500" />
                           Edit
@@ -3990,7 +3990,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                           deleteForMe(am.id);
                           setChatMsgAction(null);
                         }}
-                        className="w-full flex items-center gap-3 px-4 py-[13px] text-left text-[14px] font-semibold text-gray-600 active:bg-gray-100 transition-colors border-t border-gray-50"
+                        className="w-full flex items-center gap-3 px-4 py-[13px] text-left text-[14px] font-semibold text-gray-600 cursor-pointer hover:bg-gray-100 active:bg-gray-100 transition-colors border-t border-gray-50"
                       >
                         <EyeOff size={15} className="text-gray-400" />
                         Delete for Me
@@ -3998,8 +3998,11 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                       {/* Delete for Everyone — only sender */}
                       {isMine && (
                         <button
-                          onClick={() => deleteMessageAt(am, x, y)}
-                          className="w-full flex items-center gap-3 px-4 py-[13px] text-left text-[14px] font-semibold text-red-600 active:bg-red-50 transition-colors border-t border-gray-50"
+                          onClick={() => {
+                            deleteMessageAt(am, x, y);
+                            setChatMsgAction(null);
+                          }}
+                          className="w-full flex items-center gap-3 px-4 py-[13px] text-left text-[14px] font-semibold text-red-600 cursor-pointer hover:bg-red-50 active:bg-red-50 transition-colors border-t border-gray-50"
                         >
                           <Trash2 size={15} className="text-red-500" />
                           Delete for Everyone
@@ -4918,7 +4921,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                       <VolumeX size={10} className={T.text3} />
                                     )}
                                     <p
-                                      className={`text-xs truncate ${(c.unread_count ?? 0) > 0 ? `font-semibold text-white` : `text-[#4a1515]`}`}
+                                      className={`text-xs truncate ${(c.unread_count ?? 0) > 0 ? `font-semibold text-white` : `text-[#1d4ed8]`}`}
                                     >
                                       {lastMsgPreview(c) ||
                                         "Start a conversation"}
