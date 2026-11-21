@@ -5459,6 +5459,14 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                     try {
                                       navigator.vibrate?.(10);
                                     } catch (_) {}
+                                    console.log(
+                                      "[ChatSystem] Long-press triggered — setChatMsgAction",
+                                      {
+                                        msgId: msg.id,
+                                        x: longPressMsgPos.current.x,
+                                        y: longPressMsgPos.current.y,
+                                      },
+                                    );
                                     setChatMsgAction({
                                       msg,
                                       x: longPressMsgPos.current.x,

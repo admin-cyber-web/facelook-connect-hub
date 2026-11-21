@@ -48,6 +48,17 @@ export const ChatMsgActionMenu: React.FC<ChatMsgActionMenuProps> = ({
   const showAbove = y + menuH + 20 > vh;
   const top = showAbove ? Math.max(y - menuH - 14, 8) : y + 14;
 
+  console.log(
+    "[ChatMsgActionMenu] Component render — open:",
+    open,
+    "msgId:",
+    msg.id,
+    "x:",
+    x,
+    "y:",
+    y,
+  );
+
   const handleReaction = useCallback(
     (emoji: string) => {
       console.log("[ChatMsgAction] Reaction:", emoji, "msgId:", msg.id);
