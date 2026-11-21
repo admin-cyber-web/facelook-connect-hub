@@ -1,0 +1,94 @@
+﻿[36mvite v5.4.21 [32mbuilding for production...[36m[39m
+transforming...
+[32mΓ£ô[39m 3360 modules transformed.
+node.exe : Circular chunk: app-context -> app-supabase -> vendor-supabase -> vendor-misc -> 
+app-context. Please adjust the manual chunk logic for these chunks.
+At line:1 char:1
++ & "C:\Program Files\nodejs/node.exe" "C:\Program Files\nodejs/node_mo ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Circular chunk:...r these chunks.:String) [], RemoteExc 
+   eption
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+rendering chunks...
+[2mdist/[22m[32mindex.html                                        [39m[1m[2m   10.05 kB[22m[1m[22m
+[2mdist/[22m[35massets/ProximitySatellite-BDyvJb3L.css            [39m[1m[2m    9.40 kB[22m[1m[22m
+[2mdist/[22m[35massets/Index-CrE73xcL.css                         [39m[1m[2m   14.15 kB[22m[1m[22m
+[2mdist/[22m[35massets/ProfileTimelinePage-WY28_QZk.css           [39m[1m[2m   31.82 kB[22m[1m[22m
+[2mdist/[22m[35massets/index-D-TVCfRo.css                         [39m[1m[2m  309.13 kB[22m[1m[22m
+[2mdist/[22m[36massets/app-admin-Cfv8S7Tz.js                      [39m[1m[2m    0.13 kB[22m[1m[22m
+[2mdist/[22m[36massets/timeAgo-B1KLWyHy.js                        [39m[1m[2m    0.26 kB[22m[1m[22m
+[2mdist/[22m[36massets/mediaUrl-DBkfn_Vu.js                       [39m[1m[2m    0.33 kB[22m[1m[22m
+[2mdist/[22m[36massets/app-mentions-COeAWKAB.js                   [39m[1m[2m    0.35 kB[22m[1m[22m
+[2mdist/[22m[36massets/profileSearch-Hg4ixjNo.js                  [39m[1m[2m    0.54 kB[22m[1m[22m
+[2mdist/[22m[36massets/PostActionMenuPortal-Db0WSTCk.js           [39m[1m[2m    0.57 kB[22m[1m[22m
+[2mdist/[22m[36massets/memCache-CdTDGNOc.js                       [39m[1m[2m    0.77 kB[22m[1m[22m
+[2mdist/[22m[36massets/NotFound-BpPn-onC.js                       [39m[1m[2m    0.81 kB[22m[1m[22m
+[2mdist/[22m[36massets/ActiveStatusAvatar-D7h91K7r.js             [39m[1m[2m    1.02 kB[22m[1m[22m
+[2mdist/[22m[36massets/app-error-boundary-1xbjLSVi.js             [39m[1m[2m    1.19 kB[22m[1m[22m
+[2mdist/[22m[36massets/googleNativeAuth-B9WZLg3K.js               [39m[1m[2m    1.29 kB[22m[1m[22m
+[2mdist/[22m[36massets/SavePostButton-Bl8ETn8E.js                 [39m[1m[2m    1.29 kB[22m[1m[22m
+[2mdist/[22m[36massets/reelSettings-C6_fA1t8.js                   [39m[1m[2m    1.50 kB[22m[1m[22m
+[2mdist/[22m[36massets/reelAudioSync-DGrDKnxo.js                  [39m[1m[2m    1.73 kB[22m[1m[22m
+[2mdist/[22m[36massets/ReactionBar-zLMfvw7_.js                    [39m[1m[2m    2.26 kB[22m[1m[22m
+[2mdist/[22m[36massets/app-supabase-uJJMItdQ.js                   [39m[1m[2m    2.51 kB[22m[1m[22m
+[2mdist/[22m[36massets/bunny-dZHIdn97.js                          [39m[1m[2m    2.65 kB[22m[1m[22m
+[2mdist/[22m[36massets/BunnyVideoStatusOverlay-DMO31x7I.js        [39m[1m[2m    2.87 kB[22m[1m[22m
+[2mdist/[22m[36massets/BunnyCreatorProcessingOverlay--nh8Q-_w.js  [39m[1m[2m    3.62 kB[22m[1m[22m
+[2mdist/[22m[36massets/DataInfo-B0CrxO99.js                       [39m[1m[2m    3.64 kB[22m[1m[22m
+[2mdist/[22m[36massets/Privacy-1_j75cSf.js                        [39m[1m[2m    3.65 kB[22m[1m[22m
+[2mdist/[22m[36massets/Terms-VKXanpLi.js                          [39m[1m[2m    3.87 kB[22m[1m[22m
+[2mdist/[22m[36massets/InviteLanding-C6fr_vgB.js                  [39m[1m[2m    4.90 kB[22m[1m[22m
+[2mdist/[22m[36massets/app-share-C9tmayqC.js                      [39m[1m[2m    5.15 kB[22m[1m[22m
+[2mdist/[22m[36massets/VibeAudioToggle-DFKG6FzG.js                [39m[1m[2m    5.46 kB[22m[1m[22m
+[2mdist/[22m[36massets/PostDetail-p6MhJeyK.js                     [39m[1m[2m    5.67 kB[22m[1m[22m
+[2mdist/[22m[36massets/app-rich-caption-CfuM5FJd.js               [39m[1m[2m    6.28 kB[22m[1m[22m
+[2mdist/[22m[36massets/app-autoplay-BXVQfowr.js                   [39m[1m[2m    6.47 kB[22m[1m[22m
+[2mdist/[22m[36massets/SurveyDetail-oqztEZ3o.js                   [39m[1m[2m    7.00 kB[22m[1m[22m
+[2mdist/[22m[36massets/MagnetDashboard-2ckD1o1d.js                [39m[1m[2m    7.26 kB[22m[1m[22m
+[2mdist/[22m[36massets/app-hooks-BG048Ud0.js                      [39m[1m[2m    7.43 kB[22m[1m[22m
+[2mdist/[22m[36massets/vibeMatcher-BNibhvGf.js                    [39m[1m[2m    7.57 kB[22m[1m[22m
+[2mdist/[22m[36massets/ConnectionPanel-DWa3KUs0.js                [39m[1m[2m    7.74 kB[22m[1m[22m
+[2mdist/[22m[36massets/app-context-CTjRN4fw.js                    [39m[1m[2m    9.61 kB[22m[1m[22m
+[2mdist/[22m[36massets/InviteCard-CWyVlng9.js                     [39m[1m[2m   10.22 kB[22m[1m[22m
+[2mdist/[22m[36massets/vendor-router-Da9E5h8N.js                  [39m[1m[2m   12.46 kB[22m[1m[22m
+[2mdist/[22m[36massets/SnapyStudio-Cpwv4_5z.js                    [39m[1m[2m   13.49 kB[22m[1m[22m
+[2mdist/[22m[36massets/ProximitySatellite-moToOrex.js             [39m[1m[2m   14.36 kB[22m[1m[22m
+[2mdist/[22m[36massets/SavedItemsPage-ViMr18Kd.js                 [39m[1m[2m   16.24 kB[22m[1m[22m
+[2mdist/[22m[36massets/LoginScreen-BGtS2e67.js                    [39m[1m[2m   18.59 kB[22m[1m[22m
+[2mdist/[22m[36massets/ReelStudio-DZBNskBc.js                     [39m[1m[2m   19.99 kB[22m[1m[22m
+[2mdist/[22m[36massets/DesignPreview-kdElDzW2.js                  [39m[1m[2m   26.58 kB[22m[1m[22m
+[2mdist/[22m[36massets/UserProfilePreviewModal-RDduu_Ce.js        [39m[1m[2m   27.87 kB[22m[1m[22m
+[2mdist/[22m[36massets/AdminDashboard-Dtv5hqMH.js                 [39m[1m[2m   28.75 kB[22m[1m[22m
+[2mdist/[22m[36massets/QuotesMaker-BaQXuIE8.js                    [39m[1m[2m   29.53 kB[22m[1m[22m
+[2mdist/[22m[36massets/vendor-framer-CTOZTBjO.js                  [39m[1m[2m   33.07 kB[22m[1m[22m
+[2mdist/[22m[36massets/FlicksStudio-BoqVAEfr.js                   [39m[1m[2m   34.71 kB[22m[1m[22m
+[2mdist/[22m[36massets/StoryBar-DiUKjX57.js                       [39m[1m[2m   37.34 kB[22m[1m[22m
+[2mdist/[22m[36massets/vendor-query-WSJTeLcb.js                   [39m[1m[2m   37.90 kB[22m[1m[22m
+[2mdist/[22m[36massets/Chat19-BSxMJzzy.js                         [39m[1m[2m   41.81 kB[22m[1m[22m
+[2mdist/[22m[36massets/vendor-ui-BYqU-b0W.js                      [39m[1m[2m   45.81 kB[22m[1m[22m
+[2mdist/[22m[36massets/FlicksFeed-2Ucu3yQt.js                     [39m[1m[2m   47.32 kB[22m[1m[22m
+[2mdist/[22m[36massets/MagnetSystem-D9H7slFk.js                   [39m[1m[2m   47.59 kB[22m[1m[22m
+[2mdist/[22m[36massets/index-CbxgweiF.js                          [39m[1m[2m   47.68 kB[22m[1m[22m
+[2mdist/[22m[36massets/CreatePost-BLazMZfB.js                     [39m[1m[2m   51.75 kB[22m[1m[22m
+[2mdist/[22m[36massets/vendor-lucide-CGsJpf3t.js                  [39m[1m[2m   69.44 kB[22m[1m[22m
+[2mdist/[22m[36massets/HooksHub-Bzo_nIIj.js                       [39m[1m[2m   72.43 kB[22m[1m[22m
+[2mdist/[22m[36massets/SurveyFeed-Cntd5X8y.js                     [39m[1m[2m   78.13 kB[22m[1m[22m
+[2mdist/[22m[36massets/ProfileTimelinePage-j63GiKwY.js            [39m[1m[2m   86.51 kB[22m[1m[22m
+[2mdist/[22m[36massets/AdminMarketplace-RsngMZFK.js               [39m[1m[2m   95.09 kB[22m[1m[22m
+[2mdist/[22m[36massets/CirclePage-DSzY2J-v.js                     [39m[1m[2m  139.25 kB[22m[1m[22m
+[2mdist/[22m[36massets/vendor-react-D3RB7Ugd.js                   [39m[1m[2m  142.35 kB[22m[1m[22m
+[2mdist/[22m[36massets/ChatSystem-Dx_auchn.js                     [39m[1m[2m  150.72 kB[22m[1m[22m
+[2mdist/[22m[36massets/FameFeed-oLKnp03N.js                       [39m[1m[2m  197.10 kB[22m[1m[22m
+[2mdist/[22m[36massets/vendor-supabase-weiHMkkb.js                [39m[1m[2m  208.23 kB[22m[1m[22m
+[2mdist/[22m[36massets/Index-qf_oMw6R.js                          [39m[1m[2m  252.61 kB[22m[1m[22m
+[2mdist/[22m[36massets/vendor-hls-BLkrlaxa.js                     [39m[1m[2m  599.03 kB[22m[1m[22m
+[2mdist/[22m[36massets/vendor-misc-ByzUju98.js                    [39m[1m[33m  701.97 kB[39m[22m
+[2mdist/[22m[36massets/vendor-agora-DJ62DlJU.js                   [39m[1m[33m1,594.90 kB[39m[22m
+[33m
+(!) Some chunks are larger than 600 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: 
+https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.[39m
+[32mΓ£ô built in 29.55s[39m
