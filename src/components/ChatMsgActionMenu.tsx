@@ -44,24 +44,11 @@ export const ChatMsgActionMenu: React.FC<ChatMsgActionMenuProps> = ({
   const menuH = reactionH + rowCount * rowH;
   const vw = window.innerWidth;
   const vh = window.innerHeight;
-  const left = Math.min(Math.max(x - menuW / 2, 8), vw - menuW - 8);
-  const showAbove = y + menuH + 20 > vh;
-  const top = showAbove ? Math.max(y - menuH - 14, 8) : y + 14;
-
-  console.log(
-    "[ChatMsgActionMenu] Component render — open:",
-    open,
-    "msgId:",
-    msg.id,
-    "x:",
-    x,
-    "y:",
-    y,
-  );
+  const left = Math.min(Math.max(x - menuW / 2, 12), vw - menuW - 12);
+  const top = Math.min(Math.max(y, 12), vh - menuH - 12);
 
   const handleReaction = useCallback(
     (emoji: string) => {
-      console.log("[ChatMsgAction] Reaction:", emoji, "msgId:", msg.id);
       toast.success("Reaction added");
       void handleMsgReact(msg.id, emoji);
       onClose();
@@ -70,28 +57,24 @@ export const ChatMsgActionMenu: React.FC<ChatMsgActionMenuProps> = ({
   );
 
   const handleReply = useCallback(() => {
-    console.log("[ChatMsgAction] Reply to msgId:", msg.id);
     toast.info("Reply opened");
     setReplyTo(msg);
     onClose();
   }, [msg, setReplyTo, onClose]);
 
   const handleEdit = useCallback(() => {
-    console.log("[ChatMsgAction] Edit msgId:", msg.id);
     toast.info("Edit mode opened");
     setEditingMsg({ id: msg.id, text: msg.content });
     onClose();
   }, [msg.id, msg.content, setEditingMsg, onClose]);
 
   const handleDeleteForMe = useCallback(() => {
-    console.log("[ChatMsgAction] Delete for Me msgId:", msg.id);
     toast.error("Deleted for me");
     deleteForMe(msg.id);
     onClose();
   }, [msg.id, deleteForMe, onClose]);
 
   const handleDeleteForEveryone = useCallback(() => {
-    console.log("[ChatMsgAction] Delete for Everyone msgId:", msg.id);
     toast.error("Deleted for everyone");
     void deleteMessageAt(msg, x, y);
     onClose();
@@ -107,9 +90,9 @@ export const ChatMsgActionMenu: React.FC<ChatMsgActionMenuProps> = ({
           <div
             className="fixed inset-0 z-[99990] bg-black/20 backdrop-blur-[1px] pointer-events-auto"
             onClick={(e) => {
+              if (e.target !== e.currentTarget) return;
               e.preventDefault();
               e.stopPropagation();
-              console.log("[ChatMsgAction] Backdrop tapped — closing menu");
               onClose();
             }}
           />
@@ -125,16 +108,9 @@ export const ChatMsgActionMenu: React.FC<ChatMsgActionMenuProps> = ({
               damping: 20,
               stiffness: 420,
             }}
-            className="fixed z-[99991] relative pointer-events-auto bg-white rounded-2xl shadow-2xl overflow-hidden border border-gray-100"
+            className="fixed z-[99991] bg-white shadow-2xl rounded-2xl pointer-events-auto overflow-hidden border border-gray-100"
             data-chat-msg-action-menu="true"
-            style={{
-              top,
-              left,
-              width: menuW,
-              transformOrigin: showAbove
-                ? "bottom center"
-                : "top center",
-            }}
+            style={{ top, left, width: menuW }}
             onPointerDown={(e) => e.stopPropagation()}
           >
             {/* Quick-reactions row */}
