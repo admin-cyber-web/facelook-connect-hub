@@ -3887,6 +3887,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
           {/* ── Chat Message Floating Action Menu (long-press) ─────────── */}
           {chatMsgAction && (
             <ChatMsgActionMenu
+              key={chatMsgAction.msg.id}
               open={true}
               msg={chatMsgAction.msg}
               x={chatMsgAction.x}
