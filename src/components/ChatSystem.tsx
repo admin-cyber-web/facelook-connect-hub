@@ -53,6 +53,7 @@ import {
   Camera,
   Plus,
   Smile,
+  Sticker,
   Image,
   Mic,
   Pencil,
@@ -3491,6 +3492,9 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       const next = [...prev, tempMsg];
       return next.length > 200 ? next.slice(-200) : next;
     });
+    setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }, 50);
     try {
       const { data, error } = await supabase
         .from("messages")
@@ -5950,13 +5954,22 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                         >
                           {/* Animated sticker button */}
                           <motion.button
+                            type="button"
                             whileTap={{ scale: 0.9 }}
-                            animate={{ scale: [1, 1.05, 1] }}
-                            transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-                            onClick={() => setShowStickerDrawer((p) => !p)}
-                            className={`w-9 h-9 rounded-2xl border ${T.divider} flex items-center justify-center text-lg hover:bg-white/20 shrink-0 transition-all ${showStickerDrawer ? "bg-white/20" : "bg-white/10"}`}
+                            whileHover={{ scale: 1.05 }}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setShowStickerDrawer((p) => !p);
+                            }}
+                            title="Send Sticker"
+                            className={`w-9 h-9 rounded-2xl border flex items-center justify-center shrink-0 transition-all ${
+                              showStickerDrawer
+                                ? "bg-amber-500/30 border-amber-400/60 text-amber-300 shadow-md scale-105"
+                                : "bg-white/10 border-white/15 text-amber-400 hover:bg-amber-500/20 hover:border-amber-400/40"
+                            }`}
                           >
-                            <Image size={16} strokeWidth={1.5} />
+                            <Sticker size={17} strokeWidth={1.8} className="drop-shadow-sm" />
                           </motion.button>
                           <button
                             onClick={() => fileInputRef.current?.click()}

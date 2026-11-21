@@ -26,33 +26,33 @@ export type StickerPackFile = {
   candidates: string[];
 };
 
-/** Love folder: 7 real .webp files. */
+/** Love folder: real webp & png file candidates. */
 const LOVE_FILES: StickerPackFile[] = [
-  { id: "love-1", label: "Love sticker 1", candidates: ["love stickers.webp"] },
-  { id: "love-2", label: "Love sticker 2", candidates: ["love stickers2.webp"] },
-  { id: "love-3", label: "Love sticker 3", candidates: ["love stickers 3.webp"] },
-  { id: "love-4", label: "Love sticker 4", candidates: ["love stickers 4.webp"] },
-  { id: "love-5", label: "Love sticker 5", candidates: ["love stickers 5.webp"] },
-  { id: "love-6", label: "Love sticker 6", candidates: ["love stickers 6.webp"] },
-  { id: "love-7", label: "Love sticker 7", candidates: ["love stickers 7.webp"] },
+  { id: "love-1", label: "Love sticker 1", candidates: ["love stickers.webp", "love stickers.png", "love-1.png", "love.png"] },
+  { id: "love-2", label: "Love sticker 2", candidates: ["love stickers2.webp", "love stickers 2.webp", "love stickers2.png", "love-2.png"] },
+  { id: "love-3", label: "Love sticker 3", candidates: ["love stickers 3.webp", "love stickers3.webp", "love stickers 3.png", "love-3.png"] },
+  { id: "love-4", label: "Love sticker 4", candidates: ["love stickers 4.webp", "love stickers4.webp", "love stickers 4.png", "heart.png"] },
+  { id: "love-5", label: "Love sticker 5", candidates: ["love stickers 5.webp", "love stickers5.webp", "love stickers 5.png", "kiss.png"] },
+  { id: "love-6", label: "Love sticker 6", candidates: ["love stickers 6.webp", "love stickers6.webp", "love stickers 6.png", "cute.png"] },
+  { id: "love-7", label: "Love sticker 7", candidates: ["love stickers 7.webp", "love stickers7.webp", "love stickers 7.png"] },
 ];
 
-/** Sad folder: 2 real .webp files. */
+/** Sad folder: real webp & png file candidates. */
 const SAD_FILES: StickerPackFile[] = [
-  { id: "sad-1", label: "Sad sticker 1", candidates: ["sad stickers.webp"] },
-  { id: "sad-2", label: "Sad sticker 2", candidates: ["sad stickers 2.webp"] },
+  { id: "sad-1", label: "Sad sticker 1", candidates: ["sad stickers.webp", "sad stickers.png", "sad-1.png", "tears.png", "lonely.png"] },
+  { id: "sad-2", label: "Sad sticker 2", candidates: ["sad stickers 2.webp", "sad stickers2.webp", "sad stickers 2.png", "sad-2.png", "broken-heart.png"] },
 ];
 
-/** emotional folder: 2 real .webp files. */
+/** emotional folder: real webp & png file candidates. */
 const EMOTIONAL_FILES: StickerPackFile[] = [
-  { id: "emotional-1", label: "Emotional sticker 1", candidates: ["emotional stickers.webp"] },
-  { id: "emotional-2", label: "Emotional sticker 2", candidates: ["emotional stickers2.webp"] },
+  { id: "emotional-1", label: "Emotional sticker 1", candidates: ["emotional stickers.webp", "emotional stickers.png", "emotional-1.png", "touching.png"] },
+  { id: "emotional-2", label: "Emotional sticker 2", candidates: ["emotional stickers2.webp", "emotional stickers 2.webp", "emotional stickers2.png", "emotional-2.png", "miss-you.png"] },
 ];
 
-/** Angry folder: 2 real .webp files. */
+/** Angry folder: real webp & png file candidates. */
 const ANGRY_FILES: StickerPackFile[] = [
-  { id: "angry-1", label: "Angry sticker 1", candidates: ["angry stickers.webp"] },
-  { id: "angry-2", label: "Angry sticker 2", candidates: ["angry stickers2.webp"] },
+  { id: "angry-1", label: "Angry sticker 1", candidates: ["angry stickers.webp", "angry stickers.png", "angry-1.png", "mad.png"] },
+  { id: "angry-2", label: "Angry sticker 2", candidates: ["angry stickers2.webp", "angry stickers 2.webp", "angry stickers2.png", "angry-2.png", "grr.png"] },
 ];
 
 /** Sticker pack categories available on the pull zone. */

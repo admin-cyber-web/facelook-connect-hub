@@ -69,7 +69,8 @@ export const StickerDrawer: React.FC<StickerDrawerProps> = ({
     try {
       const key = probeKey(activeCategory, file);
       const index = probe[key]?.index ?? 0;
-      onStickerSelect(stickerCandidateUrl(activeCategory, file, index));
+      const url = stickerCandidateUrl(activeCategory, file, index);
+      onStickerSelect(url);
       onClose();
     } catch (err) {
       console.error("[StickerDrawer] handleStickerPress error:", err);
@@ -84,7 +85,7 @@ export const StickerDrawer: React.FC<StickerDrawerProps> = ({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-white/80 backdrop-blur-sm z-50"
+            className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50"
             onClick={onClose}
           />
 
@@ -94,14 +95,21 @@ export const StickerDrawer: React.FC<StickerDrawerProps> = ({
             exit={{ y: "100%", opacity: 0 }}
             transition={{ type: "spring" as const, stiffness: 320, damping: 26 }}
             className="fixed bottom-0 left-0 right-0 z-50 w-full bg-white border-t border-gray-200 rounded-t-[30px] shadow-2xl max-h-[85vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
           >
             <div className="w-12 h-1.5 bg-gray-300 rounded-full mx-auto mt-3 mb-2" />
 
-            <div className="px-5 pb-4">
+            <div className="px-5 pb-4" onClick={(e) => e.stopPropagation()}>
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-black font-black text-lg">Stickers</h3>
                 <button
-                  onClick={onClose}
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onClose();
+                  }}
                   className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors"
                 >
                   <X size={18} strokeWidth={2} stroke="currentColor" />
@@ -111,12 +119,24 @@ export const StickerDrawer: React.FC<StickerDrawerProps> = ({
                 Tap a sticker to send
               </p>
 
-              <div className="flex gap-1 overflow-x-auto no-scrollbar pb-2 mb-2">
+              <div
+                className="flex gap-1 overflow-x-auto no-scrollbar pb-2 mb-2"
+                onClick={(e) => e.stopPropagation()}
+              >
                 {STICKER_PACK_CATEGORIES.map((cat) => (
                   <button
                     key={cat}
-                    onClick={() => setActiveCategory(cat)}
-                    className={`flex-shrink-0 px-3.5 py-1.5 rounded-full text-xs font-bold transition-all ${activeCategory === cat ? "bg-black text-white border border-black" : "bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200 hover:text-gray-900"}`}
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setActiveCategory(cat);
+                    }}
+                    className={`flex-shrink-0 px-3.5 py-1.5 rounded-full text-xs font-bold transition-all ${
+                      activeCategory === cat
+                        ? "bg-black text-white border border-black"
+                        : "bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200 hover:text-gray-900"
+                    }`}
                   >
                     {cat}
                   </button>
@@ -124,7 +144,7 @@ export const StickerDrawer: React.FC<StickerDrawerProps> = ({
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-3">
+            <div className="flex-1 overflow-y-auto p-3" onClick={(e) => e.stopPropagation()}>
               {visibleFiles.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-16 gap-2 text-center px-6">
                   <span className="text-3xl select-none" role="img" aria-label="stickers unavailable">
@@ -140,9 +160,14 @@ export const StickerDrawer: React.FC<StickerDrawerProps> = ({
                   {visibleFiles.map((file) => (
                     <motion.button
                       key={file.id}
+                      type="button"
                       whileTap={{ scale: 0.95 }}
                       whileHover={{ scale: 1.05 }}
-                      onClick={() => handleStickerPress(file)}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleStickerPress(file);
+                      }}
                       className="aspect-square rounded-2xl overflow-hidden border border-gray-200 bg-gray-50 flex items-center justify-center transition-all duration-200"
                     >
                       <img
