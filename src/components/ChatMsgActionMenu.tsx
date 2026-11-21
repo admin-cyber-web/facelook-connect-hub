@@ -105,7 +105,7 @@ export const ChatMsgActionMenu: React.FC<ChatMsgActionMenuProps> = ({
               so it can receive outside taps to dismiss. Because the menu card is
               rendered on top with a higher z-index, clicks on buttons never reach it. */}
           <div
-            className="fixed inset-0 z-[5] bg-black/20 backdrop-blur-[1px] pointer-events-auto"
+            className="fixed inset-0 z-[99990] bg-black/20 backdrop-blur-[1px] pointer-events-auto"
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
@@ -125,7 +125,8 @@ export const ChatMsgActionMenu: React.FC<ChatMsgActionMenuProps> = ({
               damping: 20,
               stiffness: 420,
             }}
-            className="fixed z-10 relative pointer-events-auto bg-white rounded-2xl shadow-2xl overflow-hidden border border-gray-100"
+            className="fixed z-[99991] relative pointer-events-auto bg-white rounded-2xl shadow-2xl overflow-hidden border border-gray-100"
+            data-chat-msg-action-menu="true"
             style={{
               top,
               left,
