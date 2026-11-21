@@ -1,13 +1,12 @@
 ﻿import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { ReactionBar, ReactionBubbles } from "./ReactionBar";
+import { ReactionBubbles } from "./ReactionBar";
 import { useSoundEffects } from "../hooks/useSoundEffects";
 import { useProfileViewer } from "../context/ProfileViewerContext";
 import { useActiveHide } from "../context/OnlineUsersContext";
 import ActiveStatusAvatar from "./ActiveStatusAvatar";
 import AutoPlayMutedVideo from "./AutoPlayMutedVideo";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChatMsgActionMenu } from "./ChatMsgActionMenu";
 import AdminDashboard from "./AdminDashboard";
 import { isAdminEmail } from "../lib/adminConfig";
 import { resolveMediaUrl } from "../lib/mediaUrl";
@@ -909,80 +908,6 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     [],
   );
 
-  const handleMsgReact = async (msgId: string, emoji: string) => {
-    // userId comes from the authenticated App session. Reusing it avoids an
-    // auth request for every reaction.
-    const reactingUserId = userId;
-
-    if (!reactingUserId) {
-      console.error("[Reaction] ❌ No user ID — aborting");
-      return;
-    }
-    if (!msgId || msgId.startsWith("temp-")) {
-      console.warn("[Reaction] ⚠️ Skipping temp/invalid message id:", msgId);
-      return;
-    }
-
-    playPop();
-    setMsgReactionBarId(null);
-
-    // ── Step 2: compute optimistic state ─────────────────────────────────────
-    const prev = msgReactions[msgId] ?? {};
-    const currentUsers = prev[emoji] ?? [];
-    const alreadyReacted = currentUsers.includes(reactingUserId);
-
-    const updated: Record<string, string[]> = { ...prev };
-    if (alreadyReacted) {
-      updated[emoji] = currentUsers.filter((u) => u !== reactingUserId);
-      if (updated[emoji].length === 0) delete updated[emoji];
-    } else {
-      // one reaction per user — remove any previous emoji first
-      Object.keys(updated).forEach((e) => {
-        updated[e] = updated[e].filter((u) => u !== reactingUserId);
-        if (updated[e].length === 0) delete updated[e];
-      });
-      updated[emoji] = [...(updated[emoji] ?? []), reactingUserId];
-    }
-
-    // ── Step 3: apply optimistic UI immediately ───────────────────────────────
-    setMsgReactions((r) => ({ ...r, [msgId]: updated }));
-
-    // ── Step 4: write to DB with full error logging ───────────────────────────
-    try {
-      if (alreadyReacted) {
-        const { error } = await supabase
-          .from("message_reactions")
-          .delete()
-          .eq("message_id", msgId)
-          .eq("user_id", reactingUserId);
-        if (error) throw error;
-      } else {
-        // First delete any existing reaction from this user on this message
-        await supabase
-          .from("message_reactions")
-          .delete()
-          .eq("message_id", msgId)
-          .eq("user_id", reactingUserId);
-
-        const { error } = await supabase
-          .from("message_reactions")
-          .insert({ message_id: msgId, user_id: reactingUserId, emoji });
-        if (error) throw error;
-      }
-    } catch (err: any) {
-      console.error(
-        "[Reaction] ❌ DB error — rolling back optimistic UI:",
-        err,
-      );
-      // Rollback optimistic update on failure
-      setMsgReactions((r) => ({ ...r, [msgId]: prev }));
-      return;
-    }
-
-    // ── Step 5: re-fetch to sync both users (after successful DB write) ───────
-    if (selectedUser) await fetchMsgReactions(reactingUserId, selectedUser.id);
-  };
-
   useEffect(() => {
     injectStyles();
   }, []);
@@ -1535,20 +1460,9 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   const [isOtherTyping, setIsOtherTyping] = useState(false);
   const [showChatMenu, setShowChatMenu] = useState(false);
   const [showCallMenu, setShowCallMenu] = useState(false);
-  const [deletingForMe, setDeletingForMe] = useState<string | null>(null);
-  const [msgReactionBarId, setMsgReactionBarId] = useState<string | null>(null);
   const [msgReactions, setMsgReactions] = useState<
     Record<string, Record<string, string[]>>
   >({});
-  const [chatMsgAction, setChatMsgAction] = useState<{
-    msg: Message;
-    x: number;
-    y: number;
-  } | null>(null);
-  const [editingMsg, setEditingMsg] = useState<{
-    id: string;
-    text: string;
-  } | null>(null);
 
   // ── Refs ──────────────────────────────────────────────────────────────────
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -1575,8 +1489,6 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     timer: ReturnType<typeof setTimeout> | null;
   }>({ count: 0, timer: null });
   const pendingFileRef = useRef<File | null>(null);
-  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const longPressMsgPos = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
 
   useEffect(() => {
     messagesRef.current = messages;
@@ -1593,7 +1505,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       : theme === "maroon"
       ? "bg-[#050505]"
       : "bg-sky-100";
-  const { playPop, playSwoosh } = useSoundEffects();
+  const { playSwoosh } = useSoundEffects();
   const isActiveHidden = useActiveHide();
 
   // ── Persist ───────────────────────────────────────────────────────────────
@@ -3292,23 +3204,6 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       setIsSending(false);
     }
   };
-  // ── Edit message ─────────────────────────────────────────────────────────
-  const saveEditMsg = async () => {
-    if (!editingMsg) return;
-    const { id, text } = editingMsg;
-    if (!text.trim()) return;
-    await supabase
-      .from("messages")
-      .update({ content: text.trim() })
-      .eq("id", id);
-    setMessages((prev) =>
-      prev.map((m) =>
-        m.id === id ? { ...m, content: text.trim(), is_edited: true } : m,
-      ),
-    );
-    setEditingMsg(null);
-  };
-
   // ── Delete message (for everyone) ─────────────────────────────────────────
   const deleteMessage = async (msg: Message, e: React.MouseEvent) => {
     if (msg.sender_id !== userId) return;
@@ -3330,24 +3225,6 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     if (error) {
       toast.error("Delete failed: " + error.message);
       // Restore the message if DB delete failed
-      setMessages((prev) =>
-        [...prev, msg].sort((a, b) => a.created_at.localeCompare(b.created_at)),
-      );
-    } else {
-      toast.success("Message deleted for everyone 🗑️");
-    }
-  };
-
-  const deleteMessageAt = async (msg: Message, x: number, y: number) => {
-    if (msg.sender_id !== userId) return;
-    setMessages((prev) => prev.filter((m) => m.id !== msg.id));
-    setChatMsgAction(null);
-    if (soundEnabled) playSound("delete");
-    const newId = ++smokeIdRef.current;
-    setSmokeParticles((prev) => [...prev, { id: newId, x, y }]);
-    const { error } = await supabase.from("messages").delete().eq("id", msg.id);
-    if (error) {
-      toast.error("Delete failed: " + error.message);
       setMessages((prev) =>
         [...prev, msg].sort((a, b) => a.created_at.localeCompare(b.created_at)),
       );
@@ -3586,15 +3463,6 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
         panicClickRef.current.count = 0;
       }, 800);
     }
-  };
-
-  // ── Delete for Me (local only) ────────────────────────────────────────────
-  const deleteForMe = (msgId: string) => {
-    // Persist the ID so realtime + polling never re-add this message
-    rememberDeletedMessage(msgId);
-    setMessages((prev) => prev.filter((m) => m.id !== msgId));
-    setMsgMenuId(null);
-    setDeletingForMe(null);
   };
 
   // MessageStatus is now a top-level component (see top of file) to keep stable
@@ -3884,23 +3752,6 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
             )}
           </AnimatePresence>
 
-          {/* ── Chat Message Floating Action Menu (long-press) ─────────── */}
-          {chatMsgAction && (
-            <ChatMsgActionMenu
-              key={chatMsgAction.msg.id}
-              open={true}
-              msg={chatMsgAction.msg}
-              x={chatMsgAction.x}
-              y={chatMsgAction.y}
-              onClose={() => setChatMsgAction(null)}
-              userId={userId}
-              handleMsgReact={handleMsgReact}
-              setReplyTo={setReplyTo}
-              setEditingMsg={setEditingMsg}
-              deleteForMe={deleteForMe}
-              deleteMessageAt={deleteMessageAt}
-            />
-          )}
           {/* ── Full Instagram-style Story viewer ─────────────────────────── */}
           <AnimatePresence>
             {storyViewerOpen &&
@@ -5451,39 +5302,6 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                     setMsgMenuId(null);
                                   }
                                 }}
-                                onPointerDown={(e) => {
-                                  longPressMsgPos.current = {
-                                    x: e.clientX,
-                                    y: e.clientY,
-                                  };
-                                  longPressTimerRef.current = setTimeout(() => {
-                                    try {
-                                      navigator.vibrate?.(10);
-                                    } catch (_) {}
-                                    console.log(
-                                      "[ChatSystem] Long-press triggered — setChatMsgAction",
-                                      {
-                                        msgId: msg.id,
-                                        x: longPressMsgPos.current.x,
-                                        y: longPressMsgPos.current.y,
-                                      },
-                                    );
-                                    setChatMsgAction({
-                                      msg,
-                                      x: longPressMsgPos.current.x,
-                                      y: longPressMsgPos.current.y,
-                                    });
-                                    setMsgMenuId(null);
-                                  }, 550);
-                                }}
-                                onPointerUp={() => {
-                                  if (longPressTimerRef.current)
-                                    clearTimeout(longPressTimerRef.current);
-                                }}
-                                onPointerLeave={() => {
-                                  if (longPressTimerRef.current)
-                                    clearTimeout(longPressTimerRef.current);
-                                }}
                                 className={`flex w-full ${isMine ? "justify-end" : "justify-start"} group relative select-none`}
                                 style={{ cursor: "default" }}
                               >
@@ -5505,20 +5323,6 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                     <div className={theme === "dairy-notebook" ? `diary-scrap ${isMine ? "diary-ink-out" : "diary-ink-in"}` : `px-4 py-2.5 ${theme === "comic" ? "rounded-[20px]" : "rounded-2xl"} ${isMine ? `${T.bubbleSent}${theme !== "comic" ? " rounded-tr-sm" : ""}` : `${T.bubbleRecv}${theme !== "comic" ? " rounded-tl-sm" : ""}`}`}>
                                       {msg.media_url && msg.media_type ? (
                                         <MediaBubble url={msg.media_url} type={msg.media_type} />
-                                      ) : editingMsg?.id === msg.id ? (
-                                        <div className="min-w-[180px]" onClick={(e) => e.stopPropagation()}>
-                                          <textarea
-                                            className="w-full rounded-xl px-2 py-1.5 text-base font-bold outline-none resize-none bg-white/20 border border-white/30 text-inherit"
-                                            rows={2}
-                                            value={editingMsg.text}
-                                            onChange={(e) => setEditingMsg((prev) => prev ? { ...prev, text: e.target.value } : null)}
-                                            autoFocus
-                                          />
-                                          <div className="flex gap-1.5 mt-1.5">
-                                            <button onClick={() => setEditingMsg(null)} className="flex-1 py-1 rounded-lg bg-white/15 text-[11px] font-bold opacity-70">Cancel</button>
-                                            <button onClick={saveEditMsg} className="flex-1 py-1 rounded-lg bg-blue-500 text-white text-[11px] font-bold">Save</button>
-                                          </div>
-                                        </div>
                                       ) : (
                                         <>
                                           {(() => {
