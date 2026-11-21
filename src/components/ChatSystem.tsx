@@ -6,6 +6,7 @@ import { useProfileViewer } from "../context/ProfileViewerContext";
 import { useActiveHide } from "../context/OnlineUsersContext";
 import ActiveStatusAvatar from "./ActiveStatusAvatar";
 import AutoPlayMutedVideo from "./AutoPlayMutedVideo";
+import { ChatMsgActionMenu } from "./ChatMsgActionMenu";
 import { motion, AnimatePresence } from "framer-motion";
 import AdminDashboard from "./AdminDashboard";
 import { isAdminEmail } from "../lib/adminConfig";
@@ -163,7 +164,7 @@ interface FriendRequest {
   created_at: string;
   profile: Profile;
 }
-interface Message {
+export interface Message {
   id: string;
   sender_id: string;
   receiver_id: string;
@@ -3884,236 +3885,21 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
           </AnimatePresence>
 
           {/* ── Chat Message Floating Action Menu (long-press) ─────────── */}
-          <AnimatePresence>
-            {chatMsgAction && (
-              (() => {
-                const { msg: am, x, y } = chatMsgAction;
-                const isMine = am.sender_id === userId;
-                const QUICK_EMOJIS = ["❤️", "👍", "😂", "🔥", "😮"];
-
-                const menuW = 220;
-                const reactionH = 54;
-                const rowH = 46;
-                const rowCount = isMine ? 3 : 2;
-                const menuH = reactionH + rowCount * rowH;
-                const vw = window.innerWidth;
-                const vh = window.innerHeight;
-                const left = Math.min(
-                  Math.max(x - menuW / 2, 8),
-                  vw - menuW - 8,
-                );
-                const showAbove = y + menuH + 20 > vh;
-                const top = showAbove
-                  ? Math.max(y - menuH - 14, 8)
-                  : y + 14;
-
-                return (
-                  <>
-                    {/* Backdrop — tap anywhere outside the menu to dismiss */}
-                    <div
-                      className="fixed inset-0 z-[700] bg-black/20 backdrop-blur-[1px]"
-                      onPointerDown={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        console.log(
-                          "[ChatMsgAction] Backdrop tapped — closing menu",
-                        );
-                        setChatMsgAction(null);
-                      }}
-                    />
-                    <motion.div
-                      key="chat-msg-action-float"
-                      initial={{ opacity: 0, scale: 0.82 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.82 }}
-                      transition={{
-                        type: "spring",
-                        damping: 20,
-                        stiffness: 420,
-                      }}
-                      className="fixed z-[701] bg-white rounded-2xl shadow-2xl overflow-hidden border border-gray-100"
-                      style={{
-                        top,
-                        left,
-                        width: menuW,
-                        transformOrigin: showAbove
-                          ? "bottom center"
-                          : "top center",
-                      }}
-                      onPointerDown={(e) => e.stopPropagation()}
-                    >
-                      {/* Quick-reactions row */}
-                      <div className="flex items-center justify-around px-3 py-3 bg-gray-50 border-b border-gray-100">
-                        {QUICK_EMOJIS.map((emoji) => (
-                          <motion.button
-                            key={emoji}
-                            whileTap={{ scale: 0.8 }}
-                            whileHover={{ scale: 1.1 }}
-                            onPointerDown={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              console.log(
-                                "[ChatMsgAction] Reaction:",
-                                emoji,
-                                "msgId:",
-                                am.id,
-                              );
-                              toast.success("Reaction added");
-                              handleMsgReact(am.id, emoji);
-                              setChatMsgAction(null);
-                            }}
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              console.log(
-                                "[ChatMsgAction] Reaction (click fallback):",
-                                emoji,
-                                "msgId:",
-                                am.id,
-                              );
-                              handleMsgReact(am.id, emoji);
-                              setChatMsgAction(null);
-                            }}
-                            className="text-[24px] leading-none cursor-pointer hover:scale-125 transition-transform"
-                          >
-                            {emoji}
-                          </motion.button>
-                        ))}
-                      </div>
-                      {/* Reply */}
-                      <button
-                        onPointerDown={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          console.log(
-                            "[ChatMsgAction] Reply to msgId:",
-                            am.id,
-                          );
-                          toast.info("Reply opened");
-                          setReplyTo(am);
-                          setChatMsgAction(null);
-                        }}
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          console.log(
-                            "[ChatMsgAction] Reply (click fallback) msgId:",
-                            am.id,
-                          );
-                          setReplyTo(am);
-                          setChatMsgAction(null);
-                        }}
-                        className="w-full flex items-center gap-3 px-4 py-[13px] text-left text-[14px] font-semibold text-gray-800 cursor-pointer hover:bg-gray-100 active:bg-gray-100 transition-colors"
-                      >
-                        <svg
-                          width="15"
-                          height="15"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2.5"
-                          className="text-gray-500"
-                        >
-                          <polyline points="9 17 4 12 9 7" />
-                          <path d="M20 18v-2a4 4 0 0 0-4-4H4" />
-                        </svg>
-                        Reply
-                      </button>
-                      {/* Edit — own text messages only */}
-                      {isMine && !am.media_url && (
-                        <button
-                          onPointerDown={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            console.log(
-                              "[ChatMsgAction] Edit msgId:",
-                              am.id,
-                            );
-                            toast.info("Edit mode opened");
-                            setEditingMsg({ id: am.id, text: am.content });
-                            setChatMsgAction(null);
-                          }}
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            console.log(
-                              "[ChatMsgAction] Edit (click fallback) msgId:",
-                              am.id,
-                            );
-                            setEditingMsg({ id: am.id, text: am.content });
-                            setChatMsgAction(null);
-                          }}
-                          className="w-full flex items-center gap-3 px-4 py-[13px] text-left text-[14px] font-semibold text-blue-600 cursor-pointer hover:bg-blue-50 active:bg-blue-50 transition-colors border-t border-gray-50"
-                        >
-                          <Pencil size={15} className="text-blue-500" />
-                          Edit
-                        </button>
-                      )}
-                      {/* Delete for Me */}
-                      <button
-                        onPointerDown={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          console.log(
-                            "[ChatMsgAction] Delete for Me msgId:",
-                            am.id,
-                          );
-                          toast.error("Deleted for me");
-                          deleteForMe(am.id);
-                          setChatMsgAction(null);
-                        }}
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          console.log(
-                            "[ChatMsgAction] Delete for Me (click fallback) msgId:",
-                            am.id,
-                          );
-                          deleteForMe(am.id);
-                          setChatMsgAction(null);
-                        }}
-                        className="w-full flex items-center gap-3 px-4 py-[13px] text-left text-[14px] font-semibold text-gray-600 cursor-pointer hover:bg-gray-100 active:bg-gray-100 transition-colors border-t border-gray-50"
-                      >
-                        <EyeOff size={15} className="text-gray-400" />
-                        Delete for Me
-                      </button>
-                      {/* Delete for Everyone — only sender */}
-                      {isMine && (
-                        <button
-                          onPointerDown={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            console.log(
-                              "[ChatMsgAction] Delete for Everyone msgId:",
-                              am.id,
-                            );
-                            toast.error("Deleted for everyone");
-                            deleteMessageAt(am, x, y);
-                            setChatMsgAction(null);
-                          }}
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            console.log(
-                              "[ChatMsgAction] Delete for Everyone (click fallback) msgId:",
-                              am.id,
-                            );
-                            deleteMessageAt(am, x, y);
-                            setChatMsgAction(null);
-                          }}
-                          className="w-full flex items-center gap-3 px-4 py-[13px] text-left text-[14px] font-semibold text-red-600 cursor-pointer hover:bg-red-50 active:bg-red-50 transition-colors border-t border-gray-50"
-                        >
-                          <Trash2 size={15} className="text-red-500" />
-                          Delete for Everyone
-                        </button>
-                      )}
-                    </motion.div>
-                  </>
-                );
-              })()
-            )}
-          </AnimatePresence>
-
+          {chatMsgAction && (
+            <ChatMsgActionMenu
+              open={true}
+              msg={chatMsgAction.msg}
+              x={chatMsgAction.x}
+              y={chatMsgAction.y}
+              onClose={() => setChatMsgAction(null)}
+              userId={userId}
+              handleMsgReact={handleMsgReact}
+              setReplyTo={setReplyTo}
+              setEditingMsg={setEditingMsg}
+              deleteForMe={deleteForMe}
+              deleteMessageAt={deleteMessageAt}
+            />
+          )}
           {/* ── Full Instagram-style Story viewer ─────────────────────────── */}
           <AnimatePresence>
             {storyViewerOpen &&
