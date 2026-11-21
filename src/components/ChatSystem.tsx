@@ -7,6 +7,7 @@ import { useActiveHide } from "../context/OnlineUsersContext";
 import ActiveStatusAvatar from "./ActiveStatusAvatar";
 import AutoPlayMutedVideo from "./AutoPlayMutedVideo";
 import { motion, AnimatePresence } from "framer-motion";
+import { ChatMsgActionMenu } from "./ChatMsgActionMenu";
 import AdminDashboard from "./AdminDashboard";
 import { isAdminEmail } from "../lib/adminConfig";
 import { resolveMediaUrl } from "../lib/mediaUrl";
