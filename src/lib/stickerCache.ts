@@ -1,6 +1,11 @@
+import { bunnyStickerUrl, type StickerPackCategory } from "./bunny";
+
 /**
  * Sticker image local cache using IndexedDB.
  * Provides offline-first loading for BunnyCDN sticker pack images.
+ *
+ * Failed CDN requests are reported at most once per URL so a renamed or
+ * missing sticker file cannot spam the console on every drawer open.
  *
  * Schema:
  *   - DB name: "flicks-sticker-cache"
@@ -15,6 +20,15 @@ const DB_VERSION = 1;
 const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 let dbPromise: Promise<IDBDatabase> | null = null;
+
+/** URLs we already warned about (missing/failed CDN files). */
+const warnedStickerUrls = new Set<string>();
+
+function warnStickerOnce(url: string, message: string, err?: unknown): void {
+  if (!url || warnedStickerUrls.has(url)) return;
+  warnedStickerUrls.add(url);
+  console.warn(message, url, err ?? "");
+}
 
 function openDb(): Promise<IDBDatabase> {
   if (typeof indexedDB === "undefined") {
@@ -128,21 +142,20 @@ export async function fetchStickerImage(url: string): Promise<string> {
     void setCachedSticker(url, dataUrl).catch(() => {});
     return dataUrl;
   } catch (err) {
-    console.warn("[StickerCache] fetch failed gracefully:", err);
+    warnStickerOnce(url, "[StickerCache] sticker unavailable:", err);
     return url; // fallback to direct URL
   }
 }
 
 /** Preload a category's stickers into local cache. */
 export async function preloadCategory(category: string, files: string[]): Promise<void> {
-  const base = "https://flicksindiacdn.b-cdn.net";
   try {
     if (!Array.isArray(files)) return;
     await Promise.allSettled(
       files.map((file) => {
-        const url = `${base}/${category}/${file}`;
+        const url = bunnyStickerUrl(category as StickerPackCategory, file);
         return fetchStickerImage(url).catch((err) => {
-          console.warn("[StickerCache] single sticker preload error:", err);
+          warnStickerOnce(url, "[StickerCache] single sticker preload error:", err);
           return url;
         });
       })

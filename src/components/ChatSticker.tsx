@@ -2,6 +2,7 @@ import React from "react";
 import { motion } from "framer-motion";
 import type { StickerType } from "../lib/messageParser";
 import { bunnyStickerUrl, type StickerPackCategory } from "../lib/bunny";
+import { STICKER_PACK_FILES } from "../lib/stickerPacks";
 
 interface ChatStickerProps {
   type: NonNullable<StickerType>;
@@ -26,7 +27,10 @@ const STICKER_CONFIG: Record<NonNullable<StickerType>, StickerConfig> = {
     gradient: "linear-gradient(135deg, rgba(244,63,94,0.35) 0%, rgba(236,72,153,0.2) 100%)",
     labelColor: "#fda4af",
     borderColor: "rgba(244,63,94,0.3)",
-    stickerPack: { category: "Love", file: "love.png" },
+    stickerPack: {
+      category: "Love",
+      file: STICKER_PACK_FILES.Love[0]?.candidates[0] ?? "love stickers.webp",
+    },
   },
   morning: {
     emojis: ["☀️", "🌸", "😊"],

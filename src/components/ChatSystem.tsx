@@ -72,6 +72,7 @@ import { toast } from "sonner";
 import { parseMessage } from "../lib/messageParser";
 import { ChatSticker } from "./ChatSticker";
 import { StickerDrawer } from "./StickerDrawer";
+import { stickerMediaType } from "../lib/stickerPacks";
 import {
   hasRiskKeyword,
   hasLoveKeyword,
@@ -3474,6 +3475,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   // ── Media upload ──────────────────────────────────────────────────────────
   const sendSticker = async (stickerUrl: string) => {
     if (!selectedUser || !stickerUrl) return;
+    const stickerType = stickerMediaType(stickerUrl);
     setIsSending(true);
     const tempId = `temp-sticker-${Date.now()}`;
     const tempMsg: Message = {
@@ -3482,7 +3484,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       receiver_id: selectedUser.id,
       content: "",
       media_url: stickerUrl,
-      media_type: "image/png",
+      media_type: stickerType,
       created_at: new Date().toISOString(),
     };
     setMessages((prev) => {
@@ -3497,7 +3499,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
           receiver_id: selectedUser.id,
           content: "",
           media_url: stickerUrl,
-          media_type: "image/png",
+          media_type: stickerType,
         })
         .select(
           "id,sender_id,receiver_id,content,media_url,media_type,created_at,seen_at,reply_to_id,reply_preview,reactions,is_edited"

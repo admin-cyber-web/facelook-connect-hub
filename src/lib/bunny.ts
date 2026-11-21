@@ -198,13 +198,18 @@ export function bunnyStorageUrl(fileName: string): string {
 export const BUNNY_CDN_BASE = "https://flicksindiacdn.b-cdn.net";
 
 /**
+ * Folder on the pull zone that holds every sticker pack.
+ */
+export const BUNNY_STICKER_ROOT = "Stickers";
+
+/**
  * Explicit sticker pack category folder URLs on the pull zone.
  */
 export const BUNNY_STICKER_CATEGORY_URLS: Record<StickerPackCategory, string> = {
-  Love: `${BUNNY_CDN_BASE}/Love/`,
-  Sad: `${BUNNY_CDN_BASE}/Sad/`,
-  emotional: `${BUNNY_CDN_BASE}/emotional/`,
-  Angry: `${BUNNY_CDN_BASE}/Angry/`,
+  Love: `${BUNNY_CDN_BASE}/${BUNNY_STICKER_ROOT}/Love/`,
+  Sad: `${BUNNY_CDN_BASE}/${BUNNY_STICKER_ROOT}/Sad/`,
+  emotional: `${BUNNY_CDN_BASE}/${BUNNY_STICKER_ROOT}/emotional/`,
+  Angry: `${BUNNY_CDN_BASE}/${BUNNY_STICKER_ROOT}/Angry/`,
 };
 
 /**
@@ -213,17 +218,36 @@ export const BUNNY_STICKER_CATEGORY_URLS: Record<StickerPackCategory, string> = 
 export type StickerPackCategory = "Love" | "Sad" | "emotional" | "Angry";
 
 /**
+ * Encode a single path segment so real CDN filenames with spaces work.
+ *
+ * Storage names such as "love stickers.webp" live on the pull zone with
+ * literal spaces, so they must be requested as "love%20stickers.webp".
+ * Already-encoded input ("love%20stickers.webp") is not double-encoded.
+ */
+function encodePathSegment(segment: string): string {
+  const clean = String(segment).replace(/^\/+|\/+$/g, "");
+  let decoded = clean;
+  try {
+    decoded = decodeURIComponent(clean);
+  } catch {
+    // Malformed percent sequences are encoded as-is below.
+  }
+  return decoded
+    .split("/")
+    .map((part) => encodeURIComponent(part))
+    .join("/");
+}
+
+/**
  * Build a full sticker pack image URL from a category folder and file name.
  *
  * Example:
- *   bunnyStickerUrl("Love", "heart.png")
- *   → "https://flicksindiacdn.b-cdn.net/Love/heart.png"
+ *   bunnyStickerUrl("Love", "love stickers.webp")
+ *   → "https://flicksindiacdn.b-cdn.net/Stickers/Love/love%20stickers.webp"
  *
  * @param category - One of "Love" | "Sad" | "emotional" | "Angry"
  * @param fileName - Image file name inside the category folder
  */
 export function bunnyStickerUrl(category: StickerPackCategory, fileName: string): string {
-  const cat = String(category).replace(/^\/+|\/+$/g, "");
-  const file = String(fileName).replace(/^\/+/, "");
-  return `${BUNNY_CDN_BASE}/${cat}/${file}`;
+  return `${BUNNY_CDN_BASE}/${BUNNY_STICKER_ROOT}/${encodePathSegment(category)}/${encodePathSegment(fileName)}`;
 }

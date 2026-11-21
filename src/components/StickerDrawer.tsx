@@ -1,8 +1,14 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Loader2 } from "lucide-react";
-import { bunnyStickerUrl, type StickerPackCategory } from "../lib/bunny";
-import { fetchStickerImage, preloadCategory } from "../lib/stickerCache";
+import { X } from "lucide-react";
+import type { StickerPackCategory } from "../lib/bunny";
+import { preloadCategory } from "../lib/stickerCache";
+import {
+  STICKER_PACK_CATEGORIES,
+  STICKER_PACK_FILES,
+  stickerCandidateUrl,
+  type StickerPackFile,
+} from "../lib/stickerPacks";
 
 type StickerDrawerProps = {
   isOpen: boolean;
@@ -10,14 +16,10 @@ type StickerDrawerProps = {
   onStickerSelect: (stickerUrl: string) => void;
 };
 
-const STICKER_CATEGORIES: StickerPackCategory[] = ["Love", "Sad", "emotional", "Angry"];
+/** Per-sticker probe state: which candidate filename we are on, and whether all failed. */
+type StickerProbe = Record<string, { index: number; failed: boolean }>;
 
-const STICKER_FILES: Record<StickerPackCategory, string[]> = {
-  Love: ["love-1.png", "love-2.png", "love-3.png", "heart.png", "kiss.png", "cute.png"],
-  Sad: ["sad-1.png", "sad-2.png", "tears.png", "broken-heart.png", "lonely.png"],
-  emotional: ["emotional-1.png", "emotional-2.png", "touching.png", "miss-you.png"],
-  Angry: ["angry-1.png", "angry-2.png", "mad.png", "grr.png"],
-};
+const probeKey = (category: StickerPackCategory, file: StickerPackFile) => `${category}:${file.id}`;
 
 export const StickerDrawer: React.FC<StickerDrawerProps> = ({
   isOpen,
@@ -25,68 +27,52 @@ export const StickerDrawer: React.FC<StickerDrawerProps> = ({
   onStickerSelect,
 }) => {
   const [activeCategory, setActiveCategory] = useState<StickerPackCategory>("Love");
-  const [loadingStickers, setLoadingStickers] = useState<Set<string>>(new Set());
-  const [resolvedUrls, setResolvedUrls] = useState<Record<string, string>>({});
-  const [failedImages, setFailedImages] = useState<Set<string>>(new Set());
+  const [probe, setProbe] = useState<StickerProbe>({});
 
-  const files = STICKER_FILES[activeCategory] || STICKER_FILES.Love;
+  const files = STICKER_PACK_FILES[activeCategory] || STICKER_PACK_FILES.Love;
+
+  // A different category starts with a clean set of file candidates.
+  useEffect(() => {
+    setProbe({});
+  }, [activeCategory]);
 
   useEffect(() => {
     if (!isOpen) return;
     try {
-      void preloadCategory(activeCategory, files);
+      const firstCandidates = files.map((file) => file.candidates[0]).filter(Boolean);
+      void preloadCategory(activeCategory, firstCandidates);
     } catch (err) {
       console.warn("[StickerDrawer] preloadCategory failed:", err);
     }
   }, [isOpen, activeCategory, files]);
 
-  useEffect(() => {
-    let isMounted = true;
-    const resolveAll = async () => {
-      try {
-        const next: Record<string, string> = {};
-        await Promise.all(
-          files.map(async (file) => {
-            try {
-              const url = bunnyStickerUrl(activeCategory, file);
-              const res = await fetchStickerImage(url);
-              if (isMounted) {
-                next[file] = res || url;
-              }
-            } catch (e) {
-              if (isMounted) {
-                next[file] = bunnyStickerUrl(activeCategory, file);
-              }
-            }
-          })
-        );
-        if (isMounted) setResolvedUrls(next);
-      } catch (err) {
-        console.warn("[StickerDrawer] resolveAll error:", err);
-      }
-    };
-    resolveAll();
-    return () => {
-      isMounted = false;
-    };
-  }, [activeCategory, files]);
+  const visibleFiles = useMemo(
+    () => files.filter((file) => !probe[probeKey(activeCategory, file)]?.failed),
+    [files, probe, activeCategory]
+  );
 
-  const isLoading = (file: string) => loadingStickers.has(file);
+  const srcFor = (file: StickerPackFile) => {
+    const key = probeKey(activeCategory, file);
+    const index = probe[key]?.index ?? 0;
+    return stickerCandidateUrl(activeCategory, file, index);
+  };
 
-  const handleStickerPress = (file: string) => {
+  const handleImageError = (file: StickerPackFile) => {
+    const key = probeKey(activeCategory, file);
+    setProbe((prev) => {
+      const index = (prev[key]?.index ?? 0) + 1;
+      return { ...prev, [key]: { index, failed: index >= file.candidates.length } };
+    });
+  };
+
+  const handleStickerPress = (file: StickerPackFile) => {
     try {
-      setLoadingStickers((prev) => new Set([...prev, file]));
-      const url = resolvedUrls[file] || bunnyStickerUrl(activeCategory, file);
-      onStickerSelect(url);
+      const key = probeKey(activeCategory, file);
+      const index = probe[key]?.index ?? 0;
+      onStickerSelect(stickerCandidateUrl(activeCategory, file, index));
       onClose();
     } catch (err) {
       console.error("[StickerDrawer] handleStickerPress error:", err);
-    } finally {
-      setLoadingStickers((prev) => {
-        const next = new Set(prev);
-        next.delete(file);
-        return next;
-      });
     }
   };
 
@@ -126,7 +112,7 @@ export const StickerDrawer: React.FC<StickerDrawerProps> = ({
               </p>
 
               <div className="flex gap-1 overflow-x-auto no-scrollbar pb-2 mb-2">
-                {STICKER_CATEGORIES.map((cat) => (
+                {STICKER_PACK_CATEGORIES.map((cat) => (
                   <button
                     key={cat}
                     onClick={() => setActiveCategory(cat)}
@@ -139,39 +125,38 @@ export const StickerDrawer: React.FC<StickerDrawerProps> = ({
             </div>
 
             <div className="flex-1 overflow-y-auto p-3">
-              <div className="grid grid-cols-4 gap-2">
-                {files.map((file) => {
-                  const isLoadingImg = isLoading(file);
-                  const hasFailed = failedImages.has(file);
-                  const imageSrc = resolvedUrls[file] || bunnyStickerUrl(activeCategory, file);
-                  return (
+              {visibleFiles.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-16 gap-2 text-center px-6">
+                  <span className="text-3xl select-none" role="img" aria-label="stickers unavailable">
+                    🎨
+                  </span>
+                  <p className="text-sm font-bold text-gray-700">Stickers unavailable</p>
+                  <p className="text-xs text-gray-400">
+                    These stickers could not be loaded. Check your connection and try again.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-4 gap-2">
+                  {visibleFiles.map((file) => (
                     <motion.button
-                      key={file}
+                      key={file.id}
                       whileTap={{ scale: 0.95 }}
                       whileHover={{ scale: 1.05 }}
                       onClick={() => handleStickerPress(file)}
                       className="aspect-square rounded-2xl overflow-hidden border border-gray-200 bg-gray-50 flex items-center justify-center transition-all duration-200"
                     >
-                      {isLoadingImg ? (
-                        <Loader2 size={16} className="text-gray-400 animate-spin" />
-                      ) : hasFailed ? (
-                        <span className="text-2xl select-none" role="img" aria-label="sticker fallback">🎨</span>
-                      ) : (
-                        <img
-                          src={imageSrc}
-                          alt={file}
-                          className="w-full h-full object-cover"
-                          onError={() => {
-                            setFailedImages((prev) => new Set(prev).add(file));
-                          }}
-                          decoding="async"
-                          loading="lazy"
-                        />
-                      )}
+                      <img
+                        src={srcFor(file)}
+                        alt={file.label}
+                        className="w-full h-full object-cover"
+                        onError={() => handleImageError(file)}
+                        decoding="async"
+                        loading="lazy"
+                      />
                     </motion.button>
-                  );
-                })}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
           </motion.div>
         </>
