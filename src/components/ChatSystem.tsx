@@ -1,6 +1,7 @@
 ﻿import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ReactionBubbles } from "./ReactionBar";
+import { ChatMsgActionMenu, ChatReactionPicker } from "./ChatMsgActionMenu";
 import { useSoundEffects } from "../hooks/useSoundEffects";
 import { useProfileViewer } from "../context/ProfileViewerContext";
 import { useActiveHide } from "../context/OnlineUsersContext";
@@ -1464,6 +1465,22 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     Record<string, Record<string, string[]>>
   >({});
 
+  // ── Message interactions (long-press menu, double-tap picker, editing) ────
+  const [chatMsgAction, setChatMsgAction] = useState<{
+    message: Message;
+    x: number;
+    y: number;
+  } | null>(null);
+  const [chatReactionPicker, setChatReactionPicker] = useState<{
+    message: Message;
+    x: number;
+    y: number;
+  } | null>(null);
+  const [editingMsg, setEditingMsg] = useState<{
+    id: string;
+    draft: string;
+  } | null>(null);
+
   // ── Refs ──────────────────────────────────────────────────────────────────
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesPaneRef = useRef<HTMLDivElement>(null);
@@ -1476,6 +1493,10 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   const messageReactionRowsRef = useRef<Map<string, MessageReactionRow>>(
     new Map(),
   );
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressOriginRef = useRef<{ x: number; y: number } | null>(null);
+  const longPressFiredRef = useRef(false);
+  const lastTapRef = useRef<{ id: string; at: number } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const prevMsgCount = useRef(0);
@@ -3204,6 +3225,223 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       setIsSending(false);
     }
   };
+  // ── Message interactions: long-press, double-tap, reactions, edit, delete ──
+  const clearLongPressTimer = useCallback(() => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+    longPressOriginRef.current = null;
+  }, []);
+
+  useEffect(() => clearLongPressTimer, [clearLongPressTimer]);
+
+  const myReactionFor = (messageId: string): string | null => {
+    const map = msgReactions[messageId];
+    if (!map || !userId) return null;
+    return (
+      Object.keys(map).find((emoji) => map[emoji]?.includes(userId)) ?? null
+    );
+  };
+
+  const toggleMsgReaction = useCallback(
+    async (message: Message, emoji: string) => {
+      if (!userId || !message?.id || message.id.startsWith("temp-")) return;
+      const messageId = message.id;
+      const previous = msgReactions[messageId] || {};
+      const existing = Object.keys(previous).find((key) =>
+        previous[key]?.includes(userId),
+      );
+      const removing = existing === emoji;
+
+      const next: Record<string, string[]> = {};
+      for (const [key, users] of Object.entries(previous)) {
+        const remaining = users.filter((id) => id !== userId);
+        if (remaining.length) next[key] = remaining;
+      }
+      if (!removing) next[emoji] = [...(next[emoji] || []), userId];
+
+      const restore = () =>
+        setMsgReactions((prev) => {
+          const copy = { ...prev };
+          if (Object.keys(previous).length) copy[messageId] = previous;
+          else delete copy[messageId];
+          return copy;
+        });
+
+      setMsgReactions((prev) => {
+        const copy = { ...prev };
+        if (Object.keys(next).length) copy[messageId] = next;
+        else delete copy[messageId];
+        return copy;
+      });
+
+      try {
+        const { error: deleteError } = await supabase
+          .from("message_reactions")
+          .delete()
+          .eq("message_id", messageId)
+          .eq("user_id", userId);
+        if (deleteError) throw deleteError;
+        if (!removing) {
+          const { error: insertError } = await supabase
+            .from("message_reactions")
+            .insert({ message_id: messageId, user_id: userId, emoji });
+          if (insertError) throw insertError;
+        }
+      } catch (error) {
+        restore();
+        console.error("[Chat] message reaction error:", error);
+        toast.error("Could not update reaction");
+      }
+    },
+    [msgReactions, userId],
+  );
+
+  const startLongPress = (message: Message, event: React.PointerEvent) => {
+    if (event.button !== 0) return;
+    if (editingMsg?.id === message.id) return;
+    clearLongPressTimer();
+    longPressFiredRef.current = false;
+    longPressOriginRef.current = { x: event.clientX, y: event.clientY };
+    const { clientX, clientY } = event;
+    longPressTimerRef.current = setTimeout(() => {
+      longPressTimerRef.current = null;
+      longPressOriginRef.current = null;
+      longPressFiredRef.current = true;
+      lastTapRef.current = null;
+      setChatReactionPicker(null);
+      try {
+        navigator.vibrate?.(15);
+      } catch {
+        /* haptics unsupported */
+      }
+      setChatMsgAction({ message, x: clientX, y: clientY });
+    }, 450);
+  };
+
+  const moveLongPress = (event: React.PointerEvent) => {
+    const origin = longPressOriginRef.current;
+    if (!origin) return;
+    if (
+      Math.abs(event.clientX - origin.x) > 10 ||
+      Math.abs(event.clientY - origin.y) > 10
+    ) {
+      clearLongPressTimer();
+    }
+  };
+
+  const endLongPress = (message: Message, event: React.PointerEvent) => {
+    const wasLongPress = longPressFiredRef.current;
+    clearLongPressTimer();
+    if (wasLongPress) {
+      longPressFiredRef.current = false;
+      return;
+    }
+
+    // Double-tap = compact reaction picker only.
+    const now = Date.now();
+    const lastTap = lastTapRef.current;
+    if (lastTap && lastTap.id === message.id && now - lastTap.at < 300) {
+      lastTapRef.current = null;
+      setChatMsgAction(null);
+      setChatReactionPicker({
+        message,
+        x: event.clientX,
+        y: event.clientY,
+      });
+      try {
+        navigator.vibrate?.(8);
+      } catch {
+        /* haptics unsupported */
+      }
+    } else {
+      lastTapRef.current = { id: message.id, at: now };
+    }
+  };
+
+  const deleteMsgForMe = (message: Message) => {
+    rememberDeletedMessage(message.id);
+    setMessages((prev) => prev.filter((m) => m.id !== message.id));
+    setMsgReactions((prev) => {
+      if (!(message.id in prev)) return prev;
+      const next = { ...prev };
+      delete next[message.id];
+      return next;
+    });
+    setChatMsgAction(null);
+    toast.success("Deleted for you");
+  };
+
+  const deleteMsgForEveryone = async (message: Message) => {
+    if (String(message.sender_id) !== String(userId)) return;
+    setChatMsgAction(null);
+    setMessages((prev) => prev.filter((m) => m.id !== message.id));
+    if (soundEnabled) playSound("delete");
+    const { error } = await supabase
+      .from("messages")
+      .delete()
+      .eq("id", message.id);
+    if (error) {
+      setMessages((prev) =>
+        [...prev, message].sort((a, b) =>
+          a.created_at.localeCompare(b.created_at),
+        ),
+      );
+      toast.error("Delete failed: " + error.message);
+    } else {
+      toast.success("Message deleted for everyone 🗑️");
+    }
+  };
+
+  const saveMsgEdit = async () => {
+    if (!editingMsg) return;
+    const { id } = editingMsg;
+    const content = editingMsg.draft.trim();
+    const original = messagesRef.current.find((m) => m.id === id);
+    if (!content || !original) {
+      setEditingMsg(null);
+      return;
+    }
+    if (content === original.content) {
+      setEditingMsg(null);
+      return;
+    }
+    setEditingMsg(null);
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.id === id ? { ...m, content, is_edited: true } : m,
+      ),
+    );
+    const { error } = await supabase
+      .from("messages")
+      .update({ content, is_edited: true })
+      .eq("id", id);
+    if (error) {
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === id
+            ? { ...m, content: original.content, is_edited: original.is_edited }
+            : m,
+        ),
+      );
+      toast.error("Edit failed: " + error.message);
+    }
+  };
+
+  // Close transient message overlays when the messages pane scrolls.
+  useEffect(() => {
+    const pane = messagesPaneRef.current;
+    if (!pane) return;
+    const closeOverlays = () => {
+      setChatMsgAction(null);
+      setChatReactionPicker(null);
+      clearLongPressTimer();
+    };
+    pane.addEventListener("scroll", closeOverlays, { passive: true });
+    return () => pane.removeEventListener("scroll", closeOverlays);
+  }, [clearLongPressTimer, selectedUser?.id, bottomTab]);
+
   // ── Delete message (for everyone) ─────────────────────────────────────────
   const deleteMessage = async (msg: Message, e: React.MouseEvent) => {
     if (msg.sender_id !== userId) return;
@@ -3661,6 +3899,74 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
               }
             />
           ))}
+
+          {/* ── Message action menu (long-press) ─────────────────────────── */}
+          <ChatMsgActionMenu
+            open={!!chatMsgAction}
+            x={chatMsgAction?.x ?? 0}
+            y={chatMsgAction?.y ?? 0}
+            isMine={
+              !!chatMsgAction &&
+              String(chatMsgAction.message.sender_id || "").trim() ===
+                String(userId || "").trim()
+            }
+            canEdit={
+              !!chatMsgAction &&
+              String(chatMsgAction.message.sender_id || "").trim() ===
+                String(userId || "").trim() &&
+              !chatMsgAction.message.id.startsWith("temp-") &&
+              !chatMsgAction.message.media_url
+            }
+            currentReaction={
+              chatMsgAction ? myReactionFor(chatMsgAction.message.id) : null
+            }
+            onReact={(emoji) => {
+              const target = chatMsgAction?.message;
+              setChatMsgAction(null);
+              if (target) void toggleMsgReaction(target, emoji);
+            }}
+            onReply={() => {
+              const target = chatMsgAction?.message;
+              setChatMsgAction(null);
+              if (target) setReplyTo(target);
+            }}
+            onEdit={() => {
+              const target = chatMsgAction?.message;
+              setChatMsgAction(null);
+              if (target && target.id !== editingMsg?.id) {
+                setEditingMsg({ id: target.id, draft: target.content || "" });
+              }
+            }}
+            onDeleteForMe={() => {
+              const target = chatMsgAction?.message;
+              setChatMsgAction(null);
+              if (target) deleteMsgForMe(target);
+            }}
+            onDeleteForEveryone={() => {
+              const target = chatMsgAction?.message;
+              setChatMsgAction(null);
+              if (target) void deleteMsgForEveryone(target);
+            }}
+            onClose={() => setChatMsgAction(null)}
+          />
+
+          {/* ── Reaction picker (double-tap) ─────────────────────────────── */}
+          <ChatReactionPicker
+            open={!!chatReactionPicker}
+            x={chatReactionPicker?.x ?? 0}
+            y={chatReactionPicker?.y ?? 0}
+            currentReaction={
+              chatReactionPicker
+                ? myReactionFor(chatReactionPicker.message.id)
+                : null
+            }
+            onReact={(emoji) => {
+              const target = chatReactionPicker?.message;
+              setChatReactionPicker(null);
+              if (target) void toggleMsgReaction(target, emoji);
+            }}
+            onClose={() => setChatReactionPicker(null)}
+          />
 
           {/* ── Emoji blast ───────────────────────────────────────────────── */}
           {emojiBlast && (
@@ -5296,6 +5602,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                 dragConstraints={{ left: 0, right: 64 }}
                                 dragElastic={{ left: 0, right: 0.25 }}
                                 dragDirectionLock
+                                onDragStart={clearLongPressTimer}
                                 onDragEnd={(_e, info) => {
                                   if (info.offset.x > 48) {
                                     setReplyTo(msg);
@@ -5320,8 +5627,61 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                     {theme === "comic" && isMine && (
                                       <div className="absolute inset-0 rounded-[20px] pointer-events-none overflow-hidden" style={{ backgroundImage:"radial-gradient(circle,rgba(0,0,0,0.06) 1px,transparent 1px)", backgroundSize:"7px 7px", zIndex:1 }} />
                                     )}
-                                    <div className={theme === "dairy-notebook" ? `diary-scrap ${isMine ? "diary-ink-out" : "diary-ink-in"}` : `px-4 py-2.5 ${theme === "comic" ? "rounded-[20px]" : "rounded-2xl"} ${isMine ? `${T.bubbleSent}${theme !== "comic" ? " rounded-tr-sm" : ""}` : `${T.bubbleRecv}${theme !== "comic" ? " rounded-tl-sm" : ""}`}`}>
-                                      {msg.media_url && msg.media_type ? (
+                                    <div
+                                      className={theme === "dairy-notebook" ? `diary-scrap ${isMine ? "diary-ink-out" : "diary-ink-in"}` : `px-4 py-2.5 ${theme === "comic" ? "rounded-[20px]" : "rounded-2xl"} ${isMine ? `${T.bubbleSent}${theme !== "comic" ? " rounded-tr-sm" : ""}` : `${T.bubbleRecv}${theme !== "comic" ? " rounded-tl-sm" : ""}`}`}
+                                      onPointerDown={(e) => startLongPress(msg, e)}
+                                      onPointerMove={moveLongPress}
+                                      onPointerUp={(e) => endLongPress(msg, e)}
+                                      onPointerCancel={clearLongPressTimer}
+                                      onPointerLeave={clearLongPressTimer}
+                                      onContextMenu={(e) => e.preventDefault()}
+                                      style={{ touchAction: "pan-y" }}
+                                    >
+                                      {editingMsg?.id === msg.id ? (
+                                        <div
+                                          className="flex min-w-[190px] flex-col gap-2"
+                                          onPointerDown={(e) => e.stopPropagation()}
+                                          onDoubleClick={(e) => e.stopPropagation()}
+                                        >
+                                          <textarea
+                                            autoFocus
+                                            value={editingMsg.draft}
+                                            onChange={(e) =>
+                                              setEditingMsg((prev) =>
+                                                prev ? { ...prev, draft: e.target.value } : prev,
+                                              )
+                                            }
+                                            onKeyDown={(e) => {
+                                              if (e.key === "Enter" && !e.shiftKey) {
+                                                e.preventDefault();
+                                                void saveMsgEdit();
+                                              } else if (e.key === "Escape") {
+                                                e.preventDefault();
+                                                setEditingMsg(null);
+                                              }
+                                            }}
+                                            rows={2}
+                                            className="w-full resize-none rounded-lg bg-black/20 px-2 py-1.5 text-sm font-medium text-inherit outline-none ring-1 ring-white/20 focus:ring-white/40"
+                                          />
+                                          <div className="flex justify-end gap-2">
+                                            <button
+                                              type="button"
+                                              onClick={() => setEditingMsg(null)}
+                                              className="rounded-full px-3 py-1 text-[11px] font-bold bg-black/20 hover:bg-black/30"
+                                            >
+                                              Cancel
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() => void saveMsgEdit()}
+                                              disabled={!editingMsg.draft.trim()}
+                                              className="rounded-full px-3 py-1 text-[11px] font-bold bg-blue-500 text-white disabled:opacity-40"
+                                            >
+                                              Save
+                                            </button>
+                                          </div>
+                                        </div>
+                                      ) : msg.media_url && msg.media_type ? (
                                         <MediaBubble url={msg.media_url} type={msg.media_type} />
                                       ) : (
                                         <>
