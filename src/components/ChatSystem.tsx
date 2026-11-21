@@ -3885,7 +3885,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
 
           {/* ── Chat Message Floating Action Menu (long-press) ─────────── */}
           <AnimatePresence>
-            {chatMsgAction &&
+            {chatMsgAction && (
               (() => {
                 const { msg: am, x, y } = chatMsgAction;
                 const isMine = am.sender_id === userId;
@@ -3903,13 +3903,23 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                   vw - menuW - 8,
                 );
                 const showAbove = y + menuH + 20 > vh;
-                const top = showAbove ? Math.max(y - menuH - 14, 8) : y + 14;
+                const top = showAbove
+                  ? Math.max(y - menuH - 14, 8)
+                  : y + 14;
 
                 return (
                   <>
+                    {/* Backdrop — tap anywhere outside the menu to dismiss */}
                     <div
                       className="fixed inset-0 z-[700] bg-black/20 backdrop-blur-[1px]"
-                      onPointerDown={() => setChatMsgAction(null)}
+                      onPointerDown={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        console.log(
+                          "[ChatMsgAction] Backdrop tapped — closing menu",
+                        );
+                        setChatMsgAction(null);
+                      }}
                     />
                     <motion.div
                       key="chat-msg-action-float"
@@ -3932,18 +3942,35 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                       }}
                       onPointerDown={(e) => e.stopPropagation()}
                     >
-                      {/* Quick-react row */}
+                      {/* Quick-reactions row */}
                       <div className="flex items-center justify-around px-3 py-3 bg-gray-50 border-b border-gray-100">
                         {QUICK_EMOJIS.map((emoji) => (
                           <motion.button
                             key={emoji}
                             whileTap={{ scale: 0.8 }}
-                            whileHover={{ scale: 1.3 }}
+                            whileHover={{ scale: 1.1 }}
                             onPointerDown={(e) => {
                               e.preventDefault();
                               e.stopPropagation();
-                              console.log("[ChatMsgAction] Reaction:", emoji, "msgId:", am.id);
+                              console.log(
+                                "[ChatMsgAction] Reaction:",
+                                emoji,
+                                "msgId:",
+                                am.id,
+                              );
                               toast.success("Reaction added");
+                              handleMsgReact(am.id, emoji);
+                              setChatMsgAction(null);
+                            }}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              console.log(
+                                "[ChatMsgAction] Reaction (click fallback):",
+                                emoji,
+                                "msgId:",
+                                am.id,
+                              );
                               handleMsgReact(am.id, emoji);
                               setChatMsgAction(null);
                             }}
@@ -3958,8 +3985,21 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                         onPointerDown={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
-                          console.log("[ChatMsgAction] Reply to msgId:", am.id);
+                          console.log(
+                            "[ChatMsgAction] Reply to msgId:",
+                            am.id,
+                          );
                           toast.info("Reply opened");
+                          setReplyTo(am);
+                          setChatMsgAction(null);
+                        }}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          console.log(
+                            "[ChatMsgAction] Reply (click fallback) msgId:",
+                            am.id,
+                          );
                           setReplyTo(am);
                           setChatMsgAction(null);
                         }}
@@ -3985,8 +4025,21 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                           onPointerDown={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            console.log("[ChatMsgAction] Edit msgId:", am.id);
+                            console.log(
+                              "[ChatMsgAction] Edit msgId:",
+                              am.id,
+                            );
                             toast.info("Edit mode opened");
+                            setEditingMsg({ id: am.id, text: am.content });
+                            setChatMsgAction(null);
+                          }}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            console.log(
+                              "[ChatMsgAction] Edit (click fallback) msgId:",
+                              am.id,
+                            );
                             setEditingMsg({ id: am.id, text: am.content });
                             setChatMsgAction(null);
                           }}
@@ -4001,8 +4054,21 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                         onPointerDown={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
-                          console.log("[ChatMsgAction] Delete for Me msgId:", am.id);
+                          console.log(
+                            "[ChatMsgAction] Delete for Me msgId:",
+                            am.id,
+                          );
                           toast.error("Deleted for me");
+                          deleteForMe(am.id);
+                          setChatMsgAction(null);
+                        }}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          console.log(
+                            "[ChatMsgAction] Delete for Me (click fallback) msgId:",
+                            am.id,
+                          );
                           deleteForMe(am.id);
                           setChatMsgAction(null);
                         }}
@@ -4017,8 +4083,21 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                           onPointerDown={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            console.log("[ChatMsgAction] Delete for Everyone msgId:", am.id);
+                            console.log(
+                              "[ChatMsgAction] Delete for Everyone msgId:",
+                              am.id,
+                            );
                             toast.error("Deleted for everyone");
+                            deleteMessageAt(am, x, y);
+                            setChatMsgAction(null);
+                          }}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            console.log(
+                              "[ChatMsgAction] Delete for Everyone (click fallback) msgId:",
+                              am.id,
+                            );
                             deleteMessageAt(am, x, y);
                             setChatMsgAction(null);
                           }}
@@ -4031,7 +4110,8 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                     </motion.div>
                   </>
                 );
-              })()}
+              })()
+            )}
           </AnimatePresence>
 
           {/* ── Full Instagram-style Story viewer ─────────────────────────── */}
