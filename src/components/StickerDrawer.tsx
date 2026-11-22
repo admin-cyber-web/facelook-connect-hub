@@ -81,6 +81,13 @@ export const StickerDrawer: React.FC<StickerDrawerProps> = ({
     }
   };
 
+  const handleCategoryChange = (e: React.MouseEvent | React.TouchEvent, cat: StickerPackCategory) => {
+    e.preventDefault();
+    e.stopPropagation();
+    e.nativeEvent.stopImmediatePropagation?.();
+    setActiveCategory(cat);
+  };
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -130,17 +137,13 @@ export const StickerDrawer: React.FC<StickerDrawerProps> = ({
                 className="flex gap-1 overflow-x-auto no-scrollbar pb-2 mb-2"
                 onClick={(e) => e.stopPropagation()}
               >
-                {STICKER_PACK_CATEGORIES.map((cat) => (
+{STICKER_PACK_CATEGORIES.map((cat) => (
                   <button
                     key={cat}
                     type="button"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setActiveCategory(cat);
-                    }}
-                    onMouseDown={(e) => e.stopPropagation()}
-                    onTouchStart={(e) => e.stopPropagation()}
+                    onClick={(e) => handleCategoryChange(e, cat)}
+                    onMouseDown={(e) => handleCategoryChange(e, cat)}
+                    onTouchStart={(e) => handleCategoryChange(e, cat)}
                     className={`flex-shrink-0 px-3.5 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer relative z-10 pointer-events-auto ${
                       activeCategory === cat
                         ? "bg-black text-white border border-black"

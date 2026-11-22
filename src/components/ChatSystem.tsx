@@ -5939,60 +5939,56 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                             : "0 8px 32px rgba(0,0,0,0.5), 0 0 0 1px rgba(227,255,0,0.05)"
                     }}
                   >
-                    {/* ── Left buttons — emoji + attach — collapse in focus mode ── */}
+{/* ── Left buttons — emoji + attach — always visible ── */}
                     <AnimatePresence initial={false}>
-                      {!inputFocused && (
-                        <motion.div
-                          key="left-btns"
-                          initial={{ opacity: 0, width: 0 }}
-                          animate={{ opacity: 1, width: "auto" }}
-                          exit={{ opacity: 0, width: 0 }}
-                          transition={{ duration: 0.18, ease: "easeInOut" }}
-                          className="flex items-center gap-2 overflow-hidden shrink-0"
-                          style={{ willChange: "opacity, width" }}
+                      <motion.div
+                        key="left-btns"
+                        initial={{ opacity: 0, width: 0 }}
+                        animate={{ opacity: 1, width: "auto" }}
+                        exit={{ opacity: 0, width: 0 }}
+                        transition={{ duration: 0.18, ease: "easeInOut" }}
+                        className="flex items-center gap-2 overflow-hidden shrink-0"
+                        style={{ willChange: "opacity, width" }}
+                      >
+                        <motion.button
+                          whileTap={{ scale: 0.9 }}
+                          whileHover={{ scale: 1.05 }}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setShowStickerDrawer((p) => !p);
+                          }}
+                          title="Send Sticker"
+                          className={`w-9 h-9 rounded-2xl border flex items-center justify-center shrink-0 transition-all relative overflow-hidden ${
+                            showStickerDrawer
+                              ? "bg-amber-500/30 border-amber-400/60 text-amber-300 shadow-md scale-105"
+                              : "bg-gradient-to-br from-amber-500/10 to-orange-500/10 border-amber-400/30 text-amber-400 hover:from-amber-500/30 hover:to-orange-500/30 hover:border-amber-400/60 hover:text-amber-300"
+                          }`}
                         >
-                          {/* Animated sticker button - enhanced styling for visibility */}
-                          <motion.button
-                            type="button"
-                            whileTap={{ scale: 0.9 }}
-                            whileHover={{ scale: 1.05 }}
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              setShowStickerDrawer((p) => !p);
-                            }}
-                            title="Send Sticker"
-                            className={`w-9 h-9 rounded-2xl border flex items-center justify-center shrink-0 transition-all relative overflow-hidden ${
-                              showStickerDrawer
-                                ? "bg-amber-500/30 border-amber-400/60 text-amber-300 shadow-md scale-105"
-                                : "bg-gradient-to-br from-amber-500/10 to-orange-500/10 border-amber-400/30 text-amber-400 hover:from-amber-500/30 hover:to-orange-500/30 hover:border-amber-400/60 hover:text-amber-300"
-                            }`}
-                          >
-                            {/* Subtle animated accent ring when open */}
-                            {showStickerDrawer && (
-                              <motion.div
-                                initial={{ opacity: 0, scale: 0.8 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                exit={{ opacity: 0, scale: 0.8 }}
-                                transition={{ type: "spring", stiffness: 300, damping: 20 }}
-                                className="absolute inset-0 border border-amber-400/50 rounded-2xl pointer-events-none"
-                              />
-                            )}
-                            <Smile size={18} strokeWidth={2} className="drop-shadow-sm relative z-10" />
-                          </motion.button>
-                          <button
-                            onClick={() => fileInputRef.current?.click()}
-                            disabled={isUploadingMedia}
-                            className={`w-9 h-9 rounded-2xl border flex items-center justify-center shrink-0 disabled:opacity-40 transition-colors ${pendingFile ? "bg-blue-500 border-blue-400 text-white" : "bg-white/10 ${T.divider} ${T.text3} hover:bg-white/20"}`}
-                          >
-                            {isUploadingMedia ? (
-                              <Loader2 size={15} className="animate-spin" />
-                            ) : (
-                              <Paperclip size={15} />
-                            )}
-                          </button>
-                        </motion.div>
-                      )}
+                          {/* Subtle animated accent ring when open */}
+                          {showStickerDrawer && (
+                            <motion.div
+                              initial={{ opacity: 0, scale: 0.8 }}
+                              animate={{ opacity: 1, scale: 1 }}
+                              exit={{ opacity: 0, scale: 0.8 }}
+                              transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                              className="absolute inset-0 border border-amber-400/50 rounded-2xl pointer-events-none"
+                            />
+                          )}
+                          <Smile size={18} strokeWidth={2} className="drop-shadow-sm relative z-10" />
+                        </motion.button>
+                        <button
+                          onClick={() => fileInputRef.current?.click()}
+                          disabled={isUploadingMedia}
+                          className={`w-9 h-9 rounded-2xl border flex items-center justify-center shrink-0 disabled:opacity-40 transition-colors ${pendingFile ? "bg-blue-500 border-blue-400 text-white" : "bg-white/10 border-amber-400/30 text-amber-400 hover:bg-white/20"}`}
+                        >
+                          {isUploadingMedia ? (
+                            <Loader2 size={15} className="animate-spin" />
+                          ) : (
+                            <Paperclip size={15} />
+                          )}
+                        </button>
+                      </motion.div>
                     </AnimatePresence>
                     <input
                       type="file"
