@@ -53,7 +53,6 @@ import {
   Camera,
   Plus,
   Smile,
-  Sticker,
   Image,
   Mic,
   Pencil,
@@ -5979,7 +5978,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                 className="absolute inset-0 border border-amber-400/50 rounded-2xl pointer-events-none"
                               />
                             )}
-                            <Sticker size={18} strokeWidth={2} className="drop-shadow-sm relative z-10" />
+                            <Smile size={18} strokeWidth={2} className="drop-shadow-sm relative z-10" />
                           </motion.button>
                           <button
                             onClick={() => fileInputRef.current?.click()}

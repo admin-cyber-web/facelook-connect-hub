@@ -9,6 +9,7 @@ import {
   stickerCandidateUrl,
   type StickerPackFile,
 } from "../lib/stickerPacks";
+import { useToast } from "../hooks/use-toast";
 
 type StickerDrawerProps = {
   isOpen: boolean;
@@ -26,15 +27,18 @@ export const StickerDrawer: React.FC<StickerDrawerProps> = ({
   onClose,
   onStickerSelect,
 }) => {
+  const { toast } = useToast();
   const [activeCategory, setActiveCategory] = useState<StickerPackCategory>("Love");
   const [probe, setProbe] = useState<StickerProbe>({});
 
   const files = STICKER_PACK_FILES[activeCategory] || STICKER_PACK_FILES.Love;
 
-  // A different category starts with a clean set of file candidates.
+  // Reset probe state when drawer opens or category switches
   useEffect(() => {
-    setProbe({});
-  }, [activeCategory]);
+    if (isOpen) {
+      setProbe({});
+    }
+  }, [isOpen, activeCategory]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -86,7 +90,10 @@ export const StickerDrawer: React.FC<StickerDrawerProps> = ({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50"
-            onClick={onClose}
+            onClick={(e) => {
+              e.stopPropagation();
+              onClose();
+            }}
           />
 
           <motion.div
@@ -132,13 +139,17 @@ export const StickerDrawer: React.FC<StickerDrawerProps> = ({
                       e.stopPropagation();
                       setActiveCategory(cat);
                     }}
-                    className={`flex-shrink-0 px-3.5 py-1.5 rounded-full text-xs font-bold transition-all ${
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onTouchStart={(e) => e.stopPropagation()}
+                    className={`flex-shrink-0 px-3.5 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer relative z-10 pointer-events-auto ${
                       activeCategory === cat
                         ? "bg-black text-white border border-black"
                         : "bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200 hover:text-gray-900"
                     }`}
+                    aria-pressed={activeCategory === cat}
+                    aria-label={`Switch to ${cat} stickers`}
                   >
-                    {cat}
+                    {cat === "emotional" ? "Emotional" : cat}
                   </button>
                 ))}
               </div>

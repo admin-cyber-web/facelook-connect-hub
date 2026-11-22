@@ -41,18 +41,30 @@ const LOVE_FILES: StickerPackFile[] = [
 const SAD_FILES: StickerPackFile[] = [
   { id: "sad-1", label: "Sad sticker 1", candidates: ["sad stickers.webp", "sad stickers.png", "sad-1.png", "tears.png", "lonely.png"] },
   { id: "sad-2", label: "Sad sticker 2", candidates: ["sad stickers 2.webp", "sad stickers2.webp", "sad stickers 2.png", "sad-2.png", "broken-heart.png"] },
+  { id: "sad-3", label: "Sad sticker 3", candidates: ["sad stickers 3.webp", "sad stickers3.webp", "sad stickers 3.png"] },
+  { id: "sad-4", label: "Sad sticker 4", candidates: ["sad stickers 4.webp", "sad stickers4.webp", "sad stickers 4.png"] },
+  { id: "sad-5", label: "Sad sticker 5", candidates: ["sad stickers 5.webp", "sad stickers5.webp", "sad stickers 5.png"] },
 ];
 
 /** emotional folder: real webp & png file candidates. */
 const EMOTIONAL_FILES: StickerPackFile[] = [
   { id: "emotional-1", label: "Emotional sticker 1", candidates: ["emotional stickers.webp", "emotional stickers.png", "emotional-1.png", "touching.png"] },
   { id: "emotional-2", label: "Emotional sticker 2", candidates: ["emotional stickers2.webp", "emotional stickers 2.webp", "emotional stickers2.png", "emotional-2.png", "miss-you.png"] },
+  { id: "emotional-3", label: "Emotional sticker 3", candidates: ["emotional stickers 3.webp", "emotional stickers3.webp", "emotional stickers 3.png"] },
+  { id: "emotional-5", label: "Emotional sticker 5", candidates: ["emotional stickers 5.webp", "emotional stickers5.webp", "emotional stickers 5.png"] },
+  { id: "emotional-6", label: "Emotional sticker 6", candidates: ["emotional stickers 6.webp", "emotional stickers6.webp", "emotional stickers 6.png"] },
+  { id: "emotional-7", label: "Emotional sticker 7", candidates: ["emotional stickers 7.webp", "emotional stickers7.webp", "emotional stickers 7.png"] },
 ];
 
 /** Angry folder: real webp & png file candidates. */
 const ANGRY_FILES: StickerPackFile[] = [
   { id: "angry-1", label: "Angry sticker 1", candidates: ["angry stickers.webp", "angry stickers.png", "angry-1.png", "mad.png"] },
   { id: "angry-2", label: "Angry sticker 2", candidates: ["angry stickers2.webp", "angry stickers 2.webp", "angry stickers2.png", "angry-2.png", "grr.png"] },
+  { id: "angry-3", label: "Angry sticker 3", candidates: ["angry stickers 3.webp", "angry stickers3.webp", "angry stickers 3.png"] },
+  { id: "angry-4", label: "Angry sticker 4", candidates: ["angry stickers 4.webp", "angry stickers4.webp", "angry stickers 4.png"] },
+  { id: "angry-5", label: "Angry sticker 5", candidates: ["angry stickers 5.webp", "angry stickers5.webp", "angry stickers 5.png"] },
+  { id: "angry-7", label: "Angry sticker 7", candidates: ["angry stickers 7.webp", "angry stickers7.webp", "angry stickers 7.png"] },
+  { id: "angry-8", label: "Angry sticker 8", candidates: ["angry stickers 8.webp", "angry stickers8.webp", "angry stickers 8.png"] },
 ];
 
 /** Sticker pack categories available on the pull zone. */
