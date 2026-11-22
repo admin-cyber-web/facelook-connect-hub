@@ -1,8 +1,7 @@
 import React from "react";
 import { motion } from "framer-motion";
 import type { StickerType } from "../lib/messageParser";
-import { bunnyStickerUrl, type StickerPackCategory } from "../lib/bunny";
-import { STICKER_PACK_FILES } from "../lib/stickerPacks";
+import { CHAT_STICKERS, buildStickerUrl } from "../lib/stickers";
 
 interface ChatStickerProps {
   type: NonNullable<StickerType>;
@@ -16,8 +15,8 @@ interface StickerConfig {
   gradient: string;
   labelColor: string;
   borderColor: string;
-  /** Optional BunnyCDN sticker pack image (category folder + file name) */
-  stickerPack?: { category: StickerPackCategory; file: string };
+  /** BunnyCDN sticker filename from the flat list */
+  stickerFilename?: string;
 }
 
 const STICKER_CONFIG: Record<NonNullable<StickerType>, StickerConfig> = {
@@ -27,10 +26,7 @@ const STICKER_CONFIG: Record<NonNullable<StickerType>, StickerConfig> = {
     gradient: "linear-gradient(135deg, rgba(244,63,94,0.35) 0%, rgba(236,72,153,0.2) 100%)",
     labelColor: "#fda4af",
     borderColor: "rgba(244,63,94,0.3)",
-    stickerPack: {
-      category: "Love",
-      file: STICKER_PACK_FILES.Love[0]?.candidates[0] ?? "love stickers.webp",
-    },
+    stickerFilename: "love stickers.webp",
   },
   morning: {
     emojis: ["☀️", "🌸", "😊"],
@@ -217,9 +213,9 @@ export const ChatSticker: React.FC<ChatStickerProps> = ({ type, originalText, is
       }}
     >
       {/* Sticker pack image from BunnyCDN (falls back to emojis on load error) */}
-      {cfg.stickerPack && !stickerImageFailed ? (
+      {cfg.stickerFilename && !stickerImageFailed ? (
         <img
-          src={bunnyStickerUrl(cfg.stickerPack.category, cfg.stickerPack.file)}
+          src={buildStickerUrl(cfg.stickerFilename)}
           alt={cfg.label}
           style={{
             width: 64,

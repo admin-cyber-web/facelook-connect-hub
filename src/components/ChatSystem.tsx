@@ -71,8 +71,8 @@ import { usePageVisibility } from "../hooks/usePageVisibility";
 import { toast } from "sonner";
 import { parseMessage } from "../lib/messageParser";
 import { ChatSticker } from "./ChatSticker";
-import { StickerDrawer } from "./StickerDrawer";
-import { stickerMediaType } from "../lib/stickerPacks";
+import { StickerPicker } from "./StickerPicker";
+import { stickerMediaType, type StickerItem } from "../lib/stickers";
 import {
   hasRiskKeyword,
   hasLoveKeyword,
@@ -1381,7 +1381,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   } | null>(null);
   const [showEmojiGrid, setShowEmojiGrid] = useState(false);
   const [showInputEmoji, setShowInputEmoji] = useState(false);
-  const [showStickerDrawer, setShowStickerDrawer] = useState(false);
+  const [showStickerPicker, setShowStickerPicker] = useState(false);
   const [inputFocused, setInputFocused] = useState(false);
   const smokeIdRef = useRef(0);
   const blastIdRef = useRef(0);
@@ -3473,8 +3473,9 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   };
 
   // ── Media upload ──────────────────────────────────────────────────────────
-  const sendSticker = async (stickerUrl: string) => {
-    if (!selectedUser || !stickerUrl) return;
+  const sendSticker = async (sticker: StickerItem) => {
+    if (!selectedUser || !sticker) return;
+    const stickerUrl = sticker.url;
     const stickerType = stickerMediaType(stickerUrl);
     setIsSending(true);
     const tempId = `temp-sticker-${Date.now()}`;
@@ -5956,26 +5957,57 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            setShowStickerDrawer((p) => !p);
+                            setShowStickerPicker((p) => !p);
                           }}
                           title="Send Sticker"
                           className={`w-9 h-9 rounded-2xl border flex items-center justify-center shrink-0 transition-all relative overflow-hidden ${
-                            showStickerDrawer
-                              ? "bg-amber-500/30 border-amber-400/60 text-amber-300 shadow-md scale-105"
-                              : "bg-gradient-to-br from-amber-500/10 to-orange-500/10 border-amber-400/30 text-amber-400 hover:from-amber-500/30 hover:to-orange-500/30 hover:border-amber-400/60 hover:text-amber-300"
+                            showStickerPicker
+                              ? "bg-gradient-to-br from-pink-500/30 to-purple-500/30 border-pink-400/60 text-pink-300 shadow-md scale-105"
+                              : "bg-gradient-to-br from-pink-500/10 to-purple-500/10 border-pink-400/30 text-pink-400 hover:from-pink-500/30 hover:to-purple-500/30 hover:border-pink-400/60 hover:text-pink-300"
                           }`}
                         >
-                          {/* Subtle animated accent ring when open */}
-                          {showStickerDrawer && (
-                            <motion.div
-                              initial={{ opacity: 0, scale: 0.8 }}
-                              animate={{ opacity: 1, scale: 1 }}
-                              exit={{ opacity: 0, scale: 0.8 }}
-                              transition={{ type: "spring", stiffness: 300, damping: 20 }}
-                              className="absolute inset-0 border border-amber-400/50 rounded-2xl pointer-events-none"
-                            />
-                          )}
-                          <Smile size={18} strokeWidth={2} className="drop-shadow-sm relative z-10" />
+                          {/* Vibrant animated sticker icon with gentle float/pulse */}
+                          <div className="relative z-10">
+                            <motion.svg
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              xmlns="http://www.w3.org/2000/svg"
+                              className="w-5 h-5 drop-shadow-sm"
+                              initial={{ scale: 1, rotate: 0 }}
+                              animate={{ scale: [1, 1.08, 1], rotate: [0, 3, 0, -3, 0] }}
+                              transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+                            >
+                              <path
+                                d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"
+                                fill="currentColor"
+                                stroke="currentColor"
+                                strokeWidth="1.5"
+                              />
+                              <circle
+                                cx="18"
+                                cy="6"
+                                r="2"
+                                fill="currentColor"
+                                stroke="currentColor"
+                                strokeWidth="1"
+                              />
+                              <circle
+                                cx="6"
+                                cy="18"
+                                r="1.5"
+                                fill="currentColor"
+                                stroke="currentColor"
+                                strokeWidth="1"
+                              />
+                              <circle
+                                cx="19"
+                                cy="17"
+                                r="1"
+                                fill="currentColor"
+                                opacity="0.7"
+                              />
+                            </motion.svg>
+                          </div>
                         </motion.button>
                         <button
                           onClick={() => fileInputRef.current?.click()}
@@ -7163,10 +7195,10 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
             )}
           </AnimatePresence>
 
-          {/* Sticker drawer (bottom sheet) */}
-          <StickerDrawer
-            isOpen={showStickerDrawer}
-            onClose={() => setShowStickerDrawer(false)}
+          {/* Sticker Picker Modal */}
+          <StickerPicker
+            isOpen={showStickerPicker}
+            onClose={() => setShowStickerPicker(false)}
             onStickerSelect={sendSticker}
           />
         </motion.div>
