@@ -77,27 +77,3 @@ export function stickerMediaType(url: string): StickerType {
   if (lower.includes("warning")) return "warning";
   return "love"; // default fallback
 }
-
-// ── Media type detection ────────────────────────────────────────────────────────
-export function stickerMediaType(url: string): StickerType {
-  const lower = url.toLowerCase();
-  if (lower.includes("love")) return "love";
-  if (lower.includes("morning")) return "morning";
-  if (lower.includes("afternoon")) return "afternoon";
-  if (lower.includes("evening")) return "evening";
-  if (lower.includes("night")) return "night";
-  if (lower.includes("hot_weather") || lower.includes("hot")) return "hot_weather";
-  if (lower.includes("cold_weather") || lower.includes("cold")) return "cold_weather";
-  if (lower.includes("rain")) return "rain";
-  if (lower.includes("anniversary")) return "anniversary";
-  if (lower.includes("father_day") || lower.includes("dad")) return "father_day";
-  if (lower.includes("mother_day") || lower.includes("mom")) return "mother_day";
-  if (lower.includes("diwali")) return "diwali";
-  if (lower.includes("holi")) return "holi";
-  if (lower.includes("holiday")) return "holiday";
-  if (lower.includes("see_you_tomorrow")) return "see_you_tomorrow";
-  if (lower.includes("waiting")) return "waiting";
-  if (lower.includes("sleep_wake") || lower.includes("sleep") || lower.includes("wake")) return "sleep_wake";
-  if (lower.includes("warning")) return "warning";
-  return "love"; // default fallback
-}
