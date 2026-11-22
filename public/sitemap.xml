@@ -16,6 +16,66 @@
     <changefreq>yearly</changefreq>
   </url>
   <url>
+    <loc>https://www.flicksindia.online/post/749d12d5-09d5-4d7c-96a8-ec92e8ce9edd</loc>
+    <priority>0.8</priority>
+    <changefreq>weekly</changefreq>
+    <lastmod>2026-11-22</lastmod>
+  </url>
+  <url>
+    <loc>https://www.flicksindia.online/post/4bb25054-69c2-4e24-b93f-e363c4414199</loc>
+    <priority>0.8</priority>
+    <changefreq>weekly</changefreq>
+    <lastmod>2026-11-22</lastmod>
+  </url>
+  <url>
+    <loc>https://www.flicksindia.online/post/f581f8d9-b3e5-4492-a525-27ece687c379</loc>
+    <priority>0.8</priority>
+    <changefreq>weekly</changefreq>
+    <lastmod>2026-11-22</lastmod>
+  </url>
+  <url>
+    <loc>https://www.flicksindia.online/post/338f68bf-330d-4b43-b5bf-d41162869c64</loc>
+    <priority>0.8</priority>
+    <changefreq>weekly</changefreq>
+    <lastmod>2026-11-22</lastmod>
+  </url>
+  <url>
+    <loc>https://www.flicksindia.online/post/902e98bb-dce1-4113-bf9f-72e2ea25add0</loc>
+    <priority>0.8</priority>
+    <changefreq>weekly</changefreq>
+    <lastmod>2026-11-21</lastmod>
+  </url>
+  <url>
+    <loc>https://www.flicksindia.online/post/8b58350c-5dfb-455e-bf8b-63d9afeccba7</loc>
+    <priority>0.8</priority>
+    <changefreq>weekly</changefreq>
+    <lastmod>2026-11-21</lastmod>
+  </url>
+  <url>
+    <loc>https://www.flicksindia.online/post/551f0bb7-4767-45ff-93fa-5afdd7191f0d</loc>
+    <priority>0.8</priority>
+    <changefreq>weekly</changefreq>
+    <lastmod>2026-11-21</lastmod>
+  </url>
+  <url>
+    <loc>https://www.flicksindia.online/post/c2dee269-4f51-4ce3-aeb4-b24eb059628c</loc>
+    <priority>0.8</priority>
+    <changefreq>weekly</changefreq>
+    <lastmod>2026-11-21</lastmod>
+  </url>
+  <url>
+    <loc>https://www.flicksindia.online/post/f3d9c071-7ca7-432f-8102-ef5c825259a0</loc>
+    <priority>0.8</priority>
+    <changefreq>weekly</changefreq>
+    <lastmod>2026-11-21</lastmod>
+  </url>
+  <url>
+    <loc>https://www.flicksindia.online/post/af065d42-47cf-4bbd-947e-336d7589e973</loc>
+    <priority>0.8</priority>
+    <changefreq>weekly</changefreq>
+    <lastmod>2026-11-21</lastmod>
+  </url>
+  <url>
     <loc>https://www.flicksindia.online/post/99850559-eb43-47b5-8166-995a3bb5acd2</loc>
     <priority>0.8</priority>
     <changefreq>weekly</changefreq>
@@ -146,5 +206,11 @@
     <priority>0.8</priority>
     <changefreq>weekly</changefreq>
     <lastmod>2026-11-01</lastmod>
+  </url>
+  <url>
+    <loc>https://www.flicksindia.online/story/36aff58d-7c60-4527-bc5a-e1d6e44bd894</loc>
+    <priority>0.6</priority>
+    <changefreq>daily</changefreq>
+    <lastmod>2026-11-22</lastmod>
   </url>
 </urlset>

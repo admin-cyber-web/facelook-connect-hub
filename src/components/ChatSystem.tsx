@@ -5952,7 +5952,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                           className="flex items-center gap-2 overflow-hidden shrink-0"
                           style={{ willChange: "opacity, width" }}
                         >
-                          {/* Animated sticker button */}
+                          {/* Animated sticker button - enhanced styling for visibility */}
                           <motion.button
                             type="button"
                             whileTap={{ scale: 0.9 }}
@@ -5963,13 +5963,23 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                               setShowStickerDrawer((p) => !p);
                             }}
                             title="Send Sticker"
-                            className={`w-9 h-9 rounded-2xl border flex items-center justify-center shrink-0 transition-all ${
+                            className={`w-9 h-9 rounded-2xl border flex items-center justify-center shrink-0 transition-all relative overflow-hidden ${
                               showStickerDrawer
                                 ? "bg-amber-500/30 border-amber-400/60 text-amber-300 shadow-md scale-105"
-                                : "bg-white/10 border-white/15 text-amber-400 hover:bg-amber-500/20 hover:border-amber-400/40"
+                                : "bg-gradient-to-br from-amber-500/10 to-orange-500/10 border-amber-400/30 text-amber-400 hover:from-amber-500/30 hover:to-orange-500/30 hover:border-amber-400/60 hover:text-amber-300"
                             }`}
                           >
-                            <Sticker size={17} strokeWidth={1.8} className="drop-shadow-sm" />
+                            {/* Subtle animated accent ring when open */}
+                            {showStickerDrawer && (
+                              <motion.div
+                                initial={{ opacity: 0, scale: 0.8 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                exit={{ opacity: 0, scale: 0.8 }}
+                                transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                                className="absolute inset-0 border border-amber-400/50 rounded-2xl pointer-events-none"
+                              />
+                            )}
+                            <Sticker size={18} strokeWidth={2} className="drop-shadow-sm relative z-10" />
                           </motion.button>
                           <button
                             onClick={() => fileInputRef.current?.click()}
