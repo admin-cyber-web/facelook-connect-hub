@@ -1198,24 +1198,21 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       setShowSongLibrary(true);
       return;
     }
-    const shouldPlay = audio.paused;
-    
-    if (!shouldPlay) {
+
+    if (chatMusicPlaying) {
       audio.pause();
       setChatMusicPlaying(false);
       publishChatMusicState(false);
-      return;
-    }
-    void audio.play().then(
-      () => {
-        setChatMusicPlaying(true);
-        publishChatMusicState(true);
-      },
-      (error: unknown) => {
+    } else {
+      setChatMusicPlaying(true);
+      publishChatMusicState(true);
+      void audio.play().catch((error: unknown) => {
         console.error("[Chat] song playback could not resume:", error);
+        setChatMusicPlaying(false);
+        publishChatMusicState(false);
         toast.error("This song couldn't be resumed. Please try again.");
-      },
-    );
+      });
+    }
   }, [chatMusicPlaying, publishChatMusicState, selectedChatTrack]);
 
   const seekChatMusic = useCallback(
@@ -1261,8 +1258,9 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   useEffect(() => {
     if (!isOpen || bottomTab !== "chat" || !chatMusicRoomId) return;
     const audio = chatMusicAudioRef.current;
-    const channel = supabase.channel(`chat_music_sync:${chatMusicRoomId}`, {
-      config: { broadcast: { self: false }, private: true },
+    const channelName = `chat_music_sync_${chatMusicRoomId.replace(/:/g, "_")}`;
+    const channel = supabase.channel(channelName, {
+      config: { broadcast: { self: false } },
     });
     chatMusicChannelRef.current = channel;
     channel
@@ -1325,8 +1323,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       })
       .subscribe((status) => {
         if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
-          console.error("[Chat] music sync channel failed:", status, chatMusicRoomId);
-          toast.error("Shared music sync is unavailable in this chat.");
+          console.warn("[Chat] music sync channel status:", status, chatMusicRoomId);
         }
       });
 
