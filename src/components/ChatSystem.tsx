@@ -5314,9 +5314,10 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                     aria-haspopup="dialog"
                     className={`h-7 w-7 shrink-0 rounded-lg bg-white/10 border ${T.divider} flex items-center justify-center ${T.text1} hover:bg-white/20 active:scale-90 transition-all sm:h-8 sm:w-8`}
                   >
-                    <Disc3
-                      size={15}
-                      className={chatMusicPlaying ? "animate-spin" : ""}
+                    <img
+                      src="https://flicksindiacdn.b-cdn.net/icon/record.png"
+                      alt="Music"
+                      className={`w-5 h-5 ${chatMusicPlaying ? "animate-spin" : ""} drop-shadow-sm`}
                     />
                   </button>
                   {/* Panic toggle */}
@@ -6013,45 +6014,28 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                         >
                           {/* Vibrant animated sticker icon with gentle float/pulse */}
                           <div className="relative z-10">
-                            <motion.svg
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              xmlns="http://www.w3.org/2000/svg"
+                            <img
+                              src="https://flicksindiacdn.b-cdn.net/icon/thumbs-up.png"
+                              alt="Sticker"
                               className="w-5 h-5 drop-shadow-sm"
-                              initial={{ scale: 1, rotate: 0 }}
-                              animate={{ scale: [1, 1.08, 1], rotate: [0, 3, 0, -3, 0] }}
-                              transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-                            >
-                              <path
-                                d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"
-                                fill="currentColor"
-                                stroke="currentColor"
-                                strokeWidth="1.5"
-                              />
-                              <circle
-                                cx="18"
-                                cy="6"
-                                r="2"
-                                fill="currentColor"
-                                stroke="currentColor"
-                                strokeWidth="1"
-                              />
-                              <circle
-                                cx="6"
-                                cy="18"
-                                r="1.5"
-                                fill="currentColor"
-                                stroke="currentColor"
-                                strokeWidth="1"
-                              />
-                              <circle
-                                cx="19"
-                                cy="17"
-                                r="1"
-                                fill="currentColor"
-                                opacity="0.7"
-                              />
-                            </motion.svg>
+                              style={{ animation: "gentle-bounce 3s ease-in-out infinite" }}
+                              onError={(e) => {
+                                const el = e.currentTarget as HTMLImageElement;
+                                el.style.display = "none";
+                              }}
+                            />
+                            <style global>{`
+                              @keyframes gentle-bounce {
+                                0%, 100% { transform: scale(1) rotate(0deg); }
+                                25% { transform: scale(1.08) rotate(3deg); }
+                                50% { transform: scale(1) rotate(0deg); }
+                                75% { transform: scale(1.08) rotate(-3deg); }
+                              }
+                            `}</style>
+
+
+
+
                           </div>
                         </motion.button>
                         <button
