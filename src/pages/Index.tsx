@@ -3238,7 +3238,7 @@ const Index = ({ session, initialAdminOpen, isGuest = false }: { session: Sessio
 
   const handlePasswordReset = async () => {
     const { error } = await supabase.auth.resetPasswordForEmail(userEmail, {
-      redirectTo: "https://flicksindia.online/reset-password",
+      redirectTo: `${window.location.origin}/`,
     });
     if (!error) setResetSent(true);
     else alert("Error: " + error.message);

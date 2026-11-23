@@ -75,7 +75,9 @@ const LoginScreen = () => {
     setShowLegalErr(false);
 
     if (pendingAction === "google") {
-      // Android uses the native Google account picker; browsers retain Supabase OAuth.
+      // Android uses the native Google account picker; browsers use Supabase OAuth.
+      // Use window.location.origin so the redirect works on any domain (dev, staging, production)
+      // and detectSessionInUrl can properly restore the session from the URL fragment.
       setLoading(true);
       setError("");
       try {
@@ -85,7 +87,7 @@ const LoginScreen = () => {
         } else {
           const { error } = await supabase.auth.signInWithOAuth({
             provider: "google",
-            options: { redirectTo: "https://flicksindia.online" },
+            options: { redirectTo: `${window.location.origin}/` },
           });
           if (error) throw error;
         }
@@ -109,15 +111,25 @@ const LoginScreen = () => {
     if (!email.trim()) { setError("Please enter your email."); return; }
     if (mode === "signup" && password !== confirmPass) { setError("Passwords do not match."); return; }
     if (password.length < 6) { setError("Password must be at least 6 characters."); return; }
+    if (mode === "signup" && !/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(password)) {
+      setError("Password must contain uppercase, lowercase, and number."); return;
+    }
     setEmailLoading(true); setError("");
     try {
       if (mode === "login") {
         const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
         if (error) setError(error.message);
       } else {
-        const { error } = await supabase.auth.signUp({ email: email.trim(), password });
+        const { error } = await supabase.auth.signUp({
+          email: email.trim(),
+          password,
+          options: {
+            // Redirect back to the app after email confirmation so detectSessionInUrl picks up the session
+            emailRedirectTo: `${window.location.origin}/`,
+          },
+        });
         if (error) setError(error.message);
-        else setSuccess("✅ Account created! Check your email to verify.");
+        else setSuccess("✅ Account created! Check your email to verify, then you'll be signed in automatically.");
       }
     } catch { setError("Something went wrong. Please try again."); }
     finally { setEmailLoading(false); }
@@ -128,7 +140,7 @@ const LoginScreen = () => {
     setEmailLoading(true); setError("");
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-        redirectTo: "https://flicksindia.online/reset-password",
+        redirectTo: `${window.location.origin}/`,
       });
       if (error) setError(error.message);
       else setSuccess("📧 Reset link sent! Check your inbox.");
