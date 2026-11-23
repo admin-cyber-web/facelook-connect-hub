@@ -1131,10 +1131,16 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     [broadcastChatMusic, selectedChatTrack],
   );
 
-  const syncPendingChatMusic = useCallback(() => {
+const syncPendingChatMusic = useCallback(() => {
     const pending = pendingChatMusicSyncRef.current;
     const audio = chatMusicAudioRef.current;
     if (!pending || !audio || audio.readyState < HTMLMediaElement.HAVE_METADATA) return;
+    // Respect user-initiated pause: don't auto-play if user explicitly paused
+    if (userPausedRef.current) {
+      pendingChatMusicSyncRef.current = null;
+      audio.pause();
+      return;
+    }
     pendingChatMusicSyncRef.current = null;
     const targetTime =
       pending.currentTime +
@@ -1156,7 +1162,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     }
   }, []);
 
-  const selectChatMusicTrack = useCallback(
+const selectChatMusicTrack = useCallback(
     (track: ChatMusicTrack) => {
       const audio = chatMusicAudioRef.current;
       if (!audio) return;
@@ -1172,6 +1178,8 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       setChatMusicTime(0);
       setChatMusicDuration(0);
       setChatMusicPlaying(true);
+      // Clear user-paused flag when selecting a new track explicitly
+      userPausedRef.current = false;
       pendingChatMusicSyncRef.current = sync;
       if (audio.src !== track.audio_url) {
         audio.src = track.audio_url;
@@ -1180,21 +1188,15 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
         audio.currentTime = 0;
         pendingChatMusicSyncRef.current = null;
       }
-      void audio.play().then(
-        () => {
-          publishChatMusicState(true, 0, track);
-          pendingChatMusicSyncRef.current = null;
-        },
-        (error: unknown) => {
-          if (error instanceof DOMException && error.name === "AbortError") {
-            return;
-          }
-          console.error("[Chat] selected song could not be played:", error);
-          setChatMusicPlaying(false);
-          publishChatMusicState(false, 0, track);
-          toast.error("This song couldn't be played. Try another track.");
-        },
-      );
+      void audio.play().catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          return;
+        }
+        console.error("[Chat] selected song could not be played:", error);
+        setChatMusicPlaying(false);
+        publishChatMusicState(false, 0, track);
+        toast.error("This song couldn't be played. Try another track.");
+      });
     },
     [publishChatMusicState],
   );
@@ -1267,7 +1269,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     }
   }, [chatMusicRoomId]);
 
-  useEffect(() => {
+useEffect(() => {
     if (!isOpen || bottomTab !== "chat" || !chatMusicRoomId) return;
     const audio = chatMusicAudioRef.current;
     const channelName = `chat_music_sync_${chatMusicRoomId.replace(/:/g, "_")}`;
@@ -1318,6 +1320,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
           timestamp: sync.timestamp,
         };
         // Respect user-initiated pause: if user explicitly paused, don't auto-play from sync
+        // But if remote user explicitly paused (sync.isPlaying === false), we must pause locally
         const shouldPlay = sync.isPlaying && !userPausedRef.current;
         setChatMusicPlaying(shouldPlay);
         setChatMusicTime(currentTime);
@@ -1333,11 +1336,18 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
           audio.load();
           setChatMusicDuration(0);
         }
-        // Only call syncPendingChatMusic if we should actually play (not user-paused)
-        if (shouldPlay) {
-          syncPendingChatMusic();
-        } else if (audio.readyState >= HTMLMediaElement.HAVE_METADATA) {
-          // Ensure audio is paused if user paused
+        // If sync indicates pause (isPlaying === false), always pause locally - this handles
+        // remote pause from the other user. If sync indicates play but user paused locally,
+        // respect user's pause and keep audio paused.
+        if (sync.isPlaying) {
+          if (!userPausedRef.current) {
+            syncPendingChatMusic();
+          } else if (audio.readyState >= HTMLMediaElement.HAVE_METADATA) {
+            // User explicitly paused locally, keep audio paused
+            audio.pause();
+          }
+        } else {
+          // Remote user paused - immediately pause local audio
           audio.pause();
         }
       })
