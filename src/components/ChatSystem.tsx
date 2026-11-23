@@ -1198,7 +1198,9 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       setShowSongLibrary(true);
       return;
     }
-    if (chatMusicPlaying) {
+    const shouldPlay = audio.paused;
+    
+    if (!shouldPlay) {
       audio.pause();
       setChatMusicPlaying(false);
       publishChatMusicState(false);
