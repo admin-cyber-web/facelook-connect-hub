@@ -1059,9 +1059,31 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   const [msgMenuId, setMsgMenuId] = useState<string | null>(null);
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [showSongLibrary, setShowSongLibrary] = useState(false);
-  const [songLibrary, setSongLibrary] = useState<ChatMusicTrack[]>([]);
-  const [loadingSongLibrary, setLoadingSongLibrary] = useState(false);
-  const [songLibraryError, setSongLibraryError] = useState("");
+  const [songLibrary] = useState<ChatMusicTrack[]>(() => {
+    const baseUrl = "https://flicksindiacdn.b-cdn.net/chat-songs/";
+    const songFiles = [
+      "Alfaaz Hamza Malik x Zain Zohaib Official Visualiser.mp3",
+      "Guzarish.mp3",
+      "JUST_A_BOY_DrINsaNE_official.mp3",
+    ];
+    return songFiles.map((file, index) => {
+      const encodedFile = encodeURIComponent(file);
+      const audio_url = `${baseUrl}${encodedFile}`;
+      // Clean title: remove .mp3 and common suffixes, replace underscores with spaces
+      let title = file.replace(/\.mp3$/i, "");
+      title = title.replace(/_/g, " ");
+      title = title.replace(/\s*Official Visualiser\s*$/i, "");
+      title = title.replace(/\s*official\s*$/i, "");
+      return {
+        id: `song-${index}`,
+        title: title.trim(),
+        artist: "Chat Songs",
+        audio_url,
+      };
+    });
+  });
+  const [loadingSongLibrary] = useState(false);
+  const [songLibraryError] = useState("");
   const [selectedChatTrack, setSelectedChatTrack] = useState<ChatMusicTrack | null>(null);
   const [chatMusicPlaying, setChatMusicPlaying] = useState(false);
   const [chatMusicTime, setChatMusicTime] = useState(0);
@@ -1233,53 +1255,6 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
       audio.load();
     }
   }, [chatMusicRoomId]);
-
-  useEffect(() => {
-    if (!showSongLibrary || !selectedUser?.id) return;
-    let cancelled = false;
-    setLoadingSongLibrary(true);
-    setSongLibraryError("");
-    void supabase
-      .from("songs")
-      .select("id, title, artist, audio_url")
-      .order("title", { ascending: true })
-      .limit(100)
-      .then(({ data, error }) => {
-        if (cancelled) return;
-        if (error) {
-          console.error("[Chat] song library fetch failed:", error);
-          setSongLibrary([]);
-          setSongLibraryError("Couldn't load songs. Please try again.");
-          return;
-        }
-        setSongLibrary(
-          (data || []).flatMap((track) => {
-            if (
-              typeof track.title !== "string" ||
-              typeof track.audio_url !== "string" ||
-              !track.audio_url.startsWith("https://")
-            ) {
-              return [];
-            }
-            return [{
-              id: String(track.id ?? track.audio_url),
-              title: track.title,
-              artist:
-                typeof track.artist === "string" && track.artist.trim()
-                  ? track.artist
-                  : "Unknown artist",
-              audio_url: track.audio_url,
-            }];
-          }),
-        );
-      })
-      .finally(() => {
-        if (!cancelled) setLoadingSongLibrary(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedUser?.id, showSongLibrary]);
 
   useEffect(() => {
     if (!isOpen || bottomTab !== "chat" || !chatMusicRoomId) return;
