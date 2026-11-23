@@ -5406,9 +5406,9 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                   setActionLoading("");
                                 }
                               }}
-                              className="flex w-full items-center gap-2 px-4 py-3 text-sm font-bold text-red-300 hover:bg-red-500/10 disabled:opacity-50"
+                              className="flex w-full items-center gap-2 px-4 py-3 text-sm font-bold hover:bg-white/8"
                             >
-                              <UserX size={15} /> Disconnect connection
+                              <UserX size={15} /> Disconnect
                             </button>
                           )}
                           <button
@@ -5416,7 +5416,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                               setPanicMode(true);
                               setShowChatMenu(false);
                             }}
-                            className="flex items-center gap-2 w-full px-4 py-3 text-sm font-bold text-red-400 hover:bg-red-500/10"
+                            className="flex items-center gap-2 w-full px-4 py-3 text-sm font-bold text-stone-700 hover:bg-white/8"
                           >
                             🖕 Panic Mode
                           </button>
