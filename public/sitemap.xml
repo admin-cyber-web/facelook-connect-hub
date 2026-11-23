@@ -16,6 +16,12 @@
     <changefreq>yearly</changefreq>
   </url>
   <url>
+    <loc>https://www.flicksindia.online/post/675c2c26-08b2-41e9-a0c4-911170f45faa</loc>
+    <priority>0.8</priority>
+    <changefreq>weekly</changefreq>
+    <lastmod>2026-11-22</lastmod>
+  </url>
+  <url>
     <loc>https://www.flicksindia.online/post/749d12d5-09d5-4d7c-96a8-ec92e8ce9edd</loc>
     <priority>0.8</priority>
     <changefreq>weekly</changefreq>
@@ -206,11 +212,5 @@
     <priority>0.8</priority>
     <changefreq>weekly</changefreq>
     <lastmod>2026-11-01</lastmod>
-  </url>
-  <url>
-    <loc>https://www.flicksindia.online/story/36aff58d-7c60-4527-bc5a-e1d6e44bd894</loc>
-    <priority>0.6</priority>
-    <changefreq>daily</changefreq>
-    <lastmod>2026-11-22</lastmod>
   </url>
 </urlset>

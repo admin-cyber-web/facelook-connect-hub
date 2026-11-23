@@ -1,6 +1,8 @@
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Caveat:wght@400..700&family=Kalam:wght@300;400;700&display=swap');
 
+@import './dn-theme.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -1499,6 +1501,7 @@ html, body {
   position: relative;
   touch-action: pan-y;
   overscroll-behavior-y: auto;
+  font-family: "DM Sans", ui-sans-serif, system-ui, "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", "Twemoji Mozilla", "Android Emoji", sans-serif;
 }
 
 /* Keep the root document a normal, expanding scroll surface. */
@@ -1517,6 +1520,7 @@ body,
   touch-action: pan-y;
   overflow-x: hidden;
   overflow-y: visible;
+  font-family: inherit;
 }
 
 /* Keep browser-reported insets for fixed toast surfaces; never force Android

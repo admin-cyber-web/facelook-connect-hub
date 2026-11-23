@@ -275,7 +275,7 @@ export default defineConfig({
         if (
           warning.code === "UNRESOLVED_IMPORT" &&
           (warning.message.includes("@capgo/capacitor-social-login") ||
-            warning.source === "@capgo/capacitor-social-login")
+            (warning as any).source === "@capgo/capacitor-social-login")
         ) {
           throw new Error(
             "The @capgo/capacitor-social-login import could not be bundled. Install the plugin before building Android.",

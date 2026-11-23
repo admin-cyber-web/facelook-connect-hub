@@ -147,7 +147,7 @@ const GroupCard = ({
             }}
             className="relative z-50 pointer-events-auto flex-1 py-1.5 rounded-lg text-[10px] font-black transition-all active:scale-95 bg-green-50 text-green-700 border border-green-200"
           >
-            {justJoined ? "âœ“ Joined!" : "View"}
+            {justJoined ? "✅ Joined!" : "View"}
           </button>
           {!justJoined && onLeave && (
             <button
@@ -1857,7 +1857,7 @@ toast.success("You have left the Circle. 👋");
     await refreshMembers();
     toast.success(
       role === "admin" ? "👑 Promoted to Admin!" :
-      role === "moderator" ? "â­ Promoted to Moderator." :
+      role === "moderator" ? "🛡️ Promoted to Moderator." :
       "Role updated."
     );
   };
@@ -2165,7 +2165,7 @@ toast.success("You have left the Circle. 👋");
             {currentRole === "moderator" && (
               <span className="text-[10px] font-black px-2.5 py-1 rounded-full text-white border border-blue-500/40"
                 style={{ background: "rgba(59,130,246,0.2)" }}>
-                â­ Moderator
+                🛡️ Moderator
               </span>
             )}
           </div>
@@ -3481,7 +3481,7 @@ toast.success("You have left the Circle. 👋");
                           </p>
                           <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full ${m.role === "admin" ? "text-amber-300 border border-amber-500/30" : "text-blue-300 border border-blue-500/30"}`}
                             style={{ background: m.role === "admin" ? "rgba(245,158,11,0.12)" : "rgba(59,130,246,0.12)" }}>
-                            {m.role === "admin" ? "ðŸ‘‘ Admin" : "â­ Moderator"}
+                            {m.role === "admin" ? "👑 Admin" : "🛡️ Moderator"}
                           </span>
                         </div>
                         {m.user_id !== currentUserId && (
@@ -3575,9 +3575,9 @@ toast.success("You have left the Circle. 👋");
                         {/* RSVP buttons */}
                         <div className="flex gap-2 mt-2.5">
                           {[
-                            { status: "going", label: "âœ… Going" },
-                            { status: "maybe", label: "ðŸ¤” Maybe" },
-                            { status: "not_going", label: "âŒ Can't Go" },
+                            { status: "going", label: "✅ Going" },
+                            { status: "maybe", label: "🤔 Maybe" },
+                            { status: "not_going", label: "❌ Can't Go" },
                           ].map(opt => (
                             <button
                               key={opt.status}
@@ -3917,7 +3917,7 @@ toast.success("You have left the Circle. 👋");
                           ? "text-blue-700 bg-blue-50 border-blue-200"
                           : "text-gray-500 bg-[#c4e8d4] border-gray-200"
                     }`}>
-                      {memberSheet.role === "admin" ? "ðŸ‘‘ Admin" : memberSheet.role === "moderator" ? "â­ Moderator" : "Member"}
+                      {memberSheet.role === "admin" ? "👑 Admin" : memberSheet.role === "moderator" ? "🛡️ Moderator" : "Member"}
                     </span>
                   </div>
                 </div>
@@ -3946,7 +3946,7 @@ toast.success("You have left the Circle. 👋");
                         className="w-full flex items-center gap-4 px-5 py-4 text-yellow-600 active:bg-yellow-50 text-[14px] font-semibold border-t border-gray-50"
                       >
                         <Shield size={18} className="shrink-0" />
-                        Make Admin ðŸ‘‘
+                        Make Admin 👑
                       </button>
                     )
                   )}
@@ -3957,7 +3957,7 @@ toast.success("You have left the Circle. 👋");
                       className="w-full flex items-center gap-4 px-5 py-4 text-blue-600 active:bg-blue-50 text-[14px] font-semibold border-t border-gray-50"
                     >
                       <Shield size={18} className="shrink-0" />
-                      {memberSheet.role === "moderator" ? "Remove Moderator â­" : "Make Moderator â­"}
+                      {memberSheet.role === "moderator" ? "Remove Moderator 🛡️" : "Make Moderator 🛡️"}
                     </button>
                   )}
                   {/* Remove from Circle */}
@@ -4120,11 +4120,11 @@ toast.success("You have left the Circle. 👋");
                         <div className={`rounded-2xl px-3 py-2 flex-1 ${(comment as any).is_hidden && !isPostOwner && !canModerate ? "bg-gray-50 border border-dashed border-gray-200" : "bg-gray-100"}`}>
                           <p style={{ color: "#800000", fontSize: 12, fontWeight: 900 }}>{comment.author_name}</p>
                           {(comment as any).is_hidden && !isPostOwner && !canModerate ? (
-                            <p className="text-[13px] text-gray-400 italic mt-0.5">ðŸ’¬ Comment hidden by {(comment as any).hidden_by_name || "moderator"}</p>
+                            <p className="text-[13px] text-gray-400 italic mt-0.5">💬 Comment hidden by {(comment as any).hidden_by_name || "moderator"}</p>
                           ) : (comment as any).is_hidden && (isPostOwner || canModerate) ? (
                             <>
                               <p className="text-[13px] text-gray-300 mt-0.5 line-through">{maskProfanity(comment.content)}</p>
-                              <p className="text-[10px] text-gray-400 mt-0.5">ðŸ™ˆ Hidden by {(comment as any).hidden_by_name}</p>
+                              <p className="text-[10px] text-gray-400 mt-0.5">😊 Hidden by {(comment as any).hidden_by_name}</p>
                             </>
                           ) : (
                             <p className="text-[14px] text-gray-800 mt-0.5 leading-snug">{maskProfanity(comment.content)}</p>
@@ -4189,13 +4189,13 @@ toast.success("You have left the Circle. 👋");
             type MenuItem = { icon: string; label: string; action: () => void; danger?: boolean };
             const items: MenuItem[] = [];
             if (isCommenter) {
-              items.push({ icon: "âœï¸", label: "Edit", action: () => { setEditingCircleComment({ id: ac.id, text: ac.content }); setCircleCommentAction(null); } });
-              items.push({ icon: "ðŸ—‘ï¸", label: "Delete", action: () => handleCircleCommentDelete(ac.id, postId), danger: true });
-              if (!(ac as any).is_hidden) items.push({ icon: "ðŸ™ˆ", label: "Hide from Others", action: () => handleCircleCommentHide(ac.id, postId) });
+              items.push({ icon: "✏️", label: "Edit", action: () => { setEditingCircleComment({ id: ac.id, text: ac.content }); setCircleCommentAction(null); } });
+              items.push({ icon: "🗑️", label: "Delete", action: () => handleCircleCommentDelete(ac.id, postId), danger: true });
+              if (!(ac as any).is_hidden) items.push({ icon: "😊", label: "Hide from Others", action: () => handleCircleCommentHide(ac.id, postId) });
             }
             if ((isPostOwner || canModerate) && !isCommenter) {
-              items.push({ icon: "ðŸ—‘ï¸", label: "Delete", action: () => handleCircleCommentDelete(ac.id, postId), danger: true });
-              if (!(ac as any).is_hidden) items.push({ icon: "ðŸ™ˆ", label: "Hide Comment", action: () => handleCircleCommentHide(ac.id, postId) });
+              items.push({ icon: "🗑️", label: "Delete", action: () => handleCircleCommentDelete(ac.id, postId), danger: true });
+              if (!(ac as any).is_hidden) items.push({ icon: "😊", label: "Hide Comment", action: () => handleCircleCommentHide(ac.id, postId) });
             }
             if (!isCommenter && !isPostOwner && !canModerate) {
               items.push({ icon: "🚨", label: "Report", action: () => handleCircleCommentReport(ac, postId), danger: true });
@@ -4260,7 +4260,7 @@ toast.success("You have left the Circle. 👋");
                 onClick={e => e.stopPropagation()}
               >
                 <div className="flex justify-center mb-4"><div className="w-10 h-1 rounded-full bg-gray-300" /></div>
-                <h3 className="font-black text-gray-900 text-base mb-3 flex items-center gap-2">âœï¸ Edit Comment</h3>
+                <h3 className="font-black text-gray-900 text-base mb-3 flex items-center gap-2">✏️ Edit Comment</h3>
                 <textarea
                   value={editingCircleComment.text}
                   onChange={e => setEditingCircleComment(prev => prev ? { ...prev, text: e.target.value } : null)}

@@ -223,13 +223,13 @@ const SurpriseReactionModal = ({
           </button>
 
           <div className="relative mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-3xl border border-fuchsia-200/30 bg-gradient-to-br from-fuchsia-400 to-violet-500 text-3xl shadow-lg shadow-fuchsia-500/30">
-            ðŸŽ
+            🎁
           </div>
           <p className="relative text-[11px] font-black uppercase tracking-[0.24em] text-fuchsia-200/80">
             A surprise from a friend
           </p>
           <h2 className="relative mt-2 text-2xl font-black text-white">
-            Hey {message.targetUserName}! âœ¨
+            Hey {message.targetUserName}! ✨
           </h2>
 
           {message.gifUrl && (
@@ -711,7 +711,7 @@ const PostMedia = memo(({
             </div>
             <div className="scene-vault-post-grain" aria-hidden="true" />
             <div className="scene-vault-post-caption" aria-hidden="true">{mood === "angry" ? "FIGHT MODE" : mood.toUpperCase()}</div>
-            {mood === "love" && <span className="scene-vault-post-heart" aria-hidden="true">â™¥</span>}
+            {mood === "love" && <span className="scene-vault-post-heart" aria-hidden="true">❤️</span>}
             {mood === "travel" && <span className="scene-vault-post-motion" aria-hidden="true" />}
             {(mood === "sad" || mood === "missing") && <span className="scene-vault-post-rain" aria-hidden="true" />}
             {mood === "angry" && <span className="scene-vault-post-flash" aria-hidden="true" />}
@@ -974,7 +974,7 @@ const DemoCirclesRow = memo(({ onCircleClick }: { onCircleClick: () => void }) =
                 boxShadow: "0 0 12px rgba(0,200,83,0.45)",
               }}
             >
-              â­• Join Circle
+              ➕ Join Circle
             </button>
           </div>
         </motion.div>
@@ -1157,7 +1157,7 @@ const SurveyThumb = ({ rawUrl, question }: { rawUrl: string | null; question: st
       ) : (
         /* Fallback — pretty gradient tile with emoji */
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 select-none">
-          <span className="text-4xl">ðŸ—³ï¸</span>
+          <span className="text-4xl">📊</span>
           <span className="text-white/30 text-[10px] font-bold uppercase tracking-widest">Survey</span>
         </div>
       )}
@@ -1211,7 +1211,7 @@ const LatestSurveysWidget = ({
     <div className="pt-3 pb-2 border-b border-white/5" style={{ background: "#0F172A" }}>
       {/* Section header */}
       <div className="flex items-center justify-between px-4 mb-3">
-        <p className="text-[13px] font-black text-white/70 tracking-wide">ðŸ—³ï¸ Latest Surveys</p>
+        <p className="text-[13px] font-black text-white/70 tracking-wide">📊 Latest Surveys</p>
         {onNavigateToSurveys && (
           <button
             onClick={onNavigateToSurveys}
@@ -1674,7 +1674,7 @@ const SuggestedCirclesRow = ({
                         }
                   }
                 >
-                  {joined ? "LEAVE" : "â­• Join Circle"}
+                  {joined ? "LEAVE" : "➕ Join Circle"}
                 </button>
               </div>
             </div>
@@ -1926,7 +1926,7 @@ const InFeedHooksStrip = ({
                       letterSpacing: "0.03em",
                     }}
                   >
-                    âœ¦ by @{ownerName}
+                    ✨ by @{ownerName}
                   </p>
                 )}
                 <button
@@ -3992,7 +3992,7 @@ const HiddenPostsDrawer = ({
                       </p>
                     ) : post.media_url ? (
                       <p className="text-[12px] text-white/30 mt-0.5 italic">
-                        {isVideo ? "📼 Video post" : "ðŸ“· Image post"}
+                        {isVideo ? "📼 Video post" : "🖼️ Image post"}
                       </p>
                     ) : null}
                   </div>
@@ -5108,7 +5108,7 @@ const FameFeed = ({
         toast.error("Could not leave the circle. Please try again.");
         return;
       }
-      toast.success("You have left the Circle. ðŸ‘‹");
+      toast.success("You have left the Circle. 👋");
     } else {
       // Optimistic join
       setJoinedCircleIds((prev) => [...prev, circleId]);
@@ -5136,7 +5136,7 @@ const FameFeed = ({
         }
         return;
       }
-      toast.success("Welcome to the Circle! â­•");
+      toast.success("Welcome to the Circle! ➕");
     }
   };
 
@@ -6560,7 +6560,7 @@ const FameFeed = ({
         dataCache.setCache("famePosts", { data: next, fetchedAt: Date.now() });
         return next;
       });
-      toast.success("ðŸ—‘ï¸ Post deleted by admin");
+      toast.success("🗑️ Post deleted by admin");
       setTimeout(() => deletingPostIdsRef.current.delete(postId), 10_000);
     } catch (error: unknown) {
       deletingPostIdsRef.current.delete(postId);
@@ -6589,7 +6589,7 @@ const FameFeed = ({
       .update({ account_status: "suspended", suspension_reason: reason.trim() })
       .eq("id", authorId);
     if (!error) {
-      toast.success(`ðŸš« ${authorName || "User"} has been banned`);
+      toast.success(`🚫 ${authorName || "User"} has been banned`);
       setPosts((p) => p.filter((x) => x.author_id !== authorId));
     } else {
       toast.error("Could not ban user");
@@ -6631,7 +6631,7 @@ const FameFeed = ({
       }
       return next;
     });
-    toast.success("Post unhide ho gaya âœ…");
+    toast.success("Post unhide ho gaya ✅");
   };
 
   const handleClearAll = () => {
@@ -6642,7 +6642,7 @@ const FameFeed = ({
       } catch {}
     }
     setShowHiddenArchive(false);
-    toast.success("Sare hidden posts restore ho gaye âœ…");
+    toast.success("Sare hidden posts restore ho gaye ✅");
   };
 
   const handleReportSubmit = async (selectedReason?: string) => {
@@ -6844,7 +6844,7 @@ const FameFeed = ({
                       "Vibe User"}
                     {post.author_id && authorVerified[post.author_id] && (
                       <span className="ml-1 text-blue-400" title="Verified">
-                        âœ“
+                        ✅
                       </span>
                     )}
                   </button>
@@ -6932,7 +6932,7 @@ const FameFeed = ({
                         {followingInProgress[post.author_id]
                           ? "..."
                           : followingMap[post.author_id]
-                            ? "âœ“ Following"
+                            ? "✅ Following"
                             : "+ Follow"}
                       </button>
                     )}
@@ -7054,7 +7054,7 @@ const FameFeed = ({
                           }
                           className="pointer-events-auto w-full flex items-center gap-3 px-4 py-3.5 text-blue-400 hover:bg-white/10 text-sm font-semibold border-b border-white/10 cursor-pointer"
                         >
-                          <span className="text-base leading-none">âœï¸</span>{" "}
+                          <span className="text-base leading-none">✏️</span>{" "}
                           Edit Post
                         </button>
                         <button
@@ -7326,7 +7326,7 @@ const FameFeed = ({
                       className="text-[12px] font-bold"
                       style={{ color: "#FF0000" }}
                     >
-                      ðŸ“Œ {post.author || "Someone"} pinned{" "}
+                      📌 {post.author || "Someone"} pinned{" "}
                       <span className="font-black">{firstNamed}</span>
                       {others > 0 ? (
                         <>
@@ -7543,7 +7543,7 @@ const FameFeed = ({
                           style={{ color: "rgba(255,255,255,0.26)" }}>COMMUNITY</span>
                         <span className="text-[9px] font-black text-center leading-snug px-1"
                           style={{ color: "#c8ff00" }}>
-                          âœ¨ Join Flicks!
+                          ⭐ Join Flicks!
                         </span>
                       </div>
                     ) : ecoItem.kind === "circle" ? (
@@ -7552,7 +7552,7 @@ const FameFeed = ({
                           style={{ background: ecoItem.cover ? "transparent" : "rgba(0,200,255,0.12)", border: "1px solid rgba(0,200,255,0.2)", minWidth: 32 }}>
                           {ecoItem.cover
                             ? <img src={ecoItem.cover} className="w-full h-full object-cover" alt="" decoding="async" loading="lazy" />
-                            : "ðŸ”µ"}
+                            : "⚡"}
                         </div>
                         <div className="flex flex-col min-w-0 flex-1 overflow-hidden">
                           <span className="text-[7px] font-black uppercase tracking-widest"
@@ -7733,7 +7733,7 @@ const FameFeed = ({
                 >
                   {likedIds.has(post.id)
                     ? reactionEmoji(userReactions[post.id])
-                    : "ðŸ‘"}
+                    : "👍"}
                 </span>
                 <span className="text-xs font-black text-lime-400">
                   {post.likes_count || 0}
@@ -7834,7 +7834,7 @@ const FameFeed = ({
               </div>
             )}
 
-            {/* ðŸ”— Link — viral chain button */}
+            {/* 🔗 Link — viral chain button */}
             <MagnetButton
               postId={post.id}
               postType="post"
@@ -7874,7 +7874,7 @@ const FameFeed = ({
             return (
               <div className="px-4 pb-2 pt-0 flex items-center gap-1.5 flex-wrap">
                 <span className="text-[9px] font-black text-lime-400/50 uppercase tracking-widest">
-                  ðŸ”— Chain:
+                  🔗 Chain:
                 </span>
                 {d.linkers.map((linker, i) => {
                   const isLast = i === 0;
@@ -7904,7 +7904,7 @@ const FameFeed = ({
                       {linker.full_name?.split(" ")[0]}
                       {isLast && (
                         <span className="text-[8px] ml-0.5 opacity-70 font-bold">
-                          âœ“ latest
+                          ✅ latest
                         </span>
                       )}
                     </span>
@@ -7931,7 +7931,7 @@ const FameFeed = ({
                     key={v.id}
                     className="animate-pulse text-red-400 bg-red-950/30 px-3 py-1.5 rounded-lg border border-red-500/20 font-medium flex items-center gap-2"
                   >
-                    <span className="text-base leading-none">ðŸ¦</span>
+                    <span className="text-base leading-none">🐦</span>
                     <span className="text-[12px] font-black flex-1">
                       {v.status_text}
                     </span>
@@ -7945,7 +7945,7 @@ const FameFeed = ({
                     key={v.id}
                     className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-purple-900/20 border border-purple-500/20"
                   >
-                    <span className="text-base leading-none">ðŸ¦</span>
+                    <span className="text-base leading-none">🐦</span>
                     <span className="text-[11px] text-purple-300 font-semibold flex-1">
                       {v.status_text}
                     </span>
@@ -8258,7 +8258,7 @@ const FameFeed = ({
                                       </div>
                                     ) : c.is_hidden && !isPostOwner ? (
                                       <p className="text-[13px] text-white/30 italic mt-0.5">
-                                        ðŸ’¬ Comment hidden by{" "}
+                                        💬 Comment hidden by{" "}
                                         {c.hidden_by_name || "admin"}
                                       </p>
                                     ) : c.is_hidden && isPostOwner ? (
@@ -8267,7 +8267,7 @@ const FameFeed = ({
                                           {c.content}
                                         </p>
                                         <p className="text-[10px] text-white/30 mt-0.5">
-                                          ðŸ™ˆ Hidden by {c.hidden_by_name}
+                                          😊 Hidden by {c.hidden_by_name}
                                         </p>
                                       </>
                                     ) : (
@@ -8301,7 +8301,7 @@ const FameFeed = ({
                                           data-reaction-surface="fame-comment"
                                           className="text-[11px] text-white/40 font-bold"
                                         >
-                                          ðŸ˜Š React
+                                          😊 React
                                         </button>
                                         <AnimatePresence>
                                           {commentReactionBarId === c.id && (
@@ -8898,7 +8898,7 @@ const FameFeed = ({
                         </p>
                         {u.fame_points > 0 && (
                           <p className="text-white/70 text-[11px] font-black leading-none">
-                            â­ {u.fame_points} Fame
+                            🛡️ {u.fame_points} Fame
                           </p>
                         )}
                         <motion.button
@@ -9296,7 +9296,7 @@ const FameFeed = ({
                             const emoji =
                               REACTIONS.find(
                                 (r) => r.type === item.reaction_type,
-                              )?.emoji ?? "ðŸ‘";
+                              )?.emoji ?? "👍";
                             const initials = (profile?.full_name ||
                               "?")[0].toUpperCase();
                             return (
@@ -9366,7 +9366,7 @@ const FameFeed = ({
 
             const items: FeedCommentMenuItem[] = [
               {
-                icon: "âœï¸",
+                icon: "✏️",
                 label: "Edit Comment",
                 action: () => {
                   setEditingFeedComment({
@@ -9378,7 +9378,7 @@ const FameFeed = ({
                 },
               },
               {
-                icon: "ðŸ—‘ï¸",
+                icon: "🗑️",
                 label: "Delete Comment",
                 action: () => handleFeedCommentDelete(ac.id, postId),
                 danger: true,
@@ -9386,7 +9386,7 @@ const FameFeed = ({
             ];
             if (!ac.is_hidden) {
               items.push({
-                icon: "ðŸ™ˆ",
+                icon: "😊",
                 label: "Hide from Others",
                 action: () => handleFeedCommentHide(ac.id, postId),
               });
