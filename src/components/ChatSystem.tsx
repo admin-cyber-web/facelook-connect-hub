@@ -3205,9 +3205,18 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
 
       if (data) {
         setNewMessage("");
-        setMessages((prev) =>
-          prev.map((m) => (m.id === tempId ? (data as Message) : m)),
-        );
+        setMessages((prev) => {
+          const realMsg = data as Message;
+          // Deduplicate: remove both the optimistic temp message and any
+          // real message already added by the realtime INSERT listener,
+          // then add the real message exactly once.
+          const filtered = prev.filter(
+            (m) => m.id !== tempId && m.id !== realMsg.id,
+          );
+          return [...filtered, realMsg]
+            .sort((a, b) => a.created_at.localeCompare(b.created_at))
+            .slice(-200);
+        });
         scheduleContactsRefresh();
       } else if (error) {
         setMessages((prev) => prev.filter((m) => m.id !== tempId));
@@ -3533,9 +3542,15 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
         .single();
 
       if (data) {
-        setMessages((prev) =>
-          prev.map((m) => (m.id === tempId ? (data as Message) : m))
-        );
+        setMessages((prev) => {
+          const realMsg = data as Message;
+          const filtered = prev.filter(
+            (m) => m.id !== tempId && m.id !== realMsg.id,
+          );
+          return [...filtered, realMsg]
+            .sort((a, b) => a.created_at.localeCompare(b.created_at))
+            .slice(-200);
+        });
         scheduleContactsRefresh();
         if (soundEnabled) playSound("send");
       } else if (error) {
