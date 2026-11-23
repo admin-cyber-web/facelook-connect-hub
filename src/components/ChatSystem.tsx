@@ -1092,6 +1092,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
   const chatMusicChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const pendingChatMusicSyncRef = useRef<ChatMusicSyncPayload | null>(null);
   const lastMusicSeekBroadcastAtRef = useRef(0);
+  const userPausedRef = useRef(false);
   const chatMusicStateRef = useRef({
     track: selectedChatTrack,
     isPlaying: chatMusicPlaying,
@@ -1144,6 +1145,9 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
     );
     if (pending.isPlaying) {
       void audio.play().catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          return;
+        }
         console.warn("[Chat] browser could not start synchronized music:", error);
         toast.info("Tap Play to start the synchronized song.");
       });
@@ -1182,6 +1186,9 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
           pendingChatMusicSyncRef.current = null;
         },
         (error: unknown) => {
+          if (error instanceof DOMException && error.name === "AbortError") {
+            return;
+          }
           console.error("[Chat] selected song could not be played:", error);
           setChatMusicPlaying(false);
           publishChatMusicState(false, 0, track);
@@ -1201,12 +1208,17 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
 
     if (chatMusicPlaying) {
       audio.pause();
+      userPausedRef.current = true;
       setChatMusicPlaying(false);
       publishChatMusicState(false);
     } else {
+      userPausedRef.current = false;
       setChatMusicPlaying(true);
       publishChatMusicState(true);
       void audio.play().catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          return;
+        }
         console.error("[Chat] song playback could not resume:", error);
         setChatMusicPlaying(false);
         publishChatMusicState(false);
@@ -1305,7 +1317,9 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
           currentTime: sync.currentTime,
           timestamp: sync.timestamp,
         };
-        setChatMusicPlaying(sync.isPlaying);
+        // Respect user-initiated pause: if user explicitly paused, don't auto-play from sync
+        const shouldPlay = sync.isPlaying && !userPausedRef.current;
+        setChatMusicPlaying(shouldPlay);
         setChatMusicTime(currentTime);
 
         const audio = chatMusicAudioRef.current;
@@ -1319,7 +1333,13 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
           audio.load();
           setChatMusicDuration(0);
         }
-        syncPendingChatMusic();
+        // Only call syncPendingChatMusic if we should actually play (not user-paused)
+        if (shouldPlay) {
+          syncPendingChatMusic();
+        } else if (audio.readyState >= HTMLMediaElement.HAVE_METADATA) {
+          // Ensure audio is paused if user paused
+          audio.pause();
+        }
       })
       .subscribe((status) => {
         if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
