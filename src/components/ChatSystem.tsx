@@ -73,6 +73,28 @@ import { parseMessage } from "../lib/messageParser";
 import { ChatSticker } from "./ChatSticker";
 import { StickerPicker } from "./StickerPicker";
 import { stickerMediaType, type StickerItem } from "../lib/stickers";
+
+// Sticker types that should be rendered as images in message bubbles
+const stickerTypes = [
+  "love",
+  "morning",
+  "afternoon",
+  "evening",
+  "night",
+  "hot_weather",
+  "cold_weather",
+  "rain",
+  "anniversary",
+  "father_day",
+  "mother_day",
+  "diwali",
+  "holi",
+  "holiday",
+  "see_you_tomorrow",
+  "waiting",
+  "sleep_wake",
+  "warning",
+];
 import {
   hasRiskKeyword,
   hasLoveKeyword,
@@ -5688,7 +5710,15 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                           </div>
                                         </div>
                                       ) : msg.media_url && msg.media_type ? (
-                                        <MediaBubble url={msg.media_url} type={msg.media_type} />
+                                        stickerTypes.includes(msg.media_type) ? (
+                                          <img
+                                            src={msg.media_url}
+                                            alt={`Sticker: ${msg.media_type}`}
+                                            className="max-w-[220px] rounded-2xl object-cover cursor-pointer shadow-lg"
+                                          />
+                                        ) : (
+                                          <MediaBubble url={msg.media_url} type={msg.media_type} />
+                                        )
                                       ) : (
                                         <>
                                           {(() => {
