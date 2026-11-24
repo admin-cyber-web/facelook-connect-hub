@@ -42,12 +42,14 @@ const LoginScreen = () => {
 
   // Called when any of the 4 main buttons is tapped
   const requestAction = (action: PendingAction) => {
+    console.log("[Auth] requestAction called", { action });
     setPending(action);
     setShowLegalErr(false);
     setShowTerms(true);
   };
 
   const closeTerms = () => {
+    console.log("[Auth] closeTerms called", { pendingAction });
     setShowTerms(false);
     setPending(null);
     setShowLegalErr(false);
@@ -66,48 +68,65 @@ const LoginScreen = () => {
 
   // Called when user taps "Continue" inside Terms sheet
   const handleTermsContinue = async () => {
+    console.log("[Auth] handleTermsContinue called", { pendingAction, agreedTerms, agreedData });
     if (!agreedTerms || !agreedData) {
+      console.log("[Auth] Checkboxes not both agreed, showing legal error");
       setShowLegalErr(true);
       setShakeKey((k) => k + 1);
       return;
     }
-    setShowTerms(false);
     setShowLegalErr(false);
 
     if (pendingAction === "google") {
-      // Android uses the native Google account picker; browsers use Supabase OAuth.
-      // Use window.location.origin so the redirect works on any domain (dev, staging, production)
-      // and detectSessionInUrl can properly restore the session from the URL fragment.
+      console.log("[Auth] Starting Google OAuth flow", { platform: Capacitor.getPlatform() });
+      // Keep terms sheet open until OAuth redirect actually happens
+      // This prevents "bouncing back" to login screen on new devices
       setLoading(true);
       setError("");
       try {
         if (Capacitor.getPlatform() === "android") {
+          console.log("[Auth] Using native Google auth for Android");
           const { signInWithNativeGoogle } = await import("@/lib/googleNativeAuth");
           await signInWithNativeGoogle();
+          // Native auth handles redirect internally, close terms sheet after
+          setShowTerms(false);
         } else {
+          console.log("[Auth] Using Supabase OAuth for web");
           const { error } = await supabase.auth.signInWithOAuth({
             provider: "google",
             options: { redirectTo: `${window.location.origin}/` },
           });
-          if (error) throw error;
+          if (error) {
+            console.error("[Auth] Supabase OAuth error:", error);
+            throw error;
+          }
+          console.log("[Auth] Supabase OAuth initiated, redirect should happen now");
+          // OAuth redirect will happen, keep terms sheet open during redirect
+          // The page will unload, so no need to close terms sheet here
         }
       } catch (reason) {
         const authError = reason as { code?: string; message?: string };
+        console.error("[Auth] Google sign-in failed:", authError);
         if (authError.code !== "USER_CANCELLED") {
           setError(`Google sign-in failed: ${authError.message || "Please try again."}`);
         }
+        // On error, close terms sheet so user can retry
+        setShowTerms(false);
       }
       finally { setLoading(false); }
     } else if (pendingAction) {
+      console.log("[Auth] Opening email/password auth sheet", { pendingAction });
       // Open the email/password auth sheet
       clearForm();
       setAuthMode(pendingAction as AuthMode);
+      setShowTerms(false);
     }
     setPending(null);
   };
 
   // ── email auth ─────────────────────────────────────────────────────────────
   const handleEmailAuth = async (mode: "login" | "signup") => {
+    console.log("[Auth] handleEmailAuth called", { mode, email: email.trim() });
     if (!email.trim()) { setError("Please enter your email."); return; }
     if (mode === "signup" && password !== confirmPass) { setError("Passwords do not match."); return; }
     if (password.length < 6) { setError("Password must be at least 6 characters."); return; }
@@ -117,9 +136,17 @@ const LoginScreen = () => {
     setEmailLoading(true); setError("");
     try {
       if (mode === "login") {
+        console.log("[Auth] Attempting sign in with password");
         const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
-        if (error) setError(error.message);
+        if (error) {
+          console.error("[Auth] Sign in error:", error);
+          // Safely extract error message to prevent {} from appearing
+          setError(error?.message || error?.toString() || "Sign in failed. Please try again.");
+        } else {
+          console.log("[Auth] Sign in successful");
+        }
       } else {
+        console.log("[Auth] Attempting sign up");
         const { error } = await supabase.auth.signUp({
           email: email.trim(),
           password,
@@ -128,23 +155,43 @@ const LoginScreen = () => {
             emailRedirectTo: `${window.location.origin}/`,
           },
         });
-        if (error) setError(error.message);
-        else setSuccess("✅ Account created! Check your email to verify, then you'll be signed in automatically.");
+        if (error) {
+          console.error("[Auth] Sign up error:", error);
+          // Safely extract error message to prevent {} from appearing
+          setError(error?.message || error?.toString() || "Sign up failed. Please try again.");
+        } else {
+          console.log("[Auth] Sign up successful");
+          setSuccess("✅ Account created! Check your email to verify, then you'll be signed in automatically.");
+        }
       }
-    } catch { setError("Something went wrong. Please try again."); }
+    } catch (reason) {
+      console.error("[Auth] Unexpected error in handleEmailAuth:", reason);
+      const err = reason as { message?: string };
+      setError(err?.message || "Something went wrong. Please try again.");
+    }
     finally { setEmailLoading(false); }
   };
 
   const handleForgot = async () => {
+    console.log("[Auth] handleForgot called", { email: email.trim() });
     if (!email.trim()) { setError("Enter your email first."); emailRef.current?.focus(); return; }
     setEmailLoading(true); setError("");
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
         redirectTo: `${window.location.origin}/`,
       });
-      if (error) setError(error.message);
-      else setSuccess("📧 Reset link sent! Check your inbox.");
-    } catch { setError("Something went wrong. Try again."); }
+      if (error) {
+        console.error("[Auth] Reset password error:", error);
+        setError(error?.message || error?.toString() || "Failed to send reset link.");
+      } else {
+        console.log("[Auth] Reset password email sent");
+        setSuccess("📧 Reset link sent! Check your inbox.");
+      }
+    } catch (reason) {
+      console.error("[Auth] Unexpected error in handleForgot:", reason);
+      const err = reason as { message?: string };
+      setError(err?.message || "Something went wrong. Try again.");
+    }
     finally { setEmailLoading(false); }
   };
 

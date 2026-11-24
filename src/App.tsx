@@ -418,6 +418,7 @@ const App = () => {
   }, [connectionState]);
 
   useEffect(() => {
+    console.log("[Auth] Setting up auth state listener");
     supabase.auth.getSession().then(({ data, error }) => {
       console.log(
         "[Auth] getSession →",
@@ -431,7 +432,7 @@ const App = () => {
     });
 
     const { data: listener } = supabase.auth.onAuthStateChange((event, s) => {
-      console.log(`[Auth] onAuthStateChange → event=${event}  user=${s?.user?.email ?? "none"}`);
+      console.log(`[Auth] onAuthStateChange → event=${event}  user=${s?.user?.email ?? "none"}  session=${s ? "yes" : "no"}`);
       // INITIAL_SESSION is handled by getSession() above.
       // TOKEN_REFRESHED fires silently every ~hour — skipping it prevents a full
       // app-tree re-render / re-mount that causes overheating on mobile.
