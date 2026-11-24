@@ -9,8 +9,7 @@ import { checkSupabaseReachable, supabase } from "@/lib/supabaseClient";
 import { NETWORK_FAILURE_EVENT, SUPABASE_REACHABLE_EVENT } from "@/lib/networkStatus";
 import type { Session } from "@supabase/supabase-js";
 import { registerPushPlayer } from "@/lib/oneSignalPush";
-import { Plus } from "lucide-react";
-import AdminPostPanel from "./components/AdminPostPanel";
+
 import CurvedEdgeOverlay from "./components/CurvedEdgeOverlay";
 import SharePopupHost from "./components/SharePopupHost";
 import { ProfileViewerProvider } from "./context/ProfileViewerContext";
@@ -298,7 +297,7 @@ void ADMIN_EMAILS;
 
 const App = () => {
   const [session, setSession]       = useState<Session | null | undefined>(undefined);
-  const [isAdminOpen, setIsAdminOpen] = useState(false);
+  
   const [connectionState, setConnectionState] = useState<"online" | "offline" | "reconnecting">(
     () => (typeof navigator === "undefined" || navigator.onLine ? "online" : "offline"),
   );
@@ -512,22 +511,7 @@ const App = () => {
 
           <CurvedEdgeOverlay />
 
-          {isAdminEmail(session?.user?.email || "") && (
-            <button
-              onClick={() => setIsAdminOpen(true)}
-              className="fixed bottom-6 right-6 z-[100] bg-blue-600 text-white p-4 rounded-full shadow-[0_0_20px_rgba(37,99,235,0.5)] hover:scale-110 active:scale-95 transition-all border-2 border-white/20"
-            >
-              <Plus size={28} strokeWidth={3} />
-            </button>
-          )}
 
-          {isAdminOpen && (
-            <div className="fixed inset-0 z-[200] bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-              <div className="w-full max-w-sm relative">
-                <AdminPostPanel onClose={() => setIsAdminOpen(false)} />
-              </div>
-            </div>
-          )}
 
           <OnlineUsersProvider userId={session?.user?.id}>
             <DataCacheProvider>
