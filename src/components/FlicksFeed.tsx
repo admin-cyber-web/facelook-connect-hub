@@ -46,7 +46,7 @@ import {
 } from "../lib/bunnyVideoReadiness";
 
 // ── Utilities ─────────────────────────────────────────────────────────────────
-const formatCount = (n: any): string => {
+const formatCount = (n: number | string | null | undefined): string => {
   const num = Number(n);
   if (!num || isNaN(num)) return "0";
   if (num >= 1_000_000) return (num / 1_000_000).toFixed(1).replace(".0", "") + "M";
@@ -69,9 +69,10 @@ type FlickPostRow = {
   created_at?: string | null;
   visibility?: string | null;
   author_profile?: { is_private_mode?: boolean | null } | null;
+  is_admin_post?: boolean | null;
 };
 const FLICKS_POST_PROJECTION =
-  "id, author, author_id, content, media_url, image_url, image_urls, type, metadata, cover_url, views_count, likes_count, comments_count, shares_count, meta_title, meta_description, created_at, visibility, author_profile:profiles!posts_author_id_fkey(avatar_url, full_name, is_private_mode)";
+  "id, author, author_id, content, media_url, image_url, image_urls, type, metadata, cover_url, views_count, likes_count, comments_count, shares_count, meta_title, meta_description, created_at, visibility, is_admin_post, author_profile:profiles!posts_author_id_fkey(avatar_url, full_name, is_private_mode)";
 const FLICKS_POST_PROJECTION_WITH_AUDIO = `${FLICKS_POST_PROJECTION}, audio_url`;
 const FLICKS_CACHE_KEY = "flicks-feed:v1";
 const FLICKS_CACHE_LIMIT = 30;
@@ -253,9 +254,16 @@ const Ticker = ({ text, isActive }: { text: string; isActive: boolean }) => {
 };
 
 // ── Comment Drawer ────────────────────────────────────────────────────────────
-const CommentDrawer = ({ post, currentUserId, onClose, onCommentAdded }: any) => {
+type CommentDrawerProps = {
+  post: FlickPostRow;
+  currentUserId: string | null;
+  onClose: () => void;
+  onCommentAdded?: () => void;
+};
+
+const CommentDrawer = ({ post, currentUserId, onClose, onCommentAdded }: CommentDrawerProps) => {
   const onlineUserIds = useOnlineUsers();
-  const [comments, setComments] = useState<any[]>([]);
+  const [comments, setComments] = useState<Array<Record<string, unknown>>>([]);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const sounds = useSoundEffects();
@@ -348,7 +356,24 @@ const CommentDrawer = ({ post, currentUserId, onClose, onCommentAdded }: any) =>
 };
 
 // ── FlickCard ─────────────────────────────────────────────────────────────────
-const FlickCard = memo(({ post, isActive, isPreloaded, isNext, isWarmNext, currentUserId, onBridgeChat, onEditReel, isAdmin, onPostDeleted, onPostDeleteOptimistic, onPostDeleteRollback, onUserBanned, onVideoInvalid }: any) => {
+type FlickCardProps = {
+  post: FlickPostRow;
+  isActive: boolean;
+  isPreloaded: boolean;
+  isNext: boolean;
+  isWarmNext: boolean;
+  currentUserId: string | null;
+  onBridgeChat?: (userId: string) => void;
+  onEditReel?: (post: FlickPostRow) => void;
+  isAdmin: boolean;
+  onPostDeleted?: (postId: string) => void;
+  onPostDeleteOptimistic?: (postId: string) => void;
+  onPostDeleteRollback?: (post: FlickPostRow) => void;
+  onUserBanned?: (authorId: string) => void;
+  onVideoInvalid?: (postId: string) => void;
+};
+
+const FlickCard = memo(({ post, isActive, isPreloaded, isNext, isWarmNext, currentUserId, onBridgeChat, onEditReel, isAdmin, onPostDeleted, onPostDeleteOptimistic, onPostDeleteRollback, onUserBanned, onVideoInvalid }: FlickCardProps) => {
   const videoRef   = useRef<HTMLVideoElement>(null);
   const audioRef   = useRef<HTMLAudioElement>(null);
   const tapTimer   = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -817,9 +842,9 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, isWarmNext, curre
         detail: { id: postId, [field]: trimmed, content: trimmed },
       }));
       toast.success("Reel updated.");
-    } catch (error: any) {
+    } catch (error) {
       console.error("[Flicks] inline Reel edit failed:", error);
-      toast.error(error?.message || "Reel could not be updated.");
+      toast.error(error instanceof Error ? error.message : "Reel could not be updated.");
     } finally {
       setSavingCaption(false);
     }
@@ -1461,6 +1486,16 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, isWarmNext, curre
 });
 
 // ── Main FlicksApp ────────────────────────────────────────────────────────────
+type FlicksAppProps = {
+  onBack?: () => void;
+  onBridgeChat?: (userId: string) => void;
+  onEditReel?: (post: FlickPostRow) => void;
+  initialPostId?: string;
+  isAdmin?: boolean;
+  currentUserEmail?: string;
+  currentUserId?: string;
+};
+
 export default function FlicksApp({
   onBack,
   onBridgeChat,
@@ -1469,19 +1504,19 @@ export default function FlicksApp({
   isAdmin: isAdminProp = false,
   currentUserEmail: currentUserEmailProp,
   currentUserId: currentUserIdProp,
-}: any) {
+}: FlicksAppProps) {
   const dataCache    = useDataCache();
   const cachedFlicks = dataCache.cacheRef.current.flicksFeed;
   const [persistedFlicks] = useState(() => readPersistedFlicks());
   const initialFlicks = cachedFlicks?.data ?? persistedFlicks;
   const cachedVisibleFlicks = initialFlicks.filter(
-    (post: any) =>
+    (post: FlickPostRow) =>
       (post.visibility || "public") === "public" &&
       post.author_profile?.is_private_mode !== true &&
       isBunnyVideoVisibleToViewer(post, currentUserIdProp ?? null),
   );
-  const [flicks,       setFlicks]       = useState<any[]>(() =>
-    cachedVisibleFlicks.map((post: any) => ({
+  const [flicks,       setFlicks]       = useState<FlickPostRow[]>(() =>
+    cachedVisibleFlicks.map((post: FlickPostRow) => ({
       ...post,
       content: getPostCaption(post),
     })),
@@ -1499,7 +1534,7 @@ export default function FlicksApp({
   const containerRef = useRef<HTMLDivElement>(null);
   const currentIndexRef = useRef(0);
   const pendingDeleteSnapshotsRef = useRef(
-    new Map<string, { item: any; index: number; currentIndex: number }>(),
+    new Map<string, { item: FlickPostRow; index: number; currentIndex: number }>(),
   );
   const scrollRafRef = useRef<number>(0);
   const pullDistanceRef = useRef(0);
@@ -1510,12 +1545,12 @@ export default function FlicksApp({
   // Compact header search — client-side filter over author + caption
   const [searchQuery, setSearchQuery] = useState("");
   const visibleFlicks = useMemo(() => {
-    const viewerFlicks = flicks.filter((post: any) =>
+    const viewerFlicks = flicks.filter((post: FlickPostRow) =>
       isBunnyVideoVisibleToViewer(post, currentUserId),
     );
     const q = searchQuery.trim().toLowerCase();
     if (!q) return viewerFlicks;
-    return viewerFlicks.filter((f: any) =>
+    return viewerFlicks.filter((f: FlickPostRow) =>
       String(f.author || "").toLowerCase().includes(q) ||
       String(f.content || "").toLowerCase().includes(q),
     );
@@ -1630,10 +1665,11 @@ export default function FlicksApp({
                 : undefined,
             };
           });
-        const postIds = visibleRows.map((row: any) => row.id).filter(Boolean);
+        const postIds = visibleRows.map((row: FlickPostRow) => row.id).filter(Boolean);
 
-        const normalized = visibleRows.map((p: any) => {
+        const normalized = visibleRows.map((p: FlickPostRow) => {
           const settings = getReelSettings(p);
+          const isAdminPost = p.is_admin_post === true;
           return {
             id: `post_${p.id}`,
             _raw_id: p.id,
@@ -1650,6 +1686,7 @@ export default function FlicksApp({
             playback_rate: settings.playbackRate,
             metadata: p.metadata,
             visibility: p.visibility || "public",
+            is_admin_post: isAdminPost,
             author_profile: p.author_profile ?? null,
             bunny_ready: p.bunny_ready,
             image_url: p.image_url || null,
@@ -1684,8 +1721,11 @@ export default function FlicksApp({
             );
             if (cancelled) return;
 
-            const engagementByPost = new Map(
-              (Array.isArray(engagementRows) ? engagementRows : []).map((row: any) => [
+            const engagementByPost = new Map<
+              string,
+              { post_id: string; likes_count?: number; comments_count?: number; shares_count?: number; views_count?: number }
+            >(
+              (Array.isArray(engagementRows) ? engagementRows : []).map((row) => [
                 row.post_id,
                 row,
               ]),
@@ -1706,7 +1746,7 @@ export default function FlicksApp({
                 if (likedError) {
                   console.warn("[Flicks] viewer like state fetch failed:", likedError.message);
                 } else {
-                  likedIds = new Set((likedRows || []).map((row: any) => row.post_id));
+                  likedIds = new Set((likedRows || []).map((row) => row.post_id));
                 }
               }
             }
@@ -1714,7 +1754,7 @@ export default function FlicksApp({
             setFlicks((previous) => {
               const refreshed = previous.map((item) => {
                 if (!postIds.includes(item._raw_id)) return item;
-                const engagement = engagementByPost.get(item._raw_id) as any;
+                const engagement = engagementByPost.get(item._raw_id);
                 return {
                   ...item,
                   liked_by_me: engagementError
@@ -2000,6 +2040,7 @@ export default function FlicksApp({
       const created = (event as CustomEvent<any>).detail;
       if (!created?.id || created.type !== "video") return;
       const settings = getReelSettings(created);
+      const isAdminPost = created.is_admin_post === true;
       const normalized = {
         ...created,
         id: `post_${created.id}`,
@@ -2008,6 +2049,7 @@ export default function FlicksApp({
         user_id: created.author_id,
         author_id: created.author_id,
         author: created.author || "User",
+        is_admin_post: isAdminPost,
         content: getPostCaption(created),
         media_url: settings.videoUrl || created.media_url,
         video_url: settings.videoUrl || created.video_url || created.media_url,

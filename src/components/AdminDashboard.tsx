@@ -508,7 +508,7 @@ const AdminDashboard: React.FC<Props> = ({
         notifs.push({
           notifier_id: r.postAuthorId,
           actor_id: currentUserId,
-          type: "report_resolved_safe",
+          type: "post_moderation_safe",
           entity_id: r.post_id,
           content:
             "Your post is safe and doing great! It follows our community guidelines.",
