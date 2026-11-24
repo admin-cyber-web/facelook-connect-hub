@@ -42,7 +42,6 @@ import { useNavigate } from "react-router-dom";
 import { useProfileViewer } from "@/context/ProfileViewerContext";
 import { useOnlineUsers } from "@/context/OnlineUsersContext";
 import ActiveStatusAvatar from "./ActiveStatusAvatar";
-import AddBtn from "./AddBtn";
 import SavePostButton from "./SavePostButton";
 import {
   canViewPrivateProfile,
@@ -181,17 +180,42 @@ const NOTIF_META: Record<
   report_resolved_safe: {
     icon: <ShieldCheck size={13} />,
     color: "bg-green-500/20 text-green-400",
-    label: "Review complete. Content follows community guidelines.",
+    label: "Your report was reviewed — the post was found safe.",
   },
   report_resolved_removed: {
     icon: <Trash2 size={13} />,
-    color: "bg-emerald-500/20 text-emerald-400",
-    label: "Your report was actioned. The content was removed.",
+    color: "bg-red-500/20 text-red-400",
+    label: "Your report was reviewed — the post was removed.",
   },
   report_post_removed: {
     icon: <Trash2 size={13} />,
     color: "bg-red-500/20 text-red-400",
     label: "Your post was reviewed and removed after a report.",
+  },
+  report_resolved_cleaned: {
+    icon: <ShieldCheck size={13} />,
+    color: "bg-green-500/20 text-green-400",
+    label: "Your report was reviewed — the post was cleaned of violations.",
+  },
+  report_post_cleaned: {
+    icon: <ShieldCheck size={13} />,
+    color: "bg-green-500/20 text-green-400",
+    label: "The reported post was cleaned of violating content.",
+  },
+  post_reported: {
+    icon: <Flag size={13} />,
+    color: "bg-orange-500/20 text-orange-400",
+    label: "Your post was reported and sent to Flicks Team for review.",
+  },
+  post_moderation_safe: {
+    icon: <ShieldCheck size={13} />,
+    color: "bg-green-500/20 text-green-400",
+    label: "Your post was reviewed and marked safe by the Flicks community.",
+  },
+  post_moderation_actioned: {
+    icon: <Trash2 size={13} />,
+    color: "bg-red-500/20 text-red-400",
+    label: "Your post was reviewed and found violating community guidelines.",
   },
   circle_post_approved: {
     icon: <CheckCheck size={13} />,
@@ -2264,6 +2288,7 @@ const Header = ({
       "comment_report",
       "report_resolved_safe", "report_resolved_removed", "report_post_removed",
       "report_resolved_cleaned", "report_post_cleaned",
+      "post_reported", "post_moderation_safe", "post_moderation_actioned",
     ];
     if (postId && postTypes.includes(n.type) && entityType !== "report") {
       setShowNotif(false);
@@ -2296,6 +2321,30 @@ const Header = ({
     if (n.type === "report_submitted" && postId && entityType !== "report") {
       setShowNotif(false);
       navigate(`/post/${encodeURIComponent(postId)}`);
+      return;
+    }
+
+    // Moderation resolution notifications where entity_type is "report" —
+    // resolve the report's post_id and deep-link to the post.
+    if (entityType === "report" && [
+      "report_resolved_safe",
+      "report_resolved_removed",
+      "report_resolved_cleaned",
+    ].includes(n.type) && reportId) {
+      setShowNotif(false);
+      void supabase
+        .from("reports")
+        .select("post_id")
+        .eq("id", reportId)
+        .maybeSingle()
+        .then(({ data }) => {
+          const reportedPostId = firstNotificationId(data?.post_id, payload.post_id, payload.postId);
+          if (reportedPostId) {
+            navigate(`/post/${encodeURIComponent(reportedPostId)}`);
+          } else {
+            toast.error("The reported post is no longer available.");
+          }
+        });
       return;
     }
 
