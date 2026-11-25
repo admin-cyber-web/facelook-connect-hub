@@ -71,7 +71,14 @@ public class ProximityBleService extends Service {
     static final String ACTION_SYNC = "com.flicks.hub.proximity.SYNC";
     static final String ACTION_CONNECT_PEER = "com.flicks.hub.proximity.CONNECT_PEER";
     static final String ACTION_GET_ERROR_STATE = "com.flicks.hub.proximity.GET_ERROR_STATE";
+    static final String ACTION_START_COARSE = "com.flicks.hub.proximity.START_COARSE";
+    static final String ACTION_STOP_COARSE = "com.flicks.hub.proximity.STOP_COARSE";
+    static final String ACTION_SET_COARSE_MODE = "com.flicks.hub.proximity.SET_COARSE_MODE";
     static final String ACTION_EVENT = "com.flicks.hub.proximity.EVENT";
+
+    // Coarse discovery modes
+    static final String COARSE_MODE_SATELLITE = "satellite"; // Broad scan, no connect
+    static final String COARSE_MODE_LOCAL = "local"; // Nearby only, stricter RSSI
 
     static final String EXTRA_USER_ID = "userId";
     static final String EXTRA_PROFILE = "profile";
@@ -130,6 +137,12 @@ public class ProximityBleService extends Service {
     private PeerCandidate activeCandidate;
     private byte[][] receivedChunks;
     private int receivedChunkCount;
+
+    // Coarse discovery state
+    private boolean coarseRunning = false;
+    private String coarseMode = COARSE_MODE_SATELLITE;
+    private ScanCallback coarseScanCallback;
+    private int coarseRssiThreshold = -85; // SATELLITE: broader range
 
     private final Runnable stalePeerSweep = new Runnable() {
         @Override
@@ -220,6 +233,34 @@ public class ProximityBleService extends Service {
             }
         } else if (ACTION_GET_ERROR_STATE.equals(action)) {
             emitErrorState();
+        } else if (ACTION_START_COARSE.equals(action)) {
+            currentUserId = safeString(intent.getStringExtra(EXTRA_USER_ID));
+            applyProfile(intent.getStringExtra(EXTRA_PROFILE), currentUserId);
+            running = true;
+            // Coarse discovery: scan only, no advertising
+            advertisingEnabled = false;
+            startRadio();
+            syncStateToBridge();
+        } else if (ACTION_STOP_COARSE.equals(action)) {
+            stopRadio();
+            stopForegroundCompat();
+            stopSelf(startId);
+            return START_NOT_STICKY;
+        } else if (ACTION_SET_COARSE_MODE.equals(action)) {
+            String mode = safeString(intent.getStringExtra("coarseMode"));
+            if (COARSE_MODE_LOCAL.equals(mode)) {
+                coarseMode = COARSE_MODE_LOCAL;
+                coarseRssiThreshold = -75; // LOCAL: stricter, closer range
+            } else {
+                coarseMode = COARSE_MODE_SATELLITE;
+                coarseRssiThreshold = -85; // SATELLITE: broader range
+            }
+            // Restart scanning with new threshold
+            if (coarseRunning) {
+                stopCoarseScan();
+                startCoarseScan();
+            }
+            emitStatus("Coarse mode: " + coarseMode);
         }
         return START_STICKY;
     }
@@ -368,13 +409,23 @@ public class ProximityBleService extends Service {
             }
             scanner = bluetoothAdapter.getBluetoothLeScanner();
             advertiser = bluetoothAdapter.getBluetoothLeAdvertiser();
-            startScanner();
-            refreshGattAndAdvertising();
-            mainHandler.removeCallbacks(stalePeerSweep);
-            mainHandler.postDelayed(stalePeerSweep, 5_000);
-            emitStatus(advertisingEnabled && profilePayload.length > 0
-                    ? "BLE scanner and profile broadcast active"
-                    : "Anonymous BLE scanning active");
+            
+            if (coarseRunning) {
+                // Coarse discovery mode: scan only, no advertising, no GATT server
+                startCoarseScan();
+                mainHandler.removeCallbacks(stalePeerSweep);
+                mainHandler.postDelayed(stalePeerSweep, 5_000);
+                emitStatus("Coarse discovery: " + coarseMode.toUpperCase() + " mode active");
+            } else {
+                // Normal full mode: scan + advertise + GATT
+                startScanner();
+                refreshGattAndAdvertising();
+                mainHandler.removeCallbacks(stalePeerSweep);
+                mainHandler.postDelayed(stalePeerSweep, 5_000);
+                emitStatus(advertisingEnabled && profilePayload.length > 0
+                        ? "BLE scanner and profile broadcast active"
+                        : "Anonymous BLE scanning active");
+            }
         } catch (RuntimeException error) {
             emitStatus("Bluetooth could not start on this device");
             Log.w("FlicksProximity", "BLE startup failed", error);
@@ -433,6 +484,89 @@ public class ProximityBleService extends Service {
             scanCallback = null;
             emitStatus("BLE scanning is unavailable");
             Log.w("FlicksProximity", "startScan failed", error);
+        }
+    }
+
+    private void startCoarseScan() {
+        if (scanner == null || coarseScanCallback != null) return;
+        coarseRunning = true;
+        coarseScanCallback = new ScanCallback() {
+            @Override
+            public void onScanResult(int callbackType, ScanResult result) {
+                observeCoarse(result);
+            }
+
+            @Override
+            public void onBatchScanResults(java.util.List<ScanResult> results) {
+                for (ScanResult result : results) observeCoarse(result);
+            }
+
+            @Override
+            public void onScanFailed(int errorCode) {
+                coarseScanCallback = null;
+                emitStatus("Coarse scan paused (code " + errorCode + ")");
+            }
+        };
+
+        ScanSettings.Builder settingsBuilder = new ScanSettings.Builder()
+                .setScanMode(ScanSettings.SCAN_MODE_LOW_POWER); // Low power for background discovery
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            settingsBuilder.setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES);
+        }
+        ScanSettings settings = settingsBuilder.build();
+        ScanFilter filter = new ScanFilter.Builder()
+                .setServiceData(SERVICE_PARCEL_UUID, new byte[] { 0 }, new byte[] { 0 })
+                .build();
+        try {
+            scanner.startScan(Arrays.asList(filter), settings, coarseScanCallback);
+        } catch (SecurityException error) {
+            coarseScanCallback = null;
+            emitStatus("Coarse scanning is unavailable");
+            Log.w("FlicksProximity", "startCoarseScan failed", error);
+        } catch (Exception error) {
+            coarseScanCallback = null;
+            emitStatus("Coarse scanning is unavailable");
+            Log.w("FlicksProximity", "startCoarseScan failed", error);
+        }
+    }
+
+    private void stopCoarseScan() {
+        coarseRunning = false;
+        if (scanner != null && coarseScanCallback != null) {
+            try { scanner.stopScan(coarseScanCallback); } catch (SecurityException ignored) {}
+        }
+        coarseScanCallback = null;
+    }
+
+    private void observeCoarse(ScanResult result) {
+        if (!coarseRunning || result == null || result.getScanRecord() == null) return;
+        byte[] tokenBytes = result.getScanRecord().getServiceData(SERVICE_PARCEL_UUID);
+        if (tokenBytes == null || tokenBytes.length != 8) return;
+        String token = toHex(tokenBytes);
+        if (token.isEmpty() || token.equals(deviceToken) || isRejected(token, "")) return;
+        int rssi = result.getRssi();
+        if (rssi < coarseRssiThreshold) return; // Use coarse mode threshold
+
+        long now = System.currentTimeMillis();
+        PeerSignal signal = signals.get(token);
+        if (signal == null) {
+            signal = new PeerSignal();
+            signals.put(token, signal);
+        }
+        signal.lastStrongSeenAt = now;
+        signal.lastRssi = rssi;
+        signal.strongCount++;
+        if (!signal.active) {
+            signal.active = true;
+            JSONObject data = new JSONObject();
+            try {
+                data.put("peerToken", token);
+                data.put("active", true);
+                data.put("rssi", rssi);
+                data.put("approximateMeters", approximateMeters(rssi));
+                data.put("coarseMode", coarseMode);
+            } catch (JSONException ignored) {}
+            emit("signal", data);
         }
     }
 
@@ -841,11 +975,13 @@ public class ProximityBleService extends Service {
 
     private void stopRadio() {
         running = false;
+        coarseRunning = false;
         mainHandler.removeCallbacks(stalePeerSweep);
         if (scanner != null && scanCallback != null) {
             try { scanner.stopScan(scanCallback); } catch (SecurityException ignored) {}
         }
         scanCallback = null;
+        stopCoarseScan();
         stopAdvertising();
         closeGattServer();
         if (activeClientGatt != null) {
@@ -857,6 +993,112 @@ public class ProximityBleService extends Service {
         signals.clear();
         candidateQueue.clear();
         queuedTokens.clear();
+    }
+
+    private void startCoarseScan() {
+        if (scanner == null || coarseScanCallback != null) return;
+        coarseRunning = true;
+        coarseScanCallback = new ScanCallback() {
+            @Override
+            public void onScanResult(int callbackType, ScanResult result) {
+                observeCoarse(result);
+            }
+
+            @Override
+            public void onBatchScanResults(java.util.List<ScanResult> results) {
+                for (ScanResult result : results) observeCoarse(result);
+            }
+
+            @Override
+            public void onScanFailed(int errorCode) {
+                coarseScanCallback = null;
+                coarseRunning = false;
+                emitStatus("Coarse scan paused (code " + errorCode + ")");
+            }
+        };
+
+        ScanSettings.Builder settingsBuilder = new ScanSettings.Builder()
+                .setScanMode(ScanSettings.SCAN_MODE_LOW_POWER); // Low power for background
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            settingsBuilder.setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES);
+        }
+        ScanSettings settings = settingsBuilder.build();
+        ScanFilter filter = new ScanFilter.Builder()
+                .setServiceData(SERVICE_PARCEL_UUID, new byte[] { 0 }, new byte[] { 0 })
+                .build();
+        try {
+            scanner.startScan(Arrays.asList(filter), settings, coarseScanCallback);
+            emitStatus("Coarse discovery: " + coarseMode.toUpperCase() + " mode active");
+        } catch (SecurityException error) {
+            coarseScanCallback = null;
+            coarseRunning = false;
+            emitStatus("Coarse scanning unavailable");
+            Log.w("FlicksProximity", "coarse startScan failed", error);
+        } catch (Exception error) {
+            coarseScanCallback = null;
+            coarseRunning = false;
+            emitStatus("Coarse scanning unavailable");
+            Log.w("FlicksProximity", "coarse startScan failed", error);
+        }
+    }
+
+    private void stopCoarseScan() {
+        coarseRunning = false;
+        if (scanner != null && coarseScanCallback != null) {
+            try { scanner.stopScan(coarseScanCallback); } catch (SecurityException ignored) {}
+        }
+        coarseScanCallback = null;
+    }
+
+    private void observeCoarse(ScanResult result) {
+        if (!coarseRunning || result == null || result.getScanRecord() == null) return;
+        byte[] tokenBytes = result.getScanRecord().getServiceData(SERVICE_PARCEL_UUID);
+        if (tokenBytes == null || tokenBytes.length != 8) return;
+        String token = toHex(tokenBytes);
+        if (token.isEmpty() || token.equals(deviceToken) || isRejected(token, "")) return;
+        int rssi = result.getRssi();
+        if (rssi < coarseRssiThreshold) return; // Use mode-specific threshold
+
+        long now = System.currentTimeMillis();
+        PeerSignal signal = signals.get(token);
+        if (signal == null) {
+            signal = new PeerSignal();
+            signals.put(token, signal);
+        }
+        signal.lastStrongSeenAt = now;
+        signal.lastRssi = rssi;
+        signal.strongCount++;
+        if (!signal.active) {
+            signal.active = true;
+            JSONObject data = new JSONObject();
+            try {
+                data.put("peerToken", token);
+                data.put("active", true);
+                data.put("rssi", rssi);
+                data.put("approximateMeters", approximateMeters(rssi));
+                data.put("coarseMode", coarseMode);
+            } catch (JSONException ignored) {}
+            emit("signal", data);
+        }
+
+        // In coarse mode, we only emit signal updates - no connection attempts
+        if (!signal.triggered && signal.strongCount >= 2) {
+            signal.triggered = true;
+            if (!stealth) {
+                playArrivalAlert();
+                vibrateArrival();
+            }
+            // Do NOT queue candidate for connection in coarse mode
+            // Just emit a stronger signal update
+            JSONObject data = new JSONObject();
+            try {
+                data.put("peerToken", token);
+                data.put("rssi", rssi);
+                data.put("approximateMeters", approximateMeters(rssi));
+                data.put("coarseMode", coarseMode);
+            } catch (JSONException ignored) {}
+            emit("signal_strong", data);
+        }
     }
 
     private void stopForegroundCompat() {
@@ -1033,7 +1275,7 @@ public class ProximityBleService extends Service {
             errorState = "Bluetooth not supported";
         } else if (!bluetoothAdapter.isEnabled()) {
             errorState = "Bluetooth disabled";
-        } else if (!hasPermissions()) {
+        } else if (!hasBlePermissions()) {
             errorState = "Missing BLE permissions";
         } else if (running && !scanning && !advertisingEnabled) {
             errorState = "Radio idle - check permissions";

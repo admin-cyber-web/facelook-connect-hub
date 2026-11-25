@@ -14,6 +14,14 @@ import {
   CheckCircle,
   WifiOff,
   Smartphone,
+  Settings,
+  MessageSquare,
+  MapPin,
+  Shield,
+  AlertTriangle,
+  Info,
+  Navigation,
+  Radar,
 } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { toast } from "sonner";
@@ -58,6 +66,16 @@ type ProximityBlePlugin = {
   addListener(eventName: "peerFound", listener: (peer: NearbyPeer) => void): Promise<PluginListenerHandle>;
   addListener(eventName: "signal", listener: (signal: NativeSignal) => void): Promise<PluginListenerHandle>;
   addListener(eventName: "status", listener: (event: { status?: string }) => void): Promise<PluginListenerHandle>;
+  addListener(eventName: "errorState", listener: (event: { error?: string }) => void): Promise<PluginListenerHandle>;
+  requestPermissions(): Promise<{ bleScan?: string; bleAdvertise?: string; bleConnect?: string; notifications?: string; fineLocation?: string; coarseLocation?: string }>;
+  getErrorState(): Promise<{ error?: string }>;
+  openBluetoothSettings(): Promise<void>;
+  openLocationSettings(): Promise<void>;
+  openAppSettings(): Promise<void>;
+  isBluetoothEnabled(): Promise<{ enabled: boolean }>;
+  startCoarseDiscovery(options: { userId: string; profile: AdvertisedProfile | null }): Promise<{ status?: string }>;
+  stopCoarseDiscovery(): Promise<void>;
+  setCoarseMode(options: { mode: "satellite" | "local" }): Promise<void>;
 };
 
 const NativeProximity = registerPlugin<ProximityBlePlugin>("ProximityBle");
@@ -65,6 +83,27 @@ const STEALTH_KEY = "flicks-proximity-stealth-v1";
 const PROFILE_CACHE_PREFIX = "flicks-proximity-profile-v1:";
 const REQUEST_QUEUE_PREFIX = "flicks-proximity-requests-v1:";
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Types for permission/error states
+// ─────────────────────────────────────────────────────────────────────────────
+type AndroidPermissionState = {
+  bleScan: "granted" | "denied" | "prompt";
+  bleAdvertise: "granted" | "denied" | "prompt";
+  bleConnect: "granted" | "denied" | "prompt";
+  notifications: "granted" | "denied" | "prompt";
+  fineLocation: "granted" | "denied" | "prompt";
+  coarseLocation: "granted" | "denied" | "prompt";
+};
+
+type ErrorState = 
+  | { type: "none" }
+  | { type: "bluetooth_off"; message: string; actionLabel: string }
+  | { type: "permissions_denied"; message: string; actionLabel: string; permanentlyDenied: boolean }
+  | { type: "service_unavailable"; message: string; actionLabel: string }
+  | { type: "no_ble_hardware"; message: string }
+  | { type: "location_required"; message: string; actionLabel: string }
+  | { type: "generic"; message: string };
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Web Bluetooth fallback (Chrome/Edge desktop & Android, not iOS Safari)
@@ -213,6 +252,62 @@ export default function ProximitySatellite({
   const [permissionState, setPermissionState] = useState<"granted" | "denied" | "prompt" | "unavailable">(
     androidNative ? "granted" : webBleSupported ? "prompt" : "unavailable"
   );
+  
+  // Android permission & error state management
+  const [androidPermissions, setAndroidPermissions] = useState<AndroidPermissionState>({
+    bleScan: "prompt",
+    bleAdvertise: "prompt",
+    bleConnect: "prompt",
+    notifications: "prompt",
+    fineLocation: "prompt",
+    coarseLocation: "prompt",
+  });
+  const [errorState, setErrorState] = useState<ErrorState>({ type: "none" });
+  const [showPermissionDialog, setShowPermissionDialog] = useState(false);
+  const [coarseDiscoveryActive, setCoarseDiscoveryActive] = useState(false);
+  const [coarseMode, setCoarseMode] = useState<"satellite" | "local">("satellite");
+  const [isBluetoothEnabled, setIsBluetoothEnabled] = useState(true);
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Coarse Discovery (SATELLITE/LOCAL) handlers
+  // ─────────────────────────────────────────────────────────────────────────────
+  const startCoarseDiscovery = useCallback(async () => {
+    if (!androidNative || !userId || !preparedProfile) return;
+    try {
+      setStatus("Starting coarse discovery…");
+      await NativeProximity.startCoarseDiscovery({
+        userId,
+        profile: preparedProfile,
+      });
+      setCoarseDiscoveryActive(true);
+      setStatus(`Coarse discovery: ${coarseMode.toUpperCase()}`);
+    } catch (error) {
+      setStatus("Failed to start coarse discovery: " + (error instanceof Error ? error.message : String(error)));
+    }
+  }, [androidNative, userId, preparedProfile, coarseMode]);
+
+  const stopCoarseDiscovery = useCallback(async () => {
+    if (!androidNative) return;
+    try {
+      await NativeProximity.stopCoarseDiscovery();
+      setCoarseDiscoveryActive(false);
+      setStatus("Coarse discovery stopped");
+    } catch (error) {
+      setStatus("Failed to stop coarse discovery: " + (error instanceof Error ? error.message : String(error)));
+    }
+  }, [androidNative]);
+
+  const toggleCoarseMode = useCallback(async () => {
+    if (!androidNative) return;
+    const nextMode = coarseMode === "satellite" ? "local" : "satellite";
+    try {
+      await NativeProximity.setCoarseMode({ mode: nextMode });
+      setCoarseMode(nextMode);
+      setStatus(`Coarse mode: ${nextMode.toUpperCase()}`);
+    } catch (error) {
+      setStatus("Failed to set coarse mode: " + (error instanceof Error ? error.message : String(error)));
+    }
+  }, [androidNative, coarseMode]);
   const announcedTokens = useRef(new Set<string>());
   const queuedTokens = useRef(new Set<string>());
   const stealthRef = useRef(stealth);
@@ -425,14 +520,21 @@ export default function ProximitySatellite({
     };
 
     void (async () => {
-      try {
-        listeners.push(
-          await NativeProximity.addListener("status", ({ status: nextStatus }) => {
-            if (nextStatus) setStatus(nextStatus);
-          }),
-        );
-        listeners.push(
-          await NativeProximity.addListener("signal", (signal) => {
+            try {
+              listeners.push(
+                await NativeProximity.addListener("status", ({ status: nextStatus }) => {
+                  if (nextStatus) setStatus(nextStatus);
+                }),
+              );
+              listeners.push(
+                await NativeProximity.addListener("errorState", ({ error }) => {
+                  if (error) {
+                    handleNativeError(error);
+                  }
+                }),
+              );
+              listeners.push(
+                await NativeProximity.addListener("signal", (signal) => {
             const token = signal.peerToken;
             if (!token) return;
             if (signal.active) {
@@ -510,6 +612,166 @@ export default function ProximitySatellite({
       setNativeReady(false);
     };
   }, [androidNative, userId, canAdvertise, preparedProfile]);
+
+  // ─────────────────────────────────────────────────────────────────────────────
+// Android Error State Handler
+// ─────────────────────────────────────────────────────────────────────────────
+  const handleNativeError = useCallback((error: string) => {
+    const lower = error.toLowerCase();
+    
+    if (lower.includes("bluetooth") && (lower.includes("off") || lower.includes("disabled") || lower.includes("turned off"))) {
+      setErrorState({
+        type: "bluetooth_off",
+        message: "Bluetooth is turned off. Enable it to discover nearby people.",
+        actionLabel: "Open Bluetooth Settings",
+      });
+      setShowPermissionDialog(true);
+      return;
+    }
+    
+    if (lower.includes("permission") && (lower.includes("denied") || lower.includes("not granted"))) {
+      // Check if permanently denied by trying to request again
+      const permanentlyDenied = lower.includes("permanently") || lower.includes("never ask again");
+      setErrorState({
+        type: "permissions_denied",
+        message: "Bluetooth permissions are required for nearby discovery. Please grant them in settings.",
+        actionLabel: permanentlyDenied ? "Open App Settings" : "Grant Permissions",
+        permanentlyDenied,
+      });
+      setShowPermissionDialog(true);
+      return;
+    }
+    
+    if (lower.includes("service") && (lower.includes("unavailable") || lower.includes("stopped") || lower.includes("not running"))) {
+      setErrorState({
+        type: "service_unavailable",
+        message: "Proximity service is unavailable. Try restarting the app.",
+        actionLabel: "Restart App",
+      });
+      setShowPermissionDialog(true);
+      return;
+    }
+    
+    if (lower.includes("hardware") || lower.includes("not supported") || lower.includes("no bluetooth")) {
+      setErrorState({
+        type: "no_ble_hardware",
+        message: "This device doesn't support Bluetooth Low Energy required for proximity.",
+      });
+      return;
+    }
+    
+    if (lower.includes("location") && (lower.includes("required") || lower.includes("permission") || lower.includes("denied"))) {
+      setErrorState({
+        type: "location_required",
+        message: "Location permission is required for Bluetooth scanning on Android. Please enable it.",
+        actionLabel: "Open Location Settings",
+      });
+      setShowPermissionDialog(true);
+      return;
+    }
+    
+    setErrorState({
+      type: "generic",
+      message: error,
+    });
+  }, []);
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Android Permission Request Flow
+  // ─────────────────────────────────────────────────────────────────────────────
+  const checkAndroidPermissions = useCallback(async () => {
+    if (!androidNative || !nativeReady) return;
+    try {
+      const perms = await NativeProximity.requestPermissions();
+      setAndroidPermissions((prev) => ({
+        bleScan: perms.bleScan as any ?? prev.bleScan,
+        bleAdvertise: perms.bleAdvertise as any ?? prev.bleAdvertise,
+        bleConnect: perms.bleConnect as any ?? prev.bleConnect,
+        notifications: perms.notifications as any ?? prev.notifications,
+        fineLocation: perms.fineLocation as any ?? prev.fineLocation,
+        coarseLocation: perms.coarseLocation as any ?? prev.coarseLocation,
+      }));
+      return perms;
+    } catch (error) {
+      console.warn("[ProximitySatellite] Failed to check permissions:", error);
+    }
+  }, [androidNative, nativeReady]);
+
+  const requestAndroidPermissions = useCallback(async () => {
+    if (!androidNative || !nativeReady) return;
+    try {
+      // The native plugin will trigger the system permission dialogs
+      const perms = await NativeProximity.requestPermissions();
+      setAndroidPermissions((prev) => ({
+        bleScan: perms.bleScan as any ?? prev.bleScan,
+        bleAdvertise: perms.bleAdvertise as any ?? prev.bleAdvertise,
+        bleConnect: perms.bleConnect as any ?? prev.bleConnect,
+        notifications: perms.notifications as any ?? prev.notifications,
+        fineLocation: perms.fineLocation as any ?? prev.fineLocation,
+        coarseLocation: perms.coarseLocation as any ?? prev.coarseLocation,
+      }));
+      // After permissions granted, restart the service
+      if (perms.bleScan === "granted" && perms.bleAdvertise === "granted" && perms.bleConnect === "granted") {
+        setErrorState({ type: "none" });
+        setShowPermissionDialog(false);
+        await NativeProximity.sync();
+      }
+    } catch (error) {
+      console.warn("[ProximitySatellite] Failed to request permissions:", error);
+    }
+  }, [androidNative, nativeReady]);
+
+  const openBluetoothSettings = useCallback(async () => {
+    if (!androidNative || !nativeReady) return;
+    try {
+      await NativeProximity.openBluetoothSettings();
+    } catch (error) {
+      console.warn("[ProximitySatellite] Failed to open Bluetooth settings:", error);
+    }
+  }, [androidNative, nativeReady]);
+
+  const openLocationSettings = useCallback(async () => {
+    if (!androidNative || !nativeReady) return;
+    try {
+      await NativeProximity.openLocationSettings();
+    } catch (error) {
+      console.warn("[ProximitySatellite] Failed to open Location settings:", error);
+    }
+  }, [androidNative, nativeReady]);
+
+  const openAppSettings = useCallback(async () => {
+    if (!androidNative || !nativeReady) return;
+    try {
+      await NativeProximity.openAppSettings();
+    } catch (error) {
+      console.warn("[ProximitySatellite] Failed to open App settings:", error);
+    }
+  }, [androidNative, nativeReady]);
+
+  const checkBluetoothEnabled = useCallback(async () => {
+    if (!androidNative || !nativeReady) return;
+    try {
+      const { enabled } = await NativeProximity.isBluetoothEnabled();
+      if (!enabled) {
+        setErrorState({
+          type: "bluetooth_off",
+          message: "Bluetooth is turned off. Enable it to discover nearby people.",
+          actionLabel: "Open Bluetooth Settings",
+        });
+        setShowPermissionDialog(true);
+      }
+    } catch (error) {
+      console.warn("[ProximitySatellite] Failed to check Bluetooth state:", error);
+    }
+  }, [androidNative, nativeReady]);
+
+  // Check Bluetooth state on mount and when native becomes ready
+  useEffect(() => {
+    if (androidNative && nativeReady) {
+      checkAndroidPermissions();
+      checkBluetoothEnabled();
+    }
+  }, [androidNative, nativeReady, checkAndroidPermissions, checkBluetoothEnabled]);
 
   useEffect(() => {
     if (!androidNative || !nativeReady) return;
@@ -715,9 +977,56 @@ export default function ProximitySatellite({
                       </p>
                     )}
                   </div>
-                  <span className="proximity-satellite__status-tag">
-                    {androidNative ? "LOCAL" : "DEMO"}
+<span className="proximity-satellite__status-tag">
+                    {androidNative ? coarseMode.toUpperCase() : "DEMO"}
                   </span>
+                </div>
+
+                <div className="proximity-satellite__tray-controls">
+                  <div className="proximity-satellite__mode-toggle">
+                    <span className="proximity-satellite__mode-label">MODE</span>
+                    <div className="proximity-satellite__mode-buttons">
+                      <button
+                        type="button"
+                        className={`proximity-satellite__mode-btn ${coarseMode === "satellite" ? "active" : ""}`}
+                        onClick={() => toggleCoarseMode()}
+                        disabled={!androidNative || coarseDiscoveryActive || coarseMode === "satellite"}
+                        aria-pressed={coarseMode === "satellite"}
+                      >
+                        <Satellite size={13} />
+                        <span>SATELLITE</span>
+                      </button>
+                      <button
+                        type="button"
+                        className={`proximity-satellite__mode-btn ${coarseMode === "local" ? "active" : ""}`}
+                        onClick={() => toggleCoarseMode()}
+                        disabled={!androidNative || coarseDiscoveryActive || coarseMode === "local"}
+                        aria-pressed={coarseMode === "local"}
+                      >
+                        <Navigation size={13} />
+                        <span>LOCAL</span>
+                      </button>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    className={`proximity-satellite__coarse-btn ${coarseDiscoveryActive ? "active" : ""}`}
+                    onClick={coarseDiscoveryActive ? stopCoarseDiscovery : startCoarseDiscovery}
+                    disabled={!androidNative || !userId || !preparedProfile}
+                    aria-pressed={coarseDiscoveryActive}
+                  >
+                    {coarseDiscoveryActive ? (
+                      <>
+                        <Loader2 size={14} className="animate-spin" />
+                        <span>STOP COARSE</span>
+                      </>
+                    ) : (
+                      <>
+                        <Radar size={14} />
+                        <span>START COARSE</span>
+                      </>
+                    )}
+                  </button>
                 </div>
 
                 <div className="proximity-satellite__tray-metrics">
@@ -823,6 +1132,99 @@ export default function ProximitySatellite({
             </span>
           </button>
         )}
+
+        {/* Permission / Error Dialog */}
+        <AnimatePresence>
+          {showPermissionDialog && errorState.type !== "none" && (
+            <motion.div
+              className="proximity-satellite__permission-backdrop"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            >
+              <motion.div
+                className="proximity-satellite__permission-dialog"
+                initial={{ opacity: 0, y: 16, scale: 0.97 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 12, scale: 0.98 }}
+                transition={{ duration: 0.18 }}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="proximity-permission-title"
+              >
+                <div className="proximity-satellite__permission-header">
+                  {errorState.type === "bluetooth_off" && <Bluetooth size={24} className="text-amber-400" />}
+                  {errorState.type === "permissions_denied" && <AlertTriangle size={24} className="text-amber-400" />}
+                  {errorState.type === "service_unavailable" && <Smartphone size={24} className="text-amber-400" />}
+                  {errorState.type === "no_ble_hardware" && <WifiOff size={24} className="text-red-400" />}
+                  {errorState.type === "location_required" && <MapPin size={24} className="text-amber-400" />}
+                  {errorState.type === "generic" && <AlertCircle size={24} className="text-amber-400" />}
+                </div>
+                <h3 id="proximity-permission-title" className="proximity-satellite__permission-title">
+                  {errorState.type === "bluetooth_off" && "Bluetooth Off"}
+                  {errorState.type === "permissions_denied" && "Permissions Required"}
+                  {errorState.type === "service_unavailable" && "Service Unavailable"}
+                  {errorState.type === "no_ble_hardware" && "No BLE Hardware"}
+                  {errorState.type === "location_required" && "Location Required"}
+                  {errorState.type === "generic" && "Error"}
+                </h3>
+                <p className="proximity-satellite__permission-message">{errorState.message}</p>
+                <div className="proximity-satellite__permission-actions">
+                  {errorState.actionLabel && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (errorState.type === "bluetooth_off") void openBluetoothSettings();
+                        if (errorState.type === "location_required") void openLocationSettings();
+                        if (errorState.type === "permissions_denied" || errorState.type === "service_unavailable") void openAppSettings();
+                      }}
+                      className="proximity-satellite__permission-btn primary"
+                    >
+                      {errorState.type === "bluetooth_off" && <Settings size={14} />}
+                      {errorState.type === "location_required" && <MapPin size={14} />}
+                      {errorState.type === "permissions_denied" && <Shield size={14} />}
+                      {errorState.type === "service_unavailable" && <Settings size={14} />}
+                      {errorState.actionLabel}
+                    </button>
+                  )}
+                  {(errorState.type === "permissions_denied" && errorState.permanentlyDenied) || errorState.type === "service_unavailable" ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowPermissionDialog(false);
+                        setErrorState({ type: "none" });
+                      }}
+                      className="proximity-satellite__permission-btn secondary"
+                    >
+                      Dismiss
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (errorState.type === "bluetooth_off" || errorState.type === "location_required" || errorState.type === "permissions_denied") {
+                          void requestAndroidPermissions();
+                        }
+                        if (errorState.type === "service_unavailable") {
+                          void NativeProximity.sync();
+                        }
+                      }}
+                      className="proximity-satellite__permission-btn primary"
+                    >
+                      <Loader2 size={14} className="animate-spin" />
+                      Retry
+                    </button>
+                  )}
+                </div>
+                {errorState.type === "no_ble_hardware" && (
+                  <p className="proximity-satellite__permission-note">
+                    This device cannot use Bluetooth proximity features. You can still discover people using coarse location when online.
+                  </p>
+                )}
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       <AnimatePresence>

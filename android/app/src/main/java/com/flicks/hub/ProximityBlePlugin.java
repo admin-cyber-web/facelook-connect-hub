@@ -2,13 +2,17 @@ package com.flicks.hub;
 
 import android.annotation.SuppressLint;
 import android.Manifest;
+import android.app.Activity;
 import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothManager;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
+import android.net.Uri;
 import android.os.Build;
+import android.provider.Settings;
 
 import androidx.core.content.ContextCompat;
 
@@ -116,6 +120,21 @@ public class ProximityBlePlugin extends Plugin {
                 == PackageManager.PERMISSION_GRANTED;
     }
 
+    private String getPermissionState(String permission) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return "granted";
+        int result = ContextCompat.checkSelfPermission(getContext(), permission);
+        if (result == PackageManager.PERMISSION_GRANTED) return "granted";
+        // Check if permission has been permanently denied (user checked "Don't ask again")
+        Activity activity = getActivity();
+        if (activity != null) {
+            boolean shouldShowRationale = activity.shouldShowRequestPermissionRationale(permission);
+            if (!shouldShowRationale && result == PackageManager.PERMISSION_DENIED) {
+                return "denied"; // permanently denied
+            }
+        }
+        return "prompt";
+    }
+
     private void startService(PluginCall call) {
         String userId = call.getString("userId", "");
         if (userId == null || userId.trim().isEmpty()) {
@@ -216,15 +235,15 @@ public class ProximityBlePlugin extends Plugin {
     public void getPermissionStatus(PluginCall call) {
         JSObject result = new JSObject();
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            result.put("bluetoothScan", has(Manifest.permission.BLUETOOTH_SCAN) ? "granted" : "denied");
-            result.put("bluetoothAdvertise", has(Manifest.permission.BLUETOOTH_ADVERTISE) ? "granted" : "denied");
-            result.put("bluetoothConnect", has(Manifest.permission.BLUETOOTH_CONNECT) ? "granted" : "denied");
+            result.put("bleScan", getPermissionState(Manifest.permission.BLUETOOTH_SCAN));
+            result.put("bleAdvertise", getPermissionState(Manifest.permission.BLUETOOTH_ADVERTISE));
+            result.put("bleConnect", getPermissionState(Manifest.permission.BLUETOOTH_CONNECT));
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                result.put("notifications", has(Manifest.permission.POST_NOTIFICATIONS) ? "granted" : "denied");
+                result.put("notifications", getPermissionState(Manifest.permission.POST_NOTIFICATIONS));
             }
         } else {
-            result.put("fineLocation", has(Manifest.permission.ACCESS_FINE_LOCATION) ? "granted" : "denied");
-            result.put("coarseLocation", has(Manifest.permission.ACCESS_COARSE_LOCATION) ? "granted" : "denied");
+            result.put("fineLocation", getPermissionState(Manifest.permission.ACCESS_FINE_LOCATION));
+            result.put("coarseLocation", getPermissionState(Manifest.permission.ACCESS_COARSE_LOCATION));
         }
         call.resolve(result);
     }
@@ -243,6 +262,90 @@ public class ProximityBlePlugin extends Plugin {
     public void getErrorState(PluginCall call) {
         Intent intent = new Intent(getContext(), ProximityBleService.class);
         intent.setAction(ProximityBleService.ACTION_GET_ERROR_STATE);
+        sendServiceCommand(intent);
+        call.resolve();
+    }
+
+    @PluginMethod
+    public void openBluetoothSettings(PluginCall call) {
+        Activity activity = getActivity();
+        if (activity != null) {
+            Intent intent = new Intent(Settings.ACTION_BLUETOOTH_SETTINGS);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            activity.startActivity(intent);
+        }
+        call.resolve();
+    }
+
+    @PluginMethod
+    public void openLocationSettings(PluginCall call) {
+        Activity activity = getActivity();
+        if (activity != null) {
+            Intent intent = new Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            activity.startActivity(intent);
+        }
+        call.resolve();
+    }
+
+    @PluginMethod
+    public void openAppSettings(PluginCall call) {
+        Activity activity = getActivity();
+        if (activity != null) {
+            Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+            intent.setData(Uri.parse("package:" + getContext().getPackageName()));
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            activity.startActivity(intent);
+        }
+        call.resolve();
+    }
+
+    @PluginMethod
+    public void isBluetoothEnabled(PluginCall call) {
+        BluetoothManager manager = (BluetoothManager) getContext().getSystemService(Context.BLUETOOTH_SERVICE);
+        BluetoothAdapter adapter = manager != null ? manager.getAdapter() : null;
+        boolean enabled = adapter != null && adapter.isEnabled();
+        call.resolve(new JSObject().put("enabled", enabled));
+    }
+
+    @PluginMethod
+    public void startCoarseDiscovery(PluginCall call) {
+        String userId = call.getString("userId", "");
+        if (userId == null || userId.trim().isEmpty()) {
+            call.reject("A signed-in Flicks profile is required for coarse discovery.");
+            return;
+        }
+        String profile = "{}";
+        JSObject profileObject = call.getObject("profile");
+        if (profileObject != null) profile = profileObject.toString();
+
+        Intent intent = new Intent(getContext(), ProximityBleService.class);
+        intent.setAction(ProximityBleService.ACTION_START_COARSE);
+        intent.putExtra(ProximityBleService.EXTRA_USER_ID, userId);
+        intent.putExtra(ProximityBleService.EXTRA_PROFILE, profile);
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) getContext().startForegroundService(intent);
+            else getContext().startService(intent);
+            call.resolve(new JSObject().put("status", "starting"));
+        } catch (RuntimeException error) {
+            call.reject("Flicks could not start coarse discovery.", error);
+        }
+    }
+
+    @PluginMethod
+    public void stopCoarseDiscovery(PluginCall call) {
+        Intent intent = new Intent(getContext(), ProximityBleService.class);
+        intent.setAction(ProximityBleService.ACTION_STOP_COARSE);
+        getContext().startService(intent);
+        call.resolve();
+    }
+
+    @PluginMethod
+    public void setCoarseMode(PluginCall call) {
+        String mode = call.getString("mode", "satellite");
+        Intent intent = new Intent(getContext(), ProximityBleService.class);
+        intent.setAction(ProximityBleService.ACTION_SET_COARSE_MODE);
+        intent.putExtra("coarseMode", mode);
         sendServiceCommand(intent);
         call.resolve();
     }
