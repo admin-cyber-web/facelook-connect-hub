@@ -10,6 +10,8 @@ export function useAudioPlayer() {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [error, setError] = useState<Error | null>(null);
+  const handleCanPlayRef = useRef<() => void>();
+  const handleLoadedMetaRef = useRef<() => void>();
 
   // Set the audio element ref
   const setAudioElement = useCallback((element: HTMLAudioElement | null) => {
@@ -35,6 +37,9 @@ export function useAudioPlayer() {
       playAudio();
     };
 
+    handleCanPlayRef.current = handleCanPlay;
+    handleLoadedMetaRef.current = handleLoadedMeta;
+
     const playAudio = () => {
       audio.play().catch((err) => {
         // Only log if it's not an AbortError (which is expected when src changes)
@@ -56,15 +61,23 @@ export function useAudioPlayer() {
     const audio = audioRef.current;
     if (audio) {
       // Remove existing event listeners to prevent duplicates
-      audio.removeEventListener("canplay", handleCanPlay);
-      audio.removeEventListener("loadedmetadata", handleLoadedMeta);
+      if (handleCanPlayRef.current) {
+        audio.removeEventListener("canplay", handleCanPlayRef.current);
+      }
+      if (handleLoadedMetaRef.current) {
+        audio.removeEventListener("loadedmetadata", handleLoadedMetaRef.current);
+      }
       setIsPlaying(false);
       setError(null);
     }
     return () => {
       if (audio) {
-        audio.removeEventListener("canplay", handleCanPlay);
-        audio.removeEventListener("loadedmetadata", handleLoadedMeta);
+        if (handleCanPlayRef.current) {
+          audio.removeEventListener("canplay", handleCanPlayRef.current);
+        }
+        if (handleLoadedMetaRef.current) {
+          audio.removeEventListener("loadedmetadata", handleLoadedMetaRef.current);
+        }
       }
     };
   }, []);

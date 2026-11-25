@@ -356,7 +356,6 @@ export async function generatePostSEO(postContent: string): Promise<PostSEO> {
 // ── PERMANENT GOOGLE INDEXING PIPELINE ──
 export async function submitToGoogleIndexing(url: string): Promise<boolean> {
   const token =
-    (typeof process !== "undefined" && process.env?.GOOGLE_ACCESS_TOKEN) ||
     import.meta.env.VITE_GOOGLE_ACCESS_TOKEN ||
     "";
 

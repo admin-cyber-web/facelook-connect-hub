@@ -380,10 +380,9 @@ export default function ProximitySatellite({
       setWebBleState((s) => ({ ...s, device, server, characteristic, scanning: false }));
       setStatus("Connected to nearby device");
 
-      // Read the peer's token from the characteristic
+// Read the peer's token from the characteristic
       const value = await characteristic.readValue();
-      const token = toHex(value.buffer);
-      
+      const token = toHex(value.buffer as ArrayBuffer);
       // Emit peerFound-like event
       const peer: NearbyPeer = {
         userId: "web-ble-peer", // Would need proper ID exchange
@@ -480,7 +479,7 @@ export default function ProximitySatellite({
     if (!name && !username && !cached) return;
     void (async () => {
       let avatarData = cached?.avatarData || "";
-      if (avatarUrl && cached?.avatarUrl !== avatarUrl) {
+      if (avatarUrl && cached?.avatarData !== avatarData) {
         const thumbnail = await avatarThumbnail(avatarUrl);
         if (thumbnail) avatarData = thumbnail;
       }
@@ -1169,24 +1168,31 @@ export default function ProximitySatellite({
                   {errorState.type === "generic" && "Error"}
                 </h3>
                 <p className="proximity-satellite__permission-message">{errorState.message}</p>
-                <div className="proximity-satellite__permission-actions">
-                  {errorState.actionLabel && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (errorState.type === "bluetooth_off") void openBluetoothSettings();
-                        if (errorState.type === "location_required") void openLocationSettings();
-                        if (errorState.type === "permissions_denied" || errorState.type === "service_unavailable") void openAppSettings();
-                      }}
-                      className="proximity-satellite__permission-btn primary"
-                    >
-                      {errorState.type === "bluetooth_off" && <Settings size={14} />}
-                      {errorState.type === "location_required" && <MapPin size={14} />}
-                      {errorState.type === "permissions_denied" && <Shield size={14} />}
-                      {errorState.type === "service_unavailable" && <Settings size={14} />}
-                      {errorState.actionLabel}
-                    </button>
-                  )}
+<div className="proximity-satellite__permission-actions">
+                  {(() => {
+                    const type = errorState.type;
+                    const actionTypes = ["bluetooth_off", "permissions_denied", "service_unavailable", "location_required"] as const;
+                    if (!actionTypes.includes(type as typeof actionTypes[number])) return null;
+                    const actionState = errorState as Extract<ErrorState, { type: "bluetooth_off" | "permissions_denied" | "service_unavailable" | "location_required" }>;
+                    const actionLabel = actionState.actionLabel;
+                    return (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (type === "bluetooth_off") void openBluetoothSettings();
+                          if (type === "location_required") void openLocationSettings();
+                          if (type === "permissions_denied" || type === "service_unavailable") void openAppSettings();
+                        }}
+                        className="proximity-satellite__permission-btn primary"
+                      >
+                        {type === "bluetooth_off" && <Settings size={14} />}
+                        {type === "location_required" && <MapPin size={14} />}
+                        {type === "permissions_denied" && <Shield size={14} />}
+                        {type === "service_unavailable" && <Settings size={14} />}
+                        {actionLabel}
+                      </button>
+                    );
+                  })()}
                   {(errorState.type === "permissions_denied" && errorState.permanentlyDenied) || errorState.type === "service_unavailable" ? (
                     <button
                       type="button"
@@ -1198,15 +1204,13 @@ export default function ProximitySatellite({
                     >
                       Dismiss
                     </button>
-                  ) : (
+                  ) : null}
+                  {["bluetooth_off", "permissions_denied", "location_required"].includes(errorState.type) && (
                     <button
                       type="button"
                       onClick={() => {
                         if (errorState.type === "bluetooth_off" || errorState.type === "location_required" || errorState.type === "permissions_denied") {
                           void requestAndroidPermissions();
-                        }
-                        if (errorState.type === "service_unavailable") {
-                          void NativeProximity.sync();
                         }
                       }}
                       className="proximity-satellite__permission-btn primary"

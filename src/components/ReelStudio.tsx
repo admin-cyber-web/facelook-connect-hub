@@ -514,15 +514,15 @@ export default function ReelStudio({
 
       let savedRow: any = null;
       let saveError: any = null;
-      if (isEditing) {
+if (isEditing) {
         const result = await savePost("Reel update", (signal) =>
           supabase
             .from("posts")
             .update(fullPayload)
             .eq("id", reelId)
             .select("*")
-            .maybeSingle()
-            .abortSignal(signal),
+            .abortSignal(signal)
+            .maybeSingle(),
         );
         savedRow = result.data;
         saveError = result.error;
@@ -532,8 +532,8 @@ export default function ReelStudio({
             .from("posts")
             .insert([fullPayload])
             .select("*")
-            .maybeSingle()
-            .abortSignal(signal),
+            .abortSignal(signal)
+            .maybeSingle(),
         );
         savedRow = result.data;
         saveError = result.error;
@@ -551,23 +551,23 @@ export default function ReelStudio({
           media_url: videoUrl,
           metadata,
         };
-        const result = isEditing
+const result = isEditing
           ? await savePost("Compatible Reel update", (signal) =>
               supabase
                 .from("posts")
                 .update(compatibilityPayload)
                 .eq("id", reelId)
                 .select("*")
-                .maybeSingle()
-                .abortSignal(signal),
+                .abortSignal(signal)
+                .maybeSingle(),
             )
           : await savePost("Compatible Reel publish", (signal) =>
               supabase
                 .from("posts")
                 .insert([compatibilityPayload])
                 .select("*")
-                .maybeSingle()
-                .abortSignal(signal),
+                .abortSignal(signal)
+                .maybeSingle(),
             );
         savedRow = result.data;
         saveError = result.error;

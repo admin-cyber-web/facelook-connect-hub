@@ -21,18 +21,19 @@ export default function ReelsViewerModal({
   const [isMuted, setIsMuted] = useState(true);
   const videoRef = useRef<HTMLVideoElement>(null);
 
-  useEffect(() => {
+useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
-    video.addEventListener("click", () => {
+    const handleClick = () => {
       setIsMuted((prev) => {
         const next = !prev;
         video.muted = next;
         return next;
       });
-    });
-    return () => video.removeEventListener("click", () => {});
-  }, [video]);
+    };
+    video.addEventListener("click", handleClick);
+    return () => video.removeEventListener("click", handleClick);
+  }, []);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -59,7 +60,7 @@ export default function ReelsViewerModal({
             muted={isMuted}
             playsInline
             crossOrigin="anonymous"
-            autoplay
+            autoPlay
             loop
             aria-label={`Reels video ${index !== undefined ? index + 1 : 1}`}
           >

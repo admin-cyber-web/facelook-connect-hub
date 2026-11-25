@@ -1464,7 +1464,7 @@ function FrameModePage({ onBack, userProfile, userEmail }: { onBack: () => void;
                     className="w-full py-4 rounded-2xl bg-gradient-to-r from-amber-500 to-yellow-500 text-black font-black text-sm flex items-center justify-center gap-2 shadow-lg shadow-amber-200">
                     <Video size={18} /> Watch Ad & Help (+₹0.50)
                   </motion.button>
-                  <motion.button whileTap={{ scale: 0.97 }} onClick={handleShare}
+<motion.button whileTap={{ scale: 0.97 }} onClick={(e) => handleShare(e.currentTarget)}
                     className="w-full py-4 rounded-2xl bg-[#b0dcc4] text-gray-700 font-black text-sm flex items-center justify-center gap-2">
                     <Globe size={18} /> Share App 🤝
                   </motion.button>
@@ -2911,9 +2911,9 @@ const Index = ({ session, initialAdminOpen, isGuest = false }: { session: Sessio
           .limit(30);
         if (result.error) {
           console.warn("[Index] Extended Flicks preview query failed; retrying legacy video query:", result.error);
-          result = await supabase
+result = await supabase
             .from("posts")
-            .select("id, author, media_url, type, metadata, cover_url, visibility, created_at")
+            .select("id, author, media_url, video_url, type, media_type, metadata, cover_url, image_url, visibility, created_at")
             .in("type", ["video", "reel"])
             .or("visibility.eq.public,visibility.is.null")
             .order("created_at", { ascending: false })

@@ -594,9 +594,13 @@ function sortByRelevance<T extends { full_name?: string; name?: string }>(
 const SearchModal = ({
   onClose,
   userId,
+  onAddFriend,
+  onNavigateToFeature,
 }: {
   onClose: () => void;
   userId?: string;
+  onAddFriend?: (targetId: string) => void;
+  onNavigateToFeature?: (feature: string) => void;
 }) => {
   const { openProfile } = useProfileViewer();
   const onlineUserIds = useOnlineUsers();
@@ -2768,7 +2772,12 @@ const Header = ({
       {/* ── SEARCH MODAL ─────────────────────────────────────────────────── */}
       <AnimatePresence>
         {showSearch && (
-          <SearchModal onClose={() => setShowSearch(false)} userId={userId} />
+          <SearchModal
+            onClose={() => setShowSearch(false)}
+            userId={userId}
+            onAddFriend={onAddFriend}
+            onNavigateToFeature={onNavigateToFeature}
+          />
         )}
       </AnimatePresence>
 

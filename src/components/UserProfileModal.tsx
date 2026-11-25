@@ -112,14 +112,13 @@ const UserProfileModal = ({ userId, currentUserId, isAdmin: isAdminProp = false,
         id?: string | null;
         status: "none" | "pending" | "accepted";
       };
-
-      const [profileRes, postsRes, friendsRes, statusRes, hooksRes, pagesRes, blockRes] = await Promise.all([
+const [profileRes, postsRes, friendsRes, statusRes, hooksRes, pagesRes, blockRes] = await Promise.all([
         needProfile
           ? supabase.from("profiles").select("id,full_name,username,avatar_url,bio,location,state,district,city,school,profile_locked,is_private_mode,last_seen,account_status").eq("id", userId).maybeSingle()
-          : Promise.resolve({ data: cachedProfile }),
+          : Promise.resolve({ data: cachedProfile, error: null }),
         needCounts
           ? supabase.from("posts").select("id", { count: "exact", head: true }).eq("author_id", userId)
-          : Promise.resolve({ count: cachedCounts!.postCount }),
+          : Promise.resolve({ count: cachedCounts!.postCount, error: null }),
         needFriends
           ? supabase
               .from("friendships")
@@ -127,20 +126,20 @@ const UserProfileModal = ({ userId, currentUserId, isAdmin: isAdminProp = false,
               .eq("status", "accepted")
               .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
               .limit(30)
-          : Promise.resolve({ data: null }),
+          : Promise.resolve({ data: null, error: null }),
         needStatus
           ? supabase
               .from("friendships")
               .select("id, status")
               .or(`and(sender_id.eq.${currentUserId},receiver_id.eq.${userId}),and(sender_id.eq.${userId},receiver_id.eq.${currentUserId})`)
               .maybeSingle()
-          : Promise.resolve({ data: cachedStatus }),
+          : Promise.resolve({ data: cachedStatus, error: null }),
         needCounts
           ? supabase.from("page_followers").select("page_id", { count: "exact", head: true }).eq("user_id", userId)
-          : Promise.resolve({ count: cachedCounts!.hookCount }),
+          : Promise.resolve({ count: cachedCounts!.hookCount, error: null }),
         needCounts
           ? supabase.from("hook_pages").select("id", { count: "exact", head: true }).eq("owner_id", userId)
-          : Promise.resolve({ count: cachedCounts!.pageCount }),
+          : Promise.resolve({ count: cachedCounts!.pageCount, error: null }),
         needBlock
           ? supabase
               .from("user_blocks")
@@ -148,7 +147,7 @@ const UserProfileModal = ({ userId, currentUserId, isAdmin: isAdminProp = false,
               .eq("blocker_id", currentUserId)
               .eq("blocked_id", userId)
               .maybeSingle()
-          : Promise.resolve({ data: isOwnProfile ? null : (cachedBlock ? { blocked_id: userId } : null) }),
+          : Promise.resolve({ data: isOwnProfile ? null : (cachedBlock ? { blocked_id: userId } : null), error: null }),
       ]);
 
       // ── Apply results + populate cache ─────────────────────────────────

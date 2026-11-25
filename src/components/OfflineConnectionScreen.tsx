@@ -1,3 +1,5 @@
+import React, { useState, useEffect, useRef } from "react";
+
 const BUNNY_OFFLINE_GIF_URL = "https://flicksindiacdn.b-cdn.net/Stickers/dog%20searching.gif";
 const OFFLINE_CACHE_NAME = "flicks-offline-media-v1";
 

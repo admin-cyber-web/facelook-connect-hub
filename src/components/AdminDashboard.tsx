@@ -53,6 +53,20 @@ interface UserRow {
   is_verified: boolean | null;
 }
 
+interface RawReportRow {
+  id: string;
+  reporter_id: string | null;
+  post_id: string | null;
+  target_id: string | null;
+  reported_user_id: string | null;
+  reason: string;
+  type: string | null;
+  status: string | null;
+  decision: string | null;
+  token_number: string | null;
+  created_at: string;
+}
+
 interface ReportRow {
   id: string;
   post_id: string | null;
@@ -213,7 +227,7 @@ const AdminDashboard: React.FC<Props> = ({
       setPostCount(postsRes.count || 0);
       setTotalMemberCount(countRes.count || userList.length);
 
-      const rawReports = (reportsRes.data as any[]) || [];
+const rawReports = (reportsRes.data as RawReportRow[]) || [];
 
       // Build profileMap from already-loaded userList for reporter name resolution
       const profileMap = new Map<string, { full_name: string; username: string }>();
@@ -222,7 +236,7 @@ const AdminDashboard: React.FC<Props> = ({
       }
       // Collect all profile IDs needed that aren't already in the top-500 userList
       const missingIds = [...new Set(
-        rawReports.flatMap((r: any) => [r.reporter_id, r.target_id, r.reported_user_id])
+        rawReports.flatMap((r) => [r.reporter_id, r.target_id, r.reported_user_id])
           .filter((id: string | null): id is string => !!id && !profileMap.has(id))
       )];
       if (missingIds.length > 0) {
@@ -237,7 +251,7 @@ const AdminDashboard: React.FC<Props> = ({
 
       // Separately fetch post content for all reports that have a post_id
       const postIds = [...new Set(
-        rawReports.map((r: any) => r.post_id).filter((id: string | null): id is string => !!id)
+        rawReports.map((r) => r.post_id).filter((id: string | null): id is string => !!id)
       )];
       const postMap = new Map<string, { content: string; media_url: string | null; author_id: string | null }>();
       if (postIds.length > 0) {
@@ -250,7 +264,7 @@ const AdminDashboard: React.FC<Props> = ({
         }
       }
 
-      const mappedReports: ReportRow[] = rawReports.map((r: any) => {
+const mappedReports: ReportRow[] = rawReports.map((r) => {
         // Reporter: authenticated user via profileMap, or anonymous via token_number
         let reporterName: string;
         if (r.reporter_id) {
@@ -520,7 +534,7 @@ const AdminDashboard: React.FC<Props> = ({
       }
       toast.success("Report marked safe ✓ — both parties notified");
       await fetchAll(true);
-    } catch (e: any) {
+} catch (e) {
       console.error("[AdminDashboard] dismissSafe failed:", e);
       toast.error(e?.message || "Could not dismiss report. Please try again.");
     } finally {
@@ -596,7 +610,7 @@ const AdminDashboard: React.FC<Props> = ({
       toast.success("Post removed ✓ — reporter & author notified");
       setDeleteTarget(null);
       await fetchAll(true);
-    } catch (e: any) {
+} catch (e) {
       const msg = e?.message || e?.details || e?.hint || "Unknown error";
       console.error("[AdminDashboard] confirmDeletePost failed:", msg);
       toast.error(`Delete failed: ${msg}`);
@@ -662,7 +676,7 @@ const AdminDashboard: React.FC<Props> = ({
       toast.success("Post cleaned ✓ — reporter & author notified");
       setDeleteTarget(null);
       await fetchAll(true);
-    } catch (e: any) {
+} catch (e) {
       console.error("[AdminDashboard] confirmCleanPost failed:", e?.message);
       toast.error(e?.message || "Could not clean post. Please try again.");
     } finally {
