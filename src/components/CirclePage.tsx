@@ -345,7 +345,7 @@ const CirclePostCard = memo(({
                 <div className="flex-1 min-w-0 rounded-2xl px-3 py-1.5" style={{ background: "rgba(255,255,255,0.05)" }}>
                   <span className="text-[#00F0FF] text-[11px] font-black">{latestComment.author_name}</span>
                   <span className="text-[12px] text-gray-400 ml-1.5 leading-snug">
-                    {latestComment.content.length > 90 ? latestComment.content.slice(0, 90) + "â€¦" : latestComment.content}
+                    {latestComment.content.length > 90 ? latestComment.content.slice(0, 90) + "..." : latestComment.content}
                   </span>
                 </div>
               </div>
@@ -511,7 +511,7 @@ export default function CirclePage({
   const [pinnedText, setPinnedText]       = useState("");
   const [savingPin, setSavingPin]         = useState(false);
 
-  // About tab â€” inline rules editing
+  // About tab — inline rules editing
   const [rulesEditing, setRulesEditing]   = useState(false);
   const [rulesText, setRulesText]         = useState("");
   const [savingRules, setSavingRules]     = useState(false);
@@ -570,7 +570,7 @@ export default function CirclePage({
   const canModerate = currentRole === "admin" || currentRole === "moderator";
   const canAdmin = currentRole === "admin";
 
-  // Original circle creator â€” has supreme authority over all members including other admins
+  // Original circle creator — has supreme authority over all members including other admins
   const isCreator = selectedGroup?.created_by === currentUserId;
 
   const canManageMember = (member: any) => {
@@ -633,7 +633,7 @@ export default function CirclePage({
         .eq("user_id", currentUserId)
         .in("post_id", rows.map(post => post.id));
       if (likesErr) {
-        // Fetch failed â€” leave existing likedPostIds untouched so UI doesn't wipe state
+        // Fetch failed — leave existing likedPostIds untouched so UI doesn't wipe state
         console.warn("[CirclePage] circle_post_likes fetch failed:", likesErr.message);
       } else {
         setLikedPostIds(prev => append
@@ -694,7 +694,7 @@ export default function CirclePage({
         await supabase.from("circle_post_views")
           .upsert(newlyViewed.map(id => ({ post_id: id, viewer_id: currentUserId })), { onConflict: "post_id,viewer_id" });
       }
-      // Now fetch view counts â€” includes the rows we just upserted
+      // Now fetch view counts — includes the rows we just upserted
       const { data: viewRows } = await supabase
         .from("circle_post_views")
         .select("post_id")
@@ -731,7 +731,7 @@ export default function CirclePage({
     const hit = memGet<Group[]>(cKey);
     if (hit) { setGroups(hit); setLoading(false); return; }
 
-    // Step 1 â€” fetch circles without relational join (avoids PostgREST FK dependency)
+    // Step 1 — fetch circles without relational join (avoids PostgREST FK dependency)
     const { data, error } = await supabase
       .from("circles")
       .select("id, name, description, cover_url, privacy, member_count, created_by, admin_id, created_at, rules, post_approval, pinned_announcement, pinned_at")
@@ -746,7 +746,7 @@ export default function CirclePage({
       let groupsData = data as Group[];
       const ids = groupsData.map(g => g.id);
       if (ids.length > 0) {
-        // Step 2 â€” real member counts from circle_members
+        // Step 2 — real member counts from circle_members
         const { data: memberCounts, error: memberCountsError } = await supabase.rpc(
           "get_circle_member_counts",
           { p_circle_ids: ids },
@@ -758,7 +758,7 @@ export default function CirclePage({
           }
           groupsData = groupsData.map(g => ({ ...g, member_count: counts[g.id] ?? 0 }));
         }
-        // Step 3 â€” manually fetch creator profiles and merge (no FK join needed)
+        // Step 3 — manually fetch creator profiles and merge (no FK join needed)
         const adminIds = [...new Set(groupsData.map(g => g.admin_id).filter(Boolean))] as string[];
         if (adminIds.length > 0) {
           const { data: profileRows } = await supabase
@@ -1192,7 +1192,7 @@ toast.success("You have left the Circle. 👋");
         table: "circle_posts",
         filter: `circle_id=eq.${group.id}`,
       }, (payload) => {
-        // Append new post directly â€” no full DB refetch needed
+        // Append new post directly — no full DB refetch needed
         const newPost = payload.new as GroupPost;
         const isReviewer = role === "admin" || role === "moderator";
         const visible =
@@ -1234,7 +1234,7 @@ toast.success("You have left the Circle. 👋");
 
     // Real-time member subscription (for owner new-member notifications)
     if (memberSubRef.current) supabase.removeChannel(memberSubRef.current);
-    // Debounce member refetch â€” avoid burst DB reads when multiple members join/leave at once
+    // Debounce member refetch — avoid burst DB reads when multiple members join/leave at once
     let memberDebounceTimer: ReturnType<typeof setTimeout> | null = null;
     const memberCh = supabase
       .channel(`members-${group.id}`)
@@ -1248,7 +1248,7 @@ toast.success("You have left the Circle. 👋");
         if (payload.eventType === "INSERT" && newRow.user_id !== currentUserId) {
           setNewMemberCount(c => c + 1);
         }
-        // Debounce full profile refetch â€” max one refetch per 4 seconds
+        // Debounce full profile refetch — max one refetch per 4 seconds
         if (memberDebounceTimer) clearTimeout(memberDebounceTimer);
         memberDebounceTimer = setTimeout(async () => {
           const refreshed = await fetchMembersWithProfiles(group.id);
@@ -1386,7 +1386,7 @@ toast.success("You have left the Circle. 👋");
       .limit(100);
 
     if (error) {
-      toast.error("Chat unavailable â€” table may not exist yet.");
+      toast.error("Chat unavailable — table may not exist yet.");
       setChatLoaded(true);
       return;
     }
@@ -1593,7 +1593,7 @@ toast.success("You have left the Circle. 👋");
         console.error("[CirclePage] unlike failed:", error.message);
         setLikedPostIds(prev => { const next = new Set(prev); next.add(post.id); return next; });
         setGroupPosts(prev => prev.map(p => p.id === post.id ? { ...p, likes_count: (p.likes_count || 0) + 1 } : p));
-        toast.error("Failed to unlike â€” please try again.");
+        toast.error("Failed to unlike — please try again.");
         return;
       }
       await supabase
@@ -1609,7 +1609,7 @@ toast.success("You have left the Circle. 👋");
         console.error("[CirclePage] like failed:", error.message);
         setLikedPostIds(prev => { const next = new Set(prev); next.delete(post.id); return next; });
         setGroupPosts(prev => prev.map(p => p.id === post.id ? { ...p, likes_count: Math.max((p.likes_count || 0) - 1, 0) } : p));
-        toast.error("Failed to like â€” please try again.");
+        toast.error("Failed to like — please try again.");
         return;
       }
       await supabase
@@ -1649,7 +1649,7 @@ toast.success("You have left the Circle. 👋");
     }
 
     await fetchCirclePosts(selectedGroup.id);
-    toast.success(status === "approved" ? "Post approved â€” author notified." : "Post rejected â€” author notified.");
+    toast.success(status === "approved" ? "Post approved — author notified." : "Post rejected — author notified.");
   };
 
   const toggleCommentsMuted = async (post: GroupPost) => {
@@ -1778,7 +1778,7 @@ toast.success("You have left the Circle. 👋");
     const titleLine = circleName;
     const bodyLine  = post.content
       ? post.content.slice(0, 160)
-      : `New post from "${circleName}" â€” check it out on Flicks.`;
+      : `New post from "${circleName}" — check it out on Flicks.`;
     requestShareModal(
       {
         id: `circle-post-${post.id}`,
@@ -1804,7 +1804,7 @@ toast.success("You have left the Circle. 👋");
       const sharerName = sharerProfile?.data?.full_name || "Someone";
       const thumbnail = (post.media_url || (selectedGroup as any)?.cover_url) ?? null;
       const shareTitle = `Circle post in ${circleName}`;
-      const shareDesc = (post.content || "").slice(0, 120) + ((post.content?.length || 0) > 120 ? "â€¦" : "");
+      const shareDesc = (post.content || "").slice(0, 120) + ((post.content?.length || 0) > 120 ? "..." : "");
       await supabase.from("notifications").insert({
         notifier_id: post.author_id,
         actor_id: currentUserId,
@@ -1888,7 +1888,7 @@ toast.success("You have left the Circle. 👋");
     if (!selectedGroup || !currentUserId || !canAdmin) return;
 
     // Try INSERT first; if the invite already exists (23505 unique violation),
-    // reset it to pending via UPDATE â€” avoids upsert's RLS double-check issue.
+    // reset it to pending via UPDATE — avoids upsert's RLS double-check issue.
     const { error: insertErr } = await supabase.from("circle_invites").insert({
       circle_id: selectedGroup.id,
       inviter_id: currentUserId,
@@ -1898,7 +1898,7 @@ toast.success("You have left the Circle. 👋");
 
     if (insertErr) {
       if (insertErr.code === "23505") {
-        // Invite already exists â€” reset to pending
+        // Invite already exists — reset to pending
         const { error: updateErr } = await supabase
           .from("circle_invites")
           .update({ status: "pending", inviter_id: currentUserId })
@@ -2131,7 +2131,7 @@ toast.success("You have left the Circle. 👋");
             </div>
           )}
 
-          {/* Floating Avatar â€” overlaps hero bottom */}
+          {/* Floating Avatar — overlaps hero bottom */}
           <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 z-20">
             <div
               className="w-24 h-24 rounded-full overflow-hidden border-2 border-white/10 flex items-center justify-center text-white font-black text-2xl"
@@ -2171,7 +2171,7 @@ toast.success("You have left the Circle. 👋");
           </div>
           {/* Member avatars + count */}
           <div className="flex items-center gap-2 mt-2">
-            {/* Avatar stack â€” up to 6 DPs */}
+            {/* Avatar stack — up to 6 DPs */}
             {groupMembers.length > 0 && (
               <div className="flex items-center">
                 {groupMembers.slice(0, 6).map((m: any, i: number) => (
@@ -2201,7 +2201,7 @@ toast.success("You have left the Circle. 👋");
             </div>
           </div>
 
-          {/* Description â€” truncated with "More" expand */}
+          {/* Description — truncated with "More" expand */}
           {selectedGroup.description && (
             <div className="mt-2 max-w-xs text-center">
               <p className={`text-[12px] text-gray-500 leading-relaxed ${descExpanded ? "" : "line-clamp-2"}`}>
@@ -2236,7 +2236,7 @@ toast.success("You have left the Circle. 👋");
         <div className="px-3 pb-2 sticky top-0 z-20 pt-1" style={{ background: "#090a0f" }}>
           <div className="flex items-center rounded-2xl border border-white/[0.08] px-2 py-1.5 gap-2"
             style={{ background: "rgba(255,255,255,0.04)", backdropFilter: "blur(20px)" }}>
-            {/* Posts â€” always visible primary tab */}
+            {/* Posts — always visible primary tab */}
             <button
               onClick={() => setGroupTab("posts")}
               className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-[12px] font-black transition-all ${
@@ -2397,7 +2397,7 @@ toast.success("You have left the Circle. 👋");
               <div className="flex items-center justify-center gap-2 py-3 border-b border-white/[0.06]"
                 style={{ background: "rgba(0,240,255,0.06)" }}>
                 <Loader2 size={14} className="animate-spin text-[#00F0FF]" />
-                <span className="text-[11px] font-black text-[#00F0FF]">Refreshingâ€¦</span>
+                <span className="text-[11px] font-black text-[#00F0FF]">Refreshing...</span>
               </div>
             )}
 
@@ -2441,7 +2441,7 @@ toast.success("You have left the Circle. 👋");
                       <textarea
                         value={pinnedText}
                         onChange={e => setPinnedText(e.target.value)}
-                        placeholder="Write your announcement hereâ€¦"
+                        placeholder="Write your announcement here..."
                         rows={3}
                         maxLength={400}
                         autoFocus
@@ -2482,7 +2482,7 @@ toast.success("You have left the Circle. 👋");
               )}
             </AnimatePresence>
 
-            {/* Admin "Add Announcement" button â€” shown when no pin exists */}
+            {/* Admin "Add Announcement" button — shown when no pin exists */}
             {canAdmin && !selectedGroup.pinned_announcement && !pinnedEditing && (
               <div className="flex justify-end px-3 pt-2">
                 <button
@@ -2521,7 +2521,7 @@ toast.success("You have left the Circle. 👋");
                 {circleEvents.length === 0 && canAdmin ? (
                   <div className="mx-4 p-4 rounded-2xl border border-dashed border-violet-200 bg-violet-50 text-center">
                     <Calendar size={22} className="text-violet-300 mx-auto mb-1" />
-                    <p className="text-[11px] font-black text-violet-400">No events yet â€” tap "New Event" to create one</p>
+                    <p className="text-[11px] font-black text-violet-400">No events yet — tap "New Event" to create one</p>
                   </div>
                 ) : (
                   <div className="flex gap-3 px-4 overflow-x-auto pb-1 [&::-webkit-scrollbar]:hidden" style={{ scrollbarWidth: "none" }}>
@@ -2633,7 +2633,7 @@ toast.success("You have left the Circle. 👋");
               </div>
             )}
 
-            {/* Post box â€” only for members */}
+            {/* Post box — only for members */}
             {isMember && (
               <div className="mx-3 mb-3 rounded-3xl border border-white/[0.08] px-4 py-3"
                 style={{ background: "rgba(255,255,255,0.03)", backdropFilter: "blur(20px)" }}>
@@ -2650,7 +2650,7 @@ toast.success("You have left the Circle. 👋");
                     <textarea
                       value={postText}
                       onChange={e => setPostText(e.target.value)}
-                      placeholder="Post something in this Circleâ€¦"
+                      placeholder="Post something in this Circle..."
                       className="w-full rounded-xl px-3 py-2.5 text-sm text-white outline-none resize-none border border-white/10 placeholder:text-white/25 focus:border-[#00F0FF]/40"
                       style={{ background: "rgba(255,255,255,0.06)" }}
                       rows={2}
@@ -2707,7 +2707,7 @@ toast.success("You have left the Circle. 👋");
               {postsLoading ? (
                 <div className="flex flex-col items-center py-16">
                   <Loader2 size={26} className="animate-spin text-blue-400 mb-3" />
-                  <p className="text-[11px] font-black text-gray-400 uppercase tracking-widest">Loading Postsâ€¦</p>
+                  <p className="text-[11px] font-black text-gray-400 uppercase tracking-widest">Loading Posts...</p>
                 </div>
               ) : groupPosts.length === 0 ? (
                 <div className="flex flex-col items-center py-16 text-gray-300">
@@ -2746,7 +2746,7 @@ toast.success("You have left the Circle. 👋");
                   style={{ background: "rgba(255,255,255,0.05)" }}
                 >
                   {loadingMorePosts && <Loader2 size={14} className="animate-spin" />}
-                  {loadingMorePosts ? "Loadingâ€¦" : "Load more posts"}
+                  {loadingMorePosts ? "Loading..." : "Load more posts"}
                 </button>
               </div>
             )}
@@ -2764,7 +2764,7 @@ toast.success("You have left the Circle. 👋");
                 </button>
               </div>
             )}
-            {/* Leave Circle is now in the tab bar â€” no floating button needed */}
+            {/* Leave Circle is now in the tab bar — no floating button needed */}
           </div>
         )}
 
@@ -3008,7 +3008,7 @@ toast.success("You have left the Circle. 👋");
                     )}
                   </AnimatePresence>
 
-                  {/* Input row â€” focus mode: image btn fades out when typing */}
+                  {/* Input row — focus mode: image btn fades out when typing */}
                   <div className="px-3 py-2.5 flex items-center gap-2 transition-all duration-200">
                     {/* Media picker */}
                     <input ref={chatMediaRef} type="file" accept="image/*,video/*" className="hidden"
@@ -3020,7 +3020,7 @@ toast.success("You have left the Circle. 👋");
                         setChatMediaPreview(url);
                         e.target.value = "";
                       }} />
-                    {/* Image button â€” collapses in focus mode */}
+                    {/* Image button — collapses in focus mode */}
                     <AnimatePresence initial={false}>
                       {!chatInputFocused && (
                         <motion.div
@@ -3049,7 +3049,7 @@ toast.success("You have left the Circle. 👋");
                       onKeyDown={e => e.key === "Enter" && !e.shiftKey && (e.preventDefault(), sendChatMessage())}
                       onFocus={() => setChatInputFocused(true)}
                       onBlur={() => setChatInputFocused(false)}
-                      placeholder="Message the circleâ€¦"
+                      placeholder="Message the circle..."
                       className="flex-1 rounded-2xl px-4 py-2.5 text-sm text-white outline-none transition-all duration-200 border placeholder:text-white/25"
                       style={{
                         background: "rgba(255,255,255,0.07)",
@@ -3104,7 +3104,7 @@ toast.success("You have left the Circle. 👋");
               {membersLoading ? (
                 <div className="col-span-2 flex flex-col items-center py-14">
                   <Loader2 size={24} className="animate-spin text-[#00F0FF] mb-2" />
-                  <p className="text-[11px] font-black text-white/40 uppercase tracking-widest">Loading Membersâ€¦</p>
+                  <p className="text-[11px] font-black text-white/40 uppercase tracking-widest">Loading Members...</p>
                 </div>
               ) : null}
               {!membersLoading && groupMembers.map((m: any) => (
@@ -3197,7 +3197,7 @@ toast.success("You have left the Circle. 👋");
                       value={inviteSearch}
                       onChange={e => setInviteSearch(e.target.value)}
                       onKeyDown={e => e.key === "Enter" && searchInvitees()}
-                      placeholder="Search profile nameâ€¦"
+                      placeholder="Search profile name..."
                       className="flex-1 rounded-xl px-3 py-2 text-[12px] text-white outline-none border border-white/10 placeholder:text-white/30 focus:border-[#00F0FF]/40"
                       style={{ background: "rgba(255,255,255,0.06)" }}
                     />
@@ -3259,7 +3259,7 @@ toast.success("You have left the Circle. 👋");
                 <span className="text-[12px] font-black text-white">Settings</span>
               </div>
               <div className="divide-y divide-white/[0.04]">
-                {/* Follow/Unfollow â€” share the circle */}
+                {/* Follow/Unfollow — share the circle */}
                 <button
                   onClick={(event) => shareCircle(selectedGroup, event.currentTarget)}
                   className="w-full flex items-center gap-3 px-4 py-3.5 active:bg-white/[0.06] transition-colors text-left"
@@ -3275,7 +3275,7 @@ toast.success("You have left the Circle. 👋");
                   <ChevronRight size={14} className="text-white/20" />
                 </button>
 
-                {/* Join â€” only for non-members */}
+                {/* Join — only for non-members */}
                 {!isMember && (
                   <button
                     onClick={() => handleJoin(selectedGroup.id)}
@@ -3293,7 +3293,7 @@ toast.success("You have left the Circle. 👋");
                   </button>
                 )}
 
-                {/* Leave â€” only for non-admin members */}
+                {/* Leave — only for non-admin members */}
                 {isMember && !isAdmin && (
                   <button
                     onClick={() => handleLeave(selectedGroup.id)}
@@ -3723,7 +3723,7 @@ toast.success("You have left the Circle. 👋");
                     <input
                       value={eventForm.title}
                       onChange={e => setEventForm(f => ({ ...f, title: e.target.value }))}
-                      placeholder="e.g. Movie Night, Cricket Matchâ€¦"
+                      placeholder="e.g. Movie Night, Cricket Match..."
                       maxLength={80}
                       className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-[14px] text-gray-900 font-semibold outline-none focus:ring-2 focus:ring-violet-400/30 focus:border-violet-300"
                     />
@@ -3763,7 +3763,7 @@ toast.success("You have left the Circle. 👋");
                       <input
                         value={eventForm.location}
                         onChange={e => setEventForm(f => ({ ...f, location: e.target.value }))}
-                        placeholder="e.g. Rooftop, DM for detailsâ€¦"
+                        placeholder="e.g. Rooftop, DM for details..."
                         maxLength={100}
                         className="w-full bg-gray-50 border border-gray-200 rounded-xl pl-9 pr-4 py-3 text-[13px] text-gray-800 outline-none focus:ring-2 focus:ring-violet-400/30 focus:border-violet-300"
                       />
@@ -3775,7 +3775,7 @@ toast.success("You have left the Circle. 👋");
                     <textarea
                       value={eventForm.description}
                       onChange={e => setEventForm(f => ({ ...f, description: e.target.value }))}
-                      placeholder="Tell members what to expect, what to bringâ€¦"
+                      placeholder="Tell members what to expect, what to bring..."
                       rows={3}
                       maxLength={300}
                       className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-[13px] text-gray-800 outline-none focus:ring-2 focus:ring-violet-400/30 focus:border-violet-300 resize-none"
@@ -3789,7 +3789,7 @@ toast.success("You have left the Circle. 👋");
                     className="w-full py-4 rounded-2xl bg-violet-600 text-white text-[14px] font-black disabled:opacity-40 active:scale-[0.98] transition-transform flex items-center justify-center gap-2 shadow-lg shadow-violet-200"
                   >
                     {savingEvent ? <Loader2 size={18} className="animate-spin" /> : <CalendarPlus size={18} />}
-                    {savingEvent ? "Creatingâ€¦" : "Create Event 🎉"}
+                    {savingEvent ? "Creating..." : "Create Event 🎉"}
                   </button>
                 </div>
               </motion.div>
@@ -3928,7 +3928,7 @@ toast.success("You have left the Circle. 👋");
                     <Eye size={18} className="shrink-0" />
                     View Profile
                   </button>
-                  {/* Make Admin / Remove Admin â€” only original creator can do this */}
+                  {/* Make Admin / Remove Admin — only original creator can do this */}
                   {isCreator && memberSheet.user_id !== selectedGroup?.created_by && (
                     memberSheet.role === "admin" ? (
                       <button
@@ -3948,7 +3948,7 @@ toast.success("You have left the Circle. 👋");
                       </button>
                     )
                   )}
-                  {/* Make Moderator / Remove Moderator â€” admin can do this for non-admin members */}
+                  {/* Make Moderator / Remove Moderator — admin can do this for non-admin members */}
                   {canAdmin && memberSheet.role !== "admin" && (
                     <button
                       onClick={() => { haptic(); updateMemberRole(memberSheet, memberSheet.role === "moderator" ? "member" : "moderator"); setMemberSheet(null); }}
@@ -4005,7 +4005,7 @@ toast.success("You have left the Circle. 👋");
                     <div>
                       <p className="text-[14px] font-black text-gray-900">Post Reach</p>
                       <p className="text-[10px] text-gray-400">
-                        {viewersLoading ? "Loadingâ€¦" : `${viewersList.length} unique viewer${viewersList.length !== 1 ? "s" : ""}`}
+                        {viewersLoading ? "Loading..." : `${viewersList.length} unique viewer${viewersList.length !== 1 ? "s" : ""}`}
                       </p>
                     </div>
                   </div>
@@ -4302,7 +4302,7 @@ toast.success("You have left the Circle. 👋");
                   <button onClick={saveEditPost} disabled={editPostSaving || !editPostText.trim()}
                     className="flex-1 py-3 rounded-2xl bg-blue-600 text-white font-black text-sm flex items-center justify-center gap-2 disabled:opacity-40">
                     {editPostSaving ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
-                    {editPostSaving ? "Savingâ€¦" : "Save"}
+                    {editPostSaving ? "Saving..." : "Save"}
                   </button>
                 </div>
               </motion.div>
@@ -4339,7 +4339,7 @@ toast.success("You have left the Circle. 👋");
                     event.stopPropagation();
                     void deleteGroupPost(confirmDeletePost);
                   }} className="flex-1 py-3 rounded-2xl bg-red-500 text-white font-black text-sm disabled:cursor-wait disabled:opacity-60">
-                    {deleteGroupPostSaving ? "Deletingâ€¦" : "Delete"}
+                    {deleteGroupPostSaving ? "Deleting..." : "Delete"}
                   </button>
                 </div>
               </motion.div>
@@ -4383,12 +4383,12 @@ toast.success("You have left the Circle. 👋");
 
                 <label className="block text-[11px] font-black text-gray-500 uppercase tracking-wide mb-1.5">Description</label>
                 <textarea value={editGroupForm.description} onChange={e => setEditGroupForm(p => ({ ...p, description: e.target.value }))}
-                  placeholder="Circle ke baare mein bataoâ€¦" rows={3}
+                  placeholder="Circle ke baare mein batao..." rows={3}
                   className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-800 outline-none resize-none mb-5 focus:ring-2 focus:ring-blue-400/30" />
 
                 <button onClick={saveEditGroup} disabled={editGroupSaving || !editGroupForm.name.trim()}
                   className="w-full py-4 rounded-2xl bg-blue-600 text-white font-black text-sm disabled:opacity-40 active:scale-[0.98] transition-transform flex items-center justify-center gap-2">
-                  {editGroupSaving ? <><Loader2 size={16} className="animate-spin" /> Savingâ€¦</> : <><Check size={16} /> Save Changes</>}
+                  {editGroupSaving ? <><Loader2 size={16} className="animate-spin" /> Saving...</> : <><Check size={16} /> Save Changes</>}
                 </button>
               </motion.div>
             </motion.div>
@@ -4414,7 +4414,7 @@ toast.success("You have left the Circle. 👋");
                   <button onClick={deleteGroup} disabled={deletingGroup}
                     className="flex-1 py-3 rounded-2xl bg-red-500 text-white font-black text-sm flex items-center justify-center gap-2 disabled:opacity-40">
                     {deletingGroup ? <Loader2 size={16} className="animate-spin" /> : null}
-                    {deletingGroup ? "Deletingâ€¦" : "Delete"}
+                    {deletingGroup ? "Deleting..." : "Delete"}
                   </button>
                 </div>
               </motion.div>
@@ -4445,7 +4445,7 @@ toast.success("You have left the Circle. 👋");
                 <textarea
                   value={settingsForm.rules}
                   onChange={e => setSettingsForm(p => ({ ...p, rules: e.target.value }))}
-                  placeholder="Write group rules hereâ€¦"
+                  placeholder="Write group rules here..."
                   className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-800 outline-none resize-none mb-4 focus:ring-2 focus:ring-blue-400/30"
                   rows={4}
                 />
@@ -4464,7 +4464,7 @@ toast.success("You have left the Circle. 👋");
                   onClick={saveSettings}
                   disabled={savingSettings}
                   className="w-full py-4 rounded-2xl bg-blue-600 text-white font-black text-sm disabled:opacity-40 active:scale-[0.98] transition-transform">
-                  {savingSettings ? "Savingâ€¦" : "Save Settings"}
+                  {savingSettings ? "Saving..." : "Save Settings"}
                 </button>
               </motion.div>
             </motion.div>
@@ -4671,7 +4671,7 @@ toast.success("You have left the Circle. 👋");
                 type="text"
                 value={form.name}
                 onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
-                placeholder="e.g. Tech Lovers, Study Groupâ€¦"
+                placeholder="e.g. Tech Lovers, Study Group..."
                 className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-900 outline-none mb-4 focus:ring-2 focus:ring-blue-400/30"
               />
 
@@ -4712,7 +4712,7 @@ toast.success("You have left the Circle. 👋");
               >
                 {creating ? (
                   <span className="flex items-center justify-center gap-2">
-                    <Loader2 size={16} className="animate-spin" /> Creatingâ€¦
+                    <Loader2 size={16} className="animate-spin" /> Creating...
                   </span>
                 ) : "Create Circle"}
               </button>

@@ -7795,56 +7795,51 @@ const FameFeed = ({
               </button>
             )}
 
-            {/* Signal pipeline — static on mobile, animated on desktop */}
-            {!IS_MOBILE && (
-              <div
-                className="relative flex items-center shrink-0"
-                style={{ width: 30, height: 8 }}
-              >
-                {[0, 1, 2].map((i) => (
-                  <motion.div
-                    key={i}
-                    className="absolute rounded-full"
-                    style={{ width: 6, height: 6, left: i * 12, top: 1 }}
-                    animate={{
-                      backgroundColor:
-                        i % 2 === 0
-                          ? ["#ef4444", "#22c55e", "#ef4444"]
-                          : ["#22c55e", "#ef4444", "#22c55e"],
-                      scale: [0.7, 1.25, 0.7],
-                      boxShadow: [
-                        "0 0 0px #ef4444",
-                        "0 0 5px #22c55e",
-                        "0 0 0px #ef4444",
-                      ],
-                    }}
-                    transition={{
-                      duration: 1.1,
-                      repeat: Infinity,
-                      delay: i * 0.32,
-                      ease: "easeInOut",
-                    }}
-                  />
-                ))}
+            {/* Signal pipeline — lightweight dots animation visible on all viewports */}
+            <div
+              className="relative flex items-center shrink-0"
+              style={{ width: 30, height: 8 }}
+            >
+              {[0, 1, 2].map((i) => (
                 <motion.div
+                  key={i}
                   className="absolute rounded-full"
                   style={{
-                    width: 5,
-                    height: 5,
-                    top: 1.5,
-                    background: "#fff",
-                    boxShadow: "0 0 6px #a3e635",
+                    width: 6,
+                    height: 6,
+                    left: i * 12,
+                    top: 1,
+                    backgroundColor: i === 0 ? "#ef4444" : i === 1 ? "#22c55e" : "#3b82f6",
                   }}
-                  animate={{ x: [-3, 26], opacity: [0, 1, 1, 0] }}
+                  animate={{
+                    opacity: [0.4, 1, 0.4],
+                    scale: [0.75, 1.25, 0.75],
+                  }}
                   transition={{
-                    duration: 0.75,
+                    duration: 1.1,
                     repeat: Infinity,
-                    repeatDelay: 0.55,
-                    ease: "linear",
+                    delay: i * 0.32,
+                    ease: "easeInOut",
                   }}
                 />
-              </div>
-            )}
+              ))}
+              <motion.div
+                className="absolute rounded-full"
+                style={{
+                  width: 5,
+                  height: 5,
+                  top: 1.5,
+                  background: "#fff",
+                }}
+                animate={{ x: [-3, 26], opacity: [0, 1, 1, 0] }}
+                transition={{
+                  duration: 0.75,
+                  repeat: Infinity,
+                  repeatDelay: 0.55,
+                  ease: "linear",
+                }}
+              />
+            </div>
 
             {/* 🔗 Link — viral chain button */}
             <MagnetButton
