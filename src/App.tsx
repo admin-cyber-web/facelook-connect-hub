@@ -384,6 +384,22 @@ const App = () => {
       void attemptRecovery(false);
     }
 
+    // Preload Bunny GIF into Cache Storage when online
+    if (typeof window !== "undefined" && "caches" in window && navigator.onLine) {
+      caches.open("flicks-offline-media-v1").then((cache) => {
+        const gifUrl = "https://flicksindiacdn.b-cdn.net/Stickers/dog%20searching.gif";
+        cache.match(gifUrl).then((matched) => {
+          if (!matched) {
+            fetch(gifUrl, { mode: "cors" })
+              .then((res) => {
+                if (res.ok) cache.put(gifUrl, res);
+              })
+              .catch(() => {});
+          }
+        });
+      }).catch(() => {});
+    }
+
     return () => {
       disposed = true;
       attemptRecoveryRef.current = null;
