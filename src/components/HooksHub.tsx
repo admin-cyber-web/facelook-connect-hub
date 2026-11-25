@@ -11,7 +11,7 @@ import {
   DollarSign, Send, CheckSquare, Square, Loader2, Star,
   ChevronRight, Zap, Share2, Upload,
   PlayCircle, Image as ImgIcon, Video as VideoIcon, Check,
-  AlertTriangle, MoreVertical, Pencil, Trash2,
+  AlertTriangle, MoreVertical, Pencil, Trash2, MessageCircle, Flag,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -34,6 +34,15 @@ interface PagePost {
 interface Friend { id: string; full_name: string; avatar_url: string; }
 
 const CATEGORIES = ["General","Business","Entertainment","Education","Sports","Food","Travel","Tech","Art","Music"];
+
+// Preset report reasons shown in the report picker
+const REPORT_REASONS = [
+  "Spam or misleading",
+  "Hate speech or harassment",
+  "Violence or dangerous content",
+  "Nudity or sexual content",
+  "Impersonation or fake account",
+];
 const STORAGE_BUCKET = "hooks";
 const revokeBlobUrl = (url: string | null | undefined) => {
   if (url?.startsWith("blob:")) URL.revokeObjectURL(url);
@@ -740,6 +749,20 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
   const [showDeletePageConfirm, setShowDeletePageConfirm] = useState(false);
   const [deletingPage, setDeletingPage]       = useState(false);
 
+  // ── Hook post comments ──
+  const [commentDrawerId, setCommentDrawerId] = useState<string | null>(null);
+  const [hookComments, setHookComments]       = useState<Record<string, any[]>>({});
+  const [hookCommentCounts, setHookCommentCounts] = useState<Record<string, number>>({});
+  const [hookCommentLoading, setHookCommentLoading] = useState<Record<string, boolean>>({});
+  const [hookCommentText, setHookCommentText]     = useState<Record<string, string>>({});
+  const [hookCommentPosting, setHookCommentPosting] = useState<Record<string, boolean>>({});
+  // ── Report dialog ──
+  const [reportOpen, setReportOpen]          = useState(false);
+  const [reportPostId, setReportPostId]      = useState<string | null>(null);
+  const [reportReason, setReportReason]      = useState("");
+  const [reportCustom, setReportCustom]      = useState(false);
+  const [reporting, setReporting]            = useState(false);
+
   // Invite / join-request state for non-owner viewers
   const [hasPendingInvite, setHasPendingInvite]   = useState(false); // owner invited this user, waiting for them to accept
   const [hasPendingJoinReq, setHasPendingJoinReq] = useState(false); // user requested to join, waiting for owner
@@ -846,6 +869,29 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
       .subscribe();
     return () => { supabase.removeChannel(ch); supabase.removeChannel(invCh); };
   }, [page.id]);
+
+  // ── Realtime: new comments on the currently open hook post comment drawer ──
+  useEffect(() => {
+    if (!commentDrawerId) return undefined;
+    const ch = supabase.channel(`hook-comments-${commentDrawerId}`)
+      .on("postgres_changes", {
+        event: "INSERT",
+        schema: "public",
+        table: "comments",
+        filter: `post_id=eq.${commentDrawerId}`,
+      }, (payload: any) => {
+        const row = payload.new;
+        if (!row || row.parent_id) return;
+        setHookComments(prev => {
+          const arr = (prev[commentDrawerId] || []) as any[];
+          if (arr.some((c: any) => c.id === row.id)) return prev;
+          return { ...prev, [commentDrawerId]: [...arr, row] };
+        });
+        setHookCommentCounts(prev => ({ ...prev, [commentDrawerId]: ((prev[commentDrawerId] || 0) + 1) }));
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [commentDrawerId]);
 
   const toggleFollow = async () => {
     if (followLoading) return;
@@ -964,6 +1010,126 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
       toast.error(error instanceof Error ? error.message : "Post delete failed. Please try again.");
     } finally {
       setDeletePostSaving(false);
+    }
+  };
+
+  // ── Load top-level comments for a hook post (reuses the public `comments` table) ──
+  const loadHookComments = async (postId: string) => {
+    if (hookCommentLoading[postId]) return;
+    setHookCommentLoading(prev => ({ ...prev, [postId]: true }));
+    try {
+      const { data, error } = await supabase
+        .from("comments")
+        .select("id, content, author, user_id, parent_id, created_at")
+        .eq("post_id", postId)
+        .is("parent_id", null)
+        .order("created_at", { ascending: true });
+      if (error) throw error;
+      const rows = (data || []) as any[];
+      setHookComments(prev => ({ ...prev, [postId]: rows }));
+      setHookCommentCounts(prev => ({ ...prev, [postId]: rows.length }));
+    } catch (err: any) {
+      console.warn("[HooksHub] loadHookComments error:", err?.message || err);
+    } finally {
+      setHookCommentLoading(prev => ({ ...prev, [postId]: false }));
+    }
+  };
+
+  const addHookComment = async (postId: string) => {
+    const text = (hookCommentText[postId] || "").trim();
+    if (!text || !userId) return;
+    setHookCommentPosting(prev => ({ ...prev, [postId]: true }));
+    try {
+      const authorName = (myProfile?.full_name || "User").trim();
+      const { data, error } = await supabase
+        .from("comments")
+        .insert([{ post_id: postId, user_id: userId, author: authorName, content: text, parent_id: null }])
+        .select("id, content, author, user_id, parent_id, created_at")
+        .single();
+      if (error) throw error;
+      if (data) {
+        setHookComments(prev => {
+          const arr = (prev[postId] || []) as any[];
+          return { ...prev, [postId]: [...arr, data] };
+        });
+        setHookCommentCounts(prev => ({ ...prev, [postId]: ((prev[postId] || 0) + 1) }));
+        setHookCommentText(prev => ({ ...prev, [postId]: "" }));
+        // Notify the post author (best-effort; never fails the comment)
+        if (post.author_id && post.author_id !== userId) {
+          await supabase.from("notifications").insert({
+            notifier_id: userId, actor_id: userId, type: "comment",
+            entity_id: postId, entity_type: "post",
+            content: `${authorName} commented on your post.`,
+            is_read: false,
+          }).catch(() => { /* ignore */ });
+        }
+      }
+    } catch (err: any) {
+      console.error("[HooksHub] addHookComment error:", err);
+      toast.error("Comment post nahi ho saka. " + (err?.message || ""));
+    } finally {
+      setHookCommentPosting(prev => ({ ...prev, [postId]: false }));
+    }
+  };
+
+  const deleteHookComment = async (commentId: string, postId: string) => {
+    if (!userId) return;
+    try {
+      const { error } = await supabase
+        .from("comments")
+        .delete()
+        .eq("id", commentId)
+        .eq("user_id", userId)
+        .select("id")
+        .maybeSingle();
+      if (error) throw error;
+      setHookComments(prev => {
+        const arr = (prev[postId] || []) as any[];
+        return { ...prev, [postId]: arr.filter((c: any) => c.id !== commentId) };
+      });
+      setHookCommentCounts(prev => ({ ...prev, [postId]: Math.max(((prev[postId] || 1) - 1), 0) }));
+      toast.success("Comment deleted.");
+    } catch (err: any) {
+      console.error("[HooksHub] deleteHookComment error:", err);
+      toast.error("Comment delete nahi ho saka.");
+    }
+  };
+
+  const submitHookReport = async () => {
+    if (!userId) { toast.error("Please sign in to submit a report."); return; }
+    if (!reportReason.trim()) return;
+    if (!reportPostId) return;
+    setReporting(true);
+    try {
+      const targetPost = posts.find(p => p.id === reportPostId);
+      const { error } = await supabase.from("reports").insert({
+        reporter_id: userId,
+        post_id: reportPostId,
+        target_id: targetPost?.author_id ?? null,
+        type: "post",
+        reason: reportReason.trim(),
+        status: "pending",
+      });
+      if (error) throw error;
+      // Best-effort notification
+      try {
+        await supabase.from("notifications").insert({
+          notifier_id: userId, actor_id: userId, type: "report_submitted",
+          entity_id: reportPostId, entity_type: "post",
+          content: "Your report is under review. We'll notify you once a decision is made.",
+          is_read: false,
+        });
+      } catch { /* notification failure must not fail the report */ }
+      setReportOpen(false);
+      setReportReason("");
+      setReportCustom(false);
+      setReportPostId(null);
+      toast.success("Report submitted successfully.");
+    } catch (err: any) {
+      console.error("[HooksHub] submitHookReport error:", err);
+      toast.error("Report submission failed. Please try again.");
+    } finally {
+      setReporting(false);
     }
   };
 
@@ -1634,10 +1800,10 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
             </div>
           )}
           {posts.filter(p => p.status === "approved" || !p.status).map(post => {
-            const canEditPost = isOwner || post.author_id === userId;
             const author = postAuthors[post.author_id];
             const isOwnerPost = post.author_id === page.owner_id;
             return (
+              <>
               <motion.div key={post.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
                 className="rounded-2xl overflow-hidden"
                 style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.11)", backdropFilter: "blur(16px)" }}>
@@ -1681,18 +1847,17 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
                       </div>
                       {post.created_at && <p className="text-[10px] text-white/38 mt-0.5">{smartTime(post.created_at)}</p>}
                     </div>
-                    {/* Three-dot menu */}
-                    {canEditPost && (
-                      <div className="relative shrink-0" onClick={event => event.stopPropagation()}>
-                        <button type="button" aria-label="Post actions" aria-haspopup="menu" aria-expanded={postMenuId === post.id}
-                          onClick={event => {
-                            event.preventDefault();
-                            event.stopPropagation();
-                            setPostMenuId(postMenuId === post.id ? null : post.id);
-                          }}
-                          className="p-1.5 rounded-full text-white/38 hover:text-white/70 hover:bg-white/10 transition-colors">
-                          <MoreVertical size={16} />
-                        </button>
+                    {/* Three-dot menu — visible to every viewer; actions depend on ownership */}
+                    <div className="relative shrink-0" onClick={event => event.stopPropagation()}>
+                      <button type="button" aria-label="Post actions" aria-haspopup="menu" aria-expanded={postMenuId === post.id}
+                        onClick={event => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          setPostMenuId(postMenuId === post.id ? null : post.id);
+                        }}
+                        className="p-1.5 rounded-full text-white hover:bg-white/20 transition-colors">
+                        <MoreVertical size={16} className="text-white" />
+                      </button>
                         <AnimatePresence>
                           {postMenuId === post.id && (
                             <motion.div initial={{ opacity: 0, scale: 0.9, y: -4 }} animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -1700,32 +1865,46 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
                               className="absolute right-0 top-8 z-50 w-36 rounded-2xl shadow-2xl overflow-hidden"
                               style={{ background: "rgba(14,16,28,0.97)", border: "1px solid rgba(255,255,255,0.14)", backdropFilter: "blur(20px)" }}
                               onClick={event => { event.preventDefault(); event.stopPropagation(); }}>
-                              {(isOwner || post.author_id === userId) && (
+                              {isOwner || post.author_id === userId ? (
+                                <>
+                                  <button type="button" role="menuitem" onClick={event => {
+                                    event.preventDefault();
+                                    event.stopPropagation();
+                                    setEditingPost({ id: post.id, content: post.content, author_id: post.author_id });
+                                    setEditPostText(post.content);
+                                    setPostMenuId(null);
+                                  }}
+                                    className="w-full flex items-center gap-2.5 px-4 py-3 text-blue-400 hover:bg-white/8 text-[13px] font-semibold border-b border-white/10">
+                                    <Pencil size={14} /> Edit
+                                  </button>
+                                  <button type="button" role="menuitem" onClick={event => {
+                                    event.preventDefault();
+                                    event.stopPropagation();
+                                    setConfirmDeletePost(post.id);
+                                    setPostMenuId(null);
+                                  }}
+                                    className="w-full flex items-center gap-2.5 px-4 py-3 text-red-400 hover:bg-white/8 text-[13px] font-semibold">
+                                    <Trash2 size={14} /> Delete
+                                  </button>
+                                </>
+                              ) : (
                                 <button type="button" role="menuitem" onClick={event => {
                                   event.preventDefault();
                                   event.stopPropagation();
-                                  setEditingPost({ id: post.id, content: post.content, author_id: post.author_id });
-                                  setEditPostText(post.content);
+                                  setReportPostId(post.id);
+                                  setReportReason("");
+                                  setReportCustom(false);
+                                  setReportOpen(true);
                                   setPostMenuId(null);
                                 }}
-                                  className="w-full flex items-center gap-2.5 px-4 py-3 text-blue-400 hover:bg-white/8 text-[13px] font-semibold border-b border-white/10">
-                                  <Pencil size={14} /> Edit
+                                  className="w-full flex items-center gap-2.5 px-4 py-3 text-rose-400 hover:bg-white/8 text-[13px] font-semibold">
+                                  <Flag size={14} /> Report Post
                                 </button>
                               )}
-                              <button type="button" role="menuitem" onClick={event => {
-                                event.preventDefault();
-                                event.stopPropagation();
-                                setConfirmDeletePost(post.id);
-                                setPostMenuId(null);
-                              }}
-                                className="w-full flex items-center gap-2.5 px-4 py-3 text-red-400 hover:bg-white/8 text-[13px] font-semibold">
-                                <Trash2 size={14} /> Delete
-                              </button>
                             </motion.div>
                           )}
                         </AnimatePresence>
                       </div>
-                    )}
                   </div>
                   {post.content && <p className="text-[14px] text-white/82 font-medium leading-relaxed mb-3">{post.content}</p>}
                   {post.media_url && (() => {
@@ -1759,6 +1938,15 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
                     style={{ background: "rgba(37,99,235,0.13)", border: "1px solid rgba(37,99,235,0.25)" }}>
                     <Share2 size={13} /> Share
                   </motion.button>
+                  <motion.button whileTap={{ scale: 0.88 }} onClick={() => {
+                    const open = commentDrawerId !== post.id;
+                    setCommentDrawerId(open ? post.id : null);
+                    if (open) loadHookComments(post.id);
+                  }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[12px] font-black text-blue-400"
+                    style={{ background: "rgba(37,99,235,0.13)", border: "1px solid rgba(37,99,235,0.25)" }}>
+                    <MessageCircle size={13} /> {hookCommentCounts[post.id] ?? 0}
+                  </motion.button>
                   {(isOwner || (isContributor && !contributorExpired)) && (
                     <motion.button whileTap={{ scale: 0.88 }}
                       onClick={() => broadcastToFameFeed(post)}
@@ -1779,6 +1967,61 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
                   </motion.button>
                 </div>
               </motion.div>
+              {/* Inline comment drawer for this hook post */}
+              {commentDrawerId === post.id && (
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                  className="mt-3 rounded-2xl border border-white/12 bg-white/5 backdrop-blur-md p-3.5 shadow-xl"
+                  style={{ border: "1px solid rgba(255,255,255,0.14)" }}>
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="font-black text-white text-[13px]">Comments ({hookCommentCounts[post.id] ?? 0})</h3>
+                    <button onClick={() => setCommentDrawerId(null)} className="p-1 rounded-full text-white/60 hover:bg-white/10"><X size={16} /></button>
+                  </div>
+                  <div className="max-h-72 overflow-y-auto mb-2 space-y-2.5">
+                    {hookCommentLoading[postId] ? (
+                      <div className="flex justify-center py-4 text-white/50 text-[11px]">Loading comments…</div>
+                    ) : (hookComments[post.id] || []).length === 0 ? (
+                      <p className="text-white/40 text-[12px] text-center">No comments yet. Be the first!</p>
+                    ) : (
+                      (hookComments[post.id] || []).map((c: any) => {
+                        const ca = postAuthors[c.user_id];
+                        return (
+                          <div key={c.id} className="flex gap-2.5 text-sm">
+                            <div className="w-7 h-7 rounded-full overflow-hidden shrink-0 flex items-center justify-center"
+                              style={{ background: "linear-gradient(135deg,#2563eb,#7c3aed)" }}>
+                              {ca?.avatar_url ? <img src={ca.avatar_url} className="w-full h-full object-cover" alt="" loading="lazy" decoding="async" /> : <span className="text-white text-[10px] font-black">{(ca?.full_name || c.author || "U")[0].toUpperCase()}</span>}
+                            </div>
+                            <div className="flex-1 min-w-0 space-y-0.5">
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-black text-white text-[11.5px] truncate">{ca?.full_name || c.author || "User"}</span>
+                                <span className="text-white/40 text-[10px]">{c.created_at ? smartTime(c.created_at) : ""}</span>
+                                {c.user_id === userId && (
+                                  <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); deleteHookComment(c.id, post.id); }}
+                                    className="text-rose-400 text-[10px] font-bold hover:underline ml-auto shrink-0">Delete</button>
+                                )}
+                              </div>
+                              <p className="text-white/85 text-[12px] leading-snug">{c.content}</p>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                  <div className="flex gap-2 pt-2 border-t border-white/8">
+                    <textarea value={hookCommentText[post.id] || ""} onChange={e => setHookCommentText(prev => ({ ...prev, [postId]: e.target.value }))}
+                      placeholder="Write a comment…" rows={1}
+                      className="flex-1 rounded-xl px-3 py-2 text-[13px] text-white outline-none resize-none"
+                      style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.14)" }}
+                      onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void addHookComment(post.id); } }} />
+                    <button disabled={hookCommentPosting[post.id] || !userId} onClick={() => void addHookComment(post.id)}
+                      className="px-4 py-2 rounded-xl text-[12px] font-black disabled:opacity-50 disabled:cursor-not-allowed"
+                      style={{ background: !userId ? "rgba(255,255,255,0.08)" : "linear-gradient(135deg,#2563eb,#7c3aed)", color: !userId ? "white/50" : "#fff" }}>
+                      {hookCommentPosting[post.id] ? <Loader2 size={14} className="animate-spin" /> : "Post"}
+                    </button>
+                  </div>
+                  {!userId && <p className="text-white/40 text-[10px] text-center mt-2">Sign in to comment.</p>}
+                </motion.div>
+              )}
+              </>
             );
           })}
         </div>
@@ -1891,6 +2134,55 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
                   className="flex-1 py-3 rounded-2xl bg-red-500 text-white font-black text-sm flex items-center justify-center gap-2 disabled:opacity-40">
                   {deletingPage ? <Loader2 size={16} className="animate-spin" /> : null}
                   {deletingPage ? "Deleting…" : "Delete"}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+
+        {/* Report dialog — reason picker + confirmation, matches FlicksFeed reports schema */}
+        {reportOpen && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[500] flex items-center justify-center px-6"
+            style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(14px)" }}
+            onClick={() => setReportOpen(false)}>
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
+              className="rounded-3xl p-5 w-full max-w-sm shadow-2xl"
+              style={{ background: "rgba(14,16,28,0.97)", border: "1px solid rgba(255,255,255,0.13)", backdropFilter: "blur(24px)" }}
+              onClick={event => event.stopPropagation()}>
+              <div className="w-10 h-10 rounded-2xl flex items-center justify-center mx-auto mb-3"
+                style={{ background: "rgba(239,68,68,0.18)", border: "1px solid rgba(239,68,68,0.35)" }}>
+                <Flag size={22} className="text-rose-400" />
+              </div>
+              <p className="font-black text-white text-center text-[15px] mb-2">Report this post</p>
+              <p className="text-white/45 text-center text-[12px] mb-4">Help us understand why this post should be reviewed.</p>
+              <div className="space-y-2 mb-4">
+                {REPORT_REASONS.map((reason, i) => (
+                  <button key={i} onClick={() => { setReportReason(reason); setReportCustom(false); }}
+                    className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left text-sm font-semibold transition-colors ${reportReason === reason && !reportCustom ? "bg-rose-500/20 border border-rose-400/50 text-rose-300" : "border border-white/10 bg-white/5 text-white/70 hover:bg-white/10"}`}>
+                    <Flag size={14} className="shrink-0" />
+                    {reason}
+                  </button>
+                ))}
+                <button onClick={() => { setReportCustom(true); setReportReason(""); }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl border border-white/10 bg-white/5 text-left text-sm font-semibold text-white/70 hover:bg-white/10 transition-colors">
+                  <Flag size={14} className="shrink-0" />
+                  Something else…
+                </button>
+                {reportCustom && (
+                  <textarea value={reportReason} onChange={e => setReportReason(e.target.value)} rows={2}
+                    className="w-full rounded-xl px-3 py-2.5 text-[13px] text-white outline-none resize-none mt-2"
+                    placeholder="Describe the issue…"
+                    style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.14)" }} />
+                )}
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => setReportOpen(false)}
+                  className="flex-1 py-3 rounded-2xl font-black text-sm text-white/55"
+                  style={{ background: "rgba(255,255,255,0.08)" }}>Cancel</button>
+                <button disabled={reporting || !reportReason.trim()} onClick={submitHookReport}
+                  className="flex-1 py-3 rounded-2xl bg-rose-500 text-white font-black text-sm disabled:opacity-60 disabled:cursor-not-allowed">
+                  {reporting ? <Loader2 size={16} className="animate-spin" /> : "Submit Report"}
                 </button>
               </div>
             </motion.div>
