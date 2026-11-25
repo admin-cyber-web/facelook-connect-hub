@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import type { KeyboardEvent, PointerEvent } from "react";
 import { createPortal } from "react-dom";
 import { RefreshCw } from "lucide-react";
 import NavigationDrawerMenu from "./NavigationDrawerMenu";
@@ -67,13 +66,13 @@ const GolSlider = ({
     setIsOpen(false);
   };
 
-  const handlePointerDown = (event: PointerEvent<HTMLButtonElement>) => {
+  const handlePointerDown = (event: React.PointerEvent<HTMLButtonElement>) => {
     if (event.button !== 0) return;
     pointerStartRef.current = { x: event.clientX, y: event.clientY };
     event.currentTarget.setPointerCapture?.(event.pointerId);
   };
 
-  const handlePointerUp = (event: PointerEvent<HTMLButtonElement>) => {
+  const handlePointerUp = (event: React.PointerEvent<HTMLButtonElement>) => {
     const start = pointerStartRef.current;
     pointerStartRef.current = null;
     if (!start) return;
@@ -93,7 +92,7 @@ const GolSlider = ({
     }, 350);
   };
 
-  const handleButtonKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
+  const handleButtonKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>) => {
     if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
       event.preventDefault();
       switchMode(event.key === "ArrowLeft" ? "refresh" : "start");

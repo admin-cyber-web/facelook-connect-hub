@@ -1109,10 +1109,12 @@ export function MarketplaceFeedCard({
   items,
   deepLinkEnabled = true,
   deepLinkOnly = false,
+  currentUserId = null,
 }: {
   items: MarketplaceItem[];
   deepLinkEnabled?: boolean;
   deepLinkOnly?: boolean;
+  currentUserId?: string | null;
 }) {
   const active = useMemo(() => items.filter(item => item.is_active), [items]);
   const location = useLocation();

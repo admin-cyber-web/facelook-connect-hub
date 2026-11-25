@@ -474,7 +474,6 @@ const MediaBubble = React.memo(
           controls
           muted
           playsInline
-          webkitPlaysInline
           crossOrigin="anonymous"
           preload="auto"
           className="max-w-[240px] rounded-2xl shadow-lg bg-black"
@@ -4732,7 +4731,6 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                     className="w-full h-full object-cover"
                                     muted
                                     playsInline
-                                    webkitPlaysInline
                                     crossOrigin="anonymous"
                                     preload="auto"
                                   >
@@ -4773,7 +4771,6 @@ const ChatSystem: React.FC<ChatSystemProps> = ({
                                       className="w-full h-full object-cover"
                                       muted
                                       playsInline
-                                      webkitPlaysInline
                                       crossOrigin="anonymous"
                                       preload="auto"
                                       loop

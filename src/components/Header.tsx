@@ -1627,6 +1627,7 @@ const Header = ({
   onChatClick,
   chatBadge,
   userId,
+  onAddFriend,
 }: {
   onProfileClick?: () => void;
   onHomeClick?: () => void;
@@ -1635,6 +1636,7 @@ const Header = ({
   onChatClick?: (e: React.MouseEvent) => void;
   chatBadge?: number;
   userId?: string;
+  onAddFriend?: (targetId: string) => void;
 }) => {
   const navigate = useNavigate();
   // ── Profile viewer (for routing follow notifications) ──────────────────────

@@ -1164,7 +1164,6 @@ const AdminDashboard: React.FC<Props> = ({
                                 controls
                                 muted
                                 playsInline
-                                webkitPlaysInline
                                 crossOrigin="anonymous"
                                 preload="auto"
                                 className="w-full max-h-56 object-contain bg-black"

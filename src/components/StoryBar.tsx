@@ -136,6 +136,7 @@ const StoryCommentSheet = ({
   onClose: () => void;
   onCommentPosted: () => void;
 }) => {
+  const onlineUserIds = useOnlineUsers();
   const [comments, setComments] = useState<any[]>([]);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
@@ -731,7 +732,7 @@ const StoryViewer = ({
               ) : story.media_type === "video" ? (
                 story.mood === "grid" ? (
                   <div className="relative w-full h-full">
-                    <video ref={videoRef} src={storyPublicUrl} className="w-full h-full object-cover" autoPlay={false} muted playsInline webkitPlaysInline crossOrigin="anonymous" preload="auto" loop>
+                    <video ref={videoRef} src={storyPublicUrl} className="w-full h-full object-cover" autoPlay={false} muted playsInline crossOrigin="anonymous" preload="auto" loop>
                         {storyPublicUrl && <source src={storyPublicUrl} type="video/mp4" />}
                       </video>
                     <div className="absolute inset-0 pointer-events-none grid grid-cols-2 grid-rows-2">
@@ -739,7 +740,7 @@ const StoryViewer = ({
                     </div>
                   </div>
                 ) : (
-                  <video ref={videoRef} src={storyPublicUrl} className="w-full h-full object-cover" autoPlay={false} muted playsInline webkitPlaysInline crossOrigin="anonymous" preload="auto" loop style={{ filter: moodFilter }}>
+                  <video ref={videoRef} src={storyPublicUrl} className="w-full h-full object-cover" autoPlay={false} muted playsInline crossOrigin="anonymous" preload="auto" loop style={{ filter: moodFilter }}>
                         {storyPublicUrl && <source src={storyPublicUrl} type="video/mp4" />}
                       </video>
                 )
@@ -1381,7 +1382,7 @@ const StoryUploader = ({
                     </div>
                   ) : files[i]?.type.startsWith("video/") ? (
                     <div className="w-full h-full relative bg-black">
-                      <video src={url} className="w-full h-full object-cover" muted playsInline webkitPlaysInline crossOrigin="anonymous" preload="auto">
+                      <video src={url} className="w-full h-full object-cover" muted playsInline crossOrigin="anonymous" preload="auto">
                         {url && <source src={url} type="video/mp4" />}
                       </video>
                       <div className="absolute inset-0 flex items-center justify-center bg-black/30">

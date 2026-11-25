@@ -69,6 +69,8 @@ public class ProximityBleService extends Service {
     static final String ACTION_STEALTH = "com.flicks.hub.proximity.STEALTH";
     static final String ACTION_REJECT = "com.flicks.hub.proximity.REJECT";
     static final String ACTION_SYNC = "com.flicks.hub.proximity.SYNC";
+    static final String ACTION_CONNECT_PEER = "com.flicks.hub.proximity.CONNECT_PEER";
+    static final String ACTION_GET_ERROR_STATE = "com.flicks.hub.proximity.GET_ERROR_STATE";
     static final String ACTION_EVENT = "com.flicks.hub.proximity.EVENT";
 
     static final String EXTRA_USER_ID = "userId";
@@ -211,6 +213,13 @@ public class ProximityBleService extends Service {
             );
         } else if (ACTION_SYNC.equals(action)) {
             syncStateToBridge();
+        } else if (ACTION_CONNECT_PEER.equals(action)) {
+            String peerToken = safeString(intent.getStringExtra(EXTRA_PEER_TOKEN));
+            if (!peerToken.isEmpty()) {
+                connectToPeer(peerToken);
+            }
+        } else if (ACTION_GET_ERROR_STATE.equals(action)) {
+            emitErrorState();
         }
         return START_STICKY;
     }
@@ -948,6 +957,93 @@ public class ProximityBleService extends Service {
 
     private void processNextNotificationTransfer() {
         // Implementation omitted/handled in original
+    }
+
+    private void connectToPeer(String peerToken) {
+        PeerSignal signal = signals.get(peerToken);
+        if (signal == null || signal.lastRssi < RSSI_THRESHOLD_DBM) {
+            emitStatus("Peer " + peerToken + " not in range");
+            return;
+        }
+
+        BluetoothDevice device = findDeviceByToken(peerToken);
+        if (device == null) {
+            emitStatus("Cannot find device for " + peerToken);
+            return;
+        }
+
+        if (activeClientGatt != null) {
+            try { activeClientGatt.disconnect(); } catch (SecurityException ignored) {}
+            try { activeClientGatt.close(); } catch (SecurityException ignored) {}
+        }
+
+        activeDevice = device;
+        activeClientGatt = device.connectGatt(this, false, new BluetoothGattCallback() {
+            @Override
+            public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
+                if (newState == BluetoothProfile.STATE_CONNECTED) {
+                    gatt.discoverServices();
+                } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
+                    activeClientGatt = null;
+                    activeDevice = null;
+                }
+            }
+
+            @Override
+            public void onServicesDiscovered(BluetoothGatt gatt, int status) {
+                if (status == BluetoothGatt.GATT_SUCCESS) {
+                    BluetoothGattService service = gatt.getService(SERVICE_UUID);
+                    if (service != null) {
+                        BluetoothGattCharacteristic characteristic = service.getCharacteristic(PROFILE_CHARACTERISTIC_UUID);
+                        if (characteristic != null) {
+                            gatt.readCharacteristic(characteristic);
+                        }
+                    }
+                }
+            }
+
+            @Override
+            public void onCharacteristicRead(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
+                if (status == BluetoothGatt.GATT_SUCCESS) {
+                    String profileJson = new String(characteristic.getValue(), StandardCharsets.UTF_8);
+                    JSONObject data = new JSONObject();
+                    try {
+                        data.put("peerToken", peerToken);
+                        data.put("profile", profileJson);
+                    } catch (JSONException ignored) {}
+                    emit("peer_profile", data);
+                    gatt.disconnect();
+                }
+            }
+        });
+    }
+
+    private BluetoothDevice findDeviceByToken(String peerToken) {
+        for (Map.Entry<String, BluetoothDevice> entry : deviceMap.entrySet()) {
+            if (entry.getKey().equals(peerToken)) {
+                return entry.getValue();
+            }
+        }
+        return null;
+    }
+
+    private void emitErrorState() {
+        String errorState = "";
+        if (bluetoothAdapter == null) {
+            errorState = "Bluetooth not supported";
+        } else if (!bluetoothAdapter.isEnabled()) {
+            errorState = "Bluetooth disabled";
+        } else if (!hasPermissions()) {
+            errorState = "Missing BLE permissions";
+        } else if (running && !scanning && !advertisingEnabled) {
+            errorState = "Radio idle - check permissions";
+        }
+        
+        JSONObject data = new JSONObject();
+        try {
+            data.put("error", errorState);
+        } catch (JSONException ignored) {}
+        emit("error_state", data);
     }
 
     private static String toHex(byte[] bytes) {

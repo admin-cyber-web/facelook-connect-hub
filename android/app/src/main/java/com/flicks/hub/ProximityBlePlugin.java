@@ -38,6 +38,9 @@ import org.json.JSONObject;
                 @Permission(alias = "legacyLocation", strings = {
                         Manifest.permission.ACCESS_FINE_LOCATION
                 }),
+                @Permission(alias = "legacyCoarseLocation", strings = {
+                        Manifest.permission.ACCESS_COARSE_LOCATION
+                }),
                 @Permission(alias = "notifications", strings = {
                         Manifest.permission.POST_NOTIFICATIONS
                 })
@@ -101,8 +104,11 @@ public class ProximityBlePlugin extends Plugin {
             return has(Manifest.permission.BLUETOOTH_SCAN)
                     && has(Manifest.permission.BLUETOOTH_ADVERTISE)
                     && has(Manifest.permission.BLUETOOTH_CONNECT);
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            return has(Manifest.permission.ACCESS_FINE_LOCATION)
+                    || has(Manifest.permission.ACCESS_COARSE_LOCATION);
         }
-        return has(Manifest.permission.ACCESS_FINE_LOCATION);
+        return has(Manifest.permission.ACCESS_COARSE_LOCATION);
     }
 
     private boolean has(String permission) {
@@ -179,6 +185,65 @@ public class ProximityBlePlugin extends Plugin {
         Intent intent = new Intent(getContext(), ProximityBleService.class);
         intent.setAction(ProximityBleService.ACTION_STOP);
         getContext().startService(intent);
+        call.resolve();
+    }
+
+    @PluginMethod
+    public void requestPermissions(PluginCall call) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            String[] aliases = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+                    ? new String[] { "bleScan", "bleAdvertise", "bleConnect", "notifications" }
+                    : new String[] { "bleScan", "bleAdvertise", "bleConnect" };
+            requestPermissionForAliases(aliases, call, "permissionResult");
+        } else {
+            String[] aliases = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
+                    ? new String[] { "legacyLocation", "legacyCoarseLocation" }
+                    : new String[] { "legacyCoarseLocation" };
+            requestPermissionForAliases(aliases, call, "permissionResult");
+        }
+    }
+
+    @PermissionCallback
+    private void permissionResult(PluginCall call) {
+        if (!hasRequiredPermissions()) {
+            call.reject("Nearby Bluetooth permissions were not granted.");
+            return;
+        }
+        call.resolve(new JSObject().put("granted", true));
+    }
+
+    @PluginMethod
+    public void getPermissionStatus(PluginCall call) {
+        JSObject result = new JSObject();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            result.put("bluetoothScan", has(Manifest.permission.BLUETOOTH_SCAN) ? "granted" : "denied");
+            result.put("bluetoothAdvertise", has(Manifest.permission.BLUETOOTH_ADVERTISE) ? "granted" : "denied");
+            result.put("bluetoothConnect", has(Manifest.permission.BLUETOOTH_CONNECT) ? "granted" : "denied");
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                result.put("notifications", has(Manifest.permission.POST_NOTIFICATIONS) ? "granted" : "denied");
+            }
+        } else {
+            result.put("fineLocation", has(Manifest.permission.ACCESS_FINE_LOCATION) ? "granted" : "denied");
+            result.put("coarseLocation", has(Manifest.permission.ACCESS_COARSE_LOCATION) ? "granted" : "denied");
+        }
+        call.resolve(result);
+    }
+
+    @PluginMethod
+    public void connectPeer(PluginCall call) {
+        Intent intent = new Intent(getContext(), ProximityBleService.class);
+        intent.setAction(ProximityBleService.ACTION_CONNECT_PEER);
+        intent.putExtra(ProximityBleService.EXTRA_PEER_TOKEN, call.getString("peerToken", ""));
+        intent.putExtra(ProximityBleService.EXTRA_PEER_ID, call.getString("peerId", ""));
+        sendServiceCommand(intent);
+        call.resolve();
+    }
+
+    @PluginMethod
+    public void getErrorState(PluginCall call) {
+        Intent intent = new Intent(getContext(), ProximityBleService.class);
+        intent.setAction(ProximityBleService.ACTION_GET_ERROR_STATE);
+        sendServiceCommand(intent);
         call.resolve();
     }
 

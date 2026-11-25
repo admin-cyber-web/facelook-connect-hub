@@ -22,7 +22,7 @@ import {
   useDismissableReactionPicker,
 } from "./ReactionBar";
 import { ErrorBoundary } from "./ErrorBoundary";
-import { Magneto, MagnetButton, PostVoiceStrip, MagnetVoice } from "./MagnetSystem";
+import { MagnetButton, PostVoiceStrip, MagnetVoice } from "./MagnetSystem";
 import { useSoundEffects } from "../hooks/useSoundEffects";
 import { useProfileViewer } from "../context/ProfileViewerContext";
 import { useDataCache } from "../context/DataCacheContext";
@@ -1311,15 +1311,27 @@ const openFullReelsAt = (postId: string) => {
   window.dispatchEvent(new CustomEvent("flicks:open-reels", { detail: { postId } }));
 };
 
+// Type for trending flicks - used by TrendingFlicksRow and FameFeed
+type TrendingFlick = {
+  media_url?: string | null;
+  type?: string | null;
+  id?: string | number;
+  _raw_id?: string | number;
+  cover_url?: string | null;
+  thumb_url?: string | null;
+  likes_count?: number | null;
+  author?: string | null;
+};
+
 // Pure display component — data is fetched once at FameFeed level, no per-instance channels
 const TrendingFlicksRow = ({
   flicks,
   loaded,
   onFlickClick,
 }: {
-  flicks: any[];
+  flicks: TrendingFlick[];
   loaded: boolean;
-  onFlickClick: (flick: any) => void;
+  onFlickClick: (flick: TrendingFlick) => void;
 }) => {
   if (!loaded) return null;
   if (flicks.length === 0)
@@ -5422,7 +5434,7 @@ const FameFeed = ({
         res = await supabase
           .from("posts")
           .select(
-            "id, author, author_id, content, media_url, image_url, type, likes_count, comments_count, created_at, metadata, cover_url, views_count, shares_count, visibility, meta_title, meta_description, author_profile:profiles(avatar_url, full_name, is_verified, is_private_mode, last_seen, is_official_creator, state, district, city)",
+            "id, author, author_id, content, media_url, image_url, image_urls, type, likes_count, comments_count, created_at, metadata, cover_url, views_count, shares_count, visibility, meta_title, meta_description, author_profile:profiles(avatar_url, full_name, is_verified, is_private_mode, last_seen, is_official_creator, state, district, city)",
           )
           .order("created_at", { ascending: false })
           .range(from, to);
@@ -6125,7 +6137,7 @@ const FameFeed = ({
         metaDescription: post.meta_description,
       })
         .then((outcome) => {
-          if (outcome !== "cancelled") void executeShare(post, "system");
+          if (outcome !== "cancelled") void executeShare(post, "native");
         })
         .catch((error) => {
           console.error("[FameFeed] Native share failed:", error);
@@ -8633,7 +8645,7 @@ const FameFeed = ({
     >
       {/* One hidden catalog host owns marketplace query deep-links. Feed cards
           stay in their existing positions without opening duplicate modals. */}
-      <MarketplaceFeedCard items={marketplaceItems} deepLinkOnly />
+      <MarketplaceFeedCard items={marketplaceItems} deepLinkOnly currentUserId={currentUserId} />
 
       {/* â”€â”€ Hidden Posts Archive Banner (shows only when posts are hidden) â”€â”€ */}
       {hiddenIds.size > 0 && (
@@ -8752,7 +8764,7 @@ const FameFeed = ({
               {renderPost(bPost)}
               <FeedDivider />
               {showAd && (
-                <MarketplaceFeedCard items={marketplaceItems} deepLinkEnabled={false} />
+                <MarketplaceFeedCard items={marketplaceItems} deepLinkEnabled={false} currentUserId={currentUserId} />
               )}
             </ErrorBoundary>
           );
@@ -8760,17 +8772,19 @@ const FameFeed = ({
 
         // â”€â”€ Trending Flicks (shuffled) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         if (block.type === "reels-row") {
-          const shuffled = seededShuffle(trendingFlicks, block.seed ?? 0);
+          type TrendingFlick = { media_url?: string | null; type?: string | null; id?: string | number; _raw_id?: string | number; cover_url?: string | null; thumb_url?: string | null; likes_count?: number | null; author?: string | null; };
+          const shuffled = seededShuffle<TrendingFlick>(trendingFlicks, block.seed ?? 0);
           return (
             <div key={block.key}>
               <TrendingFlicksRow
                 flicks={shuffled}
                 loaded={flicksLoaded}
-                onFlickClick={(flick) => {
-                  const url = String(flick.media_url || "");
+                onFlickClick={(flick: TrendingFlick) => {
+                  const mediaUrl = flick.media_url ?? "";
+                  const url = String(mediaUrl);
                   const isVid =
                     flick.type === "video" ||
-                    isHlsUrl(url) ||
+                    /\.m3u8(?:$|[?#])/i.test(url) ||
                     /\.(mp4|webm|ogg|mov|m4v)/i.test(url.split("?")[0]);
                   // Video flicks jump straight into the full-screen Reels
                   // overlay at that video; images keep the legacy modal.

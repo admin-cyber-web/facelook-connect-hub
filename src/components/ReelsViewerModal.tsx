@@ -58,7 +58,7 @@ export default function ReelsViewerModal({
             className="w-full h-full object-contain"
             muted={isMuted}
             playsInline
-            webkitPlaysInline
+            crossOrigin="anonymous"
             autoplay
             loop
             aria-label={`Reels video ${index !== undefined ? index + 1 : 1}`}

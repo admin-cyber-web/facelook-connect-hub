@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
+import { motion } from "framer-motion";
 import { supabase } from "../lib/supabaseClient";
 import { uploadBunnyVideo, uploadBunnyImage } from "@/lib/bunny";
 import { isAdminEmail } from "../lib/adminConfig";

@@ -1,3 +1,5 @@
+import type { StickerType } from "./messageParser";
+
 /**
  * Flat list of all 30 chat stickers hosted directly on BunnyCDN:
  * https://flicksindiacdn.b-cdn.net/Stickers/

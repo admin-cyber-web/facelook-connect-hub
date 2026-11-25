@@ -63,17 +63,46 @@ type FlickPostMetadata = {
 };
 type FlickPostRow = {
   id: string;
+  _raw_id?: string;
   author_id?: string | null;
+  user_id?: string | null;
+  author?: string | null;
+  author_avatar?: string | null;
+  full_name?: string | null;
   media_url?: string | null;
+  image_url?: string | null;
+  image_urls?: string[] | null;
+  video_url?: string | null;
+  type?: string | null;
   metadata?: FlickPostMetadata | null;
+  cover_url?: string | null;
+  thumb_url?: string | null;
+  views_count?: number | null;
+  likes_count?: number | null;
+  comments_count?: number | null;
+  shares_count?: number | null;
+  meta_title?: string | null;
+  meta_description?: string | null;
+  audio_url?: string | null;
   created_at?: string | null;
   visibility?: string | null;
-  author_profile?: { is_private_mode?: boolean | null } | null;
+  author_profile?: { is_private_mode?: boolean | null; full_name?: string | null; avatar_url?: string | null } | null;
   is_admin_post?: boolean | null;
+  bunny_ready?: boolean | null;
+  liked_by_me?: boolean | null;
+  content?: string | null;
+  caption?: string | null;
+  description?: string | null;
+  _source?: string | null;
+  thumbnail_url?: string | null;
+  poster_url?: string | null;
+  preview_url?: string | null;
+  video_thumbnail_url?: string | null;
+  media_type?: string | null;
 };
 const FLICKS_POST_PROJECTION =
-  "id, author, author_id, content, media_url, image_url, image_urls, type, metadata, cover_url, views_count, likes_count, comments_count, shares_count, meta_title, meta_description, created_at, visibility, is_admin_post, author_profile:profiles!posts_author_id_fkey(avatar_url, full_name, is_private_mode)";
-const FLICKS_POST_PROJECTION_WITH_AUDIO = `${FLICKS_POST_PROJECTION}, audio_url`;
+  "id, author, author_id, content, media_url, image_url, image_urls, type, metadata, cover_url, views_count, likes_count, comments_count, shares_count, meta_title, meta_description, created_at, visibility, is_admin_post, video_url, media_type, audio_url, author_profile:profiles!posts_author_id_fkey(avatar_url, full_name, is_private_mode)";
+const FLICKS_POST_PROJECTION_WITH_AUDIO = FLICKS_POST_PROJECTION;
 const FLICKS_CACHE_KEY = "flicks-feed:v1";
 const FLICKS_CACHE_LIMIT = 30;
 
@@ -258,12 +287,17 @@ type CommentDrawerProps = {
   post: FlickPostRow;
   currentUserId: string | null;
   onClose: () => void;
-  onCommentAdded?: () => void;
+  onCommentAdded?: (newCount?: number) => void;
 };
 
 const CommentDrawer = ({ post, currentUserId, onClose, onCommentAdded }: CommentDrawerProps) => {
   const onlineUserIds = useOnlineUsers();
-  const [comments, setComments] = useState<Array<Record<string, unknown>>>([]);
+  const [comments, setComments] = useState<Array<{
+    id: string;
+    user_id?: string;
+    content: string;
+    profiles?: { username?: string; full_name?: string; avatar_url?: string } | { username?: string; full_name?: string; avatar_url?: string }[] | null;
+  }>>([]);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const sounds = useSoundEffects();
@@ -367,8 +401,8 @@ type FlickCardProps = {
   onEditReel?: (post: FlickPostRow) => void;
   isAdmin: boolean;
   onPostDeleted?: (postId: string) => void;
-  onPostDeleteOptimistic?: (postId: string) => void;
-  onPostDeleteRollback?: (post: FlickPostRow) => void;
+  onPostDeleteOptimistic?: (postId: string, post: FlickPostRow) => void;
+  onPostDeleteRollback?: (postId: string) => void;
   onUserBanned?: (authorId: string) => void;
   onVideoInvalid?: (postId: string) => void;
 };
@@ -408,7 +442,7 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, isWarmNext, curre
   const { openProfile } = useProfileViewer();
   const onlineUserIds = useOnlineUsers();
   const reelSettings = useMemo(() => getReelSettings(post), [post]);
-  const videoUrl = reelSettings.videoUrl || post.media_url || post.url;
+  const videoUrl = reelSettings.videoUrl || post.media_url || post.video_url || post.image_url || "";
   const bunnyVideoId = getBunnyVideoId(videoUrl, post?.metadata?.bunny_video_id);
   const isCreator = Boolean(currentUserId && post.author_id === currentUserId);
   const bunnyVideoStatus = useBunnyVideoStatus(bunnyVideoId, isActive && isCreator);
@@ -1077,7 +1111,6 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, isWarmNext, curre
         <VibeAudioToggle
           postId={vibePostId}
           audioUrl={vibeAudioUrl}
-          vibeLabel={vibe.primary?.label}
           audioTitle={vibe.primary?.audioTitle}
           compact
           floating
@@ -1600,7 +1633,7 @@ export default function FlicksApp({
           postsResult = await loadPosts(projection);
         }
         if (postsResult.error) throw postsResult.error;
-        const rows: FlickPostRow[] = [...(postsResult.data || [])] as FlickPostRow[];
+        const rows: FlickPostRow[] = [...(postsResult.data || [])] as unknown as FlickPostRow[];
 
         // A FameFeed video can be older than the default 30-reel window. Fetch
         // that selected post explicitly so the viewer can still open on it.
@@ -1625,7 +1658,7 @@ export default function FlicksApp({
               selectedResult.error.message,
             );
           } else if (selectedResult.data) {
-            rows.push(selectedResult.data as FlickPostRow);
+            rows.push(selectedResult.data as unknown as FlickPostRow);
           }
         }
 
@@ -1759,7 +1792,7 @@ export default function FlicksApp({
                   ...item,
                   liked_by_me: engagementError
                     ? likedIds.has(item._raw_id)
-                    : Boolean(engagement?.liked_by_me),
+                    : likedIds.has(item._raw_id),
                   likes_count: engagementError
                     ? item.likes_count
                     : Number(engagement?.likes_count) || 0,

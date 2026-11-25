@@ -552,7 +552,7 @@ const MediaBubble = React.memo(
           controls
           muted
           playsInline
-          webkitPlaysInline
+          crossOrigin="anonymous"
           preload="metadata"
           onError={() => setHasError(true)}
           className="max-w-[240px] rounded-2xl shadow-lg bg-black"
@@ -4583,7 +4583,7 @@ useEffect(() => {
                                     className="w-full h-full object-cover"
                                     muted
                                     playsInline
-                                    webkitPlaysInline
+                                    crossOrigin="anonymous"
                                     preload="auto"
                                   >
                                     {url && <source src={url} type="video/mp4" />}
@@ -4623,7 +4623,7 @@ useEffect(() => {
                                       className="w-full h-full object-cover"
                                       muted
                                       playsInline
-                                      webkitPlaysInline
+                                      crossOrigin="anonymous"
                                       preload="auto"
                                       loop
                                       autoPlay
@@ -6017,27 +6017,16 @@ useEffect(() => {
                           }`}
                         >
                           {/* Vibrant animated sticker icon with gentle float/pulse */}
-                          <div className="relative z-10">
+<div className="relative z-10">
                             <img
                               src="https://flicksindiacdn.b-cdn.net/icon/thumbs-up.png"
                               alt="Sticker"
-                              className="w-5 h-5 drop-shadow-sm"
-                              style={{ animation: "gentle-bounce 3s ease-in-out infinite" }}
+                              className="w-5 h-5 drop-shadow-sm gentle-bounce"
                               onError={(e) => {
                                 const el = e.currentTarget as HTMLImageElement;
                                 el.style.display = "none";
                               }}
                             />
-                            <style global>{`
-                              @keyframes gentle-bounce {
-                                0%, 100% { transform: scale(1) rotate(0deg); }
-                                25% { transform: scale(1.08) rotate(3deg); }
-                                50% { transform: scale(1) rotate(0deg); }
-                                75% { transform: scale(1.08) rotate(-3deg); }
-                              }
-                            `}</style>
-
-
 
 
                           </div>

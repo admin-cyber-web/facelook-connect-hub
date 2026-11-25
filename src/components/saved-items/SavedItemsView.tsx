@@ -226,7 +226,6 @@ function SavedPostCard({
               controls
               muted
               playsInline
-              webkitPlaysInline
               crossOrigin="anonymous"
               preload="auto"
               aria-label={`Video shared by ${post.author}`}

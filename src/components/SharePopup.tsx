@@ -16,6 +16,8 @@ export interface SharePostData {
   thumbnail_url?: string;
   imageUrl?: string;
   image_url?: string;
+  image_urls?: string[];
+  shares_count?: number;
   videoUrl?: string;
   video_url?: string;
   coverUrl?: string;
@@ -28,6 +30,11 @@ export interface SharePostData {
   meta_title?: string;
   meta_description?: string;
   share_url?: string;
+  poster_url?: string;
+  preview_url?: string;
+  video_thumbnail_url?: string;
+  metadata?: any;
+  thumb_url?: string;
 }
 
 export interface ShareAnchor {

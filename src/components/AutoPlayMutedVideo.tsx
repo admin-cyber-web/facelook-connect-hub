@@ -226,7 +226,6 @@ export default function AutoPlayMutedVideo({
         }
         loop
         playsInline
-        webkitPlaysInline
         crossOrigin="anonymous"
         preload={preload === "none" ? "none" : isNearViewport ? "auto" : preload}
         autoPlay={isInViewport && playbackEnabled}
@@ -254,9 +253,13 @@ export default function AutoPlayMutedVideo({
       {shimmer && !poster && !hasError && !src.startsWith("blob:") && (
         <div
           className="absolute inset-0 bg-gradient-to-br from-gray-900/50 via-gray-800/30 to-gray-900/50 z-0"
+          style={{
+            backgroundSize: "200% 200%",
+            animation: "shimmer 2s linear infinite",
+          }}
         />
       )}
-      <style jsx>{`
+      <style>{`
         @keyframes shimmer {
           0% { background-position: 200% 0%; }
           100% { background-position: -200% 0%; }

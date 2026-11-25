@@ -881,7 +881,7 @@ const CreatePost = ({
           const isPriority = hasPin || hasTeam;
           const notifText = isPriority
             ? "pinned you in a priority post"
-            : sceneCompanion && nid === sceneCompanion.id
+            : sceneCompanion && notifierIds.has(sceneCompanion.id)
               ? `tagged you in a ${sceneVaultDraft.mood} scene`
             : "mentioned you in a post";
           const rows = Array.from(notifierIds).map(nid => ({

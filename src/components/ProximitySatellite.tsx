@@ -10,6 +10,10 @@ import {
   Volume2,
   VolumeX,
   X,
+  AlertCircle,
+  CheckCircle,
+  WifiOff,
+  Smartphone,
 } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { toast } from "sonner";
@@ -62,9 +66,38 @@ const PROFILE_CACHE_PREFIX = "flicks-proximity-profile-v1:";
 const REQUEST_QUEUE_PREFIX = "flicks-proximity-requests-v1:";
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Web Bluetooth fallback (Chrome/Edge desktop & Android, not iOS Safari)
+// ─────────────────────────────────────────────────────────────────────────────
+const SERVICE_UUID = "0000f1a7-0000-1000-8000-00805f9b34fb"; // Matches Android SERVICE_PARCEL_UUID
+const CHARACTERISTIC_UUID = "0000f1a8-0000-1000-8000-00805f9b34fb";
+
+interface WebBleState {
+  device: BluetoothDevice | null;
+  server: BluetoothRemoteGATTServer | null;
+  characteristic: BluetoothRemoteGATTCharacteristic | null;
+  scanning: boolean;
+  advertising: boolean;
+  error: string | null;
+}
+
+function toHex(bytes: ArrayBuffer): string {
+  return Array.from(new Uint8Array(bytes))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+function fromHex(hex: string): Uint8Array {
+  const bytes = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < hex.length; i += 2) {
+    bytes[i / 2] = parseInt(hex.slice(i, i + 2), 16);
+  }
+  return bytes;
+}
+
 interface ProximitySatelliteProps {
   userId: string;
-  profile: Record<string, any>;
+  profile: Record<string, unknown>;
   canAdvertise: boolean;
 }
 
@@ -144,12 +177,22 @@ export default function ProximitySatellite({
   canAdvertise,
 }: ProximitySatelliteProps) {
   const androidNative = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "android";
+  const iosNative = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
+  const webPlatform = !androidNative && !iosNative && typeof navigator !== "undefined";
+  const webBleSupported = webPlatform && "bluetooth" in navigator;
+  
   const [stealth, setStealth] = useState(
     () => localStorage.getItem(STEALTH_KEY) === "true",
   );
   const [expanded, setExpanded] = useState(false);
   const [status, setStatus] = useState(
-    androidNative ? "Starting local Bluetooth…" : "Browser fallback simulation · BLE unavailable",
+    androidNative
+      ? "Starting local Bluetooth…"
+      : webBleSupported
+      ? "Web Bluetooth available — click to scan"
+      : iosNative
+      ? "iOS native proximity coming soon"
+      : "Browser fallback simulation · BLE unavailable",
   );
   const [nativeReady, setNativeReady] = useState(false);
   const [preparedProfile, setPreparedProfile] = useState<AdvertisedProfile | null>(
@@ -159,19 +202,175 @@ export default function ProximitySatellite({
   const [nearbyDevices, setNearbyDevices] = useState<NearbyPeer[]>([]);
   const [peerQueue, setPeerQueue] = useState<NearbyPeer[]>([]);
   const [busy, setBusy] = useState(false);
+  const [webBleState, setWebBleState] = useState<WebBleState>({
+    device: null,
+    server: null,
+    characteristic: null,
+    scanning: false,
+    advertising: false,
+    error: null,
+  });
+  const [permissionState, setPermissionState] = useState<"granted" | "denied" | "prompt" | "unavailable">(
+    androidNative ? "granted" : webBleSupported ? "prompt" : "unavailable"
+  );
   const announcedTokens = useRef(new Set<string>());
   const queuedTokens = useRef(new Set<string>());
   const stealthRef = useRef(stealth);
   const peerQueueRef = useRef(peerQueue);
+  const webBleScanRef = useRef<() => void>();
+  const webBleAdvertiseRef = useRef<() => void>();
 
   useEffect(() => {
     stealthRef.current = stealth;
     localStorage.setItem(STEALTH_KEY, String(stealth));
-  }, [stealth]);
+    if (androidNative && nativeReady) {
+      void NativeProximity.setStealth({ enabled: stealth }).catch(() => {});
+    } else if (webBleSupported && webBleState.advertising) {
+      // Re-advertise with updated stealth (no-op for now, stealth affects notifications only)
+    }
+  }, [stealth, androidNative, nativeReady, webBleSupported, webBleState.advertising]);
 
   useEffect(() => {
     peerQueueRef.current = peerQueue;
   }, [peerQueue]);
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Web Bluetooth: request permission and start scan/advertise
+  // ─────────────────────────────────────────────────────────────────────────────
+  const requestWebBlePermission = useCallback(async () => {
+    if (!webBleSupported) return false;
+    try {
+      // Request device to trigger permission prompt
+      const device = await navigator.bluetooth.requestDevice({
+        filters: [{ services: [SERVICE_UUID] }],
+        optionalServices: [SERVICE_UUID],
+      });
+      setPermissionState("granted");
+      return true;
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "NotAllowedError") {
+        setPermissionState("denied");
+        setStatus("Bluetooth permission denied. Enable in site settings to use proximity.");
+      } else {
+        setStatus("Bluetooth unavailable: " + (error instanceof Error ? error.message : String(error)));
+      }
+      return false;
+    }
+  }, [webBleSupported]);
+
+  const startWebBleScan = useCallback(async () => {
+    if (!webBleSupported || webBleState.scanning) return;
+    
+    const hasPermission = permissionState === "granted" || (await requestWebBlePermission());
+    if (!hasPermission) return;
+
+    setWebBleState((s) => ({ ...s, scanning: true, error: null }));
+    setStatus("Scanning for nearby Flicks devices…");
+
+    try {
+      const device = await navigator.bluetooth.requestDevice({
+        filters: [{ services: [SERVICE_UUID] }],
+        optionalServices: [SERVICE_UUID],
+      });
+
+      device.addEventListener("gattserverdisconnected", () => {
+        setWebBleState((s) => ({ ...s, device: null, server: null, characteristic: null, scanning: false }));
+        setStatus("Disconnected from peer");
+      });
+
+      const server = await device.gatt!.connect();
+      const service = await server.getPrimaryService(SERVICE_UUID);
+      const characteristic = await service.getCharacteristic(CHARACTERISTIC_UUID);
+
+      setWebBleState((s) => ({ ...s, device, server, characteristic, scanning: false }));
+      setStatus("Connected to nearby device");
+
+      // Read the peer's token from the characteristic
+      const value = await characteristic.readValue();
+      const token = toHex(value.buffer);
+      
+      // Emit peerFound-like event
+      const peer: NearbyPeer = {
+        userId: "web-ble-peer", // Would need proper ID exchange
+        peerToken: token,
+        name: device.name || "Web BLE Peer",
+        username: "",
+        bio: "",
+        avatarData: "",
+        rssi: undefined,
+        approximateMeters: undefined,
+      };
+      
+      if (!queuedTokens.current.has(token)) {
+        queuedTokens.current.add(token);
+        announcedTokens.current.add(token);
+        setPeerQueue((current) => [...current.filter((item) => item.peerToken !== token), peer]);
+        setNearbyDevices((current) => [...current.filter((item) => item.peerToken !== token), peer]);
+        setActiveSignals((current) => new Set(current).add(token));
+      }
+
+      // Start notifications for RSSI updates
+      await characteristic.startNotifications();
+      characteristic.addEventListener("characteristicvaluechanged", (event) => {
+        const val = (event.target as BluetoothRemoteGATTCharacteristic).value;
+        if (val) {
+          const rssi = new Int8Array(val.buffer)[0]; // Simplified
+          setStatus(`Signal: ${rssi} dBm`);
+        }
+      });
+
+    } catch (error) {
+      setWebBleState((s) => ({ ...s, scanning: false, error: String(error) }));
+      setStatus("Scan failed: " + (error instanceof Error ? error.message : String(error)));
+    }
+  }, [webBleSupported, webBleState.scanning, permissionState, requestWebBlePermission]);
+
+  const startWebBleAdvertise = useCallback(async () => {
+    if (!webBleSupported || webBleState.advertising) return;
+    if (!preparedProfile?.name) return;
+    
+    const hasPermission = permissionState === "granted" || (await requestWebBlePermission());
+    if (!hasPermission) return;
+
+    setWebBleState((s) => ({ ...s, advertising: true, error: null }));
+    setStatus("Advertising your profile…");
+
+    try {
+      // Web Bluetooth doesn't support peripheral/advertising mode in most browsers yet
+      // This is a placeholder for when the Web Bluetooth Peripheral API lands
+      // For now, we simulate by just showing the state
+      setStatus("Web advertising not yet supported in browsers. Scanning only.");
+      setWebBleState((s) => ({ ...s, advertising: false }));
+    } catch (error) {
+      setWebBleState((s) => ({ ...s, advertising: false, error: String(error) }));
+      setStatus("Advertise failed: " + (error instanceof Error ? error.message : String(error)));
+    }
+  }, [webBleSupported, webBleState.advertising, permissionState, requestWebBlePermission, preparedProfile]);
+
+  const stopWebBle = useCallback(async () => {
+    if (webBleState.device) {
+      try {
+        await webBleState.device.gatt?.disconnect();
+      } catch (_) {
+        // Ignore disconnect errors during cleanup
+      }
+    }
+    if (webBleScanRef.current) webBleScanRef.current();
+    if (webBleAdvertiseRef.current) webBleAdvertiseRef.current();
+    setWebBleState({
+      device: null,
+      server: null,
+      characteristic: null,
+      scanning: false,
+      advertising: false,
+      error: null,
+    });
+    setActiveSignals(new Set());
+    setNearbyDevices([]);
+    setPeerQueue([]);
+    queuedTokens.current.clear();
+    announcedTokens.current.clear();
+  }, [webBleState.device]);
 
   useEffect(() => {
     let cancelled = false;
@@ -204,9 +403,9 @@ export default function ProximitySatellite({
           `${PROFILE_CACHE_PREFIX}${userId}`,
           JSON.stringify({ ...next, avatarUrl }),
         );
-      } catch {
-        // The native service still keeps the most recent profile in private app storage.
-      }
+      } catch (_) {
+            // The native service still keeps the most recent profile in private app storage.
+          }
     })();
 
     return () => {
@@ -310,7 +509,7 @@ export default function ProximitySatellite({
       if (started) void NativeProximity.stop();
       setNativeReady(false);
     };
-  }, [androidNative, userId]);
+  }, [androidNative, userId, canAdvertise, preparedProfile]);
 
   useEffect(() => {
     if (!androidNative || !nativeReady) return;
@@ -343,15 +542,17 @@ export default function ProximitySatellite({
         peerToken: currentPeer.peerToken,
         peerId: currentPeer.userId,
       });
-    } catch {
-      // The device cooldown is also recorded locally below.
-    }
+    } catch (_) {
+        // The device cooldown is also recorded locally below.
+      }
     try {
       localStorage.setItem(
         `flicks-proximity-reject:${userId}:${currentPeer.userId}`,
         String(Date.now()),
       );
-    } catch {}
+    } catch (_) {
+        // Ignore localStorage errors
+      }
     finishCurrentPeer();
   }, [currentPeer, finishCurrentPeer, userId]);
 
@@ -526,7 +727,19 @@ export default function ProximitySatellite({
                   </div>
                   <div>
                     <span>DISCOVERY</span>
-                    <strong>{androidNative ? "AUTO" : "SIMULATION"}</strong>
+                    <strong>
+                      {androidNative
+                        ? "AUTO"
+                        : webBleSupported
+                        ? webBleState.scanning
+                          ? "SCANNING"
+                          : webBleState.advertising
+                          ? "ADVERTISING"
+                          : "MANUAL"
+                        : iosNative
+                        ? "PENDING"
+                        : "SIMULATION"}
+                    </strong>
                   </div>
                 </div>
 

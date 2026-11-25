@@ -4,7 +4,7 @@ interface ActiveStatusAvatarProps {
   src?: string | null;
   name?: string | null;
   size: number;
-  online: boolean;
+  online?: boolean;
   className?: string;
   imageTestId?: string;
 }
@@ -13,7 +13,7 @@ export default function ActiveStatusAvatar({
   src,
   name,
   size,
-  online,
+  online = false,
   className = "",
   imageTestId,
 }: ActiveStatusAvatarProps) {

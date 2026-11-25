@@ -2664,7 +2664,6 @@ toast.success("You have left the Circle. 👋");
                               className="w-full h-full object-cover"
                               muted
                               playsInline
-                              webkitPlaysInline
                               crossOrigin="anonymous"
                               preload="auto"
                             >
@@ -2925,7 +2924,6 @@ toast.success("You have left the Circle. 👋");
                                        controls
                                        muted
                                        playsInline
-                                       webkitPlaysInline
                                        crossOrigin="anonymous"
                                        preload="auto"
                                        className="w-full max-h-52 object-cover"
