@@ -1055,13 +1055,19 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
         setHookCommentCounts(prev => ({ ...prev, [postId]: ((prev[postId] || 0) + 1) }));
         setHookCommentText(prev => ({ ...prev, [postId]: "" }));
         // Notify the post author (best-effort; never fails the comment)
-        if (post.author_id && post.author_id !== userId) {
-          await supabase.from("notifications").insert({
-            notifier_id: userId, actor_id: userId, type: "comment",
-            entity_id: postId, entity_type: "post",
-            content: `${authorName} commented on your post.`,
-            is_read: false,
-          }).catch(() => { /* ignore */ });
+        const targetPost = posts.find(p => p.id === postId);
+        const targetAuthorId = targetPost?.author_id;
+        if (targetAuthorId && targetAuthorId !== userId) {
+          try {
+            await supabase.from("notifications").insert({
+              notifier_id: userId, actor_id: userId, type: "comment",
+              entity_id: postId, entity_type: "post",
+              content: `${authorName} commented on your post.`,
+              is_read: false,
+            });
+          } catch {
+            /* ignore */
+          }
         }
       }
     } catch (err: any) {
@@ -1977,7 +1983,7 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
                     <button onClick={() => setCommentDrawerId(null)} className="p-1 rounded-full text-white/60 hover:bg-white/10"><X size={16} /></button>
                   </div>
                   <div className="max-h-72 overflow-y-auto mb-2 space-y-2.5">
-                    {hookCommentLoading[postId] ? (
+                    {hookCommentLoading[post.id] ? (
                       <div className="flex justify-center py-4 text-white/50 text-[11px]">Loading comments…</div>
                     ) : (hookComments[post.id] || []).length === 0 ? (
                       <p className="text-white/40 text-[12px] text-center">No comments yet. Be the first!</p>
@@ -2007,7 +2013,7 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
                     )}
                   </div>
                   <div className="flex gap-2 pt-2 border-t border-white/8">
-                    <textarea value={hookCommentText[post.id] || ""} onChange={e => setHookCommentText(prev => ({ ...prev, [postId]: e.target.value }))}
+                    <textarea value={hookCommentText[post.id] || ""} onChange={e => setHookCommentText(prev => ({ ...prev, [post.id]: e.target.value }))}
                       placeholder="Write a comment…" rows={1}
                       className="flex-1 rounded-xl px-3 py-2 text-[13px] text-white outline-none resize-none"
                       style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.14)" }}
