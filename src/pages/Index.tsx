@@ -77,6 +77,7 @@ import { isAdminEmail } from "@/lib/adminConfig";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { useDataCache } from "@/context/DataCacheContext";
 import { useOnlineUsers } from "@/context/OnlineUsersContext";
+import { NavigationProvider } from "@/context/NavigationContext";
 import ActiveStatusAvatar from "@/components/ActiveStatusAvatar";
 import { getBunnyVideoThumbnailUrl } from "@/hooks/useBunnyVideoStatus";
 
@@ -4172,9 +4173,13 @@ const PersonalizationView = React.memo(({
   }
 
   return (
-    <div
-      className={`main-index-layout min-h-screen w-full transition-colors duration-500 relative overflow-x-clip touch-scroll-y ${darkMode ? "bg-[#020617]" : "bg-slate-100 light-mode"}`}
+    <NavigationProvider
+      initialActiveFeature={activeFeature}
+      onActiveFeatureChange={setActiveFeature}
     >
+      <div
+        className={`main-index-layout min-h-screen w-full transition-colors duration-500 relative overflow-x-clip touch-scroll-y ${darkMode ? "bg-[#020617]" : "bg-slate-100 light-mode"}`}
+      >
       {/* Page-level Helmet — overrides the app-level default in App.tsx.
           The home-feed branch explicitly resets title + description so that
           navigating back from a post page cleanly reverts all <head> tags. */}
@@ -5622,7 +5627,8 @@ if (f === "Chat19") { setShowChat19(true); return; }
           onSaved={handleReelSaved}
         />
       </Suspense>
-    </div>
+      </div>
+    </NavigationProvider>
   );
 };
 

@@ -42,6 +42,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { useProfileViewer } from "@/context/ProfileViewerContext";
 import { useOnlineUsers } from "@/context/OnlineUsersContext";
+import { useNavigation } from "@/context/NavigationContext";
 import ActiveStatusAvatar from "./ActiveStatusAvatar";
 import SavePostButton from "./SavePostButton";
 import {
@@ -1692,6 +1693,10 @@ const Header = ({
   const navigate = useNavigate();
   // ── Profile viewer (for routing follow notifications) ──────────────────────
   const { openProfile } = useProfileViewer();
+  // ── Global navigation context ──────────────────────────────────────────────
+  const { navigateToPost } = useNavigation();
+  // ── Navigation context for feature switching ───────────────────────────────────
+  const { setActiveFeature } = useNavigation();
   // ── Existing state ─────────────────────────────────────────────────────────
   const [notifications, setNotifications] = useState<Notif[]>([]);
   const [friendRequests, setFriendRequests] = useState<Notif[]>([]);
@@ -1705,7 +1710,7 @@ const Header = ({
   }, []);
   const notifAudioRef    = useRef<HTMLAudioElement | null>(null);
   // ── Post thumbnail cache (entity_id → post media) ──────────────────────────
-  const [postPreviewMap, setPostPreviewMap] = useState<Record<string, { media_url?: string; image_url?: string; cover_url?: string; type?: string }>>({});
+  const [postPreviewMap, setPostPreviewMap] = useState<Record<string, { media_url?: string; image_url?: string; cover_url?: string; type?: string; content?: string | null }>>({});
   const [showSearch, setShowSearch] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [userData, setUserData] = useState({
@@ -1813,7 +1818,7 @@ const Header = ({
         })),
       );
 
-      // 2. Batch-fetch post media for post-type notifications (thumbnails)
+      // 2. Batch-fetch post media AND caption/content for post-type notifications (thumbnails + snippets)
       const postEntityIds = [
         ...new Set(
           data
@@ -1824,7 +1829,7 @@ const Header = ({
       if (postEntityIds.length > 0) {
         const { data: postPreviews } = await supabase
           .from("posts")
-          .select("id, media_url, image_url, cover_url, type")
+          .select("id, media_url, image_url, cover_url, type, content")
           .in("id", postEntityIds);
         setPostPreviewMap(
           Object.fromEntries((postPreviews || []).map((p) => [p.id, p])),
@@ -2367,11 +2372,9 @@ const payload = parseNotificationPayload(n.content);
     ];
     if (postId && postTypes.includes(n.type) && entityType !== "report") {
       setShowNotif(false);
-      // Dispatch custom event to handle post navigation within the feed context
+      // Use global navigation context to navigate to the post
       // This avoids opening a separate modal/detail box and keeps user in feed
-      window.dispatchEvent(new CustomEvent("flicks:open-post-in-feed", {
-        detail: { postId, type: n.type },
-      }));
+      navigateToPost(postId, true);
       return;
     }
 
@@ -2388,10 +2391,8 @@ const payload = parseNotificationPayload(n.content);
         .then(({ data }) => {
           const reportedPostId = firstNotificationId(data?.post_id, payload.post_id, payload.postId);
           if (reportedPostId) {
-            // Dispatch custom event to handle post navigation within the feed context
-            window.dispatchEvent(new CustomEvent("flicks:open-post-in-feed", {
-              detail: { postId: reportedPostId, type: n.type },
-            }));
+            // Use global navigation context to navigate to the post
+            navigateToPost(reportedPostId, true);
           } else {
             toast.error("The reported post is no longer available.");
           }
@@ -2402,10 +2403,8 @@ const payload = parseNotificationPayload(n.content);
     // A report-submitted notification created by the client stores a post ID.
     if (n.type === "report_submitted" && postId && entityType !== "report") {
       setShowNotif(false);
-      // Dispatch custom event to handle post navigation within the feed context
-      window.dispatchEvent(new CustomEvent("flicks:open-post-in-feed", {
-        detail: { postId, type: n.type },
-      }));
+      // Use global navigation context to navigate to the post
+      navigateToPost(postId, true);
       return;
     }
 
@@ -2425,10 +2424,8 @@ const payload = parseNotificationPayload(n.content);
         .then(({ data }) => {
           const reportedPostId = firstNotificationId(data?.post_id, payload.post_id, payload.postId);
           if (reportedPostId) {
-            // Dispatch custom event to handle post navigation within the feed context
-            window.dispatchEvent(new CustomEvent("flicks:open-post-in-feed", {
-              detail: { postId: reportedPostId, type: n.type },
-            }));
+            // Use global navigation context to navigate to the post
+            navigateToPost(reportedPostId, true);
           } else {
             toast.error("The reported post is no longer available.");
           }
@@ -2441,11 +2438,8 @@ const payload = parseNotificationPayload(n.content);
     if (entityId || postId || storyId || circlePostId || circleId || hookId || marketplaceItemId || surveyId) {
       if (["post", "posts", "reel", "flick"].includes(entityType)) {
         setShowNotif(false);
-        // Dispatch custom event to handle post navigation within the feed context
-        // This avoids opening a separate modal/detail box and keeps user in feed
-        window.dispatchEvent(new CustomEvent("flicks:open-post-in-feed", {
-          detail: { postId: postId || entityId!, type: n.type },
-        }));
+        // Use global navigation context to navigate to the post
+        navigateToPost(postId || entityId!, true);
         return;
       }
       if (entityType === "circle_post") {
@@ -2647,7 +2641,7 @@ const payload = parseNotificationPayload(n.content);
           <motion.button
             type="button"
             whileTap={{ scale: 0.88 }}
-            onClick={onHomeClick}
+            onClick={() => setActiveFeature("Fame")}
             aria-label="Home"
             title="Home"
             data-testid="button-home"
@@ -3112,6 +3106,16 @@ const payload = parseNotificationPayload(n.content);
                                       <p className="text-[10px] text-white/55 line-clamp-1">{richShare.share_description}</p>
                                     </div>
                                   </motion.div>
+                                )}
+                                {/* Post caption snippet for regular post notifications (like, comment, reply, etc.) */}
+                                {postThumb && !richShare && !isMarketplaceOrder && postPreviewMap[n.entity_id]?.content && (
+                                  <motion.p
+                                    initial={{ opacity: 0, y: 4 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    className="text-[11px] text-white/55 mt-1 line-clamp-2 leading-relaxed"
+                                  >
+                                    {postPreviewMap[n.entity_id].content}
+                                  </motion.p>
                                 )}
                                 {isMarketplaceOrder && (
                                   <motion.div

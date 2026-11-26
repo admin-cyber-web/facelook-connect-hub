@@ -26,6 +26,7 @@ import { MagnetButton, PostVoiceStrip, MagnetVoice } from "./MagnetSystem";
 import { useSoundEffects } from "../hooks/useSoundEffects";
 import { useProfileViewer } from "../context/ProfileViewerContext";
 import { useDataCache } from "../context/DataCacheContext";
+import { useNavigation } from "../context/NavigationContext";
 import { isAdminEmail } from "../lib/adminConfig";
 import { fetchProfileAdminFlag } from "../lib/adminProfile";
 import { MarketplaceFeedCard, AdminMarketplacePanel, type MarketplaceItem } from "./AdminMarketplace";
@@ -4230,6 +4231,7 @@ const FameFeed = ({
   const { playPop, playSwoosh } = useSoundEffects();
   const dataCache = useDataCache();
   const queryClient = useQueryClient();
+  const { pendingPostId, pendingExpandComments, clearPendingPost } = useNavigation();
 
   useEffect(() => {
     const onScroll = scheduleCenteredFameFeedReelSync;
@@ -4787,8 +4789,45 @@ const FameFeed = ({
     return () => window.removeEventListener("flicks:open-post-in-feed", handleOpenPostInFeed);
   }, [loadComments]);
 
-  // â”€â”€ Admin Marketplace: fetch active items + live updates â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // —————————— Handle navigation to post from notifications ——————————
   useEffect(() => {
+    if (!pendingPostId) return;
+
+    const postElement = document.getElementById(pendingPostId);
+    if (postElement) {
+      postElement.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+
+    // If expandComments is true, open the comment sheet
+    if (pendingExpandComments) {
+      setTimeout(() => {
+        setCommentSheetId(pendingPostId);
+        loadComments(pendingPostId, true);
+      }, 300);
+    } else {
+      // Otherwise open the post detail view
+      setTimeout(() => {
+        openPostDetail({ id: pendingPostId } as any);
+      }, 300);
+    }
+
+    // Highlight the post briefly
+    setTimeout(() => {
+      const postEl = document.getElementById(pendingPostId);
+      if (postEl) {
+        postEl.style.transition = "background-color 0.3s ease";
+        postEl.style.backgroundColor = "rgba(249, 168, 212, 0.15)";
+        setTimeout(() => {
+          postEl.style.backgroundColor = "";
+        }, 1500);
+      }
+    }, 300);
+
+    clearPendingPost();
+  }, [pendingPostId, pendingExpandComments, loadComments, openPostDetail, clearPendingPost]);
+
+      // —————————— Admin Marketplace: fetch active items + live updates ———————————————————————————
+      useEffect(() => {
     const fetchMarketplace = async () => {
       const baseSelect = "id, title, description, price, image_url, link_url, badge, is_active, created_at, sizes, colors, source_city";
       const { data, error } = await supabase
