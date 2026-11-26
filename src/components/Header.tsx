@@ -2163,8 +2163,16 @@ const Header = ({
       markOneRead(n.id);
     }
 
-    const payload = parseNotificationPayload(n.content);
-    const entityType = String(n.entity_type || payload.entity_type || payload.entityType || "")
+const payload = parseNotificationPayload(n.content);
+    // Infer entity_type from notification type when not set in DB (legacy notifications)
+    const postLikeNotificationTypes = new Set([
+      "like", "like_flick", "comment", "reply", "mention", "post_mention",
+      "post_pin", "new_post", "wall_post", "share", "hook_share",
+      "magnet_link", "magnet_accepted", "magnet", "post_reaction", "post_share",
+      "post_comment", "comment_reply", "post_like",
+    ]);
+    const inferredEntityType = postLikeNotificationTypes.has(n.type) ? "post" : "";
+    const entityType = String(n.entity_type || payload.entity_type || payload.entityType || inferredEntityType || "")
       .toLowerCase()
       .replace(/-/g, "_");
     const entityId = firstNotificationId(
