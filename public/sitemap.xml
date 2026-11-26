@@ -16,6 +16,30 @@
     <changefreq>yearly</changefreq>
   </url>
   <url>
+    <loc>https://www.flicksindia.online/post/8bf488e2-057c-4135-ab33-c59554e1f63a</loc>
+    <priority>0.8</priority>
+    <changefreq>weekly</changefreq>
+    <lastmod>2026-11-26</lastmod>
+  </url>
+  <url>
+    <loc>https://www.flicksindia.online/post/3f51afe8-7440-4d83-ba45-ece2f6665548</loc>
+    <priority>0.8</priority>
+    <changefreq>weekly</changefreq>
+    <lastmod>2026-11-26</lastmod>
+  </url>
+  <url>
+    <loc>https://www.flicksindia.online/post/c6089fa0-07a1-4442-a45b-81160734b269</loc>
+    <priority>0.8</priority>
+    <changefreq>weekly</changefreq>
+    <lastmod>2026-11-25</lastmod>
+  </url>
+  <url>
+    <loc>https://www.flicksindia.online/post/ab542e88-a8e9-40bd-813d-f12497cb1417</loc>
+    <priority>0.8</priority>
+    <changefreq>weekly</changefreq>
+    <lastmod>2026-11-25</lastmod>
+  </url>
+  <url>
     <loc>https://www.flicksindia.online/post/c89b0bdb-3975-4df5-89a9-e1e3924f9b9f</loc>
     <priority>0.8</priority>
     <changefreq>weekly</changefreq>
@@ -238,27 +262,9 @@
     <lastmod>2026-11-01</lastmod>
   </url>
   <url>
-    <loc>https://www.flicksindia.online/story/a7df0d5f-485f-405c-9515-cd7b6d76e735</loc>
+    <loc>https://www.flicksindia.online/story/aecc99e6-c945-48f7-b43e-ea0ec2d2d63a</loc>
     <priority>0.6</priority>
     <changefreq>daily</changefreq>
-    <lastmod>2026-11-25</lastmod>
-  </url>
-  <url>
-    <loc>https://www.flicksindia.online/story/afd828ad-fc67-4040-ab5a-281775928fc0</loc>
-    <priority>0.6</priority>
-    <changefreq>daily</changefreq>
-    <lastmod>2026-11-25</lastmod>
-  </url>
-  <url>
-    <loc>https://www.flicksindia.online/story/366f5e84-76cc-4f4f-9f62-b89e9a6a8eee</loc>
-    <priority>0.6</priority>
-    <changefreq>daily</changefreq>
-    <lastmod>2026-11-24</lastmod>
-  </url>
-  <url>
-    <loc>https://www.flicksindia.online/story/4d3a7666-6fc2-475b-b051-17dfd84cdedf</loc>
-    <priority>0.6</priority>
-    <changefreq>daily</changefreq>
-    <lastmod>2026-11-24</lastmod>
+    <lastmod>2026-11-26</lastmod>
   </url>
 </urlset>

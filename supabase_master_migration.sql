@@ -382,8 +382,10 @@ create table if not exists circle_post_comments (
   author_name text not null default 'Member',
   author_avatar text,
   content text not null,
+  parent_id uuid references circle_post_comments(id) on delete cascade,
   created_at timestamptz not null default now()
 );
+create index if not exists circle_post_comments_parent_id_idx on circle_post_comments(parent_id);
 
 create table if not exists circle_invites (
   id uuid primary key default gen_random_uuid(),
@@ -1291,11 +1293,13 @@ create table if not exists story_comments (
   story_id    text not null,
   user_id     uuid references auth.users(id) on delete cascade,
   content     text not null check (char_length(content) <= 500),
+  parent_id   uuid references story_comments(id) on delete cascade,
   created_at  timestamptz default now()
 );
 
 create index if not exists story_comments_story_id_idx on story_comments(story_id);
 create index if not exists story_comments_user_id_idx  on story_comments(user_id);
+create index if not exists story_comments_parent_id_idx on story_comments(parent_id);
 
 alter table story_comments enable row level security;
 

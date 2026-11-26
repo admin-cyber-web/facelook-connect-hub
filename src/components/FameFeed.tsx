@@ -92,7 +92,7 @@ import {
   VolumeX,
   Sparkles,
   Play,
-  Users,
+Users,
   Film,
   Plus,
   Eye,
@@ -104,6 +104,7 @@ import {
   TrendingUp,
   Store,
   SlidersHorizontal,
+  Reply,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import SharePopup, { type SharePostData, type ShareAnchor, type ShareMode } from "./SharePopup";
@@ -2379,6 +2380,239 @@ const ReelCommentsTicker = ({ items, onOpen }: {
   </button>
 );
 
+// Recursive CommentThread component for unlimited nested replies
+const CommentThread = ({
+  comments,
+  commentReactions,
+  commentReactionBarId,
+  currentUserId,
+  authorAvatars,
+  editingFeedComment,
+  replyingTo,
+  onReply,
+  onToggleReactionBar,
+  onCloseReactionBar,
+  onReact,
+  onStartCommentEdit,
+  onDeleteComment,
+  onEditCommentTextChange,
+  onSaveCommentEdit,
+  onCancelCommentEdit,
+  onProfileClick,
+}: {
+  comments: any[];
+  commentReactions: Record<string, Record<string, string[]>>;
+  commentReactionBarId: string | null;
+  currentUserId: string | null;
+  authorAvatars: Record<string, string>;
+  editingFeedComment: { id: string; text: string; postId: string } | null;
+  replyingTo: { postId: string; commentId: string; author: string } | null;
+  onReply: (comment: any) => void;
+  onToggleReactionBar: (commentId: string) => void;
+  onCloseReactionBar: (commentId: string) => void;
+  onReact: (commentId: string, emoji: string) => void;
+  onStartCommentEdit: (comment: any) => void;
+  onDeleteComment: (commentId: string) => void;
+  onEditCommentTextChange: (text: string) => void;
+  onSaveCommentEdit: () => void;
+  onCancelCommentEdit: () => void;
+  onProfileClick: (userId: string) => void;
+}) => {
+  // Build a map of parent_id -> replies for efficient lookup
+  const repliesMap = useMemo(() => {
+    const map: Record<string, any[]> = {};
+    comments.forEach((c) => {
+      if (c.parent_id) {
+        if (!map[c.parent_id]) map[c.parent_id] = [];
+        map[c.parent_id].push(c);
+      }
+    });
+    return map;
+  }, [comments]);
+
+  // Recursive function to render a comment and its replies
+  const renderComment = (comment: any, depth: number = 0) => {
+    const replies = repliesMap[comment.id] || [];
+    const isEditing = editingFeedComment?.id === comment.id;
+    const isReplyTarget = replyingTo?.commentId === comment.id;
+    const reactions = commentReactions[comment.id] || {};
+    const reactionBarOpen = commentReactionBarId === comment.id;
+    const totalReactions = Object.values(reactions).flat().length;
+    const hasMoreReplies = replies.length > 3;
+
+    return (
+      <div key={comment.id} className={`flex flex-col ${depth > 0 ? "ml-4 border-l border-white/10 pl-3" : ""}`}>
+        {/* Comment */}
+        <div
+          className={`flex items-start gap-3 ${isEditing ? "bg-white/5" : ""}`}
+          style={{ backgroundColor: depth > 2 ? "rgba(255,255,255,0.02)" : "transparent" }}
+        >
+          <div
+            className="w-7 h-7 shrink-0 rounded-full overflow-hidden bg-gradient-to-br from-pink-500 to-purple-600 flex items-center justify-center text-white font-semibold text-xs"
+            onClick={() => comment.user_id && onProfileClick(comment.user_id)}
+            style={{ cursor: "pointer" }}
+          >
+            {authorAvatars[comment.user_id] ? (
+              <img
+                src={authorAvatars[comment.user_id]}
+                alt=""
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              comment.author?.[0]?.toUpperCase() || "?"
+            )}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <span
+                className="font-semibold text-white text-sm"
+                onClick={() => comment.user_id && onProfileClick(comment.user_id)}
+                style={{ cursor: "pointer" }}
+              >
+                {comment.author || "User"}
+              </span>
+              <span className="text-xs text-white/40">
+                {new Date(comment.created_at).toLocaleString()}
+              </span>
+              {comment.is_hidden && (
+                <span className="text-xs text-amber-400 font-medium">
+                  Hidden by {comment.hidden_by_name || "moderator"}
+                </span>
+              )}
+            </div>
+            {isEditing ? (
+              <div className="mt-1">
+                <textarea
+                  value={editingFeedComment.text}
+                  onChange={(e) => onEditCommentTextChange(e.target.value)}
+                  rows={3}
+                  autoFocus
+                  aria-label="Edit your comment"
+                  className="w-full resize-y rounded-xl border border-white/15 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-pink-400/60"
+                />
+                <div className="mt-2 flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={onCancelCommentEdit}
+                    className="rounded-lg px-3 py-1.5 text-xs font-bold text-white/60"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={onSaveCommentEdit}
+                    disabled={!editingFeedComment.text.trim()}
+                    className="rounded-lg bg-pink-700 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-50"
+                  >
+                    Save
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <p className="mt-1 whitespace-pre-wrap break-words text-sm text-white/85">
+                  {comment.content}
+                </p>
+                <div className="mt-2 flex items-center gap-4">
+                  {/* Reactions */}
+                  <button
+                    type="button"
+                    onClick={() => onToggleReactionBar(comment.id)}
+                    aria-label="Reactions"
+                    aria-expanded={reactionBarOpen}
+                    className="flex items-center gap-1 text-sm text-white/60 hover:text-white transition"
+                  >
+                    <MessageCircle size={14} className="text-pink-400" />
+                    <span>{totalReactions}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onReply(comment)}
+                    className="flex items-center gap-1 text-sm text-white/60 hover:text-sky-300 transition"
+                  >
+                    <Reply size={14} />
+                    <span>Reply</span>
+                  </button>
+                  {currentUserId && comment.user_id === currentUserId && (
+                    <button
+                      type="button"
+                      aria-label="More options"
+                      aria-haspopup="menu"
+                      onClick={() => onStartCommentEdit(comment)}
+                      className="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-full bg-white/5 text-white/75 transition hover:bg-white/15 hover:text-white"
+                    >
+                      <MoreVertical size={16} />
+                    </button>
+                  )}
+                </div>
+                {/* Reaction bar */}
+                {reactionBarOpen && (
+                  <div
+                    className="mt-2 flex items-center gap-2 flex-wrap"
+                    role="group"
+                    aria-label="Reactions"
+                  >
+                    {["👍", "❤️", "😂", "😮", "😢", "😡"].map((emoji) => (
+                      <button
+                        key={emoji}
+                        type="button"
+                        onClick={() => onReact(comment.id, emoji)}
+                        className={`rounded-full px-2 py-0.5 text-sm transition ${
+                          reactions[emoji]?.includes(currentUserId || "")
+                            ? "bg-pink-500/20 text-pink-300"
+                            : "text-white/60 hover:bg-white/10"
+                        }`}
+                      >
+                        {emoji}
+                        {reactions[emoji] && reactions[emoji].length > 0 && (
+                          <span className="ml-1">{reactions[emoji].length}</span>
+                        )}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => onCloseReactionBar(comment.id)}
+                      className="ml-1 text-xs text-white/40 hover:text-white"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Replies */}
+        {replies.length > 0 && (
+          <div className="mt-2">
+            {hasMoreReplies ? (
+              <button
+                type="button"
+                onClick={() => onReply(comment)} // This will expand to show all
+                className="text-xs text-white/50 hover:text-white"
+              >
+                View all {replies.length} replies
+              </button>
+            ) : (
+              replies.map((reply) => renderComment(reply, depth + 1))
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // Filter top-level comments
+  const topLevelComments = comments.filter((c) => !c.parent_id);
+
+  return (
+    <div className="space-y-4">
+      {topLevelComments.map((comment) => renderComment(comment))}
+    </div>
+  );
+};
+
 type PostDetailViewProps = {
   post: any;
   comments?: any[];
@@ -2532,7 +2766,7 @@ const PostDetailView = ({
           />
         </article>
 
-        <section aria-label="Comments" className="px-4 pb-5">
+<section aria-label="Comments" className="px-4 pb-5">
           <h2 className="sticky top-0 z-10 -mx-4 border-b border-white/10 bg-[#10090d]/95 px-4 py-3 text-sm font-black backdrop-blur">
             Comments <span className="text-white/45">({commentCount})</span>
           </h2>
@@ -2540,359 +2774,30 @@ const PostDetailView = ({
             <div className="flex justify-center py-10">
               <Loader2 size={22} className="animate-spin text-pink-400" />
             </div>
-          ) : topLevel.length === 0 ? (
+          ) : (comments ?? []).length === 0 ? (
             <p className="py-10 text-center text-sm text-white/45">
               Be the first to comment.
             </p>
           ) : (
-            <div className="divide-y divide-white/5">
-              {topLevel.map((comment) => {
-                const replies = (comments ?? []).filter(
-                  (reply) => reply.parent_id === comment.id,
-                );
-                const authorId = feedCommentAuthorId(comment);
-                const isEditing =
-                  editingFeedComment?.id === comment.id &&
-                  editingFeedComment?.postId === post.id;
-                return (
-                  <div
-                    key={comment.id}
-                    className="py-3"
-                  >
-                    <div className="flex items-start gap-2.5">
-                      <button
-                        type="button"
-                        className="h-8 w-8 shrink-0 overflow-hidden rounded-full bg-pink-900/50"
-                        onClick={() => authorId && onProfileClick(authorId)}
-                      >
-                        <ActiveStatusAvatar
-                          src={authorAvatars[authorId || ""]}
-                          name={comment.author}
-                          size={32}
-                        />
-                      </button>
-                      <div className="min-w-0 flex-1 rounded-2xl bg-white/[0.07] px-3 py-2">
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="flex min-w-0 flex-wrap items-center gap-x-2">
-                            <span className="text-xs font-black text-pink-200">
-                              {comment.author || "User"}
-                            </span>
-                            {comment.created_at && (
-                              <span className="text-[10px] text-white/35">
-                                {smartTime(comment.created_at)}
-                              </span>
-                            )}
-                          </div>
-                          {currentUserId && postIdKey(authorId) === postIdKey(currentUserId) && (
-                            <div
-                              className="relative shrink-0"
-                              data-post-detail-comment-menu
-                            >
-                              <button
-                                type="button"
-                                aria-label="Comment options"
-                                title="Comment options"
-                                aria-haspopup="menu"
-                                aria-expanded={
-                                  activeCommentMenuId === String(comment.id)
-                                }
-                                onPointerDown={(event) => {
-                                  event.stopPropagation();
-                                  console.log("RAW CLICK DETECTED ON 3-DOTS TRIGGER");
-                                }}
-                                onClick={(event) => {
-                                  event.preventDefault();
-                                  event.stopPropagation();
-                                  console.log("RAW CLICK DETECTED ON 3-DOTS TRIGGER");
-                                  const menuId = String(comment.id);
-                                  setActiveCommentMenuId((current) =>
-                                    current === menuId ? null : menuId,
-                                  );
-                                }}
-                                className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-full bg-white/5 text-white/75 transition hover:bg-white/15 hover:text-white"
-                              >
-                                <MoreVertical size={16} />
-                              </button>
-                              {activeCommentMenuId === String(comment.id) && (
-                                <div
-                                  role="menu"
-                                  className="pointer-events-auto absolute right-0 top-full z-50 mt-1 min-w-[140px] rounded-xl border border-white/10 bg-[#1e1424] p-1 shadow-xl"
-                                  style={{ pointerEvents: "auto" }}
-                                  onPointerDown={(event) => event.stopPropagation()}
-                                  onClick={(event) => event.stopPropagation()}
-                                >
-                                  <button
-                                    type="button"
-                                    role="menuitem"
-                                    onPointerDown={(event) => event.stopPropagation()}
-                                    onClick={(event) => {
-                                      event.preventDefault();
-                                      event.stopPropagation();
-                                      console.log("3-dot action clicked:", "Edit", post.id);
-                                      setActiveCommentMenuId(null);
-                                      onStartCommentEdit(comment);
-                                    }}
-                                    className="pointer-events-auto w-full cursor-pointer rounded-lg px-3 py-2 text-left text-sm text-white/85 hover:bg-white/10"
-                                    style={{ pointerEvents: "auto" }}
-                                  >
-                                    Edit
-                                  </button>
-                                  <button
-                                    type="button"
-                                    role="menuitem"
-                                    onPointerDown={(event) => event.stopPropagation()}
-                                    onClick={(event) => {
-                                      event.preventDefault();
-                                      event.stopPropagation();
-                                      console.log("3-dot action clicked:", "Delete", post.id);
-                                      setActiveCommentMenuId(null);
-                                      onDeleteComment(String(comment.id));
-                                    }}
-                                    className="pointer-events-auto w-full cursor-pointer rounded-lg px-3 py-2 text-left text-sm text-red-400 hover:bg-white/10"
-                                    style={{ pointerEvents: "auto" }}
-                                  >
-                                    Delete
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                        {isEditing ? (
-                          <div className="mt-2">
-                            <textarea
-                              value={editingFeedComment?.text ?? ""}
-                              onChange={(event) =>
-                                onEditCommentTextChange(event.target.value)
-                              }
-                              rows={3}
-                              autoFocus
-                              aria-label="Edit your comment"
-                              className="w-full resize-y rounded-xl border border-white/15 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-pink-400/60"
-                            />
-                            <div className="mt-2 flex justify-end gap-2">
-                              <button
-                                type="button"
-                                onClick={onCancelCommentEdit}
-                                className="rounded-lg px-3 py-1.5 text-xs font-bold text-white/60"
-                              >
-                                Cancel
-                              </button>
-                              <button
-                                type="button"
-                                onClick={onSaveCommentEdit}
-                                disabled={!editingFeedComment?.text.trim()}
-                                className="rounded-lg bg-pink-700 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-50"
-                              >
-                                Save
-                              </button>
-                            </div>
-                          </div>
-                        ) : comment.is_hidden && !isPostOwner ? (
-                          <p className="mt-1 text-sm italic text-white/40">
-                            Comment hidden by {comment.hidden_by_name || "admin"}
-                          </p>
-                        ) : (
-                          <p className={`mt-1 whitespace-pre-wrap break-words text-sm ${comment.is_hidden ? "text-white/35 line-through" : "text-white/85"}`}>
-                            {comment.content}
-                          </p>
-                        )}
-                        {!comment.is_hidden && !isEditing && (
-                          <div className="relative mt-2 flex items-center gap-4">
-                            <button
-                              type="button"
-                              onClick={() => onReply(comment)}
-                              className="text-xs font-bold text-sky-300"
-                            >
-                              Reply
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => onToggleReactionBar(comment.id)}
-                              data-reaction-surface="fame-comment"
-                              className="text-xs font-bold text-white/45"
-                            >
-                              React
-                            </button>
-                            <AnimatePresence>
-                              {commentReactionBarId === comment.id && (
-                                <div
-                                  className="absolute bottom-full left-0 z-20 mb-2"
-                                  data-reaction-surface="fame-comment"
-                                >
-                                  <ReactionBar
-                                    onReact={(emoji) => onReact(comment.id, emoji)}
-                                    onClose={() => onCloseReactionBar(comment.id)}
-                                  />
-                                </div>
-                              )}
-                            </AnimatePresence>
-                          </div>
-                        )}
-                        {!isEditing && commentReactions[comment.id] && (
-                          <ReactionBubbles
-                            reactions={commentReactions[comment.id]}
-                            currentUserId={currentUserId}
-                          />
-                        )}
-                      </div>
-                    </div>
-                    {replies.length > 0 && (
-                      <div className="ml-10 mt-2 space-y-2 border-l border-white/10 pl-3">
-                        {replies.map((reply) => {
-                          const replyAuthorId =
-                            feedCommentAuthorId(reply);
-                          const isReplyEditing =
-                            editingFeedComment?.id === reply.id &&
-                            editingFeedComment?.postId === post.id;
-                          return (
-                            <div
-                              key={reply.id}
-                              className="flex items-start gap-2"
-                            >
-                              <button
-                                type="button"
-                                className="h-6 w-6 shrink-0 overflow-hidden rounded-full bg-pink-900/40"
-                                onClick={() => {
-                                  if (replyAuthorId) onProfileClick(replyAuthorId);
-                                }}
-                              >
-                                <ActiveStatusAvatar
-                                  src={authorAvatars[replyAuthorId || ""]}
-                                  name={reply.author}
-                                  size={24}
-                                />
-                              </button>
-                              <div className="min-w-0 flex-1 rounded-xl bg-white/[0.05] px-3 py-2">
-                                <div className="flex items-start justify-between gap-2">
-                                  <p className="min-w-0 text-xs font-bold text-pink-200">
-                                    {reply.author || "User"}
-                                    <span className="ml-2 font-normal text-white/35">
-                                      replied to {comment.author || "User"}
-                                    </span>
-                                  </p>
-                                  {currentUserId && postIdKey(replyAuthorId) === postIdKey(currentUserId) && (
-                                    <div
-                                      className="relative shrink-0"
-                                      data-post-detail-comment-menu
-                                    >
-                                      <button
-                                        type="button"
-                                        aria-label="Reply options"
-                                        title="Reply options"
-                                        aria-haspopup="menu"
-                                        aria-expanded={
-                                          activeCommentMenuId ===
-                                          String(reply.id)
-                                        }
-                                        onPointerDown={(event) => {
-                                          event.stopPropagation();
-                                          console.log("RAW CLICK DETECTED ON 3-DOTS TRIGGER");
-                                        }}
-                                        onClick={(event) => {
-                                          event.preventDefault();
-                                          event.stopPropagation();
-                                          console.log("RAW CLICK DETECTED ON 3-DOTS TRIGGER");
-                                          const menuId = String(reply.id);
-                                          setActiveCommentMenuId((current) =>
-                                            current === menuId ? null : menuId,
-                                          );
-                                        }}
-                                        className="flex h-6 w-6 cursor-pointer items-center justify-center rounded-full bg-white/5 text-white/70 transition hover:bg-white/15 hover:text-white"
-                                      >
-                                        <MoreVertical size={15} />
-                                      </button>
-                                      {activeCommentMenuId ===
-                                        String(reply.id) && (
-                                        <div
-                                          role="menu"
-                                          className="pointer-events-auto absolute right-0 top-full z-50 mt-1 min-w-[140px] rounded-xl border border-white/10 bg-[#1e1424] p-1 shadow-xl"
-                                          style={{ pointerEvents: "auto" }}
-                                          onPointerDown={(event) => event.stopPropagation()}
-                                          onClick={(event) => event.stopPropagation()}
-                                        >
-                                          <button
-                                            type="button"
-                                            role="menuitem"
-                                            onPointerDown={(event) => event.stopPropagation()}
-                                            onClick={(event) => {
-                                              event.preventDefault();
-                                              event.stopPropagation();
-                                              console.log("3-dot action clicked:", "Edit", post.id);
-                                              setActiveCommentMenuId(null);
-                                              onStartCommentEdit(reply);
-                                            }}
-                                            className="pointer-events-auto w-full cursor-pointer rounded-lg px-3 py-2 text-left text-sm text-white/85 hover:bg-white/10"
-                                            style={{ pointerEvents: "auto" }}
-                                          >
-                                            Edit
-                                          </button>
-                                          <button
-                                            type="button"
-                                            role="menuitem"
-                                            onPointerDown={(event) => event.stopPropagation()}
-                                            onClick={(event) => {
-                                              event.preventDefault();
-                                              event.stopPropagation();
-                                              console.log("3-dot action clicked:", "Delete", post.id);
-                                              setActiveCommentMenuId(null);
-                                              onDeleteComment(String(reply.id));
-                                            }}
-                                            className="pointer-events-auto w-full cursor-pointer rounded-lg px-3 py-2 text-left text-sm text-red-400 hover:bg-white/10"
-                                            style={{ pointerEvents: "auto" }}
-                                          >
-                                            Delete
-                                          </button>
-                                        </div>
-                                      )}
-                                    </div>
-                                  )}
-                                </div>
-                                {isReplyEditing ? (
-                                  <div className="mt-2">
-                                    <textarea
-                                      value={editingFeedComment?.text ?? ""}
-                                      onChange={(event) =>
-                                        onEditCommentTextChange(event.target.value)
-                                      }
-                                      rows={2}
-                                      autoFocus
-                                      aria-label="Edit your reply"
-                                      className="w-full resize-y rounded-lg border border-white/15 bg-black/30 px-2 py-1.5 text-sm text-white outline-none focus:border-pink-400/60"
-                                    />
-                                    <div className="mt-2 flex justify-end gap-2">
-                                      <button
-                                        type="button"
-                                        onClick={onCancelCommentEdit}
-                                        className="rounded-lg px-3 py-1 text-xs font-bold text-white/60"
-                                      >
-                                        Cancel
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={onSaveCommentEdit}
-                                        disabled={!editingFeedComment?.text.trim()}
-                                        className="rounded-lg bg-pink-700 px-3 py-1 text-xs font-bold text-white disabled:opacity-50"
-                                      >
-                                        Save
-                                      </button>
-                                    </div>
-                                  </div>
-                                ) : (
-                                  <p className="mt-1 whitespace-pre-wrap break-words text-sm text-white/75">
-                                    {reply.content}
-                                  </p>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+            <CommentThread
+              comments={comments ?? []}
+              commentReactions={commentReactions}
+              commentReactionBarId={commentReactionBarId}
+              currentUserId={currentUserId}
+              authorAvatars={authorAvatars}
+              editingFeedComment={editingFeedComment}
+              replyingTo={replyingTo}
+              onReply={onReply}
+              onToggleReactionBar={onToggleReactionBar}
+              onCloseReactionBar={onCloseReactionBar}
+              onReact={onReact}
+              onStartCommentEdit={onStartCommentEdit}
+              onDeleteComment={onDeleteComment}
+              onEditCommentTextChange={onEditCommentTextChange}
+              onSaveCommentEdit={onSaveCommentEdit}
+              onCancelCommentEdit={onCancelCommentEdit}
+              onProfileClick={onProfileClick}
+            />
           )}
         </section>
       </div>
@@ -4644,10 +4549,59 @@ const FameFeed = ({
   const [loadingMore, setLoadingMore] = useState(false);
   const pageRef = useRef(0);
 
-  // â”€â”€ On-demand comment cache â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // â”€â”€ On-demand comment cache â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const [commentsMap, setCommentsMap] = useState<Record<string, any[]>>({});
   const loadedCommentsRef = useRef<Set<string>>(new Set());
 
+  // â”€â”€ Realtime: comment_reactions (INSERT/DELETE) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  useEffect(() => {
+    const ch = supabase.channel("comment-reactions-realtime")
+      .on("postgres_changes", {
+        event: "*",
+        schema: "public",
+        table: "comment_reactions",
+      }, (payload: any) => {
+        const row = payload.new;
+        const oldRow = payload.old;
+        if (payload.eventType === "INSERT" && row) {
+          setCommentReactions((prev) => {
+            const existing = prev[row.comment_id] ?? {};
+            const users = existing[row.emoji] ?? [];
+            if (users.includes(row.user_id)) return prev;
+            return {
+              ...prev,
+              [row.comment_id]: {
+                ...existing,
+                [row.emoji]: [...users, row.user_id],
+              },
+            };
+          });
+        } else if (payload.eventType === "DELETE" && oldRow) {
+          setCommentReactions((prev) => {
+            const existing = prev[oldRow.comment_id] ?? {};
+            const users = existing[oldRow.emoji] ?? [];
+            const filtered = users.filter((u: string) => u !== oldRow.user_id);
+            if (filtered.length === 0) {
+              const { [oldRow.emoji]: _, ...rest } = existing;
+              if (Object.keys(rest).length === 0) {
+                const { [oldRow.comment_id]: __, ...rest2 } = prev;
+                return rest2;
+              }
+              return { ...prev, [oldRow.comment_id]: rest };
+            }
+            return {
+              ...prev,
+              [oldRow.comment_id]: {
+                ...existing,
+                [oldRow.emoji]: filtered,
+              },
+            };
+          });
+        }
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, []);
   // â”€â”€ Load engagement only for the visible/paged post window â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const fetchPostEngagement = async (postIds: string[], uid: string | null) => {
     if (postIds.length === 0) return;
@@ -8122,7 +8076,7 @@ const FameFeed = ({
                         </div>
                       )}
 
-                      {/* Comment list */}
+{/* Comment list */}
                       <div className="max-h-64 overflow-y-auto px-4 py-2 space-y-2.5">
                         {commentsMap[post.id] === undefined ? (
                           <div className="flex justify-center py-6">
@@ -8141,361 +8095,26 @@ const FameFeed = ({
                               Pehle comment karo!
                             </p>
                           </div>
-                        ) : (
-                          inlineTopLevel.map((c: any) => {
-                            const replies = inlineComments.filter(
-                              (r: any) => r.parent_id === c.id,
-                            );
-                            const isPostOwner =
-                              post?.author_id === currentUserId ||
-                              post?.user_id === currentUserId;
-                            const isCommenter = Boolean(
-                              currentUserId &&
-                              postIdKey(feedCommentAuthorId(c)) ===
-                                postIdKey(currentUserId),
-                            );
-                            const isEditing =
-                              editingFeedComment?.id === c.id &&
-                              editingFeedComment?.postId === post.id;
-                            return (
-                              <div
-                                key={c.id}
-                                className="rounded-xl transition-colors"
-                              >
-                                <div className="flex gap-2.5 py-1">
-                                  <button
-                                    onClick={() => {
-                                      const uid = c.user_id ?? c.author_id;
-                                      if (uid) openProfile(uid);
-                                    }}
-                                    className="active:scale-90 transition-transform"
-                                  >
-                                    <ActiveStatusAvatar
-                                      src={authorAvatars[c.user_id ?? c.author_id ?? ""]}
-                                      name={c.author}
-                                      size={32}
-                                      online={onlineUserIds.has(c.user_id ?? c.author_id ?? "")}
-                                    />
-                                  </button>
-                                  <div
-                                    className={`flex-1 min-w-0 rounded-2xl px-3 py-2 ${c.is_hidden && !isPostOwner ? "border border-dashed border-white/10" : ""}`}
-                                    style={{
-                                      background:
-                                        c.is_hidden && !isPostOwner
-                                          ? "rgba(255,255,255,0.03)"
-                                          : "rgba(255,255,255,0.08)",
-                                    }}
-                                  >
-                                    <div className="flex items-center justify-between gap-2">
-                                      <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-                                        <span
-                                          style={{
-                                            color: "#f9a8d4",
-                                            fontSize: 12,
-                                            fontWeight: 900,
-                                          }}
-                                        >
-                                          {c.author}
-                                        </span>
-                                        {c.created_at && (
-                                          <span className="text-[10px] text-white/30 font-normal">
-                                            {smartTime(c.created_at)}
-                                          </span>
-                                        )}
-                                      </div>
-                                      {isCommenter && (
-                                        <button
-                                          type="button"
-                                          aria-label="Edit or delete comment"
-                                          title="Edit or delete comment"
-                                          aria-haspopup="menu"
-                                          onPointerDown={(event) => {
-                                            event.stopPropagation();
-                                            console.log("RAW CLICK DETECTED ON 3-DOTS TRIGGER");
-                                          }}
-                                          onClick={(event) => {
-                                            event.preventDefault();
-                                            event.stopPropagation();
-                                            console.log("RAW CLICK DETECTED ON 3-DOTS TRIGGER");
-                                            openFeedCommentActions(
-                                              c,
-                                              post.id,
-                                              event.currentTarget,
-                                            );
-                                          }}
-                                          className="pointer-events-auto flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-full bg-white/5 text-white/75 transition hover:bg-white/15 hover:text-white"
-                                          style={{ pointerEvents: "auto", touchAction: "manipulation" }}
-                                        >
-                                          <MoreVertical size={16} />
-                                        </button>
-                                      )}
-                                    </div>
-                                    {isEditing ? (
-                                      <div className="mt-2">
-                                        <textarea
-                                          value={editingFeedComment.text}
-                                          onChange={(event) =>
-                                            setEditingFeedComment((current) =>
-                                              current
-                                                ? { ...current, text: event.target.value }
-                                                : null,
-                                            )
-                                          }
-                                          rows={3}
-                                          aria-label="Edit your comment"
-                                          className="w-full resize-y rounded-xl border border-white/15 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-pink-400/60"
-                                        />
-                                        <div className="mt-2 flex justify-end gap-2">
-                                          <button
-                                            type="button"
-                                            onClick={() => setEditingFeedComment(null)}
-                                            className="rounded-lg px-3 py-1.5 text-xs font-bold text-white/60"
-                                          >
-                                            Cancel
-                                          </button>
-                                          <button
-                                            type="button"
-                                            onClick={saveFeedCommentEdit}
-                                            disabled={!editingFeedComment.text.trim()}
-                                            className="rounded-lg bg-pink-700 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-50"
-                                          >
-                                            Save
-                                          </button>
-                                        </div>
-                                      </div>
-                                    ) : c.is_hidden && !isPostOwner ? (
-                                      <p className="text-[13px] text-white/30 italic mt-0.5">
-                                        💬 Comment hidden by{" "}
-                                        {c.hidden_by_name || "admin"}
-                                      </p>
-                                    ) : c.is_hidden && isPostOwner ? (
-                                      <>
-                                        <p className="text-[14px] text-white/20 mt-0.5 leading-snug line-through">
-                                          {c.content}
-                                        </p>
-                                        <p className="text-[10px] text-white/30 mt-0.5">
-                                          😊 Hidden by {c.hidden_by_name}
-                                        </p>
-                                      </>
-                                    ) : (
-                                      <p className="text-[14px] text-white/80 mt-0.5 leading-snug">
-                                        {c.content}
-                                      </p>
-                                    )}
-                                    {!c.is_hidden && !isEditing && (
-                                      <div className="flex items-center gap-3 mt-1.5 relative">
-                                        <button
-                                          onClick={() =>
-                                            setReplyingTo({
-                                              postId: post.id,
-                                              commentId: c.id,
-                                              author: c.author,
-                                            })
-                                          }
-                                          className="text-[11px] text-blue-400 font-bold"
-                                        >
-                                          Reply
-                                        </button>
-                                        <button
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            setCommentReactionBarId(
-                                              commentReactionBarId === c.id
-                                                ? null
-                                                : c.id,
-                                            );
-                                          }}
-                                          data-reaction-surface="fame-comment"
-                                          className="text-[11px] text-white/40 font-bold"
-                                        >
-                                          😊 React
-                                        </button>
-                                        <AnimatePresence>
-                                          {commentReactionBarId === c.id && (
-                                            <>
-                                              <div
-                                                className="fixed inset-0 z-40"
-                                                onClick={() =>
-                                                  setCommentReactionBarId(null)
-                                                }
-                                              />
-                                              <div
-                                                className="absolute left-0 bottom-full mb-1 z-50"
-                                                data-reaction-surface="fame-comment"
-                                              >
-                                                <ReactionBar
-                                                  onReact={(emoji) =>
-                                                    handleCommentReact(
-                                                      c.id,
-                                                      emoji,
-                                                    )
-                                                  }
-                                                  onClose={() =>
-                                                    setCommentReactionBarId(
-                                                      null,
-                                                    )
-                                                  }
-                                                />
-                                              </div>
-                                            </>
-                                          )}
-                                        </AnimatePresence>
-                                      </div>
-                                    )}
-                                    {!isEditing && commentReactions[c.id] &&
-                                      Object.keys(commentReactions[c.id])
-                                        .length > 0 && (
-                                        <div className="mt-1">
-                                          <ReactionBubbles
-                                            reactions={commentReactions[c.id]}
-                                            currentUserId={currentUserId}
-                                          />
-                                        </div>
-                                      )}
-                                  </div>
-                                </div>
-                                {replies.length > 0 && (
-                                  <div className="ml-9 mt-1 space-y-1.5 border-l-2 border-white/10 pl-2.5">
-                                    {replies.map((r: any) => {
-                                      const replyAuthorId =
-                                        feedCommentAuthorId(r);
-                                      const isReplyEditing =
-                                        editingFeedComment?.id === r.id &&
-                                        editingFeedComment?.postId === post.id;
-                                      return (
-                                      <div key={r.id} className="flex gap-2">
-                                        <button
-                                          onClick={() => {
-                                            const uid =
-                                              r.user_id ?? r.author_id;
-                                            if (uid) openProfile(uid);
-                                          }}
-                                          className="w-6 h-6 rounded-full bg-pink-900/40 flex items-center justify-center text-[9px] font-black text-pink-300 shrink-0 overflow-hidden border border-white/10"
-                                        >
-                                          {authorAvatars[
-                                            r.user_id ?? r.author_id ?? ""
-                                          ] ? (
-                                            <img
-                                              src={
-                                                authorAvatars[
-                                                  r.user_id ?? r.author_id ?? ""
-                                                ]
-                                              }
-                                              className="w-full h-full object-cover"
-                                              loading="lazy"
-                                              alt=""
-                                             decoding="async"/>
-                                          ) : (
-                                            r.author?.[0]
-                                          )}
-                                        </button>
-                                        <div
-                                          className="rounded-2xl px-3 py-1.5 flex-1"
-                                          style={{
-                                            background:
-                                              "rgba(255,255,255,0.07)",
-                                          }}
-                                        >
-                                          <div className="flex items-start justify-between gap-2">
-                                            <p className="min-w-0 text-[12px]">
-                                              <span
-                                                style={{
-                                                  color: "#f9a8d4",
-                                                  fontSize: 12,
-                                                  fontWeight: 900,
-                                                }}
-                                              >
-                                                {r.author}
-                                              </span>
-                                              <span className="text-[11px] text-white/30 font-medium mx-1">
-                                                replied to
-                                              </span>
-                                              <span
-                                                style={{
-                                                  color: "#fca5a5",
-                                                  fontSize: 12,
-                                                  fontWeight: 700,
-                                                }}
-                                              >
-                                                {c.author}
-                                              </span>
-                                            </p>
-                                            {currentUserId &&
-                                              postIdKey(replyAuthorId) === postIdKey(currentUserId) && (
-                                              <button
-                                                type="button"
-                                                aria-label="Edit or delete reply"
-                                                title="Edit or delete reply"
-                                                aria-haspopup="menu"
-                                                onPointerDown={(event) => {
-                                                  event.stopPropagation();
-                                                  console.log("RAW CLICK DETECTED ON 3-DOTS TRIGGER");
-                                                }}
-                                                onClick={(event) => {
-                                                  event.preventDefault();
-                                                  event.stopPropagation();
-                                                  console.log("RAW CLICK DETECTED ON 3-DOTS TRIGGER");
-                                                  openFeedCommentActions(
-                                                    r,
-                                                    post.id,
-                                                    event.currentTarget,
-                                                  )
-                                                }}
-                                                className="pointer-events-auto flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-full bg-white/5 text-white/70 transition hover:bg-white/15 hover:text-white"
-                                                style={{ pointerEvents: "auto", touchAction: "manipulation" }}
-                                              >
-                                                <MoreVertical size={15} />
-                                              </button>
-                                            )}
-                                          </div>
-                                          {isReplyEditing ? (
-                                            <div className="mt-2">
-                                              <textarea
-                                                value={editingFeedComment?.text ?? ""}
-                                                onChange={(event) =>
-                                                  setEditingFeedComment((current) =>
-                                                    current
-                                                      ? { ...current, text: event.target.value }
-                                                      : null,
-                                                  )
-                                                }
-                                                rows={2}
-                                                autoFocus
-                                                aria-label="Edit your reply"
-                                                className="w-full resize-y rounded-lg border border-white/15 bg-black/30 px-2 py-1.5 text-sm text-white outline-none focus:border-pink-400/60"
-                                              />
-                                              <div className="mt-2 flex justify-end gap-2">
-                                                <button
-                                                  type="button"
-                                                  onClick={() => setEditingFeedComment(null)}
-                                                  className="rounded-lg px-3 py-1 text-xs font-bold text-white/60"
-                                                >
-                                                  Cancel
-                                                </button>
-                                                <button
-                                                  type="button"
-                                                  onClick={saveFeedCommentEdit}
-                                                  disabled={!editingFeedComment?.text.trim()}
-                                                  className="rounded-lg bg-pink-700 px-3 py-1 text-xs font-bold text-white disabled:opacity-50"
-                                                >
-                                                  Save
-                                                </button>
-                                              </div>
-                                            </div>
-                                          ) : (
-                                            <p className="text-[13px] text-white/70 mt-0.5">
-                                              {r.content}
-                                            </p>
-                                          )}
-                                        </div>
-                                      </div>
-                                      );
-                                    })}
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })
+) : (
+                          <CommentThread
+                            comments={commentsMap[post.id] || []}
+                            commentReactions={commentReactions}
+                            commentReactionBarId={commentReactionBarId}
+                            currentUserId={currentUserId}
+                            authorAvatars={authorAvatars}
+                            editingFeedComment={editingFeedComment}
+                            replyingTo={replyingTo?.postId === post.id ? replyingTo : null}
+                            onReply={(comment) => setReplyingTo({ postId: post.id, commentId: comment.id, author: comment.author })}
+                            onToggleReactionBar={(commentId) => setCommentReactionBarId(commentReactionBarId === commentId ? null : commentId)}
+                            onCloseReactionBar={(commentId) => setCommentReactionBarId(null)}
+                            onReact={handleCommentReact}
+                            onStartCommentEdit={(comment) => setEditingFeedComment({ id: comment.id, postId: post.id, text: comment.content })}
+                            onDeleteComment={() => {}} // Not used in inline view
+                            onEditCommentTextChange={(text) => setEditingFeedComment({ ...editingFeedComment!, text })}
+                            onSaveCommentEdit={saveFeedCommentEdit}
+                            onCancelCommentEdit={() => setEditingFeedComment(null)}
+                            onProfileClick={openProfile}
+                          />
                         )}
                       </div>
 
