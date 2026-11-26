@@ -92,7 +92,7 @@ import {
   VolumeX,
   Sparkles,
   Play,
-Users,
+  Users,
   Film,
   Plus,
   Eye,
@@ -105,6 +105,7 @@ Users,
   Store,
   SlidersHorizontal,
   Reply,
+  Edit2,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import SharePopup, { type SharePostData, type ShareAnchor, type ShareMode } from "./SharePopup";
@@ -2380,6 +2381,42 @@ const ReelCommentsTicker = ({ items, onOpen }: {
   </button>
 );
 
+// Comment Action Menu Portal (for comment dropdown menus)
+type CommentActionMenuPosition = {
+  top: number;
+  right: number;
+};
+
+const CommentActionMenuPortal = ({
+  isOpen,
+  position,
+  children,
+}: {
+  isOpen: boolean;
+  position: CommentActionMenuPosition;
+  children: React.ReactNode;
+}) => {
+  if (!isOpen) return null;
+
+  return createPortal(
+    <div
+      role="menu"
+      data-comment-action-menu
+      className="fixed z-[9999] w-48 max-w-[calc(100vw-24px)] max-h-[calc(100dvh-24px)] overflow-y-auto overscroll-contain rounded-2xl border border-white/10 bg-[#1a0d1e] shadow-2xl pointer-events-auto"
+      style={{
+        top: position.top,
+        right: position.right,
+        pointerEvents: "auto",
+      }}
+      onPointerDown={(event) => event.stopPropagation()}
+      onClick={(event) => event.stopPropagation()}
+    >
+      {children}
+    </div>,
+    document.body,
+  );
+};
+
 // Recursive CommentThread component for unlimited nested replies
 const CommentThread = ({
   comments,
@@ -2418,6 +2455,56 @@ const CommentThread = ({
   onCancelCommentEdit: () => void;
   onProfileClick: (userId: string) => void;
 }) => {
+  const [activeCommentMenuId, setActiveCommentMenuId] = useState<string | null>(null);
+  const [commentMenuPosition, setCommentMenuPosition] = useState({ top: 0, right: 0 });
+
+  // Close menu on outside click
+  useEffect(() => {
+    if (activeCommentMenuId === null) return;
+    const handleOutsidePointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (
+        !(target instanceof Element) ||
+        !target.closest("[data-comment-menu-trigger]")
+      ) {
+        setActiveCommentMenuId(null);
+      }
+    };
+    document.addEventListener("pointerdown", handleOutsidePointerDown);
+    return () =>
+      document.removeEventListener("pointerdown", handleOutsidePointerDown);
+  }, [activeCommentMenuId]);
+
+  const openCommentMenu = (
+    event: React.MouseEvent<HTMLButtonElement>,
+    commentId: string,
+  ) => {
+    event.stopPropagation();
+    event.preventDefault();
+    if (activeCommentMenuId === commentId) {
+      setActiveCommentMenuId(null);
+      return;
+    }
+    const rect = event.currentTarget.getBoundingClientRect();
+    const menuWidth = 192; // w-48 = 192px
+    const maxRight = Math.max(12, window.innerWidth - menuWidth - 12);
+    const right = Math.max(12, Math.min(maxRight, window.innerWidth - rect.right));
+    const top = rect.bottom + 8;
+    setCommentMenuPosition({ top, right });
+    setActiveCommentMenuId(commentId);
+  };
+
+  const handleCommentMenuAction = (
+    action: "edit" | "delete",
+    comment: any,
+  ) => {
+    setActiveCommentMenuId(null);
+    if (action === "edit") {
+      onStartCommentEdit(comment);
+    } else if (action === "delete") {
+      onDeleteComment(comment.id);
+    }
+  };
   // Build a map of parent_id -> replies for efficient lookup
   const repliesMap = useMemo(() => {
     const map: Record<string, any[]> = {};
@@ -2438,7 +2525,6 @@ const CommentThread = ({
     const reactions = commentReactions[comment.id] || {};
     const reactionBarOpen = commentReactionBarId === comment.id;
     const totalReactions = Object.values(reactions).flat().length;
-    const hasMoreReplies = replies.length > 3;
 
     return (
       <div key={comment.id} className={`flex flex-col ${depth > 0 ? "ml-4 border-l border-white/10 pl-3" : ""}`}>
@@ -2534,15 +2620,49 @@ const CommentThread = ({
                     <span>Reply</span>
                   </button>
                   {currentUserId && comment.user_id === currentUserId && (
-                    <button
-                      type="button"
-                      aria-label="More options"
-                      aria-haspopup="menu"
-                      onClick={() => onStartCommentEdit(comment)}
-                      className="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-full bg-white/5 text-white/75 transition hover:bg-white/15 hover:text-white"
-                    >
-                      <MoreVertical size={16} />
-                    </button>
+                    <div className="relative">
+                      <button
+                        type="button"
+                        aria-label="More options"
+                        aria-haspopup="menu"
+                        data-comment-menu-trigger
+                        onClick={(e) => openCommentMenu(e, comment.id)}
+                        className="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-full bg-white/5 text-white/75 transition hover:bg-white/15 hover:text-white"
+                      >
+                        <MoreVertical size={16} />
+                      </button>
+                      {/* Comment Action Menu Portal */}
+                      <CommentActionMenuPortal
+                        isOpen={activeCommentMenuId === comment.id}
+                        position={commentMenuPosition}
+                      >
+                        <div
+                          data-comment-action-menu
+                          className="py-1"
+                          role="menu"
+                          aria-label="Comment options"
+                        >
+                          <button
+                            type="button"
+                            role="menuitem"
+                            onClick={() => handleCommentMenuAction("edit", comment)}
+                            className="w-full flex items-center gap-2 px-4 py-2 text-sm text-white hover:bg-white/10 transition"
+                          >
+                            <Edit2 size={16} />
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            role="menuitem"
+                            onClick={() => handleCommentMenuAction("delete", comment)}
+                            className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-400 hover:bg-red-900/30 transition"
+                          >
+                            <Trash2 size={16} />
+                            Delete
+                          </button>
+                        </div>
+                      </CommentActionMenuPortal>
+                    </div>
                   )}
                 </div>
                 {/* Reaction bar */}
@@ -2583,20 +2703,10 @@ const CommentThread = ({
           </div>
         </div>
 
-        {/* Replies */}
+{/* Replies */}
         {replies.length > 0 && (
           <div className="mt-2">
-            {hasMoreReplies ? (
-              <button
-                type="button"
-                onClick={() => onReply(comment)} // This will expand to show all
-                className="text-xs text-white/50 hover:text-white"
-              >
-                View all {replies.length} replies
-              </button>
-            ) : (
-              replies.map((reply) => renderComment(reply, depth + 1))
-            )}
+            {replies.map((reply) => renderComment(reply, depth + 1))}
           </div>
         )}
       </div>
