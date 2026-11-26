@@ -32,6 +32,7 @@ import {
   Bookmark,
   UserRound,
   Video,
+  Image,
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { subscribeWhileVisible } from "@/lib/realtimeVisibility";
@@ -54,22 +55,28 @@ interface FriendEntry {
   friendshipId: string;
   id: string;
   full_name: string;
-  avatar_url?: string;
-  location?: string | null;
+  avatar_url: string;
+  location: string | null;
 }
 interface HookData {
-  id: string;
-  name: string;
-  cover_url?: string;
-  hook_count?: number;
-  category?: string;
+  page_id: string;
+  hook_pages: {
+    id: string;
+    name: string;
+    avatar_url?: string | null;
+    follower_count?: number;
+    followers_count?: number;
+  }[];
 }
 interface CircleData {
   id: string;
   name: string;
   cover_url?: string;
+  description?: string;
   member_count?: number;
+  privacy?: string;
 }
+type PostData = { id: string; content: string; media_url?: string; image_url?: string; created_at?: string; user_id?: string; full_name?: string; avatar_url?: string; cover_url?: string; likes_count?: number; type?: string; media_type?: string; author_name?: string; author_avatar?: string };
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 // ── Facebook-style relative timestamp: "now", "2m ago", "1h ago", "3d ago", "2w ago" ──
@@ -425,6 +432,15 @@ type Notif = {
   is_read?: boolean;
   actor?: { full_name?: string; avatar_url?: string };
   _group?: Notif[];
+  actor_id?: string;
+  entity_type?: string;
+  target_id?: string;
+  reference_id?: string;
+  order_item_price?: string | null;
+  created_at?: string;
+  sender?: { full_name?: string; avatar_url?: string; id?: string };
+  sender_id?: string;
+  notifier_id?: string;
 };
 function groupNotifications(
   list: Notif[],
@@ -629,12 +645,12 @@ const SearchModal = ({
   const [isSearching, setIsSearching] = useState(false);
   const [loading, setLoading] = useState(false);
   type SearchPerson = { id: string; full_name: string; avatar_url?: string; username?: string; is_verified?: boolean; fame_points?: number };
-  type SearchCircle = { id: string; name: string; cover_url?: string; member_count?: number };
-  type SearchHook = { id: string; name: string; cover_url?: string; member_count?: number };
-  type SearchPost = { id: string; content: string; media_url?: string; image_url?: string; created_at?: string };
+  type SearchCircle = { id: string; name: string; cover_url?: string; member_count?: number; privacy?: string };
+  type SearchHook = { id: string; name: string; cover_url?: string; member_count?: number; hook_count?: number; category?: string };
+  type SearchPost = { id: string; content: string; media_url?: string; image_url?: string; created_at?: string; author?: string; likes_count?: number };
   type PostLike = { post_id: string };
   type SearchPostData = { id: string; content: string; media_url?: string; image_url?: string; created_at?: string; user_id?: string; full_name?: string; avatar_url?: string };
-  type PersonData = { id: string; full_name: string; avatar_url?: string; username?: string; is_verified?: boolean };
+  type PersonData = { id: string; full_name: string; avatar_url?: string; username?: string; is_verified?: boolean; bio?: string; location?: string | null; gender?: string | null; is_online?: boolean; contact?: string; school?: string; interests?: string };
   
   const [people, setPeople] = useState<SearchPerson[]>([]);
   const [circles, setCircles] = useState<SearchCircle[]>([]);
@@ -644,8 +660,6 @@ const SearchModal = ({
   const [sugCircles, setSugCircles] = useState<SearchCircle[]>([]);
   const [sugHooks, setSugHooks] = useState<SearchHook[]>([]);
   const [sentRequests, setSentRequests] = useState<Set<string>>(new Set());
-  type PostData = { id: string; content: string; media_url?: string; image_url?: string; created_at?: string; user_id?: string; full_name?: string; avatar_url?: string };
-type PersonData = { id: string; full_name: string; avatar_url?: string; username?: string; is_verified?: boolean };
 
   const [personPosts, setPersonPosts] = useState<Record<string, PostData>>({});
   const [likedPosts, setLikedPosts] = useState<Set<string>>(new Set());
@@ -686,7 +700,7 @@ type PersonData = { id: string; full_name: string; avatar_url?: string; username
       setSugCircles((c || []) as SearchCircle[]);
       setSugHooks((hp || []) as SearchHook[]);
       if (reqRes?.data)
-        setSentRequests(new Set(reqRes.data.map((r: { receiver_id: string }) => r.receiver_id)));
+        setSentRequests(new Set((reqRes.data as { receiver_id: string }[]).map((r) => r.receiver_id)));
     })();
   }, [userId]);
 
@@ -1199,14 +1213,14 @@ type PersonData = { id: string; full_name: string; avatar_url?: string; username
                   <div
                     key={person.id}
                     className="flex items-center gap-3 px-4 py-3 border-b border-white/5 hover:bg-white/5 transition-colors"
-                    onClick={() => setViewingPerson(person.id)}
+                    onClick={() => setViewingPerson({ id: person.id, full_name: person.full_name, avatar_url: person.avatar_url, username: person.username, is_verified: person.is_verified })}
                   >
                     <div
                       className="w-11 h-11 rounded-xl overflow-hidden shrink-0 border border-white/10 cursor-pointer"
                       style={{ background: "rgba(255,255,255,0.08)", borderColor: "rgba(255,255,255,0.1)" }}
                       onClick={(e) => {
                         e.stopPropagation();
-                        setViewingPerson(person.id);
+                        setViewingPerson({ id: person.id, full_name: person.full_name, avatar_url: person.avatar_url, username: person.username, is_verified: person.is_verified });
                       }}
                     >
                       {person.avatar_url ? (
@@ -1225,7 +1239,7 @@ type PersonData = { id: string; full_name: string; avatar_url?: string; username
                     <div className="flex-1 min-w-0">
                       <p
                         className="text-white font-bold text-[13px] truncate cursor-pointer"
-                        onClick={() => setViewingPerson(person.id)}
+                        onClick={() => setViewingPerson({ id: person.id, full_name: person.full_name, avatar_url: person.avatar_url, username: person.username, is_verified: person.is_verified })}
                       >
                         {person.full_name}
                       </p>
@@ -1843,7 +1857,7 @@ const Header = ({
         (profiles || []).map((p) => [p.id, p]),
       );
       setFriendRequests(
-        data.map((r) => ({ ...r, sender: profileMap[r.sender_id] || null })),
+        data.map((r) => ({ ...r, type: "friend_request", sender: profileMap[r.sender_id] || null })),
       );
     } else {
       setFriendRequests([]);
@@ -1945,12 +1959,12 @@ const Header = ({
               friendshipId: r.id,
               id: p.id,
               full_name: p.full_name,
-              avatar_url: p.avatar_url,
-              location: p.location,
+              avatar_url: p.avatar_url || "",
+              location: p.location ?? null,
             }
           : null;
       })
-      .filter((f): f is FriendEntry => !!f && !!f.id);
+      .filter((f): f is FriendEntry => !!f && !!f.id && !!f.avatar_url);
 
     console.log("[PowerDash] parsed friends:", parsed.length);
     setDashFriends(parsed);
@@ -1978,7 +1992,7 @@ const Header = ({
       )
       .eq("user_id", userId)
       .limit(20);
-    setDashHooks(data || []);
+    setDashHooks((data as HookData[]) || []);
     setDashHooksFetched(true);
   }, [userId, dashHooksFetched]);
 
@@ -2011,7 +2025,18 @@ const Header = ({
       )
       .eq("user_id", userId)
       .limit(20);
-    setDashCircles(data || []);
+    const circles: CircleData[] = (data || []).map(item => {
+      const c = item.circles?.[0];
+      return c ? {
+        id: c.id,
+        name: c.name,
+        cover_url: c.cover_url,
+        description: c.description,
+        member_count: c.member_count,
+        privacy: c.privacy,
+      } : null;
+    }).filter(Boolean) as CircleData[];
+    setDashCircles(circles);
     setDashCirclesFetched(true);
   }, [userId, dashCirclesFetched]);
 
@@ -2484,7 +2509,7 @@ const Header = ({
             "postgres_changes",
             { event: "*", schema: "public", table: "notifications", filter: `notifier_id=eq.${userId}` },
             (payload) => {
-              const row = (payload.new || payload.old) as Record<string, unknown>;
+              const row = (payload.new || payload.old) as Notif;
               if (row?.notifier_id !== userId) return;
               if (payload.eventType === "INSERT") {
                 playNotifSound();
@@ -3726,8 +3751,8 @@ const Header = ({
                       </div>
                     ) : (
                       <div className="flex flex-col gap-2">
-                        {dashHooks.map((item: { page_id?: string; hook_pages?: { name?: string; avatar_url?: string; followers_count?: number; follower_count?: number } }, i: number) => {
-                          const page = item.hook_pages || {};
+                        {dashHooks.map((item: HookData, i: number) => {
+                          const page = item.hook_pages?.[0] as { id: string; name: string; avatar_url?: string | null; follower_count?: number; followers_count?: number } | undefined;
                           return (
                             <motion.div
                               key={item.page_id || i}
@@ -3811,11 +3836,10 @@ const Header = ({
                       </div>
                     ) : (
                       <div className="flex flex-col gap-2">
-                        {dashCircles.map((item: { circle_id?: string; circles?: { name?: string; cover_url?: string; member_count?: number; privacy?: string } }, i: number) => {
-                          const circle = item.circles || {};
+                        {dashCircles.map((circle: CircleData, i: number) => {
                           return (
                             <motion.div
-                              key={item.circle_id || i}
+                              key={circle.id || i}
                               whileTap={{ scale: 0.97 }}
                               onClick={() => {
                                 if (onNavigateToFeature) {

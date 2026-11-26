@@ -30,6 +30,19 @@ interface PagePost {
   media_url: string; media_type: string; type?: string; likes_count: number;
   created_at: string;
   status?: "approved" | "pending_approval" | "rejected" | null;
+  invitee_id?: string;
+  invitee?: { full_name: string | null; avatar_url: string | null } | null;
+}
+interface PendingInvite {
+  id: string;
+  page_id: string;
+  inviter_id: string;
+  invitee_id: string;
+  status: string;
+  expires_at: string | null;
+  created_at: string;
+  invitee?: { full_name: string | null; avatar_url: string | null } | null;
+  isJoinRequest?: boolean;
 }
 interface Friend { id: string; full_name: string; avatar_url: string; }
 
@@ -735,7 +748,7 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
   // Requests / contributor state
   const [activeTab, setActiveTab] = useState<"posts" | "requests" | "approvals">("posts");
   const isOwner = page.owner_id === userId;
-  const [pendingInvites, setPendingInvites] = useState<PagePost[]>([]);
+  const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([]);
   const [invitesLoading, setInvitesLoading] = useState(false);
   const [isContributor, setIsContributor] = useState(false);
   const [contributorExpired, setContributorExpired] = useState(false);
@@ -761,7 +774,7 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
 
   // ── Hook post comments ──
   const [commentDrawerId, setCommentDrawerId] = useState<string | null>(null);
-  interface Comment { id: string; post_id: string; author_id: string; content: string; created_at: string; profiles?: { full_name: string | null; avatar_url: string | null } | null; }
+  interface Comment { id: string; post_id: string; author_id: string; user_id?: string; parent_id?: string; content: string; created_at: string; author?: string; profiles?: { full_name: string | null; avatar_url: string | null } | null; }
   const [hookComments, setHookComments]       = useState<Record<string, Comment[]>>({});
   const [hookCommentCounts, setHookCommentCounts] = useState<Record<string, number>>({});
   const [hookCommentLoading, setHookCommentLoading] = useState<Record<string, boolean>>({});
@@ -859,6 +872,90 @@ const fetchPosts = useCallback(async () => {
     }
   }, [page.id, userId]);
 
+  // ── Fetch accepted partner expiry map (invitee_id → expires_at) ──────────
+  const fetchPartnerExpiryMap = useCallback(async () => {
+    const { data } = await supabase
+      .from("hook_invites")
+      .select("invitee_id, expires_at")
+      .eq("page_id", page.id)
+      .eq("status", "accepted");
+    if (data) {
+      const map: Record<string, string | null> = {};
+      for (const row of data) map[row.invitee_id] = row.expires_at ?? null;
+      setPartnerExpiryMap(map);
+    }
+  }, [page.id]);
+
+  // ── Fetch pending invites for owner (includes join requests) ─────────────
+  const fetchPendingInvites = useCallback(async () => {
+    if (page.owner_id !== userId) return;
+    setInvitesLoading(true);
+    const { data } = await supabase
+      .from("hook_invites")
+      .select("id, page_id, inviter_id, invitee_id, status, expires_at, created_at")
+      .eq("page_id", page.id)
+      .eq("status", "pending")
+      .order("created_at", { ascending: false });
+    if (data && data.length > 0) {
+      // Collect all unique user ids (invitees + join-requesters who are their own invitee)
+      const ids = [...new Set(data.map(r => r.invitee_id))];
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, full_name, avatar_url")
+        .in("id", ids);
+      const pm = Object.fromEntries((profiles || []).map(p => [p.id, p]));
+      setPendingInvites(data.map(r => ({
+        ...r,
+        invitee: pm[r.invitee_id] || null,
+        // isJoinRequest is true when the requesting user sent the row themselves
+        isJoinRequest: r.inviter_id === r.invitee_id,
+      })));
+    } else {
+      setPendingInvites([]);
+    }
+    setInvitesLoading(false);
+  }, [page.id, page.owner_id, userId]);
+
+  // ── Check contributor status + pending invite/join-request for this user ─
+  const checkContributorStatus = useCallback(async () => {
+    if (page.owner_id === userId) return;
+
+    // Fetch all hook_invite rows for this page where invitee = current user
+    const { data: rows } = await supabase
+      .from("hook_invites")
+      .select("id, status, expires_at, inviter_id, invitee_id")
+      .eq("page_id", page.id)
+      .eq("invitee_id", userId);
+
+    const allRows = rows || [];
+
+    const accepted = allRows.find(r => r.status === "accepted");
+    if (accepted) {
+      setIsContributor(true);
+      const exp = accepted.expires_at;
+      setContributorExpiresAt(exp || null);
+      setContributorExpired(exp ? new Date(exp) < new Date() : false);
+      setHasPendingInvite(false);
+      setHasPendingJoinReq(false);
+      return;
+    }
+
+    setIsContributor(false);
+    setContributorExpired(false);
+
+    // Pending invite sent by the page owner to this user
+    const ownerInvite = allRows.find(
+      r => r.status === "pending" && r.inviter_id === page.owner_id && r.invitee_id === userId
+    );
+    setHasPendingInvite(!!ownerInvite);
+
+    // Pending join request submitted by this user themselves
+    const joinReq = allRows.find(
+      r => r.status === "pending" && r.inviter_id === userId && r.invitee_id === userId
+    );
+    setHasPendingJoinReq(!!joinReq);
+  }, [page.id, page.owner_id, userId]);
+
   useEffect(() => {
     fetchPosts();
     fetchFollowData();
@@ -942,15 +1039,16 @@ const fetchPosts = useCallback(async () => {
         setMemberCount(trueCount);
         await supabase.from("hook_pages").update({ followers_count: trueCount }).eq("id", page.id);
       }
-    } catch (err: { code?: string; message?: string } | null) {
+    } catch (err: unknown) {
       // Rollback optimistic update
       setIsFollowing(wasFollowing);
       setMemberCount(p => Math.max(0, p + (wasFollowing ? 1 : -1)));
-      const msg = err?.code === "42P01"
+      const e = err as { code?: string; message?: string } | null;
+      const msg = e?.code === "42P01"
         ? "page_followers table nahi mili. Supabase mein SQL migration run karo."
-        : err?.code === "42501"
+        : e?.code === "42501"
         ? "Permission denied — check RLS policies on page_followers."
-        : `Follow failed: ${err?.message || "Unknown error"}`;
+        : `Follow failed: ${e?.message || "Unknown error"}`;
       setFollowError(msg);
       console.error("[HooksHub] toggleFollow error:", err);
     } finally {
@@ -1039,7 +1137,7 @@ const fetchPosts = useCallback(async () => {
       const rows = (data || []) as Comment[];
       setHookComments(prev => ({ ...prev, [postId]: rows }));
       setHookCommentCounts(prev => ({ ...prev, [postId]: rows.length }));
-    } catch (err: { message?: string } | null) {
+    } catch (err) {
       console.warn("[HooksHub] loadHookComments error:", err?.message || err);
     } finally {
       setHookCommentLoading(prev => ({ ...prev, [postId]: false }));
@@ -1052,10 +1150,10 @@ const fetchPosts = useCallback(async () => {
     setHookCommentPosting(prev => ({ ...prev, [postId]: true }));
     try {
       const authorName = (myProfile?.full_name || "User").trim();
-      const { data, error } = await supabase
+const { data, error } = await supabase
         .from("comments")
         .insert([{ post_id: postId, user_id: userId, author: authorName, content: text, parent_id: null }])
-        .select("id, content, author, user_id, parent_id, created_at")
+        .select("id, post_id, content, author, author_id, user_id, parent_id, created_at")
         .single();
       if (error) throw error;
       if (data) {
@@ -1081,7 +1179,7 @@ const fetchPosts = useCallback(async () => {
           }
         }
       }
-    } catch (err: { message?: string } | null) {
+    } catch (err) {
       console.error("[HooksHub] addHookComment error:", err);
       toast.error("Comment post nahi ho saka. " + (err?.message || ""));
     } finally {
@@ -1106,7 +1204,7 @@ const fetchPosts = useCallback(async () => {
       });
       setHookCommentCounts(prev => ({ ...prev, [postId]: Math.max(((prev[postId] || 1) - 1), 0) }));
       toast.success("Comment deleted.");
-    } catch (err: { message?: string } | null) {
+    } catch (err) {
       console.error("[HooksHub] deleteHookComment error:", err);
       toast.error("Comment delete nahi ho saka.");
     }
@@ -1142,7 +1240,7 @@ const fetchPosts = useCallback(async () => {
       setReportCustom(false);
       setReportPostId(null);
       toast.success("Report submitted successfully.");
-    } catch (err: { message?: string } | null) {
+    } catch (err) {
       console.error("[HooksHub] submitHookReport error:", err);
       toast.error("Report submission failed. Please try again.");
     } finally {
@@ -1157,21 +1255,7 @@ const fetchPosts = useCallback(async () => {
     await safeHp(supabase.from("hook_pages").delete().eq("id", page.id).eq("owner_id", userId));
     setDeletingPage(false);
     onBack();
-  };
-
-  // ── Fetch accepted partner expiry map (invitee_id → expires_at) ──────────
-  const fetchPartnerExpiryMap = useCallback(async () => {
-    const { data } = await supabase
-      .from("hook_invites")
-      .select("invitee_id, expires_at")
-      .eq("page_id", page.id)
-      .eq("status", "accepted");
-    if (data) {
-      const map: Record<string, string | null> = {};
-      for (const row of data) map[row.invitee_id] = row.expires_at ?? null;
-      setPartnerExpiryMap(map);
-    }
-  }, [page.id]);
+};
 
   // ── Broadcast an approved hook post to the main FameFeed ─────────────────
   const broadcastToFameFeed = async (post: PagePost) => {
@@ -1215,83 +1299,14 @@ const fetchPosts = useCallback(async () => {
 
       if (error) throw error;
       toast.success("📢 FameFeed par broadcast ho gaya!");
-    } catch (err: { message?: string } | null) {
+    } catch (err) {
       toast.error(`Broadcast failed: ${err?.message || "Unknown error"}`);
     } finally {
       setBroadcastingPostId(null);
     }
   };
 
-  // ── Fetch pending invites for owner (includes join requests) ─────────────
-const fetchPendingInvites = useCallback(async () => {
-    if (page.owner_id !== userId) return;
-    setInvitesLoading(true);
-    const { data } = await supabase
-      .from("hook_invites")
-      .select("id, page_id, inviter_id, invitee_id, status, expires_at, created_at")
-      .eq("page_id", page.id)
-      .eq("status", "pending")
-      .order("created_at", { ascending: false });
-    if (data && data.length > 0) {
-      // Collect all unique user ids (invitees + join-requesters who are their own invitee)
-      const ids = [...new Set(data.map(r => r.invitee_id))];
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("id, full_name, avatar_url")
-        .in("id", ids);
-      const pm = Object.fromEntries((profiles || []).map(p => [p.id, p]));
-      setPendingInvites(data.map(r => ({
-        ...r,
-        invitee: pm[r.invitee_id] || null,
-        // isJoinRequest is true when the requesting user sent the row themselves
-        isJoinRequest: r.inviter_id === r.invitee_id,
-      })));
-    } else {
-      setPendingInvites([]);
-    }
-    setInvitesLoading(false);
-  }, [page.id, page.owner_id, userId]);
-
-  // ── Check contributor status + pending invite/join-request for this user ─
-const checkContributorStatus = useCallback(async () => {
-    if (page.owner_id === userId) return;
-
-    // Fetch all hook_invite rows for this page where invitee = current user
-    const { data: rows } = await supabase
-      .from("hook_invites")
-      .select("id, status, expires_at, inviter_id, invitee_id")
-      .eq("page_id", page.id)
-      .eq("invitee_id", userId);
-
-    const allRows = rows || [];
-
-    const accepted = allRows.find(r => r.status === "accepted");
-    if (accepted) {
-      setIsContributor(true);
-      const exp = accepted.expires_at;
-      setContributorExpiresAt(exp || null);
-      setContributorExpired(exp ? new Date(exp) < new Date() : false);
-      setHasPendingInvite(false);
-      setHasPendingJoinReq(false);
-      return;
-    }
-
-    setIsContributor(false);
-    setContributorExpired(false);
-
-    // Pending invite sent by the page owner to this user
-    const ownerInvite = allRows.find(
-      r => r.status === "pending" && r.inviter_id === page.owner_id && r.invitee_id === userId
-    );
-    setHasPendingInvite(!!ownerInvite);
-
-    // Pending join request submitted by this user themselves
-    const joinReq = allRows.find(
-      r => r.status === "pending" && r.inviter_id === userId && r.invitee_id === userId
-    );
-    setHasPendingJoinReq(!!joinReq);
-  }, [page.id, page.owner_id, userId]);
-
+  // ── Invitee accepts an owner-sent invite on the page ─────────────────────
   // ── Invitee accepts an owner-sent invite on the page ─────────────────────
   const acceptMyInvite = async () => {
     setAcceptingInvite(true);
@@ -2389,13 +2404,14 @@ const HooksHub = ({
         setMemberCounts(prev => ({ ...prev, [pg.id]: trueCount }));
         await supabase.from("hook_pages").update({ followers_count: trueCount }).eq("id", pg.id);
       }
-    } catch (err: { code?: string; message?: string } | null) {
+    } catch (err: unknown) {
       // Rollback
       setFollowingPages(prev => ({ ...prev, [pg.id]: already }));
       setMemberCounts(prev => ({ ...prev, [pg.id]: prevCount }));
-      const msg = err?.code === "42P01"
+      const e = err as { code?: string; message?: string } | null;
+      const msg = e?.code === "42P01"
         ? "page_followers table missing — run SQL migration."
-        : `Follow failed: ${err?.message || "Unknown error"} (code: ${err?.code})`;
+        : `Follow failed: ${e?.message || "Unknown error"} (code: ${e?.code})`;
       setDbError(msg);
       console.error("[HooksHub] toggleFollowOnCard error:", err);
     }

@@ -4210,9 +4210,6 @@ const FameFeed = ({
   const [activeComment, setActiveComment] = useState<string | null>(null);
   const [postDetailId, setPostDetailId] = useState<string | null>(null);
   const [commentSheetId, setCommentSheetId] = useState<string | null>(null);
-  const [commentsLoadingByPost, setCommentsLoadingByPost] = useState<
-    Record<string, boolean>
-  >({});
   const [latestCommentPreviews, setLatestCommentPreviews] = useState<
     Record<
       string,
@@ -4584,6 +4581,79 @@ const FameFeed = ({
     return () => window.removeEventListener("flicks:post-created", handleCreatedPost);
   }, [currentUserId, dataCache]);
 
+  // â”€â”€ On-demand comment cache â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  const [commentsMap, setCommentsMap] = useState<Record<string, any[]>>({});
+  const loadedCommentsRef = useRef<Set<string>>(new Set());
+  const [commentsLoadingByPost, setCommentsLoadingByPost] = useState<Record<string, boolean>>({});
+
+  const loadComments = useCallback(
+    async (postId: string, force = false) => {
+      if (!force && loadedCommentsRef.current.has(postId)) return;
+      setCommentsLoadingByPost((prev) => ({ ...prev, [postId]: true }));
+      try {
+        const pageSize = 1000;
+        const allComments: any[] = [];
+        for (let offset = 0; ; offset += pageSize) {
+          const { data, error } = await supabase
+            .from("comments")
+            .select(
+              "id, content, author, user_id, parent_id, created_at, is_hidden, hidden_by_name, hidden_by_id",
+            )
+            .eq("post_id", postId)
+            .order("created_at")
+            .order("id")
+            .range(offset, offset + pageSize - 1);
+          if (error) {
+            console.warn("[FameFeed] loadComments error:", error.message);
+            return;
+          }
+          const page = data ?? [];
+          allComments.push(...page);
+          if (page.length < pageSize) break;
+        }
+        loadedCommentsRef.current.add(postId);
+        setCommentsMap((prev) => ({ ...prev, [postId]: allComments }));
+        const cAuthorIds = [
+          ...new Set(
+            allComments
+              .filter((c: any) => c.user_id)
+              .map((c: any) => c.user_id as string),
+          ),
+        ];
+        if (cAuthorIds.length > 0) batchFetchAvatars(cAuthorIds);
+      } catch (e) {
+        console.warn("[FameFeed] loadComments exception:", e);
+      } finally {
+        setCommentsLoadingByPost((prev) => ({ ...prev, [postId]: false }));
+      }
+    },
+    [batchFetchAvatars],
+  );
+
+  const openPostDetail = useCallback(
+    (post: any) => {
+      setPostDetailId(post.id);
+      setCommentSheetId(null);
+      setActiveComment(null);
+      setReplyingTo(null);
+      setReplyText("");
+      setCommentText("");
+      setFeedCommentAction(null);
+      loadedCommentsRef.current.delete(post.id);
+      void loadComments(post.id, true);
+    },
+    [loadComments],
+  );
+
+  const closePostDetail = useCallback(() => {
+    setPostDetailId(null);
+    setReplyingTo(null);
+    setReplyText("");
+    setCommentText("");
+    setFeedCommentAction(null);
+    setCommentReactionBarId(null);
+  }, []);
+
   useEffect(() => {
     const handleReelUpdated = (event: Event) => {
       const updated = (event as CustomEvent<any>).detail;
@@ -4698,10 +4768,6 @@ const FameFeed = ({
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const pageRef = useRef(0);
-
-  // â”€â”€ On-demand comment cache â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  const [commentsMap, setCommentsMap] = useState<Record<string, any[]>>({});
-  const loadedCommentsRef = useRef<Set<string>>(new Set());
 
   // â”€â”€ Realtime: comment_reactions (INSERT/DELETE) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useEffect(() => {
@@ -5255,74 +5321,6 @@ const FameFeed = ({
       toast.success("Welcome to the Circle! ➕");
     }
   };
-
-  const loadComments = useCallback(
-    async (postId: string, force = false) => {
-      if (!force && loadedCommentsRef.current.has(postId)) return;
-      setCommentsLoadingByPost((prev) => ({ ...prev, [postId]: true }));
-      try {
-        const pageSize = 1000;
-        const allComments: any[] = [];
-        for (let offset = 0; ; offset += pageSize) {
-          const { data, error } = await supabase
-            .from("comments")
-            .select(
-              "id, content, author, user_id, parent_id, created_at, is_hidden, hidden_by_name, hidden_by_id",
-            )
-            .eq("post_id", postId)
-            .order("created_at")
-            .order("id")
-            .range(offset, offset + pageSize - 1);
-          if (error) {
-            console.warn("[FameFeed] loadComments error:", error.message);
-            return;
-          }
-          const page = data ?? [];
-          allComments.push(...page);
-          if (page.length < pageSize) break;
-        }
-        loadedCommentsRef.current.add(postId);
-        setCommentsMap((prev) => ({ ...prev, [postId]: allComments }));
-        const cAuthorIds = [
-          ...new Set(
-            allComments
-              .filter((c: any) => c.user_id)
-              .map((c: any) => c.user_id as string),
-          ),
-        ];
-        if (cAuthorIds.length > 0) batchFetchAvatars(cAuthorIds);
-      } catch (e) {
-        console.warn("[FameFeed] loadComments exception:", e);
-      } finally {
-        setCommentsLoadingByPost((prev) => ({ ...prev, [postId]: false }));
-      }
-    },
-    [batchFetchAvatars],
-  );
-
-  const openPostDetail = useCallback(
-    (post: any) => {
-      setPostDetailId(post.id);
-      setCommentSheetId(null);
-      setActiveComment(null);
-      setReplyingTo(null);
-      setReplyText("");
-      setCommentText("");
-      setFeedCommentAction(null);
-      loadedCommentsRef.current.delete(post.id);
-      void loadComments(post.id, true);
-    },
-    [loadComments],
-  );
-
-  const closePostDetail = useCallback(() => {
-    setPostDetailId(null);
-    setReplyingTo(null);
-    setReplyText("");
-    setCommentText("");
-    setFeedCommentAction(null);
-    setCommentReactionBarId(null);
-  }, []);
 
   const handleFeedCommentDelete = async (commentId: string, postId: string) => {
     const deletedComment = (commentsMap[postId] || []).find(

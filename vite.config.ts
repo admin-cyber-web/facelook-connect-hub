@@ -4,7 +4,6 @@ import path from "path";
 import fs from "fs";
 import type { Connect } from "vite";
 import { createDynamicShareResponse } from "./src/lib/serverShareMetadata";
-
 // ── Sitemap middleware plugin ──────────────────────────────────────────────────
 function sitemapPlugin(): Plugin {
   const SUPABASE_URL = process.env.VITE_SUPABASE_URL || "https://rxwvvhvretostbiknuek.supabase.co";
@@ -73,7 +72,7 @@ function sitemapPlugin(): Plugin {
 
 
 function attachSitemapHandler(middlewares: Connect.Server) {
-    middlewares.use("/sitemap.xml", async (req: Connect.IncomingMessage, res: Connect.ServerResponse, next: Connect.NextFunction) => {
+    middlewares.use("/sitemap.xml", async (req: Connect.IncomingMessage, res: import("http").ServerResponse, next: Connect.NextFunction) => {
       const now = Date.now();
 
       if (cache && now - cache.builtAt < TTL_MS) {
@@ -125,7 +124,7 @@ function attachSitemapHandler(middlewares: Connect.Server) {
 
 function socialShareMetadataPlugin(): Plugin {
   function attachShareMetadataHandler(middlewares: Connect.Server) {
-    middlewares.use(async (req: Connect.IncomingMessage, res: Connect.ServerResponse, next: Connect.NextFunction) => {
+    middlewares.use(async (req: Connect.IncomingMessage, res: import("http").ServerResponse, next: Connect.NextFunction) => {
       if (req.method !== "GET" && req.method !== "HEAD") {
         next();
         return;
@@ -173,8 +172,8 @@ function apkDownloadPlugin(): Plugin {
     path.resolve(__dirname, "public", "app.apk"),
   ];
 
-  function attachApkHandler(middlewares: Connect.Server) {
-    middlewares.use("/download/apk", (req: Connect.IncomingMessage, res: Connect.ServerResponse, next: Connect.NextFunction) => {
+function attachApkHandler(middlewares: Connect.Server) {
+    middlewares.use("/download/apk", (req: Connect.IncomingMessage, res: import("http").ServerResponse, next: Connect.NextFunction) => {
       const apkPath = candidates.find(fs.existsSync);
       if (!apkPath) {
         res.statusCode = 404;
@@ -270,14 +269,14 @@ export default defineConfig({
     reportCompressedSize: false,
     chunkSizeWarningLimit: 600,
     rollupOptions: {
-      onwarn(warning, warn) {
+onwarn(warning, warn) {
         if (warning.code === "CIRCULAR_DEPENDENCY") {
           return;
         }
         if (
           warning.code === "UNRESOLVED_IMPORT" &&
           (warning.message.includes("@capgo/capacitor-social-login") ||
-            (warning as RollupWarning).source === "@capgo/capacitor-social-login")
+            (warning as any).source === "@capgo/capacitor-social-login")
         ) {
           throw new Error(
             "The @capgo/capacitor-social-login import could not be bundled. Install the plugin before building Android.",
