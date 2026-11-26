@@ -2315,7 +2315,7 @@ const FeedReelComments = ({
     <div className="absolute inset-x-0 bottom-0 z-20 max-h-[72%] overflow-hidden rounded-t-xl border-t border-white/15 bg-black/95 text-white">
       <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
         <span className="flex items-center gap-2 text-sm font-bold">
-          <MessageCircle size={16} className="text-pink-400" />
+          <SmilePlus size={16} className="text-pink-400" />
           Comments <span className="text-white/45">({topLevel.length})</span>
         </span>
         <button type="button" onClick={onClose} aria-label="Close comments" className="p-1 text-white/70">
@@ -2436,6 +2436,9 @@ const CommentThread = ({
   onSaveCommentEdit,
   onCancelCommentEdit,
   onProfileClick,
+  postAuthorId,
+  onHideComment,
+  onUnhideComment,
 }: {
   comments: any[];
   commentReactions: Record<string, Record<string, string[]>>;
@@ -2454,6 +2457,9 @@ const CommentThread = ({
   onSaveCommentEdit: () => void;
   onCancelCommentEdit: () => void;
   onProfileClick: (userId: string) => void;
+  postAuthorId: string | null;
+  onHideComment: (commentId: string) => void;
+  onUnhideComment: (commentId: string) => void;
 }) => {
   const [activeCommentMenuId, setActiveCommentMenuId] = useState<string | null>(null);
   const [commentMenuPosition, setCommentMenuPosition] = useState({ top: 0, right: 0 });
@@ -2496,13 +2502,19 @@ const CommentThread = ({
   };
 
   const handleCommentMenuAction = (
-    action: "edit" | "delete",
+    action: "edit" | "delete" | "hide" | "unhide" | "delete_everyone",
     comment: any,
   ) => {
     setActiveCommentMenuId(null);
     if (action === "edit") {
       onStartCommentEdit(comment);
     } else if (action === "delete") {
+      onDeleteComment(comment.id);
+    } else if (action === "hide") {
+      onHideComment(comment.id);
+    } else if (action === "unhide") {
+      onUnhideComment(comment.id);
+    } else if (action === "delete_everyone") {
       onDeleteComment(comment.id);
     }
   };
@@ -2597,7 +2609,29 @@ const CommentThread = ({
               </div>
             ) : (
               <>
-                <p className="mt-1 whitespace-pre-wrap break-words text-sm text-white/85">
+                <p
+                  className="mt-1 whitespace-pre-wrap break-words text-sm text-white/85"
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    if (navigator.vibrate) navigator.vibrate(50);
+                    openCommentMenu(e as any, comment.id);
+                  }}
+                  onTouchStart={(e) => {
+                    const touchTimer = setTimeout(() => {
+                      if (navigator.vibrate) navigator.vibrate(50);
+                      openCommentMenu(e as any, comment.id);
+                    }, 500);
+                    e.currentTarget.dataset.touchTimer = touchTimer.toString();
+                  }}
+                  onTouchEnd={(e) => {
+                    const timer = e.currentTarget.dataset.touchTimer;
+                    if (timer) clearTimeout(parseInt(timer, 10));
+                  }}
+                  onTouchMove={(e) => {
+                    const timer = e.currentTarget.dataset.touchTimer;
+                    if (timer) clearTimeout(parseInt(timer, 10));
+                  }}
+                >
                   {comment.content}
                 </p>
                 <div className="mt-2 flex items-center gap-4">
@@ -2609,7 +2643,7 @@ const CommentThread = ({
                     aria-expanded={reactionBarOpen}
                     className="flex items-center gap-1 text-sm text-white/60 hover:text-white transition"
                   >
-                    <MessageCircle size={14} className="text-pink-400" />
+                    <SmilePlus size={14} className="text-pink-400" />
                     <span>{totalReactions}</span>
                   </button>
                   <button
@@ -2620,7 +2654,7 @@ const CommentThread = ({
                     <Reply size={14} />
                     <span>Reply</span>
                   </button>
-                  {currentUserId && comment.user_id === currentUserId && (
+                  {currentUserId && (comment.user_id === currentUserId || postAuthorId === currentUserId) && (
                     <div className="relative">
                       <button
                         type="button"
@@ -2643,24 +2677,60 @@ const CommentThread = ({
                           role="menu"
                           aria-label="Comment options"
                         >
-                          <button
-                            type="button"
-                            role="menuitem"
-                            onClick={() => handleCommentMenuAction("edit", comment)}
-                            className="w-full flex items-center gap-2 px-4 py-2 text-sm text-white hover:bg-white/10 transition"
-                          >
-                            <Edit2 size={16} />
-                            Edit
-                          </button>
-                          <button
-                            type="button"
-                            role="menuitem"
-                            onClick={() => handleCommentMenuAction("delete", comment)}
-                            className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-400 hover:bg-red-900/30 transition"
-                          >
-                            <Trash2 size={16} />
-                            Delete
-                          </button>
+                          {comment.user_id === currentUserId && (
+                            <>
+                              <button
+                                type="button"
+                                role="menuitem"
+                                onClick={() => handleCommentMenuAction("edit", comment)}
+                                className="w-full flex items-center gap-2 px-4 py-2 text-sm text-white hover:bg-white/10 transition"
+                              >
+                                <Edit2 size={16} />
+                                Edit
+                              </button>
+                              <button
+                                type="button"
+                                role="menuitem"
+                                onClick={() => handleCommentMenuAction("delete", comment)}
+                                className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-400 hover:bg-red-900/30 transition"
+                              >
+                                <Trash2 size={16} />
+                                Delete
+                              </button>
+                            </>
+                          )}
+                          {comment.is_hidden ? (
+                            <button
+                              type="button"
+                              role="menuitem"
+                              onClick={() => handleCommentMenuAction("unhide", comment)}
+                              className="w-full flex items-center gap-2 px-4 py-2 text-sm text-green-400 hover:bg-green-900/30 transition"
+                            >
+                              <Eye size={16} />
+                              Unhide
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              role="menuitem"
+                              onClick={() => handleCommentMenuAction("hide", comment)}
+                              className="w-full flex items-center gap-2 px-4 py-2 text-sm text-amber-400 hover:bg-amber-900/30 transition"
+                            >
+                              <EyeOff size={16} />
+                              Hide
+                            </button>
+                          )}
+                          {postAuthorId === currentUserId && comment.user_id !== currentUserId && (
+                            <button
+                              type="button"
+                              role="menuitem"
+                              onClick={() => handleCommentMenuAction("delete_everyone", comment)}
+                              className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-400 hover:bg-red-900/30 transition"
+                            >
+                              <Trash2 size={16} />
+                              Delete for Everyone
+                            </button>
+                          )}
                         </div>
                       </CommentActionMenuPortal>
                     </div>
@@ -2751,6 +2821,8 @@ type PostDetailViewProps = {
   onReact: (commentId: string, emoji: string) => void;
   onToggleReactionBar: (commentId: string) => void;
   onCloseReactionBar: (commentId: string) => void;
+  onHideComment: (commentId: string) => void;
+  onUnhideComment: (commentId: string) => void;
 };
 
 const PostDetailView = ({
@@ -2779,6 +2851,8 @@ const PostDetailView = ({
   onReact,
   onToggleReactionBar,
   onCloseReactionBar,
+  onHideComment,
+  onUnhideComment,
 }: PostDetailViewProps) => {
   const [activeCommentMenuId, setActiveCommentMenuId] = useState<string | null>(
     null,
@@ -2909,6 +2983,9 @@ const PostDetailView = ({
               onSaveCommentEdit={onSaveCommentEdit}
               onCancelCommentEdit={onCancelCommentEdit}
               onProfileClick={onProfileClick}
+              postAuthorId={post.author_id}
+              onHideComment={onHideComment}
+              onUnhideComment={onUnhideComment}
             />
           )}
         </section>
@@ -5400,6 +5477,29 @@ const FameFeed = ({
     }));
     setFeedCommentAction(null);
     toast.success("Comment hidden.");
+  };
+
+  const handleFeedCommentUnhide = async (commentId: string, postId: string) => {
+    try {
+      await supabase
+        .from("comments")
+        .update({
+          is_hidden: false,
+          hidden_by_name: null,
+          hidden_by_id: null,
+        })
+        .eq("id", commentId);
+    } catch (e) {
+      console.warn("[FameFeed] comment unhide exception:", e);
+    }
+    setCommentsMap((prev) => ({
+      ...prev,
+      [postId]: (prev[postId] || []).map((c: any) =>
+        c.id === commentId ? { ...c, is_hidden: false, hidden_by_name: null } : c,
+      ),
+    }));
+    setFeedCommentAction(null);
+    toast.success("Comment unhidden.");
   };
 
   const handleFeedCommentReport = async (comment: any, postId: string) => {
@@ -8186,7 +8286,7 @@ const FameFeed = ({
                       {/* Header */}
                       <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/10">
                         <span className="text-sm font-black text-white flex items-center gap-1.5">
-                          <MessageCircle size={14} className="text-pink-400" />
+                          <SmilePlus size={14} className="text-pink-400" />
                           Comments
                           {inlineTopLevel.length > 0 && (
                             <span className="text-white/30 font-semibold text-xs">
@@ -8262,6 +8362,9 @@ const FameFeed = ({
                             onSaveCommentEdit={saveFeedCommentEdit}
                             onCancelCommentEdit={() => setEditingFeedComment(null)}
                             onProfileClick={openProfile}
+                            postAuthorId={post.author_id}
+                            onHideComment={(commentId) => handleFeedCommentHide(commentId, post.id)}
+                            onUnhideComment={(commentId) => handleFeedCommentUnhide(commentId, post.id)}
                           />
                         )}
                       </div>
@@ -9328,6 +9431,8 @@ const FameFeed = ({
                 )
               }
               onCloseReactionBar={() => setCommentReactionBarId(null)}
+              onHideComment={(commentId) => handleFeedCommentHide(commentId, detailPost.id)}
+              onUnhideComment={(commentId) => handleFeedCommentUnhide(commentId, detailPost.id)}
             />
           );
         })()}
