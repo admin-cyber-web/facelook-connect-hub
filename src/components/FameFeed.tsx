@@ -3611,7 +3611,7 @@ const SingleReelBlock = ({
       </div>
       <div className="reel-side-actions absolute right-3 bottom-16 z-20 flex flex-col items-center gap-4">
         <button
-          onClick={toggleReelLike}
+          onClick={(e) => { e.stopPropagation(); toggleReelLike(); }}
           disabled={likePending}
           aria-pressed={likedByMe}
           aria-label={likedByMe ? "Unlike Reel" : "Like Reel"}
@@ -3628,7 +3628,7 @@ const SingleReelBlock = ({
         </button>
         <button
           type="button"
-          onClick={onOpenComments}
+          onClick={(e) => { e.stopPropagation(); onOpenComments(); }}
           aria-label={`Open ${commentCount} comments`}
           className="flex flex-col items-center"
         >
