@@ -2465,7 +2465,8 @@ const CommentThread = ({
       const target = event.target;
       if (
         !(target instanceof Element) ||
-        !target.closest("[data-comment-menu-trigger]")
+        (!target.closest("[data-comment-menu-trigger]") &&
+         !target.closest("[data-comment-action-menu]"))
       ) {
         setActiveCommentMenuId(null);
       }
@@ -2668,6 +2669,7 @@ const CommentThread = ({
                 {/* Reaction bar */}
                 {reactionBarOpen && (
                   <div
+                    data-reaction-surface="fame-comment"
                     className="mt-2 flex items-center gap-2 flex-wrap"
                     role="group"
                     aria-label="Reactions"
