@@ -190,7 +190,7 @@ export function useMagnet(postId: string, postType: string, currentUserId: strin
   useEffect(() => {
     if (!postId) return;
     fetchAllRef.current();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [postId, postType, currentUserId]);
 
   // Channels only open when the panel is visible — prevents 40+ idle channels
@@ -238,7 +238,7 @@ export function useMagnet(postId: string, postType: string, currentUserId: strin
       reachChannelRef.current = null;
       voiceChannelRef.current = null;
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [postId, postType, currentUserId, channelsActive]);
 
   return {

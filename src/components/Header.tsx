@@ -57,6 +57,19 @@ interface FriendEntry {
   avatar_url?: string;
   location?: string | null;
 }
+interface HookData {
+  id: string;
+  name: string;
+  cover_url?: string;
+  hook_count?: number;
+  category?: string;
+}
+interface CircleData {
+  id: string;
+  name: string;
+  cover_url?: string;
+  member_count?: number;
+}
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 // ── Facebook-style relative timestamp: "now", "2m ago", "1h ago", "3d ago", "2w ago" ──
@@ -404,7 +417,15 @@ function formatNotifAction(
 }
 
 // ── Group consecutive notifications of same (type + entity_id) → "A, B and N others ..." ──
-type Notif = any;
+type Notif = {
+  id: string;
+  type: string;
+  entity_id?: string;
+  content?: string;
+  is_read?: boolean;
+  actor?: { full_name?: string; avatar_url?: string };
+  _group?: Notif[];
+};
 function groupNotifications(
   list: Notif[],
 ): Array<Notif & { _group?: Notif[] }> {
@@ -607,24 +628,35 @@ const SearchModal = ({
   const [query, setQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [people, setPeople] = useState<any[]>([]);
-  const [circles, setCircles] = useState<any[]>([]);
-  const [hooks, setHooks] = useState<any[]>([]);
-  const [posts, setPosts] = useState<any[]>([]);
-  const [sugPeople, setSugPeople] = useState<any[]>([]);
-  const [sugCircles, setSugCircles] = useState<any[]>([]);
-  const [sugHooks, setSugHooks] = useState<any[]>([]);
+  type SearchPerson = { id: string; full_name: string; avatar_url?: string; username?: string; is_verified?: boolean; fame_points?: number };
+  type SearchCircle = { id: string; name: string; cover_url?: string; member_count?: number };
+  type SearchHook = { id: string; name: string; cover_url?: string; member_count?: number };
+  type SearchPost = { id: string; content: string; media_url?: string; image_url?: string; created_at?: string };
+  type PostLike = { post_id: string };
+  type SearchPostData = { id: string; content: string; media_url?: string; image_url?: string; created_at?: string; user_id?: string; full_name?: string; avatar_url?: string };
+  type PersonData = { id: string; full_name: string; avatar_url?: string; username?: string; is_verified?: boolean };
+  
+  const [people, setPeople] = useState<SearchPerson[]>([]);
+  const [circles, setCircles] = useState<SearchCircle[]>([]);
+  const [hooks, setHooks] = useState<SearchHook[]>([]);
+  const [posts, setPosts] = useState<SearchPost[]>([]);
+  const [sugPeople, setSugPeople] = useState<SearchPerson[]>([]);
+  const [sugCircles, setSugCircles] = useState<SearchCircle[]>([]);
+  const [sugHooks, setSugHooks] = useState<SearchHook[]>([]);
   const [sentRequests, setSentRequests] = useState<Set<string>>(new Set());
-  const [personPosts, setPersonPosts] = useState<Record<string, any>>({});
+  type PostData = { id: string; content: string; media_url?: string; image_url?: string; created_at?: string; user_id?: string; full_name?: string; avatar_url?: string };
+type PersonData = { id: string; full_name: string; avatar_url?: string; username?: string; is_verified?: boolean };
+
+  const [personPosts, setPersonPosts] = useState<Record<string, PostData>>({});
   const [likedPosts, setLikedPosts] = useState<Set<string>>(new Set());
-  const [viewingPost, setViewingPost] = useState<any | null>(null);
-  const [viewingPerson, setViewingPerson] = useState<any | null>(null);
+  const [viewingPost, setViewingPost] = useState<PostData | null>(null);
+  const [viewingPerson, setViewingPerson] = useState<PersonData | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setTimeout(() => inputRef.current?.focus(), 80);
     (async () => {
-      const queries: Promise<any>[] = [
+      const queries: Promise<{ data: SearchPerson[] | SearchCircle[] | SearchHook[] | { receiver_id: string }[] }>[] = [
         searchVisibleProfiles("", 8),
         Promise.resolve(supabase
           .from("groups")
@@ -647,14 +679,14 @@ const SearchModal = ({
       const [{ data: p }, { data: c }, { data: hp }, reqRes] =
         await Promise.all(queries);
       setSugPeople(
-        ((p || []) as any[])
-          .filter((x: any) => x.id !== userId)
-          .map((x: any) => ({ ...x, fame_points: x.fame_points ?? 0 })),
+        ((p || []) as SearchPerson[])
+          .filter((x: SearchPerson) => x.id !== userId)
+          .map((x: SearchPerson) => ({ ...x, fame_points: x.fame_points ?? 0 })),
       );
-      setSugCircles(c || []);
-      setSugHooks(hp || []);
+      setSugCircles((c || []) as SearchCircle[]);
+      setSugHooks((hp || []) as SearchHook[]);
       if (reqRes?.data)
-        setSentRequests(new Set(reqRes.data.map((r: any) => r.receiver_id)));
+        setSentRequests(new Set(reqRes.data.map((r: { receiver_id: string }) => r.receiver_id)));
     })();
   }, [userId]);
 
@@ -738,7 +770,7 @@ const SearchModal = ({
         }
 
         const foundPeople = sortByRelevance(
-          (p || []).filter((x: any) => x.id !== userId),
+          (p || []).filter((x: SearchPerson) => x.id !== userId),
           q,
         );
         setPeople(foundPeople);
@@ -748,9 +780,9 @@ const SearchModal = ({
 
         // fetch latest post for each found person
         if (foundPeople.length > 0) {
-          const postMap: Record<string, any> = {};
+          const postMap: Record<string, PostData> = {};
           await Promise.all(
-            foundPeople.map(async (person: any) => {
+            foundPeople.map(async (person: SearchPerson) => {
               const { data: post } = await supabase
                 .from("posts")
                 .select("id,content,media_url,media_type,likes_count,created_at")
@@ -765,14 +797,14 @@ const SearchModal = ({
 
           // pre-fetch which posts current user has liked
           if (userId) {
-            const postIds = Object.values(postMap).map((pt: any) => pt.id);
+            const postIds = Object.values(postMap).map((pt: PostData) => pt.id);
             if (postIds.length > 0) {
               const { data: liked } = await supabase
                 .from("post_likes")
                 .select("post_id")
                 .eq("user_id", userId)
                 .in("post_id", postIds);
-              if (liked) setLikedPosts(new Set(liked.map((l: any) => l.post_id)));
+              if (liked) setLikedPosts(new Set(liked.map((l: PostLike) => l.post_id)));
             }
           }
         }
@@ -790,7 +822,7 @@ const SearchModal = ({
     [userId],
   );
 
-  const handleLikePost = async (e: React.MouseEvent, post: any) => {
+  const handleLikePost = async (e: React.MouseEvent, post: PostData) => {
     e.stopPropagation();
     if (!userId) return;
     const postId = post.id;
@@ -798,7 +830,8 @@ const SearchModal = ({
     // optimistic toggle
     setLikedPosts((prev) => {
       const n = new Set(prev);
-      isLiked ? n.delete(postId) : n.add(postId);
+      if (isLiked) n.delete(postId);
+      else n.add(postId);
       return n;
     });
     setPersonPosts((prev) => {
@@ -1646,12 +1679,12 @@ const Header = ({
   // ── Profile viewer (for routing follow notifications) ──────────────────────
   const { openProfile } = useProfileViewer();
   // ── Existing state ─────────────────────────────────────────────────────────
-  const [notifications, setNotifications] = useState<any[]>([]);
-  const [friendRequests, setFriendRequests] = useState<any[]>([]);
+  const [notifications, setNotifications] = useState<Notif[]>([]);
+  const [friendRequests, setFriendRequests] = useState<Notif[]>([]);
   const [showNotif, setShowNotif] = useState(false);
   // ── Real-time bell state ───────────────────────────────────────────────────
   const [hasNewNotif, setHasNewNotif] = useState(false);
-  const [newNotifPreview, setNewNotifPreview] = useState<any | null>(null);
+  const [newNotifPreview, setNewNotifPreview] = useState<Notif | null>(null);
   const newNotifTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => {
     if (newNotifTimerRef.current) clearTimeout(newNotifTimerRef.current);
@@ -1687,10 +1720,10 @@ const Header = ({
   const [dashMagnetFetched, setDashMagnetFetched] = useState(false);
   const [dashFriends, setDashFriends] = useState<FriendEntry[]>([]);
   const [dashFriendsLoading, setDashFriendsLoading] = useState(false);
-  const [dashPosts, setDashPosts] = useState<any[]>([]);
-  const [dashHooks, setDashHooks] = useState<any[]>([]);
-  const [dashHookPosts, setDashHookPosts] = useState<any[]>([]);
-  const [dashCircles, setDashCircles] = useState<any[]>([]);
+  const [dashPosts, setDashPosts] = useState<PostData[]>([]);
+  const [dashHooks, setDashHooks] = useState<HookData[]>([]);
+  const [dashHookPosts, setDashHookPosts] = useState<PostData[]>([]);
+  const [dashCircles, setDashCircles] = useState<CircleData[]>([]);
   const [dashPostsFetched, setDashPostsFetched] = useState(false);
   const [dashHooksFetched, setDashHooksFetched] = useState(false);
   const [dashHookPostsFetched, setDashHookPostsFetched] = useState(false);
@@ -1713,12 +1746,11 @@ const Header = ({
   }, [userId]);
 
   // Post-type notifications whose entity_id refers to a row in the `posts` table
-  const POST_MEDIA_TYPES = new Set([
-    "like", "like_flick", "comment", "reply", "mention", "post_mention",
-    "post_pin", "new_post", "wall_post", "share", "hook_share",
-  ]);
-
   const fetchNotifications = useCallback(async () => {
+    const POST_MEDIA_TYPES = new Set([
+      "like", "like_flick", "comment", "reply", "mention", "post_mention",
+      "post_pin", "new_post", "wall_post", "share", "hook_share",
+    ]);
     if (!userId) return;
     const { data, error } = await supabase
       .from("notifications")
@@ -1731,7 +1763,7 @@ const Header = ({
       const actorIds = [
         ...new Set(data.filter((n) => n.actor_id).map((n) => n.actor_id)),
       ];
-      let profileMap: Record<string, any> = {};
+      let profileMap: Record<string, { id: string; full_name: string; avatar_url?: string }> = {};
       if (actorIds.length > 0) {
         const { data: profiles } = await supabase
           .from("profiles")
@@ -1781,7 +1813,7 @@ const Header = ({
           .select("id, media_url, image_url, cover_url, type")
           .in("id", postEntityIds);
         setPostPreviewMap(
-          Object.fromEntries((postPreviews || []).map((p: any) => [p.id, p])),
+          Object.fromEntries((postPreviews || []).map((p) => [p.id, p])),
         );
       } else {
         setPostPreviewMap({});
@@ -1848,7 +1880,7 @@ const Header = ({
           .eq("invited_by", userId),
       ]);
     const totalLikes = (postsLikesRes.data || []).reduce(
-      (sum: number, p: any) => sum + (p.likes_count || 0),
+      (sum: number, p: { likes_count?: number }) => sum + (p.likes_count || 0),
       0,
     );
     setDashStats({
@@ -1888,7 +1920,7 @@ const Header = ({
     }
 
     // Step 2: collect the friend's profile ids (the "other" person)
-    const friendIds = rows.map((r: any) =>
+    const friendIds = rows.map((r: { sender_id: string; receiver_id: string }) =>
       r.sender_id === userId ? r.receiver_id : r.sender_id,
     );
     console.log("[PowerDash] friendIds to fetch profiles for:", friendIds);
@@ -1900,12 +1932,12 @@ const Header = ({
 
     console.log("[PowerDash] profiles fetched:", profiles?.length ?? 0);
 
-    const profileMap: Record<string, any> = Object.fromEntries(
+    const profileMap: Record<string, { id: string; full_name: string; avatar_url?: string; location?: string | null }> = Object.fromEntries(
       (profiles || []).map((p) => [p.id, p]),
     );
 
     const parsed: FriendEntry[] = rows
-      .map((r: any) => {
+      .map((r: { id: string; sender_id: string; receiver_id: string }) => {
         const friendId = r.sender_id === userId ? r.receiver_id : r.sender_id;
         const p = profileMap[friendId];
         return p
@@ -1918,7 +1950,7 @@ const Header = ({
             }
           : null;
       })
-      .filter((f: any): f is FriendEntry => !!f && !!f.id);
+      .filter((f): f is FriendEntry => !!f && !!f.id);
 
     console.log("[PowerDash] parsed friends:", parsed.length);
     setDashFriends(parsed);
@@ -2087,16 +2119,20 @@ const Header = ({
         notifAudioRef.current.volume = 1.0;
       }
       notifAudioRef.current.currentTime = 0;
-      notifAudioRef.current.play().catch(() => {});
-    } catch {}
+      notifAudioRef.current.play().catch(() => {
+        // ignore autoplay errors
+      });
+    } catch {
+      // ignore audio errors
+    }
   };
 
-  const handleNotifClick = (n: any) => {
+  const handleNotifClick = (n: Notif) => {
     // Mark as read (handle grouped notifications)
     if (n._group && Array.isArray(n._group)) {
-      const unreadInGroup = n._group.filter((g: any) => !g.is_read);
+      const unreadInGroup = n._group.filter((g: Notif) => !g.is_read);
       if (unreadInGroup.length > 0) {
-        markGroupRead(unreadInGroup.map((g: any) => g.id));
+        markGroupRead(unreadInGroup.map((g: Notif) => g.id));
       }
     } else if (!n.is_read) {
       markOneRead(n.id);
@@ -2298,7 +2334,11 @@ const Header = ({
     ];
     if (postId && postTypes.includes(n.type) && entityType !== "report") {
       setShowNotif(false);
-      navigate(`/post/${encodeURIComponent(postId)}`);
+      // Dispatch custom event to handle post navigation within the feed context
+      // This avoids opening a separate modal/detail box and keeps user in feed
+      window.dispatchEvent(new CustomEvent("flicks:open-post-in-feed", {
+        detail: { postId, type: n.type },
+      }));
       return;
     }
 
@@ -2315,7 +2355,10 @@ const Header = ({
         .then(({ data }) => {
           const reportedPostId = firstNotificationId(data?.post_id, payload.post_id, payload.postId);
           if (reportedPostId) {
-            navigate(`/post/${encodeURIComponent(reportedPostId)}`);
+            // Dispatch custom event to handle post navigation within the feed context
+            window.dispatchEvent(new CustomEvent("flicks:open-post-in-feed", {
+              detail: { postId: reportedPostId, type: n.type },
+            }));
           } else {
             toast.error("The reported post is no longer available.");
           }
@@ -2326,7 +2369,10 @@ const Header = ({
     // A report-submitted notification created by the client stores a post ID.
     if (n.type === "report_submitted" && postId && entityType !== "report") {
       setShowNotif(false);
-      navigate(`/post/${encodeURIComponent(postId)}`);
+      // Dispatch custom event to handle post navigation within the feed context
+      window.dispatchEvent(new CustomEvent("flicks:open-post-in-feed", {
+        detail: { postId, type: n.type },
+      }));
       return;
     }
 
@@ -2346,7 +2392,10 @@ const Header = ({
         .then(({ data }) => {
           const reportedPostId = firstNotificationId(data?.post_id, payload.post_id, payload.postId);
           if (reportedPostId) {
-            navigate(`/post/${encodeURIComponent(reportedPostId)}`);
+            // Dispatch custom event to handle post navigation within the feed context
+            window.dispatchEvent(new CustomEvent("flicks:open-post-in-feed", {
+              detail: { postId: reportedPostId, type: n.type },
+            }));
           } else {
             toast.error("The reported post is no longer available.");
           }
@@ -2359,7 +2408,11 @@ const Header = ({
     if (entityId || postId || storyId || circlePostId || circleId || hookId || marketplaceItemId || surveyId) {
       if (["post", "posts", "reel", "flick"].includes(entityType)) {
         setShowNotif(false);
-        navigate(`/post/${encodeURIComponent(postId || entityId!)}`);
+        // Dispatch custom event to handle post navigation within the feed context
+        // This avoids opening a separate modal/detail box and keeps user in feed
+        window.dispatchEvent(new CustomEvent("flicks:open-post-in-feed", {
+          detail: { postId: postId || entityId!, type: n.type },
+        }));
         return;
       }
       if (entityType === "circle_post") {
@@ -2431,7 +2484,7 @@ const Header = ({
             "postgres_changes",
             { event: "*", schema: "public", table: "notifications", filter: `notifier_id=eq.${userId}` },
             (payload) => {
-              const row = (payload.new || payload.old) as any;
+              const row = (payload.new || payload.old) as Record<string, unknown>;
               if (row?.notifier_id !== userId) return;
               if (payload.eventType === "INSERT") {
                 playNotifSound();
@@ -2455,7 +2508,7 @@ const Header = ({
             "postgres_changes",
             { event: "*", schema: "public", table: "friendships", filter: `receiver_id=eq.${userId}` },
             (payload) => {
-              const row = (payload.new || payload.old) as any;
+              const row = (payload.new || payload.old) as Record<string, unknown>;
               if (row?.receiver_id !== userId) return;
               fetchFriendReqsRef.current();
             },
@@ -2802,35 +2855,42 @@ const Header = ({
             >
               {/* Header Section */}
               <div
-                className="px-4 pb-3 flex items-center justify-between border-b border-white/10 bg-white/5 shrink-0"
-                style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 12px)" }}
+                className="px-4 pb-3 flex items-center justify-between border-b border-white/10 shrink-0 relative overflow-hidden"
+                style={{
+                  paddingTop: "calc(env(safe-area-inset-top, 0px) + 12px)",
+                  background: "linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.02) 100%)"
+                }}
               >
-                <div className="flex items-center gap-2">
-                  <Bell size={15} className="text-white/70" />
-                  <h2 className="font-black text-white tracking-wide text-[13px]">
-                    Notifications
-                  </h2>
-                  {unreadCount > 0 && (
-                    <span className="px-1.5 py-0.5 bg-red-500/80 rounded-full text-[9px] font-black text-white">
-                      {unreadCount}
-                    </span>
-                  )}
+                {/* Subtle glow background */}
+                <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 via-transparent to-purple-500/5 pointer-events-none" />
+                <div className="relative flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-xl flex items-center justify-center bg-gradient-to-br from-blue-500/30 to-purple-500/30 border border-white/10 shadow-[0_0_16px_rgba(124,58,237,0.2)]">
+                    <Bell size={15} className="text-white" />
+                  </div>
+                  <div>
+                    <h2 className="font-black text-white tracking-wide text-[13px]">
+                      Notifications
+                    </h2>
+                    <p className="text-[10px] text-white/35 font-medium">{notifications.length} notification{notifications.length !== 1 ? "s" : ""}</p>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5">
                   {unreadCount > 0 && (
-                    <button
+                    <motion.button
                       onClick={markAllRead}
-                      className="text-[10px] font-black text-blue-400 hover:text-blue-300 active:scale-95 transition-all px-2 py-1 rounded-lg hover:bg-blue-400/10"
+                      whileTap={{ scale: 0.95 }}
+                      className="text-[10px] font-black text-blue-400 hover:text-blue-300 transition-all px-2.5 py-1 rounded-xl bg-blue-400/10 hover:bg-blue-400/20 border border-blue-400/20"
                     >
                       Mark all read
-                    </button>
+                    </motion.button>
                   )}
-                  <button
+                  <motion.button
                     onClick={() => setShowNotif(false)}
-                    className="p-1.5 hover:bg-white/10 rounded-full text-white/40 hover:text-white transition-all"
+                    whileTap={{ scale: 0.9, rotate: -12 }}
+                    className="p-2 hover:bg-white/10 rounded-xl text-white/40 hover:text-white transition-all"
                   >
                     <X size={18} />
-                  </button>
+                  </motion.button>
                 </div>
               </div>
 
@@ -2851,7 +2911,7 @@ const Header = ({
                         <p className="text-[10px] font-black uppercase tracking-widest text-white/40 px-1">
                           Friend Requests ({friendRequests.length})
                         </p>
-                        {friendRequests.map((req: any) => (
+                        {friendRequests.map((req: Notif) => (
                           <motion.div
                             key={req.id}
                             initial={{ opacity: 0, y: 8 }}
@@ -2898,7 +2958,7 @@ const Header = ({
                     {/* ── Notifications List ── */}
                     {notifications.length > 0 && (
                       <div className="p-3 space-y-2">
-                        {groupNotifications(notifications).map((n: any) => {
+                        {groupNotifications(notifications).map((n: Notif & { _group?: Notif[] }) => {
                           const meta = NOTIF_META[n.type] || NOTIF_META["new_post"];
                           const action = formatNotifAction(n.type, n.content);
                           const marketplaceOrder = n.type === "marketplace_order"
@@ -2906,7 +2966,7 @@ const Header = ({
                           const richShare = ["share", "circle_share", "hook_share"].includes(n.type)
                             ? parseRichShare(n.content) : null;
                           const isMarketplaceOrder = n.type === "marketplace_order";
-                          const isUnread = !n.is_read || (n._group && n._group.some((g: any) => !g.is_read));
+                          const isUnread = !n.is_read || (n._group && n._group.some((g: Notif) => !g.is_read));
                           const actorName = isMarketplaceOrder ? "Order update" : n._group
                             ? (n._group[0]?.actor?.full_name || "Someone")
                             : (n.actor?.full_name || "Someone");
@@ -2924,15 +2984,32 @@ const Header = ({
                           return (
                             <motion.div
                               key={n.id}
-                              initial={{ opacity: 0, y: 8 }}
-                              animate={{ opacity: 1, y: 0 }}
+                              initial={{ opacity: 0, y: 8, scale: 0.98 }}
+                              animate={{ opacity: 1, y: 0, scale: 1 }}
+                              exit={{ opacity: 0, scale: 0.95, x: 16 }}
+                              transition={{ type: "spring", damping: 25, stiffness: 200 }}
                               onClick={() => handleNotifClick(n)}
-                              className={`flex items-start gap-3 p-3 rounded-2xl cursor-pointer active:scale-[0.98] transition-transform ${isUnread ? "bg-blue-600/10 border border-blue-500/20" : "bg-white/[0.04] border border-white/5"}`}
+                              className={`flex items-start gap-3 p-3.5 rounded-2xl cursor-pointer transition-all duration-150 relative overflow-hidden ${isUnread ? "bg-gradient-to-r from-blue-600/8 via-transparent to-transparent border border-blue-500/25" : "bg-white/[0.03] border border-white/5 hover:bg-white/[0.06] hover:border-white/10"}`}
+                              style={{
+                                ...(isUnread && {
+                                  boxShadow: "0 0 24px rgba(59,130,246,0.08), inset 2px 0 0 rgba(59,130,246,0.3)"
+                                })
+                              }}
+                              whileTap={{ scale: 0.98 }}
                             >
+                              {/* Unread accent bar */}
+                              {isUnread && (
+                                <motion.div
+                                  initial={{ height: 0 }}
+                                  animate={{ height: "100%" }}
+                                  className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-blue-400 to-blue-600"
+                                />
+                              )}
+
                               {/* Actor avatar / type icon */}
-                              <div className="relative shrink-0">
+                              <div className="relative shrink-0 z-10">
                                 <div
-                                  className={`w-10 h-10 rounded-full overflow-hidden flex items-center justify-center border border-white/10 ${actorAvatar ? "" : meta.color}`}
+                                  className={`w-11 h-11 rounded-full overflow-hidden flex items-center justify-center border-2 transition-all duration-200 ${actorAvatar ? "border-white/15 shadow-[0_0_0_1px_rgba(255,255,255,0.08)]" : `border-transparent ${meta.color} shadow-[0_0_16px_${meta.color.replace("bg-", "")}40]`}`}
                                 >
                                   {actorAvatar ? (
                                     <img src={actorAvatar} className="w-full h-full object-cover" decoding="async" alt="" />
@@ -2944,59 +3021,78 @@ const Header = ({
                                 </div>
                                 {/* Type badge chip on avatar */}
                                 {actorAvatar && (
-                                  <div className={`absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full flex items-center justify-center border border-[#0f172a] text-[8px] ${meta.color}`}>
+                                  <motion.div
+                                    initial={{ scale: 0, rotate: -180 }}
+                                    animate={{ scale: 1, rotate: 0 }}
+                                    transition={{ type: "spring", damping: 12, stiffness: 180, delay: 0.1 }}
+                                    className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center border-2 border-[#0f172a] text-[9px] ${meta.color} shadow-lg`}
+                                  >
                                     {meta.icon}
-                                  </div>
+                                  </motion.div>
                                 )}
                               </div>
 
-                              <div className="flex-1 min-w-0">
+                              <div className="flex-1 min-w-0 z-10">
                                 {/* Actor name + action */}
                                 {isMarketplaceOrder ? (
-                                  <p className="text-[13px] leading-snug text-white/90">
-                                    <span className="font-black">{actorName}</span>
-                                    <span className="text-white/70"> · {marketplaceOrder?.event === "location" ? "shipment location updated" : marketplaceOrder?.event === "created" ? "new order received" : "status updated"}</span>
+                                  <p className="text-[13px] leading-snug text-white/95">
+                                    <span className="font-black text-white">{actorName}</span>
+                                    <span className="text-white/65"> · {marketplaceOrder?.event === "location" ? "shipment location updated" : marketplaceOrder?.event === "created" ? "new order received" : "status updated"}</span>
                                   </p>
                                 ) : (
-                                  <p className="text-[13px] leading-snug text-white/90">
-                                    <span className="font-black">{actorName}</span>
+                                  <p className="text-[13px] leading-snug text-white/95">
+                                    <span className="font-black text-white">{actorName}</span>
                                     {groupExtra > 0 && (
-                                      <span className="text-white/50"> and {groupExtra} other{groupExtra > 1 ? "s" : ""}</span>
+                                      <span className="text-white/45"> and {groupExtra} other{groupExtra > 1 ? "s" : ""}</span>
                                     )}
-                                    {" "}<span className="text-white/70">{action.text}</span>
+                                    {" "}<span className="text-white/70 font-medium">{action.text}</span>
                                   </p>
                                 )}
                                 {/* Comment quote */}
                                 {action.quote && (
-                                  <p className="text-[11px] text-white/45 mt-0.5 italic truncate">"{action.quote}"</p>
+                                  <motion.p
+                                    initial={{ opacity: 0, y: 4 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    className="text-[11px] text-white/50 mt-1 italic truncate leading-relaxed"
+                                  >
+                                    "{action.quote}"
+                                  </motion.p>
                                 )}
                                 {/* Rich share preview */}
                                 {richShare && (
-                                  <div className="mt-1.5 flex gap-2 bg-white/[0.06] border border-white/10 rounded-xl p-2 overflow-hidden">
+                                  <motion.div
+                                    initial={{ opacity: 0, y: 8, scale: 0.97 }}
+                                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                                    className="mt-2 flex gap-2 bg-gradient-to-r from-white/[0.04] to-white/[0.02] border border-white/10 rounded-xl p-2.5 overflow-hidden"
+                                  >
                                     {richShare.thumbnail_url && (
                                       <img
                                         src={richShare.thumbnail_url}
                                         alt=""
-                                        className="w-10 h-10 object-cover shrink-0 rounded-lg"
+                                        className="w-11 h-11 object-cover shrink-0 rounded-lg border border-white/5"
                                         onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
                                         decoding="async"
                                       />
                                     )}
                                     <div className="flex-1 min-w-0 py-0.5">
-                                      <p className="text-[11px] font-bold text-white/90 truncate">{richShare.share_title}</p>
-                                      <p className="text-[10px] text-white/50 line-clamp-1">{richShare.share_description}</p>
+                                      <p className="text-[11px] font-bold text-white/95 truncate">{richShare.share_title}</p>
+                                      <p className="text-[10px] text-white/55 line-clamp-1">{richShare.share_description}</p>
                                     </div>
-                                  </div>
+                                  </motion.div>
                                 )}
                                 {isMarketplaceOrder && (
-                                  <div className="mt-1.5 flex gap-2 overflow-hidden rounded-xl border border-white/10 bg-white/[0.06] p-2">
+                                  <motion.div
+                                    initial={{ opacity: 0, y: 8 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    className="mt-2 flex gap-2.5 overflow-hidden rounded-xl border border-white/10 bg-gradient-to-r from-white/[0.04] to-white/[0.02] p-2.5"
+                                  >
                                     {marketplaceOrder?.thumbnail_url ? (
-                                      <img src={marketplaceOrder.thumbnail_url} alt="" className="h-12 w-12 shrink-0 rounded-lg object-cover" decoding="async" />
+                                      <img src={marketplaceOrder.thumbnail_url} alt="" className="h-13 w-13 shrink-0 rounded-lg object-cover border border-white/5" decoding="async" />
                                     ) : (
-                                      <div className="grid h-12 w-12 shrink-0 place-items-center rounded-lg bg-blue-500/20 text-blue-300"><Package size={18} /></div>
+                                      <div className="grid h-13 w-13 shrink-0 place-items-center rounded-lg bg-blue-500/20 text-blue-300 border border-blue-500/20"><Package size={18} /></div>
                                     )}
                                     <div className="min-w-0 flex-1 py-0.5">
-                                      <p className="truncate text-[11px] font-bold text-white/90">{marketplaceOrder?.item_title || "Marketplace order"}</p>
+                                      <p className="truncate text-[11px] font-bold text-white/95">{marketplaceOrder?.item_title || "Marketplace order"}</p>
                                       {(marketplaceOrder?.item_price ?? n.order_item_price) != null && (
                                         <p className="mt-0.5 truncate text-[10px] font-extrabold text-emerald-300">
                                           {formatRupeePrice(marketplaceOrder?.item_price ?? n.order_item_price)}
@@ -3008,44 +3104,65 @@ const Header = ({
                                       )}
                                       {marketplaceOrder?.tracking_code && <p className="truncate text-[9px] text-white/40">{marketplaceOrder.tracking_code}</p>}
                                     </div>
-                                  </div>
+                                  </motion.div>
                                 )}
                                 {/* Timestamp + tap-to-view hint */}
-                                <div className="flex items-center gap-1.5 mt-1">
-                                  <p className="text-[10px] text-white/30">{timeAgo(n.created_at)}</p>
+                                <div className="flex items-center gap-1.5 mt-1.5">
+                                  <p className="text-[10px] text-white/35 font-medium">{timeAgo(n.created_at)}</p>
                                   {postThumb && (
-                                    <span className="text-[9px] text-blue-400/60 font-semibold">· Tap to view post</span>
+                                    <motion.span
+                                      initial={{ opacity: 0, x: -4 }}
+                                      animate={{ opacity: 1, x: 0 }}
+                                      className="text-[9px] text-blue-400/70 font-semibold flex items-center gap-0.5"
+                                    >
+                                      <span>·</span> Tap to view post
+                                    </motion.span>
                                   )}
                                 </div>
                               </div>
 
                               {/* Post thumbnail — right side */}
                               {postThumb && (
-                                <div className="shrink-0 w-12 h-12 rounded-xl overflow-hidden border border-white/15 bg-white/5 relative">
+                                <motion.div
+                                  initial={{ opacity: 0, x: 16, scale: 0.9 }}
+                                  animate={{ opacity: 1, x: 0, scale: 1 }}
+                                  className="shrink-0 w-14 h-14 rounded-xl overflow-hidden border border-white/15 bg-white/5 relative flex-shrink-0 z-10"
+                                >
                                   <img
                                     src={postThumb}
                                     alt=""
-                                    className="w-full h-full object-cover"
+                                    className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
                                     decoding="async"
                                     onError={(e) => { (e.target as HTMLImageElement).parentElement!.style.display = "none"; }}
                                   />
                                   {/* Video indicator */}
                                   {(postPreviewMap[n.entity_id]?.type === "video" ||
                                     /\.(mp4|webm|mov)/i.test(postThumb)) && (
-                                    <div className="absolute inset-0 flex items-center justify-center bg-black/30">
-                                      <div className="w-4 h-4 rounded-full bg-white/80 flex items-center justify-center">
-                                        <div className="w-0 h-0 border-t-[4px] border-b-[4px] border-l-[6px] border-transparent border-l-black ml-0.5" />
+                                    <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-black/40 via-black/20 to-transparent">
+                                      <div className="w-5 h-5 rounded-full bg-white/90 flex items-center justify-center shadow-lg">
+                                        <div className="w-0 h-0 border-t-[5px] border-b-[5px] border-l-[7px] border-transparent border-l-black ml-1" />
                                       </div>
                                     </div>
                                   )}
-                                </div>
+                                  {/* Photo indicator for images */}
+                                  {postPreviewMap[n.entity_id]?.type === "image" && (
+                                    <div className="absolute bottom-1.5 right-1.5 w-4.5 h-4.5 rounded-full bg-white/90 flex items-center justify-center shadow-lg">
+                                      <Image size={9} className="text-slate-800" strokeWidth={2.5} />
+                                    </div>
+                                  )}
+                                </motion.div>
                               )}
 
                               {/* Unread dot */}
                               {isUnread && (
-                                <div className="shrink-0 mt-1.5">
-                                  <div className="w-2 h-2 rounded-full bg-blue-500" />
-                                </div>
+                                <motion.div
+                                  initial={{ scale: 0, opacity: 0 }}
+                                  animate={{ scale: 1, opacity: 1 }}
+                                  transition={{ type: "spring", damping: 12, stiffness: 180, delay: 0.15 }}
+                                  className="shrink-0 mt-2"
+                                >
+                                  <div className="w-2.5 h-2.5 rounded-full bg-blue-400 shadow-[0_0_8px_rgba(59,130,246,0.6)] animate-pulse" />
+                                </motion.div>
                               )}
                             </motion.div>
                           );
@@ -3538,7 +3655,7 @@ const Header = ({
                         </div>
                       ) : (
                         <div className="grid grid-cols-2 gap-2">
-                          {dashHookPosts.map((post: any) => {
+                          {dashHookPosts.map((post: PostData) => {
                             const videoUrl = String(post.media_url || "");
                             const canPlayVideo =
                               /\.(mp4|m4v|mov|webm)(?:[?#]|$)/i.test(videoUrl) ||
@@ -3609,7 +3726,7 @@ const Header = ({
                       </div>
                     ) : (
                       <div className="flex flex-col gap-2">
-                        {dashHooks.map((item: any, i: number) => {
+                        {dashHooks.map((item: { page_id?: string; hook_pages?: { name?: string; avatar_url?: string; followers_count?: number; follower_count?: number } }, i: number) => {
                           const page = item.hook_pages || {};
                           return (
                             <motion.div
@@ -3694,7 +3811,7 @@ const Header = ({
                       </div>
                     ) : (
                       <div className="flex flex-col gap-2">
-                        {dashCircles.map((item: any, i: number) => {
+                        {dashCircles.map((item: { circle_id?: string; circles?: { name?: string; cover_url?: string; member_count?: number; privacy?: string } }, i: number) => {
                           const circle = item.circles || {};
                           return (
                             <motion.div

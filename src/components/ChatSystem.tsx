@@ -2695,7 +2695,7 @@ useEffect(() => {
       // Using .in() on both columns is equivalent to
       //   (sender_id IN (me,partner) AND receiver_id IN (me,partner))
       // which matches exactly the messages between these two users.
-      let { data, error } = await supabase
+      const { data, error } = await supabase
         .from("messages")
         .select(
           "id, sender_id, receiver_id, content, media_url, media_type, created_at, seen_at, reply_to_id",

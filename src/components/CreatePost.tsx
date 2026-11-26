@@ -967,7 +967,7 @@ const CreatePost = ({
                 <h1 className="pointer-events-none absolute left-1/2 -translate-x-1/2 whitespace-nowrap text-[22px] font-black tracking-[-0.03em] text-[#172554]">
                   {wallOwnerName ? `Post on ${wallOwnerName}'s Timeline` : "Create a Post"}
                 </h1>
-                {Boolean(content || files.length) ? (
+                {content || files.length ? (
                   <button
                     type="button"
                     onClick={handleSaveDraft}

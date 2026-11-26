@@ -90,7 +90,7 @@ export default function MagnetDashboard({ userId, viewerUserId, userName, onBack
       ...(receivedRaw || []).map(e => e.post_id),
     ])];
 
-    let postMap: Record<string, { content: string; author: string }> = {};
+    const postMap: Record<string, { content: string; author: string }> = {};
     if (postIds.length) {
       const { data: posts } = await supabase
         .from("posts").select("id,content,author").in("id", postIds);

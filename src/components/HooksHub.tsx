@@ -51,13 +51,15 @@ const revokeBlobUrl = (url: string | null | undefined) => {
 // ── Graceful hook_pages helper ─────────────────────────────────────────────
 // Silently absorbs errors when hook_pages table doesn't exist yet (PGRST204 /
 // 42P01). Run supabase_hooks_tables.sql in your Supabase SQL Editor to create it.
-const safeHp = (promise: PromiseLike<{ error: any }>) =>
+type SupabaseError = { code: string; message: string } | null;
+
+const safeHp = (promise: PromiseLike<{ error: SupabaseError }>) =>
   Promise.resolve(promise).then(({ error }) => {
     if (error && error.code !== "PGRST116") // PGRST116 = 0 rows, harmless
       console.warn("[HooksHub] hook_pages:", error.code, error.message);
   }).catch(() => {});
 
-const safeHpRead = async <T,>(promise: PromiseLike<{ data: T | null; error: any }>): Promise<T | null> => {
+const safeHpRead = async <T,>(promise: PromiseLike<{ data: T | null; error: SupabaseError }>): Promise<T | null> => {
   try {
     const { data, error } = await promise;
     if (error) console.warn("[HooksHub] hook_pages read:", error.code, error.message);
@@ -306,8 +308,16 @@ const HookModal = ({ pageId, pageName, userId, onClose }:
     })();
   }, [userId]);
 
-  const toggleAll = () => selected.size === friends.length ? setSelected(new Set()) : setSelected(new Set(friends.map(f => f.id)));
-  const toggle    = (id: string) => setSelected(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; });
+  const toggleAll = () => {
+    if (selected.size === friends.length) setSelected(new Set());
+    else setSelected(new Set(friends.map(f => f.id)));
+  };
+  const toggle = (id: string) => setSelected(prev => {
+    const s = new Set(prev);
+    if (s.has(id)) s.delete(id);
+    else s.add(id);
+    return s;
+  });
 
   const sendHooks = async () => {
     if (!selected.size) return;
@@ -414,8 +424,8 @@ const shareHookPage = (page: HookPage, anchor: HTMLElement) => {
   const pageUrl = `${window.location.origin}/?page=${page.id}`;
   const media = page.cover_url || page.avatar_url || "";
   const titleLine = page.name;
-  const bodyLine  = (page as any).description
-    ? ((page as any).description as string).slice(0, 140)
+  const bodyLine  = page.description
+    ? page.description.slice(0, 140)
     : `Follow "${page.name}" for the latest updates on Flicks.`;
   requestShareModal(
     {
@@ -725,7 +735,7 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
   // Requests / contributor state
   const [activeTab, setActiveTab] = useState<"posts" | "requests" | "approvals">("posts");
   const isOwner = page.owner_id === userId;
-  const [pendingInvites, setPendingInvites] = useState<any[]>([]);
+  const [pendingInvites, setPendingInvites] = useState<PagePost[]>([]);
   const [invitesLoading, setInvitesLoading] = useState(false);
   const [isContributor, setIsContributor] = useState(false);
   const [contributorExpired, setContributorExpired] = useState(false);
@@ -751,7 +761,8 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
 
   // ── Hook post comments ──
   const [commentDrawerId, setCommentDrawerId] = useState<string | null>(null);
-  const [hookComments, setHookComments]       = useState<Record<string, any[]>>({});
+  interface Comment { id: string; post_id: string; author_id: string; content: string; created_at: string; profiles?: { full_name: string | null; avatar_url: string | null } | null; }
+  const [hookComments, setHookComments]       = useState<Record<string, Comment[]>>({});
   const [hookCommentCounts, setHookCommentCounts] = useState<Record<string, number>>({});
   const [hookCommentLoading, setHookCommentLoading] = useState<Record<string, boolean>>({});
   const [hookCommentText, setHookCommentText]     = useState<Record<string, string>>({});
@@ -778,7 +789,7 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
   // Broadcasting state per post
   const [broadcastingPostId, setBroadcastingPostId] = useState<string | null>(null);
 
-  const fetchPosts = async () => {
+const fetchPosts = useCallback(async () => {
     setLoading(true);
     // Owner sees all posts (including pending_approval); others only see approved
     let query = supabase
@@ -793,7 +804,7 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
     setPosts(rows);
 
     // Fetch author profiles for attribution badges on each post card
-    const authorIds = [...new Set(rows.map((p: any) => p.author_id).filter(Boolean))];
+    const authorIds = [...new Set(rows.map((p: PagePost) => p.author_id).filter(Boolean))];
     if (authorIds.length > 0) {
       const { data: profiles } = await supabase
         .from("profiles")
@@ -801,20 +812,20 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
         .in("id", authorIds);
       if (profiles) {
         const pm: Record<string, { full_name: string | null; avatar_url: string | null }> = {};
-        for (const p of profiles as any[]) pm[p.id] = { full_name: p.full_name, avatar_url: p.avatar_url };
+        for (const p of profiles) pm[p.id] = { full_name: p.full_name, avatar_url: p.avatar_url };
         setPostAuthors(pm);
       }
     }
 
     setLoading(false);
-  };
+  }, [page.id, isOwner]);
 
   const refreshPage = async () => {
     const { data } = await supabase.from("hook_pages").select("id, name, cover_url, avatar_url, description, category, owner_id, followers_count, hook_count, created_at").eq("id", page.id).single();
     if (data) { setLivePage(data as HookPage); onPageUpdated(data as HookPage); }
   };
 
-  const fetchFollowData = async () => {
+  const fetchFollowData = useCallback(async () => {
     setFollowError(null);
     // 1. Get authoritative followers_count from hook_pages
     const { data: pg, error: pgErr } = await supabase
@@ -826,7 +837,7 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
       setFollowError(msg);
       console.error("[HooksHub] fetchFollowData page error:", pgErr);
     } else {
-      setMemberCount((pg as any).followers_count ?? 0);
+      setMemberCount((pg?.followers_count ?? 0) as number);
     }
     // 2. Check if current user is a follower in page_followers
     const { data: myRow, error: pfErr } = await supabase
@@ -846,7 +857,7 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
     } else {
       setIsFollowing(!!myRow);
     }
-  };
+  }, [page.id, userId]);
 
   useEffect(() => {
     fetchPosts();
@@ -856,7 +867,7 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
     fetchPartnerExpiryMap();
     // Fetch current user's profile for broadcast attribution
     supabase.from("profiles").select("full_name").eq("id", userId).single()
-      .then(({ data }) => { if (data) setMyProfile(data as any); });
+      .then(({ data }) => { if (data) setMyProfile(data as { full_name: string | null } | null); });
     // Real-time: watch page_followers for this page
     const ch = supabase.channel(`page-followers-${page.id}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "page_followers",
@@ -868,7 +879,7 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
         filter: `page_id=eq.${page.id}` }, () => { fetchPendingInvites(); checkContributorStatus(); fetchPartnerExpiryMap(); })
       .subscribe();
     return () => { supabase.removeChannel(ch); supabase.removeChannel(invCh); };
-  }, [page.id]);
+  }, [page.id, fetchPosts, fetchFollowData, checkContributorStatus, fetchPendingInvites, fetchPartnerExpiryMap, userId]);
 
   // ── Realtime: new comments on the currently open hook post comment drawer ──
   useEffect(() => {
@@ -879,12 +890,12 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
         schema: "public",
         table: "comments",
         filter: `post_id=eq.${commentDrawerId}`,
-      }, (payload: any) => {
+      }, (payload: { new: Comment | null }) => {
         const row = payload.new;
         if (!row || row.parent_id) return;
         setHookComments(prev => {
-          const arr = (prev[commentDrawerId] || []) as any[];
-          if (arr.some((c: any) => c.id === row.id)) return prev;
+          const arr = prev[commentDrawerId] || [];
+          if (arr.some(c => c.id === row.id)) return prev;
           return { ...prev, [commentDrawerId]: [...arr, row] };
         });
         setHookCommentCounts(prev => ({ ...prev, [commentDrawerId]: ((prev[commentDrawerId] || 0) + 1) }));
@@ -931,7 +942,7 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
         setMemberCount(trueCount);
         await supabase.from("hook_pages").update({ followers_count: trueCount }).eq("id", page.id);
       }
-    } catch (err: any) {
+    } catch (err: { code?: string; message?: string } | null) {
       // Rollback optimistic update
       setIsFollowing(wasFollowing);
       setMemberCount(p => Math.max(0, p + (wasFollowing ? 1 : -1)));
@@ -1025,10 +1036,10 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
         .is("parent_id", null)
         .order("created_at", { ascending: true });
       if (error) throw error;
-      const rows = (data || []) as any[];
+      const rows = (data || []) as Comment[];
       setHookComments(prev => ({ ...prev, [postId]: rows }));
       setHookCommentCounts(prev => ({ ...prev, [postId]: rows.length }));
-    } catch (err: any) {
+    } catch (err: { message?: string } | null) {
       console.warn("[HooksHub] loadHookComments error:", err?.message || err);
     } finally {
       setHookCommentLoading(prev => ({ ...prev, [postId]: false }));
@@ -1049,7 +1060,7 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
       if (error) throw error;
       if (data) {
         setHookComments(prev => {
-          const arr = (prev[postId] || []) as any[];
+          const arr = prev[postId] || [];
           return { ...prev, [postId]: [...arr, data] };
         });
         setHookCommentCounts(prev => ({ ...prev, [postId]: ((prev[postId] || 0) + 1) }));
@@ -1070,7 +1081,7 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
           }
         }
       }
-    } catch (err: any) {
+    } catch (err: { message?: string } | null) {
       console.error("[HooksHub] addHookComment error:", err);
       toast.error("Comment post nahi ho saka. " + (err?.message || ""));
     } finally {
@@ -1090,12 +1101,12 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
         .maybeSingle();
       if (error) throw error;
       setHookComments(prev => {
-        const arr = (prev[postId] || []) as any[];
-        return { ...prev, [postId]: arr.filter((c: any) => c.id !== commentId) };
+        const arr = prev[postId] || [];
+        return { ...prev, [postId]: arr.filter(c => c.id !== commentId) };
       });
       setHookCommentCounts(prev => ({ ...prev, [postId]: Math.max(((prev[postId] || 1) - 1), 0) }));
       toast.success("Comment deleted.");
-    } catch (err: any) {
+    } catch (err: { message?: string } | null) {
       console.error("[HooksHub] deleteHookComment error:", err);
       toast.error("Comment delete nahi ho saka.");
     }
@@ -1131,7 +1142,7 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
       setReportCustom(false);
       setReportPostId(null);
       toast.success("Report submitted successfully.");
-    } catch (err: any) {
+    } catch (err: { message?: string } | null) {
       console.error("[HooksHub] submitHookReport error:", err);
       toast.error("Report submission failed. Please try again.");
     } finally {
@@ -1149,7 +1160,7 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
   };
 
   // ── Fetch accepted partner expiry map (invitee_id → expires_at) ──────────
-  const fetchPartnerExpiryMap = async () => {
+  const fetchPartnerExpiryMap = useCallback(async () => {
     const { data } = await supabase
       .from("hook_invites")
       .select("invitee_id, expires_at")
@@ -1157,10 +1168,10 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
       .eq("status", "accepted");
     if (data) {
       const map: Record<string, string | null> = {};
-      for (const row of data as any[]) map[row.invitee_id] = row.expires_at ?? null;
+      for (const row of data) map[row.invitee_id] = row.expires_at ?? null;
       setPartnerExpiryMap(map);
     }
-  };
+  }, [page.id]);
 
   // ── Broadcast an approved hook post to the main FameFeed ─────────────────
   const broadcastToFameFeed = async (post: PagePost) => {
@@ -1204,15 +1215,15 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
 
       if (error) throw error;
       toast.success("📢 FameFeed par broadcast ho gaya!");
-    } catch (err: any) {
-      toast.error(`Broadcast failed: ${err.message || "Unknown error"}`);
+    } catch (err: { message?: string } | null) {
+      toast.error(`Broadcast failed: ${err?.message || "Unknown error"}`);
     } finally {
       setBroadcastingPostId(null);
     }
   };
 
   // ── Fetch pending invites for owner (includes join requests) ─────────────
-  const fetchPendingInvites = async () => {
+const fetchPendingInvites = useCallback(async () => {
     if (page.owner_id !== userId) return;
     setInvitesLoading(true);
     const { data } = await supabase
@@ -1223,13 +1234,13 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
       .order("created_at", { ascending: false });
     if (data && data.length > 0) {
       // Collect all unique user ids (invitees + join-requesters who are their own invitee)
-      const ids = [...new Set(data.map((r: any) => r.invitee_id))];
+      const ids = [...new Set(data.map(r => r.invitee_id))];
       const { data: profiles } = await supabase
         .from("profiles")
         .select("id, full_name, avatar_url")
         .in("id", ids);
-      const pm = Object.fromEntries((profiles || []).map((p: any) => [p.id, p]));
-      setPendingInvites(data.map((r: any) => ({
+      const pm = Object.fromEntries((profiles || []).map(p => [p.id, p]));
+      setPendingInvites(data.map(r => ({
         ...r,
         invitee: pm[r.invitee_id] || null,
         // isJoinRequest is true when the requesting user sent the row themselves
@@ -1239,10 +1250,10 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
       setPendingInvites([]);
     }
     setInvitesLoading(false);
-  };
+  }, [page.id, page.owner_id, userId]);
 
   // ── Check contributor status + pending invite/join-request for this user ─
-  const checkContributorStatus = async () => {
+const checkContributorStatus = useCallback(async () => {
     if (page.owner_id === userId) return;
 
     // Fetch all hook_invite rows for this page where invitee = current user
@@ -1252,9 +1263,9 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
       .eq("page_id", page.id)
       .eq("invitee_id", userId);
 
-    const allRows = rows as any[] || [];
+    const allRows = rows || [];
 
-    const accepted = allRows.find((r: any) => r.status === "accepted");
+    const accepted = allRows.find(r => r.status === "accepted");
     if (accepted) {
       setIsContributor(true);
       const exp = accepted.expires_at;
@@ -1270,16 +1281,16 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
 
     // Pending invite sent by the page owner to this user
     const ownerInvite = allRows.find(
-      (r: any) => r.status === "pending" && r.inviter_id === page.owner_id && r.invitee_id === userId
+      r => r.status === "pending" && r.inviter_id === page.owner_id && r.invitee_id === userId
     );
     setHasPendingInvite(!!ownerInvite);
 
     // Pending join request submitted by this user themselves
     const joinReq = allRows.find(
-      (r: any) => r.status === "pending" && r.inviter_id === userId && r.invitee_id === userId
+      r => r.status === "pending" && r.inviter_id === userId && r.invitee_id === userId
     );
     setHasPendingJoinReq(!!joinReq);
-  };
+  }, [page.id, page.owner_id, userId]);
 
   // ── Invitee accepts an owner-sent invite on the page ─────────────────────
   const acceptMyInvite = async () => {
@@ -1293,7 +1304,7 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
       .eq("status", "pending")
       .maybeSingle();
     if (row) {
-      await supabase.from("hook_invites").update({ status: "accepted" }).eq("id", (row as any).id);
+      await supabase.from("hook_invites").update({ status: "accepted" }).eq("id", row.id);
       // Notify the owner that the invite was accepted
       await supabase.from("notifications").insert({
         notifier_id: page.owner_id,
@@ -1988,7 +1999,7 @@ const PageDashboard = ({ page, userId, onBack, onPageUpdated, initialIsFollowing
                     ) : (hookComments[post.id] || []).length === 0 ? (
                       <p className="text-white/40 text-[12px] text-center">No comments yet. Be the first!</p>
                     ) : (
-                      (hookComments[post.id] || []).map((c: any) => {
+                      (hookComments[post.id] || []).map((c: Comment) => {
                         const ca = postAuthors[c.user_id];
                         return (
                           <div key={c.id} className="flex gap-2.5 text-sm">
@@ -2310,7 +2321,7 @@ const HooksHub = ({
         .in("id", ownerIds);
       if (profileRows) {
         const pm: Record<string, { avatar_url: string | null; full_name: string | null }> = {};
-        for (const p of profileRows as any[]) pm[p.id] = { avatar_url: p.avatar_url, full_name: p.full_name };
+        for (const p of profileRows) pm[p.id] = { avatar_url: p.avatar_url, full_name: p.full_name };
         pages = pages.map(p => ({ ...p, profiles: pm[p.owner_id] ?? null }));
       }
     }
@@ -2321,7 +2332,7 @@ const HooksHub = ({
     if (pages.length) {
       const ids = pages.map(p => p.id);
       const counts: Record<string, number> = {};
-      pages.forEach(p => { counts[p.id] = (p as any).followers_count ?? p.follower_count ?? 0; });
+      pages.forEach(p => { counts[p.id] = p.follower_count ?? 0; });
       setMemberCounts(counts);
 
       const { data: myFollows, error: pfErr } = await supabase
@@ -2378,7 +2389,7 @@ const HooksHub = ({
         setMemberCounts(prev => ({ ...prev, [pg.id]: trueCount }));
         await supabase.from("hook_pages").update({ followers_count: trueCount }).eq("id", pg.id);
       }
-    } catch (err: any) {
+    } catch (err: { code?: string; message?: string } | null) {
       // Rollback
       setFollowingPages(prev => ({ ...prev, [pg.id]: already }));
       setMemberCounts(prev => ({ ...prev, [pg.id]: prevCount }));

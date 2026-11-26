@@ -3102,7 +3102,7 @@ const SingleReelBlock = ({
   // and HLS hook manage their own small, viewport-based preload window.
   useEffect(() => {
     if (reelSettings.audioUrl) prefetchReelMedia(reelSettings.audioUrl);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [reelVideoUrl, reelSettings.audioUrl]);
   const loadViewerPreviews = useCallback(async () => {
     if (viewerPreviewLoadedRef.current) return;
@@ -4601,6 +4601,44 @@ const FameFeed = ({
     window.addEventListener("flicks:reel-updated", handleReelUpdated);
     return () => window.removeEventListener("flicks:reel-updated", handleReelUpdated);
   }, [dataCache]);
+
+  // â”€â”€ Handle post notifications: scroll to post and expand comments inline
+  useEffect(() => {
+    const handleOpenPostInFeed = (event: Event) => {
+      const { postId, type } = (event as CustomEvent<any>).detail || {};
+      if (!postId) return;
+
+      // Scroll the post into view
+      const postElement = document.getElementById(postId);
+      if (postElement) {
+        postElement.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+
+      // Expand comments inline for comment-like notifications
+      const isCommentNotification = ["post_comment", "comment_reply", "post_like", "post_reaction", "post_share"].includes(type);
+      
+      // Small delay to allow scroll to complete
+      setTimeout(() => {
+        if (isCommentNotification) {
+          setCommentSheetId(postId);
+          // Force load comments if not already loaded
+          loadComments(postId, true);
+        }
+        // Also highlight the post briefly
+        const postEl = document.getElementById(postId);
+        if (postEl) {
+          postEl.style.transition = "background-color 0.3s ease";
+          postEl.style.backgroundColor = "rgba(249, 168, 212, 0.15)";
+          setTimeout(() => {
+            postEl.style.backgroundColor = "";
+          }, 1500);
+        }
+      }, 300);
+    };
+
+    window.addEventListener("flicks:open-post-in-feed", handleOpenPostInFeed);
+    return () => window.removeEventListener("flicks:open-post-in-feed", handleOpenPostInFeed);
+  }, [loadComments]);
 
   // â”€â”€ Admin Marketplace: fetch active items + live updates â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useEffect(() => {

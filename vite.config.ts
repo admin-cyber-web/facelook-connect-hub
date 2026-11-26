@@ -2,6 +2,7 @@ import { defineConfig, Plugin } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import fs from "fs";
+import type { Connect } from "vite";
 import { createDynamicShareResponse } from "./src/lib/serverShareMetadata";
 
 // ── Sitemap middleware plugin ──────────────────────────────────────────────────
@@ -70,8 +71,9 @@ function sitemapPlugin(): Plugin {
     );
   }
 
-  function attachSitemapHandler(middlewares: any) {
-    middlewares.use("/sitemap.xml", async (req: any, res: any, next: any) => {
+
+function attachSitemapHandler(middlewares: Connect.Server) {
+    middlewares.use("/sitemap.xml", async (req: Connect.IncomingMessage, res: Connect.ServerResponse, next: Connect.NextFunction) => {
       const now = Date.now();
 
       if (cache && now - cache.builtAt < TTL_MS) {
@@ -122,8 +124,8 @@ function sitemapPlugin(): Plugin {
 }
 
 function socialShareMetadataPlugin(): Plugin {
-  function attachShareMetadataHandler(middlewares: any) {
-    middlewares.use(async (req: any, res: any, next: any) => {
+  function attachShareMetadataHandler(middlewares: Connect.Server) {
+    middlewares.use(async (req: Connect.IncomingMessage, res: Connect.ServerResponse, next: Connect.NextFunction) => {
       if (req.method !== "GET" && req.method !== "HEAD") {
         next();
         return;
@@ -171,8 +173,8 @@ function apkDownloadPlugin(): Plugin {
     path.resolve(__dirname, "public", "app.apk"),
   ];
 
-  function attachApkHandler(middlewares: any) {
-    middlewares.use("/download/apk", (req: any, res: any, next: any) => {
+  function attachApkHandler(middlewares: Connect.Server) {
+    middlewares.use("/download/apk", (req: Connect.IncomingMessage, res: Connect.ServerResponse, next: Connect.NextFunction) => {
       const apkPath = candidates.find(fs.existsSync);
       if (!apkPath) {
         res.statusCode = 404;
@@ -275,7 +277,7 @@ export default defineConfig({
         if (
           warning.code === "UNRESOLVED_IMPORT" &&
           (warning.message.includes("@capgo/capacitor-social-login") ||
-            (warning as any).source === "@capgo/capacitor-social-login")
+            (warning as RollupWarning).source === "@capgo/capacitor-social-login")
         ) {
           throw new Error(
             "The @capgo/capacitor-social-login import could not be bundled. Install the plugin before building Android.",

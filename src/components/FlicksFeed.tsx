@@ -1992,6 +1992,30 @@ export default function FlicksApp({
     el.scrollTop = idx * el.clientHeight;
   }, [initialPostId, loading, visibleFlicks]);
 
+  // Handle notification tap: scroll to post/reel in feed and optionally expand comments
+  useEffect(() => {
+    const handleOpenPostInFeed = (event: Event) => {
+      const detail = (event as CustomEvent<{ postId?: string; type?: string }>).detail;
+      const postId = detail?.postId;
+      if (!postId) return;
+
+      // Scroll to the post in the feed
+      if (!containerRef.current || visibleFlicks.length === 0) return;
+      const idx = visibleFlicks.findIndex(
+        (f: any) => f._raw_id === postId || f.id === postId,
+      );
+      if (idx < 0) return;
+      currentIndexRef.current = idx;
+      setCurrentIndex(idx);
+      containerRef.current.scrollTop = idx * containerRef.current.clientHeight;
+
+      // For comment notifications, we could expand comments - but FlicksFeed doesn't have inline comments UI yet
+      // This could be enhanced later to open comment sheet
+    };
+    window.addEventListener("flicks:open-post-in-feed", handleOpenPostInFeed as EventListener);
+    return () => window.removeEventListener("flicks:open-post-in-feed", handleOpenPostInFeed as EventListener);
+  }, [visibleFlicks]);
+
   const handlePostDeleteOptimistic = useCallback((rawId: string, fallbackPost: any) => {
     const index = flicks.findIndex((item) => item._raw_id === rawId);
     if (index < 0) return;

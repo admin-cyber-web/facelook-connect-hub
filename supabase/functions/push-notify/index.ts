@@ -46,7 +46,7 @@ Deno.serve(async (req: Request) => {
 
   // ── Determine recipient user ID and notification text ──────────────────
   let recipientId: string | null = null;
-  let title = "Flicks India";
+  const title = "Flicks India";
   let body = "";
 
   if (payload.table === "messages") {

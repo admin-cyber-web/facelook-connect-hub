@@ -1614,7 +1614,7 @@ export const StoryBar = ({
 
     // Step 2: Fetch profiles for all unique user_ids (includes is_private_mode for filtering)
     const userIds = [...new Set(filteredRaw.map((s: any) => s.user_id).filter(Boolean))];
-    let profileMap: Record<string, { full_name: string; avatar_url: string; is_private_mode?: boolean }> = {};
+    const profileMap: Record<string, { full_name: string; avatar_url: string; is_private_mode?: boolean }> = {};
     if (userIds.length > 0) {
       const { data: profiles, error: pe } = await supabase
         .from("profiles")
@@ -1628,7 +1628,7 @@ export const StoryBar = ({
     }
 
     // Step 2b: Privacy filter — private accounts only visible to confirmed friends
-    let friendSet = new Set<string>();
+    const friendSet = new Set<string>();
     if (uid) {
       const { data: friendRows } = await supabase
         .from("friendships")
