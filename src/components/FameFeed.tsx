@@ -2541,6 +2541,7 @@ const CommentThread = ({
   onReact,
   onStartCommentEdit,
   onDeleteComment,
+  onDeleteForMe,
   onEditCommentTextChange,
   onSaveCommentEdit,
   onCancelCommentEdit,
@@ -2633,7 +2634,7 @@ const CommentThread = ({
       if (horizontalDelta > verticalDelta + 8) {
         event.preventDefault();
         state.currentX = Math.max(-120, Math.min(0, state.currentX + event.movementX || 0));
-        const rowRef = document.querySelector(`[data-comment-row-id="${commentId}"]`);
+        const rowRef = document.querySelector(`[data-comment-row-id="${commentId}"]`) as HTMLElement | null;
         if (rowRef) {
           rowRef.style.transform = `translateX(${state.currentX}px)`;
           rowRef.style.transition = "none";
@@ -2649,7 +2650,7 @@ const CommentThread = ({
       if (!state) return;
 
       state.isDragging = false;
-      const rowRef = document.querySelector(`[data-comment-row-id="${commentId}"]`);
+      const rowRef = document.querySelector(`[data-comment-row-id="${commentId}"]`) as HTMLElement | null;
       if (rowRef) {
         if (Math.abs(state.currentX) >= SWIPE_THRESHOLD) {
           // Snap open
@@ -2679,14 +2680,14 @@ const CommentThread = ({
     swipeStates.current.forEach((state, id) => {
       state.isOpen = false;
       state.isDragging = false;
-      const rowRef = document.querySelector(`[data-comment-row-id="${id}"]`);
-      if (rowRef) {
-        rowRef.style.transition = "transform 0.2s ease-out";
-        rowRef.style.transform = "translateX(0)";
-        setTimeout(() => {
-          if (rowRef) rowRef.style.transition = "";
-        }, 200);
-      }
+      const rowRef = document.querySelector(`[data-comment-row-id="${id}"]`) as HTMLElement | null;
+              if (rowRef) {
+                rowRef.style.transition = "transform 0.2s ease-out";
+                rowRef.style.transform = "translateX(0)";
+                setTimeout(() => {
+                  if (rowRef) rowRef.style.transition = "";
+                }, 200);
+              }
     });
   }, []);
 
@@ -2700,14 +2701,14 @@ const CommentThread = ({
       if (activeSwipeId.current === commentId) {
         activeSwipeId.current = null;
       }
-      const rowRef = document.querySelector(`[data-comment-row-id="${commentId}"]`);
-      if (rowRef) {
-        rowRef.style.transition = "transform 0.2s ease-out";
-        rowRef.style.transform = "translateX(0)";
-        setTimeout(() => {
-          if (rowRef) rowRef.style.transition = "";
-        }, 200);
-      }
+      const rowRef = document.querySelector(`[data-comment-row-id="${commentId}"]`) as HTMLElement | null;
+              if (rowRef) {
+                rowRef.style.transition = "transform 0.2s ease-out";
+                rowRef.style.transform = "translateX(0)";
+                setTimeout(() => {
+                  if (rowRef) rowRef.style.transition = "";
+                }, 200);
+              }
     },
     [],
   );
@@ -3067,6 +3068,7 @@ const PostDetailView = ({
   onProfileClick,
   onStartCommentEdit,
   onDeleteComment,
+  onDeleteForMe,
   onEditCommentTextChange,
   onSaveCommentEdit,
   onCancelCommentEdit,
