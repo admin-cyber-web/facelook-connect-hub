@@ -126,6 +126,20 @@ const reactionEmoji = (type?: string) => {
   return REACTIONS.find((r) => r.type === type)?.emoji ?? "👍";
 };
 
+// Format comment time like "Just now", "5m ago", "2h ago", "3d ago"
+const formatCommentTime = (dateStr?: string): string => {
+  if (!dateStr) return "";
+  const diff = Date.now() - new Date(dateStr).getTime();
+  if (isNaN(diff) || diff < 0) return "";
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "Just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+};
+
 // Engagement RPCs/views have existed with several names over time. Keep the
 // component's internal contract stable: every post/reel uses likes_count.
 // IDs from Supabase are UUID strings, but String() also keeps aggregate rows
@@ -2845,7 +2859,7 @@ const CommentThread = ({
                   {comment.author || "User"}
                 </span>
                 <span className="text-xs text-white/40">
-                  {new Date(comment.created_at).toLocaleString()}
+                  {formatCommentTime(comment.created_at)}
                 </span>
                 {comment.is_hidden && (
                   <span className="text-xs text-amber-400 font-medium">
@@ -2958,6 +2972,47 @@ const CommentThread = ({
                     </button>
                   </div>
                   {/* Reaction bar */}
+{totalReactions > 0 && (
+                    <div className="mt-2 flex items-center gap-1.5 flex-wrap">
+                      {Object.entries(reactions).map(([emoji, users]) => (
+                        <button
+                          key={emoji}
+                          type="button"
+                          onClick={() => onReact(comment.id, emoji)}
+                          className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold transition-all ${
+                            users.includes(currentUserId || "")
+                              ? "bg-white/15 text-white"
+                              : "bg-white/5 text-white/60 hover:bg-white/10 hover:text-white"
+                          }`}
+                          aria-label={`${users.length} ${emoji} reactions`}
+                        >
+                          <span>{emoji}</span>
+                          <span>{users.length}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <div className="mt-2 flex items-center gap-4">
+                    {/* Reactions */}
+                    <button
+                      type="button"
+                      onClick={() => onToggleReactionBar(comment.id)}
+                      aria-label="Reactions"
+                      aria-expanded={reactionBarOpen}
+                      className="flex items-center gap-1 text-sm text-white/60 hover:text-white transition"
+                    >
+                      <SmilePlus size={14} className="text-pink-400" />
+                      <span>{totalReactions}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onReply(comment)}
+                      className="flex items-center gap-1 text-sm text-white/60 hover:text-sky-300 transition"
+                    >
+                      <Reply size={14} />
+                      <span>Reply</span>
+                    </button>
+                  </div>
                   {reactionBarOpen && (
                     <div
                       data-reaction-surface="fame-comment"
@@ -3201,7 +3256,7 @@ const PostDetailView = ({
       </div>
 
       <form
-        className="shrink-0 border-t border-white/10 bg-[#10090d] px-3 pt-3"
+        className="shrink-0 border-t border-white/10 bg-[#10090d] px-3.5 py-3"
         style={{ paddingBottom: "max(env(safe-area-inset-bottom, 0px), 12px)" }}
         onSubmit={(event) => {
           event.preventDefault();
@@ -3216,23 +3271,41 @@ const PostDetailView = ({
             </button>
           </div>
         )}
-        <div className="flex items-center gap-2">
-          <input
-            value={value}
-            onChange={(event) => onChange(event.target.value)}
-            placeholder={
-              replyingTo?.postId === post.id
-                ? `Reply to ${replyingTo.author}â€¦`
-                : "Write a comment"
-            }
-            aria-label={`Comment on ${post.author || "post"}`}
-            className="min-w-0 flex-1 rounded-full border border-white/10 bg-white/[0.07] px-4 py-3 text-sm text-white outline-none placeholder:text-white/40 focus:border-pink-400/50"
-          />
+        <div className="flex items-end gap-2">
+          <div className="flex-1 relative min-w-0">
+            <textarea
+              value={value}
+              onChange={(event) => onChange(event.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  onSubmit();
+                }
+                if (e.key === "Escape") {
+                  if (replyingTo?.postId === post.id) {
+                    onCancelReply();
+                  }
+                }
+              }}
+              placeholder={
+                replyingTo?.postId === post.id
+                  ? `Reply to ${replyingTo.author}...`
+                  : "Write a comment..."
+              }
+              rows={1}
+              maxLength={2000}
+              className="w-full bg-white/[0.07] border border-white/10 rounded-2xl px-4 py-2.5 text-white placeholder-white/40 text-sm resize-none focus:outline-none focus:border-pink-400/50 focus:ring-1 focus:ring-pink-400/30 transition-colors"
+              style={{ minHeight: "44px", maxHeight: "120px" }}
+            />
+            <div className="absolute bottom-1 right-2 text-[10px] text-white/30">
+              {value.length} / 2000
+            </div>
+          </div>
           <button
             type="submit"
             disabled={!value.trim()}
             aria-label="Send comment"
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-pink-600 text-white disabled:opacity-40"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-pink-600 text-white disabled:opacity-40 disabled:hover:bg-pink-600 transition-all shadow-md active:scale-95"
           >
             <Send size={16} />
           </button>

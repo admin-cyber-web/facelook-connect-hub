@@ -290,6 +290,9 @@ type CommentItem = {
     | { username?: string; full_name?: string; avatar_url?: string }
     | { username?: string; full_name?: string; avatar_url?: string }[]
     | null;
+  reactions?: Record<string, Array<{ user_id: string; emoji: string }>>;
+  full_name?: string;
+  avatar_url?: string | null;
 };
 
 type CommentReactionState = {
@@ -297,7 +300,7 @@ type CommentReactionState = {
   count: number;
 };
 
-type CommentBoxProps = {
+type CommentSheetProps = {
   post: FlickPostRow;
   currentUserId: string | null;
   onClose: () => void;
@@ -341,7 +344,7 @@ function writeHiddenCommentIds(storageKey: string, ids: string[]) {
   }
 }
 
-const CommentBox = ({ post, currentUserId, onClose, onCommentAdded, onCommentDeleted }: CommentBoxProps) => {
+const CommentSheet = ({ post, currentUserId, onClose, onCommentAdded, onCommentDeleted }: CommentSheetProps) => {
   const onlineUserIds = useOnlineUsers();
   const [comments, setComments] = useState<CommentItem[]>([]);
   const [text, setText] = useState("");
@@ -354,14 +357,12 @@ const CommentBox = ({ post, currentUserId, onClose, onCommentAdded, onCommentDel
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
   const [emojiPickerForId, setEmojiPickerForId] = useState<string | null>(null);
   const [swipeOffsets, setSwipeOffsets] = useState<Record<string, number>>({});
-  const [reactionsByComment, setReactionsByComment] = useState<Record<string, CommentReactionState>>({});
   const swipeStartRef = useRef<{ id: string; x: number; y: number; locked: "h" | "v" | null }>({
     id: "",
     x: 0,
     y: 0,
     locked: null,
   });
-  const inputRef = useRef<HTMLInputElement>(null);
   const sounds = useSoundEffects();
 
   const targetPostId = post._raw_id || (post.id ? String(post.id).replace(/^post_/, "") : "");
@@ -397,10 +398,10 @@ const CommentBox = ({ post, currentUserId, onClose, onCommentAdded, onCommentDel
         const nextOwnerHidden = [...readHiddenCommentIds(postOwnerHiddenStorageKey), commentId];
         writeHiddenCommentIds(postOwnerHiddenStorageKey, nextOwnerHidden);
       }
-      setHiddenCommentIds(prev => Array.from(new Set([...prev, commentId])));
+      setHiddenCommentIds((prev) => Array.from(new Set([...prev, commentId])));
       setActiveMenuId(null);
       setEmojiPickerForId(null);
-      setSwipeOffsets(prev => ({ ...prev, [commentId]: 0 }));
+      setSwipeOffsets((prev) => ({ ...prev, [commentId]: 0 }));
       toast.success(scopeLabel);
     },
     [isPostOwner, postOwnerHiddenStorageKey, userHiddenStorageKey],
@@ -415,7 +416,7 @@ const CommentBox = ({ post, currentUserId, onClose, onCommentAdded, onCommentDel
     setLoading(true);
     supabase
       .from("comments")
-      .select("id, post_id, content, user_id, author, created_at, profiles:user_id(username, full_name, avatar_url)")
+      .select("id, post_id, content, user_id, author, created_at, parent_id, profiles:user_id(username, full_name, avatar_url)")
       .eq("post_id", targetPostId)
       .order("created_at", { ascending: true })
       .limit(100)
@@ -427,101 +428,131 @@ const CommentBox = ({ post, currentUserId, onClose, onCommentAdded, onCommentDel
           toast.error("Failed to load comments");
           return;
         }
-        const rows = (data || []) as CommentItem[];
-        setComments(rows);
-        setReactionsByComment(prev => {
-          const next = { ...prev };
-          rows.forEach((row) => {
-            if (!next[row.id]) {
-              next[row.id] = { emoji: null, count: 0 };
-            }
-          });
-          return next;
+const commentsWithProfiles = (data ?? []).map((c: any) => {
+          const profile = Array.isArray(c.profiles) ? c.profiles[0] : c.profiles;
+          return {
+            ...c,
+            author: profile?.username || c.author || "Anonymous",
+            avatar_url: profile?.avatar_url || null,
+            full_name: profile?.full_name || c.author || "Anonymous",
+          };
         });
       });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [targetPostId]);
 
-  const visibleComments = useMemo(
-    () => comments.filter(c => !hiddenCommentIds.includes(c.id)),
-    [comments, hiddenCommentIds],
+  const handleToggleEmojiReaction = useCallback(
+    async (commentId: string, emoji: string) => {
+      if (!currentUserId) {
+        toast.error("Please sign in to react");
+        return;
+      }
+      setEmojiPickerForId(null);
+      setActiveMenuId(null);
+      setSwipeOffsets((prev) => ({ ...prev, [commentId]: 0 }));
+      try {
+        const existing = comments.find((c) => c.id === commentId)?.reactions?.[emoji]?.some(
+          (u: any) => u.user_id === currentUserId,
+        );
+        if (existing) {
+          const { error } = await supabase
+            .from("comment_reactions")
+            .delete()
+            .eq("comment_id", commentId)
+            .eq("user_id", currentUserId)
+            .eq("emoji", emoji);
+          if (error) throw error;
+          setComments((prev) =>
+            prev.map((c) =>
+              c.id === commentId
+                ? {
+                    ...c,
+                    reactions: {
+                      ...c.reactions,
+                      [emoji]: c.reactions?.[emoji]?.filter((u: any) => u.user_id !== currentUserId) ?? [],
+                    },
+                  }
+                : c,
+            ),
+          );
+        } else {
+          const { error } = await supabase
+            .from("comment_reactions")
+            .insert({ comment_id: commentId, user_id: currentUserId, emoji });
+          if (error) throw error;
+          setComments((prev) =>
+            prev.map((c) =>
+              c.id === commentId
+                ? {
+                    ...c,
+                    reactions: {
+                      ...c.reactions,
+                      [emoji]: [...(c.reactions?.[emoji] ?? []), { user_id: currentUserId, emoji }],
+                    },
+                  }
+                : c,
+            ),
+          );
+        }
+        sounds?.playPop?.();
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : (err as { message?: string })?.message || "Failed to toggle reaction";
+        console.error("[Flicks] toggle reaction error:", err);
+        toast.error(msg);
+      }
+    },
+    [comments, currentUserId, sounds],
   );
 
-  const handleToggleEmojiReaction = (commentId: string, emoji: string) => {
-    sounds?.playPop?.();
-    setReactionsByComment(prev => {
-      const current = prev[commentId] || { emoji: null, count: 0 };
-      if (current.emoji === emoji) {
-        return {
-          ...prev,
-          [commentId]: { emoji: null, count: Math.max(0, current.count - 1) },
-        };
-      }
-      const nextCount = current.emoji ? current.count : current.count + 1;
-      return {
-        ...prev,
-        [commentId]: { emoji, count: nextCount },
-      };
-    });
-    setEmojiPickerForId(null);
-    setActiveMenuId(null);
-  };
+  const handleStartReply = useCallback((comment: CommentItem) => {
+    setReplyTarget({ id: comment.id, author: comment.author });
+    setText("");
+  }, []);
 
-  const handleQuickLikeComment = (commentId: string) => {
-    handleToggleEmojiReaction(commentId, "❤️");
-  };
+  const handleCancelReply = useCallback(() => {
+    setReplyTarget(null);
+    setText("");
+  }, []);
 
-  const handleStartReply = (comment: CommentItem) => {
-    const profile = Array.isArray(comment.profiles) ? comment.profiles[0] : comment.profiles;
-    const authorName = profile?.full_name || profile?.username || comment.author || "User";
-    setReplyTarget({ id: comment.id, author: authorName });
-    setActiveMenuId(null);
-    setEmojiPickerForId(null);
-    setSwipeOffsets(prev => ({ ...prev, [comment.id]: 0 }));
-    requestAnimationFrame(() => inputRef.current?.focus());
-  };
-
-  const handlePostComment = async () => {
-    const trimmed = text.trim();
-    if (!trimmed) {
-      toast.error("Please write a comment first");
+  const handlePostComment = useCallback(async () => {
+    if (!currentUserId) {
+      toast.error("Please sign in to comment");
       return;
     }
-    if (!currentUserId) {
-      toast.error("Please login to comment");
+    const content = text.trim();
+    if (!content) return;
+    if (content.length > 2000) {
+      toast.error("Comment too long (max 2000 characters)");
       return;
     }
     setSending(true);
-    sounds?.playSwoosh?.();
-    const formattedContent = replyTarget
-      ? `@${replyTarget.author} ${trimmed}`
-      : trimmed;
-    const activeReply = replyTarget;
+    const parentId = replyTarget?.id || null;
     try {
       const { data, error } = await supabase
         .from("comments")
-        .insert([{
+        .insert({
           post_id: targetPostId,
-          content: formattedContent,
           user_id: currentUserId,
-          author: "User",
-        }])
-        .select("id, post_id, content, user_id, author, created_at, profiles:user_id(username, full_name, avatar_url)")
+          content,
+          parent_id: parentId,
+        })
+        .select("id, post_id, content, user_id, author, created_at, parent_id, profiles:user_id(username, full_name, avatar_url)")
         .single();
-
-      if (error) throw error;
-      if (data) {
-        const enriched: CommentItem = {
-          ...(data as CommentItem),
-          parent_id: activeReply?.id ?? null,
-          reply_to_author: activeReply?.author ?? null,
-        };
-        setComments(prev => [...prev, enriched]);
-        setText("");
-        setReplyTarget(null);
-        toast.success(activeReply ? "Reply posted!" : "Comment posted!");
-        onCommentAdded?.();
-      }
+if (error) throw error;
+      const profile = Array.isArray(data.profiles) ? data.profiles[0] : data.profiles;
+      const newComment = {
+        ...data,
+        author: profile?.username || data.author || "Anonymous",
+        avatar_url: profile?.avatar_url || null,
+        full_name: profile?.full_name || data.author || "Anonymous",
+        reactions: {},
+      };
+      setComments((prev) => [...prev, newComment]);
+      setReplyTarget(null);
+      sounds?.playPop?.();
+      onCommentAdded?.(comments.length + 1);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : (err as { message?: string })?.message || "Failed to post comment";
       console.error("[Flicks] post comment error:", err);
@@ -529,39 +560,39 @@ const CommentBox = ({ post, currentUserId, onClose, onCommentAdded, onCommentDel
     } finally {
       setSending(false);
     }
-  };
+  }, [currentUserId, targetPostId, text, replyTarget, comments.length, onCommentAdded, sounds]);
 
-  const handleStartEdit = (comment: CommentItem) => {
+  const handleStartEdit = useCallback((comment: CommentItem) => {
     setEditingId(comment.id);
     setEditText(comment.content);
-    setActiveMenuId(null);
-    setEmojiPickerForId(null);
-    setSwipeOffsets(prev => ({ ...prev, [comment.id]: 0 }));
-  };
+  }, []);
 
-  const handleSaveEdit = async (id: string) => {
-    const trimmed = editText.trim();
-    if (!trimmed) {
+  const handleSaveEdit = useCallback(async (commentId: string) => {
+    if (!currentUserId) return;
+    const newContent = editText.trim();
+    if (!newContent) {
       toast.error("Comment cannot be empty");
       return;
     }
-    setActionId(id);
+    if (newContent.length > 2000) {
+      toast.error("Comment too long (max 2000 characters)");
+      return;
+    }
+    setActionId(commentId);
     try {
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from("comments")
-        .update({ content: trimmed })
-        .eq("id", id)
-        .eq("user_id", currentUserId)
-        .select("id, post_id, content, user_id, author, created_at, profiles:user_id(username, full_name, avatar_url)")
-        .single();
-
+        .update({ content: newContent, updated_at: new Date().toISOString() })
+        .eq("id", commentId)
+        .eq("user_id", currentUserId);
       if (error) throw error;
-      if (data) {
-        setComments(prev => prev.map(c => c.id === id ? { ...c, ...(data as CommentItem) } : c));
-        setEditingId(null);
-        setEditText("");
-        toast.success("Comment updated!");
-      }
+      setComments((prev) =>
+        prev.map((c) => (c.id === commentId ? { ...c, content: newContent } : c)),
+      );
+      setEditingId(null);
+      setEditText("");
+      setActionId(null);
+      toast.success("Comment updated");
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : (err as { message?: string })?.message || "Failed to update comment";
       console.error("[Flicks] edit comment error:", err);
@@ -569,20 +600,21 @@ const CommentBox = ({ post, currentUserId, onClose, onCommentAdded, onCommentDel
     } finally {
       setActionId(null);
     }
-  };
+  }, [currentUserId, editText]);
 
-  const handleDeleteForMe = (comment: CommentItem) => {
-    hideCommentLocally(comment.id, "Comment deleted for you");
-  };
+  const handleCancelEdit = useCallback(() => {
+    setEditingId(null);
+    setEditText("");
+  }, []);
 
-  const handleHideComment = (comment: CommentItem) => {
-    hideCommentLocally(
-      comment.id,
-      isPostOwner ? "Comment hidden by reel owner" : "Comment hidden on your device",
-    );
-  };
+  const handleHideComment = useCallback(
+    (commentId: string) => {
+      hideCommentLocally(commentId, isPostOwner ? "Comment hidden by reel owner" : "Comment hidden on your device");
+    },
+    [hideCommentLocally, isPostOwner],
+  );
 
-  const handleDeleteForEveryone = async (id: string) => {
+  const handleDeleteForEveryone = useCallback(async (id: string) => {
     if (!currentUserId) return;
     setActiveMenuId(null);
     setEmojiPickerForId(null);
@@ -593,9 +625,8 @@ const CommentBox = ({ post, currentUserId, onClose, onCommentAdded, onCommentDel
         .delete()
         .eq("id", id)
         .eq("user_id", currentUserId);
-
       if (error) throw error;
-      setComments(prev => prev.filter(c => c.id !== id));
+      setComments((prev) => prev.filter((c) => c.id !== id));
       toast.success("Comment deleted for everyone");
       onCommentDeleted?.();
     } catch (err: unknown) {
@@ -605,9 +636,9 @@ const CommentBox = ({ post, currentUserId, onClose, onCommentAdded, onCommentDel
     } finally {
       setActionId(null);
     }
-  };
+  }, [currentUserId, onCommentDeleted]);
 
-  const handleCommentTouchStart = (commentId: string, e: React.TouchEvent<HTMLDivElement>) => {
+  const handleCommentTouchStart = useCallback((commentId: string, e: React.TouchEvent<HTMLDivElement>) => {
     e.stopPropagation();
     if (e.touches.length !== 1) return;
     swipeStartRef.current = {
@@ -616,9 +647,9 @@ const CommentBox = ({ post, currentUserId, onClose, onCommentAdded, onCommentDel
       y: e.touches[0].clientY,
       locked: null,
     };
-  };
+  }, []);
 
-  const handleCommentTouchMove = (commentId: string, e: React.TouchEvent<HTMLDivElement>) => {
+  const handleCommentTouchMove = useCallback((commentId: string, e: React.TouchEvent<HTMLDivElement>) => {
     e.stopPropagation();
     if (e.touches.length !== 1 || swipeStartRef.current.id !== commentId) return;
     const dx = e.touches[0].clientX - swipeStartRef.current.x;
@@ -631,25 +662,41 @@ const CommentBox = ({ post, currentUserId, onClose, onCommentAdded, onCommentDel
 
     if (swipeStartRef.current.locked === "h") {
       const clamped = Math.max(-96, Math.min(96, dx));
-      setSwipeOffsets(prev => ({ ...prev, [commentId]: clamped }));
+      setSwipeOffsets((prev) => ({ ...prev, [commentId]: clamped }));
       if (Math.abs(clamped) >= 36) {
         setActiveMenuId(commentId);
       }
     }
-  };
+  }, []);
 
-  const handleCommentTouchEnd = (commentId: string, e: React.TouchEvent<HTMLDivElement>) => {
+  const handleCommentTouchEnd = useCallback((commentId: string, e: React.TouchEvent<HTMLDivElement>) => {
     e.stopPropagation();
     if (swipeStartRef.current.id !== commentId) return;
     const currentOffset = swipeOffsets[commentId] ?? 0;
     if (Math.abs(currentOffset) >= 36) {
       setActiveMenuId(commentId);
-      setSwipeOffsets(prev => ({ ...prev, [commentId]: currentOffset < 0 ? -56 : 56 }));
+      setSwipeOffsets((prev) => ({ ...prev, [commentId]: currentOffset < 0 ? -56 : 56 }));
     } else {
-      setSwipeOffsets(prev => ({ ...prev, [commentId]: 0 }));
+      setSwipeOffsets((prev) => ({ ...prev, [commentId]: 0 }));
     }
     swipeStartRef.current = { id: "", x: 0, y: 0, locked: null };
-  };
+  }, [swipeOffsets]);
+
+  const topLevelComments = useMemo(
+    () => comments.filter((c) => !c.parent_id && !hiddenCommentIds.includes(c.id)),
+    [comments, hiddenCommentIds],
+  );
+
+  const repliesMap = useMemo(() => {
+    const map: Record<string, CommentItem[]> = {};
+    comments.forEach((c) => {
+      if (c.parent_id) {
+        if (!map[c.parent_id]) map[c.parent_id] = [];
+        map[c.parent_id].push(c);
+      }
+    });
+    return map;
+  }, [comments]);
 
   return (
     <motion.div
@@ -660,305 +707,76 @@ const CommentBox = ({ post, currentUserId, onClose, onCommentAdded, onCommentDel
       animate={{ y: 0 }}
       exit={{ y: "100%" }}
       transition={{ duration: 0.18, ease: "easeOut" }}
-      className="fixed bottom-0 left-0 right-0 max-w-[500px] mx-auto bg-zinc-900/95 backdrop-blur-xl rounded-t-3xl z-[10000] h-[70vh] flex flex-col border-t border-white/10 shadow-2xl"
+      className="fixed bottom-0 left-0 right-0 max-w-[500px] mx-auto bg-zinc-900/95 backdrop-blur-xl rounded-t-3xl z-[10000] max-h-[70vh] flex flex-col border-t border-white/10 shadow-2xl"
       style={{ touchAction: "pan-y" }}
-      onClick={e => {
+      onClick={(e) => {
         e.stopPropagation();
         if (emojiPickerForId) setEmojiPickerForId(null);
       }}
-      onPointerDown={e => e.stopPropagation()}
-      onMouseDown={e => e.stopPropagation()}
-      onTouchStart={e => e.stopPropagation()}
+      onPointerDown={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
+      onTouchStart={(e) => e.stopPropagation()}
     >
       {/* Drawer Handle & Header */}
       <div className="pt-3 pb-2 px-4 border-b border-white/10 flex flex-col items-center relative">
         <div className="w-12 h-1 bg-white/20 rounded-full mb-3" />
         <div className="w-full flex justify-between items-center">
-          <span className="text-white font-bold text-base tracking-wide flex items-center gap-2">
-            Comments
-            <span className="bg-white/10 text-xs px-2 py-0.5 rounded-full text-white/70">
-              {visibleComments.length}
-            </span>
+          <span className="flex items-center gap-2 text-sm font-bold">
+            <MessageCircle size={16} className="text-cyan-400" />
+            Comments <span className="text-white/45">({topLevelComments.length})</span>
           </span>
           <button
             type="button"
-            onClick={(e) => { e.stopPropagation(); onClose(); }}
-            className="p-1.5 bg-white/5 hover:bg-white/10 rounded-full text-white/60 hover:text-white transition-colors"
+            onClick={onClose}
             aria-label="Close comments"
+            className="p-1 text-white/70"
           >
             <X size={18} />
           </button>
         </div>
       </div>
 
-      {/* Comment List */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-3.5">
+      {/* Comments List */}
+      <div className="flex-1 overflow-y-auto px-3.5 pb-3" style={{ WebkitOverflowScrolling: "touch" }}>
         {loading ? (
-          <div className="flex items-center justify-center py-12 text-white/40 gap-2">
-            <Loader2 size={20} className="animate-spin text-cyan-400" />
-            <span className="text-sm">Loading comments…</span>
+          <div className="flex items-center justify-center h-32 text-white/50">
+            <Loader2 className="animate-spin text-cyan-400" size={24} />
           </div>
-        ) : visibleComments.length === 0 ? (
-          <div className="text-center py-14 space-y-2">
-            <p className="text-white/40 text-sm font-medium">No comments yet</p>
-            <p className="text-white/25 text-xs">Be the first to share your thoughts!</p>
+        ) : topLevelComments.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-32 text-white/50 gap-2">
+            <MessageCircle size={32} className="text-white/30" />
+            <span className="text-sm">No comments yet</span>
+            <span className="text-xs text-white/40">Be the first to comment!</span>
           </div>
         ) : (
-          visibleComments.map((c) => {
-            const profile = Array.isArray(c.profiles) ? c.profiles[0] : c.profiles;
-            const commentUsername = profile?.full_name || profile?.username || c.author || "User";
-            const isCommentOwner = Boolean(currentUserId && c.user_id === currentUserId);
-            const isEditing = editingId === c.id;
-            const isBusy = actionId === c.id;
-            const isMenuOpen = activeMenuId === c.id;
-            const isEmojiOpen = emojiPickerForId === c.id;
-            const reactionState = reactionsByComment[c.id] || { emoji: null, count: 0 };
-            const offset = swipeOffsets[c.id] ?? 0;
-            const timeAgo = formatCommentTime(c.created_at);
-
-            return (
-              <div
-                key={c.id}
-                className="relative overflow-hidden rounded-2xl"
-                onTouchStart={(e) => handleCommentTouchStart(c.id, e)}
-                onTouchMove={(e) => handleCommentTouchMove(c.id, e)}
-                onTouchEnd={(e) => handleCommentTouchEnd(c.id, e)}
-              >
-                {/* Fast swipe / arrow action bar */}
-                {isMenuOpen && (
-                  <div
-                    className="mb-1.5 flex items-center gap-1.5 overflow-x-auto rounded-xl bg-zinc-950/95 px-2 py-1.5 border border-white/10"
-                    style={{ transition: "transform 120ms ease-out" }}
-                    onClick={e => e.stopPropagation()}
-                  >
-                    <span className="shrink-0 text-[10px] font-bold text-cyan-300 px-1.5 py-0.5 rounded bg-cyan-500/10">
-                      Swipe Menu
-                    </span>
-                    <button
-                      type="button"
-                      onClick={(e) => { e.stopPropagation(); handleStartReply(c); }}
-                      className="shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/15 text-white text-[11px] font-semibold"
-                    >
-                      <Reply size={12} className="text-cyan-400" />
-                      Reply
-                    </button>
-                    <button
-                      type="button"
-                      onClick={(e) => { e.stopPropagation(); handleHideComment(c); }}
-                      className="shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 text-[11px] font-semibold"
-                    >
-                      <EyeOff size={12} />
-                      Hide{isPostOwner ? " (Owner)" : ""}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={(e) => { e.stopPropagation(); handleDeleteForMe(c); }}
-                      className="shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/15 text-white/85 text-[11px] font-semibold"
-                    >
-                      <Trash2 size={12} className="text-rose-300" />
-                      Delete for me
-                    </button>
-                    {isCommentOwner && (
-                      <>
-                        <button
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); handleStartEdit(c); }}
-                          disabled={isBusy}
-                          className="shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 text-[11px] font-semibold"
-                        >
-                          <Pencil size={12} />
-                          Edit
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); void handleDeleteForEveryone(c.id); }}
-                          disabled={isBusy}
-                          className="shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 text-[11px] font-semibold"
-                        >
-                          <Trash2 size={12} />
-                          Delete for everyone
-                        </button>
-                      </>
-                    )}
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setActiveMenuId(null);
-                        setSwipeOffsets(prev => ({ ...prev, [c.id]: 0 }));
-                      }}
-                      className="shrink-0 p-1 rounded-lg text-white/50 hover:text-white"
-                      aria-label="Close comment actions"
-                    >
-                      <X size={13} />
-                    </button>
-                  </div>
-                )}
-
-                <div
-                  className="flex gap-2.5 items-start group"
-                  style={{
-                    transform: `translateX(${offset}px)`,
-                    transition: swipeStartRef.current.id === c.id ? "none" : "transform 130ms ease-out",
-                  }}
-                >
-                  <ActiveStatusAvatar
-                    src={profile?.avatar_url}
-                    name={commentUsername}
-                    size={32}
-                    online={onlineUserIds.has(c.user_id || "")}
-                  />
-                  <div className="flex-1 min-w-0 bg-white/[0.03] rounded-2xl p-3 border border-white/5 relative">
-                    <div className="flex items-center justify-between gap-2 mb-1">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="text-white/90 text-xs font-semibold truncate">
-                          {commentUsername}
-                        </span>
-                        {timeAgo && (
-                          <span className="text-white/30 text-[10px] shrink-0">
-                            {timeAgo}
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Right wall arrow indicator: tap to reveal animated swipe menu */}
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          const nextOpen = !isMenuOpen;
-                          setActiveMenuId(nextOpen ? c.id : null);
-                          setSwipeOffsets(prev => ({ ...prev, [c.id]: nextOpen ? -24 : 0 }));
-                        }}
-                        aria-label="Open comment swipe menu"
-                        className="shrink-0 -mr-1.5 flex items-center gap-0.5 rounded-l-full bg-white/[0.06] hover:bg-white/[0.12] px-1.5 py-0.5 text-white/55 hover:text-white transition-colors"
-                      >
-                        {isMenuOpen && (
-                          <span className="text-[9px] font-bold tracking-tight text-cyan-300">
-                            Swipe
-                          </span>
-                        )}
-                        <ChevronRight size={13} />
-                      </button>
-                    </div>
-
-                    {isEditing ? (
-                      <div className="mt-2 space-y-2">
-                        <textarea
-                          value={editText}
-                          onChange={e => setEditText(e.target.value)}
-                          onPointerDown={e => e.stopPropagation()}
-                          onMouseDown={e => e.stopPropagation()}
-                          onTouchStart={e => e.stopPropagation()}
-                          onClick={e => e.stopPropagation()}
-                          className="w-full bg-white/10 rounded-xl px-3 py-2 text-white text-sm outline-none border border-cyan-500/50 focus:border-cyan-400 resize-none min-h-[60px]"
-                          style={{ fontSize: 16 }}
-                          autoFocus
-                        />
-                        <div className="flex justify-end gap-2">
-                          <button
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); setEditingId(null); setEditText(""); }}
-                            className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/15 text-white/70 text-xs font-medium transition-colors"
-                          >
-                            Cancel
-                          </button>
-                          <button
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); void handleSaveEdit(c.id); }}
-                            disabled={isBusy || !editText.trim()}
-                            className="px-3 py-1.5 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-white text-xs font-semibold disabled:opacity-50 transition-colors flex items-center gap-1"
-                          >
-                            {isBusy && <Loader2 size={12} className="animate-spin" />}
-                            Save
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <p className="text-white/85 text-xs sm:text-sm leading-relaxed break-words whitespace-pre-wrap">
-                        {c.content}
-                      </p>
-                    )}
-
-                    {/* Like / Emoji reaction + Reply row */}
-                    <div className="mt-2 flex items-center justify-between gap-2">
-                      <div className="relative flex items-center gap-3">
-                        <button
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); handleQuickLikeComment(c.id); }}
-                          onContextMenu={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            setEmojiPickerForId(prev => prev === c.id ? null : c.id);
-                          }}
-                          className="flex items-center gap-1 text-[11px] font-semibold text-white/65 hover:text-rose-400 transition-colors"
-                          aria-label="Like comment"
-                        >
-                          <Heart
-                            size={12}
-                            fill={reactionState.emoji === "❤️" ? "#FF2D55" : "none"}
-                            className={reactionState.emoji === "❤️" ? "text-[#FF2D55]" : "text-white/60"}
-                          />
-                          <span>Like</span>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setEmojiPickerForId(prev => prev === c.id ? null : c.id);
-                          }}
-                          className="flex items-center gap-1 text-[11px] font-semibold text-white/65 hover:text-amber-300 transition-colors"
-                          aria-label="React with emoji"
-                        >
-                          <span>{reactionState.emoji || "😊"}</span>
-                          <span>React</span>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); handleStartReply(c); }}
-                          className="flex items-center gap-1 text-[11px] font-semibold text-white/65 hover:text-cyan-300 transition-colors"
-                        >
-                          <Reply size={12} />
-                          <span>Reply</span>
-                        </button>
-
-                        {/* All emoji picker bar */}
-                        {isEmojiOpen && (
-                          <div
-                            onClick={e => e.stopPropagation()}
-                            className="absolute left-0 bottom-6 z-20 flex items-center gap-1 rounded-full bg-zinc-950/95 border border-white/15 px-2 py-1 shadow-xl"
-                          >
-                            {COMMENT_EMOJIS.map((em) => (
-                              <button
-                                key={em}
-                                type="button"
-                                onClick={(e) => { e.stopPropagation(); handleToggleEmojiReaction(c.id, em); }}
-                                className={`px-1.5 py-0.5 rounded-full text-sm transition-transform active:scale-110 ${
-                                  reactionState.emoji === em ? "bg-white/20 scale-110" : "hover:bg-white/10"
-                                }`}
-                                aria-label={`React ${em}`}
-                              >
-                                {em}
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-
-                      {reactionState.count > 0 && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-white/[0.06] px-2 py-0.5 text-[10px] font-bold text-white/80">
-                          <span>{reactionState.emoji || "❤️"}</span>
-                          <span>{reactionState.count}</span>
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            );
-          })
+          topLevelComments.map((comment) => (
+            <div key={comment.id}>
+              <CommentItemRenderer
+                comment={comment}
+                depth={0}
+                currentUserId={currentUserId}
+                postOwnerId={postOwnerId}
+                isPostOwner={isPostOwner}
+                repliesMap={repliesMap}
+                hiddenCommentIds={hiddenCommentIds}
+                onHideComment={handleHideComment}
+                onDeleteForEveryone={handleDeleteForEveryone}
+                onStartReply={handleStartReply}
+                onStartEdit={handleStartEdit}
+                onToggleEmojiReaction={handleToggleEmojiReaction}
+                activeMenuId={activeMenuId}
+                setActiveMenuId={setActiveMenuId}
+                emojiPickerForId={emojiPickerForId}
+                setEmojiPickerForId={setEmojiPickerForId}
+                swipeOffsets={swipeOffsets}
+                setSwipeOffsets={setSwipeOffsets}
+                handleCommentTouchStart={handleCommentTouchStart}
+                handleCommentTouchMove={handleCommentTouchMove}
+                handleCommentTouchEnd={handleCommentTouchEnd}
+                sounds={sounds}
+              />
+            </div>
+          ))
         )}
       </div>
 
@@ -970,7 +788,10 @@ const CommentBox = ({ post, currentUserId, onClose, onCommentAdded, onCommentDel
           </span>
           <button
             type="button"
-            onClick={(e) => { e.stopPropagation(); setReplyTarget(null); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              setReplyTarget(null);
+            }}
             className="text-white/60 hover:text-white p-0.5"
             aria-label="Cancel reply"
           >
@@ -979,47 +800,404 @@ const CommentBox = ({ post, currentUserId, onClose, onCommentAdded, onCommentDel
         </div>
       )}
 
-      {/* Input Section */}
-      <div className="p-3 bg-zinc-950/80 border-t border-white/10 flex gap-2 items-center pb-safe">
-        <input
-          ref={inputRef}
-          type="text"
-          value={text}
-          onChange={e => setText(e.target.value)}
-          onPointerDown={e => e.stopPropagation()}
-          onMouseDown={e => e.stopPropagation()}
-          onTouchStart={e => e.stopPropagation()}
-          onClick={e => e.stopPropagation()}
-          className="flex-1 bg-white/10 hover:bg-white/[0.13] focus:bg-white/[0.15] rounded-full px-4 py-2.5 text-white text-sm outline-none border border-white/10 focus:border-cyan-500/50 placeholder:text-white/40 transition-colors"
-          style={{ fontSize: 16 }}
-          placeholder={replyTarget ? `Reply to @${replyTarget.author}...` : "Write a comment..."}
-          onKeyDown={e => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              void handlePostComment();
-            }
-          }}
-        />
-        <button
-          type="button"
-          onClick={(e) => { e.stopPropagation(); void handlePostComment(); }}
-          onPointerDown={e => e.stopPropagation()}
-          onMouseDown={e => e.stopPropagation()}
-          onTouchStart={e => e.stopPropagation()}
-          disabled={sending || !text.trim()}
-          className="bg-cyan-500 hover:bg-cyan-400 w-10 h-10 rounded-full flex items-center justify-center shrink-0 disabled:opacity-40 disabled:hover:bg-cyan-500 transition-all shadow-md active:scale-95"
-          aria-label="Send comment"
-        >
-          {sending ? (
-            <Loader2 className="animate-spin text-white" size={16} />
+      {/* Comment Input */}
+      <div
+        className="px-3.5 py-3 border-t border-white/10 bg-zinc-900/95"
+        style={{ paddingBottom: "max(12px, env(safe-area-inset-bottom))" }}
+      >
+        <div className="flex items-end gap-2">
+          {currentUserId ? (
+            <>
+              <div className="flex-1 relative min-w-0">
+                <textarea
+                  value={editingId ? editText : text}
+                  onChange={(e) => editingId ? setEditText(e.target.value) : setText(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      if (editingId) {
+                        handleSaveEdit(editingId);
+                      } else {
+                        handlePostComment();
+                      }
+                    }
+                    if (e.key === "Escape") {
+                      if (editingId) handleCancelEdit();
+                      else handleCancelReply();
+                    }
+                  }}
+                  placeholder={editingId ? "Edit your comment..." : (replyTarget ? `Replying to @${replyTarget.author}...` : "Add a comment...")}
+                  rows={1}
+                  maxLength={2000}
+                  className="w-full bg-zinc-800/60 border border-white/10 rounded-2xl px-4 py-2.5 text-white placeholder-white/40 text-sm resize-none focus:outline-none focus:border-cyan-400/50 focus:ring-1 focus:ring-cyan-400/30 transition-colors"
+                  style={{ minHeight: "44px", maxHeight: "120px" }}
+                  disabled={sending || Boolean(actionId)}
+                />
+                <div className="absolute bottom-1 right-2 text-[10px] text-white/30">
+                  {(editingId ? editText.length : text.length)} / 2000
+                </div>
+              </div>
+              {editingId ? (
+                <button
+                  type="button"
+                  onClick={() => handleSaveEdit(editingId!)}
+                  disabled={sending || !editText.trim()}
+                  className="bg-cyan-500 hover:bg-cyan-400 w-10 h-10 rounded-full flex items-center justify-center shrink-0 disabled:opacity-40 disabled:hover:bg-cyan-500 transition-all shadow-md active:scale-95"
+                  aria-label="Save edit"
+                >
+                  <Send size={16} className="text-white ml-0.5" />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handlePostComment();
+                  }}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onTouchStart={(e) => e.stopPropagation()}
+                  disabled={sending || !text.trim()}
+                  className="bg-cyan-500 hover:bg-cyan-400 w-10 h-10 rounded-full flex items-center justify-center shrink-0 disabled:opacity-40 disabled:hover:bg-cyan-500 transition-all shadow-md active:scale-95"
+                  aria-label="Send comment"
+                >
+                  {sending ? (
+                    <Loader2 className="animate-spin text-white" size={16} />
+                  ) : (
+                    <Send size={16} className="text-white ml-0.5" />
+                  )}
+                </button>
+              )}
+            </>
           ) : (
-            <Send size={16} className="text-white ml-0.5" />
+            <button
+              type="button"
+              onClick={() => {
+                toast.error("Please sign in to comment");
+              }}
+              className="w-full flex items-center justify-center gap-2 bg-zinc-800/60 border border-white/10 rounded-2xl px-4 py-2.5 text-white/50 placeholder-white/40 text-sm transition-colors"
+              style={{ minHeight: "44px" }}
+            >
+              <MessageCircle size={18} className="text-white/40" />
+              <span>Sign in to comment</span>
+            </button>
           )}
-        </button>
+        </div>
+        {editingId && (
+          <div className="mt-2 flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={handleCancelEdit}
+              className="text-xs text-white/60 hover:text-white font-medium"
+            >
+              Cancel
+            </button>
+          </div>
+        )}
       </div>
     </motion.div>
   );
 };
+
+// ── CommentItemRenderer ─────────────────────────────────────────────────
+type CommentItemRendererProps = {
+  comment: CommentItem;
+  depth: number;
+  currentUserId: string | null;
+  postOwnerId: string | null;
+  isPostOwner: boolean;
+  repliesMap: Record<string, CommentItem[]>;
+  hiddenCommentIds: string[];
+  onHideComment: (commentId: string) => void;
+  onDeleteForEveryone: (id: string) => Promise<void>;
+  onStartReply: (comment: CommentItem) => void;
+  onStartEdit: (comment: CommentItem) => void;
+  onToggleEmojiReaction: (commentId: string, emoji: string) => void;
+  activeMenuId: string | null;
+  setActiveMenuId: (id: string | null) => void;
+  emojiPickerForId: string | null;
+  setEmojiPickerForId: (id: string | null) => void;
+  swipeOffsets: Record<string, number>;
+  setSwipeOffsets: (offsets: Record<string, number>) => void;
+  handleCommentTouchStart: (commentId: string, e: React.TouchEvent<HTMLDivElement>) => void;
+  handleCommentTouchMove: (commentId: string, e: React.TouchEvent<HTMLDivElement>) => void;
+  handleCommentTouchEnd: (commentId: string, e: React.TouchEvent<HTMLDivElement>) => void;
+  sounds: any;
+};
+
+const CommentItemRenderer = memo(({
+  comment,
+  depth,
+  currentUserId,
+  postOwnerId,
+  isPostOwner,
+  repliesMap,
+  hiddenCommentIds,
+  onHideComment,
+  onDeleteForEveryone,
+  onStartReply,
+  onStartEdit,
+  onToggleEmojiReaction,
+  activeMenuId,
+  setActiveMenuId,
+  emojiPickerForId,
+  setEmojiPickerForId,
+  swipeOffsets,
+  setSwipeOffsets,
+  handleCommentTouchStart,
+  handleCommentTouchMove,
+  handleCommentTouchEnd,
+  sounds,
+}: CommentItemRendererProps) => {
+  const replies = repliesMap[comment.id]?.filter((r) => !hiddenCommentIds.includes(r.id)) || [];
+  const isEditing = false; // handled by parent
+  const isReplyTarget = false; // handled by parent
+  const reactions = comment.reactions || {};
+  const isEmojiOpen = emojiPickerForId === comment.id;
+  const reactionState = Object.entries(reactions).reduce(
+    (acc, [emoji, users]) => {
+      if (users.length > acc.count) {
+        return { emoji, count: users.length };
+      }
+      return acc;
+    },
+    { emoji: "", count: 0 } as { emoji: string; count: number },
+  );
+  const totalReactions = Object.values(reactions).flat().length;
+  const offset = swipeOffsets[comment.id] ?? 0;
+  const isOpen = activeMenuId === comment.id;
+  const isAuthor = comment.user_id === currentUserId;
+  const isHidden = hiddenCommentIds.includes(comment.id);
+
+  const handleActionClick = (action: "reply" | "react" | "edit" | "hide" | "delete") => {
+    setActiveMenuId(null);
+    setEmojiPickerForId(null);
+    setSwipeOffsets((prev) => ({ ...prev, [comment.id]: 0 }));
+    switch (action) {
+      case "reply":
+        onStartReply(comment);
+        break;
+      case "react":
+        setEmojiPickerForId((prev) => (prev === comment.id ? null : comment.id));
+        break;
+      case "edit":
+        onStartEdit(comment);
+        break;
+      case "hide":
+        onHideComment(comment.id);
+        break;
+      case "delete":
+        onDeleteForEveryone(comment.id);
+        break;
+    }
+  };
+
+  return (
+    <div className={`flex flex-col ${depth > 0 ? "ml-4 border-l border-white/10 pl-3" : ""}`}>
+      {/* Comment row wrapper with swipe build */}
+      <div className="relative">
+        {/* Action drawer (buttons revealed behind the row when swiped) */}
+        <div
+          className="absolute inset-0 flex items-center justify-end gap-2 pr-2 pointer-events-none z-10"
+          style={{ transform: `translateX(${offset}px)` }}
+        >
+          {isAuthor && (
+            <button
+              type="button"
+              onClick={() => handleActionClick("edit")}
+              className="bg-cyan-500/20 text-cyan-400 px-3 py-1.5 rounded-full text-xs font-semibold hover:bg-cyan-500/30 transition-colors pointer-events-auto"
+            >
+              Edit
+            </button>
+          )}
+          {isPostOwner && !isAuthor && !isHidden && (
+            <button
+              type="button"
+              onClick={() => handleActionClick("hide")}
+              className="bg-amber-500/20 text-amber-400 px-3 py-1.5 rounded-full text-xs font-semibold hover:bg-amber-500/30 transition-colors pointer-events-auto"
+            >
+              Hide
+            </button>
+          )}
+          {isPostOwner && !isAuthor && isHidden && (
+            <button
+              type="button"
+              onClick={() => handleActionClick("hide")}
+              className="bg-green-500/20 text-green-400 px-3 py-1.5 rounded-full text-xs font-semibold hover:bg-green-500/30 transition-colors pointer-events-auto"
+            >
+              Unhide
+            </button>
+          )}
+          {isAuthor && (
+            <button
+              type="button"
+              onClick={() => handleActionClick("delete")}
+              className="bg-red-500/20 text-red-400 px-3 py-1.5 rounded-full text-xs font-semibold hover:bg-red-500/30 transition-colors pointer-events-auto"
+            >
+              Delete
+            </button>
+          )}
+        </div>
+
+        {/* Main comment row */}
+        <div
+          className="relative z-20 flex items-start gap-2.5 px-3.5 py-2.5 bg-zinc-900/50 rounded-2xl border border-white/5 hover:border-white/10 transition-colors touch-none"
+          style={{
+            transform: `translateX(${offset}px)`,
+            touchAction: "pan-y",
+          }}
+          onTouchStart={(e) => handleCommentTouchStart(comment.id, e)}
+          onTouchMove={(e) => handleCommentTouchMove(comment.id, e)}
+          onTouchEnd={(e) => handleCommentTouchEnd(comment.id, e)}
+        >
+          <div className="relative flex-shrink-0 mt-0.5">
+            {comment.avatar_url ? (
+              <img
+                src={comment.avatar_url}
+                alt=""
+                className="w-7 h-7 rounded-full object-cover ring-1 ring-white/10"
+              />
+            ) : (
+              <div className="w-7 h-7 rounded-full bg-gradient-to-br from-cyan-500 to-purple-600 flex items-center justify-center ring-1 ring-white/10">
+                <span className="text-white font-bold text-xs">
+                  {comment.author?.charAt(0).toUpperCase() || "?"}
+                </span>
+              </div>
+            )}
+          </div>
+
+          <div className="flex-1 min-w-0">
+            <div className="flex items-baseline gap-2">
+              <span className="font-semibold text-white truncate">{comment.author}</span>
+              <span className="text-white/40 text-[11px] whitespace-nowrap flex-shrink-0">
+                {formatCommentTime(comment.created_at)}
+              </span>
+            </div>
+
+            <p className="mt-0.5 text-white/90 text-sm leading-relaxed break-words">{comment.content}</p>
+
+            {/* Reactions bar */}
+            {totalReactions > 0 && (
+              <div className="mt-2 flex items-center gap-1.5 flex-wrap">
+                {Object.entries(reactions).map(([emoji, users]) => (
+                  <button
+                    key={emoji}
+                    type="button"
+                    onClick={() => onToggleEmojiReaction(comment.id, emoji)}
+                    className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold transition-all ${
+                      users.some((u: any) => u.user_id === currentUserId)
+                        ? "bg-white/15 text-white"
+                        : "bg-white/5 text-white/60 hover:bg-white/10 hover:text-white"
+                    }`}
+                    aria-label={`${users.length} ${emoji} reactions`}
+                  >
+                    <span>{emoji}</span>
+                    <span>{users.length}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Action buttons row */}
+            <div className="mt-2 flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => handleActionClick("reply")}
+                className="flex items-center gap-1 text-[11px] font-semibold text-white/60 hover:text-cyan-300 transition-colors"
+              >
+                <Reply size={12} />
+                <span>Reply</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleActionClick("react")}
+                className="flex items-center gap-1 text-[11px] font-semibold text-white/60 hover:text-amber-300 transition-colors"
+                aria-label="React with emoji"
+              >
+                <span>{reactionState.emoji || "😊"}</span>
+                <span>React</span>
+              </button>
+
+              {(isAuthor || isPostOwner) && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setActiveMenuId((prev) => (prev === comment.id ? null : comment.id));
+                  }}
+                  className="flex items-center gap-1 text-[11px] font-semibold text-white/60 hover:text-white transition-colors ml-auto"
+                  aria-label="More options"
+                >
+                  <MoreVertical size={12} />
+                </button>
+              )}
+
+              {/* All emoji picker bar */}
+              {isEmojiOpen && (
+                <div
+                  onClick={(e) => e.stopPropagation()}
+                  className="absolute left-0 bottom-6 z-20 flex items-center gap-1 rounded-full bg-zinc-950/95 border border-white/15 px-2 py-1 shadow-xl"
+                >
+                  {COMMENT_EMOJIS.map((em) => (
+                    <button
+                      key={em}
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onToggleEmojiReaction(comment.id, em);
+                      }}
+                      className={`px-1.5 py-0.5 rounded-full text-sm transition-transform active:scale-110 ${
+                        reactionState.emoji === em ? "bg-white/20 scale-110" : "hover:bg-white/10"
+                      }`}
+                      aria-label={`React ${em}`}
+                    >
+                      {em}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Replies */}
+      {replies.length > 0 && (
+        <div className="mt-2 space-y-2">
+          {replies.map((reply) => (
+            <CommentItemRenderer
+              key={reply.id}
+              comment={reply}
+              depth={depth + 1}
+              currentUserId={currentUserId}
+              postOwnerId={postOwnerId}
+              isPostOwner={isPostOwner}
+              repliesMap={repliesMap}
+              hiddenCommentIds={hiddenCommentIds}
+              onHideComment={onHideComment}
+              onDeleteForEveryone={onDeleteForEveryone}
+              onStartReply={onStartReply}
+              onStartEdit={onStartEdit}
+              onToggleEmojiReaction={onToggleEmojiReaction}
+              activeMenuId={activeMenuId}
+              setActiveMenuId={setActiveMenuId}
+              emojiPickerForId={emojiPickerForId}
+              setEmojiPickerForId={setEmojiPickerForId}
+              swipeOffsets={swipeOffsets}
+              setSwipeOffsets={setSwipeOffsets}
+              handleCommentTouchStart={handleCommentTouchStart}
+              handleCommentTouchMove={handleCommentTouchMove}
+              handleCommentTouchEnd={handleCommentTouchEnd}
+              sounds={sounds}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+});
+// ── FlickCard ─────────────────────────────────────────────────────────────────
 // ── FlickCard ─────────────────────────────────────────────────────────────────
 type FlickCardProps = {
   post: FlickPostRow;
@@ -1051,7 +1229,8 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, isWarmNext, curre
   const [liveCommentsCount, setLiveCommentsCount]  = useState(Number(post?.comments_count || 0));
   const [liveShares,        setLiveShares]        = useState(Number(post?.shares_count || 0));
   const [heartPos,          setHeartPos]           = useState<{ x: number; y: number } | null>(null);
-  const [showComments,      setShowComments]       = useState(false);
+const [showComments,      setShowComments]       = useState(false);
+  const [commentSheetId,    setCommentSheetId]    = useState<string | null>(null);
   const [menuOpen,          setMenuOpen]           = useState(false);
   const [reportOpen,        setReportOpen]         = useState(false);
   const [reportAnchor,      setReportAnchor]       = useState<{ top: number; right: number } | null>(null);
@@ -1126,16 +1305,16 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, isWarmNext, curre
     if (heartTimerRef.current) clearTimeout(heartTimerRef.current);
   }, []);
 
-  useEffect(() => {
+useEffect(() => {
     window.dispatchEvent(
       new CustomEvent("flicks:comment-drawer-state", {
-        detail: { open: Boolean(isActive && showComments) },
+        detail: { open: Boolean(isActive && commentSheetId === post.id) },
       }),
     );
-  }, [isActive, showComments]);
+  }, [isActive, commentSheetId]);
 
   useEffect(() => {
-    if (!isActive) setShowComments(false);
+    if (!isActive) setCommentSheetId(null);
   }, [isActive]);
 
   useEffect(() => () => {
@@ -1780,11 +1959,11 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, isWarmNext, curre
           </span>
         </div>
 
-        {/* 2. Comment */}
+{/* 2. Comment */}
         <div className="flex flex-col items-center gap-0.5">
           <button
             type="button"
-            onClick={() => { sounds?.playPop?.(); setShowComments(true); }}
+            onClick={() => { sounds?.playPop?.(); setCommentSheetId(post.id); }}
             className="w-10 h-10 rounded-full flex items-center justify-center active:scale-90 transition-transform"
             style={{ background: "rgba(18,17,22,0.55)", backdropFilter: "blur(10px)" }}
             aria-label="Comments"
@@ -2059,26 +2238,20 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, isWarmNext, curre
         document.body
       )}
 
-      {/* ── Comments (portal) ── */}
+{/* ── Comments (portal) ── */}
       {createPortal(
         <AnimatePresence>
-          {showComments && isActive && (
-            <>
-              <div
-                data-no-media-playback-retry="true"
-                className="fixed inset-0 z-[9999] bg-black/40"
-                onClick={(e) => {
-                  if (e.target === e.currentTarget) setShowComments(false);
-                }}
-              />
-              <CommentBox
-                post={post}
-                currentUserId={currentUserId}
-                onClose={() => setShowComments(false)}
-                onCommentAdded={() => setLiveCommentsCount(prev => prev + 1)}
-                onCommentDeleted={() => setLiveCommentsCount(prev => Math.max(prev - 1, 0))}
-              />
-            </>
+          {commentSheetId === post.id && isActive && (
+            <CommentSheet
+              post={post}
+              currentUserId={currentUserId}
+              onClose={() => setCommentSheetId(null)}
+              onCommentAdded={(newCount) => {
+                if (typeof newCount === "number") setLiveCommentsCount(newCount);
+                else setLiveCommentsCount(prev => prev + 1);
+              }}
+              onCommentDeleted={() => setLiveCommentsCount(prev => Math.max(prev - 1, 0))}
+            />
           )}
         </AnimatePresence>,
         document.body
