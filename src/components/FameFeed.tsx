@@ -2382,37 +2382,124 @@ const ReelCommentsTicker = ({ items, onOpen }: {
   </button>
 );
 
-// Comment Action Menu Portal (for comment dropdown menus)
-type CommentActionMenuPosition = {
+// Long-press Action Menu Portal for comments/replies (replaces 3-dots menu)
+type LongPressMenuPosition = {
   top: number;
-  right: number;
+  left: number;
 };
 
-const CommentActionMenuPortal = ({
+interface LongPressActionMenuProps {
+  isOpen: boolean;
+  position: LongPressMenuPosition;
+  commentId: string;
+  comment: any;
+  currentUserId: string | undefined;
+  postAuthorId: string;
+  onClose: () => void;
+  onEdit: () => void;
+  onToggleHide: () => void;
+  onDeleteForMe: () => void;
+  onDeleteForEveryone: () => void;
+  isHidden: boolean;
+  isAuthor: boolean;
+  isPostOwner: boolean;
+}
+
+const LongPressActionMenu = ({
   isOpen,
   position,
-  children,
-}: {
-  isOpen: boolean;
-  position: CommentActionMenuPosition;
-  children: React.ReactNode;
-}) => {
+  commentId,
+  comment,
+  currentUserId,
+  postAuthorId,
+  onClose,
+  onEdit,
+  onToggleHide,
+  onDeleteForMe,
+  onDeleteForEveryone,
+  isHidden,
+  isAuthor,
+  isPostOwner,
+}: LongPressActionMenuProps) => {
   if (!isOpen) return null;
+
+  const handleOutsideClick = (e: MouseEvent) => {
+    if (!e.target || !(e.target as HTMLElement).closest('[data-long-press-menu]')) {
+      onClose();
+    }
+  };
+
+  useEffect(() => {
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
+  }, [onClose]);
 
   return createPortal(
     <div
+      data-long-press-menu
       role="menu"
-      data-comment-action-menu
-      className="fixed z-[9999] w-48 max-w-[calc(100vw-24px)] max-h-[calc(100dvh-24px)] overflow-y-auto overscroll-contain rounded-2xl border border-white/10 bg-[#1a0d1e] shadow-2xl pointer-events-auto"
+      className="fixed z-[9999] w-56 max-w-[calc(100vw-24px)] rounded-2xl border border-white/10 bg-[#1a0d1e] shadow-2xl pointer-events-auto animate-in fade-in-0 zoom-in-95 duration-150"
       style={{
         top: position.top,
-        right: position.right,
+        left: position.left,
         pointerEvents: "auto",
       }}
       onPointerDown={(event) => event.stopPropagation()}
       onClick={(event) => event.stopPropagation()}
+      onContextMenu={(e) => e.preventDefault()}
     >
-      {children}
+      <div className="p-1">
+        {isAuthor && (
+          <button
+            role="menuitem"
+            onClick={() => {
+              onEdit();
+              onClose();
+            }}
+            className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-white hover:bg-white/5 rounded-xl transition-colors"
+          >
+            <Edit2 className="w-5 h-5 text-white/70" />
+            <span>Edit</span>
+          </button>
+        )}
+        {(isAuthor || isPostOwner) && (
+          <button
+            role="menuitem"
+            onClick={() => {
+              onToggleHide();
+              onClose();
+            }}
+            className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-white hover:bg-white/5 rounded-xl transition-colors"
+          >
+            <EyeOff className="w-5 h-5 text-white/70" />
+            <span>{isHidden ? "Unhide" : "Hide"}</span>
+          </button>
+        )}
+        <button
+          role="menuitem"
+          onClick={() => {
+            onDeleteForMe();
+            onClose();
+          }}
+          className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-white hover:bg-white/5 rounded-xl transition-colors"
+        >
+          <Trash2 className="w-5 h-5 text-white/70" />
+          <span>Delete for me</span>
+        </button>
+        {(isAuthor || isPostOwner) && (
+          <button
+            role="menuitem"
+            onClick={() => {
+              onDeleteForEveryone();
+              onClose();
+            }}
+            className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-red-400 hover:bg-red-400/10 rounded-xl transition-colors"
+          >
+            <Trash2 className="w-5 h-5" />
+            <span>Delete for everyone</span>
+          </button>
+        )}
+      </div>
     </div>,
     document.body,
   );
@@ -2440,6 +2527,8 @@ const CommentThread = ({
   postAuthorId,
   onHideComment,
   onUnhideComment,
+  userCommentReactions,
+  onLongPressAction,
 }: {
   comments: any[];
   commentReactions: Record<string, Record<string, string[]>>;
@@ -2461,64 +2550,33 @@ const CommentThread = ({
   postAuthorId: string | null;
   onHideComment: (commentId: string) => void;
   onUnhideComment: (commentId: string) => void;
+  userCommentReactions: Record<string, string>;
+  onLongPressAction: (comment: any, event: React.PointerEvent, onSelect: (action: string) => void) => void;
 }) => {
-  const [activeCommentMenuId, setActiveCommentMenuId] = useState<string | null>(null);
-  const [commentMenuPosition, setCommentMenuPosition] = useState({ top: 0, right: 0 });
+  const [animatingEmoji, setAnimatingEmoji] = useState<string | null>(null);
 
-  // Close menu on outside click
-  useEffect(() => {
-    if (activeCommentMenuId === null) return;
-    const handleOutsidePointerDown = (event: PointerEvent) => {
-      const target = event.target;
-      if (
-        !(target instanceof Element) ||
-        (!target.closest("[data-comment-menu-trigger]") &&
-         !target.closest("[data-comment-action-menu]"))
-      ) {
-        setActiveCommentMenuId(null);
+  // Trigger emoji pulse animation
+  const triggerEmojiPulse = (emoji: string) => {
+    setAnimatingEmoji(emoji);
+    setTimeout(() => setAnimatingEmoji(null), 5000);
+  };
+
+// Handle long press on comment/reply - delegate to parent's LongPressActionMenu
+  const handleLongPress = (e: React.PointerEvent | React.TouchEvent, comment: any) => {
+    if (!navigator.vibrate) return;
+    navigator.vibrate(50);
+    onLongPressAction?.(comment, e as React.PointerEvent, (action) => {
+      // Handle the selected action
+      if (action === "hide") {
+        onHideComment(comment.id);
+      } else if (action === "unhide") {
+        onUnhideComment(comment.id);
+      } else if (action === "delete_everyone") {
+        onDeleteComment(comment.id);
       }
-    };
-    document.addEventListener("pointerdown", handleOutsidePointerDown);
-    return () =>
-      document.removeEventListener("pointerdown", handleOutsidePointerDown);
-  }, [activeCommentMenuId]);
-
-  const openCommentMenu = (
-    event: React.MouseEvent<HTMLButtonElement>,
-    commentId: string,
-  ) => {
-    event.stopPropagation();
-    event.preventDefault();
-    if (activeCommentMenuId === commentId) {
-      setActiveCommentMenuId(null);
-      return;
-    }
-    const rect = event.currentTarget.getBoundingClientRect();
-    const menuWidth = 192; // w-48 = 192px
-    const maxRight = Math.max(12, window.innerWidth - menuWidth - 12);
-    const right = Math.max(12, Math.min(maxRight, window.innerWidth - rect.right));
-    const top = rect.bottom + 8;
-    setCommentMenuPosition({ top, right });
-    setActiveCommentMenuId(commentId);
+    });
   };
 
-  const handleCommentMenuAction = (
-    action: "edit" | "delete" | "hide" | "unhide" | "delete_everyone",
-    comment: any,
-  ) => {
-    setActiveCommentMenuId(null);
-    if (action === "edit") {
-      onStartCommentEdit(comment);
-    } else if (action === "delete") {
-      onDeleteComment(comment.id);
-    } else if (action === "hide") {
-      onHideComment(comment.id);
-    } else if (action === "unhide") {
-      onUnhideComment(comment.id);
-    } else if (action === "delete_everyone") {
-      onDeleteComment(comment.id);
-    }
-  };
   // Build a map of parent_id -> replies for efficient lookup
   const repliesMap = useMemo(() => {
     const map: Record<string, any[]> = {};
@@ -2610,31 +2668,28 @@ const CommentThread = ({
               </div>
             ) : (
               <>
-                <p
-                  className="mt-1 whitespace-pre-wrap break-words text-sm text-white/85"
-                  onContextMenu={(e) => {
-                    e.preventDefault();
-                    if (navigator.vibrate) navigator.vibrate(50);
-                    openCommentMenu(e as any, comment.id);
-                  }}
-                  onTouchStart={(e) => {
-                    const touchTimer = setTimeout(() => {
-                      if (navigator.vibrate) navigator.vibrate(50);
-                      openCommentMenu(e as any, comment.id);
-                    }, 500);
-                    e.currentTarget.dataset.touchTimer = touchTimer.toString();
-                  }}
-                  onTouchEnd={(e) => {
-                    const timer = e.currentTarget.dataset.touchTimer;
-                    if (timer) clearTimeout(parseInt(timer, 10));
-                  }}
-                  onTouchMove={(e) => {
-                    const timer = e.currentTarget.dataset.touchTimer;
-                    if (timer) clearTimeout(parseInt(timer, 10));
-                  }}
+                <div
+                  className="relative"
+                  onPointerDown={(e) => handleLongPress(e, comment)}
+                  onTouchStart={(e) => handleLongPress(e, comment)}
+                  onContextMenu={(e) => e.preventDefault()}
                 >
-                  {comment.content}
-                </p>
+                  <p
+                    className="mt-1 whitespace-pre-wrap break-words text-sm text-white/85"
+                  >
+                    {comment.content}
+                    {userCommentReactions[comment.id] && (
+                      <span
+                        className="ml-2 text-lg animate-pulse"
+                        style={{
+                          animation: animatingEmoji === userCommentReactions[comment.id] ? "pulse 1s ease-in-out 5" : "none"
+                        }}
+                      >
+                        {userCommentReactions[comment.id]}
+                      </span>
+                    )}
+                  </p>
+                </div>
                 <div className="mt-2 flex items-center gap-4">
                   {/* Reactions */}
                   <button
@@ -2655,87 +2710,6 @@ const CommentThread = ({
                     <Reply size={14} />
                     <span>Reply</span>
                   </button>
-                  {currentUserId && (comment.user_id === currentUserId || postAuthorId === currentUserId) && (
-                    <div className="relative">
-                      <button
-                        type="button"
-                        aria-label="More options"
-                        aria-haspopup="menu"
-                        data-comment-menu-trigger
-                        onClick={(e) => openCommentMenu(e, comment.id)}
-                        className="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-full bg-white/5 text-white/75 transition hover:bg-white/15 hover:text-white"
-                      >
-                        <MoreVertical size={16} />
-                      </button>
-                      {/* Comment Action Menu Portal */}
-                      <CommentActionMenuPortal
-                        isOpen={activeCommentMenuId === comment.id}
-                        position={commentMenuPosition}
-                      >
-                        <div
-                          data-comment-action-menu
-                          className="py-1"
-                          role="menu"
-                          aria-label="Comment options"
-                        >
-                          {comment.user_id === currentUserId && (
-                            <>
-                              <button
-                                type="button"
-                                role="menuitem"
-                                onClick={() => handleCommentMenuAction("edit", comment)}
-                                className="w-full flex items-center gap-2 px-4 py-2 text-sm text-white hover:bg-white/10 transition"
-                              >
-                                <Edit2 size={16} />
-                                Edit
-                              </button>
-                              <button
-                                type="button"
-                                role="menuitem"
-                                onClick={() => handleCommentMenuAction("delete", comment)}
-                                className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-400 hover:bg-red-900/30 transition"
-                              >
-                                <Trash2 size={16} />
-                                Delete
-                              </button>
-                            </>
-                          )}
-                          {comment.is_hidden ? (
-                            <button
-                              type="button"
-                              role="menuitem"
-                              onClick={() => handleCommentMenuAction("unhide", comment)}
-                              className="w-full flex items-center gap-2 px-4 py-2 text-sm text-green-400 hover:bg-green-900/30 transition"
-                            >
-                              <Eye size={16} />
-                              Unhide
-                            </button>
-                          ) : (
-                            <button
-                              type="button"
-                              role="menuitem"
-                              onClick={() => handleCommentMenuAction("hide", comment)}
-                              className="w-full flex items-center gap-2 px-4 py-2 text-sm text-amber-400 hover:bg-amber-900/30 transition"
-                            >
-                              <EyeOff size={16} />
-                              Hide
-                            </button>
-                          )}
-                          {postAuthorId === currentUserId && comment.user_id !== currentUserId && (
-                            <button
-                              type="button"
-                              role="menuitem"
-                              onClick={() => handleCommentMenuAction("delete_everyone", comment)}
-                              className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-400 hover:bg-red-900/30 transition"
-                            >
-                              <Trash2 size={16} />
-                              Delete for Everyone
-                            </button>
-                          )}
-                        </div>
-                      </CommentActionMenuPortal>
-                    </div>
-                  )}
                 </div>
                 {/* Reaction bar */}
                 {reactionBarOpen && (
@@ -2822,10 +2796,11 @@ type PostDetailViewProps = {
   onReact: (commentId: string, emoji: string) => void;
   onToggleReactionBar: (commentId: string) => void;
   onCloseReactionBar: (commentId: string) => void;
-  onHideComment: (commentId: string) => void;
+onHideComment: (commentId: string) => void;
   onUnhideComment: (commentId: string) => void;
+  onLongPressAction: (comment: any, event: React.PointerEvent, onSelect: (action: string) => void) => void;
+  userCommentReactions: Record<string, string>;
 };
-
 const PostDetailView = ({
   post,
   comments,
@@ -2854,28 +2829,62 @@ const PostDetailView = ({
   onCloseReactionBar,
   onHideComment,
   onUnhideComment,
+  onLongPressAction,
+  userCommentReactions,
 }: PostDetailViewProps) => {
-  const [activeCommentMenuId, setActiveCommentMenuId] = useState<string | null>(
-    null,
+const [longPressActionMenu, setLongPressActionMenu] = useState<{
+    isOpen: boolean;
+    position: { top: number; left: number };
+    commentId: string;
+    comment: any;
+    currentUserId: string | undefined;
+    postAuthorId: string;
+    onClose: () => void;
+    onEdit: () => void;
+    onToggleHide: () => void;
+    onDeleteForMe: () => void;
+    onDeleteForEveryone: () => void;
+    isHidden: boolean;
+    isAuthor: boolean;
+    isPostOwner: boolean;
+  } | null>(null);
+
+  const handleLongPressAction = useCallback(
+    (comment: any, event: React.PointerEvent, onSelect: (action: string) => void) => {
+      const isAuthor = comment.user_id === currentUserId;
+      const isPostOwner = post.author_id === currentUserId || post.user_id === currentUserId;
+      const isHidden = comment.is_hidden === true;
+      const rect = (event.target as HTMLElement).getBoundingClientRect();
+      setLongPressActionMenu({
+        isOpen: true,
+        position: { top: rect.top, left: rect.left },
+        commentId: comment.id,
+        comment,
+        currentUserId,
+        postAuthorId: post.author_id || "",
+        onClose: () => setLongPressActionMenu(null),
+        onEdit: () => {
+          onSelect("edit");
+        },
+        onToggleHide: () => {
+          onSelect(isHidden ? "unhide" : "hide");
+        },
+        onDeleteForMe: () => {
+          onSelect("delete_me");
+        },
+        onDeleteForEveryone: () => {
+          onSelect("delete_everyone");
+        },
+        isHidden,
+        isAuthor,
+        isPostOwner,
+      });
+    },
+    [currentUserId, post.author_id, post.user_id]
   );
   const topLevel = (comments ?? []).filter((comment) => !comment.parent_id);
   const isPostOwner =
     post.author_id === currentUserId || post.user_id === currentUserId;
-  useEffect(() => {
-    if (activeCommentMenuId === null) return;
-    const handleOutsidePointerDown = (event: PointerEvent) => {
-      const target = event.target;
-      if (
-        !(target instanceof Element) ||
-        !target.closest("[data-post-detail-comment-menu]")
-      ) {
-        setActiveCommentMenuId(null);
-      }
-    };
-    document.addEventListener("pointerdown", handleOutsidePointerDown);
-    return () =>
-      document.removeEventListener("pointerdown", handleOutsidePointerDown);
-  }, [activeCommentMenuId]);
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") onBack();
@@ -2966,7 +2975,7 @@ const PostDetailView = ({
               Be the first to comment.
             </p>
           ) : (
-            <CommentThread
+<CommentThread
               comments={comments ?? []}
               commentReactions={commentReactions}
               commentReactionBarId={commentReactionBarId}
@@ -2987,6 +2996,8 @@ const PostDetailView = ({
               postAuthorId={post.author_id}
               onHideComment={onHideComment}
               onUnhideComment={onUnhideComment}
+              userCommentReactions={userCommentReactions}
+              onLongPressAction={handleLongPressAction}
             />
           )}
         </section>
@@ -3030,6 +3041,12 @@ const PostDetailView = ({
           </button>
         </div>
       </form>
+      {longPressActionMenu && (
+        <LongPressActionMenu
+          {...longPressActionMenu}
+          onClose={() => setLongPressActionMenu(null)}
+        />
+      )}
     </div>,
     document.body,
   );
@@ -4323,10 +4340,26 @@ const FameFeed = ({
     x: number;
     y: number;
   } | null>(null);
-  const [editingFeedComment, setEditingFeedComment] = useState<{
+const [editingFeedComment, setEditingFeedComment] = useState<{
     id: string;
     text: string;
     postId: string;
+  } | null>(null);
+const [longPressActionMenu, setLongPressActionMenu] = useState<{
+    isOpen: boolean;
+    position: { top: number; left: number };
+    commentId: string;
+    comment: any;
+    currentUserId: string | undefined;
+    postAuthorId: string;
+    onClose: () => void;
+    onEdit: () => void;
+    onToggleHide: () => void;
+    onDeleteForMe: () => void;
+    onDeleteForEveryone: () => void;
+    isHidden: boolean;
+    isAuthor: boolean;
+    isPostOwner: boolean;
   } | null>(null);
   const [editingPost, setEditingPost] = useState<{
     id: string;
@@ -4550,6 +4583,10 @@ const FameFeed = ({
   );
   const [commentReactions, setCommentReactions] = useState<
     Record<string, Record<string, string[]>>
+  >({});
+  // Track current user's selected reaction emoji per comment/reply for display
+  const [userCommentReactions, setUserCommentReactions] = useState<
+    Record<string, string>
   >({});
   // author cache: author_id â†’ avatar_url / full_name / is_verified / is_official_creator
   const [authorAvatars, setAuthorAvatars] = useState<Record<string, string>>(
@@ -6581,12 +6618,20 @@ const FameFeed = ({
     if (alreadyReacted) {
       updated[emoji] = currentUsers.filter((u) => u !== currentUserId);
       if (updated[emoji].length === 0) delete updated[emoji];
+      // Remove user's reaction selection when toggling off
+      setUserCommentReactions((r) => {
+        const next = { ...r };
+        delete next[commentId];
+        return next;
+      });
     } else {
       Object.keys(updated).forEach((e) => {
         updated[e] = updated[e].filter((u) => u !== currentUserId);
         if (updated[e].length === 0) delete updated[e];
       });
       updated[emoji] = [...(updated[emoji] ?? []), currentUserId];
+      // Track user's selected emoji for display with animation
+      setUserCommentReactions((r) => ({ ...r, [commentId]: emoji }));
     }
     setCommentReactions((r) => ({ ...r, [commentId]: updated }));
 
@@ -8404,6 +8449,37 @@ const FameFeed = ({
                             postAuthorId={post.author_id}
                             onHideComment={(commentId) => handleFeedCommentHide(commentId, post.id)}
                             onUnhideComment={(commentId) => handleFeedCommentUnhide(commentId, post.id)}
+                            userCommentReactions={userCommentReactions}
+                            onLongPressAction={(comment, event, onSelect) => {
+                const isAuthor = comment.user_id === currentUserId;
+                const isPostOwner = post.author_id === currentUserId || post.user_id === currentUserId;
+                const isHidden = comment.is_hidden === true;
+                const rect = (event.target as HTMLElement).getBoundingClientRect();
+                setLongPressActionMenu({
+                  isOpen: true,
+                  position: { top: rect.top, left: rect.left },
+                  commentId: comment.id,
+                  comment,
+                  currentUserId,
+                  postAuthorId: post.author_id || "",
+                  onClose: () => setLongPressActionMenu(null),
+                  onEdit: () => {
+                    onSelect("edit");
+                  },
+                  onToggleHide: () => {
+                    onSelect(isHidden ? "unhide" : "hide");
+                  },
+                  onDeleteForMe: () => {
+                    onSelect("delete_me");
+                  },
+                  onDeleteForEveryone: () => {
+                    onSelect("delete_everyone");
+                  },
+                  isHidden,
+                  isAuthor,
+                  isPostOwner,
+                });
+              }}
                           />
                         )}
                       </div>
@@ -9472,6 +9548,37 @@ const FameFeed = ({
               onCloseReactionBar={() => setCommentReactionBarId(null)}
               onHideComment={(commentId) => handleFeedCommentHide(commentId, detailPost.id)}
               onUnhideComment={(commentId) => handleFeedCommentUnhide(commentId, detailPost.id)}
+              onLongPressAction={(comment, event, onSelect) => {
+                const isAuthor = comment.user_id === currentUserId;
+                const isPostOwner = detailPost.author_id === currentUserId || detailPost.user_id === currentUserId;
+                const isHidden = comment.is_hidden === true;
+                const rect = (event.target as HTMLElement).getBoundingClientRect();
+                setLongPressActionMenu({
+                  isOpen: true,
+                  position: { top: rect.top, left: rect.left },
+                  commentId: comment.id,
+                  comment,
+                  currentUserId,
+                  postAuthorId: detailPost.author_id || "",
+                  onClose: () => setLongPressActionMenu(null),
+                  onEdit: () => {
+                    onSelect("edit");
+                  },
+                  onToggleHide: () => {
+                    onSelect(isHidden ? "unhide" : "hide");
+                  },
+                  onDeleteForMe: () => {
+                    onSelect("delete_me");
+                  },
+                  onDeleteForEveryone: () => {
+                    onSelect("delete_everyone");
+                  },
+                  isHidden,
+                  isAuthor,
+                  isPostOwner,
+                });
+              }}
+              userCommentReactions={userCommentReactions}
             />
           );
         })()}
