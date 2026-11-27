@@ -282,7 +282,20 @@ const Ticker = ({ text, isActive }: { text: string; isActive: boolean }) => {
   );
 };
 
-// ── Comment Box (fresh, simple) ─────────────────────────────────────────────
+// ── Comment Box (simple & complete) ──────────────────────────────────────────
+type CommentItem = {
+  id: string;
+  post_id?: string;
+  content: string;
+  user_id?: string;
+  author?: string;
+  created_at?: string;
+  profiles?:
+    | { username?: string; full_name?: string; avatar_url?: string }
+    | { username?: string; full_name?: string; avatar_url?: string }[]
+    | null;
+};
+
 type CommentBoxProps = {
   post: FlickPostRow;
   currentUserId: string | null;
@@ -291,199 +304,324 @@ type CommentBoxProps = {
   onCommentDeleted?: () => void;
 };
 
+const formatCommentTime = (dateStr?: string): string => {
+  if (!dateStr) return "";
+  const diff = Date.now() - new Date(dateStr).getTime();
+  if (isNaN(diff) || diff < 0) return "";
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "Just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+};
+
 const CommentBox = ({ post, currentUserId, onClose, onCommentAdded, onCommentDeleted }: CommentBoxProps) => {
   const onlineUserIds = useOnlineUsers();
-  const [comments, setComments] = useState<Array<{
-    id: string;
-    post_id?: string;
-    content: string;
-    user_id?: string;
-    author?: string;
-    created_at?: string;
-    profiles?: { username?: string; full_name?: string; avatar_url?: string } | null;
-  }>>([]);
+  const [comments, setComments] = useState<CommentItem[]>([]);
   const [text, setText] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
+  const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [actionId, setActionId] = useState<string | null>(null);
   const sounds = useSoundEffects();
 
+  const targetPostId = post._raw_id || (post.id ? String(post.id).replace(/^post_/, "") : "");
+
   useEffect(() => {
-    if (!post?._raw_id) return;
+    if (!targetPostId) {
+      setLoading(false);
+      return;
+    }
     let cancelled = false;
+    setLoading(true);
     supabase
       .from("comments")
       .select("id, post_id, content, user_id, author, created_at, profiles:user_id(username, full_name, avatar_url)")
-      .eq("post_id", post._raw_id)
+      .eq("post_id", targetPostId)
       .order("created_at", { ascending: true })
       .limit(100)
       .then(({ data, error }) => {
         if (cancelled) return;
+        setLoading(false);
         if (error) {
           console.warn("[Flicks] comment fetch failed:", error.message);
-          toast.error("Comments load nahi hue");
+          toast.error("Failed to load comments");
           return;
         }
         setComments(data || []);
       });
     return () => { cancelled = true; };
-  }, [post?._raw_id]);
+  }, [targetPostId]);
 
-  const handleSend = async () => {
-    if (!text.trim()) { toast.error("Kuch likhein phir bhejein"); return; }
-    if (!currentUserId) { toast.error("Please login to comment"); return; }
+  const handlePostComment = async () => {
+    const trimmed = text.trim();
+    if (!trimmed) {
+      toast.error("Please write a comment first");
+      return;
+    }
+    if (!currentUserId) {
+      toast.error("Please login to comment");
+      return;
+    }
     setSending(true);
     sounds?.playSwoosh?.();
     try {
       const { data, error } = await supabase
         .from("comments")
-        .insert([{ post_id: post._raw_id, content: text.trim(), user_id: currentUserId, author: "User" }])
+        .insert([{
+          post_id: targetPostId,
+          content: trimmed,
+          user_id: currentUserId,
+          author: "User",
+        }])
         .select("id, post_id, content, user_id, author, created_at, profiles:user_id(username, full_name, avatar_url)")
         .single();
+
       if (error) throw error;
       if (data) {
-        setComments(p => [...p, data]);
+        setComments(prev => [...prev, data]);
         setText("");
         toast.success("Comment posted!");
         onCommentAdded?.();
       }
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : (err as { message?: string })?.message || "Comment send nahi hua";
-      console.error("[Flicks] comment send failed:", err);
-      toast.error(message);
+      const msg = err instanceof Error ? err.message : (err as { message?: string })?.message || "Failed to post comment";
+      console.error("[Flicks] post comment error:", err);
+      toast.error(msg);
     } finally {
       setSending(false);
     }
   };
 
-  const handleEdit = (id: string) => {
-    const comment = comments.find(c => c.id === id);
-    if (!comment) return;
-    setEditingId(id);
+  const handleStartEdit = (comment: CommentItem) => {
+    setEditingId(comment.id);
     setEditText(comment.content);
   };
 
   const handleSaveEdit = async (id: string) => {
-    if (!editText.trim()) { toast.error("Kuch likhein"); return; }
-    if (!currentUserId) { toast.error("Please login"); return; }
-    const comment = comments.find(c => c.id === id);
-    if (!comment || comment.user_id !== currentUserId) {
-      toast.error("Sirf apna comment edit kar sakte hain");
-      setEditingId(null);
+    const trimmed = editText.trim();
+    if (!trimmed) {
+      toast.error("Comment cannot be empty");
       return;
     }
-    setSending(true);
+    setActionId(id);
     try {
       const { data, error } = await supabase
         .from("comments")
-        .update({ content: editText.trim() })
+        .update({ content: trimmed })
         .eq("id", id)
+        .eq("user_id", currentUserId)
         .select("id, post_id, content, user_id, author, created_at, profiles:user_id(username, full_name, avatar_url)")
         .single();
+
       if (error) throw error;
       if (data) {
-        setComments(p => p.map(c => c.id === id ? data : c));
+        setComments(prev => prev.map(c => c.id === id ? data : c));
         setEditingId(null);
         setEditText("");
         toast.success("Comment updated!");
       }
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : (err as { message?: string })?.message || "Edit nahi hua";
-      console.error("[Flicks] comment edit failed:", err);
-      toast.error(message);
+      const msg = err instanceof Error ? err.message : (err as { message?: string })?.message || "Failed to update comment";
+      console.error("[Flicks] edit comment error:", err);
+      toast.error(msg);
     } finally {
-      setSending(false);
+      setActionId(null);
     }
   };
 
-  const handleDelete = async (id: string) => {
-    const comment = comments.find(c => c.id === id);
-    if (!comment || comment.user_id !== currentUserId) {
-      toast.error("Sirf apna comment delete kar sakte hain");
-      return;
-    }
-    if (!window.confirm("Comment delete karna chahte hain?")) return;
-    setSending(true);
+  const handleDeleteComment = async (id: string) => {
+    if (!currentUserId) return;
+    setActionId(id);
     try {
-      const { error } = await supabase.from("comments").delete().eq("id", id);
+      const { error } = await supabase
+        .from("comments")
+        .delete()
+        .eq("id", id)
+        .eq("user_id", currentUserId);
+
       if (error) throw error;
-      setComments(p => p.filter(c => c.id !== id));
-      toast.success("Comment deleted!");
+      setComments(prev => prev.filter(c => c.id !== id));
+      toast.success("Comment deleted");
       onCommentDeleted?.();
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : (err as { message?: string })?.message || "Delete nahi hua";
-      console.error("[Flicks] comment delete failed:", err);
-      toast.error(message);
+      const msg = err instanceof Error ? err.message : (err as { message?: string })?.message || "Failed to delete comment";
+      console.error("[Flicks] delete comment error:", err);
+      toast.error(msg);
     } finally {
-      setSending(false);
+      setActionId(null);
     }
   };
 
   return (
-    <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
+    <motion.div
+      initial={{ y: "100%" }}
+      animate={{ y: 0 }}
+      exit={{ y: "100%" }}
+      transition={{ type: "spring", damping: 25, stiffness: 250 }}
       className="fixed bottom-0 left-0 right-0 max-w-[500px] mx-auto bg-zinc-900/95 backdrop-blur-xl rounded-t-3xl z-[205] h-[70vh] flex flex-col border-t border-white/10 shadow-2xl"
       onClick={e => e.stopPropagation()}
       onPointerDown={e => e.stopPropagation()}
       onMouseDown={e => e.stopPropagation()}
-      onTouchStart={e => e.stopPropagation()}>
-      <div className="p-4 border-b border-white/10 flex justify-between items-center">
-        <span className="text-white font-bold text-lg">{comments.length} Comments</span>
-        <button onClick={(e) => { e.stopPropagation(); onClose(); }} className="p-2 bg-white/5 rounded-full text-white/50"><X size={20} /></button>
+      onTouchStart={e => e.stopPropagation()}
+    >
+      {/* Drawer Handle & Header */}
+      <div className="pt-3 pb-2 px-4 border-b border-white/10 flex flex-col items-center relative">
+        <div className="w-12 h-1 bg-white/20 rounded-full mb-3" />
+        <div className="w-full flex justify-between items-center">
+          <span className="text-white font-bold text-base tracking-wide flex items-center gap-2">
+            Comments
+            <span className="bg-white/10 text-xs px-2 py-0.5 rounded-full text-white/70">
+              {comments.length}
+            </span>
+          </span>
+          <button
+            onClick={(e) => { e.stopPropagation(); onClose(); }}
+            className="p-1.5 bg-white/5 hover:bg-white/10 rounded-full text-white/60 hover:text-white transition-colors"
+            aria-label="Close comments"
+          >
+            <X size={18} />
+          </button>
+        </div>
       </div>
+
+      {/* Comment List */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {comments.length === 0 && <p className="text-white/20 text-center py-10">Pehla comment aap karein!</p>}
-        {comments.map((c) => {
-          const profile = Array.isArray(c.profiles) ? c.profiles[0] : c.profiles;
-          const commentUsername = profile?.username || profile?.full_name || c.author || "User";
-          const isOwner = Boolean(currentUserId && c.user_id === currentUserId);
-          const isEditing = editingId === c.id;
-          return (
-            <div key={c.id} className="flex gap-3 items-start">
-              <ActiveStatusAvatar src={profile?.avatar_url} name={commentUsername} size={32} online={onlineUserIds.has(c.user_id || "")} />
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-1.5 mb-1">
-                  <span className="text-white/40 text-[10px] font-bold uppercase">{commentUsername}</span>
-                  {isOwner && (
-                    <>
-                      <button onClick={(e) => { e.stopPropagation(); handleEdit(c.id); }}
-                        className="text-xs text-cyan-400 hover:text-cyan-300 underline">Edit</button>
-                      <button onClick={(e) => { e.stopPropagation(); handleDelete(c.id); }}
-                        className="text-xs text-rose-400 hover:text-rose-300 underline">Delete</button>
-                    </>
+        {loading ? (
+          <div className="flex items-center justify-center py-12 text-white/40 gap-2">
+            <Loader2 size={20} className="animate-spin text-cyan-400" />
+            <span className="text-sm">Loading comments…</span>
+          </div>
+        ) : comments.length === 0 ? (
+          <div className="text-center py-14 space-y-2">
+            <p className="text-white/40 text-sm font-medium">No comments yet</p>
+            <p className="text-white/25 text-xs">Be the first to share your thoughts!</p>
+          </div>
+        ) : (
+          comments.map((c) => {
+            const profile = Array.isArray(c.profiles) ? c.profiles[0] : c.profiles;
+            const commentUsername = profile?.full_name || profile?.username || c.author || "User";
+            const isOwner = Boolean(currentUserId && c.user_id === currentUserId);
+            const isEditing = editingId === c.id;
+            const isBusy = actionId === c.id;
+            const timeAgo = formatCommentTime(c.created_at);
+
+            return (
+              <div key={c.id} className="flex gap-3 items-start group">
+                <ActiveStatusAvatar
+                  src={profile?.avatar_url}
+                  name={commentUsername}
+                  size={32}
+                  online={onlineUserIds.has(c.user_id || "")}
+                />
+                <div className="flex-1 min-w-0 bg-white/[0.03] rounded-2xl p-3 border border-white/5">
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-white/90 text-xs font-semibold truncate">
+                        {commentUsername}
+                      </span>
+                      {timeAgo && (
+                        <span className="text-white/30 text-[10px]">
+                          {timeAgo}
+                        </span>
+                      )}
+                    </div>
+                    {isOwner && !isEditing && (
+                      <div className="flex items-center gap-2 opacity-80 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleStartEdit(c); }}
+                          disabled={isBusy}
+                          className="flex items-center gap-1 text-[11px] text-cyan-400 hover:text-cyan-300 font-medium"
+                          title="Edit comment"
+                        >
+                          <Pencil size={12} />
+                          Edit
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleDeleteComment(c.id); }}
+                          disabled={isBusy}
+                          className="flex items-center gap-1 text-[11px] text-rose-400 hover:text-rose-300 font-medium"
+                          title="Delete comment"
+                        >
+                          <Trash2 size={12} />
+                          Delete
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {isEditing ? (
+                    <div className="mt-2 space-y-2">
+                      <textarea
+                        value={editText}
+                        onChange={e => setEditText(e.target.value)}
+                        className="w-full bg-white/10 rounded-xl px-3 py-2 text-white text-sm outline-none border border-cyan-500/50 focus:border-cyan-400 resize-none min-h-[60px]"
+                        autoFocus
+                      />
+                      <div className="flex justify-end gap-2">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setEditingId(null); setEditText(""); }}
+                          className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/15 text-white/70 text-xs font-medium transition-colors"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleSaveEdit(c.id); }}
+                          disabled={isBusy || !editText.trim()}
+                          className="px-3 py-1.5 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-white text-xs font-semibold disabled:opacity-50 transition-colors flex items-center gap-1"
+                        >
+                          {isBusy && <Loader2 size={12} className="animate-spin" />}
+                          Save
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-white/85 text-xs sm:text-sm leading-relaxed break-words whitespace-pre-wrap">
+                      {c.content}
+                    </p>
                   )}
                 </div>
-                {isEditing ? (
-                  <div className="flex gap-2">
-                    <input value={editText} onChange={e => setEditText(e.target.value)}
-                      className="flex-1 bg-white/10 rounded-lg px-3 py-2 text-white text-sm outline-none border border-white/5 focus:border-cyan-500" autoFocus />
-                    <button onClick={(e) => { e.stopPropagation(); e.preventDefault(); handleSaveEdit(c.id); }}
-                      className="px-3 py-2 rounded-lg bg-cyan-500 text-white text-sm font-bold disabled:opacity-60">Save</button>
-                    <button onClick={(e) => { e.stopPropagation(); e.preventDefault(); setEditingId(null); setEditText(""); }}
-                      className="px-3 py-2 rounded-lg bg-white/10 text-white/70 text-sm hover:bg-white/20">Cancel</button>
-                  </div>
-                ) : (
-                  <p className="text-white/90 text-sm leading-relaxed break-words">{c.content}</p>
-                )}
               </div>
-            </div>
-          );
-        })}
+            );
+          })
+        )}
       </div>
-      <div className="p-4 flex gap-2 bg-black/20 pb-safe">
-        <input value={text} onChange={e => setText(e.target.value)}
+
+      {/* Input Section */}
+      <div className="p-3 bg-zinc-950/80 border-t border-white/10 flex gap-2 items-center pb-safe">
+        <input
+          value={text}
+          onChange={e => setText(e.target.value)}
           onPointerDown={e => e.stopPropagation()}
           onMouseDown={e => e.stopPropagation()}
           onTouchStart={e => e.stopPropagation()}
           onClick={e => e.stopPropagation()}
-          className="flex-1 bg-white/10 rounded-full px-5 py-3 text-white outline-none border border-white/5 focus:border-cyan-500/50"
-          placeholder="Add a comment..." onKeyDown={e => e.key === "Enter" && handleSend()} />
-        <button onClick={(e) => { e.stopPropagation(); handleSend(); }}
+          className="flex-1 bg-white/10 hover:bg-white/[0.13] focus:bg-white/[0.15] rounded-full px-4 py-2.5 text-white text-sm outline-none border border-white/10 focus:border-cyan-500/50 placeholder:text-white/40 transition-colors"
+          placeholder="Write a comment..."
+          onKeyDown={e => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              handlePostComment();
+            }
+          }}
+        />
+        <button
+          onClick={(e) => { e.stopPropagation(); handlePostComment(); }}
           onPointerDown={e => e.stopPropagation()}
           onMouseDown={e => e.stopPropagation()}
           onTouchStart={e => e.stopPropagation()}
           disabled={sending || !text.trim()}
-          className="bg-cyan-500 w-12 h-12 rounded-full flex items-center justify-center disabled:opacity-50">
-          {sending ? <Loader2 className="animate-spin text-white" size={18} /> : <Send size={18} className="text-white" />}
+          className="bg-cyan-500 hover:bg-cyan-400 w-10 h-10 rounded-full flex items-center justify-center shrink-0 disabled:opacity-40 disabled:hover:bg-cyan-500 transition-all shadow-md active:scale-95"
+          aria-label="Send comment"
+        >
+          {sending ? (
+            <Loader2 className="animate-spin text-white" size={16} />
+          ) : (
+            <Send size={16} className="text-white ml-0.5" />
+          )}
         </button>
       </div>
     </motion.div>
