@@ -436,7 +436,8 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, isWarmNext, curre
   const [liveShares,        setLiveShares]        = useState(Number(post?.shares_count || 0));
   const [heartPos,          setHeartPos]           = useState<{ x: number; y: number } | null>(null);
   const [showComments,      setShowComments]       = useState(false);
-  const [inputFocused, setInputFocused] = useState(false);
+  const inputFocusedRef = useRef(false);
+  const setInputFocused = (focused: boolean) => { inputFocusedRef.current = focused; };
   const [menuOpen,          setMenuOpen]           = useState(false);
   const [reportOpen,        setReportOpen]         = useState(false);
   const [reportAnchor,      setReportAnchor]       = useState<{ top: number; right: number } | null>(null);
@@ -1478,9 +1479,9 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, isWarmNext, curre
         {showComments && (
           <>
             <div className="fixed inset-0 z-[200] bg-black/40"
-              onClick={(e) => { if (e.target === e.currentTarget && !inputFocused) setShowComments(false); }} />
+              onClick={(e) => { if (e.target === e.currentTarget && !inputFocusedRef.current) setShowComments(false); }} />
             <CommentDrawer post={post} currentUserId={currentUserId}
-              inputFocused={inputFocused}
+              inputFocused={inputFocusedRef.current}
               onInputFocusChange={setInputFocused}
               onClose={() => setShowComments(false)}
               onCommentAdded={(count: number) => setLiveCommentsCount(count)} />
