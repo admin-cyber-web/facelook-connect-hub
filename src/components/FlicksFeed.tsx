@@ -59,6 +59,7 @@ type FlickPostMetadata = {
   mime_type?: unknown;
   mimeType?: unknown;
   content_type?: unknown;
+  bunny_video_id?: unknown;
   [key: string]: unknown;
 };
 type FlickPostRow = {
@@ -243,21 +244,15 @@ const AudioCassette = ({ spinning, compact = false }: { spinning: boolean; compa
     className="shrink-0"
     style={{ filter: "drop-shadow(0 0 4px rgba(255,109,0,0.45))" }}
   >
-    {/* Body */}
     <rect x="0.5" y="0.5" width="39" height="27" rx="3.5" fill="#190d02" stroke="rgba(255,109,0,0.6)" strokeWidth="1" />
-    {/* Tape window */}
     <rect x="7.5" y="7" width="25" height="14" rx="2" fill="#0d0602" stroke="rgba(255,255,255,0.08)" strokeWidth="0.6" />
-    {/* Reels */}
     <Reel cx={13} cy={14} spinning={spinning} />
     <Reel cx={27} cy={14} spinning={spinning} />
-    {/* Center hub bar */}
     <rect x="15.5" y="13.2" width="9" height="1.6" rx="0.8" fill="rgba(255,109,0,0.3)" />
-    {/* Screw holes */}
     <circle cx={4}  cy={4}  r={1.4} fill="#2a1405" />
     <circle cx={36} cy={4}  r={1.4} fill="#2a1405" />
     <circle cx={4}  cy={24} r={1.4} fill="#2a1405" />
     <circle cx={36} cy={24} r={1.4} fill="#2a1405" />
-    {/* Label strip */}
     <rect x="9" y="21.5" width="22" height="3" rx="1.2" fill="rgba(255,141,0,0.2)" />
   </svg>
 );
@@ -281,7 +276,6 @@ const Ticker = ({ text, isActive }: { text: string; isActive: boolean }) => {
     </div>
   );
 };
-
 // ── Comment Box (fast swipe menu + emoji likes + replies + hide/delete) ───────
 type CommentItem = {
   id: string;
@@ -536,6 +530,7 @@ const CommentBox = ({ post, currentUserId, onClose, onCommentAdded, onCommentDel
       setSending(false);
     }
   };
+
   const handleStartEdit = (comment: CommentItem) => {
     setEditingId(comment.id);
     setEditText(comment.content);
@@ -1025,7 +1020,6 @@ const CommentBox = ({ post, currentUserId, onClose, onCommentAdded, onCommentDel
     </motion.div>
   );
 };
-
 // ── FlickCard ─────────────────────────────────────────────────────────────────
 type FlickCardProps = {
   post: FlickPostRow;
@@ -1178,9 +1172,6 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, isWarmNext, curre
     if (!vid) return;
     vid.playbackRate = reelSettings.playbackRate;
     vid.style.filter = reelSettings.cssFilter;
-    // A reel with attached music uses its dedicated audio element, so its
-    // camera/source audio must stay muted to prevent overlapping tracks.
-    // Reels WITHOUT a custom track keep their own audio — always-on sound.
     vid.muted = hasBackgroundAudio;
     vid.volume = 1;
     if (audio) {
@@ -1195,7 +1186,6 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, isWarmNext, curre
       return;
     }
 
-    // Reset transient error/loading on each activation (e.g. after scrolling away and back).
     setVideoError(null);
     vid.currentTime = 0;
 
@@ -1209,8 +1199,6 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, isWarmNext, curre
       ) {
         return;
       }
-      // Scroll events can target document/window rather than the scrolled
-      // element. Never restart the reel behind an open dialog.
       if (
         !(target instanceof Element) &&
         document.querySelector(playbackRetryBlockers)
@@ -1284,7 +1272,6 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, isWarmNext, curre
     videoUrl,
   ]);
 
-  // ── Core like logic (used by button + double-tap) ─────────────────────
   const refreshLikeState = useCallback(async () => {
     const isFlick = post._source === "flicks";
     const likesTable = isFlick ? "flick_likes" : "likes";
@@ -1314,7 +1301,7 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, isWarmNext, curre
 
     setLiveLikes(countResult.count ?? 0);
     setLikedByMe(Boolean(mineResult.data?.length));
-  }, [currentUserId, post._raw_id, post._source, post.id]);
+  }, [post._raw_id, post._source, post.id]);
 
   const triggerLike = async () => {
     if (!currentUserId) { toast.error("Please login to like"); return; }
@@ -1326,23 +1313,15 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, isWarmNext, curre
     const previousCount = liveLikes;
     setLikedByMe(isLiking);
     setLiveLikes(prev => isLiking ? prev + 1 : Math.max(prev - 1, 0));
-    const isFlick   = post._source === "flicks";
+    const isFlick    = post._source === "flicks";
     const likesTable = isFlick ? "flick_likes" : "likes";
-    const fkCol     = isFlick ? "flick_id"   : "post_id";
-    const targetId  = post._raw_id || post.id;
+    const fkCol      = isFlick ? "flick_id"   : "post_id";
+    const targetId   = post._raw_id || post.id;
     try {
-      // Never trust a prop for ownership. Supabase RLS validates this against
-      // auth.uid(), so use the session's authenticated user ID in the row.
       const { data: authData, error: authError } = await supabase.auth.getUser();
       if (authError) throw authError;
       const authUserId = authData.user?.id;
       if (!authUserId) throw new Error("No authenticated user");
-      if (authUserId !== currentUserId) {
-        console.warn("[Flicks] currentUserId prop differed from auth user; using auth user", {
-          currentUserId,
-          authUserId,
-        });
-      }
 
       if (isLiking) {
         const { error } = await supabase
@@ -1367,13 +1346,7 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, isWarmNext, curre
           .eq("user_id", authUserId);
         if (error) throw error;
       }
-      // Keep the optimistic card state after a successful mutation. The feed
-      // already receives the server counter with the bounded post projection;
-      // rereading count + viewer row here doubled egress for every tap.
     } catch (err) {
-      // A failed mutation may still have reached the database. Reconcile
-      // first; only roll back the optimistic state if the authoritative read
-      // also fails.
       try {
         await refreshLikeState();
       } catch {
@@ -1387,11 +1360,9 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, isWarmNext, curre
     }
   };
 
-  // ── Tap handler: double-tap anywhere on the video = like ────────────────
   const handleVideoTap = (e: React.MouseEvent<HTMLDivElement>) => {
     const now = Date.now();
     if (now - lastTap.current < 300) {
-      // Double-tap detected
       if (tapTimer.current) { clearTimeout(tapTimer.current); tapTimer.current = null; }
       lastTap.current = 0;
       const rect = e.currentTarget.getBoundingClientRect();
@@ -1413,27 +1384,27 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, isWarmNext, curre
     const rect = e.currentTarget.getBoundingClientRect();
     const id = String(post._raw_id || post.id);
     const shareData: SharePostData = {
-        id,
-        title: post.meta_title || localContent.slice(0, 72) || "Watch this Flick!",
-        content: `${localContent.slice(0, 180)}${localContent.trim() ? "\n\n" : ""}via Flicks India`,
-        media_url: post.media_url || post.video_url,
-        image_url: post.image_url,
-        image_urls: post.image_urls,
-        video_url: post.video_url || post.media_url,
-        cover_url: post.thumb_url || post.cover_url,
-        meta_image: post.thumb_url || post.cover_url,
-        type: "reel",
-        author: post.author,
-        meta_title: post.meta_title,
-        meta_description: post.meta_description,
-        shares_count: liveShares,
-        metadata: post.metadata,
-        thumb_url: post.thumb_url,
-        thumbnail_url: post.thumbnail_url,
-        poster_url: post.poster_url,
-        preview_url: post.preview_url,
-        video_thumbnail_url: post.video_thumbnail_url,
-      };
+      id,
+      title: post.meta_title || localContent.slice(0, 72) || "Watch this Flick!",
+      content: `${localContent.slice(0, 180)}${localContent.trim() ? "\n\n" : ""}via Flicks India`,
+      media_url: post.media_url || post.video_url,
+      image_url: post.image_url,
+      image_urls: post.image_urls,
+      video_url: post.video_url || post.media_url,
+      cover_url: post.thumb_url || post.cover_url,
+      meta_image: post.thumb_url || post.cover_url,
+      type: "reel",
+      author: post.author,
+      meta_title: post.meta_title,
+      meta_description: post.meta_description,
+      shares_count: liveShares,
+      metadata: post.metadata,
+      thumb_url: post.thumb_url,
+      thumbnail_url: post.thumbnail_url,
+      poster_url: post.poster_url,
+      preview_url: post.preview_url,
+      video_thumbnail_url: post.video_thumbnail_url,
+    };
     if (
       typeof window.AndroidShare?.shareMedia === "function" ||
       typeof window.AndroidShare?.shareText === "function"
@@ -1507,6 +1478,10 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, isWarmNext, curre
     }
   };
 
+  const isOwner = Boolean(currentUserId && post.author_id === currentUserId);
+  const canEdit   = isOwner && typeof onEditReel === "function";
+  const canDelete = isOwner;
+
   const saveCaption = async () => {
     const trimmed = localContent.trim();
     if (!trimmed || savingCaption || !isOwner) return;
@@ -1566,16 +1541,12 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, isWarmNext, curre
       throw new Error("Could not determine the Reel database ID.");
     }
 
-    // Avoid DELETE ... RETURNING: Supabase may apply a valid delete while RLS
-    // prevents returning the deleted row to the client.
     const result = post?._source === "flicks"
       ? await supabase.from("flicks").delete().eq("id", postId)
       : await supabase.from("posts").delete().eq("id", postId);
     const { error } = result;
     if (error) throw error;
 
-    // Detect a silent RLS no-op where the row is still visible. If SELECT
-    // itself is restricted, trust the successful DELETE response instead.
     const remaining = post?._source === "flicks"
       ? await supabase.from("flicks").select("id").eq("id", postId).maybeSingle()
       : await supabase.from("posts").select("id").eq("id", postId).maybeSingle();
@@ -1597,7 +1568,403 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, isWarmNext, curre
     setMenuOpen(false);
     if (!isAdmin || deleting) return;
     if (!window.confirm("ADMIN: Delete this video permanently?")) return;
-    {vibe.primary && (
+    const postId = String(post?._raw_id ?? "").trim();
+    setDeleting(true);
+    if (postId) onPostDeleteOptimistic?.(postId, post);
+    try {
+      const deletedId = await deletePostRow();
+      onPostDeleted?.(deletedId);
+      toast.success("Video deleted.");
+    } catch (error) {
+      if (postId) onPostDeleteRollback?.(postId);
+      console.error("[Flicks] admin delete failed:", error);
+      toast.error(getDeleteErrorMessage(error));
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const handleOwnerDelete = async () => {
+    if (!isOwner || deleting) return;
+    const postId = String(post?._raw_id ?? "").trim();
+    setConfirmDeleteOpen(false);
+    setMenuOpen(false);
+    setDeleting(true);
+    if (postId) onPostDeleteOptimistic?.(postId, post);
+    try {
+      const deletedId = await deletePostRow();
+      onPostDeleted?.(deletedId);
+      toast.success("Reel deleted.");
+    } catch (error) {
+      if (postId) onPostDeleteRollback?.(postId);
+      console.error("[Flicks] owner delete failed:", error);
+      toast.error(getDeleteErrorMessage(error));
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const handleBanUser = async () => {
+    setMenuOpen(false);
+    if (!isAdmin || !post.author_id) return;
+    const label = post.author || "this user";
+    if (!window.confirm(`ADMIN: Ban ${label} from posting?`)) return;
+    try {
+      const { error } = await supabase.from("profiles").update({ is_banned: true }).eq("id", post.author_id);
+      if (error) throw error;
+      onUserBanned?.(post.author_id);
+      toast.success(`🚫 ${label} has been banned.`);
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to ban user");
+    }
+  };
+
+  const hasMusic = Boolean(reelSettings.audioUrl);
+  const musicTitle = hasMusic
+    ? reelSettings.audioTitle || "Original Sound"
+    : vibe.primary
+      ? `${vibe.primary.label} Vibe`
+      : "Original Sound";
+  const tickerText = hasMusic
+    ? `${reelSettings.audioTitle || "Original Sound"} · ${post.author || "Creator"}`
+    : `${vibe.primary?.label || "Original Sound"} · ${post.author || "Creator"}`;
+
+  const preloadMode: "none" | "metadata" | "auto" = isActive
+    ? "auto"
+    : isPreloaded
+      ? "metadata"
+      : "none";
+
+  return (
+    <div
+      className="relative w-full h-full snap-start snap-always shrink-0 bg-black select-none overflow-hidden"
+      onClick={handleVideoTap}
+    >
+      {/* ── Layer 1: Full-bleed video + error / health fallback ── */}
+      {visibleVideoError ? (
+        <div className="w-full h-full flex flex-col items-center justify-center bg-zinc-950 px-6 text-center gap-4">
+          <div className="w-14 h-14 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center text-2xl">
+            ⚠️
+          </div>
+          <div>
+            <p className="text-white font-bold text-sm">Video Unavailable</p>
+            <p className="text-white/45 text-xs mt-1">{visibleVideoError}</p>
+          </div>
+          <div className="flex items-center gap-2.5">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setVideoError(null);
+                hlsPlayback.retry();
+                const v = videoRef.current;
+                if (v) {
+                  if (!hlsPlayback.isHls) v.load();
+                  requestPlayback(v, hasBackgroundAudio);
+                }
+              }}
+              className="px-4 py-2 rounded-full bg-white/10 hover:bg-white/15 border border-white/15 text-white text-xs font-bold transition-colors"
+            >
+              Retry
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onVideoInvalid?.(post.id);
+              }}
+              className="px-4 py-2 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-white/60 text-xs font-semibold transition-colors"
+            >
+              Skip Reel
+            </button>
+          </div>
+        </div>
+      ) : (
+        <>
+          <video
+            ref={videoRef}
+            className="w-full h-full object-cover"
+            src={!hlsPlayback.isHls && isPreloaded && (!isCreator || bunnyVideoReady) ? videoUrl : undefined}
+            poster={post.thumb_url || post.cover_url || undefined}
+            playsInline
+            loop
+            preload={preloadMode}
+            muted={hasBackgroundAudio}
+            onPlaying={() => {
+              setHasPlayableVideo(true);
+              setVideoError(null);
+            }}
+            onError={() => {
+              if (hlsPlayback.isHls) return;
+              const v = videoRef.current;
+              const label = parseMediaError(v?.error ?? null);
+              console.warn("[Flicks] video error:", label, { postId: post.id, src: v?.currentSrc });
+              setVideoError(label);
+            }}
+          />
+          {hasBackgroundAudio && (
+            <audio
+              ref={audioRef}
+              src={isPreloaded ? reelSettings.audioUrl || undefined : undefined}
+              preload={preloadMode}
+              playsInline
+              loop
+            />
+          )}
+          {isCreator && bunnyVideoId && !bunnyVideoReady && (
+            <BunnyCreatorProcessingOverlay
+              status={bunnyVideoStatus}
+              posterUrl={post.thumb_url || post.cover_url}
+            />
+          )}
+          {!isCreator && bunnyVideoId && !bunnyVideoReady && (
+            <BunnyVideoStatusOverlay
+              status={bunnyVideoStatus}
+              posterUrl={post.thumb_url || post.cover_url}
+              onRetry={() => {
+                hlsPlayback.retry();
+                const v = videoRef.current;
+                if (v) {
+                  if (!hlsPlayback.isHls) v.load();
+                  requestPlayback(v, hasBackgroundAudio);
+                }
+              }}
+            />
+          )}
+        </>
+      )}
+
+      {/* ── Double-tap heart burst ── */}
+      {heartPos && (
+        <div
+          className="pointer-events-none absolute z-30 -translate-x-1/2 -translate-y-1/2 animate-ping"
+          style={{ left: heartPos.x, top: heartPos.y }}
+        >
+          <Heart size={84} fill="#FF2D55" className="text-[#FF2D55] drop-shadow-[0_0_24px_rgba(255,45,85,0.85)]" />
+        </div>
+      )}
+
+      {/* ── Layer 2: Scrim gradients (top + bottom) ── */}
+      <div
+        className="pointer-events-none absolute inset-x-0 top-0 h-28"
+        style={{ background: "linear-gradient(to bottom, rgba(0,0,0,0.55), transparent)" }}
+      />
+      <div
+        className="pointer-events-none absolute inset-x-0 bottom-0 h-60"
+        style={{ background: "linear-gradient(to top, rgba(0,0,0,0.82), rgba(0,0,0,0.32) 55%, transparent)" }}
+      />
+
+      {/* ── Layer 3: Right-edge vertical action rail (5 compact buttons) ── */}
+      <div
+        className="absolute right-3 z-20 flex flex-col items-center gap-3.5"
+        style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 52px)" }}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* 1. Like */}
+        <div className="flex flex-col items-center gap-0.5">
+          <MagnetButton
+            onClick={() => void triggerLike()}
+            className="w-10 h-10 rounded-full flex items-center justify-center active:scale-90 transition-transform"
+            style={{ background: "rgba(18,17,22,0.55)", backdropFilter: "blur(10px)" }}
+            aria-label="Like"
+          >
+            <Heart
+              size={22}
+              fill={likedByMe ? "#FF2D55" : "none"}
+              className={likedByMe ? "text-[#FF2D55]" : "text-white"}
+            />
+          </MagnetButton>
+          <span className="text-[11px] font-bold text-white" style={{ textShadow: "0 1px 4px rgba(0,0,0,0.9)" }}>
+            {formatCount(liveLikes)}
+          </span>
+        </div>
+
+        {/* 2. Comment */}
+        <div className="flex flex-col items-center gap-0.5">
+          <MagnetButton
+            onClick={() => { sounds?.playPop?.(); setShowComments(true); }}
+            className="w-10 h-10 rounded-full flex items-center justify-center active:scale-90 transition-transform"
+            style={{ background: "rgba(18,17,22,0.55)", backdropFilter: "blur(10px)" }}
+            aria-label="Comments"
+          >
+            <MessageCircle size={22} className="text-white" />
+          </MagnetButton>
+          <span className="text-[11px] font-bold text-white" style={{ textShadow: "0 1px 4px rgba(0,0,0,0.9)" }}>
+            {formatCount(liveCommentsCount)}
+          </span>
+        </div>
+
+        {/* 3. Share */}
+        <div className="flex flex-col items-center gap-0.5">
+          <MagnetButton
+            onClick={handleShare}
+            className="w-10 h-10 rounded-full flex items-center justify-center active:scale-90 transition-transform"
+            style={{ background: "rgba(18,17,22,0.55)", backdropFilter: "blur(10px)" }}
+            aria-label="Share"
+          >
+            <Share2 size={21} className="text-white" />
+          </MagnetButton>
+          <span className="text-[11px] font-bold text-white" style={{ textShadow: "0 1px 4px rgba(0,0,0,0.9)" }}>
+            {formatCount(liveShares)}
+          </span>
+        </div>
+
+        {/* 4. Save */}
+        <div className="flex flex-col items-center">
+          <SavePostButton
+            postId={post._raw_id || post.id}
+            userId={currentUserId || undefined}
+            size="sm"
+            variant="overlay"
+            showLabel={false}
+          />
+        </div>
+
+        {/* 5. More actions (...) */}
+        <div className="relative flex flex-col items-center">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setMenuOpen(o => !o);
+            }}
+            aria-label="More options"
+            className="w-10 h-10 rounded-full flex items-center justify-center active:scale-90 transition-transform"
+            style={{ background: "rgba(18,17,22,0.55)", backdropFilter: "blur(10px)" }}
+          >
+            <MoreVertical size={20} className="text-white" />
+          </button>
+
+          {menuOpen && (
+            <div
+              onClick={e => e.stopPropagation()}
+              className="absolute right-12 bottom-0 w-44 rounded-2xl bg-zinc-950/95 border border-white/15 p-1.5 shadow-2xl z-30 space-y-0.5"
+            >
+              {canEdit && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    onEditReel?.(post);
+                  }}
+                  className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold text-white hover:bg-white/10"
+                >
+                  <Pencil size={13} className="text-cyan-400" />
+                  Edit Reel
+                </button>
+              )}
+              {isOwner && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    setEditingCaption(true);
+                  }}
+                  className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold text-white hover:bg-white/10"
+                >
+                  <Pencil size={13} className="text-amber-300" />
+                  Edit Caption
+                </button>
+              )}
+              {canDelete && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    setConfirmDeleteOpen(true);
+                  }}
+                  className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold text-rose-300 hover:bg-rose-500/15"
+                >
+                  <Trash2 size={13} />
+                  Delete Reel
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={(e) => {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  setReportAnchor({ top: Math.max(80, rect.top), right: 16 });
+                  setMenuOpen(false);
+                  setReportOpen(true);
+                }}
+                className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold text-orange-300 hover:bg-orange-500/15"
+              >
+                <Flag size={13} />
+                Report Reel
+              </button>
+              {isAdmin && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => void handleAdminDelete()}
+                    className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold text-rose-400 hover:bg-rose-500/15"
+                  >
+                    <Trash2 size={13} />
+                    Admin Delete
+                  </button>
+                  {post.author_id && (
+                    <button
+                      type="button"
+                      onClick={() => void handleBanUser()}
+                      className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold text-red-400 hover:bg-red-500/15"
+                    >
+                      <Ban size={13} />
+                      Ban Creator
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── Layer 4: Bottom-left translucent creator & music panel ── */}
+      <div
+        className="absolute left-3 right-16 z-20"
+        style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 52px)" }}
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="rounded-2xl bg-black/45 backdrop-blur-md border border-white/10 p-2.5">
+          {/* Author row */}
+          <div className="flex items-center justify-between gap-2 mb-1.5">
+            <button
+              type="button"
+              onClick={() => post.author_id && openProfile(post.author_id)}
+              className="flex items-center gap-2 min-w-0 text-left"
+            >
+              <ActiveStatusAvatar
+                src={post.author_avatar || post.author_profile?.avatar_url}
+                name={post.author || "User"}
+                size={28}
+                online={onlineUserIds.has(post.author_id || "")}
+              />
+              <span className="text-xs font-bold text-white truncate flex items-center gap-1">
+                {post.author || "User"}
+                {post.is_admin_post && <BadgeCheck size={13} className="text-sky-400 shrink-0" />}
+              </span>
+            </button>
+
+            <div className="flex items-center gap-1.5 shrink-0">
+              {vibeAudioUrl && (
+                <VibeAudioToggle
+                  postId={vibePostId}
+                  audioUrl={vibeAudioUrl}
+                  isActive={isActive}
+                />
+              )}
+              {post.author_id && post.author_id !== currentUserId && onBridgeChat && (
+                <button
+                  type="button"
+                  onClick={() => onBridgeChat(post.author_id!)}
+                  className="px-2.5 py-1 rounded-full bg-white/15 hover:bg-white/25 text-[10px] font-bold text-white transition-colors"
+                >
+                  Chat
+                </button>
+              )}
+            </div>
+          </div>
+          {vibe.primary && (
             <div className="mb-1 inline-flex items-center rounded-full border border-white/15 bg-black/40 px-2 py-1">
               <span
                 className="text-[10px] font-extrabold"
@@ -1821,7 +2188,6 @@ export default function FlicksApp({
   const [pullDistance, setPullDistance] = useState(0);
   const [reelsRefreshing, setReelsRefreshing] = useState(false);
 
-  // Compact header search — client-side filter over author + caption
   const [searchQuery, setSearchQuery] = useState("");
   const visibleFlicks = useMemo(() => {
     const viewerFlicks = flicks.filter((post: FlickPostRow) =>
@@ -1835,7 +2201,6 @@ export default function FlicksApp({
     );
   }, [currentUserId, flicks, searchQuery]);
 
-  // Inject CSS keyframes once on mount
   useEffect(() => { injectFlicksStyles(); }, []);
 
   useEffect(() => {
@@ -1894,8 +2259,6 @@ export default function FlicksApp({
         if (postsResult.error) throw postsResult.error;
         const rows: FlickPostRow[] = [...(postsResult.data || [])] as unknown as FlickPostRow[];
 
-        // A FameFeed video can be older than the default 30-reel window. Fetch
-        // that selected post explicitly so the viewer can still open on it.
         if (initialPostId && !rows.some((row) => row.id === initialPostId)) {
           const loadSelectedPost = (selectedProjection: string) =>
             supabase
@@ -2048,9 +2411,7 @@ export default function FlicksApp({
                 const engagement = engagementByPost.get(item._raw_id);
                 return {
                   ...item,
-                  liked_by_me: engagementError
-                    ? likedIds.has(item._raw_id)
-                    : likedIds.has(item._raw_id),
+                  liked_by_me: likedIds.has(item._raw_id),
                   likes_count: engagementError
                     ? item.likes_count
                     : Number(engagement?.likes_count) || 0,
@@ -2191,7 +2552,6 @@ export default function FlicksApp({
     };
   }, [currentUserIdProp, currentUserEmailProp, initialPostId]);
 
-  // RAF-throttled scroll → update active index
   const scrollTicking = useRef(false);
   const onScroll = useCallback(() => {
     if (commentDrawerOpenRef.current) return;
@@ -2233,8 +2593,6 @@ export default function FlicksApp({
     setCurrentIndex(nextIndex);
   }, [currentIndex, visibleFlicks.length]);
 
-  // Keep the next two attached tracks warm; the mounted video cards preload
-  // their own media directly, avoiding full-file blob downloads.
   useEffect(() => {
     visibleFlicks.slice(currentIndex, currentIndex + 3).forEach((f: any) => {
       const audio = getReelSettings(f).audioUrl;
@@ -2242,8 +2600,6 @@ export default function FlicksApp({
     });
   }, [visibleFlicks, currentIndex]);
 
-  // FameFeed handoff — jump straight to the tapped video when the overlay
-  // opens with an initialPostId (Facebook-style transition).
   const initialScrollDoneRef = useRef(false);
   useEffect(() => {
     initialScrollDoneRef.current = false;
@@ -2262,14 +2618,12 @@ export default function FlicksApp({
     el.scrollTop = idx * el.clientHeight;
   }, [initialPostId, loading, visibleFlicks]);
 
-  // Handle notification tap: scroll to post/reel in feed and optionally expand comments
   useEffect(() => {
     const handleOpenPostInFeed = (event: Event) => {
       const detail = (event as CustomEvent<{ postId?: string; type?: string }>).detail;
       const postId = detail?.postId;
       if (!postId) return;
 
-      // Scroll to the post in the feed
       if (!containerRef.current || visibleFlicks.length === 0) return;
       const idx = visibleFlicks.findIndex(
         (f: any) => f._raw_id === postId || f.id === postId,
@@ -2278,9 +2632,6 @@ export default function FlicksApp({
       currentIndexRef.current = idx;
       setCurrentIndex(idx);
       containerRef.current.scrollTop = idx * containerRef.current.clientHeight;
-
-      // For comment notifications, we could expand comments - but FlicksFeed doesn't have inline comments UI yet
-      // This could be enhanced later to open comment sheet
     };
     window.addEventListener("flicks:open-post-in-feed", handleOpenPostInFeed as EventListener);
     return () => window.removeEventListener("flicks:open-post-in-feed", handleOpenPostInFeed as EventListener);
@@ -2409,7 +2760,6 @@ export default function FlicksApp({
 
   return (
     <div className="fixed inset-0 bg-black z-[100]" style={{ touchAction: "pan-y" }}>
-      {/* ── Translucent safe-area header — back · centered "Reels" · compact search ── */}
       <div
         className="fixed top-0 left-0 right-0 z-[120]"
         style={{
@@ -2432,7 +2782,6 @@ export default function FlicksApp({
           ) : (
             <span className="w-9 h-9" />
           )}
-          {/* Centered title — clean bold white/red accent */}
           <p
             className="pointer-events-none absolute left-1/2 -translate-x-1/2 text-[16px] font-black tracking-[0.1em]"
             style={{
@@ -2445,7 +2794,6 @@ export default function FlicksApp({
           >
             Reels
           </p>
-          {/* Compact search pill — far right, inside the safe area */}
           <div
             className="flex items-center gap-1.5 rounded-full pl-2.5 pr-3 h-8 shrink-0"
             style={{
@@ -2496,7 +2844,6 @@ export default function FlicksApp({
           </div>
         ) : (
           visibleFlicks.map((f, i) => {
-            // Keep the requested preload window mounted without rendering the full feed.
             const isNear = i >= currentIndex - 1 && i <= currentIndex + 2;
             if (!isNear) {
               return <div key={f.id} className="w-full h-full bg-black snap-start snap-always shrink-0" />;
