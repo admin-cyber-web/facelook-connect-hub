@@ -288,11 +288,9 @@ type CommentDrawerProps = {
   currentUserId: string | null;
   onClose: () => void;
   onCommentAdded?: (newCount?: number) => void;
-  inputFocused?: boolean;
-  onInputFocusChange?: (focused: boolean) => void;
 };
 
-const CommentDrawer = ({ post, currentUserId, onClose, onCommentAdded, inputFocused, onInputFocusChange }: CommentDrawerProps) => {
+const CommentDrawer = ({ post, currentUserId, onClose, onCommentAdded }: CommentDrawerProps) => {
   const onlineUserIds = useOnlineUsers();
   const [comments, setComments] = useState<Array<{
     id: string;
@@ -387,8 +385,6 @@ const CommentDrawer = ({ post, currentUserId, onClose, onCommentAdded, inputFocu
           onMouseDown={e => e.stopPropagation()}
           onTouchStart={e => e.stopPropagation()}
           onClick={e => e.stopPropagation()}
-          onFocus={() => onInputFocusChange?.(true)}
-          onBlur={() => onInputFocusChange?.(false)}
           className="flex-1 bg-white/10 rounded-full px-5 py-3 text-white outline-none border border-white/5 focus:border-cyan-500/50"
           placeholder="Add a comment..." onKeyDown={e => e.key === "Enter" && handleSend()} />
         <button onClick={(e) => { e.stopPropagation(); handleSend(); }}
@@ -436,8 +432,6 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, isWarmNext, curre
   const [liveShares,        setLiveShares]        = useState(Number(post?.shares_count || 0));
   const [heartPos,          setHeartPos]           = useState<{ x: number; y: number } | null>(null);
   const [showComments,      setShowComments]       = useState(false);
-  const inputFocusedRef = useRef(false);
-  const setInputFocused = (focused: boolean) => { inputFocusedRef.current = focused; };
   const [menuOpen,          setMenuOpen]           = useState(false);
   const [reportOpen,        setReportOpen]         = useState(false);
   const [reportAnchor,      setReportAnchor]       = useState<{ top: number; right: number } | null>(null);
@@ -1479,10 +1473,10 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, isWarmNext, curre
         {showComments && (
           <>
             <div className="fixed inset-0 z-[200] bg-black/40"
-              onClick={(e) => { if (e.target === e.currentTarget && !inputFocusedRef.current) setShowComments(false); }} />
+              onClick={(e) => { 
+                if (e.target === e.currentTarget) setShowComments(false); 
+              }} />
             <CommentDrawer post={post} currentUserId={currentUserId}
-              inputFocused={inputFocusedRef.current}
-              onInputFocusChange={setInputFocused}
               onClose={() => setShowComments(false)}
               onCommentAdded={(count: number) => setLiveCommentsCount(count)} />
           </>
