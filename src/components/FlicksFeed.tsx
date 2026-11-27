@@ -458,11 +458,15 @@ const CommentBox = ({ post, currentUserId, onClose, onCommentAdded, onCommentDel
 
   return (
     <motion.div
+      role="dialog"
+      aria-modal="true"
+      data-no-media-playback-retry="true"
       initial={{ y: "100%" }}
       animate={{ y: 0 }}
       exit={{ y: "100%" }}
       transition={{ type: "spring", damping: 25, stiffness: 250 }}
-      className="fixed bottom-0 left-0 right-0 max-w-[500px] mx-auto bg-zinc-900/95 backdrop-blur-xl rounded-t-3xl z-[205] h-[70vh] flex flex-col border-t border-white/10 shadow-2xl"
+      className="fixed bottom-0 left-0 right-0 max-w-[500px] mx-auto bg-zinc-900/95 backdrop-blur-xl rounded-t-3xl z-[10000] h-[70vh] flex flex-col border-t border-white/10 shadow-2xl"
+      style={{ touchAction: "pan-y" }}
       onClick={e => e.stopPropagation()}
       onPointerDown={e => e.stopPropagation()}
       onMouseDown={e => e.stopPropagation()}
@@ -479,6 +483,7 @@ const CommentBox = ({ post, currentUserId, onClose, onCommentAdded, onCommentDel
             </span>
           </span>
           <button
+            type="button"
             onClick={(e) => { e.stopPropagation(); onClose(); }}
             className="p-1.5 bg-white/5 hover:bg-white/10 rounded-full text-white/60 hover:text-white transition-colors"
             aria-label="Close comments"
@@ -532,6 +537,7 @@ const CommentBox = ({ post, currentUserId, onClose, onCommentAdded, onCommentDel
                     {isOwner && !isEditing && (
                       <div className="flex items-center gap-2 opacity-80 group-hover:opacity-100 transition-opacity">
                         <button
+                          type="button"
                           onClick={(e) => { e.stopPropagation(); handleStartEdit(c); }}
                           disabled={isBusy}
                           className="flex items-center gap-1 text-[11px] text-cyan-400 hover:text-cyan-300 font-medium"
@@ -541,6 +547,7 @@ const CommentBox = ({ post, currentUserId, onClose, onCommentAdded, onCommentDel
                           Edit
                         </button>
                         <button
+                          type="button"
                           onClick={(e) => { e.stopPropagation(); handleDeleteComment(c.id); }}
                           disabled={isBusy}
                           className="flex items-center gap-1 text-[11px] text-rose-400 hover:text-rose-300 font-medium"
@@ -558,17 +565,24 @@ const CommentBox = ({ post, currentUserId, onClose, onCommentAdded, onCommentDel
                       <textarea
                         value={editText}
                         onChange={e => setEditText(e.target.value)}
+                        onPointerDown={e => e.stopPropagation()}
+                        onMouseDown={e => e.stopPropagation()}
+                        onTouchStart={e => e.stopPropagation()}
+                        onClick={e => e.stopPropagation()}
                         className="w-full bg-white/10 rounded-xl px-3 py-2 text-white text-sm outline-none border border-cyan-500/50 focus:border-cyan-400 resize-none min-h-[60px]"
+                        style={{ fontSize: 16 }}
                         autoFocus
                       />
                       <div className="flex justify-end gap-2">
                         <button
+                          type="button"
                           onClick={(e) => { e.stopPropagation(); setEditingId(null); setEditText(""); }}
                           className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/15 text-white/70 text-xs font-medium transition-colors"
                         >
                           Cancel
                         </button>
                         <button
+                          type="button"
                           onClick={(e) => { e.stopPropagation(); handleSaveEdit(c.id); }}
                           disabled={isBusy || !editText.trim()}
                           className="px-3 py-1.5 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-white text-xs font-semibold disabled:opacity-50 transition-colors flex items-center gap-1"
@@ -593,6 +607,7 @@ const CommentBox = ({ post, currentUserId, onClose, onCommentAdded, onCommentDel
       {/* Input Section */}
       <div className="p-3 bg-zinc-950/80 border-t border-white/10 flex gap-2 items-center pb-safe">
         <input
+          type="text"
           value={text}
           onChange={e => setText(e.target.value)}
           onPointerDown={e => e.stopPropagation()}
@@ -600,6 +615,7 @@ const CommentBox = ({ post, currentUserId, onClose, onCommentAdded, onCommentDel
           onTouchStart={e => e.stopPropagation()}
           onClick={e => e.stopPropagation()}
           className="flex-1 bg-white/10 hover:bg-white/[0.13] focus:bg-white/[0.15] rounded-full px-4 py-2.5 text-white text-sm outline-none border border-white/10 focus:border-cyan-500/50 placeholder:text-white/40 transition-colors"
+          style={{ fontSize: 16 }}
           placeholder="Write a comment..."
           onKeyDown={e => {
             if (e.key === "Enter" && !e.shiftKey) {
@@ -609,6 +625,7 @@ const CommentBox = ({ post, currentUserId, onClose, onCommentAdded, onCommentDel
           }}
         />
         <button
+          type="button"
           onClick={(e) => { e.stopPropagation(); handlePostComment(); }}
           onPointerDown={e => e.stopPropagation()}
           onMouseDown={e => e.stopPropagation()}
@@ -732,6 +749,24 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, isWarmNext, curre
   useEffect(() => () => {
     if (tapTimer.current) clearTimeout(tapTimer.current);
     if (heartTimerRef.current) clearTimeout(heartTimerRef.current);
+  }, []);
+
+  useEffect(() => {
+    window.dispatchEvent(
+      new CustomEvent("flicks:comment-drawer-state", {
+        detail: { open: Boolean(isActive && showComments) },
+      }),
+    );
+  }, [isActive, showComments]);
+
+  useEffect(() => {
+    if (!isActive) setShowComments(false);
+  }, [isActive]);
+
+  useEffect(() => () => {
+    window.dispatchEvent(
+      new CustomEvent("flicks:comment-drawer-state", { detail: { open: false } }),
+    );
   }, []);
 
   useEffect(() => {
@@ -1181,7 +1216,6 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, isWarmNext, curre
     setMenuOpen(false);
     if (!isAdmin || deleting) return;
     if (!window.confirm("ADMIN: Delete this video permanently?")) return;
-
     setDeleting(true);
     onPostDeleteOptimistic?.(String(post._raw_id), post);
     try {
@@ -1603,7 +1637,6 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, isWarmNext, curre
               Follow
             </button>
           </div>
-
           {vibe.primary && (
             <div className="mb-1 inline-flex items-center rounded-full border border-white/15 bg-black/40 px-2 py-1">
               <span
@@ -1696,21 +1729,30 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, isWarmNext, curre
         document.body
       )}
 
-      {/* ── Comments ── */}
-      <AnimatePresence>
-        {showComments && (
-          <>
-            <div className="fixed inset-0 z-[200] bg-black/40"
-              onClick={(e) => { 
-                if (e.target === e.currentTarget) setShowComments(false); 
-              }} />
-            <CommentBox post={post} currentUserId={currentUserId}
-              onClose={() => setShowComments(false)}
-              onCommentAdded={() => setLiveCommentsCount(prev => prev + 1)}
-              onCommentDeleted={() => setLiveCommentsCount(prev => Math.max(prev - 1, 0))} />
-          </>
-        )}
-      </AnimatePresence>
+      {/* ── Comments (portal) ── */}
+      {createPortal(
+        <AnimatePresence>
+          {showComments && isActive && (
+            <>
+              <div
+                data-no-media-playback-retry="true"
+                className="fixed inset-0 z-[9999] bg-black/40"
+                onClick={(e) => {
+                  if (e.target === e.currentTarget) setShowComments(false);
+                }}
+              />
+              <CommentBox
+                post={post}
+                currentUserId={currentUserId}
+                onClose={() => setShowComments(false)}
+                onCommentAdded={() => setLiveCommentsCount(prev => prev + 1)}
+                onCommentDeleted={() => setLiveCommentsCount(prev => Math.max(prev - 1, 0))}
+              />
+            </>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
       {sharePopupData && createPortal(
         <SharePopup
           post={sharePopupData.post}
@@ -1809,6 +1851,7 @@ export default function FlicksApp({
     profileAdminUserId === currentUserId;
   const containerRef = useRef<HTMLDivElement>(null);
   const currentIndexRef = useRef(0);
+  const commentDrawerOpenRef = useRef(false);
   const pendingDeleteSnapshotsRef = useRef(
     new Map<string, { item: FlickPostRow; index: number; currentIndex: number }>(),
   );
@@ -1834,6 +1877,19 @@ export default function FlicksApp({
 
   // Inject CSS keyframes once on mount
   useEffect(() => { injectFlicksStyles(); }, []);
+
+  useEffect(() => {
+    const onDrawerState = (event: Event) => {
+      const open = Boolean((event as CustomEvent<{ open?: boolean }>).detail?.open);
+      commentDrawerOpenRef.current = open;
+      if (open) {
+        pullDistanceRef.current = 0;
+        setPullDistance(0);
+      }
+    };
+    window.addEventListener("flicks:comment-drawer-state", onDrawerState);
+    return () => window.removeEventListener("flicks:comment-drawer-state", onDrawerState);
+  }, []);
 
   useEffect(() => {
     const userId = currentUserId;
@@ -2026,7 +2082,6 @@ export default function FlicksApp({
                 }
               }
             }
-
             setFlicks((previous) => {
               const refreshed = previous.map((item) => {
                 if (!postIds.includes(item._raw_id)) return item;
@@ -2095,10 +2150,11 @@ export default function FlicksApp({
     const onTouchStart = (event: TouchEvent) => {
       const target = event.target instanceof Element ? event.target : null;
       if (
+        commentDrawerOpenRef.current ||
         event.touches.length !== 1 ||
         reelsRefreshingRef.current ||
         !isAtTop() ||
-        target?.closest('button, a, input, textarea, select, [contenteditable], [data-no-pull-refresh]')
+        target?.closest('button, a, input, textarea, select, [contenteditable], [data-no-pull-refresh], [role="dialog"], [data-no-media-playback-retry]')
       ) {
         resetPull();
         return;
@@ -2112,6 +2168,10 @@ export default function FlicksApp({
       pullDistanceRef.current = 0;
     };
     const onTouchMove = (event: TouchEvent) => {
+      if (commentDrawerOpenRef.current) {
+        resetPull();
+        return;
+      }
       if (!touchStart || !startedAtTop || event.touches.length !== 1) return;
       if (!isAtTop()) {
         gesture = "blocked";
@@ -2138,6 +2198,7 @@ export default function FlicksApp({
     };
     const onTouchEnd = () => {
       const shouldRefresh =
+        !commentDrawerOpenRef.current &&
         gesture === "pulling" &&
         startedAtTop &&
         isAtTop() &&
@@ -2173,9 +2234,15 @@ export default function FlicksApp({
   // RAF-throttled scroll → update active index
   const scrollTicking = useRef(false);
   const onScroll = useCallback(() => {
+    if (commentDrawerOpenRef.current) return;
     if (scrollTicking.current) return;
     scrollTicking.current = true;
     scrollRafRef.current = requestAnimationFrame(() => {
+      if (commentDrawerOpenRef.current) {
+        scrollTicking.current = false;
+        scrollRafRef.current = 0;
+        return;
+      }
       if (containerRef.current) {
         const idx = Math.round(containerRef.current.scrollTop / containerRef.current.clientHeight);
         if (idx !== currentIndexRef.current) {
