@@ -10,8 +10,8 @@ import { isAdminEmail } from "../lib/adminConfig";
 import { fetchProfileAdminFlag } from "../lib/adminProfile";
 import { useSoundEffects } from "../hooks/useSoundEffects";
 import {
-  Heart, MessageCircle, Share2, X, Send, ChevronLeft, Search, RefreshCw,
-  BadgeCheck, Loader2, Flag, Trash2, Ban, Pencil, MoreVertical,
+  Heart, MessageCircle, Share2, X, Send, ChevronLeft, ChevronRight, Search, RefreshCw,
+  BadgeCheck, Loader2, Flag, Trash2, Ban, Pencil, MoreVertical, Reply, EyeOff,
 } from "lucide-react";
 import { MagnetButton } from "./MagnetSystem";
 import { toast } from "sonner";
@@ -282,7 +282,7 @@ const Ticker = ({ text, isActive }: { text: string; isActive: boolean }) => {
   );
 };
 
-// ── Comment Box (simple & complete) ──────────────────────────────────────────
+// ── Comment Box (fast swipe menu + emoji likes + replies + hide/delete) ───────
 type CommentItem = {
   id: string;
   post_id?: string;
@@ -290,10 +290,17 @@ type CommentItem = {
   user_id?: string;
   author?: string;
   created_at?: string;
+  parent_id?: string | null;
+  reply_to_author?: string | null;
   profiles?:
     | { username?: string; full_name?: string; avatar_url?: string }
     | { username?: string; full_name?: string; avatar_url?: string }[]
     | null;
+};
+
+type CommentReactionState = {
+  emoji: string | null;
+  count: number;
 };
 
 type CommentBoxProps = {
@@ -303,6 +310,8 @@ type CommentBoxProps = {
   onCommentAdded?: (newCount?: number) => void;
   onCommentDeleted?: () => void;
 };
+
+const COMMENT_EMOJIS = ["❤️", "😂", "🔥", "😮", "😢", "🙏"] as const;
 
 const formatCommentTime = (dateStr?: string): string => {
   if (!dateStr) return "";
@@ -317,18 +326,91 @@ const formatCommentTime = (dateStr?: string): string => {
   return `${days}d ago`;
 };
 
+function readHiddenCommentIds(storageKey: string): string[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(storageKey);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeHiddenCommentIds(storageKey: string, ids: string[]) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(storageKey, JSON.stringify(Array.from(new Set(ids))));
+  } catch {
+    // ignore storage errors
+  }
+}
+
 const CommentBox = ({ post, currentUserId, onClose, onCommentAdded, onCommentDeleted }: CommentBoxProps) => {
   const onlineUserIds = useOnlineUsers();
   const [comments, setComments] = useState<CommentItem[]>([]);
   const [text, setText] = useState("");
+  const [replyTarget, setReplyTarget] = useState<{ id: string; author: string } | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [actionId, setActionId] = useState<string | null>(null);
+  const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
+  const [emojiPickerForId, setEmojiPickerForId] = useState<string | null>(null);
+  const [swipeOffsets, setSwipeOffsets] = useState<Record<string, number>>({});
+  const [reactionsByComment, setReactionsByComment] = useState<Record<string, CommentReactionState>>({});
+  const swipeStartRef = useRef<{ id: string; x: number; y: number; locked: "h" | "v" | null }>({
+    id: "",
+    x: 0,
+    y: 0,
+    locked: null,
+  });
+  const inputRef = useRef<HTMLInputElement>(null);
   const sounds = useSoundEffects();
 
   const targetPostId = post._raw_id || (post.id ? String(post.id).replace(/^post_/, "") : "");
+  const postOwnerId = post.author_id || post.user_id || null;
+  const isPostOwner = Boolean(currentUserId && postOwnerId && currentUserId === postOwnerId);
+
+  const userHiddenStorageKey = useMemo(
+    () => `flicks:hidden-comments:${currentUserId || "guest"}:${targetPostId}`,
+    [currentUserId, targetPostId],
+  );
+  const postOwnerHiddenStorageKey = useMemo(
+    () => `flicks:post-owner-hidden-comments:${targetPostId}`,
+    [targetPostId],
+  );
+
+  const [hiddenCommentIds, setHiddenCommentIds] = useState<string[]>(() => [
+    ...readHiddenCommentIds(`flicks:hidden-comments:${currentUserId || "guest"}:${targetPostId}`),
+    ...readHiddenCommentIds(`flicks:post-owner-hidden-comments:${targetPostId}`),
+  ]);
+
+  useEffect(() => {
+    setHiddenCommentIds([
+      ...readHiddenCommentIds(userHiddenStorageKey),
+      ...readHiddenCommentIds(postOwnerHiddenStorageKey),
+    ]);
+  }, [userHiddenStorageKey, postOwnerHiddenStorageKey]);
+
+  const hideCommentLocally = useCallback(
+    (commentId: string, scopeLabel: string) => {
+      const nextUserHidden = [...readHiddenCommentIds(userHiddenStorageKey), commentId];
+      writeHiddenCommentIds(userHiddenStorageKey, nextUserHidden);
+      if (isPostOwner) {
+        const nextOwnerHidden = [...readHiddenCommentIds(postOwnerHiddenStorageKey), commentId];
+        writeHiddenCommentIds(postOwnerHiddenStorageKey, nextOwnerHidden);
+      }
+      setHiddenCommentIds(prev => Array.from(new Set([...prev, commentId])));
+      setActiveMenuId(null);
+      setEmojiPickerForId(null);
+      setSwipeOffsets(prev => ({ ...prev, [commentId]: 0 }));
+      toast.success(scopeLabel);
+    },
+    [isPostOwner, postOwnerHiddenStorageKey, userHiddenStorageKey],
+  );
 
   useEffect(() => {
     if (!targetPostId) {
@@ -351,10 +433,59 @@ const CommentBox = ({ post, currentUserId, onClose, onCommentAdded, onCommentDel
           toast.error("Failed to load comments");
           return;
         }
-        setComments(data || []);
+        const rows = (data || []) as CommentItem[];
+        setComments(rows);
+        setReactionsByComment(prev => {
+          const next = { ...prev };
+          rows.forEach((row) => {
+            if (!next[row.id]) {
+              next[row.id] = { emoji: null, count: 0 };
+            }
+          });
+          return next;
+        });
       });
     return () => { cancelled = true; };
   }, [targetPostId]);
+
+  const visibleComments = useMemo(
+    () => comments.filter(c => !hiddenCommentIds.includes(c.id)),
+    [comments, hiddenCommentIds],
+  );
+
+  const handleToggleEmojiReaction = (commentId: string, emoji: string) => {
+    sounds?.playPop?.();
+    setReactionsByComment(prev => {
+      const current = prev[commentId] || { emoji: null, count: 0 };
+      if (current.emoji === emoji) {
+        return {
+          ...prev,
+          [commentId]: { emoji: null, count: Math.max(0, current.count - 1) },
+        };
+      }
+      const nextCount = current.emoji ? current.count : current.count + 1;
+      return {
+        ...prev,
+        [commentId]: { emoji, count: nextCount },
+      };
+    });
+    setEmojiPickerForId(null);
+    setActiveMenuId(null);
+  };
+
+  const handleQuickLikeComment = (commentId: string) => {
+    handleToggleEmojiReaction(commentId, "❤️");
+  };
+
+  const handleStartReply = (comment: CommentItem) => {
+    const profile = Array.isArray(comment.profiles) ? comment.profiles[0] : comment.profiles;
+    const authorName = profile?.full_name || profile?.username || comment.author || "User";
+    setReplyTarget({ id: comment.id, author: authorName });
+    setActiveMenuId(null);
+    setEmojiPickerForId(null);
+    setSwipeOffsets(prev => ({ ...prev, [comment.id]: 0 }));
+    requestAnimationFrame(() => inputRef.current?.focus());
+  };
 
   const handlePostComment = async () => {
     const trimmed = text.trim();
@@ -368,12 +499,16 @@ const CommentBox = ({ post, currentUserId, onClose, onCommentAdded, onCommentDel
     }
     setSending(true);
     sounds?.playSwoosh?.();
+    const formattedContent = replyTarget
+      ? `@${replyTarget.author} ${trimmed}`
+      : trimmed;
+    const activeReply = replyTarget;
     try {
       const { data, error } = await supabase
         .from("comments")
         .insert([{
           post_id: targetPostId,
-          content: trimmed,
+          content: formattedContent,
           user_id: currentUserId,
           author: "User",
         }])
@@ -382,9 +517,15 @@ const CommentBox = ({ post, currentUserId, onClose, onCommentAdded, onCommentDel
 
       if (error) throw error;
       if (data) {
-        setComments(prev => [...prev, data]);
+        const enriched: CommentItem = {
+          ...(data as CommentItem),
+          parent_id: activeReply?.id ?? null,
+          reply_to_author: activeReply?.author ?? null,
+        };
+        setComments(prev => [...prev, enriched]);
         setText("");
-        toast.success("Comment posted!");
+        setReplyTarget(null);
+        toast.success(activeReply ? "Reply posted!" : "Comment posted!");
         onCommentAdded?.();
       }
     } catch (err: unknown) {
@@ -395,10 +536,12 @@ const CommentBox = ({ post, currentUserId, onClose, onCommentAdded, onCommentDel
       setSending(false);
     }
   };
-
   const handleStartEdit = (comment: CommentItem) => {
     setEditingId(comment.id);
     setEditText(comment.content);
+    setActiveMenuId(null);
+    setEmojiPickerForId(null);
+    setSwipeOffsets(prev => ({ ...prev, [comment.id]: 0 }));
   };
 
   const handleSaveEdit = async (id: string) => {
@@ -419,7 +562,7 @@ const CommentBox = ({ post, currentUserId, onClose, onCommentAdded, onCommentDel
 
       if (error) throw error;
       if (data) {
-        setComments(prev => prev.map(c => c.id === id ? data : c));
+        setComments(prev => prev.map(c => c.id === id ? { ...c, ...(data as CommentItem) } : c));
         setEditingId(null);
         setEditText("");
         toast.success("Comment updated!");
@@ -433,8 +576,21 @@ const CommentBox = ({ post, currentUserId, onClose, onCommentAdded, onCommentDel
     }
   };
 
-  const handleDeleteComment = async (id: string) => {
+  const handleDeleteForMe = (comment: CommentItem) => {
+    hideCommentLocally(comment.id, "Comment deleted for you");
+  };
+
+  const handleHideComment = (comment: CommentItem) => {
+    hideCommentLocally(
+      comment.id,
+      isPostOwner ? "Comment hidden by reel owner" : "Comment hidden on your device",
+    );
+  };
+
+  const handleDeleteForEveryone = async (id: string) => {
     if (!currentUserId) return;
+    setActiveMenuId(null);
+    setEmojiPickerForId(null);
     setActionId(id);
     try {
       const { error } = await supabase
@@ -445,7 +601,7 @@ const CommentBox = ({ post, currentUserId, onClose, onCommentAdded, onCommentDel
 
       if (error) throw error;
       setComments(prev => prev.filter(c => c.id !== id));
-      toast.success("Comment deleted");
+      toast.success("Comment deleted for everyone");
       onCommentDeleted?.();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : (err as { message?: string })?.message || "Failed to delete comment";
@@ -456,6 +612,50 @@ const CommentBox = ({ post, currentUserId, onClose, onCommentAdded, onCommentDel
     }
   };
 
+  const handleCommentTouchStart = (commentId: string, e: React.TouchEvent<HTMLDivElement>) => {
+    e.stopPropagation();
+    if (e.touches.length !== 1) return;
+    swipeStartRef.current = {
+      id: commentId,
+      x: e.touches[0].clientX,
+      y: e.touches[0].clientY,
+      locked: null,
+    };
+  };
+
+  const handleCommentTouchMove = (commentId: string, e: React.TouchEvent<HTMLDivElement>) => {
+    e.stopPropagation();
+    if (e.touches.length !== 1 || swipeStartRef.current.id !== commentId) return;
+    const dx = e.touches[0].clientX - swipeStartRef.current.x;
+    const dy = e.touches[0].clientY - swipeStartRef.current.y;
+
+    if (!swipeStartRef.current.locked) {
+      if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+      swipeStartRef.current.locked = Math.abs(dx) >= Math.abs(dy) ? "h" : "v";
+    }
+
+    if (swipeStartRef.current.locked === "h") {
+      const clamped = Math.max(-96, Math.min(96, dx));
+      setSwipeOffsets(prev => ({ ...prev, [commentId]: clamped }));
+      if (Math.abs(clamped) >= 36) {
+        setActiveMenuId(commentId);
+      }
+    }
+  };
+
+  const handleCommentTouchEnd = (commentId: string, e: React.TouchEvent<HTMLDivElement>) => {
+    e.stopPropagation();
+    if (swipeStartRef.current.id !== commentId) return;
+    const currentOffset = swipeOffsets[commentId] ?? 0;
+    if (Math.abs(currentOffset) >= 36) {
+      setActiveMenuId(commentId);
+      setSwipeOffsets(prev => ({ ...prev, [commentId]: currentOffset < 0 ? -56 : 56 }));
+    } else {
+      setSwipeOffsets(prev => ({ ...prev, [commentId]: 0 }));
+    }
+    swipeStartRef.current = { id: "", x: 0, y: 0, locked: null };
+  };
+
   return (
     <motion.div
       role="dialog"
@@ -464,10 +664,13 @@ const CommentBox = ({ post, currentUserId, onClose, onCommentAdded, onCommentDel
       initial={{ y: "100%" }}
       animate={{ y: 0 }}
       exit={{ y: "100%" }}
-      transition={{ type: "spring", damping: 25, stiffness: 250 }}
+      transition={{ duration: 0.18, ease: "easeOut" }}
       className="fixed bottom-0 left-0 right-0 max-w-[500px] mx-auto bg-zinc-900/95 backdrop-blur-xl rounded-t-3xl z-[10000] h-[70vh] flex flex-col border-t border-white/10 shadow-2xl"
       style={{ touchAction: "pan-y" }}
-      onClick={e => e.stopPropagation()}
+      onClick={e => {
+        e.stopPropagation();
+        if (emojiPickerForId) setEmojiPickerForId(null);
+      }}
       onPointerDown={e => e.stopPropagation()}
       onMouseDown={e => e.stopPropagation()}
       onTouchStart={e => e.stopPropagation()}
@@ -479,7 +682,7 @@ const CommentBox = ({ post, currentUserId, onClose, onCommentAdded, onCommentDel
           <span className="text-white font-bold text-base tracking-wide flex items-center gap-2">
             Comments
             <span className="bg-white/10 text-xs px-2 py-0.5 rounded-full text-white/70">
-              {comments.length}
+              {visibleComments.length}
             </span>
           </span>
           <button
@@ -494,109 +697,269 @@ const CommentBox = ({ post, currentUserId, onClose, onCommentAdded, onCommentDel
       </div>
 
       {/* Comment List */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div className="flex-1 overflow-y-auto p-4 space-y-3.5">
         {loading ? (
           <div className="flex items-center justify-center py-12 text-white/40 gap-2">
             <Loader2 size={20} className="animate-spin text-cyan-400" />
             <span className="text-sm">Loading comments…</span>
           </div>
-        ) : comments.length === 0 ? (
+        ) : visibleComments.length === 0 ? (
           <div className="text-center py-14 space-y-2">
             <p className="text-white/40 text-sm font-medium">No comments yet</p>
             <p className="text-white/25 text-xs">Be the first to share your thoughts!</p>
           </div>
         ) : (
-          comments.map((c) => {
+          visibleComments.map((c) => {
             const profile = Array.isArray(c.profiles) ? c.profiles[0] : c.profiles;
             const commentUsername = profile?.full_name || profile?.username || c.author || "User";
-            const isOwner = Boolean(currentUserId && c.user_id === currentUserId);
+            const isCommentOwner = Boolean(currentUserId && c.user_id === currentUserId);
             const isEditing = editingId === c.id;
             const isBusy = actionId === c.id;
+            const isMenuOpen = activeMenuId === c.id;
+            const isEmojiOpen = emojiPickerForId === c.id;
+            const reactionState = reactionsByComment[c.id] || { emoji: null, count: 0 };
+            const offset = swipeOffsets[c.id] ?? 0;
             const timeAgo = formatCommentTime(c.created_at);
 
             return (
-              <div key={c.id} className="flex gap-3 items-start group">
-                <ActiveStatusAvatar
-                  src={profile?.avatar_url}
-                  name={commentUsername}
-                  size={32}
-                  online={onlineUserIds.has(c.user_id || "")}
-                />
-                <div className="flex-1 min-w-0 bg-white/[0.03] rounded-2xl p-3 border border-white/5">
-                  <div className="flex items-center justify-between gap-2 mb-1">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className="text-white/90 text-xs font-semibold truncate">
-                        {commentUsername}
-                      </span>
-                      {timeAgo && (
-                        <span className="text-white/30 text-[10px]">
-                          {timeAgo}
-                        </span>
-                      )}
-                    </div>
-                    {isOwner && !isEditing && (
-                      <div className="flex items-center gap-2 opacity-80 group-hover:opacity-100 transition-opacity">
+              <div
+                key={c.id}
+                className="relative overflow-hidden rounded-2xl"
+                onTouchStart={(e) => handleCommentTouchStart(c.id, e)}
+                onTouchMove={(e) => handleCommentTouchMove(c.id, e)}
+                onTouchEnd={(e) => handleCommentTouchEnd(c.id, e)}
+              >
+                {/* Fast swipe / arrow action bar */}
+                {isMenuOpen && (
+                  <div
+                    className="mb-1.5 flex items-center gap-1.5 overflow-x-auto rounded-xl bg-zinc-950/95 px-2 py-1.5 border border-white/10"
+                    style={{ transition: "transform 120ms ease-out" }}
+                    onClick={e => e.stopPropagation()}
+                  >
+                    <span className="shrink-0 text-[10px] font-bold text-cyan-300 px-1.5 py-0.5 rounded bg-cyan-500/10">
+                      Swipe Menu
+                    </span>
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); handleStartReply(c); }}
+                      className="shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/15 text-white text-[11px] font-semibold"
+                    >
+                      <Reply size={12} className="text-cyan-400" />
+                      Reply
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); handleHideComment(c); }}
+                      className="shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 text-[11px] font-semibold"
+                    >
+                      <EyeOff size={12} />
+                      Hide{isPostOwner ? " (Owner)" : ""}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); handleDeleteForMe(c); }}
+                      className="shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/15 text-white/85 text-[11px] font-semibold"
+                    >
+                      <Trash2 size={12} className="text-rose-300" />
+                      Delete for me
+                    </button>
+                    {isCommentOwner && (
+                      <>
                         <button
                           type="button"
                           onClick={(e) => { e.stopPropagation(); handleStartEdit(c); }}
                           disabled={isBusy}
-                          className="flex items-center gap-1 text-[11px] text-cyan-400 hover:text-cyan-300 font-medium"
-                          title="Edit comment"
+                          className="shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 text-[11px] font-semibold"
                         >
                           <Pencil size={12} />
                           Edit
                         </button>
                         <button
                           type="button"
-                          onClick={(e) => { e.stopPropagation(); handleDeleteComment(c.id); }}
+                          onClick={(e) => { e.stopPropagation(); void handleDeleteForEveryone(c.id); }}
                           disabled={isBusy}
-                          className="flex items-center gap-1 text-[11px] text-rose-400 hover:text-rose-300 font-medium"
-                          title="Delete comment"
+                          className="shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 text-[11px] font-semibold"
                         >
                           <Trash2 size={12} />
-                          Delete
+                          Delete for everyone
                         </button>
-                      </div>
+                      </>
                     )}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setActiveMenuId(null);
+                        setSwipeOffsets(prev => ({ ...prev, [c.id]: 0 }));
+                      }}
+                      className="shrink-0 p-1 rounded-lg text-white/50 hover:text-white"
+                      aria-label="Close comment actions"
+                    >
+                      <X size={13} />
+                    </button>
                   </div>
+                )}
 
-                  {isEditing ? (
-                    <div className="mt-2 space-y-2">
-                      <textarea
-                        value={editText}
-                        onChange={e => setEditText(e.target.value)}
-                        onPointerDown={e => e.stopPropagation()}
-                        onMouseDown={e => e.stopPropagation()}
-                        onTouchStart={e => e.stopPropagation()}
-                        onClick={e => e.stopPropagation()}
-                        className="w-full bg-white/10 rounded-xl px-3 py-2 text-white text-sm outline-none border border-cyan-500/50 focus:border-cyan-400 resize-none min-h-[60px]"
-                        style={{ fontSize: 16 }}
-                        autoFocus
-                      />
-                      <div className="flex justify-end gap-2">
-                        <button
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); setEditingId(null); setEditText(""); }}
-                          className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/15 text-white/70 text-xs font-medium transition-colors"
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); handleSaveEdit(c.id); }}
-                          disabled={isBusy || !editText.trim()}
-                          className="px-3 py-1.5 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-white text-xs font-semibold disabled:opacity-50 transition-colors flex items-center gap-1"
-                        >
-                          {isBusy && <Loader2 size={12} className="animate-spin" />}
-                          Save
-                        </button>
+                <div
+                  className="flex gap-2.5 items-start group"
+                  style={{
+                    transform: `translateX(${offset}px)`,
+                    transition: swipeStartRef.current.id === c.id ? "none" : "transform 130ms ease-out",
+                  }}
+                >
+                  <ActiveStatusAvatar
+                    src={profile?.avatar_url}
+                    name={commentUsername}
+                    size={32}
+                    online={onlineUserIds.has(c.user_id || "")}
+                  />
+                  <div className="flex-1 min-w-0 bg-white/[0.03] rounded-2xl p-3 border border-white/5 relative">
+                    <div className="flex items-center justify-between gap-2 mb-1">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="text-white/90 text-xs font-semibold truncate">
+                          {commentUsername}
+                        </span>
+                        {timeAgo && (
+                          <span className="text-white/30 text-[10px] shrink-0">
+                            {timeAgo}
+                          </span>
+                        )}
                       </div>
+
+                      {/* Right wall arrow indicator: tap to reveal animated swipe menu */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const nextOpen = !isMenuOpen;
+                          setActiveMenuId(nextOpen ? c.id : null);
+                          setSwipeOffsets(prev => ({ ...prev, [c.id]: nextOpen ? -24 : 0 }));
+                        }}
+                        aria-label="Open comment swipe menu"
+                        className="shrink-0 -mr-1.5 flex items-center gap-0.5 rounded-l-full bg-white/[0.06] hover:bg-white/[0.12] px-1.5 py-0.5 text-white/55 hover:text-white transition-colors"
+                      >
+                        {isMenuOpen && (
+                          <span className="text-[9px] font-bold tracking-tight text-cyan-300">
+                            Swipe
+                          </span>
+                        )}
+                        <ChevronRight size={13} />
+                      </button>
                     </div>
-                  ) : (
-                    <p className="text-white/85 text-xs sm:text-sm leading-relaxed break-words whitespace-pre-wrap">
-                      {c.content}
-                    </p>
-                  )}
+
+                    {isEditing ? (
+                      <div className="mt-2 space-y-2">
+                        <textarea
+                          value={editText}
+                          onChange={e => setEditText(e.target.value)}
+                          onPointerDown={e => e.stopPropagation()}
+                          onMouseDown={e => e.stopPropagation()}
+                          onTouchStart={e => e.stopPropagation()}
+                          onClick={e => e.stopPropagation()}
+                          className="w-full bg-white/10 rounded-xl px-3 py-2 text-white text-sm outline-none border border-cyan-500/50 focus:border-cyan-400 resize-none min-h-[60px]"
+                          style={{ fontSize: 16 }}
+                          autoFocus
+                        />
+                        <div className="flex justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); setEditingId(null); setEditText(""); }}
+                            className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/15 text-white/70 text-xs font-medium transition-colors"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); void handleSaveEdit(c.id); }}
+                            disabled={isBusy || !editText.trim()}
+                            className="px-3 py-1.5 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-white text-xs font-semibold disabled:opacity-50 transition-colors flex items-center gap-1"
+                          >
+                            {isBusy && <Loader2 size={12} className="animate-spin" />}
+                            Save
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-white/85 text-xs sm:text-sm leading-relaxed break-words whitespace-pre-wrap">
+                        {c.content}
+                      </p>
+                    )}
+
+                    {/* Like / Emoji reaction + Reply row */}
+                    <div className="mt-2 flex items-center justify-between gap-2">
+                      <div className="relative flex items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); handleQuickLikeComment(c.id); }}
+                          onContextMenu={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setEmojiPickerForId(prev => prev === c.id ? null : c.id);
+                          }}
+                          className="flex items-center gap-1 text-[11px] font-semibold text-white/65 hover:text-rose-400 transition-colors"
+                          aria-label="Like comment"
+                        >
+                          <Heart
+                            size={12}
+                            fill={reactionState.emoji === "❤️" ? "#FF2D55" : "none"}
+                            className={reactionState.emoji === "❤️" ? "text-[#FF2D55]" : "text-white/60"}
+                          />
+                          <span>Like</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEmojiPickerForId(prev => prev === c.id ? null : c.id);
+                          }}
+                          className="flex items-center gap-1 text-[11px] font-semibold text-white/65 hover:text-amber-300 transition-colors"
+                          aria-label="React with emoji"
+                        >
+                          <span>{reactionState.emoji || "😊"}</span>
+                          <span>React</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); handleStartReply(c); }}
+                          className="flex items-center gap-1 text-[11px] font-semibold text-white/65 hover:text-cyan-300 transition-colors"
+                        >
+                          <Reply size={12} />
+                          <span>Reply</span>
+                        </button>
+
+                        {/* All emoji picker bar */}
+                        {isEmojiOpen && (
+                          <div
+                            onClick={e => e.stopPropagation()}
+                            className="absolute left-0 bottom-6 z-20 flex items-center gap-1 rounded-full bg-zinc-950/95 border border-white/15 px-2 py-1 shadow-xl"
+                          >
+                            {COMMENT_EMOJIS.map((em) => (
+                              <button
+                                key={em}
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); handleToggleEmojiReaction(c.id, em); }}
+                                className={`px-1.5 py-0.5 rounded-full text-sm transition-transform active:scale-110 ${
+                                  reactionState.emoji === em ? "bg-white/20 scale-110" : "hover:bg-white/10"
+                                }`}
+                                aria-label={`React ${em}`}
+                              >
+                                {em}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {reactionState.count > 0 && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-white/[0.06] px-2 py-0.5 text-[10px] font-bold text-white/80">
+                          <span>{reactionState.emoji || "❤️"}</span>
+                          <span>{reactionState.count}</span>
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
             );
@@ -604,9 +967,27 @@ const CommentBox = ({ post, currentUserId, onClose, onCommentAdded, onCommentDel
         )}
       </div>
 
+      {/* Reply target indicator */}
+      {replyTarget && (
+        <div className="px-3.5 py-1.5 bg-zinc-900/95 border-t border-white/10 flex items-center justify-between text-xs text-cyan-300">
+          <span className="truncate">
+            Replying to <strong className="font-bold">@{replyTarget.author}</strong>
+          </span>
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); setReplyTarget(null); }}
+            className="text-white/60 hover:text-white p-0.5"
+            aria-label="Cancel reply"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
+
       {/* Input Section */}
       <div className="p-3 bg-zinc-950/80 border-t border-white/10 flex gap-2 items-center pb-safe">
         <input
+          ref={inputRef}
           type="text"
           value={text}
           onChange={e => setText(e.target.value)}
@@ -616,17 +997,17 @@ const CommentBox = ({ post, currentUserId, onClose, onCommentAdded, onCommentDel
           onClick={e => e.stopPropagation()}
           className="flex-1 bg-white/10 hover:bg-white/[0.13] focus:bg-white/[0.15] rounded-full px-4 py-2.5 text-white text-sm outline-none border border-white/10 focus:border-cyan-500/50 placeholder:text-white/40 transition-colors"
           style={{ fontSize: 16 }}
-          placeholder="Write a comment..."
+          placeholder={replyTarget ? `Reply to @${replyTarget.author}...` : "Write a comment..."}
           onKeyDown={e => {
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
-              handlePostComment();
+              void handlePostComment();
             }
           }}
         />
         <button
           type="button"
-          onClick={(e) => { e.stopPropagation(); handlePostComment(); }}
+          onClick={(e) => { e.stopPropagation(); void handlePostComment(); }}
           onPointerDown={e => e.stopPropagation()}
           onMouseDown={e => e.stopPropagation()}
           onTouchStart={e => e.stopPropagation()}
@@ -1216,428 +1597,7 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, isWarmNext, curre
     setMenuOpen(false);
     if (!isAdmin || deleting) return;
     if (!window.confirm("ADMIN: Delete this video permanently?")) return;
-    setDeleting(true);
-    onPostDeleteOptimistic?.(String(post._raw_id), post);
-    try {
-      const deletedId = await deletePostRow();
-      toast.success("Deleted permanently.");
-      onPostDeleted?.(deletedId);
-    } catch (error: unknown) {
-      onPostDeleteRollback?.(String(post._raw_id));
-      console.error("[Flicks] admin reel delete failed:", error);
-      toast.error(getDeleteErrorMessage(error));
-    } finally {
-      setDeleting(false);
-    }
-  };
-
-  const handleOwnerDelete = async () => {
-    if (!isOwner || !currentUserId || !String(post?._raw_id ?? "").trim() || deleting) return;
-
-    setConfirmDeleteOpen(false);
-    setDeleting(true);
-    onPostDeleteOptimistic?.(String(post._raw_id), post);
-    try {
-      // Supabase RLS remains the final authorization check. The UI owner
-      // check only controls visibility of this action.
-      const deletedId = await deletePostRow();
-
-      toast.success("Reel deleted.");
-      onPostDeleted?.(deletedId);
-    } catch (error: unknown) {
-      onPostDeleteRollback?.(String(post._raw_id));
-      console.error("[Flicks] owner reel delete failed:", error);
-      toast.error(getDeleteErrorMessage(error));
-    } finally {
-      setDeleting(false);
-    }
-  };
-
-  const handleAdminBan = async () => {
-    setMenuOpen(false);
-    if (!isAdmin || !post.author_id) return;
-    const reason = window.prompt(`ADMIN: Ban @${post.author}?\nReason:`, "Violated community guidelines");
-    if (!reason?.trim()) return;
-    const { error } = await supabase.from("profiles")
-      .update({ account_status: "suspended", suspension_reason: reason.trim() })
-      .eq("id", post.author_id);
-    if (error) { toast.error("Could not ban"); return; }
-    toast.success(`🚫 @${post.author} banned`);
-    onUserBanned?.(post.author_id);
-  };
-
-  if (!post) return null;
-
-  const tickerText = `♪  @${post.author || "user"}  —  ${localContent || "No caption"}`;
-  // Single-line music title — mockup-style "Artist • Original Audio"
-  const musicTitle = vibe.primary?.audioTitle
-    ? `${vibe.primary.audioTitle} • Original Audio`
-    : `${post.author || "Flicks"} • Original Audio`;
-  // The Reel creator is `author_id` on posts, matching Fame Feed's owner
-  // contract. Keep user_id as a fallback for older cached Reel objects.
-  const reelOwnerId = post.author_id || post.user_id;
-  const isOwner = Boolean(currentUserId && reelOwnerId === currentUserId);
-  const handleInlineEdit = (event: React.MouseEvent<HTMLButtonElement>) => {
-    event.preventDefault();
-    event.stopPropagation();
-    setMenuOpen(false);
-    setLocalContent(getPostCaption(post));
-    setEditingCaption(true);
-  };
-  const handleEditReel = (event: React.MouseEvent<HTMLButtonElement>) => {
-    event.preventDefault();
-    event.stopPropagation();
-    setMenuOpen(false);
-    if (!isOwner) return;
-    if (!String(post?._raw_id ?? "").trim()) {
-      toast.error("Could not determine the Reel database ID.");
-      return;
-    }
-    if (onEditReel) {
-      onEditReel(post);
-    } else {
-      window.dispatchEvent(
-        new CustomEvent("flicks:open-reel-studio", { detail: { reel: post } }),
-      );
-    }
-  };
-  const handleOwnerDeleteRequest = (event: React.MouseEvent<HTMLButtonElement>) => {
-    event.preventDefault();
-    event.stopPropagation();
-    setMenuOpen(false);
-    if (!isOwner || !currentUserId || !post._raw_id || deleting) {
-      if (isOwner && !post._raw_id) {
-        toast.error("Could not determine the Reel database ID.");
-      }
-      return;
-    }
-    setConfirmDeleteOpen(true);
-  };
-
-  return (
-    /* Root card — explicit height, no flex layout so absolute children are unambiguous */
-    <div
-      data-vibe={vibe.primary?.tag}
-      data-vibe-mix={secondaryVibe?.tag}
-      className={`relative w-full bg-black snap-start overflow-hidden ${
-        vibe.primary
-          ? `post-vibe-card${isActive ? " post-vibe-in-view" : ""}`
-          : ""
-      } snap-always`}
-      style={{
-        height: "100%",
-        touchAction: "pan-y",
-        ...(vibe.primary
-          ? {
-              "--vibe-accent": vibe.primary.glowColor,
-              "--vibe-secondary": secondaryVibe?.glowColor ?? vibe.primary.secondaryColor,
-            }
-          : {}),
-      } as React.CSSProperties}
-    >
-
-      {/* ── Video — absolute inset-0 so it is unambiguously at z=0 behind every overlay ── */}
-      <video
-        ref={videoRef}
-        key={videoUrl}
-        src={hlsPlayback.isHls ? undefined : videoUrl}
-        poster={post.cover_url || post.thumb_url || post.image_url || undefined}
-        loop
-        muted
-        playsInline
-        autoPlay={false}
-        preload={isActive || isNext || isWarmNext ? "auto" : "metadata"}
-        className="absolute inset-0 w-full h-full object-cover"
-        style={{
-          backgroundColor: "#000",
-          filter: reelSettings.cssFilter,
-          zIndex: 0,
-          display: visibleVideoError ? "none" : undefined,
-          touchAction: "pan-y",
-        }}
-        onLoadStart={() => setVideoError(null)}
-        onCanPlay={() => setHasPlayableVideo(true)}
-        onPlaying={() => setHasPlayableVideo(true)}
-        onError={e => {
-          const vid = e.currentTarget;
-          const msg = parseMediaError(vid.error);
-          console.warn("[FlickCard] video error:", msg, vid.src);
-          if (isCreator && bunnyVideoId && bunnyVideoStatus.phase !== "ready") return;
-          setVideoError(msg);
-          if (
-            vid.error?.code === MediaError.MEDIA_ERR_DECODE ||
-            vid.error?.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED
-          ) {
-            onVideoInvalid?.(post.id);
-          }
-        }}
-      />
-      {isCreator && bunnyVideoId && !bunnyVideoReady && (
-        <>
-          <BunnyCreatorProcessingOverlay state={bunnyVideoStatus} />
-          {bunnyVideoStatus.phase === "failed" && (
-            <BunnyVideoStatusOverlay state={bunnyVideoStatus} onRetry={bunnyVideoStatus.retry} />
-          )}
-        </>
-      )}
-      {vibeAudioUrl && (
-        <VibeAudioToggle
-          postId={vibePostId}
-          audioUrl={vibeAudioUrl}
-          audioTitle={vibe.primary?.audioTitle}
-          compact
-          floating
-        />
-      )}
-      {hasBackgroundAudio && (
-        <audio
-          ref={audioRef}
-          src={reelSettings.audioUrl || undefined}
-          muted={false}
-          preload={isActive ? "auto" : "none"}
-          loop
-          onError={() => {
-            console.warn("[Flicks] custom audio track failed to load:", reelSettings.audioUrl);
-          }}
-        />
-      )}
-
-      {/* ── Tap overlay — z-10, full-screen, catches single/double tap ── */}
-      {/* touchAction:"pan-y" lets the snap-scroll container receive vertical swipes  */}
-      {/* while still delivering tap (click) events for mute-toggle and double-tap-like */}
-      {/* Must sit below action bar (z-40) so buttons receive clicks first */}
-      <div className="absolute inset-0 z-10" style={{ touchAction: "pan-y" }} onClick={handleVideoTap} />
-
-      {/* ── Gradient vignette — purely decorative, no pointer events ── */}
-      <div className="absolute inset-0 pointer-events-none z-20"
-        style={{ background: "linear-gradient(to bottom, rgba(0,0,0,0.28) 0%, transparent 35%, transparent 55%, rgba(0,0,0,0.78) 100%)" }} />
-
-      {/* ── Video error fallback — z-[25], interactive (Retry button) ── */}
-      {visibleVideoError && (
-        <div className="absolute inset-0 z-[25] flex flex-col items-center justify-center gap-4 bg-[#090b14] px-8">
-          {post.thumb_url && (
-            <img src={post.thumb_url} alt=""
-              className="absolute inset-0 w-full h-full object-contain opacity-20 blur-sm pointer-events-none" />
-          )}
-          <div className="relative flex flex-col items-center gap-3 text-center">
-            <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center">
-              <span style={{ fontSize: 32 }}>📵</span>
-            </div>
-            <p className="text-white/80 font-bold text-sm">{visibleVideoError}</p>
-            <p className="text-white/35 text-[11px] leading-relaxed max-w-[220px]">
-              This video couldn't be played. Try again or scroll to the next one.
-            </p>
-            <button
-              className="mt-1 px-5 py-2 rounded-full text-[12px] font-black text-white border border-white/20 bg-white/10 backdrop-blur-md active:scale-95 transition-transform"
-              onClick={e => {
-                e.stopPropagation();
-                setVideoError(null);
-                const vid = videoRef.current;
-                if (hlsPlayback.isHls) {
-                  hlsPlayback.retry();
-                } else if (vid) {
-                  vid.load();
-                  requestPlayback(vid, hasBackgroundAudio);
-                }
-              }}>
-              Retry
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* ── Floating heart on double-tap — z-50, pointer-events-none ── */}
-      <AnimatePresence>
-        {heartPos && (
-          <motion.div
-            key="heart-burst"
-            className="absolute z-50 pointer-events-none select-none"
-            style={{ left: heartPos.x - 32, top: heartPos.y - 32 }}
-            initial={{ opacity: 1, scale: 0.4 }}
-            animate={{ opacity: 0, scale: 1.9, y: -72 }}
-            exit={{}}
-            transition={{ duration: 0.75, ease: "easeOut" }}
-          >
-            <span style={{ fontSize: 64, filter: "drop-shadow(0 0 12px #ff2d55)" }}>❤️</span>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-
-
-      {/* ── Consolidated Right-side Interaction Bar (crimson/charcoal) ── */}
-      {/* Like → Comment → Share → Hooks → 3-dots report menu; bottom-anchored above the nav handle with safe-area clearance */}
-      <div className="absolute right-2.5 z-40 flex flex-col items-center gap-2.5"
-        style={{ bottom: "calc(56px + env(safe-area-inset-bottom, 0px))" }}>
-
-        {/* Like — detailed red heart + count */}
-        <button
-          onClick={e => { e.stopPropagation(); triggerLike(); }}
-          aria-label="Like"
-          className="flex flex-col items-center gap-0.5 z-50">
-          <div className="w-10 h-10 rounded-full flex items-center justify-center"
-            style={{ background: "rgba(12,10,14,0.55)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", border: "1px solid rgba(225,29,72,0.30)", boxShadow: likedByMe ? "0 0 12px rgba(255,45,85,0.55)" : "none" }}>
-            <Heart size={19} fill={likedByMe ? "#FF2D55" : "none"}
-              style={{ color: "#FF3355", filter: "drop-shadow(0 0 6px rgba(255,45,85,0.75))" }} />
-          </div>
-          <span className="text-[9px] font-black text-white/90" style={{ textShadow: "0 1px 4px rgba(0,0,0,0.9)" }}>
-            {formatCount(liveLikes)}
-          </span>
-        </button>
-
-        {/* Comment — detailed crimson bubble + count */}
-        <button
-          onClick={e => { e.stopPropagation(); setShowComments(true); }}
-          aria-label="Comment"
-          className="flex flex-col items-center gap-0.5 z-50">
-          <div className="w-10 h-10 rounded-full flex items-center justify-center"
-            style={{ background: "rgba(12,10,14,0.55)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", border: "1px solid rgba(225,29,72,0.28)" }}>
-            <MessageCircle size={19}
-              style={{ color: "#FF4D6D", filter: "drop-shadow(0 0 6px rgba(225,29,72,0.6))" }} />
-          </div>
-          <span className="text-[9px] font-black text-white/90" style={{ textShadow: "0 1px 4px rgba(0,0,0,0.9)" }}>
-            {formatCount(liveCommentsCount)}
-          </span>
-        </button>
-
-        {/* Share — crimson looping arrow + count */}
-        <button onClick={handleShare} aria-label="Share" className="flex flex-col items-center gap-0.5 z-50">
-          <div className="w-10 h-10 rounded-full flex items-center justify-center"
-            style={{ background: "rgba(12,10,14,0.55)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", border: "1px solid rgba(225,29,72,0.28)" }}>
-            <Share2 size={18}
-              style={{ color: "#FF5C7A", filter: "drop-shadow(0 0 6px rgba(225,29,72,0.6))" }} />
-          </div>
-          <span className="text-[9px] font-black text-white/90" style={{ textShadow: "0 1px 4px rgba(0,0,0,0.9)" }}>
-            {formatCount(liveShares)}
-          </span>
-        </button>
-
-        <SavePostButton
-          postId={String(post?._raw_id || post?.id || "").replace(/^post_/, "")}
-        />
-
-        {/* Reports — single crimson vertical 3-dots report/menu (dropdown opens upward) */}
-        <div className="relative z-50" onClick={e => e.stopPropagation()}>
-          <button type="button" onClick={e => { e.preventDefault(); e.stopPropagation(); setMenuOpen(v => !v); }}
-            aria-label="Report and options"
-            aria-expanded={menuOpen}
-            className="w-10 h-10 rounded-full flex items-center justify-center"
-            style={{ background: "rgba(12,10,14,0.55)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", border: "1px solid rgba(225,29,72,0.30)" }}>
-            <MoreVertical size={18} style={{ color: "#FF4D6D" }} />
-          </button>
-          <AnimatePresence>
-            {menuOpen && (
-              <>
-                <div className="fixed inset-0 z-[60]" onClick={e => { e.stopPropagation(); setMenuOpen(false); }} />
-                <motion.div initial={{ opacity: 0, scale: 0.9, y: 6 }} animate={{ opacity: 1, scale: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.9, y: 6 }} transition={{ duration: 0.12 }}
-                  onClick={e => e.stopPropagation()}
-                  className="absolute right-0 bottom-12 z-[70] w-52 bg-zinc-900/95 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
-                  {isOwner && (
-                    <button
-                      type="button"
-                      onClick={handleEditReel}
-                      className="w-full flex items-center gap-3 px-4 py-3.5 text-[#FF8FA5] hover:bg-white/5 text-sm font-bold border-b border-white/5"
-                    >
-                      <Pencil size={14} /> Edit Reel
-                    </button>
-                  )}
-                  {isOwner && (
-                   <button type="button" onClick={handleInlineEdit}
-                      className="w-full flex items-center gap-3 px-4 py-3.5 text-[#FF6B85] hover:bg-white/5 text-sm font-bold border-b border-white/5">
-                      <Pencil size={14} /> Edit Post
-                    </button>
-                  )}
-                  {isOwner && (
-                    <button
-                      type="button"
-                      onClick={handleOwnerDeleteRequest}
-                      disabled={deleting}
-                      className="w-full flex items-center gap-3 px-4 py-3.5 text-red-400 hover:bg-red-500/10 text-sm font-bold border-b border-white/5 disabled:cursor-wait disabled:opacity-60"
-                    >
-                      {deleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-                      {deleting ? "Deleting Reel…" : "Delete Reel"}
-                    </button>
-                  )}
-                  <button type="button" onClick={e => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    const popupH = 240;
-                    const spaceBelow = window.innerHeight - e.clientY;
-                    const top = spaceBelow >= popupH + 16 ? e.clientY + 8 : Math.max(8, e.clientY - popupH - 8);
-                    setMenuOpen(false); setReportAnchor({ top, right: 16 }); setReportOpen(true);
-                  }} className="w-full flex items-center gap-3 px-4 py-3.5 text-[#FF4D6D] hover:bg-white/5 text-sm font-bold border-b border-white/5">
-                    <Flag size={14} /> Report Video
-                  </button>
-                  {isAdmin && (
-                    <>
-                      <button type="button" onClick={e => { e.preventDefault(); e.stopPropagation(); void handleAdminDelete(); }}
-                        className="w-full flex items-center gap-3 px-4 py-3.5 text-red-400 hover:bg-red-500/10 text-sm font-bold border-b border-white/5">
-                        <Trash2 size={14} /> Delete (Admin)
-                      </button>
-                      {post.author_id && post.author_id !== currentUserId && (
-                        <button type="button" onClick={e => { e.preventDefault(); e.stopPropagation(); void handleAdminBan(); }}
-                          className="w-full flex items-center gap-3 px-4 py-3.5 text-red-500 hover:bg-red-500/10 text-sm font-bold">
-                          <Ban size={14} /> Ban User (Admin)
-                        </button>
-                      )}
-                    </>
-                  )}
-                </motion.div>
-              </>
-            )}
-          </AnimatePresence>
-        </div>
-
-        {/* Magnet */}
-        <div className="z-50" onClick={e => e.stopPropagation()}>
-          <MagnetButton postId={post._raw_id} postType="flick" postOwnerId={post.author_id}
-            currentUserId={currentUserId} onBridgeChat={onBridgeChat} dark />
-        </div>
-      </div>
-
-      {/* ── Bottom-left translucent info panel: avatar · © username · Follow ·
-          caption · crimson music title · miniature spinning cassette ── */}
-      <div
-        className={`absolute left-3 z-40 ${editingCaption ? "pointer-events-auto" : "pointer-events-none"}`}
-        style={{
-          bottom: "calc(46px + env(safe-area-inset-bottom, 0px))",
-          right: 72,
-          maxWidth: "calc(100vw - 92px)",
-        }}
-        onClick={e => editingCaption && e.stopPropagation()}>
-        <div>
-
-          {/* Avatar · © username · verified badge · Follow — one line */}
-          <div className="flex items-center gap-1.5 mb-1">
-            <button
-              type="button"
-              className="pointer-events-auto shrink-0"
-              onClick={e => { e.stopPropagation(); openProfile?.(post.author_id); }}
-              aria-label={`Open ${post.author || "user"} profile`}>
-              <ActiveStatusAvatar
-                src={post.author_avatar}
-                name={post.author}
-                size={28}
-                online={onlineUserIds.has(post.author_id || "")}
-              />
-            </button>
-            <h3
-              className="font-black text-white text-[12.5px] truncate"
-              style={{ textShadow: "0 1px 8px rgba(0,0,0,0.9)" }}>
-              © {post.author || "user"}
-            </h3>
-            <BadgeCheck size={13} className="text-[#FF4D6D] shrink-0"
-              style={{ filter: "drop-shadow(0 0 6px rgba(255,45,85,0.75))" }} />
-            <button
-              type="button"
-              className="pointer-events-auto ml-0.5 shrink-0 text-[11px] font-black tracking-wide active:scale-95 transition-transform"
-              style={{ color: "#FF3355", textShadow: "0 0 10px rgba(255,45,85,0.95)" }}
-              onClick={e => { e.stopPropagation(); openProfile?.(post.author_id); }}>
-              Follow
-            </button>
-          </div>
-          {vibe.primary && (
+    {vibe.primary && (
             <div className="mb-1 inline-flex items-center rounded-full border border-white/15 bg-black/40 px-2 py-1">
               <span
                 className="text-[10px] font-extrabold"
