@@ -288,9 +288,11 @@ type CommentDrawerProps = {
   currentUserId: string | null;
   onClose: () => void;
   onCommentAdded?: (newCount?: number) => void;
+  inputFocused?: boolean;
+  onInputFocusChange?: (focused: boolean) => void;
 };
 
-const CommentDrawer = ({ post, currentUserId, onClose, onCommentAdded }: CommentDrawerProps) => {
+const CommentDrawer = ({ post, currentUserId, onClose, onCommentAdded, inputFocused, onInputFocusChange }: CommentDrawerProps) => {
   const onlineUserIds = useOnlineUsers();
   const [comments, setComments] = useState<Array<{
     id: string;
@@ -350,10 +352,13 @@ const CommentDrawer = ({ post, currentUserId, onClose, onCommentAdded }: Comment
   return (
     <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
       className="fixed bottom-0 left-0 right-0 max-w-[500px] mx-auto bg-zinc-900/95 backdrop-blur-xl rounded-t-3xl z-[205] h-[70vh] flex flex-col border-t border-white/10 shadow-2xl"
-      onClick={e => e.stopPropagation()}>
+      onClick={e => e.stopPropagation()}
+      onPointerDown={e => e.stopPropagation()}
+      onMouseDown={e => e.stopPropagation()}
+      onTouchStart={e => e.stopPropagation()}>
       <div className="p-4 border-b border-white/10 flex justify-between items-center">
         <span className="text-white font-bold text-lg">{comments.length} Comments</span>
-        <button onClick={onClose} className="p-2 bg-white/5 rounded-full text-white/50"><X size={20} /></button>
+        <button onClick={(e) => { e.stopPropagation(); onClose(); }} className="p-2 bg-white/5 rounded-full text-white/50"><X size={20} /></button>
       </div>
       <div className="flex-1 overflow-y-auto p-4 space-y-5">
         {comments.length === 0 && <p className="text-white/20 text-center py-10">Pehla comment aap karein!</p>}
@@ -378,9 +383,19 @@ const CommentDrawer = ({ post, currentUserId, onClose, onCommentAdded }: Comment
       </div>
       <div className="p-4 flex gap-2 bg-black/20 pb-safe">
         <input value={text} onChange={e => setText(e.target.value)}
+          onPointerDown={e => e.stopPropagation()}
+          onMouseDown={e => e.stopPropagation()}
+          onTouchStart={e => e.stopPropagation()}
+          onClick={e => e.stopPropagation()}
+          onFocus={() => onInputFocusChange?.(true)}
+          onBlur={() => onInputFocusChange?.(false)}
           className="flex-1 bg-white/10 rounded-full px-5 py-3 text-white outline-none border border-white/5 focus:border-cyan-500/50"
           placeholder="Add a comment..." onKeyDown={e => e.key === "Enter" && handleSend()} />
-        <button onClick={handleSend} disabled={sending || !text.trim()}
+        <button onClick={(e) => { e.stopPropagation(); handleSend(); }}
+          onPointerDown={e => e.stopPropagation()}
+          onMouseDown={e => e.stopPropagation()}
+          onTouchStart={e => e.stopPropagation()}
+          disabled={sending || !text.trim()}
           className="bg-cyan-500 w-12 h-12 rounded-full flex items-center justify-center disabled:opacity-50">
           {sending ? <Loader2 className="animate-spin text-white" size={18} /> : <Send size={18} className="text-white" />}
         </button>
@@ -421,6 +436,7 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, isWarmNext, curre
   const [liveShares,        setLiveShares]        = useState(Number(post?.shares_count || 0));
   const [heartPos,          setHeartPos]           = useState<{ x: number; y: number } | null>(null);
   const [showComments,      setShowComments]       = useState(false);
+  const [inputFocused, setInputFocused] = useState(false);
   const [menuOpen,          setMenuOpen]           = useState(false);
   const [reportOpen,        setReportOpen]         = useState(false);
   const [reportAnchor,      setReportAnchor]       = useState<{ top: number; right: number } | null>(null);
@@ -1461,8 +1477,11 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, isWarmNext, curre
       <AnimatePresence>
         {showComments && (
           <>
-            <div className="fixed inset-0 z-[200] bg-black/40" onClick={() => setShowComments(false)} />
+            <div className="fixed inset-0 z-[200] bg-black/40"
+              onClick={(e) => { if (e.target === e.currentTarget && !inputFocused) setShowComments(false); }} />
             <CommentDrawer post={post} currentUserId={currentUserId}
+              inputFocused={inputFocused}
+              onInputFocusChange={setInputFocused}
               onClose={() => setShowComments(false)}
               onCommentAdded={(count: number) => setLiveCommentsCount(count)} />
           </>

@@ -46,7 +46,7 @@ useEffect(() => {
   return createPortal(
     <div
       className="fixed inset-0 z-[1100] bg-black/98 overflow-y-auto"
-      onClick={onClose}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
       role="dialog"
       aria-modal="true"
       aria-label="Reels viewer"
@@ -78,7 +78,7 @@ useEffect(() => {
           </video>
         </div>
 
-        <button onClick={onClose} className="absolute top-4 left-4 z-50 rounded-full bg-white/10 p-2 text-white transition hover:bg-white/20" aria-label="Close">
+        <button onClick={(e) => { e.stopPropagation(); onClose(); }} className="absolute top-4 left-4 z-50 rounded-full bg-white/10 p-2 text-white transition hover:bg-white/20" aria-label="Close">
           <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
             <line x1="18" y1="6" x2="6" y2="18" />
             <line x1="6" y1="6" x2="18" y2="18" />
