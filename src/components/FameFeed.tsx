@@ -2562,20 +2562,126 @@ const CommentThread = ({
   };
 
 // Handle long press on comment/reply - delegate to parent's LongPressActionMenu
-  const handleLongPress = (e: React.PointerEvent | React.TouchEvent, comment: any) => {
-    if (!navigator.vibrate) return;
-    navigator.vibrate(50);
-    onLongPressAction?.(comment, e as React.PointerEvent, (action) => {
-      // Handle the selected action
-      if (action === "hide") {
-        onHideComment(comment.id);
-      } else if (action === "unhide") {
-        onUnhideComment(comment.id);
-      } else if (action === "delete_everyone") {
-        onDeleteComment(comment.id);
-      }
-    });
-  };
+  const handleLongPress = useCallback(
+    (e: React.PointerEvent | React.TouchEvent, comment: any) => {
+      const target = e.currentTarget as HTMLElement;
+      let startX = 0;
+      let startY = 0;
+      let timer: ReturnType<typeof setTimeout> | null = null;
+      let cancelled = false;
+
+      const getClientPos = (ev: React.PointerEvent | React.TouchEvent) => {
+        if ("touches" in ev && ev.touches.length > 0) {
+          return { x: ev.touches[0].clientX, y: ev.touches[0].clientY };
+        }
+        // React.PointerEvent has clientX/clientY directly
+        return { x: (ev as React.PointerEvent).clientX, y: (ev as React.PointerEvent).clientY };
+      };
+
+      const cleanup = () => {
+        if (timer) {
+          clearTimeout(timer);
+          timer = null;
+        }
+        target.removeEventListener("pointermove", onPointerMove);
+        target.removeEventListener("pointerup", onPointerUp);
+        target.removeEventListener("pointercancel", onPointerCancel);
+        target.removeEventListener("touchmove", onTouchMove, { passive: true } as AddEventListenerOptions);
+        target.removeEventListener("touchend", onTouchEnd);
+        target.removeEventListener("touchcancel", onTouchCancel);
+        document.removeEventListener("pointermove", onPointerMove);
+        document.removeEventListener("pointerup", onPointerUp);
+        document.removeEventListener("pointercancel", onPointerCancel);
+      };
+
+      const triggerLongPress = () => {
+        if (cancelled) return;
+        cancelled = true;
+        navigator.vibrate?.(18);
+        cleanup();
+        onLongPressAction?.(comment, e as React.PointerEvent, (action) => {
+          if (action === "hide") {
+            onHideComment(comment.id);
+          } else if (action === "unhide") {
+            onUnhideComment(comment.id);
+          } else if (action === "delete_everyone") {
+            onDeleteComment(comment.id);
+          } else if (action === "edit") {
+            onStartCommentEdit({ id: comment.id, text: comment.content, postId: "", isReply: false });
+          } else if (action === "delete_me") {
+            // delete for me - handled by parent
+          }
+        });
+      };
+
+      const checkMovement = (clientX: number, clientY: number) => {
+        const dx = Math.abs(clientX - startX);
+        const dy = Math.abs(clientY - startY);
+        return dx > 10 || dy > 10;
+      };
+
+      const onPointerMove = (ev: PointerEvent) => {
+        if (cancelled) return;
+        if (checkMovement(ev.clientX, ev.clientY)) {
+          cancelled = true;
+          cleanup();
+        }
+      };
+
+      const onPointerUp = () => {
+        if (!cancelled && timer) {
+          clearTimeout(timer);
+          timer = null;
+        }
+        cleanup();
+      };
+
+      const onPointerCancel = () => {
+        cancelled = true;
+        cleanup();
+      };
+
+      const onTouchMove = (ev: TouchEvent) => {
+        if (cancelled) return;
+        const touch = ev.touches[0];
+        if (touch && checkMovement(touch.clientX, touch.clientY)) {
+          cancelled = true;
+          cleanup();
+        }
+      };
+
+      const onTouchEnd = () => {
+        if (!cancelled && timer) {
+          clearTimeout(timer);
+          timer = null;
+        }
+        cleanup();
+      };
+
+      const onTouchCancel = () => {
+        cancelled = true;
+        cleanup();
+      };
+
+      const pos = getClientPos(e);
+      startX = pos.x;
+      startY = pos.y;
+
+      target.addEventListener("pointermove", onPointerMove);
+      target.addEventListener("pointerup", onPointerUp);
+      target.addEventListener("pointercancel", onPointerCancel);
+      target.addEventListener("touchmove", onTouchMove, { passive: true });
+      target.addEventListener("touchend", onTouchEnd);
+      target.addEventListener("touchcancel", onTouchCancel);
+      // Also listen on document in case pointer leaves the element
+      document.addEventListener("pointermove", onPointerMove);
+      document.addEventListener("pointerup", onPointerUp);
+      document.addEventListener("pointercancel", onPointerCancel);
+
+      timer = setTimeout(triggerLongPress, 450);
+    },
+    [onLongPressAction, onHideComment, onUnhideComment, onDeleteComment, onStartCommentEdit]
+  );
 
   // Build a map of parent_id -> replies for efficient lookup
   const repliesMap = useMemo(() => {
@@ -6635,19 +6741,36 @@ const [longPressActionMenu, setLongPressActionMenu] = useState<{
     }
     setCommentReactions((r) => ({ ...r, [commentId]: updated }));
 
-    if (alreadyReacted) {
-      await supabase
-        .from("comment_reactions")
-        .delete()
-        .eq("comment_id", commentId)
-        .eq("user_id", currentUserId);
-    } else {
-      await supabase
-        .from("comment_reactions")
-        .upsert(
-          { comment_id: commentId, user_id: currentUserId, emoji },
-          { onConflict: "comment_id,user_id" },
-        );
+    try {
+      if (alreadyReacted) {
+        await supabase
+          .from("comment_reactions")
+          .delete()
+          .eq("comment_id", commentId)
+          .eq("user_id", currentUserId);
+      } else {
+        await supabase
+          .from("comment_reactions")
+          .upsert(
+            { comment_id: commentId, user_id: currentUserId, emoji },
+            { onConflict: "comment_id,user_id" },
+          );
+      }
+    } catch (error: any) {
+      // Rollback optimistic update on error
+      setCommentReactions((r) => ({ ...r, [commentId]: prev }));
+      setUserCommentReactions((r) => {
+        const next = { ...r };
+        delete next[commentId];
+        return next;
+      });
+      // Surface RLS/permission errors clearly
+      if (error?.code === "42501" || error?.status === 403 || error?.message?.includes("permission")) {
+        toast.error("You don't have permission to react to this comment.");
+      } else {
+        toast.error("Failed to update reaction. Please try again.");
+      }
+      console.warn("[FameFeed] comment reaction error:", error);
     }
   };
 
