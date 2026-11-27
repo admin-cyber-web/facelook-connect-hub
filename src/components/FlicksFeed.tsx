@@ -282,27 +282,31 @@ const Ticker = ({ text, isActive }: { text: string; isActive: boolean }) => {
   );
 };
 
-// ── Comment Drawer ────────────────────────────────────────────────────────────
-type CommentDrawerProps = {
+// ── Comment Box (fresh, simple) ─────────────────────────────────────────────
+type CommentBoxProps = {
   post: FlickPostRow;
   currentUserId: string | null;
   onClose: () => void;
   onCommentAdded?: (newCount?: number) => void;
+  onCommentDeleted?: () => void;
 };
 
-const CommentDrawer = ({ post, currentUserId, onClose, onCommentAdded }: CommentDrawerProps) => {
+const CommentBox = ({ post, currentUserId, onClose, onCommentAdded, onCommentDeleted }: CommentBoxProps) => {
   const onlineUserIds = useOnlineUsers();
   const [comments, setComments] = useState<Array<{
     id: string;
-    user_id?: string;
+    post_id?: string;
     content: string;
-    profiles?: { username?: string; full_name?: string; avatar_url?: string } | { username?: string; full_name?: string; avatar_url?: string }[] | null;
+    user_id?: string;
+    author?: string;
+    created_at?: string;
+    profiles?: { username?: string; full_name?: string; avatar_url?: string } | null;
   }>>([]);
   const [text, setText] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editText, setEditText] = useState("");
   const [sending, setSending] = useState(false);
   const sounds = useSoundEffects();
-  const inputRef = useRef<HTMLInputElement>(null);
-  const focusedOnceRef = useRef(false);
 
   useEffect(() => {
     if (!post?._raw_id) return;
@@ -317,18 +321,13 @@ const CommentDrawer = ({ post, currentUserId, onClose, onCommentAdded }: Comment
         if (cancelled) return;
         if (error) {
           console.warn("[Flicks] comment fetch failed:", error.message);
+          toast.error("Comments load nahi hue");
           return;
         }
         setComments(data || []);
       });
     return () => { cancelled = true; };
   }, [post?._raw_id]);
-
-  // Focus the comment box as soon as the drawer opens so typing works immediately.
-  useEffect(() => {
-    inputRef.current?.focus();
-    return () => { focusedOnceRef.current = false; };
-  }, []);
 
   const handleSend = async () => {
     if (!text.trim()) { toast.error("Kuch likhein phir bhejein"); return; }
@@ -345,18 +344,75 @@ const CommentDrawer = ({ post, currentUserId, onClose, onCommentAdded }: Comment
       if (data) {
         setComments(p => [...p, data]);
         setText("");
-        const { count, error: countError } = await supabase
-          .from("comments")
-          .select("id", { count: "exact", head: true })
-          .eq("post_id", post._raw_id);
         toast.success("Comment posted!");
-        onCommentAdded?.(countError ? comments.length + 1 : Number(count) || 0);
+        onCommentAdded?.();
       }
     } catch (err: unknown) {
-      const message = err instanceof Error
-        ? err.message
-        : (err as { message?: string })?.message || "Comment send nahi hua";
+      const message = err instanceof Error ? err.message : (err as { message?: string })?.message || "Comment send nahi hua";
       console.error("[Flicks] comment send failed:", err);
+      toast.error(message);
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const handleEdit = (id: string) => {
+    const comment = comments.find(c => c.id === id);
+    if (!comment) return;
+    setEditingId(id);
+    setEditText(comment.content);
+  };
+
+  const handleSaveEdit = async (id: string) => {
+    if (!editText.trim()) { toast.error("Kuch likhein"); return; }
+    if (!currentUserId) { toast.error("Please login"); return; }
+    const comment = comments.find(c => c.id === id);
+    if (!comment || comment.user_id !== currentUserId) {
+      toast.error("Sirf apna comment edit kar sakte hain");
+      setEditingId(null);
+      return;
+    }
+    setSending(true);
+    try {
+      const { data, error } = await supabase
+        .from("comments")
+        .update({ content: editText.trim() })
+        .eq("id", id)
+        .select("id, post_id, content, user_id, author, created_at, profiles:user_id(username, full_name, avatar_url)")
+        .single();
+      if (error) throw error;
+      if (data) {
+        setComments(p => p.map(c => c.id === id ? data : c));
+        setEditingId(null);
+        setEditText("");
+        toast.success("Comment updated!");
+      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : (err as { message?: string })?.message || "Edit nahi hua";
+      console.error("[Flicks] comment edit failed:", err);
+      toast.error(message);
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    const comment = comments.find(c => c.id === id);
+    if (!comment || comment.user_id !== currentUserId) {
+      toast.error("Sirf apna comment delete kar sakte hain");
+      return;
+    }
+    if (!window.confirm("Comment delete karna chahte hain?")) return;
+    setSending(true);
+    try {
+      const { error } = await supabase.from("comments").delete().eq("id", id);
+      if (error) throw error;
+      setComments(p => p.filter(c => c.id !== id));
+      toast.success("Comment deleted!");
+      onCommentDeleted?.();
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : (err as { message?: string })?.message || "Delete nahi hua";
+      console.error("[Flicks] comment delete failed:", err);
       toast.error(message);
     } finally {
       setSending(false);
@@ -374,49 +430,54 @@ const CommentDrawer = ({ post, currentUserId, onClose, onCommentAdded }: Comment
         <span className="text-white font-bold text-lg">{comments.length} Comments</span>
         <button onClick={(e) => { e.stopPropagation(); onClose(); }} className="p-2 bg-white/5 rounded-full text-white/50"><X size={20} /></button>
       </div>
-      <div className="flex-1 overflow-y-auto p-4 space-y-5">
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {comments.length === 0 && <p className="text-white/20 text-center py-10">Pehla comment aap karein!</p>}
-        {comments.map((c, i) => {
+        {comments.map((c) => {
           const profile = Array.isArray(c.profiles) ? c.profiles[0] : c.profiles;
-          const commentUsername = profile?.username || profile?.full_name || "User";
+          const commentUsername = profile?.username || profile?.full_name || c.author || "User";
+          const isOwner = Boolean(currentUserId && c.user_id === currentUserId);
+          const isEditing = editingId === c.id;
           return (
-          <div key={c.id || i} className="flex gap-3 items-start">
-            <ActiveStatusAvatar
-              src={profile?.avatar_url}
-              name={profile?.full_name || commentUsername}
-              size={36}
-              online={onlineUserIds.has(c.user_id || "")}
-            />
-            <div>
-              <span className="text-white/40 text-[10px] font-bold uppercase">{commentUsername}</span>
-              <p className="text-white/90 text-sm leading-relaxed">{c.content}</p>
+            <div key={c.id} className="flex gap-3 items-start">
+              <ActiveStatusAvatar src={profile?.avatar_url} name={commentUsername} size={32} online={onlineUserIds.has(c.user_id || "")} />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <span className="text-white/40 text-[10px] font-bold uppercase">{commentUsername}</span>
+                  {isOwner && (
+                    <>
+                      <button onClick={(e) => { e.stopPropagation(); handleEdit(c.id); }}
+                        className="text-xs text-cyan-400 hover:text-cyan-300 underline">Edit</button>
+                      <button onClick={(e) => { e.stopPropagation(); handleDelete(c.id); }}
+                        className="text-xs text-rose-400 hover:text-rose-300 underline">Delete</button>
+                    </>
+                  )}
+                </div>
+                {isEditing ? (
+                  <div className="flex gap-2">
+                    <input value={editText} onChange={e => setEditText(e.target.value)}
+                      className="flex-1 bg-white/10 rounded-lg px-3 py-2 text-white text-sm outline-none border border-white/5 focus:border-cyan-500" autoFocus />
+                    <button onClick={(e) => { e.stopPropagation(); e.preventDefault(); handleSaveEdit(c.id); }}
+                      className="px-3 py-2 rounded-lg bg-cyan-500 text-white text-sm font-bold disabled:opacity-60">Save</button>
+                    <button onClick={(e) => { e.stopPropagation(); e.preventDefault(); setEditingId(null); setEditText(""); }}
+                      className="px-3 py-2 rounded-lg bg-white/10 text-white/70 text-sm hover:bg-white/20">Cancel</button>
+                  </div>
+                ) : (
+                  <p className="text-white/90 text-sm leading-relaxed break-words">{c.content}</p>
+                )}
+              </div>
             </div>
-          </div>
           );
         })}
       </div>
       <div className="p-4 flex gap-2 bg-black/20 pb-safe">
-        <input
-          ref={inputRef}
-          autoFocus
-          type="text"
-          value={text}
-          onChange={e => setText(e.target.value)}
-          onFocus={() => {
-            if (!focusedOnceRef.current) {
-              focusedOnceRef.current = true;
-              toast("Comment box focused", { description: "Type your message and hit Enter or tap Send", duration: 3000 });
-            }
-          }}
+        <input value={text} onChange={e => setText(e.target.value)}
           onPointerDown={e => e.stopPropagation()}
           onMouseDown={e => e.stopPropagation()}
           onTouchStart={e => e.stopPropagation()}
           onClick={e => e.stopPropagation()}
           className="flex-1 bg-white/10 rounded-full px-5 py-3 text-white outline-none border border-white/5 focus:border-cyan-500/50"
-          placeholder="Add a comment..."
-          onKeyDown={e => e.key === "Enter" && handleSend()}
-        />
-        <button onClick={(e) => { e.stopPropagation(); if (text.trim()) toast("Sending…", { duration: 1200 }); handleSend(); }}
+          placeholder="Add a comment..." onKeyDown={e => e.key === "Enter" && handleSend()} />
+        <button onClick={(e) => { e.stopPropagation(); handleSend(); }}
           onPointerDown={e => e.stopPropagation()}
           onMouseDown={e => e.stopPropagation()}
           onTouchStart={e => e.stopPropagation()}
@@ -1505,9 +1566,10 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, isWarmNext, curre
               onClick={(e) => { 
                 if (e.target === e.currentTarget) setShowComments(false); 
               }} />
-            <CommentDrawer post={post} currentUserId={currentUserId}
+            <CommentBox post={post} currentUserId={currentUserId}
               onClose={() => setShowComments(false)}
-              onCommentAdded={(count: number) => setLiveCommentsCount(count)} />
+              onCommentAdded={() => setLiveCommentsCount(prev => prev + 1)}
+              onCommentDeleted={() => setLiveCommentsCount(prev => Math.max(prev - 1, 0))} />
           </>
         )}
       </AnimatePresence>
