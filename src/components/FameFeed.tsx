@@ -2804,22 +2804,21 @@ const CommentThread = ({
             isPostOwner={isPostOwner}
             depth={depth}
           />
-
-          {/* Comment row - swipeable */}
+{/* Comment row - swipeable */}
           <div
             data-comment-row-id={comment.id}
             className={`flex items-start gap-3 ${isEditing ? "bg-white/5" : ""} swipe-row cursor-grab active:cursor-grabbing user-select-none touch-none`}
             style={{
               backgroundColor: depth > 2 ? "rgba(255,255,255,0.02)" : "transparent",
-              transform: state.currentX ? `translateX(${state.currentX}px)` : undefined,
-              transition: state.isDragging ? "none" : state.isOpen ? "transform 0.2s cubic-bezier(0.4, 0, 0.2, 1)" :
-                "transform 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
+              transform: !isEditing && state.currentX ? `translateX(${state.currentX}px)` : undefined,
+              transition: !isEditing && (state.isDragging ? "none" : state.isOpen ? "transform 0.2s cubic-bezier(0.4, 0, 0.2, 1)" :
+                "transform 0.25s cubic-bezier(0.4, 0, 0.2, 1)"),
             }}
-            onPointerDown={(e) => handleSwipeDown(comment.id, e)}
-            onPointerMove={(e) => handleSwipeMove(comment.id, e)}
-            onPointerUp={(e) => handleSwipeUp(comment.id, e)}
-            onPointerCancel={(e) => handleSwipeUp(comment.id, e)}
-            onContextMenu={(e) => e.preventDefault()}
+            onPointerDown={!isEditing ? (e) => handleSwipeDown(comment.id, e) : undefined}
+            onPointerMove={!isEditing ? (e) => handleSwipeMove(comment.id, e) : undefined}
+            onPointerUp={!isEditing ? (e) => handleSwipeUp(comment.id, e) : undefined}
+            onPointerCancel={!isEditing ? (e) => handleSwipeUp(comment.id, e) : undefined}
+            onContextMenu={!isEditing ? (e) => e.preventDefault() : undefined}
           >
             <div
               className="w-7 h-7 shrink-0 rounded-full overflow-hidden bg-gradient-to-br from-pink-500 to-purple-600 flex items-center justify-center text-white font-semibold text-xs"
@@ -2870,12 +2869,13 @@ const CommentThread = ({
                     </svg>
                     <span className="font-semibold">Swipe</span>
                   </span>
-                ) : null}
+) : null}
               </div>
               {isEditing ? (
                 <div
-                  className="mt-1"
                   onPointerDown={(e) => e.stopPropagation()}
+                  onPointerMove={(e) => e.stopPropagation()}
+                  onPointerUp={(e) => e.stopPropagation()}
                 >
                   <textarea
                     value={editingFeedComment.text}
