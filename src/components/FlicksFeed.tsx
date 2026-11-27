@@ -301,6 +301,8 @@ const CommentDrawer = ({ post, currentUserId, onClose, onCommentAdded }: Comment
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const sounds = useSoundEffects();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const focusedOnceRef = useRef(false);
 
   useEffect(() => {
     if (!post?._raw_id) return;
@@ -322,15 +324,22 @@ const CommentDrawer = ({ post, currentUserId, onClose, onCommentAdded }: Comment
     return () => { cancelled = true; };
   }, [post?._raw_id]);
 
+  // Focus the comment box as soon as the drawer opens so typing works immediately.
+  useEffect(() => {
+    inputRef.current?.focus();
+    return () => { focusedOnceRef.current = false; };
+  }, []);
+
   const handleSend = async () => {
-    if (!text.trim() || !currentUserId) { toast.error("Please login to comment"); return; }
+    if (!text.trim()) { toast.error("Kuch likhein phir bhejein"); return; }
+    if (!currentUserId) { toast.error("Please login to comment"); return; }
     setSending(true);
     sounds?.playSwoosh?.();
     try {
       const { data, error } = await supabase
         .from("comments")
         .insert([{ post_id: post._raw_id, content: text.trim(), user_id: currentUserId, author: "User" }])
-          .select("id, post_id, content, user_id, author, created_at, profiles:user_id(username, full_name, avatar_url)")
+        .select("id, post_id, content, user_id, author, created_at, profiles:user_id(username, full_name, avatar_url)")
         .single();
       if (error) throw error;
       if (data) {
@@ -340,11 +349,18 @@ const CommentDrawer = ({ post, currentUserId, onClose, onCommentAdded }: Comment
           .from("comments")
           .select("id", { count: "exact", head: true })
           .eq("post_id", post._raw_id);
-        toast.success("Commented!");
+        toast.success("Comment posted!");
         onCommentAdded?.(countError ? comments.length + 1 : Number(count) || 0);
       }
-    } catch { toast.error("Comment send nahi hua"); }
-    finally { setSending(false); }
+    } catch (err: unknown) {
+      const message = err instanceof Error
+        ? err.message
+        : (err as { message?: string })?.message || "Comment send nahi hua";
+      console.error("[Flicks] comment send failed:", err);
+      toast.error(message);
+    } finally {
+      setSending(false);
+    }
   };
 
   return (
@@ -380,14 +396,27 @@ const CommentDrawer = ({ post, currentUserId, onClose, onCommentAdded }: Comment
         })}
       </div>
       <div className="p-4 flex gap-2 bg-black/20 pb-safe">
-        <input value={text} onChange={e => setText(e.target.value)}
+        <input
+          ref={inputRef}
+          autoFocus
+          type="text"
+          value={text}
+          onChange={e => setText(e.target.value)}
+          onFocus={() => {
+            if (!focusedOnceRef.current) {
+              focusedOnceRef.current = true;
+              toast("Comment box focused", { description: "Type your message and hit Enter or tap Send", duration: 3000 });
+            }
+          }}
           onPointerDown={e => e.stopPropagation()}
           onMouseDown={e => e.stopPropagation()}
           onTouchStart={e => e.stopPropagation()}
           onClick={e => e.stopPropagation()}
           className="flex-1 bg-white/10 rounded-full px-5 py-3 text-white outline-none border border-white/5 focus:border-cyan-500/50"
-          placeholder="Add a comment..." onKeyDown={e => e.key === "Enter" && handleSend()} />
-        <button onClick={(e) => { e.stopPropagation(); handleSend(); }}
+          placeholder="Add a comment..."
+          onKeyDown={e => e.key === "Enter" && handleSend()}
+        />
+        <button onClick={(e) => { e.stopPropagation(); if (text.trim()) toast("Sending…", { duration: 1200 }); handleSend(); }}
           onPointerDown={e => e.stopPropagation()}
           onMouseDown={e => e.stopPropagation()}
           onTouchStart={e => e.stopPropagation()}
