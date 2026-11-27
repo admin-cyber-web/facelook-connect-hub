@@ -13,7 +13,7 @@ import {
   Heart, MessageCircle, Share2, X, Send, ChevronLeft, ChevronRight, Search, RefreshCw,
   BadgeCheck, Loader2, Flag, Trash2, Ban, Pencil, MoreVertical, Reply, EyeOff,
 } from "lucide-react";
-import { MagnetButton } from "./MagnetSystem";
+
 import { toast } from "sonner";
 import SharePopup, {
   type ShareAnchor,
@@ -1762,7 +1762,8 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, isWarmNext, curre
       >
         {/* 1. Like */}
         <div className="flex flex-col items-center gap-0.5">
-          <MagnetButton
+          <button
+            type="button"
             onClick={() => void triggerLike()}
             className="w-10 h-10 rounded-full flex items-center justify-center active:scale-90 transition-transform"
             style={{ background: "rgba(18,17,22,0.55)", backdropFilter: "blur(10px)" }}
@@ -1773,7 +1774,7 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, isWarmNext, curre
               fill={likedByMe ? "#FF2D55" : "none"}
               className={likedByMe ? "text-[#FF2D55]" : "text-white"}
             />
-          </MagnetButton>
+          </button>
           <span className="text-[11px] font-bold text-white" style={{ textShadow: "0 1px 4px rgba(0,0,0,0.9)" }}>
             {formatCount(liveLikes)}
           </span>
@@ -1781,14 +1782,15 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, isWarmNext, curre
 
         {/* 2. Comment */}
         <div className="flex flex-col items-center gap-0.5">
-          <MagnetButton
+          <button
+            type="button"
             onClick={() => { sounds?.playPop?.(); setShowComments(true); }}
             className="w-10 h-10 rounded-full flex items-center justify-center active:scale-90 transition-transform"
             style={{ background: "rgba(18,17,22,0.55)", backdropFilter: "blur(10px)" }}
             aria-label="Comments"
           >
             <MessageCircle size={22} className="text-white" />
-          </MagnetButton>
+          </button>
           <span className="text-[11px] font-bold text-white" style={{ textShadow: "0 1px 4px rgba(0,0,0,0.9)" }}>
             {formatCount(liveCommentsCount)}
           </span>
@@ -1796,14 +1798,15 @@ const FlickCard = memo(({ post, isActive, isPreloaded, isNext, isWarmNext, curre
 
         {/* 3. Share */}
         <div className="flex flex-col items-center gap-0.5">
-          <MagnetButton
+          <button
+            type="button"
             onClick={handleShare}
             className="w-10 h-10 rounded-full flex items-center justify-center active:scale-90 transition-transform"
             style={{ background: "rgba(18,17,22,0.55)", backdropFilter: "blur(10px)" }}
             aria-label="Share"
           >
             <Share2 size={21} className="text-white" />
-          </MagnetButton>
+          </button>
           <span className="text-[11px] font-bold text-white" style={{ textShadow: "0 1px 4px rgba(0,0,0,0.9)" }}>
             {formatCount(liveShares)}
           </span>
