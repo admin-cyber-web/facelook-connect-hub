@@ -2415,10 +2415,23 @@ const SwipeActionDrawer = memo((
     depth,
   }: SwipeActionDrawerProps,
 ) => {
+  // Defensive close: if pointer goes down outside the drawer, close it.
+  // This is a no-op if the user clicked a button because button onClick
+  // calls e.stopPropagation() before this handler sees the event.
+  const handleBackgroundPointerDown = useCallback(
+    (e: React.PointerEvent) => {
+      // Only the action buttons stop propagation, so any pointer down
+      // that reaches here is an outside tap / click.
+      onClose();
+    },
+    [onClose],
+  );
+
   return (
     <div
-      className="absolute inset-y-0 right-0 flex items-center"
+      className="absolute inset-y-0 right-0 z-20 flex items-center"
       style={{ paddingRight: depth > 0 ? 0 : 0 }}
+      onPointerDown={handleBackgroundPointerDown}
     >
       {/* Action buttons revealed behind the swipe row */}
       <div
@@ -2432,51 +2445,72 @@ const SwipeActionDrawer = memo((
         {isAuthor && (
           <button
             type="button"
-            onClick={() => {
+            onClick={(e) => {
+              e.stopPropagation();
               onEdit();
               onClose();
             }}
-            className="flex h-10 w-12 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white text-sm font-bold shadow transition active:scale-90"
+            onPointerDown={(e) => e.stopPropagation()}
+            className="flex h-10 w-12 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white text-sm font-bold shadow transition active:scale-90 pointer-events-auto"
             aria-label="Edit comment"
           >
-            <Edit2 size={16} />
+            <Edit2 size={16} className="shrink-0" />
+            <span className="absolute bottom-11 left-1/2 -translate-x-1/2 text-[9px] font-black text-white/80 whitespace-nowrap">
+              Edit
+            </span>
           </button>
         )}
         {(isAuthor || isPostOwner) && (
           <button
             type="button"
-            onClick={() => {
+            onClick={(e) => {
+              e.stopPropagation();
               onToggleHide();
               onClose();
             }}
-            className={`flex h-10 w-12 shrink-0 items-center justify-center rounded-full text-sm font-bold shadow transition active:scale-90 ${isHidden ? "bg-amber-600 text-white" : "bg-amber-500/90 text-black"}`}
+            onPointerDown={(e) => e.stopPropagation()}
+            className={`flex h-10 w-12 shrink-0 items-center justify-center rounded-full text-sm font-bold shadow transition active:scale-90 pointer-events-auto ${isHidden ? "bg-amber-600 text-white" : "bg-amber-500/90 text-black"}`}
             aria-label={isHidden ? "Unhide comment" : "Hide comment"}
           >
-            {isHidden ? <Eye size={16} /> : <EyeOff size={16} />}
+            {isHidden ? <Eye size={16} className="shrink-0" /> : <EyeOff size={16} className="shrink-0" />}
+            <span className={`absolute bottom-11 left-1/2 -translate-x-1/2 text-[9px] font-black whitespace-nowrap ${isHidden ? "text-white/80" : "text-black/80"}`}
+            >
+              {isHidden ? "Unhide" : "Hide"}
+            </span>
           </button>
         )}
         <button
           type="button"
-          onClick={() => {
+          onClick={(e) => {
+            e.stopPropagation();
             onDeleteForMe();
             onClose();
           }}
-          className="flex h-10 w-12 shrink-0 items-center justify-center rounded-full bg-white/10 text-white text-sm font-bold shadow transition active:scale-90"
+          onPointerDown={(e) => e.stopPropagation()}
+          className="flex h-10 w-12 shrink-0 items-center justify-center rounded-full bg-white/10 text-white text-sm font-bold shadow transition active:scale-90 pointer-events-auto"
           aria-label="Delete for me"
         >
-          <Trash2 size={16} />
+          <Trash2 size={16} className="shrink-0" />
+          <span className="absolute bottom-11 left-1/2 -translate-x-1/2 text-[9px] font-black text-white/80 whitespace-nowrap">
+            Delete for me
+          </span>
         </button>
         {(isAuthor || isPostOwner) && (
           <button
             type="button"
-            onClick={() => {
+            onClick={(e) => {
+              e.stopPropagation();
               onDeleteForEveryone();
               onClose();
             }}
-            className="flex h-10 w-12 shrink-0 items-center justify-center rounded-full bg-red-600 text-white text-sm font-bold shadow transition active:scale-90"
+            onPointerDown={(e) => e.stopPropagation()}
+            className="flex h-10 w-12 shrink-0 items-center justify-center rounded-full bg-red-600 text-white text-sm font-bold shadow transition active:scale-90 pointer-events-auto"
             aria-label="Delete for everyone"
           >
-            <Trash2 size={16} />
+            <Trash2 size={16} className="shrink-0" />
+            <span className="absolute bottom-11 left-1/2 -translate-x-1/2 text-[9px] font-black text-white/80 whitespace-nowrap">
+              Delete for all
+            </span>
           </button>
         )}
       </div>
@@ -2863,6 +2897,19 @@ const CommentThread = ({
                     </button>
                   </div>
                 </div>
+              ) : isHidden ? (
+                // Hidden: show muted placeholder, no content, no reactions, no reply.
+                <div
+                  className="mt-1 flex items-center gap-2"
+                >
+                  <EyeOff size={13} className="shrink-0 text-amber-400/70" />
+                  <span
+                    className="text-sm text-white/40"
+                    style={{ fontStyle: "italic" }}
+                  >
+                    Comment hidden by {comment.hidden_by_name || comment.author || "someone"}
+                  </span>
+                </div>
               ) : (
                 <>
                   <p
@@ -2987,7 +3034,7 @@ type PostDetailViewProps = {
   onReact: (commentId: string, emoji: string) => void;
   onToggleReactionBar: (commentId: string) => void;
   onCloseReactionBar: (commentId: string) => void;
-onHideComment: (commentId: string) => void;
+  onHideComment: (commentId: string) => void;
   onUnhideComment: (commentId: string) => void;
   userCommentReactions: Record<string, string>;
 };
@@ -3019,7 +3066,6 @@ const PostDetailView = ({
   onCloseReactionBar,
   onHideComment,
   onUnhideComment,
-  onLongPressAction,
   userCommentReactions,
 }: PostDetailViewProps) => {
   const topLevel = (comments ?? []).filter((comment) => !comment.parent_id);
