@@ -2564,6 +2564,7 @@ const CommentThread = ({
   onReact: (commentId: string, emoji: string) => void;
   onStartCommentEdit: (comment: any) => void;
   onDeleteComment: (commentId: string) => void;
+  onDeleteForMe: (commentId: string) => void;
   onEditCommentTextChange: (text: string) => void;
   onSaveCommentEdit: () => void;
   onCancelCommentEdit: () => void;
@@ -2719,9 +2720,10 @@ const CommentThread = ({
       try {
         localStorage.setItem(storageKey, "true");
       } catch {}
-      toast.success("Comment hidden from your view.");
+      onDeleteForMe?.(comment.id);
+      toast.success("Comment deleted for you");
     },
-    [currentUserId],
+    [currentUserId, onDeleteForMe],
   );
 
   // Check if comment is deleted for me
@@ -2870,10 +2872,14 @@ const CommentThread = ({
                 ) : null}
               </div>
               {isEditing ? (
-                <div className="mt-1">
+                <div
+                  className="mt-1"
+                  onPointerDown={(e) => e.stopPropagation()}
+                >
                   <textarea
                     value={editingFeedComment.text}
                     onChange={(e) => onEditCommentTextChange(e.target.value)}
+                    onPointerDown={(e) => e.stopPropagation()}
                     rows={3}
                     autoFocus
                     aria-label="Edit your comment"
@@ -2883,6 +2889,7 @@ const CommentThread = ({
                     <button
                       type="button"
                       onClick={onCancelCommentEdit}
+                      onPointerDown={(e) => e.stopPropagation()}
                       className="rounded-lg px-3 py-1.5 text-xs font-bold text-white/60"
                     >
                       Cancel
@@ -2890,6 +2897,7 @@ const CommentThread = ({
                     <button
                       type="button"
                       onClick={onSaveCommentEdit}
+                      onPointerDown={(e) => e.stopPropagation()}
                       disabled={!editingFeedComment.text.trim()}
                       className="rounded-lg bg-pink-700 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-50"
                     >
@@ -3028,6 +3036,7 @@ type PostDetailViewProps = {
   onProfileClick: (userId: string) => void;
   onStartCommentEdit: (comment: FeedCommentActionTarget) => void;
   onDeleteComment: (commentId: string) => void;
+  onDeleteForMe: (commentId: string) => void;
   onEditCommentTextChange: (text: string) => void;
   onSaveCommentEdit: () => void;
   onCancelCommentEdit: () => void;
@@ -3175,6 +3184,7 @@ const PostDetailView = ({
               onReact={onReact}
               onStartCommentEdit={onStartCommentEdit}
               onDeleteComment={onDeleteComment}
+              onDeleteForMe={onDeleteForMe}
               onEditCommentTextChange={onEditCommentTextChange}
               onSaveCommentEdit={onSaveCommentEdit}
               onCancelCommentEdit={onCancelCommentEdit}
@@ -8622,6 +8632,12 @@ const [editingFeedComment, setEditingFeedComment] = useState<{
                             onReact={handleCommentReact}
                             onStartCommentEdit={(comment) => setEditingFeedComment({ id: comment.id, postId: post.id, text: comment.content })}
                             onDeleteComment={() => {}} // Not used in inline view
+                            onDeleteForMe={(commentId) =>
+                              setCommentsMap((prev) => ({
+                                ...prev,
+                                [post.id]: (prev[post.id] || []).filter((c) => c.id !== commentId),
+                              }))
+                            }
                             onEditCommentTextChange={(text) => setEditingFeedComment({ ...editingFeedComment!, text })}
                             onSaveCommentEdit={saveFeedCommentEdit}
                             onCancelCommentEdit={() => setEditingFeedComment(null)}
@@ -9681,6 +9697,12 @@ const [editingFeedComment, setEditingFeedComment] = useState<{
               }
               onDeleteComment={(commentId) =>
                 handleFeedCommentDelete(commentId, detailPost.id)
+              }
+              onDeleteForMe={(commentId) =>
+                setCommentsMap((prev) => ({
+                  ...prev,
+                  [detailPost.id]: (prev[detailPost.id] || []).filter((c) => c.id !== commentId),
+                }))
               }
               onEditCommentTextChange={(text) =>
                 setEditingFeedComment((current) =>
