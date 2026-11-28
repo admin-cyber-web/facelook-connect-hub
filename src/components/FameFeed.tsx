@@ -8566,7 +8566,7 @@ const [editingFeedComment, setEditingFeedComment] = useState<{
                             onCloseReactionBar={(commentId) => setCommentReactionBarId(null)}
                             onReact={handleCommentReact}
                             onStartCommentEdit={(comment) => setEditingFeedComment({ id: comment.id, postId: post.id, text: comment.content })}
-                            onDeleteComment={() => {}} // Not used in inline view
+                            onDeleteComment={(commentId) => handleFeedCommentDelete(commentId, post.id)}
                             onDeleteForMe={(commentId) =>
                               setCommentsMap((prev) => ({
                                 ...prev,
