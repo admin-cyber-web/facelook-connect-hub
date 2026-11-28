@@ -84,6 +84,7 @@ import {
   MessageCircle,
   Share2,
   MoreVertical,
+  ChevronRight,
   Loader2,
   Trash2,
   EyeOff,
@@ -2565,6 +2566,8 @@ const CommentThread = ({
   onUnhideComment,
   userCommentReactions,
   onLongPressAction,
+  commentMenuId,
+  setCommentMenuId,
 }: {
   comments: any[];
   commentReactions: Record<string, Record<string, string[]>>;
@@ -2589,6 +2592,8 @@ const CommentThread = ({
   onUnhideComment: (commentId: string) => void;
   userCommentReactions: Record<string, string>;
   onLongPressAction?: (comment: any, event: React.PointerEvent, onSelect: (action: string) => void) => void;
+  commentMenuId: string | null;
+  setCommentMenuId: (id: string | null) => void;
 }) => {
   const [animatingEmoji, setAnimatingEmoji] = useState<string | null>(null);
   const swipeStates = useRef<Map<string, SwipeRowState>>(new Map());
@@ -2970,6 +2975,95 @@ const CommentThread = ({
                       <Reply size={14} />
                       <span>Reply</span>
                     </button>
+                    {/* ChevronRight menu button */}
+                    {isAuthor || isPostOwner ? (
+                      <div className="ml-auto relative">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setCommentMenuId(comment.id);
+                          }}
+                          aria-label="Comment actions"
+                          aria-expanded={commentMenuId === comment.id}
+                          className="p-1.5 rounded-lg text-white/50 hover:text-white hover:bg-white/10 transition"
+                        >
+                          <ChevronRight size={16} className="rotate-90" />
+                        </button>
+                        {commentMenuId === comment.id && (
+                          <div
+                            className="absolute right-0 top-full mt-1 z-20 rounded-xl bg-black/95 backdrop-blur border border-white/10 shadow-xl min-w-[140px] py-1 animate-fade-in"
+                            role="menu"
+                          >
+                            {isAuthor && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  closeSwipeRow(comment.id);
+                                  onStartCommentEdit(comment);
+                                  setCommentMenuId(null);
+                                }}
+                                className="w-full px-3 py-2 text-left text-sm text-white hover:bg-white/10 flex items-center gap-2"
+                                role="menuitem"
+                              >
+                                <Edit2 size={14} className="text-white/60" />
+                                <span>Edit</span>
+                              </button>
+                            )}
+                            {isAuthor && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteForMeComment(comment);
+                                  setCommentMenuId(null);
+                                }}
+                                className="w-full px-3 py-2 text-left text-sm text-red-400 hover:bg-white/10 flex items-center gap-2"
+                                role="menuitem"
+                              >
+                                <Trash2 size={14} />
+                                <span>Delete for me</span>
+                              </button>
+                            )}
+                            {isPostOwner && !isAuthor && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (isHidden) {
+                                    onUnhideComment(comment.id);
+                                  } else {
+                                    onHideComment(comment.id);
+                                  }
+                                  setCommentMenuId(null);
+                                }}
+                                className="w-full px-3 py-2 text-left text-sm text-amber-400 hover:bg-white/10 flex items-center gap-2"
+                                role="menuitem"
+                              >
+                                {isHidden ? <Eye size={14} /> : <EyeOff size={14} />}
+                                <span>{isHidden ? "Unhide" : "Hide"}</span>
+                              </button>
+                            )}
+                            {isPostOwner && isAuthor && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onDeleteComment(comment.id);
+                                  setCommentMenuId(null);
+                                }}
+                                className="w-full px-3 py-2 text-left text-sm text-red-400 hover:bg-white/10 flex items-center gap-2"
+                                role="menuitem"
+                              >
+                                <Trash2 size={14} />
+                                <span>Delete for everyone</span>
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    ) : null}
                   </div>
                   {/* Reaction bar */}
 {totalReactions > 0 && (
@@ -2992,27 +3086,6 @@ const CommentThread = ({
                       ))}
                     </div>
                   )}
-                  <div className="mt-2 flex items-center gap-4">
-                    {/* Reactions */}
-                    <button
-                      type="button"
-                      onClick={() => onToggleReactionBar(comment.id)}
-                      aria-label="Reactions"
-                      aria-expanded={reactionBarOpen}
-                      className="flex items-center gap-1 text-sm text-white/60 hover:text-white transition"
-                    >
-                      <SmilePlus size={14} className="text-pink-400" />
-                      <span>{totalReactions}</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onReply(comment)}
-                      className="flex items-center gap-1 text-sm text-white/60 hover:text-sky-300 transition"
-                    >
-                      <Reply size={14} />
-                      <span>Reply</span>
-                    </button>
-                  </div>
                   {reactionBarOpen && (
                     <div
                       data-reaction-surface="fame-comment"
@@ -3102,6 +3175,8 @@ type PostDetailViewProps = {
   onHideComment: (commentId: string) => void;
   onUnhideComment: (commentId: string) => void;
   userCommentReactions: Record<string, string>;
+  commentMenuId: string | null;
+  setCommentMenuId: React.Dispatch<React.SetStateAction<string | null>>;
 };
 const PostDetailView = ({
   post,
@@ -3133,6 +3208,8 @@ const PostDetailView = ({
   onHideComment,
   onUnhideComment,
   userCommentReactions,
+  commentMenuId,
+  setCommentMenuId,
 }: PostDetailViewProps) => {
   const topLevel = (comments ?? []).filter((comment) => !comment.parent_id);
   const isPostOwner =
@@ -3250,6 +3327,8 @@ const PostDetailView = ({
               onHideComment={onHideComment}
               onUnhideComment={onUnhideComment}
               userCommentReactions={userCommentReactions}
+              commentMenuId={commentMenuId}
+              setCommentMenuId={setCommentMenuId}
             />
           )}
         </section>
@@ -4819,6 +4898,7 @@ const [editingFeedComment, setEditingFeedComment] = useState<{
   const [commentReactionBarId, setCommentReactionBarId] = useState<
     string | null
   >(null);
+  const [commentMenuId, setCommentMenuId] = useState<string | null>(null);
   useDismissableReactionPicker(
     reactionBarPostId !== null,
     () => setReactionBarPostId(null),
@@ -4828,6 +4908,11 @@ const [editingFeedComment, setEditingFeedComment] = useState<{
     commentReactionBarId !== null,
     () => setCommentReactionBarId(null),
     "fame-comment",
+  );
+  useDismissableReactionPicker(
+    commentMenuId !== null,
+    () => setCommentMenuId(null),
+    "fame-comment-menu",
   );
   const [commentReactions, setCommentReactions] = useState<
     Record<string, Record<string, string[]>>
@@ -8721,6 +8806,8 @@ const [editingFeedComment, setEditingFeedComment] = useState<{
                             onHideComment={(commentId) => handleFeedCommentHide(commentId, post.id)}
                             onUnhideComment={(commentId) => handleFeedCommentUnhide(commentId, post.id)}
                             userCommentReactions={userCommentReactions}
+                            commentMenuId={commentMenuId}
+                            setCommentMenuId={setCommentMenuId}
                           />
                         )}
                       </div>
@@ -9796,6 +9883,8 @@ const [editingFeedComment, setEditingFeedComment] = useState<{
               onHideComment={(commentId) => handleFeedCommentHide(commentId, detailPost.id)}
               onUnhideComment={(commentId) => handleFeedCommentUnhide(commentId, detailPost.id)}
               userCommentReactions={userCommentReactions}
+              commentMenuId={commentMenuId}
+              setCommentMenuId={setCommentMenuId}
             />
           );
         })()}
