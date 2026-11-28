@@ -2397,149 +2397,7 @@ const ReelCommentsTicker = ({ items, onOpen }: {
   </button>
 );
 
-// Swipe-to-Reveal Action Drawer for comments/replies
-// Reveals action buttons when user drags the comment/reply row horizontally.
-type SwipeActionDrawerProps = {
-  commentId: string;
-  isOpen: boolean;
-  onClose: () => void;
-  onEdit: () => void;
-  onToggleHide: () => void;
-  onDeleteForMe: () => void;
-  onDeleteForEveryone: () => void;
-  isHidden: boolean;
-  isAuthor: boolean;
-  isPostOwner: boolean;
-  depth: number;
-};
-
 const SWIPE_THRESHOLD = 56;
-
-const SwipeActionDrawer = memo((
-  {
-    commentId,
-    isOpen,
-    onClose,
-    onEdit,
-    onToggleHide,
-    onDeleteForMe,
-    onDeleteForEveryone,
-    isHidden,
-    isAuthor,
-    isPostOwner,
-    depth,
-  }: SwipeActionDrawerProps,
-) => {
-  // Defensive close: if pointer goes down outside the drawer, close it.
-  // This is a no-op if the user clicked a button because button onClick
-  // calls e.stopPropagation() before this handler sees the event.
-  const handleBackgroundPointerDown = useCallback(
-    (e: React.PointerEvent) => {
-      // Only the action buttons stop propagation, so any pointer down
-      // that reaches here is an outside tap / click.
-      onClose();
-    },
-    [onClose],
-  );
-
-  return (
-    <div
-      className="absolute inset-y-0 right-0 z-20 flex items-center"
-      style={{ paddingRight: depth > 0 ? 0 : 0 }}
-      onPointerDown={handleBackgroundPointerDown}
-    >
-      {/* Action buttons revealed behind the swipe row */}
-      <div
-        data-swipe-actions
-        className={`flex items-center gap-1 transition-all duration-200 ease-out ${
-          isOpen
-            ? "opacity-100 translate-x-0"
-            : "opacity-0 translate-x-4 pointer-events-none"
-        }`}
-      >
-        {isAuthor && (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onEdit();
-              onClose();
-            }}
-            onPointerDown={(e) => e.stopPropagation()}
-            className="flex h-10 w-12 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white text-sm font-bold shadow transition active:scale-90 pointer-events-auto"
-            aria-label="Edit comment"
-          >
-            <Edit2 size={16} className="shrink-0" />
-            <span className="absolute bottom-11 left-1/2 -translate-x-1/2 text-[9px] font-black text-white/80 whitespace-nowrap">
-              Edit
-            </span>
-          </button>
-        )}
-        {(isAuthor || isPostOwner) && (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onToggleHide();
-              onClose();
-            }}
-            onPointerDown={(e) => e.stopPropagation()}
-            className={`flex h-10 w-12 shrink-0 items-center justify-center rounded-full text-sm font-bold shadow transition active:scale-90 pointer-events-auto ${isHidden ? "bg-amber-600 text-white" : "bg-amber-500/90 text-black"}`}
-            aria-label={isHidden ? "Unhide comment" : "Hide comment"}
-          >
-            {isHidden ? <Eye size={16} className="shrink-0" /> : <EyeOff size={16} className="shrink-0" />}
-            <span className={`absolute bottom-11 left-1/2 -translate-x-1/2 text-[9px] font-black whitespace-nowrap ${isHidden ? "text-white/80" : "text-black/80"}`}
-            >
-              {isHidden ? "Unhide" : "Hide"}
-            </span>
-          </button>
-        )}
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onDeleteForMe();
-            onClose();
-          }}
-          onPointerDown={(e) => e.stopPropagation()}
-          className="flex h-10 w-12 shrink-0 items-center justify-center rounded-full bg-white/10 text-white text-sm font-bold shadow transition active:scale-90 pointer-events-auto"
-          aria-label="Delete for me"
-        >
-          <Trash2 size={16} className="shrink-0" />
-          <span className="absolute bottom-11 left-1/2 -translate-x-1/2 text-[9px] font-black text-white/80 whitespace-nowrap">
-            Delete for me
-          </span>
-        </button>
-        {(isAuthor || isPostOwner) && (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onDeleteForEveryone();
-              onClose();
-            }}
-            onPointerDown={(e) => e.stopPropagation()}
-            className="flex h-10 w-12 shrink-0 items-center justify-center rounded-full bg-red-600 text-white text-sm font-bold shadow transition active:scale-90 pointer-events-auto"
-            aria-label="Delete for everyone"
-          >
-            <Trash2 size={16} className="shrink-0" />
-            <span className="absolute bottom-11 left-1/2 -translate-x-1/2 text-[9px] font-black text-white/80 whitespace-nowrap">
-              Delete for all
-            </span>
-          </button>
-        )}
-      </div>
-    </div>
-  );
-});
-
-// Swipe state per comment/reply row
-interface SwipeRowState {
-  isDragging: boolean;
-  startX: number;
-  currentX: number;
-  isOpen: boolean;
-}
 
 // Recursive CommentThread component for unlimited nested replies
 const CommentThread = ({
@@ -2568,6 +2426,11 @@ const CommentThread = ({
   onLongPressAction,
   commentMenuId,
   setCommentMenuId,
+  swipeOffsets,
+  setSwipeOffsets,
+  handleCommentTouchStart,
+  handleCommentTouchMove,
+  handleCommentTouchEnd,
 }: {
   comments: any[];
   commentReactions: Record<string, Record<string, string[]>>;
@@ -2594,143 +2457,19 @@ const CommentThread = ({
   onLongPressAction?: (comment: any, event: React.PointerEvent, onSelect: (action: string) => void) => void;
   commentMenuId: string | null;
   setCommentMenuId: (id: string | null) => void;
+  swipeOffsets: Record<string, number>;
+  setSwipeOffsets: React.Dispatch<React.SetStateAction<Record<string, number>>>;
+  handleCommentTouchStart: (commentId: string, e: React.TouchEvent<HTMLDivElement>) => void;
+  handleCommentTouchMove: (commentId: string, e: React.TouchEvent<HTMLDivElement>) => void;
+  handleCommentTouchEnd: (commentId: string, e: React.TouchEvent<HTMLDivElement>) => void;
 }) => {
   const [animatingEmoji, setAnimatingEmoji] = useState<string | null>(null);
-  const swipeStates = useRef<Map<string, SwipeRowState>>(new Map());
-  const activeSwipeId = useRef<string | null>(null);
 
   // Trigger emoji pulse animation
   const triggerEmojiPulse = (emoji: string) => {
     setAnimatingEmoji(emoji);
     setTimeout(() => setAnimatingEmoji(null), 5000);
   };
-
-  // Swipe gesture handling for comment/reply rows
-  const handleSwipeDown = useCallback(
-    (commentId: string, event: React.PointerEvent) => {
-      if (event.button !== 0) return; // only left click / touch
-      const rowRef = event.currentTarget as HTMLElement;
-      const state = swipeStates.current.get(commentId) || {
-        isDragging: false,
-        startX: 0,
-        currentX: 0,
-        isOpen: false,
-      };
-
-      // If another row is open, close it first
-      if (activeSwipeId.current && activeSwipeId.current !== commentId) {
-        const prevState = swipeStates.current.get(activeSwipeId.current);
-        if (prevState) {
-          prevState.isOpen = false;
-          prevState.isDragging = false;
-        }
-        activeSwipeId.current = null;
-      }
-
-      state.isDragging = true;
-      state.startX = event.clientX;
-      state.currentX = 0;
-      state.isOpen = false;
-      swipeStates.current.set(commentId, state);
-      activeSwipeId.current = commentId;
-      rowRef.setPointerCapture(event.pointerId);
-    },
-    [],
-  );
-
-  const handleSwipeMove = useCallback(
-    (commentId: string, event: React.PointerEvent) => {
-      const state = swipeStates.current.get(commentId);
-      if (!state || !state.isDragging) return;
-
-      const dx = event.clientX - state.startX;
-      const dy = Math.abs(event.clientY - state.startX); // Use startX for vertical calc
-      // Actually compute vertical delta properly
-      const verticalDelta = Math.abs(event.movementY || 0);
-      const horizontalDelta = Math.abs(event.movementX || 0);
-
-      // Lock to horizontal when horizontal movement dominates
-      if (horizontalDelta > verticalDelta + 8) {
-        event.preventDefault();
-        state.currentX = Math.max(-120, Math.min(0, state.currentX + event.movementX || 0));
-        const rowRef = document.querySelector(`[data-comment-row-id="${commentId}"]`) as HTMLElement | null;
-        if (rowRef) {
-          rowRef.style.transform = `translateX(${state.currentX}px)`;
-          rowRef.style.transition = "none";
-        }
-      }
-    },
-    [],
-  );
-
-  const handleSwipeUp = useCallback(
-    (commentId: string, event: React.PointerEvent) => {
-      const state = swipeStates.current.get(commentId);
-      if (!state) return;
-
-      state.isDragging = false;
-      const rowRef = document.querySelector(`[data-comment-row-id="${commentId}"]`) as HTMLElement | null;
-      if (rowRef) {
-        if (Math.abs(state.currentX) >= SWIPE_THRESHOLD) {
-          // Snap open
-          state.isOpen = true;
-          rowRef.style.transition = "transform 0.2s cubic-bezier(0.4, 0, 0.2, 1)";
-          rowRef.style.transform = `translateX(-${SWIPE_THRESHOLD + 8}px)`;
-        } else {
-          // Snap back
-          rowRef.style.transition = "transform 0.25s cubic-bezier(0.4, 0, 0.2, 1)";
-          rowRef.style.transform = "translateX(0)";
-          setTimeout(() => {
-            if (rowRef) rowRef.style.transition = "";
-          }, 250);
-        }
-      }
-      // Release pointer capture
-      try {
-        rowRef?.releasePointerCapture?.(event.pointerId);
-      } catch {}
-    },
-    [],
-  );
-
-  // Close all swipe rows
-  const closeAllSwipeRows = useCallback(() => {
-    activeSwipeId.current = null;
-    swipeStates.current.forEach((state, id) => {
-      state.isOpen = false;
-      state.isDragging = false;
-      const rowRef = document.querySelector(`[data-comment-row-id="${id}"]`) as HTMLElement | null;
-              if (rowRef) {
-                rowRef.style.transition = "transform 0.2s ease-out";
-                rowRef.style.transform = "translateX(0)";
-                setTimeout(() => {
-                  if (rowRef) rowRef.style.transition = "";
-                }, 200);
-              }
-    });
-  }, []);
-
-  // Close swipe row for a specific comment
-  const closeSwipeRow = useCallback(
-    (commentId: string) => {
-      const state = swipeStates.current.get(commentId);
-      if (!state) return;
-      state.isOpen = false;
-      state.isDragging = false;
-      if (activeSwipeId.current === commentId) {
-        activeSwipeId.current = null;
-      }
-      const rowRef = document.querySelector(`[data-comment-row-id="${commentId}"]`) as HTMLElement | null;
-              if (rowRef) {
-                rowRef.style.transition = "transform 0.2s ease-out";
-                rowRef.style.transform = "translateX(0)";
-                setTimeout(() => {
-                  if (rowRef) rowRef.style.transition = "";
-                }, 200);
-              }
-    },
-    [],
-  );
 
   // Delete for me - hides comment locally and persists in localStorage
   const handleDeleteForMeComment = useCallback(
@@ -2772,6 +2511,8 @@ const CommentThread = ({
   }, [comments]);
 
   // Recursive function to render a comment and its replies
+  const SWIPE_OPEN_OFFSET = SWIPE_THRESHOLD + 8; // 64px
+
   const renderComment = (comment: any, depth: number = 0) => {
     const replies = repliesMap[comment.id] || [];
     const isEditing = editingFeedComment?.id === comment.id;
@@ -2779,12 +2520,8 @@ const CommentThread = ({
     const reactions = commentReactions[comment.id] || {};
     const reactionBarOpen = commentReactionBarId === comment.id;
     const totalReactions = Object.values(reactions).flat().length;
-    const state = swipeStates.current.get(comment.id) || {
-      isDragging: false,
-      startX: 0,
-      currentX: 0,
-      isOpen: false,
-    };
+    const swipeOffset = swipeOffsets[comment.id] || 0;
+    const isSwipeOpen = swipeOffset < -SWIPE_THRESHOLD;
     const isAuthor = comment.user_id === currentUserId;
     const isPostOwner = postAuthorId === currentUserId;
     const isHidden = comment.is_hidden === true;
@@ -2793,50 +2530,20 @@ const CommentThread = ({
       <div key={comment.id} className={`flex flex-col ${depth > 0 ? "ml-4 border-l border-white/10 pl-3" : ""}`}>
         {/* Comment row wrapper with swipe build */}
         <div className="relative">
-          {/* Action drawer (buttons revealed behind the row when swiped) */}
-          <SwipeActionDrawer
-            commentId={comment.id}
-            isOpen={state.isOpen}
-            onClose={() => closeSwipeRow(comment.id)}
-            onEdit={() => {
-              closeSwipeRow(comment.id);
-              onStartCommentEdit(comment);
-            }}
-            onToggleHide={() => {
-              closeSwipeRow(comment.id);
-              if (isHidden) {
-                onUnhideComment(comment.id);
-              } else {
-                onHideComment(comment.id);
-              }
-            }}
-            onDeleteForMe={() => {
-              closeSwipeRow(comment.id);
-              handleDeleteForMeComment(comment);
-            }}
-            onDeleteForEveryone={() => {
-              closeSwipeRow(comment.id);
-              onDeleteComment(comment.id);
-            }}
-            isHidden={isHidden}
-            isAuthor={isAuthor}
-            isPostOwner={isPostOwner}
-            depth={depth}
-          />
 {/* Comment row - swipeable */}
           <div
             data-comment-row-id={comment.id}
             className={`flex items-start gap-3 ${isEditing ? "bg-white/5" : ""} swipe-row cursor-grab active:cursor-grabbing user-select-none touch-none`}
             style={{
               backgroundColor: depth > 2 ? "rgba(255,255,255,0.02)" : "transparent",
-              transform: !isEditing && state.currentX ? `translateX(${state.currentX}px)` : undefined,
-              transition: !isEditing && (state.isDragging ? "none" : state.isOpen ? "transform 0.2s cubic-bezier(0.4, 0, 0.2, 1)" :
-                "transform 0.25s cubic-bezier(0.4, 0, 0.2, 1)"),
+              transform: !isEditing && swipeOffset !== 0 ? `translateX(${swipeOffset}px)` : undefined,
+              transition: !isEditing && isSwipeOpen ? "transform 0.2s cubic-bezier(0.4, 0, 0.2, 1)" :
+                !isEditing ? "transform 0.25s cubic-bezier(0.4, 0, 0.2, 1)" : undefined,
             }}
-            onPointerDown={!isEditing ? (e) => handleSwipeDown(comment.id, e) : undefined}
-            onPointerMove={!isEditing ? (e) => handleSwipeMove(comment.id, e) : undefined}
-            onPointerUp={!isEditing ? (e) => handleSwipeUp(comment.id, e) : undefined}
-            onPointerCancel={!isEditing ? (e) => handleSwipeUp(comment.id, e) : undefined}
+            onTouchStart={!isEditing ? (e) => handleCommentTouchStart(comment.id, e) : undefined}
+            onTouchMove={!isEditing ? (e) => handleCommentTouchMove(comment.id, e) : undefined}
+            onTouchEnd={!isEditing ? (e) => handleCommentTouchEnd(comment.id, e) : undefined}
+            onTouchCancel={!isEditing ? (e) => handleCommentTouchEnd(comment.id, e) : undefined}
             onContextMenu={!isEditing ? (e) => e.preventDefault() : undefined}
           >
             <div
@@ -3000,7 +2707,7 @@ const CommentThread = ({
                                 type="button"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  closeSwipeRow(comment.id);
+                                  setSwipeOffsets(prev => ({ ...prev, [comment.id]: 0 }));
                                   onStartCommentEdit(comment);
                                   setCommentMenuId(null);
                                 }}
@@ -3177,6 +2884,11 @@ type PostDetailViewProps = {
   userCommentReactions: Record<string, string>;
   commentMenuId: string | null;
   setCommentMenuId: React.Dispatch<React.SetStateAction<string | null>>;
+  swipeOffsets: Record<string, number>;
+  setSwipeOffsets: React.Dispatch<React.SetStateAction<Record<string, number>>>;
+  handleCommentTouchStart: (commentId: string, e: React.TouchEvent<HTMLDivElement>) => void;
+  handleCommentTouchMove: (commentId: string, e: React.TouchEvent<HTMLDivElement>) => void;
+  handleCommentTouchEnd: (commentId: string, e: React.TouchEvent<HTMLDivElement>) => void;
 };
 const PostDetailView = ({
   post,
@@ -3210,6 +2922,11 @@ const PostDetailView = ({
   userCommentReactions,
   commentMenuId,
   setCommentMenuId,
+  swipeOffsets,
+  setSwipeOffsets,
+  handleCommentTouchStart,
+  handleCommentTouchMove,
+  handleCommentTouchEnd,
 }: PostDetailViewProps) => {
   const topLevel = (comments ?? []).filter((comment) => !comment.parent_id);
   const isPostOwner =
@@ -3326,9 +3043,14 @@ const PostDetailView = ({
               postAuthorId={post.author_id}
               onHideComment={onHideComment}
               onUnhideComment={onUnhideComment}
-              userCommentReactions={userCommentReactions}
+userCommentReactions={userCommentReactions}
               commentMenuId={commentMenuId}
               setCommentMenuId={setCommentMenuId}
+              swipeOffsets={swipeOffsets}
+              setSwipeOffsets={setSwipeOffsets}
+              handleCommentTouchStart={handleCommentTouchStart}
+              handleCommentTouchMove={handleCommentTouchMove}
+              handleCommentTouchEnd={handleCommentTouchEnd}
             />
           )}
         </section>
@@ -4899,6 +4621,13 @@ const [editingFeedComment, setEditingFeedComment] = useState<{
     string | null
   >(null);
   const [commentMenuId, setCommentMenuId] = useState<string | null>(null);
+  const [swipeOffsets, setSwipeOffsets] = useState<Record<string, number>>({});
+  const swipeStartRef = useRef<{ id: string; x: number; y: number; locked: "h" | "v" | null }>({
+    id: "",
+    x: 0,
+    y: 0,
+    locked: null,
+  });
   useDismissableReactionPicker(
     reactionBarPostId !== null,
     () => setReactionBarPostId(null),
@@ -4914,6 +4643,52 @@ const [editingFeedComment, setEditingFeedComment] = useState<{
     () => setCommentMenuId(null),
     "fame-comment-menu",
   );
+
+  // FlicksFeed-style touch swipe handlers for comments
+  const handleCommentTouchStart = useCallback((commentId: string, e: React.TouchEvent<HTMLDivElement>) => {
+    e.stopPropagation();
+    if (e.touches.length !== 1) return;
+    swipeStartRef.current = {
+      id: commentId,
+      x: e.touches[0].clientX,
+      y: e.touches[0].clientY,
+      locked: null,
+    };
+  }, []);
+
+  const handleCommentTouchMove = useCallback((commentId: string, e: React.TouchEvent<HTMLDivElement>) => {
+    e.stopPropagation();
+    if (e.touches.length !== 1 || swipeStartRef.current.id !== commentId) return;
+    const dx = e.touches[0].clientX - swipeStartRef.current.x;
+    const dy = e.touches[0].clientY - swipeStartRef.current.y;
+
+    if (!swipeStartRef.current.locked) {
+      if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+      swipeStartRef.current.locked = Math.abs(dx) >= Math.abs(dy) ? "h" : "v";
+    }
+
+    if (swipeStartRef.current.locked === "h") {
+      const clamped = Math.max(-96, Math.min(96, dx));
+      setSwipeOffsets((prev) => ({ ...prev, [commentId]: clamped }));
+      if (Math.abs(clamped) >= 36) {
+        setCommentMenuId(commentId);
+      }
+    }
+  }, []);
+
+  const handleCommentTouchEnd = useCallback((commentId: string, e: React.TouchEvent<HTMLDivElement>) => {
+    e.stopPropagation();
+    if (swipeStartRef.current.id !== commentId) return;
+    const currentOffset = swipeOffsets[commentId] ?? 0;
+    if (Math.abs(currentOffset) >= 36) {
+      setCommentMenuId(commentId);
+      setSwipeOffsets((prev) => ({ ...prev, [commentId]: currentOffset < 0 ? -56 : 56 }));
+    } else {
+      setSwipeOffsets((prev) => ({ ...prev, [commentId]: 0 }));
+    }
+    swipeStartRef.current = { id: "", x: 0, y: 0, locked: null };
+  }, [swipeOffsets]);
+
   const [commentReactions, setCommentReactions] = useState<
     Record<string, Record<string, string[]>>
   >({});
@@ -8808,6 +8583,11 @@ const [editingFeedComment, setEditingFeedComment] = useState<{
                             userCommentReactions={userCommentReactions}
                             commentMenuId={commentMenuId}
                             setCommentMenuId={setCommentMenuId}
+                            swipeOffsets={swipeOffsets}
+                            setSwipeOffsets={setSwipeOffsets}
+                            handleCommentTouchStart={handleCommentTouchStart}
+                            handleCommentTouchMove={handleCommentTouchMove}
+                            handleCommentTouchEnd={handleCommentTouchEnd}
                           />
                         )}
                       </div>
@@ -9885,6 +9665,11 @@ const [editingFeedComment, setEditingFeedComment] = useState<{
               userCommentReactions={userCommentReactions}
               commentMenuId={commentMenuId}
               setCommentMenuId={setCommentMenuId}
+              swipeOffsets={swipeOffsets}
+              setSwipeOffsets={setSwipeOffsets}
+              handleCommentTouchStart={handleCommentTouchStart}
+              handleCommentTouchMove={handleCommentTouchMove}
+              handleCommentTouchEnd={handleCommentTouchEnd}
             />
           );
         })()}
